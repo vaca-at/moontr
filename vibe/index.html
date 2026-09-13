@@ -207,6 +207,7 @@ body[data-design="b"] .note-box{border-radius:0;border-left:3px solid var(--acce
 .mini .d{display:block;font-size:.81rem;color:var(--ink2);line-height:1.6}
 .mini-grid.six .mini .t{font-size:.86rem}
 .mini-grid.six .mini .d{font-size:.78rem;line-height:1.55}
+.mini .d a{color:var(--accent);font-weight:800;text-decoration:underline;text-underline-offset:2px}
 
 /* 사례 아코디언 */
 .cases{border:1px solid var(--line);border-radius:var(--rCard);overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
@@ -303,6 +304,18 @@ body[data-design="b"] .note-box{border-radius:0;border-left:3px solid var(--acce
 .mini-note{font-size:.78rem;color:var(--ink3);display:flex;gap:6px;align-items:flex-start}
 
 .dash-stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:9px}
+
+.img-admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.img-admin-c{display:flex;flex-direction:column}
+.img-admin-meta{font-size:.68rem;font-weight:800;color:var(--ink3);margin-bottom:2px}
+.img-admin-cap{font-size:.82rem;color:var(--ink2);margin-bottom:7px;line-height:1.5}
+.img-admin-slot{aspect-ratio:16/10;border:1.8px dashed var(--line2);border-radius:var(--rCard);background:var(--panel2);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;transition:.15s}
+.img-admin-slot:hover{border-color:var(--accent)}
+.img-admin-slot:focus-visible{border-color:var(--accent);border-style:solid}
+.img-admin-slot img{width:100%;height:100%;object-fit:cover;display:block}
+.img-admin-ph{font-size:.78rem;color:var(--ink3);text-align:center;line-height:1.6;padding:0 10px}
+.img-admin-busy{font-size:.8rem;color:var(--ink3);font-weight:700}
 .dash-c{background:var(--panel2);border-radius:var(--rSm);padding:13px 15px}
 .dash-c .n{display:block;font-size:1.35rem;font-weight:800;color:var(--accent);line-height:1.2}
 .dash-c .l{display:block;font-size:.73rem;color:var(--ink3);font-weight:800;margin-top:2px}
@@ -400,6 +413,14 @@ async function trackAsk(ph,st,text){ if(!cloudReady) return;
 async function loadAll(){ if(!cloudReady) return {rows:[],asks:[]};
   const [p,a]=await Promise.all([db.collection('progress').get(),db.collection('asks').get()]);
   return { rows:p.docs.map(d=>({id:d.id,...d.data()})), asks:a.docs.map(d=>({id:d.id,...d.data()})) }; }
+
+async function loadImages(){ if(!cloudReady) return {};
+  const snap=await db.collection('images').get();
+  const map={}; snap.docs.forEach(d=>{ map[d.id]=d.data().data; }); return map; }
+async function saveImage(id,dataUrl){ if(!cloudReady) throw new Error('cloud-not-ready');
+  await db.collection('images').doc(id).set({data:dataUrl,updatedAt:new Date().toISOString()}); }
+async function deleteImageDoc(id){ if(!cloudReady) return;
+  await db.collection('images').doc(id).delete(); }
 
 const I={
   spark:(p={})=><svg width={p.s||16} height={p.s||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/></svg>,
@@ -538,17 +559,26 @@ const DATA = {
 
     { id:'t0', name:'전체 흐름 보기', tag:'2단계에서 꼭 알아야 할 핵심 단계',
       title:'이 순서만 외우시면 됩니다',
-      subtitle:'여섯 걸음입니다. 한 번 익혀두면 어떤 웹앱을 만들어도 이 순서가 그대로입니다.',
+      subtitle:'빠짐없이 지켜야 할 6단계입니다. 한 번 익혀두면 어떤 웹앱을 만들어도 이 순서가 그대로입니다.',
       ask:'구글 앱스스크립트로 웹앱을 만드는 전체 순서를 처음부터 끝까지 알려줘.',
       blocks:[
-        { kind:'mini', cols:6, heading:'여섯 걸음!',
+        { kind:'mini', cols:6, heading:'빠짐없이 지켜야 할 6단계',
           items:[
-            { m:'1️⃣', t:'새 문서를 만든다', d:'빈 스프레드시트 하나. 문서 이름만 바꾸고 나머지는 손대지 않는다' },
+            { m:'1️⃣', t:'새 문서를 만든다', d:'빈 <a href="https://sheets.google.com" target="_blank" rel="noopener">구글 스프레드시트</a> 하나. 문서 이름만 바꾸고 나머지는 손대지 않는다' },
             { m:'2️⃣', t:'앱스스크립트를 연다', d:'확장 프로그램 메뉴 안에 있다. 여기가 코드를 넣는 곳이다' },
             { m:'3️⃣', t:'파일 두 개를 만든다', d:'Code.gs와 index.html. 이름 하나만 틀려도 안 돌아간다' },
             { m:'4️⃣', t:'AI에게 코드를 받는다', d:'두 파일을 따로 받아 각각 붙여넣는다. 반드시 저장한다' },
             { m:'5️⃣', t:'저장하고 새 배포한다', d:'여기서 주소가 처음 나온다. 권한은 한 번만 승인하면 된다' },
             { m:'6️⃣', t:'고치면 배포 관리로', d:'새 배포를 또 누르면 주소가 바뀐다. 반드시 배포 관리에서 한다' }
+          ] },
+        { kind:'img', heading:'단계별 화면으로 보기',
+          items:[
+            { id:'t0-i1', cap:'① 새 문서를 만든다', u:'' },
+            { id:'t0-i2', cap:'② 앱스스크립트를 연다', u:'' },
+            { id:'t0-i3', cap:'③ 파일 두 개를 만든다', u:'' },
+            { id:'t0-i4', cap:'④ AI에게 코드를 받는다', u:'' },
+            { id:'t0-i5', cap:'⑤ 저장하고 새 배포한다', u:'' },
+            { id:'t0-i6', cap:'⑥ 고치면 배포 관리로', u:'' }
           ] },
         { kind:'note', icon:'🧭',
           text:'코드를 이해하실 필요는 없습니다. 어디에 무엇을 붙여넣고 어디를 누르는지만 아시면 됩니다.' },
@@ -677,8 +707,8 @@ const DATA = {
           text:'액세스 권한을 모든 사용자로 바꾸지 않으면 학생들이 주소를 열어도 화면이 안 나옵니다. 가장 흔한 실수입니다.' },
         { kind:'img', heading:'이런 화면이 나옵니다',
           items:[
-            { cap:'오른쪽 위 <b>배포 → 새 배포</b>를 누른 모습', u:'' },
-            { cap:'톱니바퀴에서 <b>웹 앱</b>을 고르고 액세스 권한을 <b>모든 사용자</b>로 바꾼 모습', u:'' }
+            { id:'t4-i1', cap:'오른쪽 위 <b>배포 → 새 배포</b>를 누른 모습', u:'' },
+            { id:'t4-i2', cap:'톱니바퀴에서 <b>웹 앱</b>을 고르고 액세스 권한을 <b>모든 사용자</b>로 바꾼 모습', u:'' }
           ] },
         { kind:'text', heading:'권한 묻는 화면 넘어가기!',
           text:'배포를 누르면 <b>액세스 승인</b> 버튼이 나옵니다. 누르면 구글 계정을 고르는 창이 뜨고, 계정을 고르면 이런 화면이 나옵니다.\n<b>"Google에서 확인하지 않은 앱입니다"</b>\n빨간 경고처럼 보여서 놀라시는데 문제가 아닙니다. 선생님이 방금 직접 만든 코드라서 구글이 아직 검토하지 않았다는 뜻일 뿐입니다.' },
@@ -691,8 +721,8 @@ const DATA = {
           ] },
         { kind:'img', heading:'권한 승인 화면은 이렇게 생겼습니다',
           items:[
-            { cap:'<b>Google에서 확인하지 않은 앱입니다</b> 화면. 왼쪽 아래 회색 글씨 <b>고급</b>을 누릅니다', u:'' },
-            { cap:'펼쳐진 아래쪽 <b>(프로젝트 이름)(으)로 이동(안전하지 않음)</b>을 누릅니다', u:'' }
+            { id:'t4-i3', cap:'<b>Google에서 확인하지 않은 앱입니다</b> 화면. 왼쪽 아래 회색 글씨 <b>고급</b>을 누릅니다', u:'' },
+            { id:'t4-i4', cap:'펼쳐진 아래쪽 <b>(프로젝트 이름)(으)로 이동(안전하지 않음)</b>을 누릅니다', u:'' }
           ] },
         { kind:'note', icon:'🙂',
           text:'이 권한 승인은 처음 한 번만 합니다. 다음부터는 이 화면이 안 나옵니다.' },
@@ -723,8 +753,8 @@ const DATA = {
           ] },
         { kind:'img', heading:'여기를 누르시면 됩니다',
           items:[
-            { cap:'<b>배포</b>를 누르면 나오는 목록. 새 배포가 아니라 <b>배포 관리</b>를 고릅니다', u:'' },
-            { cap:'배포 관리 창에서 오른쪽 위 <b>연필 모양</b>을 누르고 버전을 <b>새 버전</b>으로 바꾼 모습', u:'' }
+            { id:'t5-i1', cap:'<b>배포</b>를 누르면 나오는 목록. 새 배포가 아니라 <b>배포 관리</b>를 고릅니다', u:'' },
+            { id:'t5-i2', cap:'배포 관리 창에서 오른쪽 위 <b>연필 모양</b>을 누르고 버전을 <b>새 버전</b>으로 바꾼 모습', u:'' }
           ] },
         { kind:'note', icon:'⚠️',
           text:'새 배포와 배포 관리를 헷갈리시면 주소가 계속 바뀝니다. 처음 한 번만 새 배포이고 그다음부터는 무조건 배포 관리입니다.' },
@@ -1045,6 +1075,8 @@ const lines=(s)=>String(s||'').split('\n').filter(x=>x.trim()!=='');
 const HTML=(s)=><span dangerouslySetInnerHTML={{__html:String(s||'')}} />;
 const FLAT=DATA.phases.flatMap(p=>p.steps.map(s=>({...s,phaseName:p.name})));
 const TOTAL=FLAT.length;
+const IMG_SLOTS=DATA.phases.flatMap(p=>p.steps.flatMap(s=>s.blocks.filter(b=>b.kind==='img').flatMap(b=>
+  b.items.filter(it=>it.id).map(it=>({id:it.id,cap:it.cap,phase:p.name,step:s.name})))));
 const dur=(sec)=>{ sec=Math.round(sec||0); if(sec<60) return sec+'초';
   const m=Math.floor(sec/60), s=sec%60; return s? `${m}분 ${s}초` : `${m}분`; };
 
@@ -1061,7 +1093,7 @@ function useCopy(text){
 }
 
 /* ===================== 블록 ===================== */
-function Block({ b, onRef }){
+function Block({ b, onRef, imgMap }){
   const cls=`blk ${b.tight?'tight':''}`;
   if(b.kind==='def') return <div className={cls}><div className="def">
     <span className="def-l">{b.label||'사전적 의미'}</span><p className="def-t">{b.text}</p></div></div>;
@@ -1075,7 +1107,7 @@ function Block({ b, onRef }){
     {b.heading&&<h3 className="blk-h">{b.heading}</h3>}
     {b.text&&<p className="blk-p" style={{marginBottom:13}}>{b.text}</p>}
     <div className={`mini-grid ${b.cols===6?'six':''}`}>{b.items.map((it,i)=><div className="mini" key={i}>
-      <span className="m">{it.m}</span><span className="t">{it.t}</span><span className="d">{it.d}</span></div>)}</div>
+      <span className="m">{it.m}</span><span className="t">{it.t}</span><span className="d">{HTML(it.d)}</span></div>)}</div>
     {b.foot&&<p className="blk-p" style={{marginTop:13}}>{b.foot}</p>}</div>;
   if(b.kind==='cases') return <div className={cls}>
     {b.heading&&<h3 className="blk-h">{b.heading}</h3>}
@@ -1096,11 +1128,13 @@ function Block({ b, onRef }){
   }
   if(b.kind==='img') return <div className={cls}>
     {b.heading&&<h3 className="blk-h">{b.heading}</h3>}
-    <div className="shots">{b.items.map((it,i)=><div className="shot-c" key={i}>
-      {it.u ? <img src={it.u} alt={it.cap} loading="lazy" />
+    <div className="shots">{b.items.map((it,i)=>{
+      const src=(it.id&&imgMap&&imgMap[it.id])||it.u;
+      return <div className="shot-c" key={i}>
+      {src ? <img src={src} alt={it.cap} loading="lazy" />
             : <div className="shot-ph"><span className="m">🖼</span><span className="t">캡처 화면 자리</span></div>}
       <div className="shot-cap"><span className="shot-n">{i+1}</span>{HTML(it.cap)}</div>
-    </div>)}</div></div>;
+    </div>;})}</div></div>;
   if(b.kind==='ulist') return <div className={cls}>
     {b.heading&&<h3 className="blk-h">{b.heading}</h3>}
     {b.text&&<p className="blk-p" style={{marginBottom:12}}>{b.text}</p>}
@@ -1297,6 +1331,73 @@ function DashModal({ onClose }){
       </div></div></div>;
 }
 
+function ImageAdminModal({ imgMap, setImgMap, onClose }){
+  const [busy,setBusy]=useState(null);
+  const [err,setErr]=useState('');
+
+  function handlePaste(e,id){
+    e.preventDefault();
+    const items=e.clipboardData&&e.clipboardData.items;
+    let file=null;
+    if(items){ for(const it of items){ if(it.type&&it.type.startsWith('image/')){ file=it.getAsFile(); break; } } }
+    if(!file){ setErr('붙여넣은 내용에서 이미지를 찾지 못했습니다. 스크린샷을 캡처한 뒤 이 칸을 클릭하고 Ctrl+V로 다시 시도해주세요.'); return; }
+    setErr(''); setBusy(id);
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      const maxW=1000;
+      const scale=Math.min(1,maxW/img.width);
+      const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const dataUrl=canvas.toDataURL('image/jpeg',0.8);
+      URL.revokeObjectURL(url);
+      saveImage(id,dataUrl).then(()=>{ setImgMap(m=>({...m,[id]:dataUrl})); setBusy(null); })
+        .catch(()=>{ setErr('저장에 실패했습니다. 파이어스토어 연결을 확인해주세요.'); setBusy(null); });
+    };
+    img.onerror=()=>{ setErr('이미지를 읽는 데 실패했습니다.'); setBusy(null); };
+    img.src=url;
+  }
+
+  function handleDelete(id){
+    setBusy(id);
+    deleteImageDoc(id).then(()=>{
+      setImgMap(m=>{ const n={...m}; delete n[id]; return n; });
+      setBusy(null);
+    }).catch(()=>setBusy(null));
+  }
+
+  return <div className="back" onClick={onClose}>
+    <div className="sheet wide" onClick={e=>e.stopPropagation()}>
+      <div className="sheet-h">
+        <div><h3 className="sheet-t">이미지 관리</h3>
+          <p className="sheet-s">자리를 클릭한 뒤 Ctrl+V로 캡처한 스크린샷을 붙여넣으세요. 파이어스토어에 저장되어 코드를 다시 올려도 사라지지 않습니다.</p></div>
+        <button className="x" onClick={onClose}>{I.x()}</button></div>
+      <div className="sheet-b">
+        {!cloudReady&&<p className="err">파이어스토어가 연결되어 있지 않아 저장할 수 없습니다.</p>}
+        {err&&<p className="err">{err}</p>}
+        {IMG_SLOTS.length===0
+          ? <p style={{color:'var(--ink3)',fontSize:'.88rem'}}>등록된 이미지 자리가 없습니다.</p>
+          : <div className="img-admin-grid">
+            {IMG_SLOTS.map(slot=>(
+              <div className="img-admin-c" key={slot.id}>
+                <div className="img-admin-meta">{slot.phase} · {slot.step}</div>
+                <div className="img-admin-cap">{HTML(slot.cap)}</div>
+                <div className="img-admin-slot" tabIndex="0" onPaste={e=>handlePaste(e,slot.id)}>
+                  {busy===slot.id
+                    ? <span className="img-admin-busy">저장 중…</span>
+                    : imgMap[slot.id]
+                      ? <img src={imgMap[slot.id]} alt={slot.cap} />
+                      : <span className="img-admin-ph">여기를 클릭하고<br/>Ctrl+V로 붙여넣기</span>}
+                </div>
+                {imgMap[slot.id]&&<button className="btn ghost" style={{marginTop:6,fontSize:'.72rem',padding:'5px 11px'}} onClick={()=>handleDelete(slot.id)}>삭제</button>}
+              </div>
+            ))}
+          </div>}
+      </div></div></div>;
+}
+
 /* ===================== 메인 ===================== */
 function App(){
   const [design,setDesign]=useState(()=>store.get(KEY.D)||'a');
@@ -1308,7 +1409,10 @@ function App(){
   const [refOpen,setRefOpen]=useState(null);
   const [askOpen,setAskOpen]=useState(null);
   const [pwOpen,setPwOpen]=useState(false);
+  const [pwIntent,setPwIntent]=useState('dash');
   const [dashOpen,setDashOpen]=useState(false);
+  const [imgAdminOpen,setImgAdminOpen]=useState(false);
+  const [imgMap,setImgMap]=useState({});
   const secRefs=useRef({});
   const saveT=useRef(null);
   const activeRef=useRef('s1');
@@ -1317,6 +1421,7 @@ function App(){
   useEffect(()=>{document.body.dataset.design=design;store.set(KEY.D,design)},[design]);
   useEffect(()=>{document.body.dataset.font=font;store.set(KEY.F,font)},[font]);
   useEffect(()=>{trackVisit().catch(()=>{})},[]);
+  useEffect(()=>{loadImages().then(setImgMap).catch(()=>{})},[]);
   useEffect(()=>{
     try{ if(new URLSearchParams(window.location.search).has('admin')) setPwOpen(true); }catch{}
   },[]);
@@ -1381,7 +1486,8 @@ function App(){
             {FONTS.map(f=><button key={f.k} className={`tool-btn ${font===f.k?'on':''}`} data-f={f.k} onClick={()=>setFont(f.k)}>{f.n}</button>)}</div>
           <div className="tool-row">
             <span className={`cloud-dot ${cloudReady?'on':''}`}><i></i>{cloudReady?'기록 중':'기록 안 됨'}</span>
-            <button className="tool-btn" onClick={()=>setPwOpen(true)}>{I.lock({s:12})} 관리자</button>
+            <button className="tool-btn" onClick={()=>{setPwIntent('dash');setPwOpen(true)}}>{I.lock({s:12})} 관리자</button>
+            <button className="tool-btn" onClick={()=>{setPwIntent('images');setPwOpen(true)}}>{I.lock({s:12})} 이미지 관리</button>
           </div>
         </div>
       </div>
@@ -1444,7 +1550,7 @@ function App(){
             <div className="sec-top"><span className="sec-num">{i+1}</span><span className="sec-tag">{s.tag}</span></div>
             <h2 className="sec-h">{s.title}</h2>
             <p className="sec-sub">{s.subtitle}</p>
-            {s.blocks.map((b,bi)=><Block key={bi} b={b} onRef={setRefOpen} />)}
+            {s.blocks.map((b,bi)=><Block key={bi} b={b} onRef={setRefOpen} imgMap={imgMap} />)}
             <div className="sec-foot">
               <button className="btn ask" onClick={()=>setAskOpen({...s,phaseName:phase.name})}>
                 {I.spark({s:14})}<span>AI에게 물어보기</span></button>
@@ -1458,8 +1564,9 @@ function App(){
 
     {refOpen&&<RefModal r={refOpen} onClose={()=>setRefOpen(null)} />}
     {askOpen&&<AskModal info={askOpen} onSent={()=>{askCount.current++}} onClose={()=>setAskOpen(null)} />}
-    {pwOpen&&<PwModal onOk={()=>{setPwOpen(false);setDashOpen(true)}} onClose={()=>setPwOpen(false)} />}
+    {pwOpen&&<PwModal onOk={()=>{setPwOpen(false); if(pwIntent==='images') setImgAdminOpen(true); else setDashOpen(true);}} onClose={()=>setPwOpen(false)} />}
     {dashOpen&&<DashModal onClose={()=>setDashOpen(false)} />}
+    {imgAdminOpen&&<ImageAdminModal imgMap={imgMap} setImgMap={setImgMap} onClose={()=>setImgAdminOpen(false)} />}
   </>;
 }
 
