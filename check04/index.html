@@ -13,7 +13,11 @@
 }
   :root{
     --bg:#0f1210; --panel:#171c19; --panel2:#1d231f; --line:#2a322c;
-    --present:#2ecf95; --present-bg:#16332a; --muted:#8fbf9f; --ink:#eef4f0;
+    --present:#2ecf95; --present-bg:#16332a;
+    --late:#e8b33c;   --late-bg:#33290f;
+    --leave:#6aa9e0;  --leave-bg:#16283a;
+    --absent:#d9634a; --absent-bg:#361a14;
+    --muted:#8fbf9f; --ink:#eef4f0;
   }
   *{box-sizing:border-box;}
   body{
@@ -40,13 +44,26 @@
     background:var(--present);color:#08221a;font-size:19px;font-weight:400;cursor:pointer;
     font-family:inherit;
   }
-  button:disabled{opacity:.5;}
+  button:disabled{opacity:.5;cursor:default;}
   .form.hide{display:none;}
   .err{color:#ff9a8f;font-size:15px;margin:-8px 0 12px;display:none;}
+
+  .clock{
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;margin-bottom:16px;font-size:16px;color:var(--muted);
+  }
+  .clock b{color:var(--ink);font-weight:400;font-size:19px;}
+  .clock.warn b{color:var(--late);}
+  .clock.closed b{color:var(--absent);}
 
   .done{display:none;text-align:center;padding:2px 0 4px;}
   .done.show{display:block;}
   .done p{color:var(--muted);font-size:17px;margin:0;}
+  .closed-msg{display:none;text-align:center;padding:10px 0;}
+  .closed-msg.show{display:block;}
+  .closed-msg p{color:var(--absent);font-size:18px;margin:0 0 6px;}
+  .closed-msg span{color:var(--muted);font-size:16px;}
 
   .qr-img-box{
     width:100%;flex:1;min-height:220px;border-radius:12px;border:1.5px dashed var(--line);
@@ -58,27 +75,22 @@
   .summary{font-size:17px;color:var(--muted);margin-bottom:16px;}
   .summary b{color:var(--ink);font-size:24px;font-weight:400;}
 
-  .seatgrid{
-    display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(78px, 1fr));
-    gap:10px;
-  }
+  .seatgrid{display:grid;grid-template-columns:repeat(auto-fill, minmax(78px, 1fr));gap:10px;}
   .seat{
     display:flex;flex-direction:column;align-items:center;gap:6px;
     padding:10px 4px 8px;border-radius:10px;border:1px solid var(--line);
     background:var(--panel2);transition:background .3s ease, border-color .3s ease;
   }
-  .seat.present{background:var(--present-bg);border-color:var(--present);}
+  .bulb{width:16px;height:16px;border-radius:50%;background:#2a322c;transition:background .35s ease, box-shadow .35s ease;}
+  .seat.on-present{background:var(--present-bg);border-color:var(--present);}
+  .seat.on-present .bulb{background:var(--present);box-shadow:0 0 10px 3px rgba(46,207,149,.5);}
+  .seat.on-late{background:var(--late-bg);border-color:var(--late);}
+  .seat.on-late .bulb{background:var(--late);box-shadow:0 0 10px 3px rgba(232,179,60,.45);}
+  .seat.on-leave{background:var(--leave-bg);border-color:var(--leave);}
+  .seat.on-leave .bulb{background:var(--leave);box-shadow:0 0 10px 3px rgba(106,169,224,.45);}
+  .seat.on-absent{background:var(--absent-bg);border-color:var(--absent);}
+  .seat.on-absent .bulb{background:var(--absent);}
   .seat.mine{border-width:2px;border-color:var(--ink);}
-  .bulb{
-    width:16px;height:16px;border-radius:50%;
-    background:#2a322c;
-    transition:background .35s ease, box-shadow .35s ease;
-  }
-  .seat.present .bulb{
-    background:var(--present);
-    box-shadow:0 0 10px 3px rgba(46,207,149,0.5);
-  }
   .seat.just-on .bulb{ animation: flicker .7s ease; }
   @keyframes flicker {
     0%{transform:scale(.5);opacity:.3;}
@@ -86,6 +98,9 @@
     100%{transform:scale(1);}
   }
   .seat .id{font-size:15px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:15px;color:var(--muted);}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .legend i{width:11px;height:11px;border-radius:50%;display:inline-block;}
   @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important;} }
 </style>
 </head>
@@ -95,6 +110,8 @@
     <div class="card">
       <div class="cls" id="clsName">…</div>
       <h1 id="question">불러오는 중…</h1>
+
+      <div class="clock" id="clock"><b id="clockMain">—</b><span id="clockSub"></span></div>
 
       <div class="form" id="form">
         <label for="studentId">학번</label>
@@ -111,6 +128,11 @@
       <div class="done" id="done">
         <p id="doneMsg">내 자리에 불이 켜졌어요. 아래에서 확인해보세요.</p>
       </div>
+
+      <div class="closed-msg" id="closedMsg">
+        <p>제출 시간이 지났어요</p>
+        <span>선생님께 말씀드리면 직접 처리해주십니다.</span>
+      </div>
     </div>
 
     <div class="card">
@@ -122,20 +144,24 @@
     </div>
   </div>
 
-  <div class="card board-panel" id="boardPanel">
+  <div class="card">
     <div class="summary">우리 반 현황 · 출석 <b id="presentCount">0</b> / <span id="totalCount">0</span>명</div>
     <div class="seatgrid" id="grid"></div>
+    <div class="legend">
+      <span><i style="background:#2ecf95"></i>출석</span>
+      <span><i style="background:#e8b33c"></i>지각</span>
+      <span><i style="background:#6aa9e0"></i>조퇴</span>
+      <span><i style="background:#d9634a"></i>결석</span>
+      <span><i style="background:#2a322c"></i>미제출</span>
+    </div>
   </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-  getFirestore, doc, setDoc, onSnapshot, collection, query, where
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, query, where }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ===== 1. 파이어베이스 연결 =====
-   프로젝트를 새로 만들면 이 여섯 줄만 갈아끼우면 됩니다. */
 const firebaseConfig = {
   apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
   authDomain: "moon-d528d.firebaseapp.com",
@@ -144,153 +170,182 @@ const firebaseConfig = {
   messagingSenderId: "126636401536",
   appId: "1:126636401536:web:25b8a8296ec42b86f99765"
 };
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = getFirestore(initializeApp(firebaseConfig));
 
-/* ===== 2. 기본값 (예전 Code.gs 맨 위와 같은 자리) ===== */
+/* ===== 시간표 =====
+   0=일 1=월 2=화 3=수 4=목 5=금 6=토
+   수업이 늘거나 바뀌면 이 부분만 고치면 됩니다. */
+const TIMETABLE = {
+  1: { period: '4교시', start: '11:20', end: '12:10' },
+  3: { period: '3교시', start: '10:20', end: '11:10' },
+  4: { period: '6교시', start: '14:10', end: '15:00' }
+};
+const LATE_AFTER_MIN  = 5;   // 시작 후 이만큼 지나면 지각
+const CLOSE_AFTER_MIN = 20;  // 시작 후 이만큼 지나면 제출 마감
+
 const DEFAULT_CLASS = '미도약';
 const DEFAULT_ROSTER = ["30201","30204","30207","30209","30210","30211","30213","30214","30215","30216","30218","30219","30220","30225","30226","30405","30409","30411","30415","30416","30417","30420","30425","30501","30506","30507","30508","30509","30512","30514","30516","30518","30520","30521","30522","30523","30525"];
 const DEFAULT_QUESTION = '오늘 이 시간, 어떤 마음으로 왔나요? 한 줄로 적어주세요.';
-const LIGHT_ON_MINUTES = 60;   // 이 시간이 지나면 불이 저절로 꺼짐
+const DAYS = ['일','월','화','수','목','금','토'];
 
-/* ===== 3. 반 이름 · 오늘 날짜 ===== */
 const params = new URLSearchParams(location.search);
 const CLASS_NAME = params.get('class') || DEFAULT_CLASS;
 const TODAY = todayStr();
-const DAY_KEY = CLASS_NAME + '__' + TODAY;   // 하루치를 한 번에 불러오기 위한 열쇠
+const DAY_KEY = CLASS_NAME + '__' + TODAY;
 
 function todayStr(){
-  const d = new Date();
-  const p = n => String(n).padStart(2,'0');
-  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
 }
+function atTime(hhmm){
+  const [h,m] = hhmm.split(':').map(Number);
+  const d = new Date(); d.setHours(h,m,0,0); return d;
+}
+function hhmm(d){ const p=n=>String(n).padStart(2,'0'); return p(d.getHours())+':'+p(d.getMinutes()); }
+
+const SLOT = TIMETABLE[new Date().getDay()] || null;
+const LATE_AT  = SLOT ? atTime(SLOT.start).getTime() + LATE_AFTER_MIN*60000 : null;
+const CLOSE_AT = SLOT ? atTime(SLOT.start).getTime() + CLOSE_AFTER_MIN*60000 : null;
 
 document.getElementById('clsName').textContent = CLASS_NAME;
 document.getElementById('clsName2').textContent = CLASS_NAME;
 
 let ROSTER = DEFAULT_ROSTER.slice();
-let myId = null;
-let prevPresent = new Set();
-let records = {};
+let myId = null, prevOn = new Set(), records = {};
 
-/* ===== 4. 반 설정 (질문 · 명단) 실시간으로 듣기 ===== */
-onSnapshot(doc(db, 'classes', CLASS_NAME), (snap) => {
+/* ===== 시계 · 마감 안내 ===== */
+function tick(){
+  const el = document.getElementById('clock');
+  const main = document.getElementById('clockMain');
+  const sub  = document.getElementById('clockSub');
+  const now = new Date();
+  el.classList.remove('warn','closed');
+
+  if (!SLOT) {
+    main.textContent = hhmm(now);
+    sub.textContent = '오늘은 수업이 없는 날이에요 (마감 없이 제출 가능)';
+    return;
+  }
+  const label = DAYS[now.getDay()] + '요일 ' + SLOT.period + ' · ' + SLOT.start + '~' + SLOT.end;
+  const left = CLOSE_AT - now.getTime();
+
+  if (left <= 0) {
+    el.classList.add('closed');
+    main.textContent = '제출 마감';
+    sub.textContent = label;
+    lockForm();
+  } else if (left <= 5*60000) {
+    el.classList.add('warn');
+    main.textContent = '마감까지 ' + Math.ceil(left/60000) + '분';
+    sub.textContent = label;
+  } else {
+    main.textContent = hhmm(now);
+    sub.textContent = label + ' · ' + hhmm(new Date(CLOSE_AT)) + ' 마감';
+  }
+}
+function lockForm(){
+  if (document.getElementById('done').classList.contains('show')) return;
+  document.getElementById('form').classList.add('hide');
+  document.getElementById('closedMsg').classList.add('show');
+}
+tick();
+setInterval(tick, 1000);
+
+/* ===== 반 설정 ===== */
+onSnapshot(doc(db,'classes',CLASS_NAME), snap => {
   const d = snap.exists() ? snap.data() : {};
   document.getElementById('question').textContent = d.question || DEFAULT_QUESTION;
   if (Array.isArray(d.roster) && d.roster.length) ROSTER = d.roster;
   render();
-}, (e) => {
-  console.error(e);
-  document.getElementById('question').textContent = DEFAULT_QUESTION;
-});
+}, e => { console.error(e); document.getElementById('question').textContent = DEFAULT_QUESTION; });
 
-/* ===== 5. QR 사진 ===== */
-onSnapshot(doc(db, 'qr', CLASS_NAME), (snap) => {
+/* ===== QR ===== */
+onSnapshot(doc(db,'qr',CLASS_NAME), snap => {
   const box = document.getElementById('qrImgBox');
   const d = snap.exists() ? snap.data() : {};
   if (d.dataUrl) {
     const img = document.createElement('img');
-    img.src = d.dataUrl;
-    img.alt = 'QR';
+    img.src = d.dataUrl; img.alt = 'QR';
     box.replaceChildren(img);
-  } else {
-    box.innerHTML = '<div class="empty">등록된 QR 사진이 없어요</div>';
-  }
-}, (e) => console.error(e));
+  } else box.innerHTML = '<div class="empty">등록된 QR 사진이 없어요</div>';
+}, e => console.error(e));
 
-/* ===== 6. 오늘 출석 기록 실시간으로 듣기 =====
-   예전에는 5초마다 다시 물어봤지만, 이제는 바뀌는 순간 알아서 내려옵니다. */
-onSnapshot(
-  query(collection(db, 'attendance'), where('dayKey', '==', DAY_KEY)),
-  (snap) => {
-    records = {};
-    snap.forEach(d => { const r = d.data(); records[String(r.studentId)] = r; });
-    render();
-  },
-  (e) => console.error(e)
-);
+/* ===== 오늘 기록 실시간 ===== */
+onSnapshot(query(collection(db,'attendance'), where('dayKey','==',DAY_KEY)), snap => {
+  records = {};
+  snap.forEach(d => { const r = d.data(); records[String(r.studentId)] = r; });
+  render();
+}, e => console.error(e));
 
-/* ===== 7. 화면 그리기 ===== */
+/* 상태 → 불 색깔 */
+function toneOf(status){
+  if (!status) return '';
+  if (status === '출석') return 'on-present';
+  if (status.indexOf('지각') > -1) return 'on-late';
+  if (status.indexOf('조퇴') > -1) return 'on-leave';
+  if (status.indexOf('결석') > -1) return 'on-absent';
+  return '';
+}
+
 function render(){
   const list = ROSTER.map(id => {
     const rec = records[String(id)];
-    const minutesAgo = rec && rec.ts ? (Date.now() - rec.ts) / 60000 : Infinity;
-    return {
-      id: String(id),
-      present: !!rec && rec.status === '출석' && minutesAgo <= LIGHT_ON_MINUTES
-    };
+    return { id: String(id), tone: toneOf(rec && rec.status) };
   });
-
-  document.getElementById('presentCount').textContent = list.filter(s => s.present).length;
+  document.getElementById('presentCount').textContent =
+    list.filter(s => s.tone === 'on-present' || s.tone === 'on-late').length;
   document.getElementById('totalCount').textContent = list.length;
 
   document.getElementById('grid').innerHTML = list.map(s => {
-    const justOn = s.present && !prevPresent.has(s.id);
-    const mine = myId && String(s.id) === String(myId);
-    return `<div class="seat ${s.present ? 'present' : ''} ${justOn ? 'just-on' : ''} ${mine ? 'mine' : ''}">
-      <div class="bulb"></div>
-      <div class="id">${s.id}</div>
-    </div>`;
+    const justOn = s.tone && !prevOn.has(s.id);
+    const mine = myId && s.id === String(myId);
+    return `<div class="seat ${s.tone} ${justOn?'just-on':''} ${mine?'mine':''}">
+      <div class="bulb"></div><div class="id">${s.id}</div></div>`;
   }).join('');
 
-  prevPresent = new Set(list.filter(s => s.present).map(s => s.id));
+  prevOn = new Set(list.filter(s => s.tone).map(s => s.id));
 }
 
-/* ===== 8. 입력 검사 (예전 Code.gs와 같은 규칙) ===== */
-function isValidAnswer(s){
-  const t = (s || '').trim();
-  if (t.length < 2) return false;
-  if (!/[\p{L}\p{N}]/u.test(t)) return false;
-  return true;
-}
-function isValidStudentId(s){
-  return /^\d{5}$/.test((s || '').trim());
-}
+/* ===== 입력 검사 ===== */
+const isValidAnswer = s => { const t=(s||'').trim(); return t.length>=2 && /[\p{L}\p{N}]/u.test(t); };
+const isValidId = s => /^\d{5}$/.test((s||'').trim());
 
-document.getElementById('studentId').addEventListener('input', (e) => {
-  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 5);
+document.getElementById('studentId').addEventListener('input', e => {
+  e.target.value = e.target.value.replace(/\D/g,'').slice(0,5);
 });
 
-/* ===== 9. 제출 =====
-   문서 이름을 반+날짜+학번으로 정해두면, 같은 학생이 다시 내도
-   줄이 새로 생기지 않고 덮어쓰기 됩니다. (예전 '이미 있으면 수정' 부분) */
+/* ===== 제출 ===== */
 document.getElementById('submitBtn').addEventListener('click', async () => {
+  if (CLOSE_AT && Date.now() > CLOSE_AT) { lockForm(); return; }
+
   const id = document.getElementById('studentId').value.trim();
   const answer = document.getElementById('answer').value.trim();
-  const idErr = document.getElementById('idErr');
-  const answerErr = document.getElementById('answerErr');
-  let hasError = false;
+  let bad = false;
 
-  if(!isValidStudentId(id)){ idErr.style.display = 'block'; hasError = true; }
-  else { idErr.style.display = 'none'; }
+  document.getElementById('idErr').style.display = isValidId(id) ? 'none' : (bad=true,'block');
+  document.getElementById('answerErr').style.display = isValidAnswer(answer) ? 'none' : (bad=true,'block');
+  if (bad) return;
 
-  if(!isValidAnswer(answer)){ answerErr.style.display = 'block'; hasError = true; }
-  else { answerErr.style.display = 'none'; }
-
-  if(hasError) return;
-
+  const status = (LATE_AT && Date.now() > LATE_AT) ? '지각' : '출석';
   const btn = document.getElementById('submitBtn');
-  btn.disabled = true;
-  btn.textContent = '제출 중...';
+  btn.disabled = true; btn.textContent = '제출 중...';
 
   try{
-    await setDoc(doc(db, 'attendance', DAY_KEY + '__' + id), {
-      dayKey: DAY_KEY,
-      className: CLASS_NAME,
-      date: TODAY,
-      studentId: id,
-      status: '출석',
-      answer: answer,
-      ts: Date.now(),
-      time: new Date().toTimeString().slice(0,8)
+    await setDoc(doc(db,'attendance', DAY_KEY+'__'+id), {
+      dayKey: DAY_KEY, className: CLASS_NAME, date: TODAY, studentId: id,
+      status, answer, ts: Date.now(),
+      time: new Date().toTimeString().slice(0,8),
+      period: SLOT ? SLOT.period : ''
     }, { merge: true });
 
     myId = id;
     document.getElementById('form').classList.add('hide');
     document.getElementById('done').classList.add('show');
+    document.getElementById('doneMsg').textContent = status === '지각'
+      ? '지각으로 기록되었어요. 자리에 노란 불이 켜졌습니다.'
+      : '내 자리에 불이 켜졌어요. 아래에서 확인해보세요.';
   }catch(e){
-    btn.disabled = false;
-    btn.textContent = '제출하고 출석 체크';
+    btn.disabled = false; btn.textContent = '제출하고 출석 체크';
     alert('제출에 실패했어요: ' + (e.message || e));
   }
 });
