@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>출석체크</title>
+<style>
+@font-face {
+    font-family: 'OwnglyphYuntaeng';
+    src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/2608211801@font-160/font-160/%EC%98%A8%EA%B8%80%EC%9E%8E%20%EC%9C%A4%ED%83%B1%EC%B2%B4.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+  :root{
+    --bg:#0f1210; --panel:#171c19; --panel2:#1d231f; --line:#2a322c;
+    --present:#2ecf95; --present-bg:#16332a; --muted:#8fbf9f; --ink:#eef4f0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:'OwnglyphYuntaeng','Pretendard','Apple SD Gothic Neo',sans-serif;
+    font-size:19px;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:960px;margin:0 auto;}
+  .top-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  @media (max-width:700px){ .top-grid{grid-template-columns:1fr;} }
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;height:100%;}
+  .cls{font-size:15px;color:var(--muted);margin-bottom:4px;}
+  h1{font-size:24px;margin:0 0 18px;line-height:1.5;font-weight:400;}
+  label{font-size:16px;color:var(--muted);display:block;margin-bottom:6px;}
+  input[type=text], textarea{
+    width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;
+    font-size:19px;background:var(--bg);color:var(--ink);font-family:inherit;
+    margin-bottom:14px;
+  }
+  textarea{min-height:80px;resize:vertical;}
+  button{
+    width:100%;padding:14px;border:none;border-radius:10px;
+    background:var(--present);color:#08221a;font-size:19px;font-weight:400;cursor:pointer;
+    font-family:inherit;
+  }
+  button:disabled{opacity:.5;}
+  .form.hide{display:none;}
+  .err{color:#ff9a8f;font-size:15px;margin:-8px 0 12px;display:none;}
+
+  .done{display:none;text-align:center;padding:2px 0 4px;}
+  .done.show{display:block;}
+  .done p{color:var(--muted);font-size:17px;margin:0;}
+
+  .qr-img-box{
+    width:100%;flex:1;min-height:220px;border-radius:12px;border:1.5px dashed var(--line);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--bg);
+  }
+  .qr-img-box img{width:100%;height:100%;object-fit:contain;background:#fff;}
+  .qr-img-box .empty{color:var(--muted);font-size:16px;text-align:center;padding:12px;}
+
+  .summary{font-size:17px;color:var(--muted);margin-bottom:16px;}
+  .summary b{color:var(--ink);font-size:24px;font-weight:400;}
+
+  .seatgrid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(78px, 1fr));
+    gap:10px;
+  }
+  .seat{
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:10px 4px 8px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel2);transition:background .3s ease, border-color .3s ease;
+  }
+  .seat.present{background:var(--present-bg);border-color:var(--present);}
+  .seat.mine{border-width:2px;border-color:var(--ink);}
+  .bulb{
+    width:16px;height:16px;border-radius:50%;
+    background:#2a322c;
+    transition:background .35s ease, box-shadow .35s ease;
+  }
+  .seat.present .bulb{
+    background:var(--present);
+    box-shadow:0 0 10px 3px rgba(46,207,149,0.5);
+  }
+  .seat.just-on .bulb{ animation: flicker .7s ease; }
+  @keyframes flicker {
+    0%{transform:scale(.5);opacity:.3;}
+    55%{transform:scale(1.35);opacity:1;}
+    100%{transform:scale(1);}
+  }
+  .seat .id{font-size:15px;}
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top-grid">
+    <div class="card">
+      <div class="cls" id="clsName">…</div>
+      <h1 id="question">불러오는 중…</h1>
+
+      <div class="form" id="form">
+        <label for="studentId">학번</label>
+        <input type="text" id="studentId" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="예: 30201">
+        <div class="err" id="idErr">학번은 숫자 5자리로 입력해주세요</div>
+
+        <label for="answer">답변</label>
+        <textarea id="answer" placeholder="짧게 적어주세요"></textarea>
+        <div class="err" id="answerErr">답변을 2자 이상 입력해주세요 (마침표 등 기호만은 안돼요)</div>
+
+        <button id="submitBtn">제출하고 출석 체크</button>
+      </div>
+
+      <div class="done" id="done">
+        <p id="doneMsg">내 자리에 불이 켜졌어요. 아래에서 확인해보세요.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cls" style="margin-bottom:4px;" id="clsName2">…</div>
+      <div class="cls" style="margin-bottom:12px;">QR로 접속하기</div>
+      <div class="qr-img-box" id="qrImgBox">
+        <div class="empty">등록된 QR 사진이 없어요</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card board-panel" id="boardPanel">
+    <div class="summary">우리 반 현황 · 출석 <b id="presentCount">0</b> / <span id="totalCount">0</span>명</div>
+    <div class="seatgrid" id="grid"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, setDoc, onSnapshot, collection, query, where
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+/* ===== 1. 파이어베이스 연결 =====
+   프로젝트를 새로 만들면 이 여섯 줄만 갈아끼우면 됩니다. */
+const firebaseConfig = {
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ===== 2. 기본값 (예전 Code.gs 맨 위와 같은 자리) ===== */
+const DEFAULT_CLASS = '미도약';
+const DEFAULT_ROSTER = ["30201","30204","30207","30209","30210","30211","30213","30214","30215","30216","30218","30219","30220","30225","30226","30405","30409","30411","30415","30416","30417","30420","30425","30501","30506","30507","30508","30509","30512","30514","30516","30518","30520","30521","30522","30523","30525"];
+const DEFAULT_QUESTION = '오늘 이 시간, 어떤 마음으로 왔나요? 한 줄로 적어주세요.';
+const LIGHT_ON_MINUTES = 60;   // 이 시간이 지나면 불이 저절로 꺼짐
+
+/* ===== 3. 반 이름 · 오늘 날짜 ===== */
+const params = new URLSearchParams(location.search);
+const CLASS_NAME = params.get('class') || DEFAULT_CLASS;
+const TODAY = todayStr();
+const DAY_KEY = CLASS_NAME + '__' + TODAY;   // 하루치를 한 번에 불러오기 위한 열쇠
+
+function todayStr(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+
+document.getElementById('clsName').textContent = CLASS_NAME;
+document.getElementById('clsName2').textContent = CLASS_NAME;
+
+let ROSTER = DEFAULT_ROSTER.slice();
+let myId = null;
+let prevPresent = new Set();
+let records = {};
+
+/* ===== 4. 반 설정 (질문 · 명단) 실시간으로 듣기 ===== */
+onSnapshot(doc(db, 'classes', CLASS_NAME), (snap) => {
+  const d = snap.exists() ? snap.data() : {};
+  document.getElementById('question').textContent = d.question || DEFAULT_QUESTION;
+  if (Array.isArray(d.roster) && d.roster.length) ROSTER = d.roster;
+  render();
+}, (e) => {
+  console.error(e);
+  document.getElementById('question').textContent = DEFAULT_QUESTION;
+});
+
+/* ===== 5. QR 사진 ===== */
+onSnapshot(doc(db, 'qr', CLASS_NAME), (snap) => {
+  const box = document.getElementById('qrImgBox');
+  const d = snap.exists() ? snap.data() : {};
+  if (d.dataUrl) {
+    const img = document.createElement('img');
+    img.src = d.dataUrl;
+    img.alt = 'QR';
+    box.replaceChildren(img);
+  } else {
+    box.innerHTML = '<div class="empty">등록된 QR 사진이 없어요</div>';
+  }
+}, (e) => console.error(e));
+
+/* ===== 6. 오늘 출석 기록 실시간으로 듣기 =====
+   예전에는 5초마다 다시 물어봤지만, 이제는 바뀌는 순간 알아서 내려옵니다. */
+onSnapshot(
+  query(collection(db, 'attendance'), where('dayKey', '==', DAY_KEY)),
+  (snap) => {
+    records = {};
+    snap.forEach(d => { const r = d.data(); records[String(r.studentId)] = r; });
+    render();
+  },
+  (e) => console.error(e)
+);
+
+/* ===== 7. 화면 그리기 ===== */
+function render(){
+  const list = ROSTER.map(id => {
+    const rec = records[String(id)];
+    const minutesAgo = rec && rec.ts ? (Date.now() - rec.ts) / 60000 : Infinity;
+    return {
+      id: String(id),
+      present: !!rec && rec.status === '출석' && minutesAgo <= LIGHT_ON_MINUTES
+    };
+  });
+
+  document.getElementById('presentCount').textContent = list.filter(s => s.present).length;
+  document.getElementById('totalCount').textContent = list.length;
+
+  document.getElementById('grid').innerHTML = list.map(s => {
+    const justOn = s.present && !prevPresent.has(s.id);
+    const mine = myId && String(s.id) === String(myId);
+    return `<div class="seat ${s.present ? 'present' : ''} ${justOn ? 'just-on' : ''} ${mine ? 'mine' : ''}">
+      <div class="bulb"></div>
+      <div class="id">${s.id}</div>
+    </div>`;
+  }).join('');
+
+  prevPresent = new Set(list.filter(s => s.present).map(s => s.id));
+}
+
+/* ===== 8. 입력 검사 (예전 Code.gs와 같은 규칙) ===== */
+function isValidAnswer(s){
+  const t = (s || '').trim();
+  if (t.length < 2) return false;
+  if (!/[\p{L}\p{N}]/u.test(t)) return false;
+  return true;
+}
+function isValidStudentId(s){
+  return /^\d{5}$/.test((s || '').trim());
+}
+
+document.getElementById('studentId').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 5);
+});
+
+/* ===== 9. 제출 =====
+   문서 이름을 반+날짜+학번으로 정해두면, 같은 학생이 다시 내도
+   줄이 새로 생기지 않고 덮어쓰기 됩니다. (예전 '이미 있으면 수정' 부분) */
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  const id = document.getElementById('studentId').value.trim();
+  const answer = document.getElementById('answer').value.trim();
+  const idErr = document.getElementById('idErr');
+  const answerErr = document.getElementById('answerErr');
+  let hasError = false;
+
+  if(!isValidStudentId(id)){ idErr.style.display = 'block'; hasError = true; }
+  else { idErr.style.display = 'none'; }
+
+  if(!isValidAnswer(answer)){ answerErr.style.display = 'block'; hasError = true; }
+  else { answerErr.style.display = 'none'; }
+
+  if(hasError) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '제출 중...';
+
+  try{
+    await setDoc(doc(db, 'attendance', DAY_KEY + '__' + id), {
+      dayKey: DAY_KEY,
+      className: CLASS_NAME,
+      date: TODAY,
+      studentId: id,
+      status: '출석',
+      answer: answer,
+      ts: Date.now(),
+      time: new Date().toTimeString().slice(0,8)
+    }, { merge: true });
+
+    myId = id;
+    document.getElementById('form').classList.add('hide');
+    document.getElementById('done').classList.add('show');
+  }catch(e){
+    btn.disabled = false;
+    btn.textContent = '제출하고 출석 체크';
+    alert('제출에 실패했어요: ' + (e.message || e));
+  }
+});
+</script>
+</body>
+</html>
