@@ -1018,7 +1018,7 @@ const DATA = {
           text:'도메인을 사면 <b>moontr.site</b>처럼 짧은 주소를 쓸 수 있습니다.\n<a href="https://www.gabia.com" target="_blank" rel="noopener">가비아</a> 같은 곳에서 삽니다. 끝자리에 따라 값이 달라지는데 .site나 .shop처럼 저렴한 것은 1년에 3000원 정도면 됩니다.' },
         { kind:'olist', heading:'도메인 연결하는 순서',
           items:[
-            '<a href="https://www.gabia.com" target="_blank" rel="noopener">가비아</a>에서 마음에 드는 주소를 골라 삽니다.',
+            '<a href="https://www.gabia.com" target="_blank" rel="noopener">가비아</a>에서 마음에 드는 주소를 골라 삽니다. <span class="sub">검색창에 쓰고 싶은 이름을 넣으면 살 수 있는지 알려줍니다. 이미 팔린 이름이면 끝자리를 .site나 .shop으로 바꿔 고르시면 됩니다.</span>',
             '깃허브 저장소의 <b>Settings → Pages</b>로 들어갑니다.',
             '<b>Custom domain</b> 칸에 산 주소를 적고 저장합니다.',
             '가비아 DNS 설정으로 돌아가 깃허브가 알려준 값을 넣습니다.',
@@ -1026,6 +1026,7 @@ const DATA = {
           ] },
         { kind:'note', icon:'🎯',
           text:'도메인을 깃허브에 붙여두면 그다음부터는 파일만 올려도 내 주소로 바로 열립니다. 가장 편한 방법입니다.' },
+        { kind:'ask' },
         { kind:'text', heading:'방법 둘 · 베셀을 쓴다',
           text:'도메인을 사고 싶지 않으시면 <a href="https://vercel.com" target="_blank" rel="noopener">베셀</a>을 쓰는 방법도 있습니다. 깃허브에 올린 파일을 가져다 <b>저장소이름.vercel.app</b> 같은 짧은 주소로 띄워줍니다.' },
         { kind:'olist', heading:'베셀 연결하는 순서',
@@ -1034,7 +1035,7 @@ const DATA = {
             '깃허브가 권한을 묻습니다. 승인해주세요.',
             '<b>Add New → Project</b>를 누릅니다.',
             '아까 만든 저장소 옆의 <b>Import</b>를 누릅니다.',
-            '아무것도 바꾸지 말고 <b>Deploy</b>를 누르면 주소가 나옵니다.'
+            '아무것도 바꾸지 말고 <b>Deploy</b>를 누르면 주소가 나옵니다. <span class="sub">주소는 <b>저장소이름.vercel.app</b> 형식으로 만들어집니다.</span>'
           ] },
         { kind:'ulist', heading:'둘 중 어느 쪽이 나을까요',
           items:[
@@ -1284,8 +1285,11 @@ function ImgBlock({ b, imgMap, tight }){
 }
 
 /* ===================== 블록 ===================== */
-function Block({ b, onRef, imgMap }){
+function Block({ b, onRef, imgMap, onAsk }){
   const cls=`blk ${b.tight?'tight':''}`;
+  if(b.kind==='ask') return <div className={cls}><div className="sec-foot">
+    <button className="btn ask" onClick={onAsk}>{I.spark({s:14})}<span>{b.label||'AI에게 물어보기'}</span></button>
+  </div></div>;
   if(b.kind==='def') return <div className={cls}><div className="def">
     <span className="def-l">{b.label||'사전적 의미'}</span><p className="def-t">{b.text}</p></div></div>;
   if(b.kind==='text') return <div className={cls}>
@@ -1790,8 +1794,10 @@ function App(){
             <div className="sec-top"><span className="sec-num">{s.no||(i+1)}</span><span className="sec-tag">{s.tag}</span></div>
             <h2 className="sec-h">{s.title}{s.shot&&<ShotBtn id={s.shot} imgMap={imgMap} />}</h2>
             <p className="sec-sub">{s.subtitle}</p>
-            {s.blocks.map((b,bi)=><Block key={bi} b={b} onRef={setRefOpen} imgMap={imgMap} />)}
-            {s.ask&&<div className="sec-foot">
+            {s.blocks.map((b,bi)=><Block key={bi} b={b} onRef={setRefOpen} imgMap={imgMap}
+              onAsk={()=>setAskOpen({...s,phaseName:phase.name})} />)}
+            {/* 블록 사이에 ask 버튼을 따로 놓은 걸음은 아래에 또 붙이지 않습니다 */}
+            {s.ask&&!s.blocks.some(b=>b.kind==='ask')&&<div className="sec-foot">
               <button className="btn ask" onClick={()=>setAskOpen({...s,phaseName:phase.name})}>
                 {I.spark({s:14})}<span>AI에게 물어보기</span></button>
             </div>}
