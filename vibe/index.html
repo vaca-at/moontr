@@ -1609,7 +1609,7 @@ function PwModal({ onOk, onClose }){
       </form></div></div>;
 }
 
-function DashModal({ onClose }){
+function StatPanel(){
   const [d,setD]=useState(null);
   useEffect(()=>{ loadAll().then(setD).catch(()=>setD({rows:[],asks:[]})) },[]);
   const fmt=(s)=>{ if(!s)return '—'; const x=new Date(s);
@@ -1628,74 +1628,68 @@ function DashModal({ onClose }){
   const sumSec=(r)=>Object.values(r.steps||{}).reduce((a,x)=>a+(x.sec||0),0);
   const sortedAsks=useMemo(()=>[...asks].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))),[asks]);
 
-  return <div className="back" onClick={onClose}>
-    <div className="sheet wide" onClick={e=>e.stopPropagation()}>
-      <div className="sheet-h">
-        <div><h3 className="sheet-t">진도 현황</h3>
-          <p className="sheet-s">기기별로만 구분합니다. 누구인지는 알 수 없습니다.</p></div>
-        <button className="x" onClick={onClose}>{I.x()}</button></div>
-      <div className="sheet-b">
-        {!d ? <p style={{color:'var(--ink3)',fontSize:'.88rem'}}>불러오는 중입니다…</p>
-        : rows.length===0 ? <p style={{color:'var(--ink3)',fontSize:'.88rem'}}>아직 들어온 기록이 없습니다.</p>
-        : <>
-          <div className="dash-stat">
-            <div className="dash-c"><span className="n">{rows.length}</span><span className="l">들어온 기기</span></div>
-            <div className="dash-c"><span className="n">{rows.reduce((a,r)=>a+(r.visits||0),0)}</span><span className="l">전체 방문</span></div>
-            <div className="dash-c"><span className="n">{rows.reduce((a,r)=>a+sumViews(r),0)}</span><span className="l">칸 조회 합계</span></div>
-            <div className="dash-c"><span className="n">{dur(rows.reduce((a,r)=>a+sumSec(r),0))}</span><span className="l">머문 시간 합계</span></div>
-            <div className="dash-c"><span className="n">{asks.length}</span><span className="l">AI 질문</span></div>
-          </div>
+  if(!d) return <p style={{color:'var(--ink3)',fontSize:'.88rem'}}>불러오는 중입니다…</p>;
+  if(rows.length===0) return <p style={{color:'var(--ink3)',fontSize:'.88rem'}}>아직 들어온 기록이 없습니다.</p>;
 
-          <h4 className="dash-h">기기별</h4>
-          <div className="scrollx"><table className="tbl">
-            <thead><tr><th>기기</th><th>본 칸</th><th>진도</th><th>조회</th><th>다시 봄</th><th>머문 시간</th><th>방문</th><th>마지막</th></tr></thead>
-            <tbody>
-              {sorted.map((r,i)=>{
-                const st=r.steps||{}, nSeen=Object.keys(st).length;
-                const views=sumViews(r), again=Math.max(0,views-nSeen);
-                const pct=Math.round(nSeen/TOTAL*100);
-                return <tr key={r.id}>
-                  <td style={{fontWeight:800,color:'var(--ink)'}}>{lab(i)}</td>
-                  <td>{nSeen} / {TOTAL}</td>
-                  <td><div className="bar"><i style={{width:pct+'%'}}></i></div></td>
-                  <td>{views}</td>
-                  <td className={again>=3?'hot':''}>{again}</td>
-                  <td>{dur(sumSec(r))}</td>
-                  <td>{r.visits||1}</td>
-                  <td>{fmt(r.lastSeen)}</td>
-                </tr>;
-              })}
-            </tbody></table></div>
+  return <>
+    <div className="dash-stat">
+      <div className="dash-c"><span className="n">{rows.length}</span><span className="l">들어온 기기</span></div>
+      <div className="dash-c"><span className="n">{rows.reduce((a,r)=>a+(r.visits||0),0)}</span><span className="l">전체 방문</span></div>
+      <div className="dash-c"><span className="n">{rows.reduce((a,r)=>a+sumViews(r),0)}</span><span className="l">칸 조회 합계</span></div>
+      <div className="dash-c"><span className="n">{dur(rows.reduce((a,r)=>a+sumSec(r),0))}</span><span className="l">머문 시간 합계</span></div>
+      <div className="dash-c"><span className="n">{asks.length}</span><span className="l">AI 질문</span></div>
+    </div>
 
-          <h4 className="dash-h">칸별</h4>
-          <div className="scrollx"><table className="tbl">
-            <thead><tr><th>칸</th><th>본 사람</th><th>조회</th><th>1인당 조회</th><th>머문 시간 평균</th></tr></thead>
-            <tbody>
-              {FLAT.map(s=>{
-                const p=per[s.id]||{people:0,views:0,sec:0};
-                const ph=p.people?Math.round(p.views/p.people*10)/10:0;
-                return <tr key={s.id}>
-                  <td>{s.phaseName} · {s.name}</td>
-                  <td>{p.people}</td><td>{p.views}</td>
-                  <td className={ph>=2?'hot':''}>{ph}</td>
-                  <td>{p.people?dur(p.sec/p.people):'—'}</td>
-                </tr>;
-              })}
-            </tbody></table></div>
+    <h4 className="dash-h">기기별</h4>
+    <div className="scrollx"><table className="tbl">
+      <thead><tr><th>기기</th><th>본 칸</th><th>진도</th><th>조회</th><th>다시 봄</th><th>머문 시간</th><th>방문</th><th>마지막</th></tr></thead>
+      <tbody>
+        {sorted.map((r,i)=>{
+          const st=r.steps||{}, nSeen=Object.keys(st).length;
+          const views=sumViews(r), again=Math.max(0,views-nSeen);
+          const pct=Math.round(nSeen/TOTAL*100);
+          return <tr key={r.id}>
+            <td style={{fontWeight:800,color:'var(--ink)'}}>{lab(i)}</td>
+            <td>{nSeen} / {TOTAL}</td>
+            <td><div className="bar"><i style={{width:pct+'%'}}></i></div></td>
+            <td>{views}</td>
+            <td className={again>=3?'hot':''}>{again}</td>
+            <td>{dur(sumSec(r))}</td>
+            <td>{r.visits||1}</td>
+            <td>{fmt(r.lastSeen)}</td>
+          </tr>;
+        })}
+      </tbody></table></div>
 
-          <h4 className="dash-h">AI에게 보낸 질문 ({asks.length})</h4>
-          {asks.length===0
-            ? <p style={{color:'var(--ink3)',fontSize:'.85rem'}}>아직 보낸 질문이 없습니다.</p>
-            : <div className="scrollx"><table className="tbl">
-                <thead><tr><th>시각</th><th>기기</th><th>칸</th><th>보낸 질문</th></tr></thead>
-                <tbody>{sortedAsks.map(a=><tr key={a.id}>
-                  <td>{fmt(a.at)}</td>
-                  <td style={{fontWeight:800,color:'var(--ink)'}}>{labOf[a.dev]||'—'}</td>
-                  <td>{a.phase} · {a.step}</td>
-                  <td><div className="qtext">{a.text}</div></td></tr>)}</tbody></table></div>}
-        </>}
-      </div></div></div>;
+    <h4 className="dash-h">칸별</h4>
+    <div className="scrollx"><table className="tbl">
+      <thead><tr><th>칸</th><th>본 사람</th><th>조회</th><th>1인당 조회</th><th>머문 시간 평균</th></tr></thead>
+      <tbody>
+        {FLAT.map(s=>{
+          const pp=per[s.id]||{people:0,views:0,sec:0};
+          const ph=pp.people?Math.round(pp.views/pp.people*10)/10:0;
+          return <tr key={s.id}>
+            <td>{s.phaseName} · {s.name}</td>
+            <td>{pp.people}</td><td>{pp.views}</td>
+            <td className={ph>=2?'hot':''}>{ph}</td>
+            <td>{pp.people?dur(pp.sec/pp.people):'—'}</td>
+          </tr>;
+        })}
+      </tbody></table></div>
+
+    <h4 className="dash-h">AI에게 보낸 질문 ({asks.length})</h4>
+    {asks.length===0
+      ? <p style={{color:'var(--ink3)',fontSize:'.85rem'}}>아직 보낸 질문이 없습니다.</p>
+      : <div className="scrollx"><table className="tbl">
+          <thead><tr><th>시각</th><th>기기</th><th>칸</th><th>보낸 질문</th></tr></thead>
+          <tbody>{sortedAsks.map(a=><tr key={a.id}>
+            <td>{fmt(a.at)}</td>
+            <td style={{fontWeight:800,color:'var(--ink)'}}>{labOf[a.dev]||'—'}</td>
+            <td>{a.phase} · {a.step}</td>
+            <td><div className="qtext">{a.text}</div></td></tr>)}</tbody></table></div>}
+  </>;
 }
+
 
 function ImagePanel({ imgMap, setImgMap }){
   const [busy,setBusy]=useState(null);
@@ -1893,8 +1887,6 @@ function App(){
   const [refOpen,setRefOpen]=useState(null);
   const [askOpen,setAskOpen]=useState(null);
   const [pwOpen,setPwOpen]=useState(false);
-  const [pwIntent,setPwIntent]=useState('dash');
-  const [dashOpen,setDashOpen]=useState(false);
   const [adminOpen,setAdminOpen]=useState(false);
   const [imgMap,setImgMap]=useState({});
   const [codeMap,setCodeMap]=useState({});
@@ -1972,8 +1964,7 @@ function App(){
             {FONTS.map(f=><button key={f.k} className={`tool-btn ${font===f.k?'on':''}`} data-f={f.k} onClick={()=>setFont(f.k)}>{f.n}</button>)}</div>
           <div className="tool-row">
             <span className={`cloud-dot ${cloudReady?'on':''}`}><i></i>{cloudReady?'기록 중':'기록 안 됨'}</span>
-            <button className="tool-btn" onClick={()=>{setPwIntent('dash');setPwOpen(true)}}>{I.lock({s:12})} 관리자</button>
-            <button className="tool-btn" onClick={()=>{setPwIntent('images');setPwOpen(true)}}>{I.lock({s:12})} 이미지 관리</button>
+            <button className="tool-btn" onClick={()=>setPwOpen(true)}>{I.lock({s:12})} 관리자</button>
           </div>
         </div>
       </div>
@@ -2039,8 +2030,7 @@ function App(){
 
     {refOpen&&<RefModal r={refOpen} onClose={()=>setRefOpen(null)} />}
     {askOpen&&<AskModal info={askOpen} onSent={()=>{askCount.current++}} onClose={()=>setAskOpen(null)} />}
-    {pwOpen&&<PwModal onOk={()=>{setPwOpen(false); if(pwIntent==='images') setAdminOpen(true); else setDashOpen(true);}} onClose={()=>setPwOpen(false)} />}
-    {dashOpen&&<DashModal onClose={()=>setDashOpen(false)} />}
+    {pwOpen&&<PwModal onOk={()=>{setPwOpen(false);setAdminOpen(true);}} onClose={()=>setPwOpen(false)} />}
     {adminOpen&&<AdminModal imgMap={imgMap} setImgMap={setImgMap} codeMap={codeMap} setCodeMap={setCodeMap} onClose={()=>setAdminOpen(false)} />}
   </>;
 }
