@@ -434,10 +434,15 @@ body[data-design="b"] .note-box{border-radius:0;border-left:3px solid var(--acce
 .foot-mail a{color:var(--ink3);text-decoration:underline;text-underline-offset:3px}
 .foot-mail a:hover{color:var(--accent)}
 
+/* 자료 묶음은 PC에서만 왼쪽에, 폰에서만 본문 아래에 보입니다 */
+.extras-mo{display:none}
+
 @media (max-width:900px){
   .grid{grid-template-columns:1fr}
   .side{border-right:none;border-bottom:1px solid var(--sideLine);padding-bottom:14px}
   .side-in{position:static}
+  .extras-pc{display:none}
+  .extras-mo{display:block;margin-top:34px;padding-top:22px;border-top:1px solid var(--line)}
   .side-list{display:flex;flex-wrap:wrap;gap:4px}
   .side-i{width:auto;margin-bottom:0}
   .bnr-big{padding:11px 13px}
@@ -1841,6 +1846,42 @@ function AdminModal({ imgMap, setImgMap, codeMap, setCodeMap, onClose }){
 }
 
 
+/* 참고자료·사이트·즐겨찾기 묶음. PC는 왼쪽에, 폰은 본문 아래에 놓입니다 */
+function SideExtras({ phase, design, onRef }){
+  return <React.Fragment>
+    <div className="sep"></div>
+    <div className="bnr-zone">
+      <div className="zone-h">언제든 펴보세요</div>
+      {DATA.refs.map((r,i)=> i===0?(
+        <button key={r.id} className="bnr-big" onClick={()=>onRef(r)}>
+          <span className="ic">{r.icon}</span><span className="t">{r.name}</span><span className="d">{r.dim}</span></button>
+      ):(
+        <button key={r.id} className="bnr-row" onClick={()=>onRef(r)}>
+          <span className="sq" style={{background:REF_COLORS[r.color]}}>{r.icon}</span>
+          <span className="bnr-t">{r.short||r.name}</span><span className="ar">›</span></button>
+      ))}
+    </div>
+
+    {phase.sites&&phase.sites.length>0&&<div className="site-zone">
+      <div className="site-h">{phase.name}에서 여는 사이트</div>
+      {phase.sites.map((st,i)=>(
+        <a className="site-i" key={i} href={st.u} target="_blank" rel="noopener">
+          <span className="m" style={{color:((design==='c'||design==='d')&&st.cd)||st.c}}>{st.m}</span>
+          <span>{st.t}</span>
+          <span className="ar">{I.out({s:12})}</span></a>))}
+    </div>}
+
+    {DATA.favs&&DATA.favs.length>0&&<div className="fav">
+      <div className="fav-h">즐겨찾기</div>
+      {DATA.favs.map((f,i)=>(
+        <a className="fav-i" key={i} href={f.u} target="_blank" rel="noopener">
+          <span className="fav-t">{f.t}</span>
+          <span className="fav-ar">{I.out({s:11})}</span>
+        </a>))}
+    </div>}
+  </React.Fragment>;
+}
+
 /* ===================== 메인 ===================== */
 function App(){
   const [design,setDesign]=useState(()=>store.get(KEY.D)||'a');
@@ -1968,36 +2009,7 @@ function App(){
               <span className="side-n">{s.no||(i+1)}</span>
               <span className="side-txt">{s.name}</span></button>))}
         </div>
-        <div className="sep"></div>
-        <div className="bnr-zone">
-          <div className="zone-h">언제든 펴보세요</div>
-          {DATA.refs.map((r,i)=> i===0?(
-            <button key={r.id} className="bnr-big" onClick={()=>setRefOpen(r)}>
-              <span className="ic">{r.icon}</span><span className="t">{r.name}</span><span className="d">{r.dim}</span></button>
-          ):(
-            <button key={r.id} className="bnr-row" onClick={()=>setRefOpen(r)}>
-              <span className="sq" style={{background:REF_COLORS[r.color]}}>{r.icon}</span>
-              <span className="bnr-t">{r.short||r.name}</span><span className="ar">›</span></button>
-          ))}
-        </div>
-
-        {phase.sites&&phase.sites.length>0&&<div className="site-zone">
-          <div className="site-h">{phase.name}에서 여는 사이트</div>
-          {phase.sites.map((st,i)=>(
-            <a className="site-i" key={i} href={st.u} target="_blank" rel="noopener">
-              <span className="m" style={{color:((design==='c'||design==='d')&&st.cd)||st.c}}>{st.m}</span>
-              <span>{st.t}</span>
-              <span className="ar">{I.out({s:12})}</span></a>))}
-        </div>}
-
-        {DATA.favs&&DATA.favs.length>0&&<div className="fav">
-          <div className="fav-h">즐겨찾기</div>
-          {DATA.favs.map((f,i)=>(
-            <a className="fav-i" key={i} href={f.u} target="_blank" rel="noopener">
-              <span className="fav-t">{f.t}</span>
-              <span className="fav-ar">{I.out({s:11})}</span>
-            </a>))}
-        </div>}
+        <div className="extras-pc"><SideExtras phase={phase} design={design} onRef={setRefOpen} /></div>
       </div></aside>
 
       <main className="main">
@@ -2015,6 +2027,8 @@ function App(){
             </div>}
           </section>
         ))}
+        {/* 폰에서는 본문을 다 읽은 뒤 자료가 나오도록 여기에 한 번 더 둡니다 */}
+        <div className="extras-mo"><SideExtras phase={phase} design={design} onRef={setRefOpen} /></div>
       </main>
     </div></div>
 
