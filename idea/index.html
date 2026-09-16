@@ -370,6 +370,8 @@
 
   .quick-row{ display:flex; gap:8px; margin-top:8px; align-items:center; flex-wrap:wrap; }
   .quick-row .msg{ font-size:12.5px; font-weight:700; }
+  .quick-row .quick-auto{ display:flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; color:var(--green-dark); cursor:pointer; user-select:none; }
+  .quick-row .quick-auto input{ accent-color:var(--green); width:15px; height:15px; cursor:pointer; }
 
   .small-btn{
     font-family:var(--font-ui); font-weight:700; font-size:12.5px;
@@ -742,10 +744,11 @@
       </div>
 
       <div class="section-title first">⚡ 한 번에 붙여넣기 (Claude가 정리해 준 블록)</div>
-      <div class="section-hint">캡처를 Claude에게 주고 받은 [문항ID] [단원] [발문] [제시문] [사상가] [보기] [범례] [선지·정답·해설] 블록을 통째로 붙여넣고 "채우기"를 누르면 아래 칸이 모두 자동으로 채워져요. 기존처럼 ①~⑤ 칸에 나눠 붙여넣어도 됩니다.</div>
+      <div class="section-hint">캡처를 Claude에게 주고 받은 [문항ID] [단원] [발문] [제시문] [사상가] [보기] [범례] [선지·정답·해설] 블록을 여기에 붙여넣기만 하면 아래 칸이 자동으로 채워집니다. 아래 "붙여넣으면 바로 저장"이 켜져 있으면 저장까지 한 번에 끝나요. 끄면 채우기만 하고 확인 후 직접 저장할 수 있습니다.</div>
       <textarea class="paste-box quick" id="paste-quick" placeholder="[문항ID] 2609-14&#10;[단원] 근대 서양&#10;[발문] 갑, 을 사상가의 입장으로 옳은 것은?&#10;[제시문]&#10;갑: ...&#10;을: ...&#10;[사상가] 갑=칸트, 을=밀&#10;[보기]&#10;ㄱ. ...&#10;[범례]&#10;[선지·정답·해설]&#10;① ...&#10;② ...&#10;정답 ③&#10;해설 ..."></textarea>
       <div class="quick-row">
         <button class="small-btn green" id="quick-apply-btn" type="button">아래 칸에 채우기</button>
+        <label class="quick-auto"><input type="checkbox" id="quick-auto"> 붙여넣으면 바로 저장</label>
         <span class="msg" id="quick-msg"></span>
       </div>
 
@@ -2370,7 +2373,7 @@ function initAdmin(){
       return '';
     };
     if(!Object.keys(sections).length){
-      msg.className = 'msg no-text'; msg.textContent = '[문항ID] 같은 대괄호 제목을 찾지 못했어요.'; return;
+      msg.className = "msg no-text"; msg.textContent = "[문항ID] 같은 대괄호 제목을 찾지 못했어요."; return false;
     }
 
     resetForm(true);
@@ -2408,9 +2411,28 @@ function initAdmin(){
     }
     runParse();
     msg.className = 'msg ok-text';
-    msg.textContent = `✓ 채웠어요${p ? ` (${id})` : ' — 문항ID는 직접 선택해주세요'}. 아래에서 확인 후 저장하세요.`;
+    msg.textContent = `✓ 채웠어요${p ? ` (${id})` : " — 문항ID는 직접 선택해주세요"}. 아래에서 확인 후 저장하세요.`;
+    return true;
   }
-  document.getElementById('quick-apply-btn').addEventListener('click', applyQuickBlock);
+  document.getElementById("quick-apply-btn").addEventListener("click", ()=> applyQuickBlock());
+
+  // ----- 붙여넣기 한 번으로 등록 -----
+  // 붙여넣는 순간 파싱하고, 스위치가 켜져 있으면 저장까지 이어서 한다.
+  // paste 이벤트는 값이 반영되기 전에 오므로 한 틱 뒤에 읽는다.
+  const quickAuto = document.getElementById("quick-auto");
+  quickAuto.checked = lsGet("yunsa-quick-auto") !== "0";   // 기본 켜짐
+  quickAuto.addEventListener("change", ()=> lsSet("yunsa-quick-auto", quickAuto.checked ? "1" : "0"));
+
+  let quickBusy = false;
+  document.getElementById("paste-quick").addEventListener("paste", ()=>{
+    setTimeout(async ()=>{
+      if(quickBusy) return;
+      quickBusy = true;
+      try{
+        if(applyQuickBlock() && quickAuto.checked) await saveQuestion(true);
+      }finally{ quickBusy = false; }
+    }, 0);
+  });
 
   // ----- 폼 초기화 / 수정 모드 -----
   function resetForm(keepQuick){
@@ -2495,7 +2517,11 @@ function initAdmin(){
     };
   }
 
-  document.getElementById('submit-btn').addEventListener('click', async ()=>{
+  // 저장 본체. 붙여넣기 자동 저장과 저장 버튼이 같은 경로를 쓴다.
+  // echo 가 참이면 결과를 위쪽 붙여넣기 칸 옆에도 같이 띄워 스크롤 없이 확인할 수 있게 한다.
+  async function saveQuestion(echo){
+    const quickMsg = document.getElementById("quick-msg");
+    const tell = (ok, text)=>{ if(echo){ quickMsg.className = ok ? "msg ok-text" : "msg no-text"; quickMsg.textContent = text; } };
     const status = document.getElementById('submit-status');
     const btn = document.getElementById('submit-btn');
     const q = collectQuestion();
@@ -2506,8 +2532,9 @@ function initAdmin(){
     if(!q.correctNum) problems.push('정답');
     if(problems.length){
       status.className = 'submit-status no-text';
-      status.textContent = `빠진 항목이 있어요: ${problems.join(', ')}`;
-      return;
+      status.textContent = `빠진 항목이 있어요: ${problems.join(", ")}`;
+      tell(false, `저장 안 됨 — 빠진 항목: ${problems.join(", ")}`);
+      return false;
     }
     btn.disabled = true;
     status.className = 'submit-status'; status.textContent = '저장 중...';
@@ -2516,21 +2543,27 @@ function initAdmin(){
       if(editingId !== q.id){
         const exists = await getDoc(ref);
         if(exists.exists() && !confirm(`${q.id} 문항이 이미 등록되어 있어요. 덮어쓸까요?`)){
-          status.textContent = '저장을 취소했어요.'; btn.disabled = false; return;
+          status.textContent = "저장을 취소했어요."; tell(false, "저장을 취소했어요."); btn.disabled = false; return false;
         }
       }
       await setDoc(ref, { ...q, updatedAt: serverTimestamp() });
       status.className = 'submit-status ok-text';
       status.textContent = `${q.id} 저장 완료! 다음 문항을 붙여넣으세요.`;
+      const savedId = q.id;
       resetForm();
+      tell(true, `✓ ${savedId} 저장 완료! 다음 문항을 바로 붙여넣으세요.`);
+      return true;
     }catch(e){
       console.error(e);
-      status.className = 'submit-status no-text';
-      status.textContent = '저장 실패. 관리자 로그인 상태와 Firestore 보안 규칙을 확인해주세요.';
+      status.className = "submit-status no-text";
+      status.textContent = "저장 실패. 관리자 로그인 상태와 Firestore 보안 규칙을 확인해주세요.";
+      tell(false, "저장 실패 — 로그인 상태와 Firestore 보안 규칙을 확인해주세요.");
+      return false;
     }finally{
       btn.disabled = false;
     }
-  });
+  }
+  document.getElementById("submit-btn").addEventListener("click", ()=> saveQuestion(false));
 
   // ================= 등록 문항 목록 =================
   async function renderAdminList(){
