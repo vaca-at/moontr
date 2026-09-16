@@ -305,13 +305,15 @@ body[data-slide="on"] .wrap{display:block;}
 body[data-slide="on"] main{max-width:none;padding:0;margin:0;}
 body[data-slide="on"] main > :not(section){display:none;}
 body[data-slide="on"] section{display:none;border-bottom:none;padding:0;}
-body[data-slide="on"] section.slide-on{display:block;position:fixed;top:0;left:0;right:0;bottom:56px;overflow-y:auto;padding:40px 6vw 48px;background:var(--bg);}
+body{--sbh:calc(56px + env(safe-area-inset-bottom,0px));}
+body[data-slide="on"] section.slide-on{display:block;position:fixed;top:0;left:0;right:0;bottom:var(--sbh);overflow-y:auto;overscroll-behavior:contain;padding:40px 6vw 48px;background:var(--bg);}
 body[data-slide="on"] section.slide-on > *{max-width:1000px;margin-left:auto;margin-right:auto;}
 body[data-slide="on"] section.slide-on h2{font-size:34px;}
 body[data-slide="on"] .hero{padding:40px 24px;}
-body[data-slide="on"] .slidebar{display:flex;position:fixed;left:0;right:0;bottom:0;height:56px;align-items:center;gap:9px;
-  padding:0 16px;background:var(--nav-bg);border-top:1px solid var(--line);z-index:70;}
-body[data-slide="on"] .slidefill{display:block;position:fixed;bottom:56px;left:0;height:3px;width:0;background:var(--accent);z-index:71;transition:width .15s linear;}
+body[data-slide="on"] .slidebar{display:flex;position:fixed;left:0;right:0;bottom:0;min-height:56px;align-items:center;gap:9px;
+  padding:0 16px env(safe-area-inset-bottom,0px);background:var(--nav-bg);border-top:1px solid var(--line);z-index:70;}
+body[data-slide="on"] .slidefill{display:block;position:fixed;bottom:var(--sbh);left:0;height:3px;width:0;background:var(--accent);z-index:71;transition:width .15s linear;}
+.slidefab{display:none;}
 .slidebar .sb{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;font-family:var(--f-body);}
 .slidebar .sb:hover{border-color:var(--accent);color:var(--accent);}
 .slidebar .num{font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums;}
@@ -321,9 +323,14 @@ body[data-slide="on"] .slidefill{display:block;position:fixed;bottom:56px;left:0
   body[data-slide="on"] section.slide-on{padding:26px 18px 40px;}
   body[data-slide="on"] section.slide-on h2{font-size:24px;}
   .slidebar .tip{display:none;}
+  .slidebar .sb{padding:9px 15px;font-size:13.5px;}
+  .slidefab{display:inline-flex;position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:69;
+    align-items:center;gap:6px;background:var(--accent);color:#fff;border:none;border-radius:999px;padding:12px 17px;
+    font-size:13.5px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.22);font-family:var(--f-body);cursor:pointer;}
+  body[data-slide="on"] .slidefab{display:none;}
 }
 @media print{
-  .topbar,.sidenav,.hnav,#progress,.mask,.pagefoot .admin,.opener{display:none !important;}
+  .topbar,.sidenav,.hnav,#progress,.mask,.pagefoot .admin,.opener,.slidebar,.slidefill,.slidefab{display:none !important;}
   .wrap{display:block;}
   main{max-width:none;padding:0;}
   body{background:#fff;color:#000;}
@@ -849,6 +856,7 @@ body[data-slide="on"] .slidefill{display:block;position:fixed;bottom:56px;left:0
 </main>
 </div>
 <!-- ═══ 팝업 ═══ -->
+<button class="slidefab" id="slideFab">▶ 발표 모드</button>
 <div class="slidefill" id="slidefill"></div>
 <div class="slidebar" id="slidebar">
   <button class="sb" id="sbPrev">← 이전</button>
@@ -1224,12 +1232,24 @@ document.getElementById("slideBtn").onclick=()=>slideMode(!slideOn);
 document.getElementById("sbPrev").onclick=()=>goto(curIdx-1);
 document.getElementById("sbNext").onclick=()=>goto(curIdx+1);
 document.getElementById("sbExit").onclick=()=>slideMode(false);
+document.getElementById("slideFab").onclick=()=>slideMode(true);
+/* 손가락으로 좌우로 밀어 넘기기 */
+(function(){ let x0=null,y0=null;
+  document.addEventListener("touchstart",e=>{
+    if(!slideOn||e.touches.length!==1){x0=null;return;}
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY; },{passive:true});
+  document.addEventListener("touchend",e=>{
+    if(!slideOn||x0===null)return;
+    if(mask.classList.contains("open")){x0=null;return;}
+    const t=e.changedTouches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+    if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.6) goto(curIdx+(dx<0?1:-1));
+    x0=null; },{passive:true});
+})();
 document.addEventListener("keydown",e=>{
   if(mask.classList.contains("open")){ if(e.key==="Escape")closeMask(); return; }
   const t=e.target.tagName;
   if(t==="INPUT"||t==="TEXTAREA"||e.metaKey||e.ctrlKey||e.altKey) return;
   if(e.key==="Escape"&&slideOn){e.preventDefault();slideMode(false);return;}
-  if(e.key==="F5"&&!slideOn){e.preventDefault();slideMode(true);return;}
   if(e.key==="ArrowDown"||e.key==="ArrowRight"||e.key==="PageDown"||e.key===" "){e.preventDefault();goto(curIdx+1);}
   else if(e.key==="ArrowUp"||e.key==="ArrowLeft"||e.key==="PageUp"){e.preventDefault();goto(curIdx-1);}
   else if(e.key==="Home"){e.preventDefault();goto(0);}
