@@ -206,6 +206,12 @@ figure{margin:16px 0;}
 figure img{width:100%;border-radius:var(--radius);border:1px solid var(--line);display:block;}
 figure .slot{border:2px dashed var(--line);border-radius:var(--radius);padding:40px 16px;text-align:center;color:var(--sub);font-size:13px;line-height:1.7;}
 figure figcaption{font-size:12.5px;color:var(--sub);margin-top:7px;text-align:center;}
+figure[data-slot]{display:none;}
+figure[data-slot].hasimg{display:block;}
+figure.hasimg{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px;margin:18px 0 42px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+figure.hasimg img{border-radius:calc(var(--radius) - 3px);}
+figure.hasimg figcaption{display:flex;gap:7px;align-items:baseline;text-align:left;margin:10px 2px 2px;}
+figure.hasimg figcaption .tag{flex:0 0 auto;background:var(--accent);color:#fff;border-radius:999px;padding:2px 9px;font-size:10.5px;letter-spacing:.02em;}
 
 blockquote{margin:12px 0;padding:13px 17px;border-left:3px solid var(--accent);background:var(--card);border-radius:0 var(--radius) var(--radius) 0;font-size:14px;line-height:1.85;}
 .quotes{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
@@ -291,6 +297,31 @@ table.cmp tbody th{background:var(--card);color:var(--sub);font-weight:700;font-
 }
 
 /* 인쇄 */
+/* 발표 모드(슬라이드쇼) */
+.slidebar,.slidefill{display:none;}
+body[data-slide="on"]{overflow:hidden;}
+body[data-slide="on"] .topbar,body[data-slide="on"] .hnav,body[data-slide="on"] .sidenav,body[data-slide="on"] #progress{display:none;}
+body[data-slide="on"] .wrap{display:block;}
+body[data-slide="on"] main{max-width:none;padding:0;margin:0;}
+body[data-slide="on"] main > :not(section){display:none;}
+body[data-slide="on"] section{display:none;border-bottom:none;padding:0;}
+body[data-slide="on"] section.slide-on{display:block;position:fixed;top:0;left:0;right:0;bottom:56px;overflow-y:auto;padding:40px 6vw 48px;background:var(--bg);}
+body[data-slide="on"] section.slide-on > *{max-width:1000px;margin-left:auto;margin-right:auto;}
+body[data-slide="on"] section.slide-on h2{font-size:34px;}
+body[data-slide="on"] .hero{padding:40px 24px;}
+body[data-slide="on"] .slidebar{display:flex;position:fixed;left:0;right:0;bottom:0;height:56px;align-items:center;gap:9px;
+  padding:0 16px;background:var(--nav-bg);border-top:1px solid var(--line);z-index:70;}
+body[data-slide="on"] .slidefill{display:block;position:fixed;bottom:56px;left:0;height:3px;width:0;background:var(--accent);z-index:71;transition:width .15s linear;}
+.slidebar .sb{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;font-family:var(--f-body);}
+.slidebar .sb:hover{border-color:var(--accent);color:var(--accent);}
+.slidebar .num{font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.slidebar .tip{font-size:11.5px;color:var(--sub);}
+.slidebar .spacer{flex:1;}
+@media (max-width:860px){
+  body[data-slide="on"] section.slide-on{padding:26px 18px 40px;}
+  body[data-slide="on"] section.slide-on h2{font-size:24px;}
+  .slidebar .tip{display:none;}
+}
 @media print{
   .topbar,.sidenav,.hnav,#progress,.mask,.pagefoot .admin,.opener{display:none !important;}
   .wrap{display:block;}
@@ -365,6 +396,7 @@ table.cmp tbody th{background:var(--card);color:var(--sub);font-weight:700;font-
     <a class="navbtn link" id="lnkManual" href="#" target="_blank" rel="noopener">바이브코딩 매뉴얼 열기</a>
     <button class="navbtn" data-open="share">+ 학생 활동 공유</button>
     <button class="navbtn" data-open="faq">+ 예상질문</button>
+    <button class="navbtn" id="slideBtn">+ 발표 모드</button>
     <button class="navbtn" id="printBtn">+ 인쇄하기</button>
   </div>
 </nav>
@@ -817,6 +849,16 @@ table.cmp tbody th{background:var(--card);color:var(--sub);font-weight:700;font-
 </main>
 </div>
 <!-- ═══ 팝업 ═══ -->
+<div class="slidefill" id="slidefill"></div>
+<div class="slidebar" id="slidebar">
+  <button class="sb" id="sbPrev">← 이전</button>
+  <button class="sb" id="sbNext">다음 →</button>
+  <span class="num" id="sbNum"></span>
+  <div class="spacer"></div>
+  <span class="tip">← → 또는 Space로 넘기기 · Esc로 나가기</span>
+  <button class="sb" id="sbExit">나가기</button>
+</div>
+
 <div class="mask" id="mask">
   <div class="panel">
     <button class="close" data-close>닫기</button>
@@ -1090,11 +1132,20 @@ async function renderImages(){
   const imgs=await Store.getImages();
   document.querySelectorAll("figure[data-slot]").forEach(f=>{
     const k=f.dataset.slot,cur=f.querySelector("img");
+    const slot=f.querySelector(".slot");
     if(imgs[k]){ if(cur)cur.src=imgs[k];
-      else{const s=f.querySelector(".slot");if(s)s.style.display="none";
+      else{if(slot)slot.style.display="none";
         const im=document.createElement("img");im.src=imgs[k];im.alt=SLOT_NAMES[k]||"";
         f.insertBefore(im,f.querySelector("figcaption"));}
-    }else if(cur){cur.remove();const s=f.querySelector(".slot");if(s)s.style.display="";}
+      f.classList.add("hasimg");
+      if(!f.querySelector("figcaption")){
+        const cap=document.createElement("figcaption");
+        const tag=document.createElement("span");tag.className="tag";tag.textContent="사진";
+        const txt=document.createElement("span");txt.textContent=(slot?slot.textContent.trim():"")||SLOT_NAMES[k]||"";
+        cap.appendChild(tag);cap.appendChild(txt);f.appendChild(cap);}
+    }else if(cur){cur.remove();f.classList.remove("hasimg");
+      const cap=f.querySelector("figcaption");if(cap)cap.remove();
+      if(slot)slot.style.display="";}
   });
 }
 renderImages();
@@ -1148,13 +1199,37 @@ function onScroll(){ const h=document.documentElement;
   bar.style.width=Math.min(100,Math.max(0,p*100))+"%"; }
 window.addEventListener("scroll",onScroll,{passive:true}); onScroll();
 
-/* ══ 6. 키보드로 넘기기 ══ */
+/* ══ 6. 키보드로 넘기기 · 발표 모드 ══ */
+let slideOn=false;
 function goto(i){ i=Math.max(0,Math.min(SECTIONS.length-1,i)); curIdx=i;
+  if(slideOn){showSlide(i);return;}
   SECTIONS[i].scrollIntoView({behavior:"smooth",block:"start"}); }
+function showSlide(i){
+  SECTIONS.forEach((s,n)=>s.classList.toggle("slide-on",n===i));
+  const cur=SECTIONS[i]; cur.scrollTop=0;
+  document.getElementById("sbNum").textContent=(i+1)+" / "+SECTIONS.length;
+  document.getElementById("slidefill").style.width=((i+1)/SECTIONS.length*100)+"%";
+  links.forEach(a=>a.classList.remove("on"));
+  (map.get(cur.id)||[]).forEach(a=>a.classList.add("on"));
+  Track.enter(cur.id);
+}
+function slideMode(on){
+  slideOn=on; document.body.dataset.slide=on?"on":"off";
+  document.getElementById("slideBtn").textContent=on?"+ 발표 모드 끄기":"+ 발표 모드";
+  if(on){showSlide(curIdx);}
+  else{ SECTIONS.forEach(s=>s.classList.remove("slide-on"));
+    SECTIONS[curIdx].scrollIntoView({block:"start"}); }
+}
+document.getElementById("slideBtn").onclick=()=>slideMode(!slideOn);
+document.getElementById("sbPrev").onclick=()=>goto(curIdx-1);
+document.getElementById("sbNext").onclick=()=>goto(curIdx+1);
+document.getElementById("sbExit").onclick=()=>slideMode(false);
 document.addEventListener("keydown",e=>{
   if(mask.classList.contains("open")){ if(e.key==="Escape")closeMask(); return; }
   const t=e.target.tagName;
   if(t==="INPUT"||t==="TEXTAREA"||e.metaKey||e.ctrlKey||e.altKey) return;
+  if(e.key==="Escape"&&slideOn){e.preventDefault();slideMode(false);return;}
+  if(e.key==="F5"&&!slideOn){e.preventDefault();slideMode(true);return;}
   if(e.key==="ArrowDown"||e.key==="ArrowRight"||e.key==="PageDown"||e.key===" "){e.preventDefault();goto(curIdx+1);}
   else if(e.key==="ArrowUp"||e.key==="ArrowLeft"||e.key==="PageUp"){e.preventDefault();goto(curIdx-1);}
   else if(e.key==="Home"){e.preventDefault();goto(0);}
