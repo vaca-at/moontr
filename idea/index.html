@@ -726,8 +726,8 @@
 
   <div class="admin-gate" id="admin-gate">
     <span>🔒 관리자 계정으로 로그인하세요</span>
-    <input type="email" id="gate-email" placeholder="관리자 이메일">
-    <input type="password" id="gate-pw" placeholder="비밀번호">
+    <input type="email" id="gate-email" placeholder="관리자 이메일" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input type="password" id="gate-pw" placeholder="비밀번호" autocomplete="new-password">
     <button class="small-btn" id="gate-submit" type="button">로그인</button>
     <span class="err" id="gate-err"></span>
   </div>
@@ -2025,14 +2025,21 @@ function initAdmin(){
 
   // ----- 로그인 게이트 -----
   const gate = document.getElementById('admin-gate');
-  document.getElementById('gate-email').value = ADMIN_EMAIL.includes('여기에') ? '' : ADMIN_EMAIL;
+  // 이메일·비밀번호는 화면에 남기지 않는다: 자동 채움 없이 빈 칸으로 시작하고,
+  // 로그인 시도 직후와 로그아웃(게이트 재표시) 때마다 지운다
+  function clearGateInputs(){
+    document.getElementById("gate-email").value = "";
+    document.getElementById("gate-pw").value = "";
+  }
+  clearGateInputs();
 
   function showGate(msg){
     gate.style.display = 'flex';
     document.getElementById('admin-main').style.display = 'none';
     document.getElementById('admin-tabs').style.display = 'none';
     document.getElementById('admin-logout-btn').style.display = 'none';
-    document.getElementById('gate-err').textContent = msg || '';
+    document.getElementById("gate-err").textContent = msg || "";
+    clearGateInputs();
   }
   function showAdmin(){
     gate.style.display = 'none';
@@ -2054,11 +2061,14 @@ function initAdmin(){
     const pw = document.getElementById('gate-pw').value;
     document.getElementById('gate-err').textContent = '로그인 중...';
     try{ await signInWithEmailAndPassword(auth, email, pw); }
-    catch(e){ console.error(e); document.getElementById('gate-err').textContent = '이메일 또는 비밀번호가 올바르지 않습니다.'; }
+    catch(e){ console.error(e); document.getElementById("gate-err").textContent = "이메일 또는 비밀번호가 올바르지 않습니다."; }
+    finally{ clearGateInputs(); }
   }
   document.getElementById('gate-submit').addEventListener('click', submitGate);
   document.getElementById('gate-pw').addEventListener('keydown', e=>{ if(e.key==='Enter') submitGate(); });
   document.getElementById('admin-logout-btn').addEventListener('click', ()=> signOut(auth));
+  // 뒤로가기 복원(bfcache)으로 입력값이 되살아나는 경우까지 차단
+  window.addEventListener("pageshow", e=>{ if(e.persisted) clearGateInputs(); });
 
   bindTabs('#admin-tabs', 'apanel', id=>{
     if(id === 'a-list') renderAdminList();
