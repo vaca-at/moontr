@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@300;400;700&family=Gowun+Dodum&display=swap">
 <style>
   /* 디자인 1: 서재 (기본) — 한지색 종이 + 먹빛 남색 + 인주색, 지문은 바탕체 */
   :root{
@@ -22,7 +23,9 @@
     --font-ui:'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', sans-serif;
     --font-read:'Gowun Batang', 'Nanum Myeongjo', 'AppleMyungjo', serif;
     --read-lh:1.95;
-    --q:16.5px;
+    --font-mult:1;
+    --q-base:16.5px;
+    --q:calc(var(--q-base) * var(--font-mult));
   }
   /* 디자인 2: 생윤 그린 (예전 디자인) */
   html[data-design="green"]{
@@ -56,8 +59,24 @@
     --seal:#C9584A;
     color-scheme:dark;
   }
-  html[data-fs="2"]{ --q:18.5px; }
-  html[data-fs="3"]{ --q:20.5px; }
+  html[data-fs="2"]{ --q-base:18.5px; }
+  html[data-fs="3"]{ --q-base:20.5px; }
+
+  /* ===== 글씨체 두 가지 — 디자인(서재/그린)보다 우선 적용 ===== */
+  /* A. 깔끔 : 프리텐다드 한 벌로 통일. 화면용으로 만들어진 글꼴이라 작은 글씨·숫자·괄호까지 또렷함 */
+  html[data-font="clean"]{
+    --font-ui:"Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    --font-read:"Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    --read-lh:1.85;
+  }
+  /* B. 윤탱이 : 설치돼 있으면 진짜 윤탱이체, 없으면 결이 비슷한 손글씨(개구)로 대체.
+        손글씨는 글자가 작아 보여서 크기를 조금 키우고 줄간격을 넉넉히 줌 */
+  html[data-font="yuntang"]{
+    --font-ui:"윤탱이체", YoonTangi, "Yoon Tangi", Gaegu, "Nanum Pen Script", "Gowun Dodum", sans-serif;
+    --font-read:"윤탱이체", YoonTangi, "Yoon Tangi", Gaegu, "Nanum Pen Script", "Gowun Dodum", sans-serif;
+    --read-lh:2.0;
+    --font-mult:1.14;
+  }
 
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -90,6 +109,11 @@
     border:none; min-width:40px; height:34px; padding:0 10px; cursor:pointer;
   }
   .tool-group button + button{ border-left:1.5px solid var(--line); }
+  .tool-group .tool-label{
+    display:flex; align-items:center; padding:0 9px; font-size:11px; font-weight:800;
+    color:var(--muted); background:var(--paper-2); border-right:1.5px solid var(--line); white-space:nowrap;
+  }
+  .tool-group button{ font-size:12.5px; }
   .tool-group button.active{ background:var(--green-light); color:var(--green-dark); }
   .tool-group [data-fs-btn="1"]{ font-size:12px; }
   .tool-group [data-fs-btn="2"]{ font-size:14px; }
@@ -471,7 +495,6 @@
   html:not([data-design="green"]) .choice-btn{ border-radius:6px; }
   html:not([data-design="green"]) .bogi-block, html:not([data-design="green"]) .legend-block{ border-radius:4px; border-style:dashed; }
   html:not([data-design="green"]) .stem-box{ font-weight:700; }
-  .design-btn{ font-family:var(--font-ui); font-weight:800; font-size:13px; color:var(--muted); background:var(--card); border:1.5px solid var(--line); border-radius:18px; height:34px; padding:0 12px; cursor:pointer; }
 
   /* 탭 묶음 */
   nav.tabs .tab-label{ align-self:center; font-size:11.5px; font-weight:800; color:var(--muted); padding:0 4px 0 10px; white-space:nowrap; }
@@ -524,10 +547,10 @@
   @media (max-width:600px){
     .sticky-inner{ padding:8px 12px; }
     .header-top{ gap:6px; }
-    .top-right{ gap:6px; width:100%; justify-content:flex-start; flex-wrap:nowrap; }
+    .top-right{ gap:6px; width:100%; justify-content:flex-start; flex-wrap:wrap; }
     .top-right .dday{ margin-left:auto; padding:6px 9px; font-size:12px; white-space:nowrap; }
-    .tool-group button, .theme-toggle, .design-btn{ min-width:34px; height:32px; padding:0 8px; }
-    .design-btn .dlabel{ display:none; }
+    .tool-group button, .theme-toggle{ min-width:34px; height:32px; padding:0 8px; }
+    .tool-group .tool-label{ padding:0 7px; font-size:10px; }
     .sticky-inner .status{ font-size:12px; }
     .login-form{ padding:10px 12px 14px; }
     .login-fields input[type=text]{ flex:1; min-width:120px; }
@@ -569,11 +592,21 @@
       <div class="school-badge"><b>진선여고 3학년</b> 화이팅</div>
       <div class="top-right">
         <div class="tool-group" role="group" aria-label="글자 크기">
-          <button type="button" data-fs-btn="1" title="기본 글자">가</button>
+          <span class="tool-label">크기</span>
+          <button type="button" data-fs-btn="1" title="기본 크기">가</button>
           <button type="button" data-fs-btn="2" title="크게">가+</button>
           <button type="button" data-fs-btn="3" title="아주 크게">가++</button>
         </div>
-        <button type="button" class="design-btn" title="디자인 바꾸기">🎨 서재</button>
+        <div class="tool-group" role="group" aria-label="글씨체">
+          <span class="tool-label">글씨</span>
+          <button type="button" data-font-btn="clean" title="깔끔한 고딕 글씨체">깔끔</button>
+          <button type="button" data-font-btn="yuntang" title="손글씨 윤탱이 글씨체">윤탱이</button>
+        </div>
+        <div class="tool-group" role="group" aria-label="디자인">
+          <span class="tool-label">디자인</span>
+          <button type="button" data-design-btn="study" title="한지색 서재 디자인">서재</button>
+          <button type="button" data-design-btn="green" title="생윤 그린 디자인">그린</button>
+        </div>
         <button type="button" class="theme-toggle" title="다크모드 전환">🌙</button>
         <div class="dday" id="dday">D-계산중</div>
       </div>
@@ -667,7 +700,16 @@
         <p id="a-subtitle">윤사 기출 해부 · Firebase 저장</p>
       </div>
       <div class="spacer"></div>
-      <button type="button" class="design-btn" title="디자인 바꾸기">🎨 서재</button>
+      <div class="tool-group" role="group" aria-label="글씨체">
+        <span class="tool-label">글씨</span>
+        <button type="button" data-font-btn="clean" title="깔끔한 고딕 글씨체">깔끔</button>
+        <button type="button" data-font-btn="yuntang" title="손글씨 윤탱이 글씨체">윤탱이</button>
+      </div>
+      <div class="tool-group" role="group" aria-label="디자인">
+        <span class="tool-label">디자인</span>
+        <button type="button" data-design-btn="study" title="한지색 서재 디자인">서재</button>
+        <button type="button" data-design-btn="green" title="생윤 그린 디자인">그린</button>
+      </div>
       <button type="button" class="ghost-btn theme-toggle" title="다크모드 전환">🌙</button>
       <a class="ghost-btn" href="./">학생 화면</a>
       <button class="ghost-btn" id="admin-logout-btn" type="button" style="display:none;">로그아웃</button>
@@ -817,12 +859,13 @@ import {
 // ================================================================
 // Firebase 콘솔 > 프로젝트 설정(톱니바퀴) > 내 앱 > 웹 앱(</>) > SDK 설정 및 구성 에서 복사
 const firebaseConfig = {
-  apiKey: "여기에_apiKey",
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
   authDomain: "moon-d528d.firebaseapp.com",
   projectId: "moon-d528d",
-  storageBucket: "moon-d528d.appspot.com",
-  messagingSenderId: "여기에_messagingSenderId",
-  appId: "여기에_appId"
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765",
+  measurementId: "G-57BJWS6C9J"
 };
 
 // Firebase 콘솔 > Authentication 에서 만든 관리자 계정 이메일 (보안 규칙에도 같은 이메일을 넣어야 함)
@@ -1055,10 +1098,10 @@ function applyViewSettings(){
   });
   const design = lsGet('yunsa-design') || 'study';
   document.documentElement.dataset.design = design;
-  document.querySelectorAll('.design-btn').forEach(b=>{
-    b.innerHTML = `🎨<span class="dlabel"> ${design === 'green' ? '그린' : '서재'}</span>`;
-    b.title = `디자인 바꾸기 (지금: ${design === 'green' ? '생윤 그린' : '서재'})`;
-  });
+  document.querySelectorAll("[data-design-btn]").forEach(b=> b.classList.toggle("active", b.dataset.designBtn === design));
+  const font = lsGet("yunsa-font") || "clean";
+  document.documentElement.dataset.font = font;
+  document.querySelectorAll("[data-font-btn]").forEach(b=> b.classList.toggle("active", b.dataset.fontBtn === font));
   const fs = lsGet('yunsa-fs') || '1';
   document.documentElement.dataset.fs = fs;
   document.querySelectorAll('[data-fs-btn]').forEach(b=> b.classList.toggle('active', b.dataset.fsBtn === fs));
@@ -1067,8 +1110,12 @@ document.querySelectorAll('.theme-toggle').forEach(b=> b.addEventListener('click
   lsSet('yunsa-theme', document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
   applyViewSettings();
 }));
-document.querySelectorAll('.design-btn').forEach(b=> b.addEventListener('click', ()=>{
-  lsSet('yunsa-design', (lsGet('yunsa-design') || 'study') === 'study' ? 'green' : 'study');
+document.querySelectorAll("[data-design-btn]").forEach(b=> b.addEventListener("click", ()=>{
+  lsSet("yunsa-design", b.dataset.designBtn);
+  applyViewSettings();
+}));
+document.querySelectorAll("[data-font-btn]").forEach(b=> b.addEventListener("click", ()=>{
+  lsSet("yunsa-font", b.dataset.fontBtn);
   applyViewSettings();
 }));
 document.querySelectorAll('[data-fs-btn]').forEach(b=> b.addEventListener('click', ()=>{
