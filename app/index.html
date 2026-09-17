@@ -390,6 +390,11 @@
   .quick-row .msg{ font-size:12.5px; font-weight:700; }
   .quick-row .quick-auto{ display:flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; color:var(--green-dark); cursor:pointer; user-select:none; }
   .quick-row .quick-auto input{ accent-color:var(--green); width:15px; height:15px; cursor:pointer; }
+  .line-input{
+    font-family:var(--font-ui); font-size:13px; color:var(--ink);
+    padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; background:var(--card);
+  }
+  .line-input:focus{ outline:none; border-color:var(--green); }
 
   .small-btn{
     font-family:var(--font-ui); font-weight:700; font-size:12.5px;
@@ -849,7 +854,16 @@
 
     <!-- ---------- 구글시트 가져오기 ---------- -->
     <div class="panel" id="a-import">
-      <div class="section-title first">기존 구글시트 데이터 한 번에 옮기기</div>
+      <div class="section-title first">구글시트에서 바로 불러오기</div>
+      <div class="section-hint">구글시트를 <b>공유 → 링크가 있는 모든 사용자(뷰어)</b>로 바꾼 뒤, 시트 주소를 그대로 붙여넣고 [시트에서 불러오기]를 누르면 됩니다. <b>시트 이름</b>(아래쪽 탭 이름)을 적으면 그 탭을, 비워 두면 주소에 들어 있는 탭을 가져와요. 제목행은 <b>문항ID · 실시일 · 문항번호 · 오답률 · 배점 · 단원 · 발문 · 갑_제시문 · 을_제시문 · 병_제시문 · 갑_사상가 · 을_사상가 · 병_사상가 · 범례 · 보기 · 선지1_내용 ~ 선지5_내용 · 정답번호 · 해설</b> 이름과 같아야 합니다(순서는 달라도 됩니다). 오답률 시트도 같은 방법으로 가져올 수 있어요.</div>
+      <div class="quick-row">
+        <input type="text" class="line-input" id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/..../edit#gid=0" style="flex:1; min-width:260px;" autocomplete="off" spellcheck="false">
+        <input type="text" class="line-input" id="sheet-name" placeholder="시트 이름 (예: 문항)" style="width:160px;" autocomplete="off">
+        <button class="small-btn green" id="sheet-load-btn" type="button">시트에서 불러오기</button>
+        <span class="msg" id="sheet-msg"></span>
+      </div>
+
+      <div class="section-title">복사・붙여넣기로 옮기기</div>
       <div class="section-hint">구글시트의 "문항" 시트나 "오답률" 시트에서 <b>첫 줄(제목행)까지 포함해</b> 전체를 드래그 → 복사(Ctrl+C) → 아래에 붙여넣기 하세요. 제목행을 보고 어떤 시트인지 자동으로 알아냅니다. 같은 문항ID가 이미 있으면 덮어써요. <b>실시일</b>은 2609 처럼 네 자리로 적으셔도 되고, 26-09 / 26년 9월 / 2026년 9월 도 모두 같게 읽어 "26년 9월" 형태로 저장합니다.</div>
       <textarea class="paste-box" id="import-paste" style="min-height:180px;" placeholder="문항ID	실시일	문항번호	오답률	배점	단원	발문 ..."></textarea>
       <div class="quick-row">
@@ -2751,7 +2765,10 @@ function initAdmin(){
   }
 
   // ================= 구글시트 가져오기 =================
+  // 붙여넣기(탭 구분)와 구글시트에서 받아온 CSV(쉼표 구분)를 모두 읽는다
   function parseTSV(text){
+    const firstLine = String(text).split('\n')[0] || '';
+    const delim = (firstLine.match(/\t/g) || []).length >= (firstLine.match(/,/g) || []).length ? '\t' : ',';
     const rows = []; let row = []; let field = ''; let inQ = false;
     for(let i=0;i<text.length;i++){
       const c = text[i];
@@ -2760,7 +2777,7 @@ function initAdmin(){
         else field += c;
       }else{
         if(c === '"' && field === '') inQ = true;
-        else if(c === '\t'){ row.push(field); field = ''; }
+        else if(c === delim){ row.push(field); field = ''; }
         else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
         else if(c !== '\r') field += c;
       }
@@ -2770,7 +2787,7 @@ function initAdmin(){
   }
 
   let importJobs = [];
-  document.getElementById('import-preview-btn').addEventListener('click', ()=>{
+  function runImportPreview(){
     const msg = document.getElementById('import-msg');
     const preview = document.getElementById('import-preview');
     const saveBtn = document.getElementById('import-save-btn');
@@ -2813,6 +2830,62 @@ function initAdmin(){
       return;
     }
     saveBtn.disabled = importJobs.length === 0;
+  }
+  document.getElementById('import-preview-btn').addEventListener('click', runImportPreview);
+
+  // ----- 구글시트에서 바로 불러오기 -----
+  // 시트 주소(또는 시트 ID)를 CSV로 받아올 수 있는 주소로 바꾼다.
+  // 시트는 "링크가 있는 모든 사용자 - 뷰어" 또는 "웹에 게시" 상태여야 브라우저에서 읽을 수 있다.
+  function sheetCsvUrl(input, sheetName){
+    const raw = String(input || '').trim();
+    if(!raw) return '';
+    if(/output=csv/i.test(raw)) return raw;                      // 이미 "웹에 게시" CSV 주소
+    const idM = raw.match(/\/spreadsheets\/d\/(?:e\/)?([a-zA-Z0-9_-]+)/);
+    const id = idM ? idM[1] : (/^[a-zA-Z0-9_-]{20,}$/.test(raw) ? raw : '');
+    if(!id) return '';
+    let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+    const name = String(sheetName || '').trim();
+    const gidM = raw.match(/[#&?]gid=([0-9]+)/);
+    if(name) url += '&sheet=' + encodeURIComponent(name);        // 시트 이름을 적었으면 그 탭
+    else if(gidM) url += '&gid=' + gidM[1];                      // 아니면 주소에 들어 있는 탭
+    return url;
+  }
+
+  try{
+    const su = lsGet('saengyun-sheet-url'); if(su) document.getElementById('sheet-url').value = su;
+    const sn = lsGet('saengyun-sheet-name'); if(sn) document.getElementById('sheet-name').value = sn;
+  }catch(e){}
+
+  document.getElementById('sheet-load-btn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('sheet-msg');
+    const btn = document.getElementById('sheet-load-btn');
+    const urlRaw = document.getElementById('sheet-url').value;
+    const nameRaw = document.getElementById('sheet-name').value;
+    const url = sheetCsvUrl(urlRaw, nameRaw);
+    if(!url){
+      msg.className = 'msg no-text';
+      msg.textContent = '구글시트 주소를 확인해주세요. (주소창의 .../spreadsheets/d/... 주소를 그대로 붙여넣으면 됩니다)';
+      return;
+    }
+    btn.disabled = true; msg.className = 'msg'; msg.textContent = '시트를 불러오는 중...';
+    try{
+      const res = await fetch(url, { credentials:'omit' });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      if(/^\s*<(!doctype|html)/i.test(text)) throw new Error('NOT_PUBLIC');
+      if(!text.trim()) throw new Error('EMPTY');
+      document.getElementById('import-paste').value = text;
+      lsSet('saengyun-sheet-url', String(urlRaw).trim());
+      lsSet('saengyun-sheet-name', String(nameRaw).trim());
+      msg.className = 'msg ok-text'; msg.textContent = '✓ 시트를 불러왔어요. 아래 분석 결과를 확인하고 [Firebase에 저장]을 누르세요.';
+      runImportPreview();
+    }catch(e){
+      console.error(e);
+      msg.className = 'msg no-text';
+      msg.textContent = e.message === 'EMPTY'
+        ? '시트가 비어 있어요. 시트 이름(탭 이름)이 맞는지 확인해주세요.'
+        : '불러오지 못했어요. 시트 공유를 "링크가 있는 모든 사용자 - 뷰어"로 바꾸고, 시트 이름이 맞는지 확인해주세요.';
+    }finally{ btn.disabled = false; }
   });
   document.getElementById('import-save-btn').addEventListener('click', async ()=>{
     const msg = document.getElementById('import-msg');
