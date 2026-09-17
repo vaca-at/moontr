@@ -652,15 +652,6 @@
   .timer-btn:hover{ background:var(--paper-2); }
   .timer-btn.active{ color:var(--green-dark); border-color:var(--green); background:var(--green-light); }
   .result-time{ font-weight:800; color:var(--ink) !important; }
-  .conf-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
-  .conf-label{ font-size:13px; font-weight:700; color:var(--muted); margin-right:2px; }
-  .conf-btn{
-    font-family:var(--font-ui); font-weight:700; font-size:14px; color:var(--ink); background:var(--card);
-    border:1.5px solid var(--line); border-radius:20px; padding:0 16px; min-height:42px; cursor:pointer;
-  }
-  .conf-btn.active{ background:var(--green-light); border-color:var(--green); color:var(--green-dark); }
-  .conf-btn[data-conf="unsure"].active{ background:var(--gold-light); border-color:var(--gold); color:var(--ink); }
-  .conf-btn:disabled{ cursor:default; opacity:.7; }
   .report-area{ margin-top:16px; text-align:right; }
   .report-btn{ font-family:var(--font-ui); font-weight:700; font-size:13px; color:var(--muted); background:none; border:none; cursor:pointer; padding:10px 4px; }
   .report-btn:hover{ color:var(--red); }
@@ -928,11 +919,11 @@
       <button class="ghost-btn" id="admin-logout-btn" type="button" style="display:none;">로그아웃</button>
     </div>
     <nav class="tabs" id="admin-tabs" style="max-width:860px; display:none;">
-      <button class="active" data-apanel="a-register">문항 등록</button>
+      <button class="active" data-apanel="a-students">학생 현황</button>
+      <button data-apanel="a-register">문항 등록</button>
       <button data-apanel="a-list">등록 문항 목록</button>
       <button data-apanel="a-rates">오답률표 입력</button>
       <button data-apanel="a-import">구글시트 가져오기</button>
-      <button data-apanel="a-students">학생 현황</button>
       <button data-apanel="a-reports">오류 신고</button>
     </nav>
   </header>
@@ -948,7 +939,7 @@
   <main class="admin-main" id="admin-main" style="display:none;">
 
     <!-- ---------- 문항 등록 ---------- -->
-    <div class="panel active" id="a-register">
+    <div class="panel" id="a-register">
       <div class="edit-banner" id="edit-banner">
         <span id="edit-banner-text"></span>
         <button class="small-btn line" id="edit-cancel-btn" type="button">새 문항 입력으로</button>
@@ -1058,7 +1049,7 @@
     </div>
 
     <!-- ---------- 학생 현황 ---------- -->
-    <div class="panel" id="a-students"></div>
+    <div class="panel active" id="a-students"></div>
 
     <!-- ---------- 오류 신고 ---------- -->
     <div class="panel" id="a-reports"></div>
@@ -1739,9 +1730,8 @@ function initStudent(){
     if(me.wrong[q.id]) return { a:1, c:0 };
     return null;
   }
-  function saveProgress(q, i, isOk, conf, soxMarks){
+  function saveProgress(q, i, isOk, soxMarks){
     if(!loginInfo) return;
-    if(conf) me.conf[q.id] = conf; else delete me.conf[q.id];
     const s = me.stats[q.id] ? { ...me.stats[q.id] } : (getStat(q) ? { ...getStat(q) } : { a:0, c:0 });
     s.a++; if(isOk) s.c++;
     me.stats[q.id] = s;
@@ -1749,7 +1739,7 @@ function initStudent(){
     else{ me.wrong[q.id] = true; delete me.correct[q.id]; delete me.mastered[q.id]; }
     markToday(isOk);
     saveMe({
-      correct: me.correct, wrong: me.wrong, mastered: me.mastered, stats: me.stats, conf: me.conf,
+      correct: me.correct, wrong: me.wrong, mastered: me.mastered, stats: me.stats,
       days: me.days, sox: me.sox || {},
       correctCount: Object.keys(me.correct).length,
       wrongCount: Object.keys(me.wrong).length
@@ -1757,7 +1747,7 @@ function initStudent(){
     addDoc(collection(db, COL.logs), {
       studentId: loginInfo.studentId, nickname: loginInfo.nickname,
       questionId: q.id, choice: i+1, correctNum: Number(q.correctNum),
-      isCorrect: isOk, confidence: conf || '', sox: soxMarks || null, at: serverTimestamp()
+      isCorrect: isOk, sox: soxMarks || null, at: serverTimestamp()
     }).catch(e=>console.error('응시기록 저장 실패', e));
   }
   function toggleFavorite(qid){
@@ -1972,22 +1962,31 @@ function initStudent(){
     while(s < e && /\s/.test(text[s])) s++;
     return [s, e];
   }
+  // 패널(p1, p8 …)은 문제를 넘겨도 그대로 남는 상자라, 핸들러를 문제마다 새로 걸면
+  // 옛 문제의 핸들러가 겹쳐 쌓여서 엉뚱한 문항의 글이 튀어나온다.
+  // → 패널마다 한 번만 걸고, 지금 풀고 있는 문제만 바꿔 끼운다.
+  const hlCtx = {};
   function bindHighlighting(root, q){
-    const later = () => setTimeout(()=> captureHighlight(root, q), 0);
+    const key = root.id || 'panel';
+    if(hlCtx[key]){ hlCtx[key].q = q; return; }
+    const ctx = { q };
+    hlCtx[key] = ctx;
+    const later = () => setTimeout(()=> captureHighlight(root, ctx.q), 0);
     root.addEventListener('mouseup', later);
     root.addEventListener('touchend', later);
     root.addEventListener('click', e=>{
       if(!hlModeOn()) return;
+      const cq = ctx.q;
       const t = e.target;
-      if(!t || !t.closest) return;
+      if(!cq || !t || !t.closest) return;
       // 칠한 곳을 다시 누르면 지우기
       const m = t.closest('mark.hl');
       if(m){
         const h = m.closest('[data-hl]');
         if(!h) return;
         e.preventDefault(); e.stopPropagation();
-        removeHighlight(q, h.dataset.hl, Number(m.dataset.s), Number(m.dataset.e));
-        paintPart(h, q, h.dataset.hl);
+        removeHighlight(cq, h.dataset.hl, Number(m.dataset.s), Number(m.dataset.e));
+        paintPart(h, cq, h.dataset.hl);
         saveHighlights();
         return;
       }
@@ -1998,12 +1997,12 @@ function initStudent(){
       if(sel && !sel.isCollapsed) return;
       e.preventDefault(); e.stopPropagation();
       const part = holder.dataset.hl;
-      const text = hlKeyText(q, part);
+      const text = hlKeyText(cq, part);
       if(!text) return;
       const pos = caretOffsetAt(holder, e.clientX, e.clientY);
       const range = sentenceAround(text, pos < 0 ? 0 : pos);
-      if(addHighlight(q, part, range[0], range[1])){
-        paintPart(holder, q, part);
+      if(addHighlight(cq, part, range[0], range[1])){
+        paintPart(holder, cq, part);
         saveHighlights();
       }
     }, true);
@@ -2112,12 +2111,9 @@ function initStudent(){
   }
 
   // ----- 오답노트 (복습 모드 + 마스터 처리) -----
-  const WRONG_FILTERS = [['all','전체'],['unsure','🤔 헷갈렸는데 틀린 것'],['sure','😎 확실했는데 틀린 것']];
   function renderWrongPanel(){
-    const wf = lsGet('saengyun-wrong-filter') || 'all';
     const allWrong = ALL_QUESTIONS.filter(q => me.wrong[q.id]);
-    const matchF = (q, f) => f === 'all' || me.conf[q.id] === f;
-    const queue = allWrong.filter(q => matchF(q, wf)).sort(compareId);
+    const queue = allWrong.slice().sort(compareId);
     const showNames = lsGet('saengyun-review-names') === '1';
     const headerHTML = () => {
       const masteredCnt = ALL_QUESTIONS.filter(q => me.mastered[q.id]).length;
@@ -2126,8 +2122,7 @@ function initStudent(){
       <div class="panel-toolbar">
         <label class="switch"><input type="checkbox" id="p8-names" ${checked ? 'checked' : ''}> 사상가 이름 보기 (복습 모드)</label>
         <span style="color:var(--muted);">마스터한 문제 ${masteredCnt}개${masteredCnt ? ' · <button class="link-btn" id="p8-restore" type="button">모두 오답노트로 되돌리기</button>' : ''}</span>
-      </div>
-      <div class="m1-subtabs">${WRONG_FILTERS.map(([k,label])=>`<button class="m1-subtab ${wf===k?'active':''}" data-wf="${k}">${label} (${allWrong.filter(q=>matchF(q,k)).length})</button>`).join('')}</div>`;
+      </div>`;
     };
     const bindHeader = (el) => {
       el.querySelector('#p8-names').addEventListener('change', e=>{
@@ -2135,7 +2130,6 @@ function initStudent(){
         const st = quizState.p8;
         if(st){ st.opts.showNames = e.target.checked; renderQuizQuestion('p8', true); }
       });
-      el.querySelectorAll('[data-wf]').forEach(b=> b.addEventListener('click', ()=>{ lsSet('saengyun-wrong-filter', b.dataset.wf); renderWrongPanel(); }));
       const rb = el.querySelector('#p8-restore');
       if(rb) rb.addEventListener('click', ()=>{
         if(!confirm('마스터 처리한 문제를 모두 오답노트로 되돌릴까요?')) return;
@@ -2479,7 +2473,6 @@ function initStudent(){
     const rate = rateNumber(q.rate);
     const hasExpl = !!(q.explanation || namesLine(q));
     const qStart = Date.now();
-    let conf = null;
 
     finish(`
       <div class="q-head">
@@ -2497,11 +2490,6 @@ function initStudent(){
       <div id="${panelId}-streak">${streak >= 2 ? `<span class="streak-chip">🔥 ${streak}연속 정답 중!</span>` : ''}</div>
       <div class="stem-box" data-hl="stem">${escapeHtml(q.stem)}</div>
       ${renderPassageHTML(q, opts.showNames)}
-      <div class="conf-row" id="${panelId}-conf">
-        <span class="conf-label">풀기 전에 체크</span>
-        <button type="button" class="conf-btn" data-conf="sure">😎 확실해요</button>
-        <button type="button" class="conf-btn" data-conf="unsure">🤔 헷갈려요</button>
-      </div>
       <div class="choice-list" id="${panelId}-choices"></div>
       <div class="feedback" id="${panelId}-feedback">
         <div class="fb-top">
@@ -2635,13 +2623,6 @@ function initStudent(){
       });
     }
 
-    // 확신도 체크 (선택 사항 — 다시 누르면 해제)
-    const confRow = document.getElementById(panelId+'-conf');
-    confRow.querySelectorAll('.conf-btn').forEach(b=> b.addEventListener('click', ()=>{
-      conf = conf === b.dataset.conf ? null : b.dataset.conf;
-      confRow.querySelectorAll('.conf-btn').forEach(x => x.classList.toggle('active', x.dataset.conf === conf));
-    }));
-
     document.getElementById(panelId+'-skip').addEventListener('click', ()=>{
       stopTimer();
       streak = 0;
@@ -2679,9 +2660,8 @@ function initStudent(){
       wrap.querySelectorAll('.ox-pick button').forEach(x => x.disabled = true);
       const soxBtn = document.getElementById(panelId+'-sox');
       if(soxBtn) soxBtn.disabled = true;
-      confRow.querySelectorAll('.conf-btn').forEach(x => x.disabled = true);
       if(isOk){ st.correct++; streak++; } else { streak = 0; }
-      saveProgress(q, pickedIdx, isOk, conf, soxLine ? soxLine.marks : null);
+      saveProgress(q, pickedIdx, isOk, soxLine ? soxLine.marks : null);
 
       document.getElementById(panelId+'-streak').innerHTML = streak >= 2 ? `<span class="streak-chip pop">🔥 ${streak}연속 정답 중!</span>` : '';
       const fb = document.getElementById(panelId+'-feedback');
@@ -2689,7 +2669,6 @@ function initStudent(){
       let verdict = isOk ? '정답입니다.' : `오답입니다. 정답은 ${NUM_MARK[correctIdx]}번입니다.`;
       if(soxLine) verdict += ` 선지 판정은 ${q.choices.length}개 중 ${soxLine.right}개 맞았어요.`;
       if(isOk && streak >= 3) verdict += ` 🔥 ${streak}연속 정답!`;
-      if(!isOk && conf === 'sure') verdict += ' 확실하다고 생각했던 문제라 꼭 다시 봐요.';
       document.getElementById(panelId+'-verdict').textContent = verdict;
       document.getElementById(panelId+'-skip').style.display = 'none';
       document.getElementById(panelId+'-next').style.display = 'inline-block';
@@ -2802,7 +2781,8 @@ function initAdmin(){
     if(!adminTabRestored){
       adminTabRestored = true;
       const saved = lsGet('saengyun-atab');
-      if(saved && document.getElementById(saved)) showAdminPanel(saved, false);
+      const first = (saved && document.getElementById(saved)) ? saved : 'a-students';
+      showAdminPanel(first, false);
     }
   }
 
@@ -3756,7 +3736,6 @@ function initAdmin(){
         const wrongIds = Object.keys(s.wrong||{}).sort();
         return {
           s, solved: ids.size, attempts: a, rate: a ? Math.round(c/a*100) : null, wrongIds,
-          unsure: wrongIds.filter(id => s.conf?.[id] === 'unsure').length,
           fav: (s.favorites||[]).length, memo: Object.keys(s.memos||{}).length,
           noteLen: (s.note||'').length
         };
@@ -3778,7 +3757,7 @@ function initAdmin(){
               <td>${escapeHtml(r.s.nickname)}</td>
               <td>${r.solved} <span style="color:var(--muted);font-size:11px;">(${r.attempts}회)</span></td>
               <td>${r.rate === null ? '-' : `<b class="${r.rate < 50 ? 'no-text' : ''}">${r.rate}%</b>`}</td>
-              <td title="${escapeHtml(r.wrongIds.join(', '))}">${r.wrongIds.length}${r.unsure ? ` <span style="color:var(--muted);font-size:11px;">(헷갈림 ${r.unsure})</span>` : ''}${r.wrongIds.length ? `<br><span style="color:var(--muted);font-size:11px;">${escapeHtml(r.wrongIds.slice(0,5).join(', '))}${r.wrongIds.length>5?' …':''}</span>` : ''}</td>
+              <td title="${escapeHtml(r.wrongIds.join(', '))}">${r.wrongIds.length}${r.wrongIds.length ? `<br><span style="color:var(--muted);font-size:11px;">${escapeHtml(r.wrongIds.slice(0,5).join(', '))}${r.wrongIds.length>5?' …':''}</span>` : ''}</td>
               <td>${r.fav}</td>
               <td>${r.memo}</td>
               <td>${r.noteLen ? `<div class="row-btns"><button data-note="${r.s.key}">${r.noteLen}자 보기</button></div>` : '-'}</td>
@@ -3839,9 +3818,9 @@ function initAdmin(){
 
       document.getElementById('students-csv').addEventListener('click', ()=>{
         const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
-        const lines = [['학번','닉네임','푼 문항','시도 횟수','정답률(%)','현재 오답 수','헷갈렸는데 틀린 수','현재 오답 문항','즐겨찾기','메모','노트 글자수','최근 접속'].map(esc).join(',')];
+        const lines = [['학번','닉네임','푼 문항','시도 횟수','정답률(%)','현재 오답 수','현재 오답 문항','즐겨찾기','메모','노트 글자수','최근 접속'].map(esc).join(',')];
         rows.forEach(r=> lines.push([
-          r.s.studentId, r.s.nickname, r.solved, r.attempts, r.rate ?? '', r.wrongIds.length, r.unsure,
+          r.s.studentId, r.s.nickname, r.solved, r.attempts, r.rate ?? '', r.wrongIds.length,
           r.wrongIds.join(' '), r.fav, r.memo, r.noteLen, fmtDate(r.s.lastSeen)
         ].map(esc).join(',')));
         const blob = new Blob(['\ufeff' + lines.join('\n')], { type:'text/csv;charset=utf-8' });
