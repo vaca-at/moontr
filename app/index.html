@@ -3844,10 +3844,18 @@ function initAdmin(){
         }
       }
       await setDoc(ref, { ...q, updatedAt: serverTimestamp() });
+      // 문항ID를 바꿔서 저장했으면 옛 문서를 지운다 (안 지우면 같은 문항이 둘로 남는다)
+      let renamed = '';
+      if(editingId && editingId !== q.id){
+        if(confirm(`문항ID가 ${editingId} → ${q.id} 로 바뀌었어요.\n\n예전 문항(${editingId})을 지울까요?\n(취소하면 둘 다 남습니다)`)){
+          try{ await deleteDoc(doc(db, COL.questions, editingId)); renamed = editingId; }
+          catch(e){ console.error('옛 문항 삭제 실패', e); }
+        }
+      }
       const resolved = await resolveReportsFor(q.id);   // 신고된 문항을 고쳤으면 해결 처리
       bumpQuestionsVersion();
       status.className = 'submit-status ok-text';
-      status.textContent = `${q.id} 저장 완료!${resolved ? ` 접수된 신고 ${resolved}건을 해결로 표시했어요.` : ''} 다음 문항을 붙여넣으세요.`;
+      status.textContent = `${q.id} 저장 완료!${renamed ? ` 예전 문항 ${renamed}은(는) 지웠어요.` : ''}${resolved ? ` 접수된 신고 ${resolved}건을 해결로 표시했어요.` : ''} 다음 문항을 붙여넣으세요.`;
       const savedId = q.id;
       resetForm();
       tell(true, `✓ ${savedId} 저장 완료! 다음 문항을 바로 붙여넣으세요.`);
