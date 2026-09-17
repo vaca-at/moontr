@@ -232,6 +232,20 @@
   }
   nav.tabs button.active{ color:var(--green-dark); border-bottom-color:var(--green); }
   nav.tabs button:hover{color:var(--ink);}
+  nav.subtabs{
+    max-width:960px; margin:0 auto; padding:0 20px 2px; display:flex; gap:4px; flex-wrap:wrap; width:100%;
+  }
+  nav.subtabs button{
+    appearance:none; font-family:var(--font-ui); font-weight:700; font-size:12.5px; cursor:pointer;
+    color:var(--muted); background:var(--card); border:1.5px solid var(--line); border-radius:999px;
+    padding:6px 13px; min-height:32px;
+  }
+  nav.subtabs button:hover{ color:var(--ink); border-color:var(--green); }
+  nav.subtabs button.active{ background:var(--green-light); border-color:var(--green); color:var(--green-dark); }
+  @media (max-width:600px){
+    nav.subtabs{ padding:0 14px 2px; gap:3px; }
+    nav.subtabs button{ font-size:12px; padding:5px 10px; min-height:30px; }
+  }
 
   .login-bar{
     max-width:960px; width:100%; margin:8px auto 0; padding:8px 20px; display:flex; align-items:center; justify-content:space-between;
@@ -893,25 +907,8 @@
         <p id="s-subtitle">최근 3개년 고난도 기출 · EBSi 오답률 연계</p>
       </div>
     </div>
-    <nav class="tabs" id="student-tabs">
-      <span class="tab-label">읽기</span>
-      <button data-panel="p15">👤 사상가별 원문 읽기</button>
-      <button data-panel="p16">⭕❌ 사상가 OX</button>
-      <span class="tab-sep"></span><span class="tab-label">풀기</span>
-      <button class="active" data-panel="p1">랜덤</button>
-      <button data-panel="p2">교육청・평가원</button>
-      <button data-panel="p4">주제별 풀기</button>
-      <button data-panel="p13">검색</button>
-      <button data-panel="p12">오늘의 10문제</button>
-      <span class="tab-sep"></span><span class="tab-label">복습</span>
-      <button data-panel="p8">오답노트</button>
-      <button data-panel="p9">즐겨찾기</button>
-      <button data-panel="p10">내 메모</button>
-      <button data-panel="p14">🖍 형광펜</button>
-      <span class="tab-sep"></span>
-      <button data-panel="p11">내 학습 현황</button>
-      <!-- 선지 OX · 빈칸 OX · 퀴즈 게임은 준비되면 여기에 버튼만 다시 추가 (data-panel="p5"/"p6"/"p7") -->
-    </nav>
+    <nav class="tabs" id="student-tabs"></nav>
+    <nav class="subtabs" id="student-subtabs"></nav>
   </header>
 
   <div class="sticky-strip" id="sticky-strip">
@@ -963,6 +960,8 @@
     <div class="panel" id="p14"></div>
     <div class="panel" id="p15"></div>
     <div class="panel" id="p16"></div>
+    <div class="panel" id="p17"></div>
+    <div class="panel" id="p18"></div>
     <div class="panel" id="p11"></div>
   </main>
 
@@ -1010,6 +1009,7 @@
       <button data-apanel="a-rates">오답률표 입력</button>
       <button data-apanel="a-import">구글시트 가져오기</button>
       <button data-apanel="a-says">사상가별 선지</button>
+      <button data-apanel="a-compare">갑・을 OX</button>
       <button data-apanel="a-reports">오류 신고</button>
     </nav>
   </header>
@@ -1137,6 +1137,9 @@
     <!-- ---------- 사상가별 선지 ---------- -->
     <div class="panel" id="a-says"></div>
 
+    <!-- ---------- 갑・을 OX ---------- -->
+    <div class="panel" id="a-compare"></div>
+
     <!-- ---------- 학생 현황 ---------- -->
     <div class="panel active" id="a-students"></div>
 
@@ -1191,7 +1194,8 @@ const COL = {
   logs:      "yunsa_logs",
   reports:   "yunsa_reports",
   flags:     "yunsa_flags",    // 신고된 문항 표시 (개인정보 없이 문항ID만 — 학생 화면에 "신고된 문항" 배너)
-  visits:    "yunsa_visits"    // 익명 접속 기록 (기기 종류・브라우저・날짜만. 학번・닉네임과 연결되지 않음)
+  visits:    "yunsa_visits",   // 익명 접속 기록 (기기 종류・브라우저・날짜만. 학번・닉네임과 연결되지 않음)
+  compare:   "yunsa_compare"   // 갑・을 OX 문항 (두 사상가의 공통점・차이점 진술. 개인정보 없음)
 };
 
 // 윤리와사상 단원(카테고리) — 발문을 먼저 보고, 발문만으로 애매하면 제시문 키워드로 판단
@@ -1446,6 +1450,29 @@ function statementOwner(q, text){
   if(hit.length === 1) return hit[0];
   return labels.length === 1 ? labels[0] : null;                    // 사상가가 한 명뿐이면 그 사람 것
 }
+// 갑・을을 견주는 선지만 따로 모은다 (공통점 / 차이점)
+function pairStatements(questions){
+  const out = [];
+  (questions || []).forEach(q=>{
+    if(!soxAvailable(q)) return;
+    const labels = (q.thinkers || []).map(t => t.label).filter(Boolean);
+    if(labels.length < 2) return;
+    (q.choices || []).forEach((choice, i)=>{
+      const s = String(choice || '');
+      const hit = labels.filter(l => new RegExp('(^|[\\s,·(])' + l + '(?=[은는이가만도:,]|\\s|와|과)').test(s));
+      if(hit.length < 2 && !/모두|공통|둘 다/.test(s)) return;
+      out.push({
+        q, i,
+        text: labelToName(q, choice),
+        ans: choiceTruth(q, i),
+        kind: /달리|비해|반면|차이/.test(s) ? '차이점' : '공통점',
+        names: (q.thinkers || []).map(t => cleanName(t.name)).filter(Boolean)
+      });
+    });
+  });
+  return out;
+}
+
 // { 사상가이름: { o:[옳은 선지], x:[옳지 않은 선지] } }
 function thinkerSays(questions){
   const by = {};
@@ -1609,8 +1636,76 @@ function initStudent(){
   const diffDays = Math.ceil((new Date(CONFIG.examDate) - new Date()) / (1000*60*60*24));
   document.getElementById('dday').textContent = diffDays >= 0 ? `수능 D-${diffDays}` : '수능 종료';
 
-  bindTabs('#student-tabs', 'panel', renderPanelById);
-  function goTab(panelId){ document.querySelector(`#student-tabs [data-panel="${panelId}"]`).click(); }
+  // ================= 메뉴 (상위 5개 · 그 아래 세부 메뉴) =================
+  const MENU = [
+    { id:'g-read',   label:'사상가별 공부하기', items:[
+      { panel:'p15', label:'사상가별 원문 읽기' },
+      { panel:'p17', label:'사상가별 선지 읽기' }
+    ]},
+    { id:'g-solve',  label:'기출문제 3개년 풀기', items:[
+      { panel:'p1',  label:'랜덤 풀기' },
+      { panel:'p2',  label:'교육청・평가원' },
+      { panel:'p4',  label:'단원별 풀기',   mode:'unit' },
+      { panel:'p4',  label:'사상가별 풀기', mode:'thinker' },
+      { panel:'p13', label:'키워드 검색' },
+      { panel:'p12', label:'오늘의 10문제' }
+    ]},
+    { id:'g-ox',     label:'OX 맞추기', items:[
+      { panel:'p16', label:'사상가별 OX 맞추기' },
+      { panel:'p18', label:'갑・을 OX 맞추기' }
+    ]},
+    { id:'g-review', label:'복습', items:[
+      { panel:'p8',  label:'오답노트' },
+      { panel:'p9',  label:'즐겨찾기' },
+      { panel:'p10', label:'내 메모' },
+      { panel:'p14', label:'형광펜' }
+    ]},
+    { id:'g-stat',   label:'내 학습 현황', items:[
+      { panel:'p11', label:'내 학습 현황' }
+    ]}
+  ];
+  let menuGroup = MENU[1].id;   // 처음 화면: 기출문제 3개년 풀기
+  let menuItem = 0;
+
+  function currentGroup(){ return MENU.find(g => g.id === menuGroup) || MENU[0]; }
+  function renderMenu(){
+    const g = currentGroup();
+    document.getElementById('student-tabs').innerHTML =
+      MENU.map(x=>`<button type="button" class="${x.id === g.id ? 'active' : ''}" data-group="${x.id}">${escapeHtml(x.label)}</button>`).join('');
+    const sub = document.getElementById('student-subtabs');
+    sub.innerHTML = g.items.length > 1
+      ? g.items.map((it,i)=>`<button type="button" class="${i === menuItem ? 'active' : ''}" data-item="${i}">${escapeHtml(it.label)}</button>`).join('')
+      : '';
+    sub.style.display = g.items.length > 1 ? '' : 'none';
+    document.getElementById('student-tabs').querySelectorAll('[data-group]').forEach(b=> b.addEventListener('click', ()=>{
+      menuGroup = b.dataset.group; menuItem = 0; openMenu();
+    }));
+    sub.querySelectorAll('[data-item]').forEach(b=> b.addEventListener('click', ()=>{
+      menuItem = Number(b.dataset.item); openMenu();
+    }));
+  }
+  function openMenu(){
+    const g = currentGroup();
+    const it = g.items[menuItem] || g.items[0];
+    if(it.mode) collect.mode = it.mode;
+    renderMenu();
+    document.querySelectorAll('#student-view .panel').forEach(p=> p.classList.toggle('active', p.id === it.panel));
+    renderPanelById(it.panel);
+    lsSet('yunsa-menu', g.id + '|' + menuItem);
+  }
+  // 다른 화면에서 특정 메뉴로 보내기 (예: 학습 현황의 "이 단원만 풀기")
+  function goTab(panelId, mode){
+    for(let gi = 0; gi < MENU.length; gi++){
+      const idx = MENU[gi].items.findIndex(it => it.panel === panelId && (!mode || it.mode === mode));
+      if(idx >= 0){ menuGroup = MENU[gi].id; menuItem = idx; openMenu(); return; }
+    }
+  }
+  (function restoreMenu(){
+    const saved = (lsGet('yunsa-menu') || '').split('|');
+    const g = MENU.find(x => x.id === saved[0]);
+    if(g){ menuGroup = g.id; menuItem = Math.min(Number(saved[1]) || 0, g.items.length - 1); }
+    renderMenu();
+  })();
 
   document.addEventListener('click', (e)=>{
     if(e.target.closest('[data-action="reload"]')) loadQuestions();
@@ -1653,7 +1748,7 @@ function initStudent(){
     return null;
   }
 
-  const ALL_PANELS = ['p1','p2','p4','p13','p12','p5','p6','p7','p8','p9','p10','p14','p15','p16','p11'];
+  const ALL_PANELS = ['p1','p2','p4','p13','p12','p8','p9','p10','p14','p15','p16','p17','p18','p11'];
   function renderAllPanels(){ ALL_PANELS.forEach(renderPanelById); }
 
   function renderPanelById(id){
@@ -1676,6 +1771,8 @@ function initStudent(){
     else if(id === 'p14') renderHighlightPanel();
     else if(id === 'p15') renderThinkerPanel();
     else if(id === 'p16') renderThinkerOX();
+    else if(id === 'p17') renderSaysPanelStudent();
+    else if(id === 'p18') renderPairOX();
   }
 
   // ----- 로그인 (학번 5자리 + 닉네임 한글 5자 이내) -----
@@ -2253,6 +2350,123 @@ function initStudent(){
     });
     return map;
   }
+  // ----- 사상가별 선지 읽기 (옳은 선지만) -----
+  let sayPick = null;
+  function renderSaysPanelStudent(){
+    const el = document.getElementById('p17');
+    const says = thinkerSays(ALL_QUESTIONS);
+    const names = Object.keys(says).filter(n => says[n].o.length)
+      .sort((a,b)=> says[b].o.length - says[a].o.length || a.localeCompare(b));
+    if(!names.length){
+      el.innerHTML = `<div class="state-msg">아직 모인 선지가 없어요. 문항이 더 등록되면 자동으로 쌓입니다.</div>`;
+      return;
+    }
+    if(!sayPick || !says[sayPick]) sayPick = names[0];
+    const lines = says[sayPick].o;
+    el.innerHTML = `
+      <div class="dash-note">기출 선지 가운데 <b>맞는 설명만</b> 사상가별로 모았어요. 갑・을을 견주는 비교형 선지는 [OX 맞추기 > 갑・을 OX]에 있습니다.</div>
+      <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===sayPick?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${says[n].o.length}</b></button>`).join('')}</div>
+      <div class="read-head">✅ ${escapeHtml(sayPick)}에 대해 맞는 설명 ${lines.length}개</div>
+      <div class="say-box">${lines.map(s=>`
+        <div class="say-line">
+          <span class="say-dot o">✓</span>
+          <span class="say-text">${escapeHtml(s.text)}</span>
+          <button type="button" class="say-src" data-open="${escapeHtml(s.q.id)}" title="이 문제 보기">${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}</button>
+        </div>`).join('')}</div>`;
+    el.querySelectorAll('[data-t]').forEach(b=> b.addEventListener('click', ()=>{ sayPick = b.dataset.t; renderSaysPanelStudent(); }));
+    el.querySelectorAll('[data-open]').forEach(b=> b.addEventListener('click', ()=>{
+      const q = ALL_QUESTIONS.find(x => x.id === b.dataset.open);
+      if(q) startQuiz('p17', [q], { onFinishBack: renderSaysPanelStudent, showNames:true });
+    }));
+  }
+
+  // ----- 갑・을 OX 맞추기 (두 사상가를 견주는 선지) -----
+  const pox = { list:[], page:0, marks:{}, loaded:false, kind:'all' };
+  async function loadPairItems(){
+    try{
+      const snap = await getDocs(collection(db, COL.compare));
+      pox.list = shuffle(snap.docs.map(d=>({ id:d.id, ...d.data() })).filter(x => x.text && x.ans));
+    }catch(e){ console.error('갑・을 OX 목록을 불러오지 못했어요', e); pox.list = []; }
+    pox.loaded = true;
+  }
+  async function renderPairOX(){
+    const el = document.getElementById('p18');
+    if(!pox.loaded){
+      el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
+      await loadPairItems();
+    }
+    const all = pox.list.filter(x => pox.kind === 'all' || x.kind === pox.kind);
+    const head = `
+      <div class="dash-note">두 사상가를 <b>견주는 설명</b>이 맞는지 O/X로 판단해요. 예를 들어 "갑과 을 모두 ~"가 정답이면 <b>공통점이 맞다(O)</b>, 정답이 아니면 <b>공통점이 아니다(X)</b>가 됩니다.</div>
+      <div class="unit-pills">
+        <button type="button" class="unit-pill ${pox.kind==='all'?'active':''}" data-k="all">전체 <b>${pox.list.length}</b></button>
+        <button type="button" class="unit-pill ${pox.kind==='공통점'?'active':''}" data-k="공통점">공통점 <b>${pox.list.filter(x=>x.kind==='공통점').length}</b></button>
+        <button type="button" class="unit-pill ${pox.kind==='차이점'?'active':''}" data-k="차이점">차이점 <b>${pox.list.filter(x=>x.kind==='차이점').length}</b></button>
+      </div>`;
+    if(!all.length){
+      el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
+      bindPoxPills(el);
+      return;
+    }
+    const pages = Math.ceil(all.length / TOX_PAGE);
+    if(pox.page >= pages) pox.page = 0;
+    const from = pox.page * TOX_PAGE;
+    const slice = all.slice(from, from + TOX_PAGE);
+    const doneN = Object.keys(pox.marks).length;
+    const rightN = Object.keys(pox.marks).filter(k => pox.marks[k] === (pox.list.find(x=>x.id===k)||{}).ans).length;
+    el.innerHTML = head + `
+      <div class="tox-head">
+        <b>${from + 1}~${from + slice.length} / ${all.length}</b>
+        <span class="tox-score">맞힌 개수 ${rightN} / ${doneN}</span>
+      </div>
+      <div class="tox-list">
+        ${slice.map((s, k)=>{
+          const mark = pox.marks[s.id];
+          const ok = mark && mark === s.ans;
+          return `
+          <div class="tox-row ${mark ? (ok ? 'ok' : 'no') : ''}" data-id="${escapeHtml(s.id)}">
+            <div class="tox-num">${from + k + 1}</div>
+            <div class="tox-body">
+              <div class="tox-q">${escapeHtml(s.text)}</div>
+              <div class="tox-note" ${mark ? '' : 'hidden'}>${mark
+                ? `${ok ? '맞았어요.' : `아니에요. 이 설명은 <b>${s.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`} <span class="say-src-plain">${escapeHtml(s.kind || '')}${s.src ? ' · 출처 ' + escapeHtml(s.src) : ''}</span>`
+                : ''}</div>
+            </div>
+            <div class="tox-btns">
+              <button type="button" class="ox ${mark === 'O' ? 'picked' : ''} ${mark && s.ans === 'O' ? 'answer' : ''}" data-ans="O" ${mark ? 'disabled' : ''}>O</button>
+              <button type="button" class="ox ${mark === 'X' ? 'picked' : ''} ${mark && s.ans === 'X' ? 'answer' : ''}" data-ans="X" ${mark ? 'disabled' : ''}>X</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="tox-foot">
+        ${pox.page > 0 ? `<button type="button" class="tox-move" id="p18-prev">← 앞 ${TOX_PAGE}개</button>` : '<span></span>'}
+        ${pox.page < pages - 1
+          ? `<button type="button" class="tox-move next" id="p18-next">다음 ${Math.min(TOX_PAGE, all.length - from - slice.length)}개 →</button>`
+          : `<button type="button" class="tox-move next" id="p18-again">처음부터 다시 풀기</button>`}
+      </div>`;
+    bindPoxPills(el);
+    el.querySelectorAll('.tox-row').forEach(row=>{
+      row.querySelectorAll('.ox').forEach(b=> b.addEventListener('click', ()=>{
+        const id = row.dataset.id;
+        if(pox.marks[id]) return;
+        pox.marks[id] = b.dataset.ans;
+        renderPairOX();
+      }));
+    });
+    const prev = document.getElementById('p18-prev');
+    if(prev) prev.addEventListener('click', ()=>{ pox.page--; renderPairOX(); });
+    const next = document.getElementById('p18-next');
+    if(next) next.addEventListener('click', ()=>{ pox.page++; renderPairOX(); });
+    const again = document.getElementById('p18-again');
+    if(again) again.addEventListener('click', ()=>{ pox.page = 0; pox.marks = {}; pox.list = shuffle(pox.list); renderPairOX(); });
+  }
+  function bindPoxPills(el){
+    el.querySelectorAll('[data-k]').forEach(b=> b.addEventListener('click', ()=>{
+      pox.kind = b.dataset.k; pox.page = 0; renderPairOX();
+    }));
+  }
+
   // ----- ⭕❌ 사상가별 OX (선지를 다섯 줄씩 놓고 O/X로 판단) -----
   const TOX_PAGE = 5;
   const tox = { name:null, list:[], page:0, marks:{}, started:false };
@@ -2370,18 +2584,9 @@ function initStudent(){
     }
     if(!thinkerPick || !map[thinkerPick]) thinkerPick = names[0];
     const items = map[thinkerPick].slice().sort((a, b)=> compareId(a.q, b.q));
-    const lines = (says[thinkerPick] || { o:[] }).o;
     el.innerHTML = `
       <div class="dash-note">문제를 푸는 곳이 아니라, 사상가가 한 말(기출 제시문)과 그 사상가에 대해 <b>맞는 설명</b>만 모아 읽는 곳이에요. 형광펜으로 칠해둔 곳도 그대로 보여요.</div>
       <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===thinkerPick?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${map[n].length}</b></button>`).join('')}</div>
-      <div class="read-head">✅ ${escapeHtml(thinkerPick)}에 대해 맞는 설명 ${lines.length}개</div>
-      ${lines.length ? `<div class="say-box">${lines.map(s=>`
-          <div class="say-line">
-            <span class="say-dot">✓</span>
-            <span class="say-text">${escapeHtml(s.text)}</span>
-            <button type="button" class="say-src" data-open="${escapeHtml(s.q.id)}" title="이 문제 보기">${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}</button>
-          </div>`).join('')}</div>`
-        : `<div class="dash-note">아직 이 사상가에 대해 맞는 설명으로 뽑을 선지가 없어요. (문항이 더 등록되면 자동으로 쌓입니다)</div>`}
       <div class="read-head">📖 ${escapeHtml(thinkerPick)}의 제시문 ${items.length}개</div>
       ${items.map(({ q, t, idx })=>{
         const text = t.passage || '';
@@ -3124,6 +3329,7 @@ function initAdmin(){
     if(id === 'a-reports') renderReports();
     if(id === 'a-rates') renderSavedRates();
     if(id === 'a-says') renderSaysPanel();
+    if(id === 'a-compare') renderComparePanel();
   }
   bindTabs('#admin-tabs', 'apanel', id => showAdminPanel(id));
 
@@ -3945,6 +4151,166 @@ function initAdmin(){
   }
 
   // ================= 오류 신고 =================
+  // ----- 갑・을 OX 문항 관리 -----
+  let compareSaved = [];
+  let compareAuto = [];
+  async function renderComparePanel(){
+    const el = document.getElementById('a-compare');
+    el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
+    try{
+      const [savedSnap, qSnap] = await Promise.all([
+        getDocs(collection(db, COL.compare)),
+        getDocs(collection(db, COL.questions))
+      ]);
+      compareSaved = savedSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+      const qs = qSnap.docs.map(d => normalizeQuestion({ id:d.id, ...d.data() }));
+      const savedKeys = new Set(compareSaved.map(x => String(x.text || '').replace(/\s+/g, '')));
+      compareAuto = pairStatements(qs).filter(x => !savedKeys.has(x.text.replace(/\s+/g, '')));
+
+      el.innerHTML = `
+        <div class="badge-row">
+          <span class="badge">저장된 문항 ${compareSaved.length}개</span>
+          <span class="badge off">기출에서 새로 찾은 것 ${compareAuto.length}개</span>
+          ${compareAuto.length ? `<button class="small-btn green" id="cmp-save-all" type="button">새로 찾은 ${compareAuto.length}개 모두 저장</button>` : ''}
+          <button class="small-btn line" id="cmp-csv" type="button">CSV로 내려받기</button>
+          <span class="msg" id="cmp-msg"></span>
+        </div>
+        <div class="section-hint">두 사상가를 견주는 선지("갑과 을 모두 ~", "을은 갑과 달리 ~")를 모읍니다. 정답이면 <b>O</b>, 정답이 아니면 <b>X</b>로 자동 판정합니다. <b>저장한 것만 학생 화면 [OX 맞추기 &gt; 갑・을 OX]에 나옵니다.</b> 기출이 아닌 내용도 아래에서 직접 넣을 수 있어요.</div>
+
+        <div class="section-title first">직접 추가</div>
+        <div class="form-grid">
+          <div class="full"><label>설명 (학생에게 보일 문장)</label>
+            <input type="text" id="cmp-text" placeholder="예) 싱어와 레건은 모두 동물의 도덕적 지위를 인정한다." autocomplete="off"></div>
+          <div><label>정답</label>
+            <div class="unit-pills" id="cmp-ans">
+              <button type="button" class="unit-pill active" data-a="O">O · 맞는 설명</button>
+              <button type="button" class="unit-pill" data-a="X">X · 틀린 설명</button>
+            </div></div>
+          <div><label>종류</label>
+            <div class="unit-pills" id="cmp-kind">
+              <button type="button" class="unit-pill active" data-k="공통점">공통점</button>
+              <button type="button" class="unit-pill" data-k="차이점">차이점</button>
+            </div></div>
+          <div><label>사상가 A</label><input type="text" id="cmp-a" placeholder="예) 싱어" autocomplete="off"></div>
+          <div><label>사상가 B</label><input type="text" id="cmp-b" placeholder="예) 레건" autocomplete="off"></div>
+          <div class="full"><label>출처 (선택)</label><input type="text" id="cmp-src" placeholder="예) 25년 6월 7번 · 직접 작성" autocomplete="off"></div>
+        </div>
+        <div class="quick-row"><button class="small-btn green" id="cmp-add" type="button">추가하기</button><span class="msg" id="cmp-add-msg"></span></div>
+
+        ${compareAuto.length ? `
+          <div class="section-title">기출에서 새로 찾은 것 (${compareAuto.length})</div>
+          <div class="data-table-wrap"><table class="data-table">
+            <thead><tr><th>정답</th><th>종류</th><th>설명</th><th>출처</th><th></th></tr></thead>
+            <tbody>${compareAuto.map((x,i)=>`
+              <tr>
+                <td><b class="${x.ans === 'O' ? '' : 'no-text'}">${x.ans}</b></td>
+                <td>${escapeHtml(x.kind)}</td>
+                <td class="stem" style="color:var(--ink);">${escapeHtml(x.text)}</td>
+                <td style="white-space:nowrap;">${escapeHtml(qLabel(x.q))} ${NUM_MARK[x.i]}</td>
+                <td><div class="row-btns"><button data-auto="${i}">저장</button></div></td>
+              </tr>`).join('')}</tbody>
+          </table></div>` : ''}
+
+        <div class="section-title">저장된 문항 (${compareSaved.length})</div>
+        ${compareSaved.length ? `
+          <div class="data-table-wrap"><table class="data-table">
+            <thead><tr><th>정답</th><th>종류</th><th>설명</th><th>대상</th><th>출처</th><th></th></tr></thead>
+            <tbody>${compareSaved.map(x=>`
+              <tr>
+                <td><b class="${x.ans === 'O' ? '' : 'no-text'}">${escapeHtml(x.ans || '')}</b></td>
+                <td>${escapeHtml(x.kind || '')}</td>
+                <td class="stem" style="color:var(--ink);">${escapeHtml(x.text || '')}</td>
+                <td>${escapeHtml((x.names || []).join(' · '))}</td>
+                <td style="white-space:nowrap;">${escapeHtml(x.src || '')}</td>
+                <td><div class="row-btns">
+                  <button data-flip="${x.id}">O↔X 바꾸기</button>
+                  <button class="del" data-cdel="${x.id}">삭제</button>
+                </div></td>
+              </tr>`).join('')}</tbody>
+          </table></div>`
+        : `<div class="state-msg" style="padding:16px;">아직 저장된 문항이 없어요. 위에서 저장하거나 직접 추가해주세요.</div>`}`;
+
+      const msg = document.getElementById('cmp-msg');
+      const pick = (wrapId, attr)=>{
+        const w = document.getElementById(wrapId);
+        w.querySelectorAll('.unit-pill').forEach(b=> b.addEventListener('click', ()=>{
+          w.querySelectorAll('.unit-pill').forEach(x=> x.classList.toggle('active', x === b));
+        }));
+        return ()=> (w.querySelector('.unit-pill.active') || {}).dataset?.[attr] || '';
+      };
+      const getAns = pick('cmp-ans', 'a');
+      const getKind = pick('cmp-kind', 'k');
+
+      async function saveItems(items){
+        for(let i = 0; i < items.length; i += 400){
+          const batch = writeBatch(db);
+          items.slice(i, i + 400).forEach(it=>{
+            batch.set(doc(collection(db, COL.compare)), { ...it, at: serverTimestamp() });
+          });
+          await batch.commit();
+        }
+      }
+
+      const saveAll = document.getElementById('cmp-save-all');
+      if(saveAll) saveAll.addEventListener('click', async ()=>{
+        if(!confirm(`기출에서 찾은 ${compareAuto.length}개를 저장할까요?`)) return;
+        saveAll.disabled = true; msg.className = 'msg'; msg.textContent = '저장 중...';
+        try{
+          await saveItems(compareAuto.map(x=>({
+            text:x.text, ans:x.ans, kind:x.kind, names:x.names, src:`${qLabel(x.q)} ${NUM_MARK[x.i]}`, by:'기출'
+          })));
+          renderComparePanel();
+        }catch(e){ console.error(e); msg.className = 'msg no-text'; msg.textContent = '저장 실패: 권한을 확인해주세요.'; saveAll.disabled = false; }
+      });
+
+      el.querySelectorAll('[data-auto]').forEach(b=> b.addEventListener('click', async ()=>{
+        const x = compareAuto[Number(b.dataset.auto)];
+        b.disabled = true;
+        try{
+          await saveItems([{ text:x.text, ans:x.ans, kind:x.kind, names:x.names, src:`${qLabel(x.q)} ${NUM_MARK[x.i]}`, by:'기출' }]);
+          renderComparePanel();
+        }catch(e){ console.error(e); alert('저장 실패: 권한을 확인해주세요.'); b.disabled = false; }
+      }));
+
+      document.getElementById('cmp-add').addEventListener('click', async ()=>{
+        const addMsg = document.getElementById('cmp-add-msg');
+        const text = document.getElementById('cmp-text').value.trim();
+        if(!text){ addMsg.className = 'msg no-text'; addMsg.textContent = '설명을 적어주세요.'; return; }
+        const names = [document.getElementById('cmp-a').value.trim(), document.getElementById('cmp-b').value.trim()].filter(Boolean);
+        addMsg.className = 'msg'; addMsg.textContent = '저장 중...';
+        try{
+          await saveItems([{ text, ans:getAns(), kind:getKind(), names, src:document.getElementById('cmp-src').value.trim(), by:'직접' }]);
+          renderComparePanel();
+        }catch(e){ console.error(e); addMsg.className = 'msg no-text'; addMsg.textContent = '저장 실패: 권한을 확인해주세요.'; }
+      });
+
+      el.querySelectorAll('[data-flip]').forEach(b=> b.addEventListener('click', async ()=>{
+        const it = compareSaved.find(x => x.id === b.dataset.flip);
+        try{ await updateDoc(doc(db, COL.compare, it.id), { ans: it.ans === 'O' ? 'X' : 'O' }); renderComparePanel(); }
+        catch(e){ alert('바꾸지 못했어요.'); }
+      }));
+      el.querySelectorAll('[data-cdel]').forEach(b=> b.addEventListener('click', async ()=>{
+        if(!confirm('이 문항을 지울까요?')) return;
+        try{ await deleteDoc(doc(db, COL.compare, b.dataset.cdel)); renderComparePanel(); }
+        catch(e){ alert('지우지 못했어요.'); }
+      }));
+      document.getElementById('cmp-csv').addEventListener('click', ()=>{
+        const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+        const lines = [['정답','종류','설명','대상','출처','만든 방법'].map(esc).join(',')];
+        compareSaved.forEach(x=> lines.push([x.ans, x.kind, x.text, (x.names||[]).join(' '), x.src, x.by].map(esc).join(',')));
+        const blob = new Blob(['﻿' + lines.join('\n')], { type:'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${CONFIG.appName}_갑을OX.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    }catch(e){
+      console.error(e);
+      el.innerHTML = `<div class="state-msg">불러오지 못했어요. 보안 규칙에 *_compare 규칙이 들어갔는지 확인해주세요.</div>`;
+    }
+  }
+
   // ----- 기기별 접속 현황 (익명) -----
   async function renderVisitStats(){
     const box = document.getElementById('visit-stats');
