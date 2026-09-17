@@ -1195,7 +1195,8 @@ const COL = {
   reports:   "yunsa_reports",
   flags:     "yunsa_flags",    // 신고된 문항 표시 (개인정보 없이 문항ID만 — 학생 화면에 "신고된 문항" 배너)
   visits:    "yunsa_visits",   // 익명 접속 기록 (기기 종류・브라우저・날짜만. 학번・닉네임과 연결되지 않음)
-  compare:   "yunsa_compare"   // 갑・을 OX 문항 (두 사상가의 공통점・차이점 진술. 개인정보 없음)
+  compare:   "yunsa_compare",  // 갑・을 OX 문항 (두 사상가의 공통점・차이점 진술. 개인정보 없음)
+  meta:      "yunsa_meta"      // 문항이 언제 바뀌었는지만 담는 작은 문서 (캐시 확인용)
 };
 
 // 윤리와사상 단원(카테고리) — 발문을 먼저 보고, 발문만으로 애매하면 제시문 키워드로 판단
@@ -1711,13 +1712,48 @@ function initStudent(){
     if(e.target.closest('[data-action="reload"]')) loadQuestions();
   });
 
+  // ----- 문항 캐시 -----
+  // 문항은 자주 바뀌지 않으므로 기기에 저장해 두고, 바뀌었을 때만 다시 받는다.
+  // 들어올 때마다 문항 전체(약 100건)를 읽던 것을 버전 확인 1건으로 줄인다.
+  const QCACHE_KEY = 'yunsa-qcache';
+  const QCACHE_TTL = 6 * 60 * 60 * 1000;   // 버전 표시가 아직 없을 때만 쓰는 예비 기한
+  async function questionsVersion(){
+    try{
+      const snap = await getDoc(doc(db, COL.meta, 'questions'));
+      return snap.exists() ? String(snap.data().v || '') : '';
+    }catch(e){ return ''; }
+  }
+  function readQCache(){
+    try{
+      const c = JSON.parse(lsGet(QCACHE_KEY) || 'null');
+      return (c && Array.isArray(c.list)) ? c : null;
+    }catch(e){ return null; }
+  }
+  function writeQCache(v, list){
+    try{ lsSet(QCACHE_KEY, JSON.stringify({ v, at: Date.now(), list })); }
+    catch(e){ /* 저장 공간이 모자라면 그냥 캐시 없이 쓴다 */ }
+  }
+
   async function loadQuestions(){
     if(!db){ loadState = 'nocfg'; renderAllPanels(); return; }
     loadState = 'loading'; renderAllPanels();
     try{
-      const snap = await getDocs(collection(db, COL.questions));
-      ALL_QUESTIONS = snap.docs
-        .map(d => normalizeQuestion({ id:d.id, ...d.data() }))
+      const v = await questionsVersion();                       // 읽기 1건
+      const cache = readQCache();
+      const fresh = cache && (v ? cache.v === v : (Date.now() - cache.at < QCACHE_TTL));
+      let raw;
+      if(fresh){
+        raw = cache.list;                                       // 읽기 0건
+      }else{
+        const snap = await getDocs(collection(db, COL.questions));
+        raw = snap.docs.map(d=>{
+          const { updatedAt, ...rest } = d.data();              // 시각 값은 캐시에 담지 않는다
+          return { id:d.id, ...rest };
+        });
+        writeQCache(v, raw);
+      }
+      ALL_QUESTIONS = raw
+        .map(normalizeQuestion)
         .filter(q => q.choices.length >= 2)
         .filter(q => !q.yy || Number(q.yy) >= MIN_YY);
       loadState = 'ready';
@@ -3801,6 +3837,7 @@ function initAdmin(){
       }
       await setDoc(ref, { ...q, updatedAt: serverTimestamp() });
       const resolved = await resolveReportsFor(q.id);   // 신고된 문항을 고쳤으면 해결 처리
+      bumpQuestionsVersion();
       status.className = 'submit-status ok-text';
       status.textContent = `${q.id} 저장 완료!${resolved ? ` 접수된 신고 ${resolved}건을 해결로 표시했어요.` : ''} 다음 문항을 붙여넣으세요.`;
       const savedId = q.id;
@@ -3866,6 +3903,7 @@ function initAdmin(){
             ids.slice(i,i+400).forEach(id => batch.update(doc(db, COL.questions, id), { unit: suggest[id], updatedAt: serverTimestamp() }));
             await batch.commit();
           }
+          bumpQuestionsVersion();
           renderAdminList();
         }catch(e){ console.error(e); alert('적용 실패: 권한을 확인해주세요.'); rb.disabled = false; }
       });
@@ -3876,7 +3914,7 @@ function initAdmin(){
       }));
       el.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', async ()=>{
         if(!confirm(`${b.dataset.del} 문항을 삭제할까요? 되돌릴 수 없어요.`)) return;
-        try{ await deleteDoc(doc(db, COL.questions, b.dataset.del)); renderAdminList(); }
+        try{ await deleteDoc(doc(db, COL.questions, b.dataset.del)); bumpQuestionsVersion(); renderAdminList(); }
         catch(e){ alert('삭제 실패: 권한을 확인해주세요.'); }
       }));
     }catch(e){
@@ -4131,6 +4169,7 @@ function initAdmin(){
     btn.disabled = true; msg.className = 'msg'; msg.textContent = '저장 중...';
     try{
       await batchWrite(importJobs);
+      if(importJobs.some(j => j.col === COL.questions)) bumpQuestionsVersion();
       msg.className = 'msg ok-text'; msg.textContent = `✓ ${importJobs.length}개 저장 완료`;
       importJobs = [];
       document.getElementById('import-paste').value = '';
@@ -4433,6 +4472,12 @@ function initAdmin(){
   }
 
   // ----- 사상가별 선지 (옳은 선지 / 옳지 않은 선지) 끝 -----
+  // 문항이 바뀐 것을 학생 앱에 알리는 표시 (학생 앱은 이 값이 바뀔 때만 문항을 새로 받는다)
+  async function bumpQuestionsVersion(){
+    try{ await setDoc(doc(db, COL.meta, 'questions'), { v: String(Date.now()), at: serverTimestamp() }); }
+    catch(e){ console.error('문항 버전 표시 실패', e); }
+  }
+
   // 학생 화면의 "신고된 문항" 표시 지우기
   async function clearFlag(qid){
     if(!qid) return;
