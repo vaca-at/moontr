@@ -317,6 +317,36 @@
   .hl-btn.active{ filter:none; background:#FFE9A3; }
   html[data-theme="dark"] .hl-btn.active{ background:#6E5A1C; }
   .hl-hint{ font-size:12.5px; font-weight:700; color:var(--green-dark); background:var(--green-light); border-radius:8px; padding:8px 12px; margin-bottom:12px; line-height:1.55; }
+
+  /* ===== ⭕❌ 선지 하나씩 O/X ===== */
+  .ox-btn{
+    font-family:var(--font-ui); font-weight:800; font-size:12.5px; line-height:1; color:var(--muted);
+    background:var(--card); border:1.5px solid var(--line); border-radius:999px; padding:8px 10px; cursor:pointer;
+  }
+  .ox-btn:hover{ border-color:var(--green); }
+  .ox-btn.active{ color:var(--green-dark); border-color:var(--green); background:var(--green-light); }
+  .ox-btn:disabled{ opacity:.45; cursor:default; }
+  .ox-hint{ font-size:12.5px; font-weight:700; color:var(--green-dark); background:var(--green-light); border-radius:8px; padding:8px 12px; margin-bottom:12px; line-height:1.55; }
+  .flag-banner{
+    font-size:12.5px; font-weight:700; color:var(--red); background:var(--red-light);
+    border:1.5px solid var(--red); border-radius:8px; padding:9px 12px; margin:0 0 14px; line-height:1.55;
+  }
+  .ox-row{ display:flex; align-items:stretch; gap:8px; margin-bottom:8px; }
+  .ox-row .choice-btn{ flex:1; margin-bottom:0; }
+  .ox-pick{ display:flex; flex-direction:column; gap:4px; flex:none; }
+  .ox-pick .ox{
+    font-family:var(--font-ui); font-weight:800; font-size:14px; width:48px; flex:1; min-height:26px;
+    color:var(--muted); background:var(--card); border:1.5px solid var(--line); border-radius:10px; cursor:pointer;
+  }
+  .ox-pick .ox:hover{ border-color:var(--green); color:var(--ink); }
+  .ox-pick .ox.on{ background:var(--green); border-color:var(--green); color:#fff; }
+  .ox-pick .ox:disabled{ cursor:default; }
+  .ox-row.ox-no .ox.on{ background:var(--red); border-color:var(--red); color:#fff; }
+  .ox-row.ox-no .choice-btn{ border-color:var(--red); }
+  .ox-pick .ox.answer{ box-shadow:0 0 0 2px var(--green) inset; }
+  @media (max-width:520px){
+    .ox-pick .ox{ width:42px; font-size:13px; }
+  }
   mark.hl{ background:#FFE9A3; color:inherit; border-radius:3px; padding:0 2px; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
   html[data-theme="dark"] mark.hl{ background:#6E5A1C; color:#FFF3D0; }
   /* 형광펜을 켠 동안에는 선지(버튼) 안 글자도 드래그로 선택되게 풀어준다 */
@@ -1076,7 +1106,8 @@ const COL = {
   learners:  "saengyun_learners",   // 학습 이력 (문서 이름 = 학번+닉네임으로 만든 암호 열쇠)
   ids:       "saengyun_ids",        // 학번별 최초 등록 표시 (같은 학번 다른 닉네임 차단용)
   logs:      "saengyun_logs",
-  reports:   "saengyun_reports"
+  reports:   "saengyun_reports",
+  flags:     "saengyun_flags"     // 신고된 문항 표시 (개인정보 없이 문항ID만 — 학생 화면에 "신고된 문항" 배너)
 };
 
 // 단원(카테고리) — 구글시트에서 쓰는 단원명과 같게 맞춤
@@ -1360,9 +1391,22 @@ function initStudent(){
   let ALL_QUESTIONS = [];
   let loadState = 'idle';
   let loginInfo = null;
-  const emptyMe = () => ({ correct:{}, wrong:{}, favorites:[], memos:{}, mastered:{}, stats:{}, conf:{}, note:'', highlights:{}, days:{} });
+  const emptyMe = () => ({ correct:{}, wrong:{}, favorites:[], memos:{}, mastered:{}, stats:{}, conf:{}, note:'', highlights:{}, days:{}, sox:{} });
   let streak = 0;                 // 연속 정답 수 (탭을 옮겨도 이어짐)
   const reportedIds = new Set();  // 이번 접속에서 이미 신고한 문항
+  let flaggedIds = new Set();     // 누군가 신고해서 선생님 확인을 기다리는 문항 (모든 학생에게 보임)
+  async function loadFlags(){
+    try{
+      const snap = await getDocs(collection(db, COL.flags));
+      flaggedIds = new Set(snap.docs.map(d => d.id));
+      renderAllPanels();
+    }catch(e){ console.error('신고 표시를 불러오지 못했어요', e); }
+  }
+  async function flagQuestion(qid){
+    flaggedIds.add(qid);
+    try{ await setDoc(doc(db, COL.flags, qid), { at: serverTimestamp() }); }
+    catch(e){ console.error('신고 표시 저장 실패', e); }
+  }
   let me = emptyMe();
 
   // ----- D-day -----
@@ -1386,6 +1430,7 @@ function initStudent(){
         .filter(q => q.choices.length >= 2)
         .filter(q => !q.yy || Number(q.yy) >= MIN_YY);
       loadState = 'ready';
+      loadFlags();   // 신고된 문항 표시 (실패해도 문제 풀이에는 영향 없음)
     }catch(e){
       console.error(e);
       loadState = 'error';
@@ -1449,7 +1494,8 @@ function initStudent(){
       memos:d.memos||{}, mastered:d.mastered||{}, stats:d.stats||{}, conf:d.conf||{},
       note:d.note||'',
       highlights: (d.highlights && typeof d.highlights === 'object') ? d.highlights : {},
-      days: (d.days && typeof d.days === 'object') ? d.days : {}
+      days: (d.days && typeof d.days === 'object') ? d.days : {},
+      sox: (d.sox && typeof d.sox === 'object') ? d.sox : {}
     };
   }
 
@@ -1689,7 +1735,7 @@ function initStudent(){
     if(me.wrong[q.id]) return { a:1, c:0 };
     return null;
   }
-  function saveProgress(q, i, isOk, conf){
+  function saveProgress(q, i, isOk, conf, soxMarks){
     if(!loginInfo) return;
     if(conf) me.conf[q.id] = conf; else delete me.conf[q.id];
     const s = me.stats[q.id] ? { ...me.stats[q.id] } : (getStat(q) ? { ...getStat(q) } : { a:0, c:0 });
@@ -1700,14 +1746,14 @@ function initStudent(){
     markToday(isOk);
     saveMe({
       correct: me.correct, wrong: me.wrong, mastered: me.mastered, stats: me.stats, conf: me.conf,
-      days: me.days,
+      days: me.days, sox: me.sox || {},
       correctCount: Object.keys(me.correct).length,
       wrongCount: Object.keys(me.wrong).length
     });
     addDoc(collection(db, COL.logs), {
       studentId: loginInfo.studentId, nickname: loginInfo.nickname,
       questionId: q.id, choice: i+1, correctNum: Number(q.correctNum),
-      isCorrect: isOk, confidence: conf || '', at: serverTimestamp()
+      isCorrect: isOk, confidence: conf || '', sox: soxMarks || null, at: serverTimestamp()
     }).catch(e=>console.error('응시기록 저장 실패', e));
   }
   function toggleFavorite(qid){
@@ -1720,6 +1766,33 @@ function initStudent(){
     const t = text.trim();
     if(t) me.memos[qid] = t; else delete me.memos[qid];
     await saveMe({ memos: me.memos });
+  }
+
+  // ================= ⭕❌ 선지 하나씩 O/X =================
+  // 정답 번호 하나만 있으면 나머지 선지의 참・거짓도 자동으로 정해진다.
+  //  · "옳은 것은?"      → 정답 선지만 O, 나머지는 X
+  //  · "옳지 않은 것은?"  → 정답 선지만 X, 나머지는 O
+  function soxModeOn(){ return lsGet('saengyun-sox') === '1'; }
+  function stemIsNegative(q){
+    return /옳지\s*않|적절하지\s*않|적절치\s*않|아닌\s*것|틀린\s*것|바르지\s*않|볼\s*수\s*없는|해당하지\s*않/.test(q.stem || '');
+  }
+  function choiceTruth(q, i){
+    const correctIdx = parseInt(q.correctNum, 10) - 1;
+    const neg = stemIsNegative(q);
+    if(i === correctIdx) return neg ? 'X' : 'O';
+    return neg ? 'O' : 'X';
+  }
+  // 선지가 "ㄱ, ㄴ" 같은 <보기> 조합형이면 선지별 O/X가 의미 없으므로 평소대로 푼다
+  function soxAvailable(q){
+    if(!q.choices || q.choices.length < 2) return false;
+    if(!q.correctNum || isNaN(parseInt(q.correctNum, 10))) return false;
+    return !q.choices.every(c => /^[ㄱ-ㅎ\s,·、]+$/.test(String(c).trim()));
+  }
+  function soxTotals(){
+    const all = Object.values(me.sox || {});
+    const r = all.reduce((n,s)=> n + (s.r || 0), 0);
+    const t = all.reduce((n,s)=> n + (s.t || 0), 0);
+    return { r, t, q:all.length };
   }
 
   // ================= 🖍 형광펜 =================
@@ -2280,6 +2353,7 @@ function initStudent(){
       .sort((x,y)=> byUnit[x].c/byUnit[x].a - byUnit[y].c/byUnit[y].a)
       .slice(0,3);
 
+    const sox = soxTotals();
     el.innerHTML = `
       ${grassHTML()}
       <div class="dash-cards">
@@ -2290,6 +2364,7 @@ function initStudent(){
       </div>
       <div class="coverage" title="공개 문항 중 풀어 본 비율"><div style="width:${Math.round(solved/total*100)}%;"></div></div>
       <div class="dash-note" style="margin-top:6px;">공개된 ${total}문항 중 ${Math.round(solved/total*100)}%를 풀어봤어요.</div>
+      ${sox.t ? `<div class="dash-note" style="margin-top:2px;">⭕❌ 선지 판정 정확도 ${Math.round(sox.r/sox.t*100)}% (${sox.r}/${sox.t}개 · ${sox.q}문항)</div>` : ''}
 
       ${weak.length ? `
         <div class="dash-section">먼저 복습하면 좋은 단원</div>
@@ -2407,11 +2482,13 @@ function initStudent(){
         <span class="src">${escapeHtml(qLabel(q))}${q.unit ? ' · ' + escapeHtml(q.unit) : ''}${rate !== null ? `<span class="rate-chip">오답률 ${rate}%</span>` : ''}</span>
         <span class="q-head-right">
           <button class="timer-btn ${timerOn()?'active':''}" id="${panelId}-timer" type="button" title="타이머 켜기/끄기" aria-label="타이머">⏱<span id="${panelId}-clock">${timerOn() ? '0:00' : ''}</span></button>
+          <button class="ox-btn ${soxModeOn()?'active':''}" id="${panelId}-sox" type="button" title="선지 하나씩 O/X로 풀기" aria-label="선지 OX 모드">OX</button>
           <button class="hl-btn ${hlModeOn()?'active':''}" id="${panelId}-hl" type="button" title="형광펜" aria-label="형광펜">🖍</button>
           <button class="fav-btn ${isFav?'active':''}" id="${panelId}-fav" type="button" title="즐겨찾기" aria-label="즐겨찾기">${isFav?'★':'☆'}</button>
           <span class="progress">${st.index+1} / ${st.queue.length}</span>
         </span>
       </div>
+      <div class="ox-hint" id="${panelId}-ox-hint"${soxModeOn() ? '' : ' hidden'}>${soxAvailable(q) ? '⭕❌ 선지마다 맞는 설명이면 O, 틀린 설명이면 X를 누르세요. 다 고르면 자동으로 채점돼요.' : '⭕❌ 이 문제는 보기 조합형이라 선지 O/X 대신 평소처럼 골라요.'}</div>
       <div class="hl-hint" id="${panelId}-hl-hint"${hlModeOn() ? '' : ' hidden'}>🖍 형광펜이 켜져 있어요 — 어려운 문장을 드래그하면 칠해지고, 칠한 곳을 다시 누르면 지워져요. (선지 고르기는 형광펜을 끄면 다시 돼요)</div>
       <div id="${panelId}-streak">${streak >= 2 ? `<span class="streak-chip">🔥 ${streak}연속 정답 중!</span>` : ''}</div>
       <div class="stem-box" data-hl="stem">${escapeHtml(q.stem)}</div>
@@ -2446,6 +2523,7 @@ function initStudent(){
           <div class="memo-actions"><span class="memo-status" id="${panelId}-memo-status"></span><button id="${panelId}-memo-save" type="button">메모 저장</button></div>
         ` : `<div class="memo-login">로그인하면 문제마다 메모를 남길 수 있어요.</div>`}
       </div>
+      ${flaggedIds.has(q.id) ? `<div class="flag-banner">🚩 이 문항은 오류 신고가 접수된 문항이에요. 선생님이 확인하는 중이니 참고해서 풀어주세요.</div>` : ''}
       <div class="report-area">
         ${reportedIds.has(q.id)
           ? `<span class="report-done">🚩 이 문항은 이미 신고했어요. 고마워요!</span>`
@@ -2484,6 +2562,10 @@ function initStudent(){
       else{ clearInterval(tickers[panelId]); clock.textContent = ''; }
     });
 
+    document.getElementById(panelId+'-sox').addEventListener('click', ()=>{
+      lsSet('saengyun-sox', soxModeOn() ? '0' : '1');
+      renderQuizQuestion(panelId, true);   // 같은 문제를 모드만 바꿔 다시 그린다
+    });
     document.getElementById(panelId+'-hl').addEventListener('click', e=>{
       if(!loginInfo){ alert('형광펜은 로그인 후 이용할 수 있어요. 상단에서 학번과 닉네임으로 로그인해주세요.'); return; }
       lsSet('saengyun-hl', hlModeOn() ? '0' : '1');
@@ -2529,6 +2611,7 @@ function initStudent(){
             at: serverTimestamp()
           });
           reportedIds.add(q.id);
+          flagQuestion(q.id);   // 다른 학생 화면에도 "신고된 문항" 표시
           document.querySelector(`#${panelId} .report-area`).innerHTML = `<span class="report-done">🚩 신고가 접수됐어요. 선생님이 확인할게요. 고마워요!</span>`;
         }catch(err){
           console.error(err);
@@ -2575,38 +2658,96 @@ function initStudent(){
 
     const wrap = document.getElementById(panelId+'-choices');
     let answered = false;
+    const correctIdx = parseInt(q.correctNum,10) - 1;
+    const soxOn = soxModeOn() && soxAvailable(q);
+    const soxMarks = {};
+
+    // 채점 뒤 공통 처리 (객관식・선지OX 모두 여기로 모인다)
+    function finishAnswer(isOk, pickedIdx, soxLine){
+      if(answered) return;
+      answered = true;
+      stopTimer();
+      wrap.querySelectorAll('.choice-btn').forEach((btn,j)=>{
+        btn.disabled = true;
+        if(j===correctIdx) btn.classList.add('correct');
+        if(j===pickedIdx && !isOk) btn.classList.add('wrong');
+      });
+      wrap.querySelectorAll('.ox-pick button').forEach(x => x.disabled = true);
+      const soxBtn = document.getElementById(panelId+'-sox');
+      if(soxBtn) soxBtn.disabled = true;
+      confRow.querySelectorAll('.conf-btn').forEach(x => x.disabled = true);
+      if(isOk){ st.correct++; streak++; } else { streak = 0; }
+      saveProgress(q, pickedIdx, isOk, conf, soxLine ? soxLine.marks : null);
+
+      document.getElementById(panelId+'-streak').innerHTML = streak >= 2 ? `<span class="streak-chip pop">🔥 ${streak}연속 정답 중!</span>` : '';
+      const fb = document.getElementById(panelId+'-feedback');
+      fb.classList.add('show', isOk?'ok':'no');
+      let verdict = isOk ? '정답입니다.' : `오답입니다. 정답은 ${NUM_MARK[correctIdx]}번입니다.`;
+      if(soxLine) verdict += ` 선지 판정은 ${q.choices.length}개 중 ${soxLine.right}개 맞았어요.`;
+      if(isOk && streak >= 3) verdict += ` 🔥 ${streak}연속 정답!`;
+      if(!isOk && conf === 'sure') verdict += ' 확실하다고 생각했던 문제라 꼭 다시 봐요.';
+      document.getElementById(panelId+'-verdict').textContent = verdict;
+      document.getElementById(panelId+'-skip').style.display = 'none';
+      document.getElementById(panelId+'-next').style.display = 'inline-block';
+    }
+
+    // 선지를 모두 판정하면 자동 채점
+    function gradeSox(){
+      if(answered) return;
+      if(Object.keys(soxMarks).length < q.choices.length) return;
+      let right = 0;
+      q.choices.forEach((c, i)=>{
+        const truth = choiceTruth(q, i);
+        const good = soxMarks['c'+i] === truth;
+        if(good) right++;
+        const row = wrap.children[i];
+        if(row){
+          row.classList.add(good ? 'ox-ok' : 'ox-no');
+          row.querySelectorAll('.ox').forEach(x=>{ if(x.dataset.ox === truth) x.classList.add('answer'); });
+        }
+      });
+      const pickMark = stemIsNegative(q) ? 'X' : 'O';
+      const picks = q.choices.map((c,i)=> soxMarks['c'+i] === pickMark ? i : -1).filter(i => i >= 0);
+      const picked = picks.length === 1 ? picks[0] : -1;
+      const isOk = picked === correctIdx;
+      if(loginInfo){
+        if(!me.sox) me.sox = {};
+        me.sox[q.id] = { m:{ ...soxMarks }, r:right, t:q.choices.length };
+      }
+      finishAnswer(isOk, picked, { right, total:q.choices.length, marks:{ ...soxMarks } });
+    }
+
     q.choices.forEach((choice, i)=>{
       const b = document.createElement('button');
       b.className = 'choice-btn';
       b.type = 'button';
       b.innerHTML = `<span class="mark">${NUM_MARK[i]}</span><span data-hl="c${i}">${escapeHtml(choice)}</span>`;
-      b.addEventListener('click', ()=>{
-        if(hlModeOn()) return;          // 형광펜을 켠 동안에는 선지가 눌리지 않게
-        if(answered) return;
-        answered = true;
-        stopTimer();
-        const correctIdx = parseInt(q.correctNum,10) - 1;
-        const isOk = i === correctIdx;
-        Array.from(wrap.children).forEach((btn,j)=>{
-          btn.disabled = true;
-          if(j===correctIdx) btn.classList.add('correct');
-          if(j===i && !isOk) btn.classList.add('wrong');
+      if(soxOn){
+        const row = document.createElement('div');
+        row.className = 'ox-row';
+        const pick = document.createElement('div');
+        pick.className = 'ox-pick';
+        pick.innerHTML = `<button type="button" class="ox" data-ox="O" title="맞는 설명">O</button><button type="button" class="ox" data-ox="X" title="틀린 설명">X</button>`;
+        pick.querySelectorAll('button').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            if(answered) return;
+            soxMarks['c'+i] = btn.dataset.ox;
+            pick.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+            row.classList.add('ox-done');
+            gradeSox();
+          });
         });
-        confRow.querySelectorAll('.conf-btn').forEach(x => x.disabled = true);
-        if(isOk){ st.correct++; streak++; } else { streak = 0; }
-        saveProgress(q, i, isOk, conf);
-
-        document.getElementById(panelId+'-streak').innerHTML = streak >= 2 ? `<span class="streak-chip pop">🔥 ${streak}연속 정답 중!</span>` : '';
-        const fb = document.getElementById(panelId+'-feedback');
-        fb.classList.add('show', isOk?'ok':'no');
-        let verdict = isOk ? '정답입니다.' : `오답입니다. 정답은 ${NUM_MARK[correctIdx]}번입니다.`;
-        if(isOk && streak >= 3) verdict += ` 🔥 ${streak}연속 정답!`;
-        if(!isOk && conf === 'sure') verdict += ' 확실하다고 생각했던 문제라 꼭 다시 봐요.';
-        document.getElementById(panelId+'-verdict').textContent = verdict;
-        document.getElementById(panelId+'-skip').style.display = 'none';
-        document.getElementById(panelId+'-next').style.display = 'inline-block';
-      });
-      wrap.appendChild(b);
+        row.appendChild(b);
+        row.appendChild(pick);
+        wrap.appendChild(row);
+      }else{
+        b.addEventListener('click', ()=>{
+          if(hlModeOn()) return;          // 형광펜을 켠 동안에는 선지가 눌리지 않게
+          if(answered) return;
+          finishAnswer(i === correctIdx, i, null);
+        });
+        wrap.appendChild(b);
+      }
     });
     document.getElementById(panelId+'-next').addEventListener('click', ()=>{
       st.index++;
@@ -3149,8 +3290,9 @@ function initAdmin(){
         }
       }
       await setDoc(ref, { ...q, updatedAt: serverTimestamp() });
+      const resolved = await resolveReportsFor(q.id);   // 신고된 문항을 고쳤으면 해결 처리
       status.className = 'submit-status ok-text';
-      status.textContent = `${q.id} 저장 완료! 다음 문항을 붙여넣으세요.`;
+      status.textContent = `${q.id} 저장 완료!${resolved ? ` 접수된 신고 ${resolved}건을 해결로 표시했어요.` : ''} 다음 문항을 붙여넣으세요.`;
       const savedId = q.id;
       resetForm();
       tell(true, `✓ ${savedId} 저장 완료! 다음 문항을 바로 붙여넣으세요.`);
@@ -3439,6 +3581,25 @@ function initAdmin(){
   }
 
   // ================= 오류 신고 =================
+  // 학생 화면의 "신고된 문항" 표시 지우기
+  async function clearFlag(qid){
+    if(!qid) return;
+    try{ await deleteDoc(doc(db, COL.flags, qid)); }
+    catch(e){ console.error('신고 표시 삭제 실패', e); }
+  }
+  // 문항을 고쳐 저장하면 그 문항에 접수된 신고를 모두 "해결"로 바꾸고 학생 화면 표시도 지운다
+  async function resolveReportsFor(qid){
+    try{
+      const snap = await getDocs(collection(db, COL.reports));
+      const targets = snap.docs.filter(d => d.data().questionId === qid && d.data().status === 'new');
+      for(const d of targets){
+        await updateDoc(doc(db, COL.reports, d.id), { status:'done', doneAt: serverTimestamp(), doneBy:'문항 수정' });
+      }
+      await clearFlag(qid);
+      return targets.length;
+    }catch(e){ console.error('신고 해결 처리 실패', e); return 0; }
+  }
+
   async function renderReports(){
     const el = document.getElementById('a-reports');
     el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
@@ -3464,7 +3625,7 @@ function initAdmin(){
               <td>${r.status === 'new' ? '<span class="no-text">확인 전</span>' : '해결'}</td>
               <td><div class="row-btns">
                 <button data-redit="${escapeHtml(r.questionId)}">문항 수정</button>
-                ${r.status === 'new' ? `<button data-done="${r.docId}">해결 완료</button>` : ''}
+                ${r.status === 'new' ? `<button data-done="${r.docId}" data-done-qid="${escapeHtml(r.questionId)}">해결 완료</button>` : ''}
                 <button class="del" data-rdel="${r.docId}">삭제</button>
               </div></td>
             </tr>`).join('')}</tbody>
@@ -3476,7 +3637,11 @@ function initAdmin(){
         fillFormFromQuestion(normalizeQuestion({ id:snapQ.id, ...snapQ.data() }));
       }));
       el.querySelectorAll('[data-done]').forEach(b=> b.addEventListener('click', async ()=>{
-        try{ await updateDoc(doc(db, COL.reports, b.dataset.done), { status:'done', doneAt: serverTimestamp() }); renderReports(); }
+        try{
+          await updateDoc(doc(db, COL.reports, b.dataset.done), { status:'done', doneAt: serverTimestamp() });
+          await clearFlag(b.dataset.doneQid);   // 학생 화면의 "신고된 문항" 표시 없애기
+          renderReports();
+        }
         catch(e){ alert('처리 실패: 권한을 확인해주세요.'); }
       }));
       el.querySelectorAll('[data-rdel]').forEach(b=> b.addEventListener('click', async ()=>{
