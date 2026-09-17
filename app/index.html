@@ -4186,7 +4186,9 @@ function initAdmin(){
     try{
       await batchWrite(importJobs);
       if(importJobs.some(j => j.col === COL.questions)) bumpQuestionsVersion();
-      msg.className = 'msg ok-text'; msg.textContent = `✓ ${importJobs.length}개 저장 완료`;
+      const filled = importJobs.filter(j => j.col === COL.questions && j.mode === 'update').length;
+      msg.className = 'msg ok-text';
+      msg.textContent = `✓ 저장 완료 — ${importJobs.length}건 기록${filled ? `, 그중 문항 ${filled}개에 오답률을 채웠어요` : ''}`;
       importJobs = [];
       document.getElementById('import-paste').value = '';
       await loadRates();
@@ -4198,7 +4200,8 @@ function initAdmin(){
       const batch = writeBatch(db);
       jobs.slice(i, i+400).forEach(j => {
         const ref = doc(db, j.col, j.id);
-        if(j.mode === 'update') batch.update(ref, j.data);   // 있는 문서의 일부만 채우기
+        // merge 로 넣으면 문서가 없어도 실패하지 않고, 적은 항목만 덮어쓴다
+        if(j.mode === 'update') batch.set(ref, j.data, { merge: true });
         else batch.set(ref, j.data);
       });
       await batch.commit();
