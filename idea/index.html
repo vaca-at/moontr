@@ -449,6 +449,27 @@
   .dash-card .l{ font-size:12.5px; color:var(--muted); font-weight:700; margin-top:4px; }
   .dash-section{ font-size:15px; font-weight:800; margin:26px 0 12px; color:var(--ink); }
   .dash-note{ font-size:13px; color:var(--muted); margin:-6px 0 12px; line-height:1.6; }
+
+  /* ===== 🌱 공부 잔디 ===== */
+  .grass-wrap{ margin:2px 0 22px; }
+  .grass-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .grass-streak{ font-size:13px; font-weight:800; color:var(--green-dark); background:var(--green-light); border-radius:999px; padding:5px 13px; }
+  .grass-sub{ font-size:12.5px; color:var(--muted); }
+  .grass{ display:grid; grid-auto-flow:column; grid-template-rows:repeat(7, 14px); gap:3px; overflow-x:auto; padding-bottom:6px; }
+  .grass i{ width:14px; height:14px; border-radius:3px; background:var(--skel); display:block; }
+  .grass i.lv1{ background:var(--green); opacity:.3; }
+  .grass i.lv2{ background:var(--green); opacity:.55; }
+  .grass i.lv3{ background:var(--green); opacity:.8; }
+  .grass i.lv4{ background:var(--green); opacity:1; }
+  .grass i.future{ background:transparent; }
+  .grass i.today{ box-shadow:0 0 0 1.5px var(--ink); }
+  .grass-legend{ display:flex; align-items:center; gap:4px; font-size:11.5px; color:var(--muted); margin-top:4px; }
+  .grass-legend .sp{ flex:1; }
+  .grass-legend i{ width:11px; height:11px; border-radius:2px; background:var(--skel); display:block; }
+  .grass-legend i.lv1{ background:var(--green); opacity:.3; }
+  .grass-legend i.lv2{ background:var(--green); opacity:.55; }
+  .grass-legend i.lv3{ background:var(--green); opacity:.8; }
+  .grass-legend i.lv4{ background:var(--green); opacity:1; }
   .coverage{ height:12px; border-radius:6px; background:var(--paper-2); border:1px solid var(--line); overflow:hidden; }
   .coverage > div{ height:100%; background:var(--green); border-radius:6px; }
   .bar-row{ display:grid; grid-template-columns:110px 1fr 96px; gap:10px; align-items:center; margin-bottom:10px; font-size:13.5px; }
@@ -860,7 +881,11 @@
           <button type="button" data-design-btn="toss" title="토스처럼 깔끔한 디자인">토스</button>
       </div>
       <button type="button" class="ghost-btn theme-toggle" title="다크모드 전환">🌙</button>
-      <a class="ghost-btn" href="/app/?admin=1" title="생윤 관리자 화면으로 (로그인 유지)">↔ 생윤 관리자</a>
+      <div class="tool-group app-switch" role="group" aria-label="과목 전환">
+        <span class="tool-label">관리자</span>
+        <a href="/app/?admin=1" title="생윤 관리자 화면으로 (로그인 유지됩니다)">생윤</a>
+        <a class="active" href="?admin=1" aria-current="page">윤사</a>
+      </div>
       <a class="ghost-btn" href="./">학생 화면</a>
       <button class="ghost-btn" id="admin-logout-btn" type="button" style="display:none;">로그아웃</button>
     </div>
@@ -1318,7 +1343,7 @@ function initStudent(){
   let ALL_QUESTIONS = [];
   let loadState = 'idle';
   let loginInfo = null;
-  const emptyMe = () => ({ correct:{}, wrong:{}, favorites:[], memos:{}, mastered:{}, stats:{}, conf:{}, note:'', highlights:{} });
+  const emptyMe = () => ({ correct:{}, wrong:{}, favorites:[], memos:{}, mastered:{}, stats:{}, conf:{}, note:'', highlights:{}, days:{} });
   let streak = 0;                 // 연속 정답 수 (탭을 옮겨도 이어짐)
   const reportedIds = new Set();  // 이번 접속에서 이미 신고한 문항
   let me = emptyMe();
@@ -1406,8 +1431,69 @@ function initStudent(){
       correct:d.correct||{}, wrong:d.wrong||{}, favorites:d.favorites||[],
       memos:d.memos||{}, mastered:d.mastered||{}, stats:d.stats||{}, conf:d.conf||{},
       note:d.note||'',
-      highlights: (d.highlights && typeof d.highlights === 'object') ? d.highlights : {}
+      highlights: (d.highlights && typeof d.highlights === 'object') ? d.highlights : {},
+      days: (d.days && typeof d.days === 'object') ? d.days : {}
     };
+  }
+
+  // ================= 🌱 공부 잔디 =================
+  function dayKey(d){
+    const x = d || new Date();
+    return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+  }
+  function markToday(isOk){
+    if(!me.days) me.days = {};
+    const k = dayKey();
+    const d = me.days[k] ? { ...me.days[k] } : { n:0, c:0 };
+    d.n++; if(isOk) d.c++;
+    me.days[k] = d;
+  }
+  function grassStats(){
+    const days = me.days || {};
+    const keys = Object.keys(days).filter(k => days[k] && days[k].n > 0).sort();
+    let cur = 0;
+    const d = new Date(); d.setHours(0,0,0,0);
+    if(!days[dayKey(d)]) d.setDate(d.getDate() - 1);   // 오늘 아직 안 풀었으면 어제부터 센다
+    while(days[dayKey(d)] && days[dayKey(d)].n > 0){ cur++; d.setDate(d.getDate() - 1); }
+    let best = 0, run = 0, prev = null;
+    keys.forEach(k=>{
+      const diff = prev ? Math.round((new Date(k + 'T00:00:00') - new Date(prev + 'T00:00:00')) / 86400000) : 0;
+      run = (prev && diff === 1) ? run + 1 : 1;
+      if(run > best) best = run;
+      prev = k;
+    });
+    const sum = keys.reduce((n,k)=> n + days[k].n, 0);
+    const today = days[dayKey()] ? days[dayKey()].n : 0;
+    return { dayCount:keys.length, cur, best, sum, today };
+  }
+  function grassHTML(){
+    const days = me.days || {};
+    const WEEKS = 18;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const end = new Date(today); end.setDate(end.getDate() + (6 - end.getDay()));       // 이번 주 토요일
+    const start = new Date(end); start.setDate(start.getDate() - (WEEKS * 7 - 1));      // 그 주의 일요일
+    const level = n => n === 0 ? 0 : (n < 4 ? 1 : (n < 10 ? 2 : (n < 20 ? 3 : 4)));
+    let cells = '';
+    for(let i = 0; i < WEEKS * 7; i++){
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const k = dayKey(d);
+      const rec = days[k];
+      const n = rec ? rec.n : 0;
+      const future = d > today;
+      const label = `${d.getMonth()+1}월 ${d.getDate()}일` + (n ? ` · ${n}문제 (정답 ${rec.c || 0})` : ' · 쉼');
+      cells += `<i class="lv${future ? 0 : level(n)}${future ? ' future' : ''}${k === dayKey(today) ? ' today' : ''}" title="${label}"></i>`;
+    }
+    const s = grassStats();
+    return `
+      <div class="grass-wrap">
+        <div class="grass-head">
+          <span class="dash-section" style="margin:0;">🌱 공부 잔디</span>
+          <span class="grass-streak">${s.cur > 0 ? `🔥 ${s.cur}일 연속` : '오늘 한 문제만 풀어도 잔디가 자라요'}</span>
+          <span class="grass-sub">공부한 날 ${s.dayCount}일 · 최장 ${s.best}일 연속 · 오늘 ${s.today}문제</span>
+        </div>
+        <div class="grass">${cells}</div>
+        <div class="grass-legend"><span>최근 ${WEEKS}주</span><span class="sp"></span><span>적게</span><i class="lv0"></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i><span>많이</span></div>
+      </div>`;
   }
 
   async function doLogin(sid, nick){
@@ -1594,8 +1680,10 @@ function initStudent(){
     me.stats[q.id] = s;
     if(isOk){ me.correct[q.id] = true; delete me.wrong[q.id]; }
     else{ me.wrong[q.id] = true; delete me.correct[q.id]; delete me.mastered[q.id]; }
+    markToday(isOk);
     saveMe({
       correct: me.correct, wrong: me.wrong, mastered: me.mastered, stats: me.stats, conf: me.conf,
+      days: me.days,
       correctCount: Object.keys(me.correct).length,
       wrongCount: Object.keys(me.wrong).length
     });
@@ -2176,6 +2264,7 @@ function initStudent(){
       .slice(0,3);
 
     el.innerHTML = `
+      ${grassHTML()}
       <div class="dash-cards">
         <div class="dash-card"><div class="v">${rate}<small>%</small></div><div class="l">전체 정답률 (${c}/${a}회)</div></div>
         <div class="dash-card"><div class="v">${solved}<small> / ${total}</small></div><div class="l">풀어 본 문항</div></div>
