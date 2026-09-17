@@ -2783,12 +2783,19 @@ function initAdmin(){
     document.getElementById("gate-err").textContent = msg || "";
     clearGateInputs();
   }
+  let adminTabRestored = false;
   function showAdmin(){
     gate.style.display = 'none';
     document.getElementById('admin-main').style.display = '';
     document.getElementById('admin-tabs').style.display = 'flex';
     document.getElementById('admin-logout-btn').style.display = '';
     loadRates();
+    // 새로고침해도 보던 탭 그대로 (학생 현황 보다가 새로고침하면 학생 현황으로)
+    if(!adminTabRestored){
+      adminTabRestored = true;
+      const saved = lsGet('yunsa-atab');
+      if(saved && document.getElementById(saved)) showAdminPanel(saved, false);
+    }
   }
 
   if(!auth){ showGate('Firebase 설정 후 이용할 수 있어요.'); return; }
@@ -2812,12 +2819,21 @@ function initAdmin(){
   // 뒤로가기 복원(bfcache)으로 입력값이 되살아나는 경우까지 차단
   window.addEventListener("pageshow", e=>{ if(e.persisted) clearGateInputs(); });
 
-  bindTabs('#admin-tabs', 'apanel', id=>{
+  // 탭 전환은 여기 한 곳으로 모은다 (클릭할 때도, 새로고침 뒤 복원할 때도 같은 길)
+  function showAdminPanel(id, remember){
+    document.querySelectorAll('#admin-tabs button').forEach(b=>{
+      const t = b.dataset.apanel;
+      b.classList.toggle('active', t === id);
+      const p = document.getElementById(t);
+      if(p) p.classList.toggle('active', t === id);
+    });
+    if(remember !== false) lsSet('yunsa-atab', id);
     if(id === 'a-list') renderAdminList();
     if(id === 'a-students') renderStudents();
     if(id === 'a-reports') renderReports();
     if(id === 'a-rates') renderSavedRates();
-  });
+  }
+  bindTabs('#admin-tabs', 'apanel', id => showAdminPanel(id));
 
   async function loadRates(){
     try{
