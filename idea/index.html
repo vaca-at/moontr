@@ -319,9 +319,13 @@
   .hl-hint{ font-size:12.5px; font-weight:700; color:var(--green-dark); background:var(--green-light); border-radius:8px; padding:8px 12px; margin-bottom:12px; line-height:1.55; }
   mark.hl{ background:#FFE9A3; color:inherit; border-radius:3px; padding:0 2px; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
   html[data-theme="dark"] mark.hl{ background:#6E5A1C; color:#FFF3D0; }
-  .hl-on [data-hl]{ cursor:text; }
+  /* 형광펜을 켠 동안에는 선지(버튼) 안 글자도 드래그로 선택되게 풀어준다 */
+  .hl-on [data-hl], .hl-on .choice-btn, .hl-on .choice-btn *{
+    cursor:text;
+    -webkit-user-select:text; -moz-user-select:text; user-select:text;
+    -webkit-touch-callout:default;
+  }
   .hl-on mark.hl{ cursor:pointer; }
-  .hl-on .choice-btn{ cursor:text; }
   .hl-quote{ display:flex; gap:8px; align-items:baseline; margin-top:7px; line-height:1.7; }
   .hl-quote .hl-part{ flex:none; font-size:11.5px; font-weight:800; color:var(--muted); background:var(--paper-2); border-radius:6px; padding:2px 7px; white-space:nowrap; }
   .hl-quote mark.hl{ font-size:calc(var(--q) * .92); }
@@ -338,11 +342,14 @@
   .read-card .read-text{ font-size:calc(var(--q) * .95); line-height:1.85; white-space:pre-line; word-break:keep-all; font-family:var(--font-read); }
   .unit-pill b{ color:var(--green-dark); }
 
-  /* ===== 👤 제시문 눌러 사상가 이름 보기 ===== */
-  .passage-row[data-peek="1"]{ cursor:pointer; }
-  .passage-row .tname{ display:none; }
+  /* ===== 👤 갑・을 칸을 눌러 사상가 이름 보기 =====
+     이름이 나와도 본문이 밀리지 않게 칸 너비를 처음부터 고정하고, 이름은 두 줄까지 내려 쓴다 */
+  .passage-tag.peekable, .passage-tag.peekable.named{ width:84px; padding:6px; gap:5px; cursor:pointer; }
+  .passage-tag.peekable:hover{ background:var(--green-light); }
+  .passage-tag .tlabel{ line-height:1.1; }
+  .passage-tag .tname{ display:none; max-width:100%; word-break:keep-all; line-height:1.25; }
   .passage-row.named-on .tname{ display:inline-block; }
-  .passage-tag .tpeek{ font-size:12px; font-weight:800; color:var(--muted); background:var(--card); border-radius:8px; padding:2px 6px; opacity:.85; }
+  .passage-tag .tpeek{ font-size:13px; line-height:1; color:var(--muted); background:var(--card); border:1.5px solid var(--line); border-radius:999px; padding:3px 7px; }
   .passage-row.named-on .tpeek{ display:none; }
   .peek-hint{ font-size:12px; color:var(--muted); margin:-12px 0 16px; }
 
@@ -754,7 +761,9 @@
       </div>
     </div>
     <nav class="tabs" id="student-tabs">
-      <span class="tab-label">풀기</span>
+      <span class="tab-label">읽기</span>
+      <button data-panel="p15">👤 사상가 사전</button>
+      <span class="tab-sep"></span><span class="tab-label">풀기</span>
       <button class="active" data-panel="p12">오늘의 10문제</button>
       <button data-panel="p1">랜덤</button>
       <button data-panel="p2">교육청・평가원</button>
@@ -765,8 +774,6 @@
       <button data-panel="p9">즐겨찾기</button>
       <button data-panel="p10">내 메모</button>
       <button data-panel="p14">🖍 형광펜</button>
-      <span class="tab-sep"></span><span class="tab-label">읽기</span>
-      <button data-panel="p15">사상가 사전</button>
       <span class="tab-sep"></span>
       <button data-panel="p11">내 학습 현황</button>
       <!-- 선지 OX · 빈칸 OX · 퀴즈 게임은 준비되면 여기에 버튼만 다시 추가 (data-panel="p5"/"p6"/"p7") -->
@@ -1266,7 +1273,7 @@ function applyViewSettings(){
     b.textContent = theme === 'dark' ? '☀️' : '🌙';
     b.title = theme === 'dark' ? '밝은 화면으로' : '다크모드로';
   });
-  const design = lsGet('yunsa-design') || 'study';
+  const design = lsGet('yunsa-design') || 'note';   // 기본 디자인: 노트
   document.documentElement.dataset.design = design;
   document.querySelectorAll("[data-design-btn]").forEach(b=> b.classList.toggle("active", b.dataset.designBtn === design));
   const font = lsGet("yunsa-font") || "yuntang";   // 기본 글씨체: 윤탱이
@@ -1739,22 +1746,49 @@ function initStudent(){
     if(btn) btn.classList.toggle('active', on);
   }
   function captureHighlight(root, q){
-    if(!hlModeOn() || !loginInfo) return;
+    if(!hlModeOn() || !loginInfo) return false;
     const sel = window.getSelection();
-    if(!sel || sel.isCollapsed || !sel.rangeCount) return;
+    if(!sel || sel.isCollapsed || !sel.rangeCount) return false;
     const rng = sel.getRangeAt(0);
-    const holderOf = n => (n && n.nodeType === 3 ? n.parentElement : n);
-    const a = holderOf(rng.startContainer), b = holderOf(rng.endContainer);
-    if(!a || !b) return;
+    const elOf = n => (n && n.nodeType === 3 ? n.parentElement : n);
+    const a = elOf(rng.startContainer), b = elOf(rng.endContainer);
+    if(!a || !b) return false;
     const holder = a.closest('[data-hl]');
-    if(!holder || holder !== b.closest('[data-hl]') || !root.contains(holder)) return;
+    if(!holder || !root.contains(holder)) return false;
+    const part = holder.dataset.hl;
     const s = textOffset(holder, rng.startContainer, rng.startOffset);
-    const e = textOffset(holder, rng.endContainer, rng.endOffset);
-    if(s < 0 || e < 0 || e <= s) return;
-    if(!addHighlight(q, holder.dataset.hl, s, e)) return;
+    // 드래그가 다른 칸까지 넘어갔으면 이 칸 끝까지만 칠한다
+    const sameHolder = (b.closest('[data-hl]') === holder);
+    const e = sameHolder ? textOffset(holder, rng.endContainer, rng.endOffset) : hlKeyText(q, part).length;
+    if(s < 0 || e < 0 || e <= s) return false;
+    if(!addHighlight(q, part, s, e)) return false;
     sel.removeAllRanges();
-    paintPart(holder, q, holder.dataset.hl);
+    paintPart(holder, q, part);
     saveHighlights();
+    return true;
+  }
+  // 누른 자리의 글자 위치 (휴대폰에서 드래그 대신 톡 눌러 칠할 때 씀)
+  function caretOffsetAt(holder, x, y){
+    let node = null, off = 0;
+    if(document.caretRangeFromPoint){
+      const r = document.caretRangeFromPoint(x, y);
+      if(r){ node = r.startContainer; off = r.startOffset; }
+    }else if(document.caretPositionFromPoint){
+      const p = document.caretPositionFromPoint(x, y);
+      if(p){ node = p.offsetNode; off = p.offset; }
+    }
+    if(!node || !holder.contains(node)) return -1;
+    return textOffset(holder, node, off);
+  }
+  // 누른 자리가 속한 문장의 앞뒤 경계
+  function sentenceAround(text, pos){
+    const stop = ch => ch === '.' || ch === '?' || ch === '!' || ch === '\n';
+    let s = Math.max(0, Math.min(pos, text.length - 1)), e = s;
+    while(s > 0 && !stop(text[s-1])) s--;
+    while(e < text.length && !stop(text[e])) e++;
+    if(e < text.length) e++;
+    while(s < e && /\s/.test(text[s])) s++;
+    return [s, e];
   }
   function bindHighlighting(root, q){
     const later = () => setTimeout(()=> captureHighlight(root, q), 0);
@@ -1762,28 +1796,45 @@ function initStudent(){
     root.addEventListener('touchend', later);
     root.addEventListener('click', e=>{
       if(!hlModeOn()) return;
-      const m = e.target.closest && e.target.closest('mark.hl');
-      if(!m) return;
-      const holder = m.closest('[data-hl]');
-      if(!holder) return;
+      const t = e.target;
+      if(!t || !t.closest) return;
+      // 칠한 곳을 다시 누르면 지우기
+      const m = t.closest('mark.hl');
+      if(m){
+        const h = m.closest('[data-hl]');
+        if(!h) return;
+        e.preventDefault(); e.stopPropagation();
+        removeHighlight(q, h.dataset.hl, Number(m.dataset.s), Number(m.dataset.e));
+        paintPart(h, q, h.dataset.hl);
+        saveHighlights();
+        return;
+      }
+      // 드래그 없이 그냥 눌렀으면 그 문장 한 줄을 칠하기
+      const holder = t.closest('[data-hl]');
+      if(!holder || !loginInfo) return;
+      const sel = window.getSelection();
+      if(sel && !sel.isCollapsed) return;
       e.preventDefault(); e.stopPropagation();
-      removeHighlight(q, holder.dataset.hl, Number(m.dataset.s), Number(m.dataset.e));
-      paintPart(holder, q, holder.dataset.hl);
-      saveHighlights();
+      const part = holder.dataset.hl;
+      const text = hlKeyText(q, part);
+      if(!text) return;
+      const pos = caretOffsetAt(holder, e.clientX, e.clientY);
+      const range = sentenceAround(text, pos < 0 ? 0 : pos);
+      if(addHighlight(q, part, range[0], range[1])){
+        paintPart(holder, q, part);
+        saveHighlights();
+      }
     }, true);
   }
-  // 👤 제시문을 누르면 그 줄의 사상가 이름만 보여주기 (풀기 전 힌트)
+  // 👤 갑・을 칸(또는 사람 모양)을 누르면 그 줄의 사상가 이름 보여주기
   function bindPeekNames(root){
-    root.querySelectorAll('.passage-row[data-peek="1"]').forEach(row=>{
-      row.addEventListener('click', e=>{
-        if(hlModeOn()) return;
-        if(e.target.closest && e.target.closest('mark.hl')) return;
-        const sel = window.getSelection();
-        if(sel && !sel.isCollapsed) return;
-        const on = !row.classList.contains('named-on');
-        row.classList.toggle('named-on', on);
-        const tag = row.querySelector('.passage-tag');
-        if(tag) tag.classList.toggle('named', on);
+    root.querySelectorAll('.passage-tag[data-peek="1"]').forEach(tag=>{
+      tag.addEventListener('click', e=>{
+        e.preventDefault(); e.stopPropagation();
+        const row = tag.closest('.passage-row');
+        const on = !tag.classList.contains('named');
+        tag.classList.toggle('named', on);
+        if(row) row.classList.toggle('named-on', on);
       });
     });
   }
@@ -2158,15 +2209,15 @@ function initStudent(){
   // ----- 공통 퀴즈 엔진 -----
   function renderPassageHTML(q, showNames){
     let html = '';
-    // 사상가 이름은 기본으로 가려두고, 제시문을 누르면 그 줄의 이름만 보여준다 (풀기 전 힌트)
+    // 사상가 이름은 기본으로 가려두고, 갑・을 칸(또는 사람 모양)을 누르면 그 줄의 이름만 보여준다
     const rowHTML = (t, idx, withLabel) => {
       const name = cleanName(t.name);
       const shown = !!(showNames && name);
-      const tagInner = (withLabel ? escapeHtml(t.label) : '')
-        + (name ? `<span class="tname">${escapeHtml(name)}</span><span class="tpeek">👤?</span>` : '');
+      const tagInner = (withLabel ? `<span class="tlabel">${escapeHtml(t.label)}</span>` : '')
+        + (name ? `<span class="tname">${escapeHtml(name)}</span><span class="tpeek">👤</span>` : '');
       const tag = (withLabel || name)
-        ? `<div class="passage-tag${shown ? ' named' : ''}${name ? ' peekable' : ''}">${tagInner}</div>` : '';
-      return `<div class="passage-row${shown ? ' named-on' : ''}"${name && !shown ? ' data-peek="1"' : ''}>${tag}<div class="passage-text" data-hl="p${idx}">${escapeHtml(t.passage)}</div></div>`;
+        ? `<div class="passage-tag${shown ? ' named' : ''}${name ? ' peekable' : ''}"${name && !shown ? ' data-peek="1" title="사상가 이름 보기"' : ''}>${tagInner}</div>` : '';
+      return `<div class="passage-row${shown ? ' named-on' : ''}">${tag}<div class="passage-text" data-hl="p${idx}">${escapeHtml(t.passage)}</div></div>`;
     };
     if(q.thinkers.length === 1){
       html += `<div class="passage-box">${rowHTML(q.thinkers[0], 0, false)}</div>`;
@@ -2174,7 +2225,7 @@ function initStudent(){
       html += '<div class="passage-box">' + q.thinkers.map((t,i)=> rowHTML(t, i, true)).join('') + '</div>';
     }
     if(!showNames && q.thinkers.some(t => cleanName(t.name))){
-      html += `<div class="peek-hint">👤 제시문을 누르면 사상가 이름이 보여요</div>`;
+      html += `<div class="peek-hint">👤 왼쪽 칸을 누르면 사상가 이름이 보여요</div>`;
     }
     if(q.bogi) html += `<div class="bogi-block"><div class="bogi-title">&lt;보기&gt;</div><div class="bogi-content" data-hl="bogi">${escapeHtml(q.bogi)}</div></div>`;
     if(q.legend) html += `<div class="legend-block"><div class="legend-title">범례</div><div class="legend-content" data-hl="legend">${escapeHtml(q.legend)}</div></div>`;
