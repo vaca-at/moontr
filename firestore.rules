@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /attendance/{docId} { allow read, write: if true; }
+    match /classes/{className} { allow read, write: if true; }
+    match /qr/{className} { allow read, write: if true; }
+
+    // 매뉴얼 앱: 진도 기록
+    match /progress/{doc} { allow read, write: if true; }
+
+    // 매뉴얼 앱: 익명 질문
+    match /asks/{doc} { allow read, write: if true; }
+
+    // 매뉴얼 앱: 스크린샷 (base64 저장, 문서 1MB 제한)
+    match /images/{doc} {
+      allow read: if true;
+      allow write: if request.resource.data.data is string
+                   && request.resource.data.data.size() < 900000;
+      allow delete: if true;
+    }
+
+    // 발표 자료 앱: 슬라이드 사진 (base64 저장, 문서 1MB 제한)
+    match /talkImages/{doc} {
+      allow read: if true;
+      allow write: if request.resource.data.data is string
+                   && request.resource.data.data.size() < 900000;
+      allow delete: if true;
+    }
+
+    // 발표 자료 앱: 익명 접속 기록
+    match /talkSessions/{doc} { allow read, write: if true; }
+
+    // ===== 만점 다이어리 (윤사 /idea, 생윤 /app) =====
+    // 두 앱 모두 같은 관리자 계정을 쓴다
+    function isTeacher() {
+      return request.auth != null
+        && request.auth.token.email == 'anstjsdud@sen.go.kr';
+    }
+
+    // ----- 윤사 만점 다이어리 -----
+    match /yunsa_questions/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /yunsa_rates/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /yunsa_logs/{id} { allow create: if true; allow read, delete: if isTeacher(); }
+    match /yunsa_reports/{id} { allow create: if true; allow read, update, delete: if isTeacher(); }
+
+    match /yunsa_ids/{sid} {
+      allow get: if true;
+      allow create: if sid.matches('^[0-9]{5}$');
+      allow list, delete: if isTeacher();
+    }
+
+    match /yunsa_learners/{key} {
+      allow get: if true;
+      allow create: if isTeacher() || (
+        key.size() == 64
+        && request.resource.data.studentId.matches('^[0-9]{5}$')
+        && request.resource.data.nickname.size() <= 5
+        && exists(/databases/$(database)/documents/yunsa_ids/$(request.resource.data.studentId))
+      );
+      allow update: if request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.nickname == resource.data.nickname;
+      allow list, delete: if isTeacher();
+    }
+
+    // ----- 생윤 만점 다이어리 (윤사와 같은 구조, 컬렉션만 분리) -----
+    match /saengyun_questions/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /saengyun_rates/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /saengyun_logs/{id} { allow create: if true; allow read, delete: if isTeacher(); }
+    match /saengyun_reports/{id} { allow create: if true; allow read, update, delete: if isTeacher(); }
+
+    match /saengyun_ids/{sid} {
+      allow get: if true;
+      allow create: if sid.matches('^[0-9]{5}$');
+      allow list, delete: if isTeacher();
+    }
+
+    match /saengyun_learners/{key} {
+      allow get: if true;
+      allow create: if isTeacher() || (
+        key.size() == 64
+        && request.resource.data.studentId.matches('^[0-9]{5}$')
+        && request.resource.data.nickname.size() <= 5
+        && exists(/databases/$(database)/documents/saengyun_ids/$(request.resource.data.studentId))
+      );
+      allow update: if request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.nickname == resource.data.nickname;
+      allow list, delete: if isTeacher();
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
