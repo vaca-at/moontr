@@ -394,6 +394,15 @@
   .acc-bar{ width:100%; min-height:2px; background:var(--green); border-radius:4px 4px 0 0; opacity:.85; }
   .acc-n{ font-size:11px; font-weight:800; color:var(--green-dark); height:14px; }
   .acc-d{ font-size:10.5px; color:var(--muted); margin-top:2px; white-space:nowrap; }
+  .vis-grid{ display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-top:10px; }
+  .vis-card{ border:1.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 14px; }
+  .vis-title{ font-size:12.5px; font-weight:800; color:var(--muted); margin-bottom:8px; }
+  .vis-row{ display:flex; align-items:center; gap:8px; margin:5px 0; font-size:12.5px; }
+  .vis-name{ flex:none; width:74px; font-weight:700; }
+  .vis-track{ flex:1; height:9px; background:var(--paper-2); border-radius:999px; overflow:hidden; }
+  .vis-fill{ display:block; height:100%; background:var(--green); border-radius:999px; }
+  .vis-num{ flex:none; color:var(--muted); white-space:nowrap; }
+  @media (max-width:600px){ .vis-grid{ grid-template-columns:1fr; } }
   .log-tool{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
   .log-tool input[type="date"]{
     font-family:var(--font-ui); font-size:13px; padding:7px 10px;
@@ -1181,7 +1190,8 @@ const COL = {
   ids:       "yunsa_ids",        // 학번별 최초 등록 표시 (같은 학번 다른 닉네임 차단용)
   logs:      "yunsa_logs",
   reports:   "yunsa_reports",
-  flags:     "yunsa_flags"     // 신고된 문항 표시 (개인정보 없이 문항ID만 — 학생 화면에 "신고된 문항" 배너)
+  flags:     "yunsa_flags",    // 신고된 문항 표시 (개인정보 없이 문항ID만 — 학생 화면에 "신고된 문항" 배너)
+  visits:    "yunsa_visits"    // 익명 접속 기록 (기기 종류・브라우저・날짜만. 학번・닉네임과 연결되지 않음)
 };
 
 // 윤리와사상 단원(카테고리) — 발문을 먼저 보고, 발문만으로 애매하면 제시문 키워드로 판단
@@ -1535,6 +1545,52 @@ function initStudent(){
   let streak = 0;                 // 연속 정답 수 (탭을 옮겨도 이어짐)
   const reportedIds = new Set();  // 이번 접속에서 이미 신고한 문항
   let flaggedIds = new Set();     // 누군가 신고해서 선생님 확인을 기다리는 문항 (모든 학생에게 보임)
+  // ----- 익명 접속 기록 -----
+  // 어떤 기기로 들어오는지만 모아 화면을 고치는 데 쓴다.
+  // 학번・닉네임・정확한 시각은 넣지 않고, 기기 종류・브라우저・날짜・시간대만 남긴다.
+  function deviceInfo(){
+    const ua = navigator.userAgent || '';
+    const w = window.screen && window.screen.width ? window.screen.width : window.innerWidth;
+    const tablet = /iPad|Tablet|SM-T|Nexus 7|Nexus 10/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const mobile = !tablet && /Android|iPhone|iPod|Mobile|Windows Phone/i.test(ua);
+    const os = /Android/i.test(ua) ? 'Android'
+             : /iPhone|iPad|iPod/i.test(ua) ? 'iOS'
+             : /Mac OS X|Macintosh/i.test(ua) ? 'Mac'
+             : /Windows/i.test(ua) ? 'Windows'
+             : /Linux/i.test(ua) ? 'Linux' : '기타';
+    const br = /SamsungBrowser/i.test(ua) ? '삼성 인터넷'
+             : /Edg\//i.test(ua) ? '엣지'
+             : /OPR\//i.test(ua) ? '오페라'
+             : /Whale/i.test(ua) ? '웨일'
+             : /Firefox/i.test(ua) ? '파이어폭스'
+             : /Chrome/i.test(ua) ? '크롬'
+             : /Safari/i.test(ua) ? '사파리' : '기타';
+    return {
+      dev: tablet ? '태블릿' : (mobile ? '휴대폰' : '컴퓨터'),
+      os, br,
+      w: w < 400 ? '~399' : w < 600 ? '400~599' : w < 900 ? '600~899' : w < 1280 ? '900~1279' : '1280~'
+    };
+  }
+  function anonDeviceId(){
+    let v = lsGet('yunsa-vid');
+    if(!v){
+      v = Math.random().toString(36).slice(2, 10);
+      lsSet('yunsa-vid', v);
+    }
+    return v;
+  }
+  async function logVisit(){
+    try{
+      if(sessionStorage.getItem('yunsa-visit-logged') === '1') return;   // 한 번 들어올 때 한 번만
+      sessionStorage.setItem('yunsa-visit-logged', '1');
+    }catch(e){}
+    try{
+      const now = new Date();
+      const d = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      await addDoc(collection(db, COL.visits), { ...deviceInfo(), d, h: now.getHours(), vid: anonDeviceId() });
+    }catch(e){ console.error('접속 기록 실패', e); }
+  }
+
   async function loadFlags(){
     try{
       const snap = await getDocs(collection(db, COL.flags));
@@ -1571,6 +1627,7 @@ function initStudent(){
         .filter(q => !q.yy || Number(q.yy) >= MIN_YY);
       loadState = 'ready';
       loadFlags();   // 신고된 문항 표시 (실패해도 문제 풀이에는 영향 없음)
+      logVisit();    // 익명 접속 기록 (학번과 연결되지 않음)
     }catch(e){
       console.error(e);
       loadState = 'error';
@@ -3888,6 +3945,76 @@ function initAdmin(){
   }
 
   // ================= 오류 신고 =================
+  // ----- 기기별 접속 현황 (익명) -----
+  async function renderVisitStats(){
+    const box = document.getElementById('visit-stats');
+    if(!box) return;
+    try{
+      const snap = await getDocs(collection(db, COL.visits));
+      const rows = snap.docs.map(d => d.data());
+      if(!rows.length){
+        box.innerHTML = `<div class="state-msg" style="padding:16px;">아직 접속 기록이 없어요.</div>`;
+        return;
+      }
+      const tally = (key)=>{
+        const m = {};
+        rows.forEach(r=>{ const v = r[key] || '기타'; m[v] = (m[v] || 0) + 1; });
+        return Object.keys(m).sort((a,b)=> m[b] - m[a]).map(k=> ({ k, n:m[k] }));
+      };
+      const bar = (list, total)=> `<div class="vis-bars">${list.map(x=>`
+        <div class="vis-row">
+          <span class="vis-name">${escapeHtml(x.k)}</span>
+          <span class="vis-track"><span class="vis-fill" style="width:${Math.round(x.n/total*100)}%"></span></span>
+          <span class="vis-num">${x.n}회 · ${Math.round(x.n/total*100)}%</span>
+        </div>`).join('')}</div>`;
+      const total = rows.length;
+      const devices = new Set(rows.map(r=>r.vid).filter(Boolean)).size;
+      const hours = {};
+      rows.forEach(r=>{ const h = Number(r.h); if(h >= 0 && h <= 23) hours[h] = (hours[h]||0) + 1; });
+      const maxH = Math.max(1, ...Object.values(hours));
+      box.innerHTML = `
+        <div class="badge-row">
+          <span class="badge">접속 ${total}회</span>
+          <span class="badge off">기기 ${devices}대</span>
+          <button class="small-btn line" id="visit-clear" type="button">접속 기록 비우기</button>
+          <span class="msg" id="visit-msg"></span>
+        </div>
+        <div class="vis-grid">
+          <div class="vis-card"><div class="vis-title">기기 종류</div>${bar(tally('dev'), total)}</div>
+          <div class="vis-card"><div class="vis-title">운영체제</div>${bar(tally('os'), total)}</div>
+          <div class="vis-card"><div class="vis-title">브라우저</div>${bar(tally('br'), total)}</div>
+          <div class="vis-card"><div class="vis-title">화면 너비(px)</div>${bar(tally('w'), total)}</div>
+        </div>
+        <div class="vis-card" style="margin-top:10px;">
+          <div class="vis-title">시간대별 접속</div>
+          <div class="acc-chart" style="height:80px;">
+            ${Array.from({length:24}, (_,h)=>`
+              <div class="acc-col" title="${h}시 · ${hours[h]||0}회">
+                <div class="acc-bar" style="height:${Math.round((hours[h]||0)/maxH*100)}%;"></div>
+                <div class="acc-d">${h % 3 === 0 ? h : ''}</div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+      document.getElementById('visit-clear').addEventListener('click', async ()=>{
+        if(!confirm(`익명 접속 기록 ${snap.docs.length}건을 모두 지울까요?`)) return;
+        const msg = document.getElementById('visit-msg');
+        msg.className = 'msg'; msg.textContent = '지우는 중...';
+        try{
+          const ids = snap.docs.map(d => d.id);
+          for(let i = 0; i < ids.length; i += 400){
+            const batch = writeBatch(db);
+            ids.slice(i, i + 400).forEach(id => batch.delete(doc(db, COL.visits, id)));
+            await batch.commit();
+          }
+          renderVisitStats();
+        }catch(e){ console.error(e); msg.className = 'msg no-text'; msg.textContent = '지우지 못했어요.'; }
+      });
+    }catch(e){
+      console.error(e);
+      box.innerHTML = `<div class="state-msg" style="padding:16px;">불러오지 못했어요. 보안 규칙에 *_visits 규칙이 들어갔는지 확인해주세요.</div>`;
+    }
+  }
+
   // ----- 사상가별 선지 (옳은 선지 / 옳지 않은 선지) -----
   async function renderSaysPanel(){
     const el = document.getElementById('a-says');
@@ -4090,6 +4217,10 @@ function initAdmin(){
           <span class="badge off">최근 14일 합계 ${recent.reduce((n,d)=>n+d.solved,0)}문제</span>
         </div>
 
+        <div class="section-title">기기별 접속 현황 (익명)</div>
+        <div class="section-hint">어떤 기기・브라우저로 들어오는지만 따로 모은 기록입니다. <b>학번・닉네임과 연결되지 않고, 정확한 접속 시각도 남기지 않습니다</b>(날짜와 시간대만). 화면을 어디에 맞춰 고칠지 정하는 데 씁니다.</div>
+        <div id="visit-stats"><div class="state-msg" style="padding:16px;">불러오는 중...</div></div>
+
         <div class="section-title">학생별 기록</div>
         <div id="student-note-view"></div>
         <div class="data-table-wrap"><table class="data-table">
@@ -4159,6 +4290,8 @@ function initAdmin(){
           logTargets = [];
         }catch(e){ console.error(e); logMsg().className = 'msg no-text'; logMsg().textContent = '지우지 못했어요. 권한을 확인해주세요.'; btn.disabled = false; }
       });
+
+      renderVisitStats();
 
       const byKey = k => list.find(x => x.key === k);
 
