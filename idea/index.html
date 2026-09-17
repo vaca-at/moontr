@@ -4238,15 +4238,22 @@ function initAdmin(){
 
         ${compareAuto.length ? `
           <div class="section-title">기출에서 새로 찾은 것 (${compareAuto.length})</div>
+          <div class="section-hint">넣고 싶지 않은 줄만 체크를 풀고 [선택한 것 저장]을 누르면 한꺼번에 들어갑니다.</div>
+          <div class="quick-row" style="margin-bottom:6px;">
+            <label class="quick-auto"><input type="checkbox" id="cmp-all" checked> 전체 선택</label>
+            <button class="small-btn green" id="cmp-save-picked" type="button">선택한 ${compareAuto.length}개 저장</button>
+            <span class="msg" id="cmp-pick-msg"></span>
+          </div>
           <div class="data-table-wrap"><table class="data-table">
-            <thead><tr><th>정답</th><th>종류</th><th>설명</th><th>출처</th><th></th></tr></thead>
+            <thead><tr><th style="width:34px;"></th><th>정답</th><th>종류</th><th>설명</th><th>출처</th><th></th></tr></thead>
             <tbody>${compareAuto.map((x,i)=>`
               <tr>
+                <td><input type="checkbox" class="cmp-pick" data-i="${i}" checked></td>
                 <td><b class="${x.ans === 'O' ? '' : 'no-text'}">${x.ans}</b></td>
                 <td>${escapeHtml(x.kind)}</td>
                 <td class="stem" style="color:var(--ink);">${escapeHtml(x.text)}</td>
                 <td style="white-space:nowrap;">${escapeHtml(qLabel(x.q))} ${NUM_MARK[x.i]}</td>
-                <td><div class="row-btns"><button data-auto="${i}">저장</button></div></td>
+                <td><div class="row-btns"><button data-auto="${i}">이것만 저장</button></div></td>
               </tr>`).join('')}</tbody>
           </table></div>` : ''}
 
@@ -4289,6 +4296,46 @@ function initAdmin(){
           await batch.commit();
         }
       }
+
+      // 체크한 것만 한꺼번에 저장
+      const pickBoxes = ()=> Array.from(el.querySelectorAll('.cmp-pick'));
+      const pickedIdx = ()=> pickBoxes().filter(b => b.checked).map(b => Number(b.dataset.i));
+      const refreshPickBtn = ()=>{
+        const btn = document.getElementById('cmp-save-picked');
+        if(!btn) return;
+        const n = pickedIdx().length;
+        btn.textContent = `선택한 ${n}개 저장`;
+        btn.disabled = n === 0;
+      };
+      const allBox = document.getElementById('cmp-all');
+      if(allBox) allBox.addEventListener('change', ()=>{
+        pickBoxes().forEach(b => { b.checked = allBox.checked; });
+        refreshPickBtn();
+      });
+      pickBoxes().forEach(b=> b.addEventListener('change', ()=>{
+        if(allBox) allBox.checked = pickBoxes().every(x => x.checked);
+        refreshPickBtn();
+      }));
+      const savePicked = document.getElementById('cmp-save-picked');
+      if(savePicked) savePicked.addEventListener('click', async ()=>{
+        const idx = pickedIdx();
+        if(!idx.length) return;
+        if(!confirm(`${idx.length}개를 저장할까요?`)) return;
+        savePicked.disabled = true;
+        const pmsg = document.getElementById('cmp-pick-msg');
+        pmsg.className = 'msg'; pmsg.textContent = '저장 중...';
+        try{
+          await saveItems(idx.map(i=>{
+            const x = compareAuto[i];
+            return { text:x.text, ans:x.ans, kind:x.kind, names:x.names, src:`${qLabel(x.q)} ${NUM_MARK[x.i]}`, by:'기출' };
+          }));
+          renderComparePanel();
+        }catch(e){
+          console.error(e);
+          pmsg.className = 'msg no-text'; pmsg.textContent = '저장 실패: 권한을 확인해주세요.';
+          savePicked.disabled = false;
+        }
+      });
 
       const saveAll = document.getElementById('cmp-save-all');
       if(saveAll) saveAll.addEventListener('click', async ()=>{
