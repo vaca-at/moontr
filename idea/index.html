@@ -1029,7 +1029,16 @@
 
     <!-- ---------- 구글시트 가져오기 ---------- -->
     <div class="panel" id="a-import">
-      <div class="section-title first">기존 구글시트 데이터 한 번에 옮기기</div>
+      <div class="section-title first">구글시트에서 바로 불러오기</div>
+      <div class="section-hint">구글시트를 <b>공유 → 링크가 있는 모든 사용자(뷰어)</b>로 바꾼 뒤, 시트 주소를 그대로 붙여넣고 [시트에서 불러오기]를 누르면 됩니다. <b>시트 이름</b>(아래쪽 탭 이름)을 적으면 그 탭을, 비워 두면 주소에 들어 있는 탭을 가져와요. 제목행은 <b>문항ID · 실시일 · 문항번호 · 오답률 · 배점 · 단원 · 발문 · 갑_제시문 · 을_제시문 · 병_제시문 · 갑_사상가 · 을_사상가 · 병_사상가 · 범례 · 보기 · 선지1_내용 ~ 선지5_내용 · 정답번호 · 해설</b> 이름과 같아야 합니다(순서는 달라도 됩니다). 오답률 시트도 같은 방법으로 가져올 수 있어요.</div>
+      <div class="quick-row">
+        <input type="text" class="line-input" id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/..../edit#gid=0" style="flex:1; min-width:260px;" autocomplete="off" spellcheck="false">
+        <input type="text" class="line-input" id="sheet-name" placeholder="시트 이름 (예: 문항)" style="width:160px;" autocomplete="off">
+        <button class="small-btn green" id="sheet-load-btn" type="button">시트에서 불러오기</button>
+        <span class="msg" id="sheet-msg"></span>
+      </div>
+
+      <div class="section-title">복사・붙여넣기로 옮기기</div>
       <div class="section-hint">구글시트의 "문항" 시트나 "오답률" 시트에서 <b>첫 줄(제목행)까지 포함해</b> 전체를 드래그 → 복사(Ctrl+C) → 아래에 붙여넣기 하세요. 제목행을 보고 어떤 시트인지 자동으로 알아냅니다. 같은 문항ID가 이미 있으면 덮어써요. <b>실시일</b>은 2609 처럼 네 자리로 적으셔도 되고, 26-09 / 26년 9월 / 2026년 9월 도 모두 같게 읽어 "26년 9월" 형태로 저장합니다.</div>
       <textarea class="paste-box" id="import-paste" style="min-height:180px;" placeholder="문항ID	실시일	문항번호	오답률	배점	단원	발문 ..."></textarea>
       <div class="quick-row">
@@ -3420,7 +3429,10 @@ function initAdmin(){
   }
 
   // ================= 구글시트 가져오기 =================
+  // 붙여넣기(탭 구분)와 구글시트에서 받아온 CSV(쉼표 구분)를 모두 읽는다
   function parseTSV(text){
+    const firstLine = String(text).split('\n')[0] || '';
+    const delim = (firstLine.match(/\t/g) || []).length >= (firstLine.match(/,/g) || []).length ? '\t' : ',';
     const rows = []; let row = []; let field = ''; let inQ = false;
     for(let i=0;i<text.length;i++){
       const c = text[i];
@@ -3429,7 +3441,7 @@ function initAdmin(){
         else field += c;
       }else{
         if(c === '"' && field === '') inQ = true;
-        else if(c === '\t'){ row.push(field); field = ''; }
+        else if(c === delim){ row.push(field); field = ''; }
         else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
         else if(c !== '\r') field += c;
       }
@@ -3439,17 +3451,44 @@ function initAdmin(){
   }
 
   let importJobs = [];
-  document.getElementById('import-preview-btn').addEventListener('click', ()=>{
+  // 문항ID의 "2403-03"과 "2403-3"을 같은 문항으로 본다
+  function normId(id){
+    const m = String(id || '').trim().match(/^(\d{4})\s*-\s*(\d{1,2})$/);
+    return m ? `${m[1]}-${Number(m[2])}` : String(id || '').trim();
+  }
+  const CHOICE_MARK_NUM = { '①':1, '②':2, '③':3, '④':4, '⑤':5 };
+  function answerNum(v){
+    const s = String(v == null ? '' : v).trim();
+    if(!s) return '';
+    if(CHOICE_MARK_NUM[s]) return String(CHOICE_MARK_NUM[s]);
+    const n = parseInt(s, 10);
+    return (n >= 1 && n <= 5) ? String(n) : '';
+  }
+  // 이미 등록된 문항들을 문항ID 기준으로 한 번 읽어 둔다 (오답률을 채워 넣을 대상 찾기)
+  async function existingQuestionMap(){
+    const map = {};
+    try{
+      const snap = await getDocs(collection(db, COL.questions));
+      snap.docs.forEach(d => { map[normId(d.id)] = { id:d.id, data:d.data() }; });
+    }catch(e){ console.error('문항 목록을 불러오지 못했어요', e); }
+    return map;
+  }
+
+  async function runImportPreview(){
     const msg = document.getElementById('import-msg');
     const preview = document.getElementById('import-preview');
     const saveBtn = document.getElementById('import-save-btn');
     importJobs = []; saveBtn.disabled = true; preview.innerHTML = '';
     const rows = parseTSV(document.getElementById('import-paste').value);
     if(rows.length < 2){ msg.className = 'msg no-text'; msg.textContent = '제목행 + 데이터가 필요해요.'; return; }
-    const header = rows[0].map(h => h.trim());
+    const header = rows[0].map(h => h.trim().replace(/\s+/g, ''));
     const objs = rows.slice(1).map(r => { const o = {}; header.forEach((h,i)=> o[h] = (r[i] ?? '').trim()); return o; });
 
-    if(header.includes('문항ID')){
+    // 발문이나 선지가 있어야 "문항 시트"로 본다.
+    // (문항ID・실시일・오답률만 있는 오답률표를 문항 시트로 잘못 읽어 문항을 덮어쓰는 사고 방지)
+    const isQuestionSheet = header.includes('문항ID') && (header.includes('발문') || header.includes('선지1_내용'));
+
+    if(isQuestionSheet){
       const qs = objs.filter(o => o['문항ID']).map(o=>{
         const p = parseId(o['문항ID']);
         const thinkers = [];
@@ -3459,29 +3498,114 @@ function initAdmin(){
           id: o['문항ID'], yy: p?p.yy:'', mm: p?p.mm:'', num: o['문항번호'] || (p?p.num:''),
           src: (parseSrc(o['실시일']) || {}).label || o['실시일'] || '', rate: o['오답률'] || '', point: o['배점'] || '', unit: o['단원'] || '',
           stem: o['발문'] || '', thinkers, legend: o['범례'] || '', bogi: o['보기'] || '',
-          choices, correctNum: String(o['정답번호'] || ''), explanation: o['해설'] || ''
+          choices, correctNum: answerNum(o['정답번호'] || o['정답']), explanation: o['해설'] || ''
         };
       });
-      importJobs = qs.map(q => ({ col: COL.questions, id: q.id, data: { ...q, updatedAt: serverTimestamp() } }));
+      importJobs = qs.map(q => ({ col: COL.questions, id: q.id, mode:'set', data: { ...q, updatedAt: serverTimestamp() } }));
       const bad = qs.filter(q => q.choices.length < 2 || !q.correctNum).map(q=>q.id);
       msg.className = 'msg ok-text'; msg.textContent = `"문항" 시트로 인식: ${qs.length}문항`;
       preview.innerHTML = `<div class="section-hint">${qs.map(q=>escapeHtml(q.id)).join(', ')}</div>` +
         (bad.length ? `<div class="section-hint no-text">⚠️ 선지나 정답이 비어 학생 화면에 안 나올 문항: ${bad.map(escapeHtml).join(', ')}</div>` : '');
-    }else if(header.includes('실시일') && header.includes('오답률')){
-      const rs = [];
+    }else if(header.includes('오답률') && (header.includes('실시일') || header.includes('문항ID'))){
+      msg.className = 'msg'; msg.textContent = '오답률표를 읽는 중...';
+      const qmap = await existingQuestionMap();
+      const rs = [], noQuestion = [], answerDiff = [];
       objs.forEach(o=>{
-        const ps = parseSrc(o['실시일']);
-        if(!ps || !o['문항번호']) return;
-        rs.push({ id: makeId(ps.yy, ps.mm, o['문항번호']), src:ps.label, rank:o['순위']||'', num:String(Number(o['문항번호'])), rate:String(o['오답률']).replace('%',''), point:o['배점']||'' });
+        let id = '', srcLabel = '', num = '';
+        if(o['문항ID']){
+          id = String(o['문항ID']).trim();
+          const p = parseId(id);
+          num = o['문항번호'] || (p ? p.num : '');
+          srcLabel = (parseSrc(o['실시일']) || (p ? { label:`${p.yy}년 ${Number(p.mm)}월` } : {})).label || '';
+        }else{
+          const ps = parseSrc(o['실시일']);
+          if(!ps || !o['문항번호']) return;
+          num = o['문항번호'];
+          id = makeId(ps.yy, ps.mm, num);
+          srcLabel = ps.label;
+        }
+        if(!id) return;
+        const rate = String(o['오답률'] ?? '').replace('%','').trim();
+        const point = String(o['배점'] ?? '').trim();
+        const hit = qmap[normId(id)];
+        rs.push({ id, src:srcLabel, rank:o['순위']||'', num:String(Number(num)), rate, point, qid: hit ? hit.id : '' });
+        if(!hit) noQuestion.push(id);
+        const ans = answerNum(o['정답']);
+        if(hit && ans && String(hit.data.correctNum || '') && String(hit.data.correctNum) !== ans){
+          answerDiff.push(`${hit.id}(앱 ${NUM_MARK[Number(hit.data.correctNum)-1] || hit.data.correctNum} ↔ 표 ${NUM_MARK[Number(ans)-1]})`);
+        }
       });
-      importJobs = rs.map(r => ({ col: COL.rates, id: r.id, data: { src:r.src, rank:r.rank, num:r.num, rate:r.rate, point:r.point } }));
-      msg.className = 'msg ok-text'; msg.textContent = `"오답률" 시트로 인식: ${rs.length}줄`;
-      preview.innerHTML = `<div class="section-hint">${rs.map(r=>escapeHtml(r.id)).join(', ')}</div>`;
+      const linked = rs.filter(r => r.qid);
+      importJobs = rs.map(r => ({ col: COL.rates, id: r.id, mode:'set', data: { src:r.src, rank:r.rank, num:r.num, rate:r.rate, point:r.point } }))
+        // 이미 등록된 문항에는 오답률・배점・실시일만 덮어 채운다 (발문・선지는 그대로)
+        .concat(linked.map(r => ({ col: COL.questions, id: r.qid, mode:'update', data: { rate:r.rate, point:r.point, src:r.src, updatedAt: serverTimestamp() } })));
+      msg.className = 'msg ok-text';
+      msg.textContent = `"오답률" 시트로 인식: ${rs.length}줄 · 등록된 문항 ${linked.length}개에 오답률을 채웁니다`;
+      preview.innerHTML =
+        `<div class="section-hint">오답률이 채워질 문항: ${linked.map(r=>escapeHtml(r.qid)).join(', ') || '없음'}</div>` +
+        (noQuestion.length ? `<div class="section-hint">아직 등록되지 않은 문항 ${noQuestion.length}개 (오답률만 저장해 두고, 나중에 그 문항을 등록하면 자동으로 채워집니다): ${noQuestion.map(escapeHtml).join(', ')}</div>` : '') +
+        (answerDiff.length ? `<div class="section-hint no-text">⚠️ 정답이 표와 다른 문항 ${answerDiff.length}개 — 확인해보세요 (여기서 정답을 바꾸지는 않습니다): ${answerDiff.map(escapeHtml).join(', ')}</div>` : '');
     }else{
       msg.className = 'msg no-text'; msg.textContent = '제목행을 알아보지 못했어요. 첫 줄(문항ID... 또는 실시일...)까지 함께 복사해주세요.';
       return;
     }
     saveBtn.disabled = importJobs.length === 0;
+  }
+  document.getElementById('import-preview-btn').addEventListener('click', runImportPreview);
+
+  // ----- 구글시트에서 바로 불러오기 -----
+  // 시트 주소(또는 시트 ID)를 CSV로 받아올 수 있는 주소로 바꾼다.
+  // 시트는 "링크가 있는 모든 사용자 - 뷰어" 또는 "웹에 게시" 상태여야 브라우저에서 읽을 수 있다.
+  function sheetCsvUrl(input, sheetName){
+    const raw = String(input || '').trim();
+    if(!raw) return '';
+    if(/output=csv/i.test(raw)) return raw;                      // 이미 "웹에 게시" CSV 주소
+    const idM = raw.match(/\/spreadsheets\/d\/(?:e\/)?([a-zA-Z0-9_-]+)/);
+    const id = idM ? idM[1] : (/^[a-zA-Z0-9_-]{20,}$/.test(raw) ? raw : '');
+    if(!id) return '';
+    let url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+    const name = String(sheetName || '').trim();
+    const gidM = raw.match(/[#&?]gid=([0-9]+)/);
+    if(name) url += '&sheet=' + encodeURIComponent(name);        // 시트 이름을 적었으면 그 탭
+    else if(gidM) url += '&gid=' + gidM[1];                      // 아니면 주소에 들어 있는 탭
+    return url;
+  }
+
+  try{
+    const su = lsGet('yunsa-sheet-url'); if(su) document.getElementById('sheet-url').value = su;
+    const sn = lsGet('yunsa-sheet-name'); if(sn) document.getElementById('sheet-name').value = sn;
+  }catch(e){}
+
+  document.getElementById('sheet-load-btn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('sheet-msg');
+    const btn = document.getElementById('sheet-load-btn');
+    const urlRaw = document.getElementById('sheet-url').value;
+    const nameRaw = document.getElementById('sheet-name').value;
+    const url = sheetCsvUrl(urlRaw, nameRaw);
+    if(!url){
+      msg.className = 'msg no-text';
+      msg.textContent = '구글시트 주소를 확인해주세요. (주소창의 .../spreadsheets/d/... 주소를 그대로 붙여넣으면 됩니다)';
+      return;
+    }
+    btn.disabled = true; msg.className = 'msg'; msg.textContent = '시트를 불러오는 중...';
+    try{
+      const res = await fetch(url, { credentials:'omit' });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      if(/^\s*<(!doctype|html)/i.test(text)) throw new Error('NOT_PUBLIC');
+      if(!text.trim()) throw new Error('EMPTY');
+      document.getElementById('import-paste').value = text;
+      lsSet('yunsa-sheet-url', String(urlRaw).trim());
+      lsSet('yunsa-sheet-name', String(nameRaw).trim());
+      msg.className = 'msg ok-text'; msg.textContent = '✓ 시트를 불러왔어요. 아래 분석 결과를 확인하고 [Firebase에 저장]을 누르세요.';
+      runImportPreview();
+    }catch(e){
+      console.error(e);
+      msg.className = 'msg no-text';
+      msg.textContent = e.message === 'EMPTY'
+        ? '시트가 비어 있어요. 시트 이름(탭 이름)이 맞는지 확인해주세요.'
+        : '불러오지 못했어요. 시트를 [공유 → 링크가 있는 모든 사용자 → 뷰어]로 바꾸거나, [파일 → 공유 → 웹에 게시]에서 해당 시트를 CSV로 게시한 주소를 넣어주세요.';
+    }finally{ btn.disabled = false; }
   });
   document.getElementById('import-save-btn').addEventListener('click', async ()=>{
     const msg = document.getElementById('import-msg');
@@ -3499,7 +3623,11 @@ function initAdmin(){
   async function batchWrite(jobs){
     for(let i=0;i<jobs.length;i+=400){
       const batch = writeBatch(db);
-      jobs.slice(i, i+400).forEach(j => batch.set(doc(db, j.col, j.id), j.data));
+      jobs.slice(i, i+400).forEach(j => {
+        const ref = doc(db, j.col, j.id);
+        if(j.mode === 'update') batch.update(ref, j.data);   // 있는 문서의 일부만 채우기
+        else batch.set(ref, j.data);
+      });
       await batch.commit();
     }
   }
