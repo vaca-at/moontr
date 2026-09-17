@@ -371,7 +371,37 @@
   .hl-card-actions button:hover{ background:var(--green-light); }
 
   /* ===== 👤 사상가별 원문 읽기 ===== */
-  .read-head{ font-size:15px; font-weight:800; margin:14px 0 10px; }
+  .read-head{ font-size:15px; font-weight:800; margin:18px 0 10px; }
+  .say-box{ border:1.5px solid var(--line); border-radius:12px; background:var(--card); padding:6px 4px; margin-bottom:6px; }
+  .say-line{ display:flex; align-items:flex-start; gap:9px; padding:9px 12px; border-bottom:1px solid var(--line); }
+  .say-line:last-child{ border-bottom:none; }
+  .say-dot{ flex:none; color:var(--green-dark); font-weight:800; line-height:1.6; }
+  .say-text{ flex:1; font-family:var(--font-read); font-size:calc(var(--q) * .92); line-height:1.7; word-break:keep-all; }
+  .say-src{
+    flex:none; font-family:var(--font-ui); font-size:11.5px; font-weight:700; color:var(--muted);
+    background:var(--paper-2); border:1.5px solid var(--line); border-radius:999px; padding:3px 9px; cursor:pointer; white-space:nowrap;
+  }
+  .say-src:hover{ border-color:var(--green); color:var(--green-dark); }
+  .say-src-plain{ flex:none; font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .say-dot.o{ color:var(--green-dark); }
+  .say-dot.x{ color:var(--red); }
+  .says-head{ font-size:12.5px; font-weight:800; margin:10px 0 2px; }
+  .says-head.o{ color:var(--green-dark); }
+  .says-head.x{ color:var(--red); }
+  .tox-stem{ font-family:var(--font-read); font-size:calc(var(--q) * 1.02); line-height:1.8; font-weight:700; margin:6px 0 16px; word-break:keep-all; }
+  .tox-pick{ display:flex; gap:10px; }
+  .tox-pick .ox{
+    flex:1; font-family:var(--font-ui); font-weight:800; font-size:14px; min-height:52px;
+    color:var(--ink); background:var(--card); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;
+  }
+  .tox-pick .ox:hover{ border-color:var(--green); }
+  .tox-pick .ox.answer{ background:var(--green-light); border-color:var(--green); color:var(--green-dark); }
+  .tox-pick .ox.miss{ background:var(--red-light); border-color:var(--red); color:var(--red); }
+  .tox-pick .ox:disabled{ cursor:default; }
+  .tox-fb{ margin-top:14px; font-size:13.5px; font-weight:700; line-height:1.7; padding:10px 12px; border-radius:10px; }
+  .tox-fb.ok{ background:var(--green-light); color:var(--green-dark); }
+  .tox-fb.no{ background:var(--red-light); color:var(--red); }
+  .tox-fb .say-src-plain{ display:block; margin-top:4px; font-weight:700; }
   .read-card .read-text{ font-size:calc(var(--q) * .95); line-height:1.85; white-space:pre-line; word-break:keep-all; font-family:var(--font-read); }
   .unit-pill b{ color:var(--green-dark); }
 
@@ -808,6 +838,7 @@
     <nav class="tabs" id="student-tabs">
       <span class="tab-label">읽기</span>
       <button data-panel="p15">👤 사상가별 원문 읽기</button>
+      <button data-panel="p16">⭕❌ 사상가 OX</button>
       <span class="tab-sep"></span><span class="tab-label">풀기</span>
       <button class="active" data-panel="p1">랜덤</button>
       <button data-panel="p2">교육청・평가원</button>
@@ -873,6 +904,7 @@
     <div class="panel" id="p10"></div>
     <div class="panel" id="p14"></div>
     <div class="panel" id="p15"></div>
+    <div class="panel" id="p16"></div>
     <div class="panel" id="p11"></div>
   </main>
 
@@ -919,6 +951,7 @@
       <button data-apanel="a-list">등록 문항 목록</button>
       <button data-apanel="a-rates">오답률표 입력</button>
       <button data-apanel="a-import">구글시트 가져오기</button>
+      <button data-apanel="a-says">사상가별 선지</button>
       <button data-apanel="a-reports">오류 신고</button>
     </nav>
   </header>
@@ -1042,6 +1075,9 @@
       </div>
       <div id="import-preview" style="margin-top:12px;"></div>
     </div>
+
+    <!-- ---------- 사상가별 선지 ---------- -->
+    <div class="panel" id="a-says"></div>
 
     <!-- ---------- 학생 현황 ---------- -->
     <div class="panel active" id="a-students"></div>
@@ -1311,6 +1347,74 @@ function normalizeQuestion(d){
 }
 function qLabel(q){ return `${q.src}${q.num ? ' ' + q.num + '번' : ''}`; }
 
+// ================= 사상가별 선지 정리 (관리자・학생 공용) =================
+// 정답 번호 하나면 나머지 선지의 참・거짓도 정해진다.
+//  "옳은 것은?"      → 정답 선지만 참, 나머지는 거짓
+//  "옳지 않은 것은?"  → 정답 선지만 거짓, 나머지는 참
+function cleanName(n){ return String(n || '').replace(/\(.*?\)|추정/g, '').trim(); }
+function stemIsNegative(q){
+  return /옳지\s*않|적절하지\s*않|적절치\s*않|아닌\s*것|틀린\s*것|바르지\s*않|볼\s*수\s*없는|해당하지\s*않/.test(q.stem || '');
+}
+function choiceTruth(q, i){
+  const correctIdx = parseInt(q.correctNum, 10) - 1;
+  const neg = stemIsNegative(q);
+  if(i === correctIdx) return neg ? 'X' : 'O';
+  return neg ? 'O' : 'X';
+}
+// 선지가 "ㄱ, ㄴ" 같은 <보기> 조합형이면 선지별 O/X가 의미 없다
+function soxAvailable(q){
+  if(!q.choices || q.choices.length < 2) return false;
+  if(!q.correctNum || isNaN(parseInt(q.correctNum, 10))) return false;
+  return !q.choices.every(c => /^[ㄱ-ㅎ\s,·、]+$/.test(String(c).trim()));
+}
+// 선지 안의 갑・을・병을 사상가 이름으로 바꿔 준다 (목적격 조사 "~을"은 건드리지 않음)
+function labelToName(q, text){
+  let out = String(text || '');
+  (q.thinkers || []).forEach(t=>{
+    const nm = cleanName(t.name);
+    if(!nm || !t.label) return;
+    out = out.replace(new RegExp('(^|[\\s,·(])' + t.label + '(?=[은는이가만도:,]|\\s|와|과|$)', 'g'), '$1' + nm);
+  });
+  return out;
+}
+// 이 선지가 누구에 대한 말인지. 갑・을・병을 견주는 비교형 선지는 제외한다.
+function statementOwner(q, text){
+  const labels = (q.thinkers || []).map(t => t.label).filter(Boolean);
+  const s = String(text || '');
+  const hit = labels.filter(l => new RegExp('(^|[\\s,·(])' + l + '(?=[은는이가만도:,]|\\s|와|과)').test(s));
+  if(hit.length > 1) return null;                                   // 두 사람 이상을 함께 말함
+  if(labels.length > 1 && /모두|공통|달리|비해|반면|둘 다/.test(s)) return null;
+  if(hit.length === 1) return hit[0];
+  return labels.length === 1 ? labels[0] : null;                    // 사상가가 한 명뿐이면 그 사람 것
+}
+// { 사상가이름: { o:[옳은 선지], x:[옳지 않은 선지] } }
+function thinkerSays(questions){
+  const by = {};
+  (questions || []).forEach(q=>{
+    if(!soxAvailable(q)) return;
+    (q.choices || []).forEach((choice, i)=>{
+      const label = statementOwner(q, choice);
+      if(!label) return;
+      const t = (q.thinkers || []).find(x => x.label === label);
+      const nm = t ? cleanName(t.name) : '';
+      if(!nm) return;
+      by[nm] = by[nm] || { o:[], x:[] };
+      by[nm][choiceTruth(q, i) === 'O' ? 'o' : 'x'].push({ q, i, text: labelToName(q, choice) });
+    });
+  });
+  Object.keys(by).forEach(nm=>{
+    ['o','x'].forEach(k=>{
+      const seen = new Set();
+      by[nm][k] = by[nm][k].filter(s=>{
+        const key = s.text.replace(/\s+/g, '');
+        if(seen.has(key)) return false;
+        seen.add(key); return true;
+      });
+    });
+  });
+  return by;
+}
+
 // 탭 전환 공통
 function bindTabs(navSelector, attr, onShow){
   document.querySelectorAll(`${navSelector} button`).forEach(btn=>{
@@ -1443,7 +1547,7 @@ function initStudent(){
     return null;
   }
 
-  const ALL_PANELS = ['p1','p2','p4','p13','p12','p5','p6','p7','p8','p9','p10','p14','p15','p11'];
+  const ALL_PANELS = ['p1','p2','p4','p13','p12','p5','p6','p7','p8','p9','p10','p14','p15','p16','p11'];
   function renderAllPanels(){ ALL_PANELS.forEach(renderPanelById); }
 
   function renderPanelById(id){
@@ -1465,6 +1569,7 @@ function initStudent(){
     else if(id === 'p13') renderSearchPanel();
     else if(id === 'p14') renderHighlightPanel();
     else if(id === 'p15') renderThinkerPanel();
+    else if(id === 'p16') renderThinkerOX();
   }
 
   // ----- 로그인 (학번 5자리 + 닉네임 한글 5자 이내) -----
@@ -1759,21 +1864,6 @@ function initStudent(){
   //  · "옳은 것은?"      → 정답 선지만 O, 나머지는 X
   //  · "옳지 않은 것은?"  → 정답 선지만 X, 나머지는 O
   function soxModeOn(){ return lsGet('yunsa-sox') === '1'; }
-  function stemIsNegative(q){
-    return /옳지\s*않|적절하지\s*않|적절치\s*않|아닌\s*것|틀린\s*것|바르지\s*않|볼\s*수\s*없는|해당하지\s*않/.test(q.stem || '');
-  }
-  function choiceTruth(q, i){
-    const correctIdx = parseInt(q.correctNum, 10) - 1;
-    const neg = stemIsNegative(q);
-    if(i === correctIdx) return neg ? 'X' : 'O';
-    return neg ? 'O' : 'X';
-  }
-  // 선지가 "ㄱ, ㄴ" 같은 <보기> 조합형이면 선지별 O/X가 의미 없으므로 평소대로 푼다
-  function soxAvailable(q){
-    if(!q.choices || q.choices.length < 2) return false;
-    if(!q.correctNum || isNaN(parseInt(q.correctNum, 10))) return false;
-    return !q.choices.every(c => /^[ㄱ-ㅎ\s,·、]+$/.test(String(c).trim()));
-  }
   function soxTotals(){
     const all = Object.values(me.sox || {});
     const r = all.reduce((n,s)=> n + (s.r || 0), 0);
@@ -2057,9 +2147,96 @@ function initStudent(){
     });
     return map;
   }
+  // ----- ⭕❌ 사상가별 OX (선지를 하나씩 O/X로 판단) -----
+  const tox = { name:null, list:[], idx:0, right:0, started:false };
+  function toxNames(says){
+    return Object.keys(says)
+      .filter(n => (says[n].o.length + says[n].x.length) >= 2)
+      .sort((a,b)=> (says[b].o.length + says[b].x.length) - (says[a].o.length + says[a].x.length) || a.localeCompare(b));
+  }
+  function renderThinkerOX(){
+    const el = document.getElementById('p16');
+    const says = thinkerSays(ALL_QUESTIONS);
+    const names = toxNames(says);
+    if(!names.length){
+      el.innerHTML = `<div class="state-msg">아직 OX로 낼 선지가 모이지 않았어요.<br>문항이 더 등록되면 자동으로 쌓입니다.</div>`;
+      return;
+    }
+    if(!tox.name || !says[tox.name]){ tox.name = names[0]; tox.started = false; }
+    const pack = says[tox.name];
+    const head = `
+      <div class="dash-note">기출 선지를 사상가별로 모아 O/X로 물어봐요. 갑・을을 견주는 비교형 선지는 빼고, 한 사람에 대한 설명만 나옵니다.</div>
+      <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===tox.name?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${says[n].o.length + says[n].x.length}</b></button>`).join('')}</div>`;
+
+    if(!tox.started){
+      el.innerHTML = head + `
+        <div class="memo-card" style="margin-top:14px;">
+          <div class="mc-stem">${escapeHtml(tox.name)} · 선지 ${pack.o.length + pack.x.length}개</div>
+          <div class="dash-note" style="margin:0 0 12px;">⭕ 옳은 선지 ${pack.o.length}개 · ❌ 옳지 않은 선지 ${pack.x.length}개가 섞여 나와요.</div>
+          <div class="hl-card-actions"><button type="button" id="p16-start">${escapeHtml(tox.name)} OX 풀기</button></div>
+        </div>`;
+      bindToxPills(el);
+      document.getElementById('p16-start').addEventListener('click', ()=>{
+        tox.list = shuffle(pack.o.map(s=>({ ...s, ans:'O' })).concat(pack.x.map(s=>({ ...s, ans:'X' }))));
+        tox.idx = 0; tox.right = 0; tox.started = true;
+        renderThinkerOX();
+      });
+      return;
+    }
+
+    if(tox.idx >= tox.list.length){
+      const n = tox.list.length;
+      el.innerHTML = head + `
+        <div class="result-box">
+          <div class="score">${tox.right} / ${n}</div>
+          <p>${escapeHtml(tox.name)} 선지 ${n}개를 모두 판단했어요.</p>
+          <button id="p16-again" type="button">다시 풀기</button>
+        </div>`;
+      bindToxPills(el);
+      document.getElementById('p16-again').addEventListener('click', ()=>{ tox.started = false; renderThinkerOX(); });
+      return;
+    }
+
+    const cur = tox.list[tox.idx];
+    el.innerHTML = head + `
+      <div class="memo-card" style="margin-top:14px;">
+        <div class="mc-src">${escapeHtml(tox.name)} · ${tox.idx + 1} / ${tox.list.length}${tox.idx ? ` · 지금까지 ${tox.right}개 정답` : ''}</div>
+        <div class="tox-stem">${escapeHtml(cur.text)}</div>
+        <div class="tox-pick">
+          <button type="button" class="ox" data-ans="O">O · 맞는 설명</button>
+          <button type="button" class="ox" data-ans="X">X · 틀린 설명</button>
+        </div>
+        <div class="tox-fb" id="p16-fb" hidden></div>
+        <div class="hl-card-actions" id="p16-nextwrap" hidden><button type="button" id="p16-next">다음 →</button></div>
+      </div>`;
+    bindToxPills(el);
+    el.querySelectorAll('.tox-pick .ox').forEach(b=> b.addEventListener('click', ()=>{
+      const ok = b.dataset.ans === cur.ans;
+      if(ok) tox.right++;
+      el.querySelectorAll('.tox-pick .ox').forEach(x=>{
+        x.disabled = true;
+        if(x.dataset.ans === cur.ans) x.classList.add('answer');
+        if(x === b && !ok) x.classList.add('miss');
+      });
+      const fb = document.getElementById('p16-fb');
+      fb.hidden = false;
+      fb.className = 'tox-fb ' + (ok ? 'ok' : 'no');
+      fb.innerHTML = `${ok ? '정답이에요.' : `아니에요. 이 설명은 <b>${cur.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`}
+        <span class="say-src-plain">출처 ${escapeHtml(qLabel(cur.q))} ${NUM_MARK[cur.i]}${cur.q.unit ? ' · ' + escapeHtml(cur.q.unit) : ''}</span>`;
+      document.getElementById('p16-nextwrap').hidden = false;
+      document.getElementById('p16-next').addEventListener('click', ()=>{ tox.idx++; renderThinkerOX(); });
+    }));
+  }
+  function bindToxPills(el){
+    el.querySelectorAll('[data-t]').forEach(b=> b.addEventListener('click', ()=>{
+      tox.name = b.dataset.t; tox.started = false; renderThinkerOX();
+    }));
+  }
+
   function renderThinkerPanel(){
     const el = document.getElementById('p15');
     const map = thinkerIndex();
+    const says = thinkerSays(ALL_QUESTIONS);
     const names = Object.keys(map).sort((a, b)=> map[b].length - map[a].length || a.localeCompare(b));
     if(!names.length){
       el.innerHTML = `<div class="state-msg">사상가 이름이 등록된 제시문이 아직 없어요.</div>`;
@@ -2067,10 +2244,19 @@ function initStudent(){
     }
     if(!thinkerPick || !map[thinkerPick]) thinkerPick = names[0];
     const items = map[thinkerPick].slice().sort((a, b)=> compareId(a.q, b.q));
+    const lines = (says[thinkerPick] || { o:[] }).o;
     el.innerHTML = `
-      <div class="dash-note">문제를 푸는 곳이 아니라, 사상가가 한 말(기출 제시문)을 사람별로 모아 읽는 곳이에요. 형광펜으로 칠해둔 곳도 그대로 보여요.</div>
+      <div class="dash-note">문제를 푸는 곳이 아니라, 사상가가 한 말(기출 제시문)과 그 사상가에 대해 <b>맞는 설명</b>만 모아 읽는 곳이에요. 형광펜으로 칠해둔 곳도 그대로 보여요.</div>
       <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===thinkerPick?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${map[n].length}</b></button>`).join('')}</div>
-      <div class="read-head">${escapeHtml(thinkerPick)} · 제시문 ${items.length}개</div>
+      <div class="read-head">✅ ${escapeHtml(thinkerPick)}에 대해 맞는 설명 ${lines.length}개</div>
+      ${lines.length ? `<div class="say-box">${lines.map(s=>`
+          <div class="say-line">
+            <span class="say-dot">✓</span>
+            <span class="say-text">${escapeHtml(s.text)}</span>
+            <button type="button" class="say-src" data-open="${escapeHtml(s.q.id)}" title="이 문제 보기">${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}</button>
+          </div>`).join('')}</div>`
+        : `<div class="dash-note">아직 이 사상가에 대해 맞는 설명으로 뽑을 선지가 없어요. (문항이 더 등록되면 자동으로 쌓입니다)</div>`}
+      <div class="read-head">📖 ${escapeHtml(thinkerPick)}의 제시문 ${items.length}개</div>
       ${items.map(({ q, t, idx })=>{
         const text = t.passage || '';
         return `<div class="memo-card read-card">
@@ -2096,7 +2282,6 @@ function initStudent(){
     saveMe({ wrong: me.wrong, mastered: me.mastered, wrongCount: Object.keys(me.wrong).length });
   }
 
-  function cleanName(n){ return String(n || '').replace(/\(.*?\)|추정/g, '').trim(); }
   function unitSort(a, b){
     const ia = BUILTIN_UNITS.indexOf(a), ib = BUILTIN_UNITS.indexOf(b);
     return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a.localeCompare(b);
@@ -2812,6 +2997,7 @@ function initAdmin(){
     if(id === 'a-students') renderStudents();
     if(id === 'a-reports') renderReports();
     if(id === 'a-rates') renderSavedRates();
+    if(id === 'a-says') renderSaysPanel();
   }
   bindTabs('#admin-tabs', 'apanel', id => showAdminPanel(id));
 
@@ -3633,6 +3819,58 @@ function initAdmin(){
   }
 
   // ================= 오류 신고 =================
+  // ----- 사상가별 선지 (옳은 선지 / 옳지 않은 선지) -----
+  async function renderSaysPanel(){
+    const el = document.getElementById('a-says');
+    el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
+    try{
+      const snap = await getDocs(collection(db, COL.questions));
+      const qs = snap.docs.map(d => normalizeQuestion({ id:d.id, ...d.data() }));
+      const says = thinkerSays(qs);
+      const names = Object.keys(says).sort((a,b)=>
+        (says[b].o.length + says[b].x.length) - (says[a].o.length + says[a].x.length) || a.localeCompare(b));
+      if(!names.length){
+        el.innerHTML = `<div class="state-msg">아직 사상가 이름이 달린 문항이 없어요.</div>`;
+        return;
+      }
+      const totalO = names.reduce((n,k)=> n + says[k].o.length, 0);
+      const totalX = names.reduce((n,k)=> n + says[k].x.length, 0);
+      el.innerHTML = `
+        <div class="badge-row">
+          <span class="badge">사상가 ${names.length}명</span>
+          <span class="badge">옳은 선지 ${totalO}개</span>
+          <span class="badge off">옳지 않은 선지 ${totalX}개</span>
+          <button class="small-btn line" id="says-csv" type="button">표로 내려받기 (CSV)</button>
+        </div>
+        <div class="section-hint">정답 번호 하나로 나머지 선지의 참・거짓까지 정해집니다. "옳은 것은?" 문항은 정답 선지만 옳은 선지, "옳지 않은 것은?" 문항은 정답 선지만 옳지 않은 선지가 됩니다. <b>갑・을・병을 견주는 비교형 선지(모두 / ~와 달리 / 반면 등)는 한 사람 것으로 볼 수 없어 제외</b>했습니다. 학생 화면의 [⭕❌ 사상가 OX] 퀴즈도 이 목록을 그대로 씁니다.</div>
+        ${names.map(n=>`
+          <div class="memo-card">
+            <div class="mc-src"><b style="font-size:14.5px;color:var(--ink);">${escapeHtml(n)}</b> · ⭕ ${says[n].o.length}개 · ❌ ${says[n].x.length}개</div>
+            ${['o','x'].map(k=> says[n][k].length ? `
+              <div class="says-head ${k}">${k === 'o' ? '⭕ 옳은 선지' : '❌ 옳지 않은 선지'}</div>
+              ${says[n][k].map(s=>`<div class="say-line"><span class="say-dot ${k}">${k === 'o' ? 'O' : 'X'}</span><span class="say-text">${escapeHtml(s.text)}</span><span class="say-src-plain">${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}</span></div>`).join('')}` : '').join('')}
+          </div>`).join('')}`;
+      document.getElementById('says-csv').addEventListener('click', ()=>{
+        const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+        const lines = [['사상가','구분','선지','출처','문항ID','선지번호'].map(esc).join(',')];
+        names.forEach(n=> ['o','x'].forEach(k=> says[n][k].forEach(s=>
+          lines.push([n, k === 'o' ? '옳은 선지' : '옳지 않은 선지', s.text, qLabel(s.q), s.q.id, s.i + 1].map(esc).join(','))
+        )));
+        const blob = new Blob(['﻿' + lines.join('\n')], { type:'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const d = new Date();
+        a.download = `${CONFIG.appName}_사상가별선지_${d.getMonth()+1}월${d.getDate()}일.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    }catch(e){
+      console.error(e);
+      el.innerHTML = `<div class="state-msg">불러오지 못했어요. 보안 규칙을 확인해주세요.</div>`;
+    }
+  }
+
+  // ----- 사상가별 선지 (옳은 선지 / 옳지 않은 선지) 끝 -----
   // 학생 화면의 "신고된 문항" 표시 지우기
   async function clearFlag(qid){
     if(!qid) return;
