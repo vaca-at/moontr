@@ -388,6 +388,18 @@
   .says-head{ font-size:12.5px; font-weight:800; margin:10px 0 2px; }
   .says-head.o{ color:var(--green-dark); }
   .says-head.x{ color:var(--red); }
+  /* 관리자: 날짜별 접속 현황 */
+  .acc-chart{ display:flex; align-items:flex-end; gap:5px; height:110px; padding:6px 2px 0; }
+  .acc-col{ flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; }
+  .acc-bar{ width:100%; min-height:2px; background:var(--green); border-radius:4px 4px 0 0; opacity:.85; }
+  .acc-n{ font-size:11px; font-weight:800; color:var(--green-dark); height:14px; }
+  .acc-d{ font-size:10.5px; color:var(--muted); margin-top:2px; white-space:nowrap; }
+  .log-tool{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .log-tool input[type="date"]{
+    font-family:var(--font-ui); font-size:13px; padding:7px 10px;
+    border:1.5px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink);
+  }
+
   .tox-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:14px; margin:16px 0 10px; }
   .tox-head .tox-score{ margin-left:auto; font-size:12.5px; font-weight:800; color:var(--green-dark); background:var(--green-light); border-radius:999px; padding:4px 11px; }
   .tox-list{ border:1.5px solid var(--line); border-radius:12px; background:var(--card); overflow:hidden; }
@@ -4029,12 +4041,38 @@ function initAdmin(){
           a += st.a; c += st.c;
         });
         const wrongIds = Object.keys(s.wrong||{}).sort();
+        const soxAll = Object.values(s.sox || {});
+        const soxR = soxAll.reduce((n,v)=> n + (v.r || 0), 0);
+        const soxT = soxAll.reduce((n,v)=> n + (v.t || 0), 0);
+        const days = s.days || {};
+        const dayKeys = Object.keys(days).filter(k => days[k] && days[k].n > 0).sort();
         return {
           s, solved: ids.size, attempts: a, rate: a ? Math.round(c/a*100) : null, wrongIds,
           fav: (s.favorites||[]).length, memo: Object.keys(s.memos||{}).length,
-          noteLen: (s.note||'').length
+          noteLen: (s.note||'').length,
+          hl: Object.keys(s.highlights || {}).length,
+          soxQ: soxAll.length, soxR, soxT, soxRate: soxT ? Math.round(soxR/soxT*100) : null,
+          days, dayKeys, dayCount: dayKeys.length, lastDay: dayKeys[dayKeys.length-1] || ''
         };
       });
+
+      // 날짜별 접속 현황 (최근 14일) — 학생들이 언제 들어와 풀었는지
+      const today = new Date(); today.setHours(0,0,0,0);
+      const recent = [];
+      for(let i = 13; i >= 0; i--){
+        const d = new Date(today); d.setDate(d.getDate() - i);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        let people = 0, solved = 0;
+        rows.forEach(r=>{ const v = r.days[key]; if(v && v.n > 0){ people++; solved += v.n; } });
+        recent.push({ key, label:`${d.getMonth()+1}/${d.getDate()}`, people, solved });
+      }
+      const maxSolved = Math.max(1, ...recent.map(x=>x.solved));
+      const activeToday = recent[recent.length-1].people;
+      const active7 = new Set();
+      rows.forEach(r=> r.dayKeys.slice(-30).forEach(k=>{
+        const dd = new Date(k + 'T00:00:00');
+        if((today - dd) / 86400000 < 7) active7.add(r.s.key);
+      }));
 
       el.innerHTML = `
         <div class="badge-row">
@@ -4043,18 +4081,39 @@ function initAdmin(){
           <button class="small-btn line" id="students-csv" type="button">CSV로 내려받기</button>
         </div>
         <div class="section-hint">닉네임을 잊은 학생은 [닉네임 재설정]으로 새 닉네임을 정해주면 기존 학습 기록이 그대로 옮겨져요.</div>
+
+        <div class="section-title first">접속 현황 (최근 14일)</div>
+        <div class="section-hint">학생들이 어느 날 들어와 몇 문제를 풀었는지 보여줍니다. 기기나 브라우저 정보는 저장하지 않아 기기별로는 나눌 수 없어요.</div>
+        <div class="acc-chart">
+          ${recent.map(d=>`
+            <div class="acc-col" title="${d.label} · ${d.people}명 · ${d.solved}문제">
+              <div class="acc-bar" style="height:${Math.round(d.solved / maxSolved * 100)}%;"></div>
+              <div class="acc-n">${d.people || ''}</div>
+              <div class="acc-d">${d.label}</div>
+            </div>`).join('')}
+        </div>
+        <div class="badge-row" style="margin-top:6px;">
+          <span class="badge">오늘 푼 학생 ${activeToday}명</span>
+          <span class="badge off">최근 7일 ${active7.size}명</span>
+          <span class="badge off">최근 14일 합계 ${recent.reduce((n,d)=>n+d.solved,0)}문제</span>
+        </div>
+
+        <div class="section-title">학생별 기록</div>
         <div id="student-note-view"></div>
         <div class="data-table-wrap"><table class="data-table">
-          <thead><tr><th>학번</th><th>닉네임</th><th>푼 문항</th><th>정답률</th><th>현재 오답</th><th>즐겨찾기</th><th>메모</th><th>노트</th><th>최근 접속</th><th></th></tr></thead>
+          <thead><tr><th>학번</th><th>닉네임</th><th>푼 문항</th><th>정답률</th><th>선지 O/X</th><th>현재 오답</th><th>즐겨찾기</th><th>메모</th><th>형광펜</th><th>공부한 날</th><th>노트</th><th>최근 접속</th><th></th></tr></thead>
           <tbody>${rows.map(r=>`
             <tr>
               <td><b>${escapeHtml(r.s.studentId)}</b></td>
               <td>${escapeHtml(r.s.nickname)}</td>
               <td>${r.solved} <span style="color:var(--muted);font-size:11px;">(${r.attempts}회)</span></td>
               <td>${r.rate === null ? '-' : `<b class="${r.rate < 50 ? 'no-text' : ''}">${r.rate}%</b>`}</td>
+              <td>${r.soxT ? `<b class="${r.soxRate < 50 ? 'no-text' : ''}">${r.soxRate}%</b> <span style="color:var(--muted);font-size:11px;">(${r.soxR}/${r.soxT}개 · ${r.soxQ}문항)</span>` : '-'}</td>
               <td title="${escapeHtml(r.wrongIds.join(', '))}">${r.wrongIds.length}${r.wrongIds.length ? `<br><span style="color:var(--muted);font-size:11px;">${escapeHtml(r.wrongIds.slice(0,5).join(', '))}${r.wrongIds.length>5?' …':''}</span>` : ''}</td>
               <td>${r.fav}</td>
               <td>${r.memo}</td>
+              <td>${r.hl || '-'}</td>
+              <td>${r.dayCount ? `${r.dayCount}일${r.lastDay ? `<br><span style="color:var(--muted);font-size:11px;">${escapeHtml(r.lastDay.slice(5).replace('-','/'))} 마지막</span>` : ''}` : '-'}</td>
               <td>${r.noteLen ? `<div class="row-btns"><button data-note="${r.s.key}">${r.noteLen}자 보기</button></div>` : '-'}</td>
               <td style="white-space:nowrap;">${fmtDate(r.s.lastSeen)}</td>
               <td><div class="row-btns">
@@ -4063,6 +4122,51 @@ function initAdmin(){
               </div></td>
             </tr>`).join('')}</tbody>
         </table></div>`;
+
+      // ----- 응시기록 정리 (보관 기간이 지난 기록 지우기) -----
+      el.insertAdjacentHTML('beforeend', `
+        <div class="section-title">응시기록 정리</div>
+        <div class="section-hint">문제를 풀 때마다 쌓이는 응시기록(학번・닉네임・문항・고른 번호・시각)을 한꺼번에 지웁니다. 학년말에 정리해주세요. 학생 화면의 학습 기록(오답노트・메모・형광펜)은 지워지지 않습니다.</div>
+        <div class="log-tool">
+          <input type="date" id="log-before" value="2027-01-31">
+          <button class="small-btn line" id="log-count" type="button">몇 건인지 세어보기</button>
+          <button class="small-btn del" id="log-clear" type="button" disabled>이 날짜 이전 응시기록 지우기</button>
+          <span class="msg" id="log-msg"></span>
+        </div>`);
+      let logTargets = [];
+      const logMsg = () => document.getElementById('log-msg');
+      document.getElementById('log-count').addEventListener('click', async ()=>{
+        const before = new Date(document.getElementById('log-before').value + 'T23:59:59');
+        if(isNaN(before)){ logMsg().textContent = '날짜를 골라주세요.'; return; }
+        logMsg().className = 'msg'; logMsg().textContent = '세는 중...';
+        try{
+          const snap = await getDocs(collection(db, COL.logs));
+          logTargets = snap.docs.filter(d=>{
+            const at = d.data().at;
+            const t = at && at.seconds ? new Date(at.seconds * 1000) : null;
+            return t && t <= before;
+          }).map(d => d.id);
+          logMsg().className = 'msg ok-text';
+          logMsg().textContent = `전체 ${snap.docs.length}건 중 ${logTargets.length}건이 대상입니다.`;
+          document.getElementById('log-clear').disabled = logTargets.length === 0;
+        }catch(e){ console.error(e); logMsg().className = 'msg no-text'; logMsg().textContent = '불러오지 못했어요.'; }
+      });
+      document.getElementById('log-clear').addEventListener('click', async ()=>{
+        if(!logTargets.length) return;
+        if(!confirm(`응시기록 ${logTargets.length}건을 지웁니다. 되돌릴 수 없어요. 계속할까요?`)) return;
+        const btn = document.getElementById('log-clear');
+        btn.disabled = true; logMsg().className = 'msg'; logMsg().textContent = '지우는 중...';
+        try{
+          for(let i = 0; i < logTargets.length; i += 400){
+            const batch = writeBatch(db);
+            logTargets.slice(i, i + 400).forEach(id => batch.delete(doc(db, COL.logs, id)));
+            await batch.commit();
+          }
+          logMsg().className = 'msg ok-text';
+          logMsg().textContent = `✓ ${logTargets.length}건을 지웠어요.`;
+          logTargets = [];
+        }catch(e){ console.error(e); logMsg().className = 'msg no-text'; logMsg().textContent = '지우지 못했어요. 권한을 확인해주세요.'; btn.disabled = false; }
+      });
 
       const byKey = k => list.find(x => x.key === k);
 
@@ -4113,10 +4217,10 @@ function initAdmin(){
 
       document.getElementById('students-csv').addEventListener('click', ()=>{
         const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
-        const lines = [['학번','닉네임','푼 문항','시도 횟수','정답률(%)','현재 오답 수','현재 오답 문항','즐겨찾기','메모','노트 글자수','최근 접속'].map(esc).join(',')];
+        const lines = [['학번','닉네임','푼 문항','시도 횟수','정답률(%)','선지 O/X 정확도(%)','선지 맞힌 수','선지 판정 수','현재 오답 수','현재 오답 문항','즐겨찾기','메모','형광펜 문항','공부한 날','마지막 공부일','노트 글자수','최근 접속'].map(esc).join(',')];
         rows.forEach(r=> lines.push([
-          r.s.studentId, r.s.nickname, r.solved, r.attempts, r.rate ?? '', r.wrongIds.length,
-          r.wrongIds.join(' '), r.fav, r.memo, r.noteLen, fmtDate(r.s.lastSeen)
+          r.s.studentId, r.s.nickname, r.solved, r.attempts, r.rate ?? '', r.soxRate ?? '', r.soxR, r.soxT, r.wrongIds.length,
+          r.wrongIds.join(' '), r.fav, r.memo, r.hl, r.dayCount, r.lastDay, r.noteLen, fmtDate(r.s.lastSeen)
         ].map(esc).join(',')));
         const blob = new Blob(['\ufeff' + lines.join('\n')], { type:'text/csv;charset=utf-8' });
         const a = document.createElement('a');
