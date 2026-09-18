@@ -678,10 +678,18 @@
   }
   .unit-pill.active{ background:var(--green-light); border-color:var(--green); color:var(--green-dark); }
   .unit-pill:hover{ border-color:var(--green); }
+  .pill-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .pill-row-name{
+    flex:none; width:46px; font-size:12px; font-weight:800; color:var(--muted);
+    display:flex; align-items:baseline; gap:3px;
+  }
+  .pill-row-name i{ font-style:normal; font-size:10.5px; opacity:.7; }
 
   /* 휴대폰에서는 사상가・단원 목록이 화면을 다 먹지 않도록 상자를 없애고 글자 링크처럼 */
   @media (max-width:640px){
     .unit-pills, .m1-subtabs.as-list{ display:block; line-height:2.15; margin:2px 0 10px; }
+    .pill-row{ display:block; margin-bottom:2px; }
+    .pill-row-name{ display:inline; width:auto; margin-right:4px; }
     .unit-pills .unit-pill, .m1-subtabs.as-list .m1-subtab{
       display:inline; background:none; border:none; border-radius:0; box-shadow:none;
       padding:0 1px; min-height:0; font-size:13.5px; font-weight:700;
@@ -1612,6 +1620,51 @@ function pairStatements(questions){
     });
   });
   return out;
+}
+
+// ----- 사상가 묶음 (동양 / 한국 / 서양 / 사상) -----
+// 사상가가 나온 문항의 단원을 보고 묶는다. 위에서부터 먼저 걸리는 규칙을 쓴다.
+const THINKER_GROUP_RULES = [
+  { id:'한국', re:/한국/ },
+  { id:'동양', re:/중국|불교|도가|도교|동양|유교/ },
+  { id:'서양', re:/서양/ },
+  { id:'사상', re:/사상|사회|정의|계약|불복종|원조|평화|환경|사형|종교|다문화|직업|생명|과학|예술/ }
+];
+function groupOfUnit(unit){
+  const s = String(unit || '');
+  for(let i = 0; i < THINKER_GROUP_RULES.length; i++){
+    if(THINKER_GROUP_RULES[i].re.test(s)) return THINKER_GROUP_RULES[i].id;
+  }
+  return '그 밖에';
+}
+function groupOfThinker(items){
+  const tally = {};
+  (items || []).forEach(it=>{
+    const g = groupOfUnit(it && it.q ? it.q.unit : '');
+    tally[g] = (tally[g] || 0) + 1;
+  });
+  const keys = Object.keys(tally);
+  if(!keys.length) return '그 밖에';
+  return keys.sort((a,b)=> tally[b] - tally[a])[0];
+}
+// info: { 사상가이름: { n: 개수, items: [{q}] } }
+function thinkerPillsHTML(names, info, active, attr){
+  const groups = {};
+  names.forEach(n=>{
+    const g = groupOfThinker(info[n] ? info[n].items : []);
+    if(!groups[g]) groups[g] = { total:0, names:[] };
+    groups[g].total += (info[n] ? info[n].n : 0);
+    groups[g].names.push(n);
+  });
+  return Object.keys(groups)
+    .sort((a,b)=> groups[b].total - groups[a].total || a.localeCompare(b))
+    .map(g=>{
+      const list = groups[g].names.slice().sort((a,b)=>
+        (info[b] ? info[b].n : 0) - (info[a] ? info[a].n : 0) || a.localeCompare(b));
+      return `<div class="pill-row"><span class="pill-row-name">${escapeHtml(g)} <i>${groups[g].total}</i></span>` +
+        list.map(n=>`<button type="button" class="unit-pill ${n === active ? 'active' : ''}" ${attr}="${escapeHtml(n)}">${escapeHtml(n)} <b>${info[n] ? info[n].n : 0}</b></button>`).join('') +
+        `</div>`;
+    }).join('');
 }
 
 // { 사상가이름: { o:[옳은 선지], x:[옳지 않은 선지] } }
@@ -2568,7 +2621,7 @@ function initStudent(){
     const lines = says[sayPick].o;
     el.innerHTML = `
       <div class="dash-note">기출 선지 가운데 <b>맞는 설명만</b> 사상가별로 모았어요. 갑・을을 견주는 비교형 선지는 [OX 맞추기 > 갑・을 OX]에 있습니다.</div>
-      <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===sayPick?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${says[n].o.length}</b></button>`).join('')}</div>
+      <div class="unit-pills grouped">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length, items:says[n].o }])), sayPick, 'data-t')}</div>
       <div class="read-head">✅ ${escapeHtml(sayPick)}에 대해 맞는 설명 ${lines.length}개</div>
       <div class="say-box">${lines.map(s=>`
         <div class="say-line">
@@ -2694,7 +2747,7 @@ function initStudent(){
     const pack = says[tox.name];
     const head = `
       <div class="dash-note">기출 선지를 사상가별로 모아 O/X로 물어봐요. 갑・을을 견주는 비교형 선지는 빼고, 한 사람에 대한 설명만 나옵니다.</div>
-      <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===tox.name?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${says[n].o.length + says[n].x.length}</b></button>`).join('')}</div>`;
+      <div class="unit-pills grouped">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length + says[n].x.length, items:says[n].o.concat(says[n].x) }])), tox.name, 'data-t')}</div>`;
 
     // 들어오면 바로 다섯 문제를 펼쳐 준다 (사상가를 바꿔도 마찬가지)
     if(!tox.started){
@@ -2779,7 +2832,7 @@ function initStudent(){
     const items = map[thinkerPick].slice().sort((a, b)=> compareId(a.q, b.q));
     el.innerHTML = `
       <div class="dash-note">문제를 푸는 곳이 아니라, 사상가가 한 말(기출 제시문)과 그 사상가에 대해 <b>맞는 설명</b>만 모아 읽는 곳이에요. 형광펜으로 칠해둔 곳도 그대로 보여요.</div>
-      <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===thinkerPick?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${map[n].length}</b></button>`).join('')}</div>
+      <div class="unit-pills grouped">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:map[n].length, items:map[n] }])), thinkerPick, 'data-t')}</div>
       <div class="read-head">📖 ${escapeHtml(thinkerPick)}의 제시문 ${items.length}개</div>
       ${items.map(({ q, t, idx })=>{
         const text = t.passage || '';
@@ -4742,8 +4795,8 @@ function initAdmin(){
         </div>
         <div class="section-hint">정답 번호 하나로 나머지 선지의 참・거짓까지 정해집니다. "옳은 것은?" 문항은 정답 선지만 옳은 선지, "옳지 않은 것은?" 문항은 정답 선지만 옳지 않은 선지가 됩니다. <b>갑・을・병을 견주는 비교형 선지(모두 / ~와 달리 / 반면 등)는 한 사람 것으로 볼 수 없어 제외</b>했습니다. 학생 화면의 [⭕❌ 사상가 OX] 퀴즈도 이 목록을 그대로 씁니다.</div>
         <div class="unit-pills" style="margin:10px 0 4px;">
-          <button type="button" class="unit-pill ${saysPick ? '' : 'active'}" data-sp="">전체 <b>${names.length}</b></button>
-          ${names.map(n=>`<button type="button" class="unit-pill ${saysPick === n ? 'active' : ''}" data-sp="${escapeHtml(n)}">${escapeHtml(n)} <b>${says[n].o.length + says[n].x.length}</b></button>`).join('')}
+          <div class="pill-row"><span class="pill-row-name">전체</span><button type="button" class="unit-pill ${saysPick ? '' : 'active'}" data-sp="">모두 보기 <b>${names.length}명</b></button></div>
+          ${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length + says[n].x.length, items:says[n].o.concat(says[n].x) }])), saysPick, 'data-sp')}
         </div>
         ${(saysPick ? [saysPick] : names).map(n=>`
           <div class="memo-card">
