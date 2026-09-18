@@ -951,7 +951,7 @@
   </div>
 
   <main>
-    <div class="panel active" id="p1"></div>
+    <div class="panel" id="p1"></div>
     <div class="panel" id="p12"></div>
     <div class="panel" id="p13"></div>
     <div class="panel" id="p2"></div>
@@ -963,7 +963,7 @@
     <div class="panel" id="p9"></div>
     <div class="panel" id="p10"></div>
     <div class="panel" id="p14"></div>
-    <div class="panel" id="p15"></div>
+    <div class="panel active" id="p15"></div>
     <div class="panel" id="p16"></div>
     <div class="panel" id="p17"></div>
     <div class="panel" id="p18"></div>
@@ -1469,7 +1469,9 @@ function pairStatements(questions){
     (q.choices || []).forEach((choice, i)=>{
       const s = String(choice || '');
       const hit = labels.filter(l => new RegExp('(^|[\\s,·(])' + l + '(?=[은는이가만도:,]|\\s|와|과)').test(s));
-      if(hit.length < 2 && !/모두|공통|둘 다/.test(s)) return;
+      // "사람과 동물은 모두 ~" 처럼 갑・을과 무관한 '모두'가 섞이지 않도록,
+      // 갑・을・병이 두 명 이상 실제로 등장할 때만 비교형으로 본다
+      if(hit.length < 2) return;
       out.push({
         q, i,
         text: labelToName(q, choice),
@@ -1673,7 +1675,7 @@ function initStudent(){
       { panel:'p11', label:'내 학습 현황' }
     ]}
   ];
-  let menuGroup = MENU[1].id;   // 처음 화면: 기출문제 3개년 풀기
+  let menuGroup = MENU[0].id;   // 처음 화면: 사상가별 공부하기 > 사상가별 원문 읽기
   let menuItem = 0;
 
   function currentGroup(){ return MENU.find(g => g.id === menuGroup) || MENU[0]; }
@@ -1700,7 +1702,6 @@ function initStudent(){
     renderMenu();
     document.querySelectorAll('#student-view .panel').forEach(p=> p.classList.toggle('active', p.id === it.panel));
     renderPanelById(it.panel);
-    lsSet('saengyun-menu', g.id + '|' + menuItem);
   }
   // 다른 화면에서 특정 메뉴로 보내기 (예: 학습 현황의 "이 단원만 풀기")
   function goTab(panelId, mode){
@@ -1709,12 +1710,7 @@ function initStudent(){
       if(idx >= 0){ menuGroup = MENU[gi].id; menuItem = idx; openMenu(); return; }
     }
   }
-  (function restoreMenu(){
-    const saved = (lsGet('saengyun-menu') || '').split('|');
-    const g = MENU.find(x => x.id === saved[0]);
-    if(g){ menuGroup = g.id; menuItem = Math.min(Number(saved[1]) || 0, g.items.length - 1); }
-    renderMenu();
-  })();
+  openMenu();   // 들어오면 늘 [사상가별 공부하기 > 사상가별 원문 읽기]부터
 
   document.addEventListener('click', (e)=>{
     if(e.target.closest('[data-action="reload"]')) loadQuestions();
@@ -2444,8 +2440,8 @@ function initStudent(){
       <div class="dash-note">두 사상가를 <b>견주는 설명</b>이 맞는지 O/X로 판단해요. 예를 들어 "갑과 을 모두 ~"가 정답이면 <b>공통점이 맞다(O)</b>, 정답이 아니면 <b>공통점이 아니다(X)</b>가 됩니다.</div>
       <div class="unit-pills">
         <button type="button" class="unit-pill ${pox.kind==='all'?'active':''}" data-k="all">전체 <b>${pox.list.length}</b></button>
-        <button type="button" class="unit-pill ${pox.kind==='공통점'?'active':''}" data-k="공통점">공통점 <b>${pox.list.filter(x=>x.kind==='공통점').length}</b></button>
-        <button type="button" class="unit-pill ${pox.kind==='차이점'?'active':''}" data-k="차이점">차이점 <b>${pox.list.filter(x=>x.kind==='차이점').length}</b></button>
+        <button type="button" class="unit-pill ${pox.kind==='공통점'?'active':''}" data-k="공통점">공통점을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='공통점').length}</b></button>
+        <button type="button" class="unit-pill ${pox.kind==='차이점'?'active':''}" data-k="차이점">차이점을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='차이점').length}</b></button>
       </div>`;
     if(!all.length){
       el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
@@ -2473,7 +2469,7 @@ function initStudent(){
             <div class="tox-body">
               <div class="tox-q">${escapeHtml(s.text)}</div>
               <div class="tox-note" ${mark ? '' : 'hidden'}>${mark
-                ? `${ok ? '맞았어요.' : `아니에요. 이 설명은 <b>${s.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`} <span class="say-src-plain">${escapeHtml(s.kind || '')}${s.src ? ' · 출처 ' + escapeHtml(s.src) : ''}</span>`
+                ? `${ok ? '맞았어요.' : `아니에요. 이 설명은 <b>${s.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`}${s.src ? ` <span class="say-src-plain">출처 ${escapeHtml(s.src)}</span>` : ''}`
                 : ''}</div>
             </div>
             <div class="tox-btns">
@@ -2537,20 +2533,10 @@ function initStudent(){
       <div class="dash-note">기출 선지를 사상가별로 모아 O/X로 물어봐요. 갑・을을 견주는 비교형 선지는 빼고, 한 사람에 대한 설명만 나옵니다.</div>
       <div class="unit-pills">${names.map(n=>`<button type="button" class="unit-pill ${n===tox.name?'active':''}" data-t="${escapeHtml(n)}">${escapeHtml(n)} <b>${says[n].o.length + says[n].x.length}</b></button>`).join('')}</div>`;
 
+    // 들어오면 바로 다섯 문제를 펼쳐 준다 (사상가를 바꿔도 마찬가지)
     if(!tox.started){
-      el.innerHTML = head + `
-        <div class="memo-card" style="margin-top:14px;">
-          <div class="mc-stem">${escapeHtml(tox.name)} · 선지 ${pack.o.length + pack.x.length}개</div>
-          <div class="dash-note" style="margin:0 0 12px;">⭕ 옳은 선지 ${pack.o.length}개 · ❌ 옳지 않은 선지 ${pack.x.length}개가 섞여서 ${TOX_PAGE}개씩 나와요.</div>
-          <div class="hl-card-actions"><button type="button" id="p16-start">${escapeHtml(tox.name)} OX 풀기</button></div>
-        </div>`;
-      bindToxPills(el);
-      document.getElementById('p16-start').addEventListener('click', ()=>{
-        tox.list = shuffle(pack.o.map(s=>({ ...s, ans:'O' })).concat(pack.x.map(s=>({ ...s, ans:'X' }))));
-        tox.page = 0; tox.marks = {}; tox.started = true;
-        renderThinkerOX();
-      });
-      return;
+      tox.list = shuffle(pack.o.map(s=>({ ...s, ans:'O' })).concat(pack.x.map(s=>({ ...s, ans:'X' }))));
+      tox.page = 0; tox.marks = {}; tox.started = true;
     }
 
     const total = tox.list.length;
@@ -2609,7 +2595,7 @@ function initStudent(){
     const next5 = document.getElementById('p16-next5');
     if(next5) next5.addEventListener('click', ()=>{ tox.page++; renderThinkerOX(); });
     const again = document.getElementById('p16-again');
-    if(again) again.addEventListener('click', ()=>{ tox.started = false; renderThinkerOX(); });
+    if(again) again.addEventListener('click', ()=>{ tox.started = false; renderThinkerOX(); });   // 다시 섞어서 처음부터
   }
   function bindToxPills(el){
     el.querySelectorAll('[data-t]').forEach(b=> b.addEventListener('click', ()=>{
