@@ -4487,6 +4487,7 @@ function initAdmin(){
   }
 
   // ----- 사상가별 선지 (옳은 선지 / 옳지 않은 선지) -----
+  let saysPick = null;   // 위쪽에서 고른 사상가 (없으면 전체)
   async function renderSaysPanel(){
     const el = document.getElementById('a-says');
     el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
@@ -4510,13 +4511,21 @@ function initAdmin(){
           <button class="small-btn line" id="says-csv" type="button">표로 내려받기 (CSV)</button>
         </div>
         <div class="section-hint">정답 번호 하나로 나머지 선지의 참・거짓까지 정해집니다. "옳은 것은?" 문항은 정답 선지만 옳은 선지, "옳지 않은 것은?" 문항은 정답 선지만 옳지 않은 선지가 됩니다. <b>갑・을・병을 견주는 비교형 선지(모두 / ~와 달리 / 반면 등)는 한 사람 것으로 볼 수 없어 제외</b>했습니다. 학생 화면의 [⭕❌ 사상가 OX] 퀴즈도 이 목록을 그대로 씁니다.</div>
-        ${names.map(n=>`
+        <div class="unit-pills" style="margin:10px 0 4px;">
+          <button type="button" class="unit-pill ${saysPick ? '' : 'active'}" data-sp="">전체 <b>${names.length}</b></button>
+          ${names.map(n=>`<button type="button" class="unit-pill ${saysPick === n ? 'active' : ''}" data-sp="${escapeHtml(n)}">${escapeHtml(n)} <b>${says[n].o.length + says[n].x.length}</b></button>`).join('')}
+        </div>
+        ${(saysPick ? [saysPick] : names).map(n=>`
           <div class="memo-card">
             <div class="mc-src"><b style="font-size:14.5px;color:var(--ink);">${escapeHtml(n)}</b> · ⭕ ${says[n].o.length}개 · ❌ ${says[n].x.length}개</div>
             ${['o','x'].map(k=> says[n][k].length ? `
               <div class="says-head ${k}">${k === 'o' ? '⭕ 옳은 선지' : '❌ 옳지 않은 선지'}</div>
               ${says[n][k].map(s=>`<div class="say-line"><span class="say-dot ${k}">${k === 'o' ? 'O' : 'X'}</span><span class="say-text">${escapeHtml(s.text)}</span><span class="say-src-plain">${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}</span></div>`).join('')}` : '').join('')}
           </div>`).join('')}`;
+      el.querySelectorAll('[data-sp]').forEach(b=> b.addEventListener('click', ()=>{
+        saysPick = b.dataset.sp || null;
+        renderSaysPanel();
+      }));
       document.getElementById('says-csv').addEventListener('click', ()=>{
         const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
         const lines = [['사상가','구분','선지','출처','문항ID','선지번호'].map(esc).join(',')];
