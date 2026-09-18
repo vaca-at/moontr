@@ -1480,13 +1480,73 @@ function isRegionQuestion(q){
   if(/(^|\n)\s*[A-EＡ-Ｅ]\s*[:：]/.test(String(q.legend || ''))) return true;
   return (q.choices || []).some(isRegionChoice);
 }
+// 그림(벤다이어그램)형 문항의 범례에서 "공통 입장" 영역이 어느 글자인지 찾는다.
+// 예) "A: 갑만의 입장 / B: 갑과 을의 공통 입장 / C: 을만의 입장" → B
+// 비판형("A: 갑이 을에게 제기할 비판")처럼 공통이 아닌 영역은 고르지 않는다.
+// 범례를 읽어 A・B・C 영역이 각각 무슨 뜻인지 알아낸다.
+//  "B: 갑과 을의 공통 입장"        → 공통점  (정답이면 공통점이 맞다)
+//  "B: 을이 갑에게 제기할 수 있는 비판" → 비판  (정답이면 그 비판이 맞다)
+//  "A: 갑만의 입장"                → 한 사람 것이라 갑・을 OX에서는 쓰지 않는다
+function regionMap(q){
+  const map = {};
+  String(q.legend || '').split(/\r?\n|\\n|\s\/\s/).forEach(line=>{
+    const m = String(line).match(/^\s*([A-EＡ-Ｅ])\s*[:：]\s*(.+)$/);
+    if(!m) return;
+    const letter = m[1].toUpperCase(), desc = m[2];
+    if(/공통/.test(desc)){ map[letter] = { type:'공통' }; return; }
+    if(/비판/.test(desc)){
+      const d = desc.match(/([갑을병])\s*이\s*([갑을병])\s*에게/);
+      if(d) map[letter] = { type:'비판', from:d[1], to:d[2] };
+      return;
+    }
+  });
+  return map;
+}
+function commonRegionLetters(q){
+  const map = regionMap(q);
+  return Object.keys(map).filter(k => map[k].type === '공통');
+}
 function pairStatements(questions){
   const out = [];
   (questions || []).forEach(q=>{
     if(!soxAvailable(q)) return;
     const labels = (q.thinkers || []).map(t => t.label).filter(Boolean);
     if(labels.length !== 2) return;      // 갑・을 두 명짜리만 (갑・을・병은 헷갈려서 제외)
-    if(isRegionQuestion(q)) return;      // A・B 영역을 묻는 그림・비판형 문항은 제외
+    const names = (q.thinkers || []).map(t => cleanName(t.name)).filter(Boolean);
+    if(isRegionQuestion(q)){
+      // 그림형 문항: 범례에서 뜻이 분명한 영역(공통 입장 / 서로에게 제기할 비판)만 쓴다.
+      //  · 공통 영역 선지가 정답이면 두 사람의 공통점이 맞고(O), 아니면 공통점이 아니다(X).
+      //  · 비판 영역 선지가 정답이면 그 비판이 맞고(O), 아니면 아니다(X).
+      const map = regionMap(q);
+      if(!Object.keys(map).length || names.length !== 2) return;
+      const nameOf = lb => {
+        const t = (q.thinkers || []).find(x => x.label === lb);
+        return t ? cleanName(t.name) : '';
+      };
+      (q.choices || []).forEach((choice, i)=>{
+        const m = String(choice || '').match(/^\s*([A-EＡ-Ｅ])\s*[:：]\s*([\s\S]+)$/);
+        if(!m) return;
+        const info = map[m[1].toUpperCase()];
+        if(!info) return;
+        const body = labelToName(q, m[2].trim());
+        if(info.type === '공통'){
+          out.push({
+            q, i,
+            text: fixJosa(`${names[0]}와 ${names[1]} 모두 — ${body}`, names),
+            ans: choiceTruth(q, i), kind:'공통점', names
+          });
+        }else if(info.type === '비판'){
+          const from = nameOf(info.from), to = nameOf(info.to);
+          if(!from || !to) return;
+          out.push({
+            q, i,
+            text: fixJosa(`${from}이 ${to}에게 제기할 비판 — ${body}`, [from, to]),
+            ans: choiceTruth(q, i), kind:'비판', names:[from, to]
+          });
+        }
+      });
+      return;
+    }
     (q.choices || []).forEach((choice, i)=>{
       const s = String(choice || '');
       if(isRegionChoice(s)) return;
@@ -2497,6 +2557,7 @@ function initStudent(){
         <button type="button" class="unit-pill ${pox.kind==='all'?'active':''}" data-k="all">전체 <b>${pox.list.length}</b></button>
         <button type="button" class="unit-pill ${pox.kind==='공통점'?'active':''}" data-k="공통점">공통점을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='공통점').length}</b></button>
         <button type="button" class="unit-pill ${pox.kind==='차이점'?'active':''}" data-k="차이점">차이점을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='차이점').length}</b></button>
+        <button type="button" class="unit-pill ${pox.kind==='비판'?'active':''}" data-k="비판">비판을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='비판').length}</b></button>
       </div>`;
     if(!all.length){
       el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
