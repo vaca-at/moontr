@@ -515,6 +515,11 @@
 
   .quiz-actions{ display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
   .quiz-actions .left{ display:flex; gap:10px; flex-wrap:wrap; }
+  .prev-btn{
+    font-family:var(--font-ui); font-weight:700; font-size:13px; color:var(--muted);
+    background:var(--card); border:1.5px solid var(--line); border-radius:20px; padding:9px 14px; cursor:pointer;
+  }
+  .prev-btn:hover{ border-color:var(--green); color:var(--green-dark); }
   .skip-btn, .master-btn{
     font-family:var(--font-ui); font-weight:700; font-size:14px; min-height:48px;
     background:var(--paper-2); color:var(--muted); border:1.5px solid var(--line); border-radius:8px; padding:0 18px; cursor:pointer;
@@ -3085,7 +3090,7 @@ function initStudent(){
   function timerOn(){ return lsGet('yunsa-timer') === '1'; }
 
   function startQuiz(panelId, queue, opts = {}){
-    quizState[panelId] = { queue, index:0, correct:0, skipped:0, elapsedMs:0, opts };
+    quizState[panelId] = { queue, index:0, correct:0, skipped:0, elapsedMs:0, answers:{}, opts };
     renderQuizQuestion(panelId);
   }
 
@@ -3157,6 +3162,7 @@ function initStudent(){
       </div>
       <div class="quiz-actions">
         <div class="left">
+          ${st.index > 0 ? `<button class="prev-btn" id="${panelId}-prev" type="button">← 이전 문제</button>` : ''}
           <button class="skip-btn" id="${panelId}-skip" type="button">모르겠어요 (건너뛰기)</button>
           ${opts.masterable ? `<button class="master-btn" id="${panelId}-master" type="button">✓ 이제 그만 볼래요</button>` : ''}
         </div>
@@ -3302,7 +3308,8 @@ function initStudent(){
     const soxMarks = {};
 
     // 채점 뒤 공통 처리 (객관식・선지OX 모두 여기로 모인다)
-    function finishAnswer(isOk, pickedIdx, soxLine){
+    // replay = 이전 문제로 돌아와 이미 푼 결과를 다시 그리는 경우 (점수・기록을 다시 세지 않는다)
+    function finishAnswer(isOk, pickedIdx, soxLine, replay){
       if(answered) return;
       answered = true;
       stopTimer();
@@ -3314,8 +3321,11 @@ function initStudent(){
       wrap.querySelectorAll('.ox-pick button').forEach(x => x.disabled = true);
       const soxBtn = document.getElementById(panelId+'-sox');
       if(soxBtn) soxBtn.disabled = true;
-      if(isOk){ st.correct++; streak++; } else { streak = 0; }
-      saveProgress(q, pickedIdx, isOk, soxLine ? soxLine.marks : null);
+      if(!replay){
+        if(isOk){ st.correct++; streak++; } else { streak = 0; }
+        saveProgress(q, pickedIdx, isOk, soxLine ? soxLine.marks : null);
+        st.answers[st.index] = { picked: pickedIdx, isOk, sox: soxLine ? { ...soxLine.marks } : null };
+      }
 
       document.getElementById(panelId+'-streak').innerHTML = streak >= 2 ? `<span class="streak-chip pop">🔥 ${streak}연속 정답 중!</span>` : '';
       const fb = document.getElementById(panelId+'-feedback');
@@ -3329,7 +3339,7 @@ function initStudent(){
     }
 
     // 선지를 모두 판정하면 자동 채점
-    function gradeSox(){
+    function gradeSox(replay){
       if(answered) return;
       if(Object.keys(soxMarks).length < q.choices.length) return;
       let right = 0;
@@ -3351,7 +3361,7 @@ function initStudent(){
         if(!me.sox) me.sox = {};
         me.sox[q.id] = { m:{ ...soxMarks }, r:right, t:q.choices.length };
       }
-      finishAnswer(isOk, picked, { right, total:q.choices.length, marks:{ ...soxMarks } });
+      finishAnswer(isOk, picked, { right, total:q.choices.length, marks:{ ...soxMarks } }, replay);
     }
 
     q.choices.forEach((choice, i)=>{
@@ -3385,6 +3395,27 @@ function initStudent(){
         });
         wrap.appendChild(b);
       }
+    });
+
+    // 이전 문제로 돌아왔다면 그때 푼 결과를 그대로 되살린다
+    const done = st.answers && st.answers[st.index];
+    if(done){
+      if(soxOn && done.sox){
+        Object.keys(done.sox).forEach(k=>{ soxMarks[k] = done.sox[k]; });
+        wrap.querySelectorAll('.ox-row').forEach((row, k)=>{
+          const mark = soxMarks['c' + k];
+          if(!mark) return;
+          row.querySelectorAll('.ox').forEach(x=> x.classList.toggle('on', x.dataset.ans === mark));
+        });
+        gradeSox(true);
+      }else{
+        finishAnswer(done.isOk, done.picked, null, true);
+      }
+    }
+
+    const prevBtn = document.getElementById(panelId+'-prev');
+    if(prevBtn) prevBtn.addEventListener('click', ()=>{
+      if(st.index > 0){ st.index--; renderQuizQuestion(panelId); }
     });
     document.getElementById(panelId+'-next').addEventListener('click', ()=>{
       st.index++;
