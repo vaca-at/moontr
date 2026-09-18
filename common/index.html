@@ -1,1 +1,647 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>공동체주의 · 매킨타이어와 샌델</title>
+<style>
+/* ===== 글꼴 ===== */
+@font-face{font-family:'OwnglyphYuntaeng';src:url('https://cdn.jsdelivr.net/gh/Project-Noonnu/2608211801@font-160/font-160/온글잎 윤탱체.woff2') format('woff2');font-weight:400;font-display:swap;}
+@font-face{font-family:'OwnglyphRyuttung';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2405-2@1.0/Ownglyph_ryuttung-Rg.woff2') format('woff2');font-weight:400;font-display:swap;}
+@font-face{font-family:'NexonMaplestory';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@2.1/MaplestoryOTFLight.woff') format('woff');font-weight:400;font-display:swap;}
+@font-face{font-family:'NexonMaplestory';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@2.1/MaplestoryOTFBold.woff') format('woff');font-weight:700;font-display:swap;}
 
+:root{
+  --paper:#FDFDF9;
+  --desk:#DCE3EA;
+  --rule:#C8D9EC;
+  --margin:#E9A0A0;
+  --ink:#1F2A44;
+  --ink-soft:#56607A;
+  --hl-mac:#FFEE6E;   /* 매킨타이어: 노랑 형광펜 */
+  --hl-san:#A8EBC4;   /* 샌델: 민트 형광펜 */
+  --tape:rgba(214,196,150,.72);
+  --fs:26px;
+  --lh:1.75em;
+  --font:'OwnglyphYuntaeng','NexonMaplestory','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  word-break:keep-all;
+  font-family:var(--font);font-size:var(--fs);color:var(--ink);
+  background:var(--desk);
+  background-image:radial-gradient(rgba(255,255,255,.35) 1px,transparent 1px);
+  background-size:18px 18px;
+  min-height:100vh;
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #3B6FD8;outline-offset:3px}
+
+/* ===== 상단 바 ===== */
+.topbar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;
+  max-width:1760px;margin:0 auto;padding:18px 28px 0;
+}
+.title{font-size:1.45em;margin:0;letter-spacing:-.01em;line-height:1.2}
+.title small{display:block;font-size:.5em;color:var(--ink-soft)}
+.tools{margin-left:auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:.72em}
+.tool{display:flex;align-items:center;gap:6px;background:var(--paper);border-radius:14px;padding:6px 10px;box-shadow:0 1px 0 rgba(31,42,68,.12)}
+.tool button,.tool select{border:0;background:transparent;padding:6px 10px;border-radius:10px;min-height:44px}
+.tool button:hover{background:#EEF2F7}
+.tool button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.timer-num{min-width:3.4em;text-align:center;font-variant-numeric:tabular-nums;font-size:1.25em}
+.timer-num.done{color:#C0392B}
+
+/* ===== 인덱스 탭 ===== */
+.tabs{max-width:1760px;margin:14px auto 0;padding:0 64px;display:flex;gap:8px}
+.tab{
+  border:0;background:#EEF0E6;padding:12px 30px 16px;border-radius:16px 16px 0 0;
+  font-size:.9em;color:var(--ink-soft);transform:translateY(6px);
+}
+.tab[aria-selected="true"]{background:var(--paper);color:var(--ink);transform:none}
+
+/* ===== 노트 ===== */
+.notebook{max-width:1760px;margin:0 auto 40px;padding:0 28px}
+.view{display:none}
+.view.on{display:block}
+
+.spread{
+  position:relative;display:grid;grid-template-columns:1fr 1fr;
+  border-radius:10px;box-shadow:0 18px 40px -18px rgba(31,42,68,.45);
+  overflow:hidden;
+}
+.page{
+  position:relative;background:var(--paper);padding-top:44px!important;
+  background-image:linear-gradient(to bottom,transparent calc(100% - 2px),var(--rule) calc(100% - 2px));
+  background-size:100% var(--lh);
+  padding:34px 46px 40px 92px;min-height:80vh;
+}
+.page::before{ /* 빨간 여백선 */
+  content:"";position:absolute;top:0;bottom:0;left:70px;width:2px;background:var(--margin);opacity:.8;
+}
+.page.left{box-shadow:inset -26px 0 30px -26px rgba(31,42,68,.35)}
+.page.right{box-shadow:inset 26px 0 30px -26px rgba(31,42,68,.35)}
+
+/* 가운데 공통점 포스트잇 */
+.common{
+  position:relative;z-index:3;margin:0 auto -16px;transform:rotate(-1deg);
+  width:fit-content;max-width:90%;background:#FFD6E0;padding:12px 26px 14px;
+  font-size:.8em;line-height:1.45;text-align:center;word-break:keep-all;
+  box-shadow:0 8px 14px -8px rgba(0,0,0,.35);
+}
+.common b{display:block;font-size:1.05em;margin-bottom:4px}
+
+.head{display:flex;gap:26px;align-items:flex-start}
+.photo{
+  position:relative;flex:0 0 auto;width:200px;height:240px;background:#fff;padding:10px 10px 34px;
+  box-shadow:0 6px 14px -6px rgba(0,0,0,.35);border:0;
+}
+.page.left .photo{transform:rotate(-2.5deg)}
+.page.right .photo{transform:rotate(2deg)}
+.photo::before{ /* 마스킹테이프 */
+  content:"";position:absolute;top:-14px;left:50%;width:110px;height:30px;transform:translateX(-50%) rotate(-4deg);
+  background:var(--tape);
+}
+.photo img{width:100%;height:100%;object-fit:cover;display:block;background:#EEF0F4}
+.photo .ph{
+  width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:#F1F3F7;color:var(--ink-soft);font-size:.62em;line-height:1.4;text-align:center;
+}
+.photo .ph span{font-size:2.6em;color:var(--ink)}
+.photo figcaption{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:.62em;color:var(--ink-soft)}
+
+.who h2{font-size:2.1em;margin:4px 0 0;line-height:1.1}
+.who .meta{font-size:.76em;color:var(--ink-soft);margin-top:4px;line-height:1.5}
+.who .claim{
+  margin-top:14px;font-size:.86em;line-height:1.5;padding:10px 14px;border-left:6px solid;border-radius:0 10px 10px 0;
+  background:rgba(255,255,255,.7);
+}
+.page.left .claim{border-color:#E8C93A}
+.page.right .claim{border-color:#4DBF86}
+
+.sec{margin-top:30px}
+.sec h3{font-size:1em;margin:0 0 8px;display:inline-block;border-bottom:3px dashed var(--ink-soft);line-height:1.3}
+.books{list-style:none;margin:0;padding:0;line-height:var(--lh)}
+.books li{display:flex;gap:12px;flex-wrap:wrap}
+.books .yr{color:var(--ink-soft);font-size:.8em}
+
+.notes{margin:0;padding:0 0 0 1.4em;line-height:var(--lh)}
+.notes li{padding-left:.2em}
+.notes li::marker{color:var(--ink-soft)}
+
+mark{padding:0 .15em;border-radius:.2em;color:inherit}
+.page.left mark{background:linear-gradient(transparent 38%,var(--hl-mac) 38%,var(--hl-mac) 92%,transparent 92%)}
+.page.right mark{background:linear-gradient(transparent 38%,var(--hl-san) 38%,var(--hl-san) 92%,transparent 92%)}
+.keys{display:flex;flex-wrap:wrap;gap:12px 14px;margin-top:6px}
+.key{
+  border:2px solid var(--ink);border-radius:999px;padding:6px 18px;background:#fff;font-size:.9em;
+}
+.page.left .key{box-shadow:4px 4px 0 var(--hl-mac)}
+.page.right .key{box-shadow:4px 4px 0 var(--hl-san)}
+
+/* 키워드 가리기 모드 */
+body.quiz mark:not(.show), body.quiz .key:not(.show){
+  color:transparent;cursor:pointer;
+  background:repeating-linear-gradient(-45deg,#D9DEE8 0 8px,#E8ECF3 8px 16px)!important;
+  box-shadow:none;
+}
+body.quiz mark:not(.show)::selection{color:transparent}
+.hint-line{font-size:.66em;color:var(--ink-soft);margin-top:12px;text-align:center}
+
+/* ===== 사례 ===== */
+.cases-page{
+  background:var(--paper);border-radius:10px;padding:30px 36px 40px;min-height:80vh;
+  box-shadow:0 18px 40px -18px rgba(31,42,68,.45);
+  background-image:linear-gradient(to bottom,transparent calc(100% - 2px),var(--rule) calc(100% - 2px));
+  background-size:100% var(--lh);
+}
+.cases-intro{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 24px;margin-bottom:18px}
+.cases-intro h2{margin:0;font-size:1.3em}
+.cases-intro p{margin:0;color:var(--ink-soft);font-size:.8em}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.card{
+  position:relative;text-align:left;border:0;background:#fff;border-radius:6px;padding:20px 20px 18px;
+  box-shadow:0 8px 16px -10px rgba(0,0,0,.4);min-height:230px;display:flex;flex-direction:column;gap:8px;
+  transition:transform .15s;
+}
+.card:nth-child(odd){transform:rotate(-.6deg)}
+.card:nth-child(even){transform:rotate(.7deg)}
+.card:hover{transform:translateY(-3px) rotate(0)}
+.card .no{font-size:.7em;color:var(--ink-soft)}
+.card .ct{font-size:1.05em;line-height:1.3}
+.card .cq{font-size:.72em;color:var(--ink-soft);line-height:1.45;margin-top:auto}
+.card .cnt{position:absolute;top:14px;right:14px;font-size:.62em;background:var(--ink);color:#fff;border-radius:999px;padding:2px 10px}
+.card .cnt:empty{display:none}
+.card::after{content:"";position:absolute;left:0;right:0;top:0;height:10px;border-radius:6px 6px 0 0;background:var(--c)}
+
+/* 사례 상세 */
+.detail{position:fixed;inset:0;z-index:20;background:rgba(31,42,68,.55);display:none;padding:28px}
+.detail.on{display:flex}
+.sheet{
+  margin:auto;width:min(1720px,100%);height:min(100%,1000px);background:var(--paper);border-radius:12px;
+  display:grid;grid-template-columns:1.05fr 1fr;overflow:hidden;
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.5);
+}
+.story{
+  padding:34px 40px 30px 92px;position:relative;overflow:auto;
+  background-image:linear-gradient(to bottom,transparent calc(100% - 2px),var(--rule) calc(100% - 2px));
+  background-size:100% var(--lh);
+}
+.story::before{content:"";position:absolute;top:0;bottom:0;left:70px;width:2px;background:var(--margin);opacity:.8}
+.story .no{font-size:.75em;color:var(--ink-soft)}
+.story h2{margin:2px 0 16px;font-size:1.6em;line-height:1.2}
+.story p{margin:0 0 .6em;line-height:var(--lh)}
+.story .q{
+  margin-top:18px;padding:14px 18px;background:#FFF6C9;border-radius:4px;line-height:1.5;
+  box-shadow:0 6px 12px -8px rgba(0,0,0,.35);transform:rotate(-.5deg);
+}
+.story .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+.btn{border:2px solid var(--ink);background:#fff;border-radius:14px;padding:8px 18px;min-height:52px;font-size:.82em}
+.btn.solid{background:var(--ink);color:#fff}
+.hint{display:none;margin-top:16px;font-size:.85em}
+.hint.on{display:block}
+.hint .keys{margin-top:8px}
+.hint .key{box-shadow:4px 4px 0 #FFD6E0}
+
+.board{background:#EFE7DA;display:flex;flex-direction:column;min-height:0}
+.board-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px 6px;font-size:.8em}
+.board-head .btn{min-height:44px;font-size:.85em;padding:4px 14px}
+.notes-wall{flex:1;overflow:auto;padding:12px 22px 20px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:16px}
+.sticky{
+  position:relative;width:calc(50% - 8px);padding:14px 16px 12px;background:var(--bg);line-height:1.45;
+  box-shadow:0 8px 12px -8px rgba(0,0,0,.35);transform:rotate(var(--r));font-size:.9em;word-break:keep-all;overflow-wrap:anywhere;
+}
+.sticky .by{display:block;margin-top:6px;font-size:.66em;color:var(--ink-soft)}
+.sticky .x{position:absolute;top:2px;right:4px;border:0;background:transparent;font-size:.8em;color:var(--ink-soft);min-width:40px;min-height:40px}
+.empty{margin:auto;text-align:center;color:var(--ink-soft);font-size:.85em;line-height:1.6}
+.write{display:flex;gap:10px;padding:14px 22px 20px;background:#E6DCCB;align-items:stretch}
+.write input{border:2px solid var(--ink);border-radius:12px;padding:10px 14px;background:#fff;min-height:60px}
+.write .who-in{width:5.2em;font-size:.8em;text-align:center}
+.write .txt{flex:1}
+.close{position:absolute;top:20px;right:26px;z-index:21;border:0;background:#fff;border-radius:50%;width:64px;height:64px;font-size:1.2em;box-shadow:0 4px 10px rgba(0,0,0,.25)}
+
+@media (max-width:1100px){
+  :root{--fs:20px}
+  .spread,.sheet{grid-template-columns:1fr}
+  .common{margin:0 auto 10px}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .sticky{width:100%}
+  .detail{padding:10px}
+  .sheet{height:100%;overflow:auto;display:block}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body class="quiz">
+
+<header class="topbar">
+  <h1 class="title">공동체 속의 나<small>통합사회 · 공동체주의: 매킨타이어와 샌델</small></h1>
+  <div class="tools">
+    <div class="tool" aria-label="반 선택">
+      <select id="cls" title="답을 저장할 반"></select>
+    </div>
+    <div class="tool" role="group" aria-label="글꼴">
+      <button data-font="yt" aria-pressed="true">윤탱체</button>
+      <button data-font="rt" aria-pressed="false">류뚱체</button>
+      <button data-font="mp" aria-pressed="false">메이플</button>
+    </div>
+    <div class="tool" role="group" aria-label="글자 크기">
+      <button id="fsDown" aria-label="글자 작게">가−</button>
+      <button id="fsUp" aria-label="글자 크게">가+</button>
+    </div>
+    <div class="tool" role="group" aria-label="타이머">
+      <select id="tmSel" title="타이머 시간">
+        <option value="3">3분</option><option value="5">5분</option><option value="10" selected>10분</option><option value="20">20분</option>
+      </select>
+      <span class="timer-num" id="tmNum">10:00</span>
+      <button id="tmGo" aria-label="시작 또는 멈춤">▶</button>
+      <button id="tmReset" aria-label="다시">↺</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-view="v1">사상가 비교</button>
+  <button class="tab" role="tab" aria-selected="false" data-view="v2">사례로 생각하기</button>
+</nav>
+
+<main class="notebook">
+  <!-- ===== 1. 사상가 비교 ===== -->
+  <section class="view on" id="v1">
+    <div class="common">
+      <b>두 사람의 공통점</b>
+      자유주의의 개인 중심 자아관을 비판하고, 인간은 공동체 속에서 형성된다고 봄
+    </div>
+    <div class="spread">
+
+      <!-- 매킨타이어 -->
+      <article class="page left">
+        <div class="head">
+          <figure class="photo" data-who="macintyre" title="사진을 눌러 바꾸기">
+            <div class="ph"><span>M</span>사진을 눌러<br>넣어 주세요</div>
+            <figcaption>매킨타이어</figcaption>
+          </figure>
+          <div class="who">
+            <h2>매킨타이어</h2>
+            <div class="meta">Alasdair MacIntyre (1929~2025)<br>스코틀랜드 출신 철학자, 미국 노트르담대 교수</div>
+            <div class="claim">인간은 공동체의 이야기 속에서 자기 삶의 의미를 찾는 서사적 존재다.</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h3>대표 저서</h3>
+          <ul class="books">
+            <li>『덕의 상실(After Virtue)』 <span class="yr">1981</span></li>
+            <li>『누구의 정의인가? 어떤 합리성인가?』 <span class="yr">1988</span></li>
+          </ul>
+        </div>
+
+        <div class="sec">
+          <h3>핵심 주장</h3>
+          <ol class="notes">
+            <li><mark>근대 윤리 비판</mark>: 칸트·공리주의는 행위·원리 중심 → 행위자의 성품과 공동체 맥락을 소홀히 함</li>
+            <li>대안으로 <mark>덕 윤리</mark> 강조: "어떤 사람이 되어야 하는가"를 물어야 함</li>
+            <li>인간은 자기 삶을 하나의 이야기로 이해하는 <mark>서사적 존재</mark></li>
+            <li>나의 이야기는 공동체의 이야기 속에 있어, 정체성과 책임은 공동체의 <mark>역사와 전통</mark>에서 분리될 수 없음</li>
+            <li>덕은 공동체의 전통과 실천 속에서 길러지며, 이를 통해 <mark>좋은 삶</mark>을 추구함</li>
+          </ol>
+        </div>
+
+        <div class="sec">
+          <h3>핵심 키워드</h3>
+          <div class="keys">
+            <span class="key">덕 윤리</span><span class="key">서사적 존재</span><span class="key">공동체의 전통</span><span class="key">좋은 삶</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- 샌델 -->
+      <article class="page right">
+        <div class="head">
+          <figure class="photo" data-who="sandel" title="사진을 눌러 바꾸기">
+            <div class="ph"><span>S</span>사진을 눌러<br>넣어 주세요</div>
+            <figcaption>샌델</figcaption>
+          </figure>
+          <div class="who">
+            <h2>샌델</h2>
+            <div class="meta">Michael J. Sandel (1953~)<br>미국 정치철학자, 하버드대 교수</div>
+            <div class="claim">인간은 선택하지 않은 공동체와의 관계 속에서 정체성이 만들어지는 연고적 자아다.</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h3>대표 저서</h3>
+          <ul class="books">
+            <li>『자유주의와 정의의 한계』 <span class="yr">1982</span></li>
+            <li>『정의란 무엇인가』 <span class="yr">2009</span></li>
+            <li>『공정하다는 착각』 <span class="yr">2020</span></li>
+          </ul>
+        </div>
+
+        <div class="sec">
+          <h3>핵심 주장</h3>
+          <ol class="notes">
+            <li>롤스의 <mark>무연고적 자아</mark> 비판: 공동체와 무관하게 목적을 선택하는 자아는 추상적 존재</li>
+            <li>인간은 공동체와의 관계 속에서 정체성이 형성되는 <mark>연고적 자아</mark></li>
+            <li>공동체는 수단(도구적 공동체)이 아니라 나를 이루는 것(<mark>구성적 공동체</mark>)</li>
+            <li>내가 선택하지 않은 공동체에 대해서도 <mark>연대의 의무</mark>를 짐</li>
+            <li>인간은 본성상 정치적 존재 → 정의는 <mark>공동선</mark>과 <mark>시민적 덕성</mark>을 함께 고려해야 함</li>
+          </ol>
+        </div>
+
+        <div class="sec">
+          <h3>핵심 키워드</h3>
+          <div class="keys">
+            <span class="key">연고적 자아</span><span class="key">구성적 공동체</span><span class="key">연대의 의무</span><span class="key">공동선</span>
+          </div>
+        </div>
+      </article>
+    </div>
+    <div class="hint-line">
+      <button class="btn" id="quizBtn" aria-pressed="true">모두 보이기</button>
+      &nbsp;가린 뒤 학생이 답하면 해당 칸을 눌러 하나씩 보여 주세요
+    </div>
+  </section>
+
+  <!-- ===== 2. 사례 ===== -->
+  <section class="view" id="v2">
+    <div class="cases-page">
+      <div class="cases-intro">
+        <h2>이 사례, 공동체주의로 보면?</h2>
+        <p>사례를 하나 골라 읽고, 매킨타이어나 샌델의 개념과 연결해 한 줄로 써 보세요.</p>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </section>
+</main>
+
+<!-- 사례 상세 -->
+<div class="detail" id="detail" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <button class="close" id="dClose" aria-label="닫기">✕</button>
+  <div class="sheet">
+    <div class="story">
+      <div class="no" id="dNo"></div>
+      <h2 id="dTitle"></h2>
+      <div id="dBody"></div>
+      <div class="q" id="dQ"></div>
+      <div class="actions">
+        <button class="btn" id="dHintBtn">연결해 볼 개념 보기</button>
+        <button class="btn" id="dPrev">◀ 이전 사례</button>
+        <button class="btn" id="dNext">다음 사례 ▶</button>
+      </div>
+      <div class="hint" id="dHint"><div class="keys" id="dKeys"></div></div>
+    </div>
+    <div class="board">
+      <div class="board-head">
+        <span id="bTitle">우리 반 생각</span>
+        <button class="btn" id="bClear">이 사례 답 지우기</button>
+      </div>
+      <div class="notes-wall" id="wall"></div>
+      <form class="write" id="wForm" autocomplete="off">
+        <input class="who-in" id="wWho" placeholder="번호" maxlength="8" aria-label="번호 또는 이름">
+        <input class="txt" id="wTxt" placeholder="공동체주의로 보면 이 사례는…" maxlength="120" aria-label="한 줄 생각">
+        <button class="btn solid" type="submit">붙이기</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="photoFile" accept="image/*" hidden>
+
+<script>
+/* ============================================================
+   ✏️ 선생님이 바꾸기 쉬운 설정
+   - PHOTOS: 같은 폴더에 사진 파일을 올리거나, 이미지 주소를 넣으세요.
+     (사진 칸을 눌러 기기에서 바로 넣을 수도 있어요. 이 기기에만 저장됩니다.)
+   - CLASSES: 답을 반별로 따로 모아요.
+   ============================================================ */
+const PHOTOS = { macintyre: 'macintyre.jpg', sandel: 'sandel.jpg' };
+const CLASSES = ['4반','5반','6반','7반','8반','9반','10반','11반','연습'];
+
+const CASES = [
+  { t:'형을 신고할 것인가', c:'#F6C85F',
+    body:['미국에서 17년 동안 폭탄 테러를 저지른 범인이 신문에 선언문을 실었다. 이를 읽은 데이비드 카진스키는 문체가 형의 글과 너무 닮았다는 것을 알아채고 고민 끝에 FBI에 알렸다.',
+          '반면 매사추세츠 주 상원의장이던 윌리엄 불저는 수배 중인 갱단 두목인 형의 행방에 대해 수사에 협조하지 않았다.'],
+    q:'가족에 대한 충성과 사회 정의가 부딪칠 때, 누구의 선택에 더 공감하나요?',
+    keys:['연고적 자아','연대의 의무','보편적 의무'] },
+  { t:'선조의 잘못, 오늘의 사과', c:'#F28B82',
+    body:['일본군 \'위안부\' 피해자들은 오랫동안 일본 정부의 진정한 사과와 법적 배상을 요구해 왔다.',
+          '일본 안에서는 "그때 태어나지도 않은 우리가 왜 사과해야 하나"라는 목소리도 있다.'],
+    q:'내가 직접 하지 않은 일에 대해서도 책임을 질 수 있을까요?',
+    keys:['연대의 의무','서사적 존재','공동체의 역사'] },
+  { t:'정부가 대신한 사과', c:'#A7C7E7',
+    body:['호주 정부는 과거 오랫동안 원주민 아이들을 가족에게서 강제로 떼어내 백인 가정이나 시설에서 키웠다. 이들을 \'도둑맞은 세대\'라고 부른다.',
+          '2008년 호주 총리는 의회에서 정부를 대표해 공식 사과했다. 당시 반대 측은 "지금 세대에게 책임은 없다"고 주장했다.'],
+    q:'국가가 과거 세대의 잘못을 사과하는 것은 어떤 의미가 있을까요?',
+    keys:['연대의 의무','구성적 공동체','공동체의 전통'] },
+  { t:'고향이냐, 나라냐', c:'#C3B1E1',
+    body:['미국 남북전쟁 직전, 로버트 E. 리 장군은 북군 지휘를 제안받았다. 그는 남부의 연방 탈퇴에 찬성하지 않았다고 알려져 있다.',
+          '그러나 고향 버지니아를 향해 칼을 들 수 없다며 제안을 거절하고, 결국 남군을 이끌었다.'],
+    q:'내가 속한 공동체에 대한 충성은 언제나 옳은 걸까요?',
+    keys:['구성적 공동체','연고적 자아','공동체주의의 한계'] },
+  { t:'물에 빠진 두 아이', c:'#8FD3C1',
+    body:['두 아이가 물에 빠졌고, 한 명만 구할 수 있다. 한 아이는 내 아이, 다른 아이는 처음 보는 아이다.',
+          '대부분의 사람은 망설임 없이 내 아이를 구할 것이다.'],
+    q:'내 아이를 먼저 구하는 것은 불공정한 걸까요, 당연한 걸까요?',
+    keys:['연고적 자아','특별한 의무','무연고적 자아'] },
+  { t:'재난 속 가격 폭등', c:'#FFB38A',
+    body:['2004년 미국 플로리다에 큰 허리케인이 지나간 뒤, 얼음 한 봉지와 발전기, 쓰러진 나무 치우는 비용이 평소의 몇 배로 뛰었다.',
+          '"수요와 공급에 따른 시장 원리"라는 주장과 "이웃의 불행을 이용한 탐욕"이라는 비판이 맞섰다.'],
+    q:'법으로 막지 않았다면, 이런 가격 인상은 괜찮은 걸까요?',
+    keys:['공동선','시민적 덕성','덕 윤리'] },
+  { t:'금 모으기 운동', c:'#F9E27D',
+    body:['1997년 외환 위기로 나라가 어려워지자, 수많은 국민이 결혼반지와 돌반지 같은 금을 자발적으로 내놓았다.',
+          '누구도 강제하지 않았지만 전국에서 참여 행렬이 이어졌다.'],
+    q:'사람들은 왜 손해를 보면서까지 나섰을까요?',
+    keys:['연대의 의무','공동선','구성적 공동체'] },
+  { t:'한 명의 잘못, 반 전체의 책임?', c:'#B5D99C',
+    body:['우리 반 한 학생이 규칙을 어겨 반 전체가 함께 청소 봉사를 하게 되었다.',
+          '"나는 잘못하지 않았는데 왜?"라는 불만과 "우리는 한 반이니까"라는 의견이 엇갈린다.'],
+    q:'공동체의 구성원이라는 이유로 책임을 나누어야 할까요?',
+    keys:['연대의 의무','연고적 자아','개인의 권리(자유주의)'] }
+];
+
+/* ===== 저장 도우미 (실패해도 앱은 동작) ===== */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ===== 글꼴 ===== */
+const FONTS = {
+  yt:"'OwnglyphYuntaeng','NexonMaplestory','Malgun Gothic',sans-serif",
+  rt:"'OwnglyphRyuttung','OwnglyphYuntaeng','Malgun Gothic',sans-serif",
+  mp:"'NexonMaplestory','Malgun Gothic',sans-serif"
+};
+function setFont(k){
+  document.documentElement.style.setProperty('--font', FONTS[k]);
+  document.querySelectorAll('[data-font]').forEach(b => b.setAttribute('aria-pressed', b.dataset.font === k));
+  store.set('cm_font', k);
+}
+document.querySelectorAll('[data-font]').forEach(b => b.onclick = () => setFont(b.dataset.font));
+setFont(store.get('cm_font','yt'));
+
+/* ===== 글자 크기 ===== */
+let fs = store.get('cm_fs', 26);
+function applyFs(){ document.documentElement.style.setProperty('--fs', fs + 'px'); store.set('cm_fs', fs); }
+document.getElementById('fsUp').onclick = () => { fs = Math.min(40, fs + 2); applyFs(); };
+document.getElementById('fsDown').onclick = () => { fs = Math.max(18, fs - 2); applyFs(); };
+applyFs();
+
+/* ===== 탭 ===== */
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === t.dataset.view));
+});
+
+/* ===== 사진 ===== */
+const photoFile = document.getElementById('photoFile');
+let photoTarget = null;
+document.querySelectorAll('.photo').forEach(fig => {
+  const who = fig.dataset.who;
+  const saved = store.get('cm_photo_' + who, null);
+  const src = saved || PHOTOS[who];
+  if (src){
+    const img = new Image();
+    img.alt = fig.querySelector('figcaption').textContent + ' 사진';
+    img.onload = () => { fig.querySelector('.ph').replaceWith(img); };
+    img.src = src;
+  }
+  fig.onclick = () => { photoTarget = fig; photoFile.value = ''; photoFile.click(); };
+});
+photoFile.onchange = () => {
+  const f = photoFile.files[0]; if (!f || !photoTarget) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const img = new Image(); img.src = r.result; img.alt = '사진';
+    const old = photoTarget.querySelector('img, .ph'); old.replaceWith(img);
+    store.set('cm_photo_' + photoTarget.dataset.who, r.result);
+  };
+  r.readAsDataURL(f);
+};
+
+/* ===== 키워드 가리기 ===== */
+const quizBtn = document.getElementById('quizBtn');
+quizBtn.onclick = () => {
+  const on = !document.body.classList.contains('quiz');
+  document.body.classList.toggle('quiz', on);
+  quizBtn.setAttribute('aria-pressed', on);
+  quizBtn.textContent = on ? '모두 보이기' : '키워드 가리기';
+  document.querySelectorAll('#v1 mark, #v1 .key').forEach(m => m.classList.remove('show'));
+};
+document.querySelectorAll('#v1 mark, #v1 .key').forEach(m => m.addEventListener('click', () => {
+  if (document.body.classList.contains('quiz')) m.classList.toggle('show');
+}));
+
+/* ===== 타이머 ===== */
+const tmNum = document.getElementById('tmNum'), tmSel = document.getElementById('tmSel'), tmGo = document.getElementById('tmGo');
+let left = 600, tick = null;
+const fmt = s => String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+function tmShow(){ tmNum.textContent = fmt(left); tmNum.classList.toggle('done', left === 0); }
+function tmStop(){ clearInterval(tick); tick = null; tmGo.textContent = '▶'; }
+tmGo.onclick = () => {
+  if (tick){ tmStop(); return; }
+  if (left === 0) left = +tmSel.value * 60;
+  tmGo.textContent = '⏸';
+  tick = setInterval(() => { left = Math.max(0, left - 1); tmShow(); if (left === 0) tmStop(); }, 1000);
+};
+document.getElementById('tmReset').onclick = () => { tmStop(); left = +tmSel.value * 60; tmShow(); };
+tmSel.onchange = () => { tmStop(); left = +tmSel.value * 60; tmShow(); };
+tmShow();
+
+/* ===== 반 선택 ===== */
+const clsSel = document.getElementById('cls');
+CLASSES.forEach(c => clsSel.add(new Option(c, c)));
+clsSel.value = store.get('cm_cls', CLASSES[0]);
+clsSel.onchange = () => { store.set('cm_cls', clsSel.value); renderGrid(); if (cur !== null) renderWall(); };
+const ansKey = () => 'cm_ans_' + clsSel.value;
+const getAns = () => store.get(ansKey(), {});
+const setAns = a => store.set(ansKey(), a);
+
+/* ===== 사례 카드 ===== */
+const grid = document.getElementById('grid');
+function renderGrid(){
+  const a = getAns();
+  grid.innerHTML = '';
+  CASES.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'card'; b.style.setProperty('--c', c.c);
+    b.innerHTML = '<span class="no"></span><span class="ct"></span><span class="cq"></span><span class="cnt"></span>';
+    b.querySelector('.no').textContent = '사례 ' + (i + 1);
+    b.querySelector('.ct').textContent = c.t;
+    b.querySelector('.cq').textContent = c.q;
+    const n = (a[i] || []).length;
+    b.querySelector('.cnt').textContent = n ? n + '개' : '';
+    b.onclick = () => openCase(i);
+    grid.appendChild(b);
+  });
+}
+renderGrid();
+
+/* ===== 사례 상세 ===== */
+const detail = document.getElementById('detail');
+let cur = null;
+const COLORS = ['#FFF3A6','#FFD6E0','#D4F0DF','#D7E6FA','#FFE2C2','#E6DBF7'];
+function openCase(i){
+  cur = i; const c = CASES[i];
+  document.getElementById('dNo').textContent = '사례 ' + (i + 1);
+  document.getElementById('dTitle').textContent = c.t;
+  const body = document.getElementById('dBody'); body.innerHTML = '';
+  c.body.forEach(p => { const el = document.createElement('p'); el.textContent = p; body.appendChild(el); });
+  document.getElementById('dQ').textContent = c.q;
+  const keys = document.getElementById('dKeys'); keys.innerHTML = '';
+  c.keys.forEach(k => { const s = document.createElement('span'); s.className = 'key'; s.textContent = k; keys.appendChild(s); });
+  document.getElementById('dHint').classList.remove('on');
+  document.getElementById('dHintBtn').textContent = '연결해 볼 개념 보기';
+  renderWall();
+  detail.classList.add('on');
+  document.getElementById('wTxt').focus({preventScroll:true});
+}
+function renderWall(){
+  const wall = document.getElementById('wall');
+  const list = getAns()[cur] || [];
+  document.getElementById('bTitle').textContent = clsSel.value + ' 생각 · ' + list.length + '개';
+  wall.innerHTML = '';
+  if (!list.length){
+    wall.innerHTML = '<div class="empty">아직 붙은 생각이 없어요.<br>아래 칸에 한 줄 쓰고 붙이기를 눌러 주세요.</div>';
+    return;
+  }
+  list.forEach((n, j) => {
+    const d = document.createElement('div'); d.className = 'sticky';
+    d.style.setProperty('--bg', COLORS[j % COLORS.length]);
+    d.style.setProperty('--r', ((j * 37) % 5 - 2) * 0.6 + 'deg');
+    const t = document.createElement('span'); t.textContent = n.text; d.appendChild(t);
+    if (n.who){ const w = document.createElement('span'); w.className = 'by'; w.textContent = '— ' + n.who; d.appendChild(w); }
+    const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.setAttribute('aria-label','이 생각 지우기');
+    x.onclick = () => { const a = getAns(); a[cur].splice(j, 1); setAns(a); renderWall(); renderGrid(); };
+    d.appendChild(x);
+    wall.appendChild(d);
+  });
+  wall.scrollTop = wall.scrollHeight;
+}
+document.getElementById('wForm').onsubmit = e => {
+  e.preventDefault();
+  const txt = document.getElementById('wTxt'), who = document.getElementById('wWho');
+  const v = txt.value.trim(); if (!v) { txt.focus(); return; }
+  const a = getAns(); (a[cur] = a[cur] || []).push({ text:v, who:who.value.trim(), t:Date.now() }); setAns(a);
+  txt.value = ''; who.value = ''; renderWall(); renderGrid(); txt.focus();
+};
+document.getElementById('bClear').onclick = () => {
+  if (!confirm(clsSel.value + '의 이 사례 답을 모두 지울까요?')) return;
+  const a = getAns(); delete a[cur]; setAns(a); renderWall(); renderGrid();
+};
+document.getElementById('dHintBtn').onclick = e => {
+  const h = document.getElementById('dHint'); const on = !h.classList.contains('on');
+  h.classList.toggle('on', on); e.target.textContent = on ? '개념 숨기기' : '연결해 볼 개념 보기';
+};
+document.getElementById('dPrev').onclick = () => openCase((cur + CASES.length - 1) % CASES.length);
+document.getElementById('dNext').onclick = () => openCase((cur + 1) % CASES.length);
+function closeCase(){ detail.classList.remove('on'); cur = null; }
+document.getElementById('dClose').onclick = closeCase;
+detail.addEventListener('click', e => { if (e.target === detail) closeCase(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && detail.classList.contains('on')) closeCase(); });
+</script>
+</body>
+</html>
