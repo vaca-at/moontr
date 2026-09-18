@@ -1527,13 +1527,55 @@ function commonRegionLetters(q){
   const map = regionMap(q);
   return Object.keys(map).filter(k => map[k].type === '공통');
 }
+// <보기> 를 ㄱ・ㄴ・ㄷ 항목으로 쪼갠다. 항목 앞에 A:/B:/C: 가 붙어 있으면 영역도 같이 읽는다.
+//  예) "ㄷ. B: 법률의 제정 없이 각자는 어떠한 자유도 누릴 수 없다."
+function parseBogiItems(bogi){
+  const out = [];
+  String(bogi || '').split(/\r?\n|\\n/).forEach(line=>{
+    const m = String(line).match(/^\s*([ㄱ-ㅎ])\s*[.．:：]\s*([\s\S]+)$/);
+    if(!m) return;
+    const rest = m[2].trim();
+    const r = rest.match(/^\s*([A-EＡ-Ｅ])\s*[:：]\s*([\s\S]+)$/);
+    out.push({ mark:m[1], letter: r ? r[1].toUpperCase() : '', body: (r ? r[2] : rest).trim() });
+  });
+  return out;
+}
+// 정답 선지("ㄱ,ㄷ,ㄹ")에 어떤 보기가 들어 있는지
+function bogiMarksIn(text){
+  return new Set(String(text || '').match(/[ㄱ-ㅎ]/g) || []);
+}
 function pairStatements(questions){
   const out = [];
   (questions || []).forEach(q=>{
-    if(!soxAvailable(q)) return;
     const labels = (q.thinkers || []).map(t => t.label).filter(Boolean);
     if(labels.length !== 2) return;      // 갑・을 두 명짜리만 (갑・을・병은 헷갈려서 제외)
     const names = (q.thinkers || []).map(t => cleanName(t.name)).filter(Boolean);
+    if(names.length !== 2) return;
+
+    // (가) <보기> 조합형 벤다이어그램
+    //  "ㄷ. B: 법률의 제정 없이 ~" 처럼 보기 항목에 영역이 붙어 있고, 선지는 ㄱ・ㄴ 조합이다.
+    //  정답 조합에 그 보기가 들어 있으면 공통점이 맞고(O), 빠져 있으면 아니다(X).
+    const commonsB = commonRegionLetters(q);
+    if(q.bogi && commonsB.length){
+      const items = parseBogiItems(q.bogi).filter(it => commonsB.indexOf(it.letter) >= 0);
+      if(items.length){
+        const ci = parseInt(q.correctNum, 10) - 1;
+        const answer = bogiMarksIn((q.choices || [])[ci] || '');
+        if(answer.size){
+          items.forEach(it=>{
+            out.push({
+              q, i:ci, mark:it.mark,
+              text: fixJosa(`${names[0]}와 ${names[1]} 모두 — ${labelToName(q, it.body)}`, names),
+              ans: answer.has(it.mark) ? 'O' : 'X',
+              kind:'공통점', names
+            });
+          });
+          return;
+        }
+      }
+    }
+
+    if(!soxAvailable(q)) return;
     if(isRegionQuestion(q)){
       // 그림형 문항: 범례에서 뜻이 분명한 영역(공통 입장 / 서로에게 제기할 비판)만 쓴다.
       //  · 공통 영역 선지가 정답이면 두 사람의 공통점이 맞고(O), 아니면 공통점이 아니다(X).
@@ -4412,7 +4454,7 @@ function initAdmin(){
                 <td><b class="${x.ans === 'O' ? '' : 'no-text'}">${x.ans}</b></td>
                 <td>${escapeHtml(x.kind)}</td>
                 <td class="stem" style="color:var(--ink);">${escapeHtml(x.text)}</td>
-                <td style="white-space:nowrap;">${escapeHtml(qLabel(x.q))} ${NUM_MARK[x.i]}</td>
+                <td style="white-space:nowrap;">${escapeHtml(qLabel(x.q))} ${x.mark ? '&lt;보기&gt; ' + escapeHtml(x.mark) : NUM_MARK[x.i]}</td>
                 <td><div class="row-btns"><button data-auto="${i}">이것만 저장</button></div></td>
               </tr>`).join('')}</tbody>
           </table></div>` : ''}
@@ -4511,7 +4553,7 @@ function initAdmin(){
         saveAll.disabled = true; msg.className = 'msg'; msg.textContent = '저장 중...';
         try{
           await saveItems(compareAuto.map(x=>({
-            text:x.text, ans:x.ans, kind:x.kind, names:x.names, src:`${qLabel(x.q)} ${NUM_MARK[x.i]}`, by:'기출'
+            text:x.text, ans:x.ans, kind:x.kind, names:x.names, src:`${qLabel(x.q)} ${x.mark ? '<보기> ' + x.mark : NUM_MARK[x.i]}`, by:'기출'
           })));
           renderComparePanel();
         }catch(e){ console.error(e); msg.className = 'msg no-text'; msg.textContent = '저장 실패: 권한을 확인해주세요.'; saveAll.disabled = false; }
@@ -4521,7 +4563,7 @@ function initAdmin(){
         const x = compareAuto[Number(b.dataset.auto)];
         b.disabled = true;
         try{
-          await saveItems([{ text:x.text, ans:x.ans, kind:x.kind, names:x.names, src:`${qLabel(x.q)} ${NUM_MARK[x.i]}`, by:'기출' }]);
+          await saveItems([{ text:x.text, ans:x.ans, kind:x.kind, names:x.names, src:`${qLabel(x.q)} ${x.mark ? '<보기> ' + x.mark : NUM_MARK[x.i]}`, by:'기출' }]);
           renderComparePanel();
         }catch(e){ console.error(e); alert('저장 실패: 권한을 확인해주세요.'); b.disabled = false; }
       }));
