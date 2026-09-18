@@ -1507,7 +1507,15 @@ function regionMap(q){
   });
   return map;
 }
+// 벤다이어그램(진술형) 문항인지: "(나) 그림으로 표현할 때 A~C에 해당하는 적절한 진술"
+// "그림으로 탐구하고자 할 때 A~C에 들어갈 적절한 질문" 형은 뜻이 달라 공통점으로 쓰지 않는다.
+function isVennStatementQuestion(q){
+  const stem = String(q.stem || '');
+  if(/질문/.test(stem) || /탐구/.test(stem)) return false;
+  return /진술/.test(stem) || /표현할\s*때/.test(stem) || /나타낼\s*때/.test(stem);
+}
 function commonRegionLetters(q){
+  if(!isVennStatementQuestion(q)) return [];
   const map = regionMap(q);
   return Object.keys(map).filter(k => map[k].type === '공통');
 }
@@ -1535,18 +1543,11 @@ function pairStatements(questions){
         if(!info) return;
         const body = labelToName(q, m[2].trim());
         if(info.type === '공통'){
+          if(!isVennStatementQuestion(q)) return;   // 진술형 벤다이어그램만 공통점으로 쓴다
           out.push({
             q, i,
             text: fixJosa(`${names[0]}와 ${names[1]} 모두 — ${body}`, names),
             ans: choiceTruth(q, i), kind:'공통점', names
-          });
-        }else if(info.type === '비판'){
-          const from = nameOf(info.from), to = nameOf(info.to);
-          if(!from || !to) return;
-          out.push({
-            q, i,
-            text: fixJosa(`${from}이 ${to}에게 제기할 비판 — ${body}`, [from, to]),
-            ans: choiceTruth(q, i), kind:'비판', names:[from, to]
           });
         }
       });
@@ -2562,7 +2563,6 @@ function initStudent(){
         <button type="button" class="unit-pill ${pox.kind==='all'?'active':''}" data-k="all">전체 <b>${pox.list.length}</b></button>
         <button type="button" class="unit-pill ${pox.kind==='공통점'?'active':''}" data-k="공통점">공통점을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='공통점').length}</b></button>
         <button type="button" class="unit-pill ${pox.kind==='차이점'?'active':''}" data-k="차이점">차이점을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='차이점').length}</b></button>
-        <button type="button" class="unit-pill ${pox.kind==='비판'?'active':''}" data-k="비판">비판을 묻는 문제 <b>${pox.list.filter(x=>x.kind==='비판').length}</b></button>
       </div>`;
     if(!all.length){
       el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
@@ -4417,12 +4417,12 @@ function initAdmin(){
             <button class="small-btn del" id="cmp-del-picked" type="button" disabled>선택한 것 지우기</button>
             <span class="msg" id="cmp-del-msg"></span>
           </div>
-          <div class="section-hint">[잘못 들어간 것 골라내기]는 "A: ~", "B: ~" 처럼 그림 영역을 가리키는 설명과 갑・을・병 세 명짜리 문항에서 온 것을 자동으로 체크합니다.</div>
+          <div class="section-hint">[잘못 들어간 것 골라내기]는 "A: ~", "B: ~" 처럼 그림 영역을 가리키는 설명, 갑・을・병 세 명짜리 문항에서 온 것, 그리고 비판형에서 온 것을 자동으로 체크합니다.</div>
           <div class="data-table-wrap"><table class="data-table">
             <thead><tr><th style="width:34px;"></th><th>정답</th><th>종류</th><th>설명</th><th>대상</th><th>출처</th><th></th></tr></thead>
             <tbody>${compareSaved.map(x=>`
               <tr>
-                <td><input type="checkbox" class="cmp-spick" data-id="${escapeHtml(x.id)}" data-bad="${(isRegionChoice(x.text) || (x.names || []).length > 2) ? '1' : '0'}"></td>
+                <td><input type="checkbox" class="cmp-spick" data-id="${escapeHtml(x.id)}" data-bad="${(isRegionChoice(x.text) || (x.names || []).length > 2 || x.kind === '비판') ? '1' : '0'}"></td>
                 <td><b class="${x.ans === 'O' ? '' : 'no-text'}">${escapeHtml(x.ans || '')}</b></td>
                 <td>${escapeHtml(x.kind || '')}</td>
                 <td class="stem" style="color:var(--ink);">${escapeHtml(x.text || '')}</td>
