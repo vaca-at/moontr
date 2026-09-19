@@ -1542,7 +1542,7 @@ const Store={
 
 /* ══ 2. 사진 ══ */
 let refitTimer=null;
-function refitLater(){ clearTimeout(refitTimer); refitTimer=setTimeout(()=>{ try{ if(typeof slideOn!=="undefined"&&slideOn&&typeof fitBlocks==="function"){ fitBlocks(); recalcPages(); showPage(pageIdx); } }catch(e){} },120); }
+function refitLater(){ clearTimeout(refitTimer); refitTimer=setTimeout(()=>{ try{ if(typeof slideOn!=="undefined"&&slideOn&&typeof fitBlocks==="function"){ fitBlocks(); alignSections(); recalcPages(); showPage(pageIdx); } }catch(e){} },120); }
 async function renderImages(){
   const imgs=await Store.getImages();
   document.querySelectorAll("figure[data-slot]").forEach(f=>{
@@ -1653,16 +1653,34 @@ function fitBlocks(){
   const origin=()=>slideMain.getBoundingClientRect().top-slideMain.scrollTop;
   list.forEach(w=>{
     const sp=(w.nextElementSibling&&w.nextElementSibling.classList.contains("fitspacer"))?w.nextElementSibling:null;
+    const sec=w.closest("section");
+    const pb=sec?(parseFloat(getComputedStyle(sec).paddingBottom)||0):0;
     let r=w.getBoundingClientRect(), top=r.top-origin(), pageTop=Math.floor(top/ph)*ph;
-    const avail=ph-(top-pageTop)-10;
+    const avail=ph-(top-pageTop)-pb-10;
     if(r.height>avail) w.style.zoom=Math.max(.62,avail/r.height).toFixed(3);
     if(sp){ r=w.getBoundingClientRect(); top=r.top-origin(); pageTop=Math.floor(top/ph)*ph;
-      sp.style.height=Math.max(0,ph-((top-pageTop)+r.height))+"px"; }
+      sp.style.height=Math.max(0,ph-((top-pageTop)+r.height)-pb)+"px"; }
+  });
+}
+/* 섹션 끝을 쪽 경계에 맞춤 — 다음 섹션이 항상 새 쪽에서 시작하도록 */
+function alignSections(){
+  document.querySelectorAll(".autospace").forEach(e=>e.remove());
+  if(!slideOn) return;
+  const ph=slideMain.clientHeight;
+  const origin=()=>slideMain.getBoundingClientRect().top-slideMain.scrollTop;
+  SECTIONS.forEach(s=>{
+    if(getComputedStyle(s).display==="none") return;
+    const r=s.getBoundingClientRect();
+    const bottom=(r.top-origin())+r.height;
+    const rem=bottom%ph;
+    const gap=(ph-rem)%ph;
+    if(gap>1&&gap<ph-1){ const d=document.createElement("div"); d.className="autospace";
+      d.style.height=gap+"px"; d.setAttribute("aria-hidden","true"); s.appendChild(d); }
   });
 }
 function slideMode(on){
   slideOn=on; document.body.dataset.slide=on?"on":"off";
-  fitBlocks();
+  fitBlocks(); alignSections();
   document.getElementById("slideBtn").textContent=on?"발표 모드 끄기":"발표 모드";
   const tb=document.getElementById("slideBtnTop"); if(tb)tb.textContent=on?"■ 발표 모드 끄기":"▶ 발표 모드";
   if(on){
@@ -1679,7 +1697,7 @@ document.getElementById("hardReload").onclick=()=>{
   try{ if(window.caches&&caches.keys) caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))); }catch(e){}
   location.replace(location.pathname+"?r="+Date.now());
 };
-window.addEventListener("resize",()=>{ if(!slideOn)return; fitBlocks(); recalcPages(); showPage(pageIdx); });
+window.addEventListener("resize",()=>{ if(!slideOn)return; fitBlocks(); alignSections(); recalcPages(); showPage(pageIdx); });
 
 /* 아이패드 가이드 칸 */
 let guideOn=false;
