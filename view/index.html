@@ -1,0 +1,476 @@
+
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>moontr.site</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gaegu:wght@400;700&family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;600;700&family=Nanum+Myeongjo:wght@700;800&display=swap">
+<style>
+/* ============================================================
+   기본 설정
+   - 글자 크기가 화면 크기에 맞춰 자동으로 커지고 작아집니다.
+     (전자칠판 = 크게, 아이패드·노트북 = 보통, 스마트폰 = 최소 16px)
+   ============================================================ */
+:root{
+  --sky:#7CC6F0; --sky-soft:#D6EFFA; --sky-deep:#1E6FA8;
+  --mint:#7FD8C2; --mint-soft:#D2F2E8; --mint-deep:#1F7A65;
+  --ink:#17324A; --muted:#4A6275;
+  --peach:#FFE3C7; --cream:#F7F4EC; --navy:#10263A;
+  --bar-h:3.6rem;
+}
+*{box-sizing:border-box}
+html{font-size:clamp(15px, 0.9vw + 0.7vh, 28px)}
+body{
+  margin:0; min-height:100vh; min-height:100dvh;
+  font-family:'Gowun Dodum',sans-serif; color:var(--fg,var(--ink));
+  background:var(--bg,var(--cream));
+  transition:background-color .3s;
+}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--sky-deep);outline-offset:3px}
+
+/* 대문마다 배경색 */
+body[data-v="door"]  {--bg:var(--cream);--fg:var(--ink);--bar-fg:var(--ink);--pill:#E9E3D3;--pill-on:var(--ink);--pill-on-fg:#fff}
+body[data-v="time"]  {--bg:var(--navy);--fg:#EAF4F8;--bar-fg:#EAF4F8;--pill:#1B3A55;--pill-on:var(--mint);--pill-on-fg:#0B2A22}
+body[data-v="school"]{--bg:#EAF6F1;--fg:var(--ink);--bar-fg:var(--ink);--pill:#D3EBE1;--pill-on:var(--ink);--pill-on-fg:#fff}
+body[data-v="quote"] {--bg:#DFF3FA;--fg:var(--ink);--bar-fg:var(--ink);--pill:#C4E4F1;--pill-on:var(--ink);--pill-on-fg:#fff}
+
+/* ============================================================
+   상단 대문 선택 버튼
+   ============================================================ */
+.bar{
+  height:var(--bar-h); padding:0 2.2vw;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  color:var(--bar-fg);
+}
+.logo{font-weight:700;font-size:1.05rem;text-decoration:none;letter-spacing:.02em}
+.switch{display:flex;align-items:center;gap:.4rem}
+.switch button{
+  min-height:44px; padding:0 1rem; border:0; border-radius:999px;
+  background:var(--pill); cursor:pointer; font-size:.9rem;
+}
+.switch button[aria-pressed="true"]{background:var(--pill-on);color:var(--pill-on-fg);font-weight:700}
+.switch .shuffle{display:flex;align-items:center;gap:.35rem;background:transparent;border:2px solid var(--pill)}
+.switch svg{width:1.1em;height:1.1em}
+
+main{height:calc(100dvh - var(--bar-h)); min-height:520px}
+.view{display:none;height:100%}
+.view.on{display:flex;animation:enter .35s ease-out}
+@keyframes enter{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.view.on{animation:none}body{transition:none}}
+
+/* ============================================================
+   ② 대상별 입구형
+   ============================================================ */
+#v-door{flex-direction:column;gap:3vh;padding:1vh 4vw 5vh;font-family:'Do Hyeon',sans-serif}
+#v-door h1{margin:0;font-weight:400;font-size:2.6rem}
+.doors{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2.5vw;min-height:0}
+.door{
+  position:relative; display:flex; flex-direction:column; justify-content:space-between;
+  padding:12% 8% 7%; border:0; cursor:pointer; text-align:left; color:var(--ink);
+  border-radius:50% 50% 1.2rem 1.2rem / 30% 30% 1.2rem 1.2rem;
+}
+.door:hover .knob{transform:scale(1.25)}
+.door .who{font-family:'Gowun Dodum',sans-serif;font-size:.95rem;opacity:.85;align-self:center;text-align:center}
+.door .name{font-size:2.3rem;display:flex;align-items:flex-end;justify-content:space-between}
+.door .name svg{width:1.4em;height:1.4em}
+.knob{position:absolute;right:9%;top:55%;width:1rem;height:1rem;border-radius:50%;background:var(--ink);transition:transform .2s}
+.d1{background:#BFE6F7}.d2{background:#C4EEDF}.d3{background:var(--peach)}
+
+/* ============================================================
+   ④ 시간표 연동형
+   ============================================================ */
+#v-time{gap:3vw;padding:1vh 4vw 5vh;font-family:'IBM Plex Sans KR',sans-serif}
+.now{
+  flex:1.3; display:flex; flex-direction:column; justify-content:center; gap:2.5vh;
+  padding:5vh 4vw; background:#183650; border-radius:1.6rem;
+}
+.chip{align-self:flex-start;padding:.35rem .9rem;border-radius:999px;background:var(--mint);color:#0B2A22;font-weight:700;font-size:.9rem}
+.chip.rest{background:#F5C26B;color:#3A2500}
+.now .big{font-size:5.2rem;font-weight:700;line-height:1}
+.now .cls{font-size:1.5rem;color:#C9DCE6}
+.now .go{
+  align-self:flex-start; display:flex; align-items:center; min-height:3.4rem; padding:0 2rem;
+  border-radius:1rem; background:var(--mint); color:#0B2A22; font-weight:700; font-size:1.2rem; text-decoration:none;
+}
+.today{flex:1;display:flex;flex-direction:column;gap:.55rem;justify-content:center}
+.today h2{margin:0 0 .4rem;font-size:1rem;color:#A9C2D1;font-weight:600}
+.today a,.today div.row{
+  display:flex;align-items:center;gap:1rem;min-height:3rem;padding:0 1.1rem;
+  border-radius:.8rem;background:#15304A;color:#A9C2D1;text-decoration:none;font-size:1rem
+}
+.today .row.cur{background:#2A5474;color:#fff;font-weight:600}
+.today .no{width:3.2rem;font-weight:700}
+.today .time{margin-left:auto;font-size:.8rem;opacity:.8}
+
+/* ============================================================
+   ⑦ 학교 지도형
+   ============================================================ */
+#v-school{flex-direction:column;align-items:center;padding:1vh 4vw 0;font-family:'Gaegu',sans-serif;overflow:hidden}
+#v-school h1{margin:0;font-size:2.5rem;text-align:center;line-height:1.1}
+#v-school .hint{font-size:1.2rem;color:#3E5B6E;margin:.3rem 0 2vh}
+.building{width:min(92vw,1200px);display:flex;flex-direction:column;flex:1;min-height:0}
+.roof{position:relative;height:11vh;min-height:70px}
+.roof svg{width:100%;height:100%;display:block}
+.clock{position:absolute;left:50%;top:48%;transform:translateX(-50%);width:6.5vh;height:6.5vh;min-width:40px;min-height:40px;border-radius:50%;background:#fff;border:3px solid var(--ink)}
+.clock::before,.clock::after{content:"";position:absolute;left:50%;bottom:50%;width:3px;background:var(--ink);transform-origin:bottom center;border-radius:2px}
+.clock::before{height:35%;transform:translateX(-50%) rotate(var(--h,0deg))}
+.clock::after{height:44%;transform:translateX(-50%) rotate(var(--m,0deg))}
+.body{
+  flex:1; min-height:0; padding:2.2vh 2vw; background:#FFF8E8;
+  border:3px solid var(--ink); border-top:0;
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:1fr 1.15fr; gap:2vh 1.6vw;
+}
+.win{
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:.5rem;
+  border:3px solid var(--ink);border-radius:.7rem;text-decoration:none;font-weight:700;font-size:1.6rem;line-height:1.1
+}
+.win:nth-child(odd){background:var(--sky-soft)}.win:nth-child(even){background:var(--mint-soft)}
+.win:hover{transform:translateY(-3px)}
+.gate{
+  grid-column:2 / span 2; background:#F7C9A8 !important;
+  border-radius:50% 50% .5rem .5rem / 45% 45% .5rem .5rem; border-bottom:0; font-size:1.9rem
+}
+.ground{width:100vw;height:6vh;min-height:36px;background:#9ED6A8;border-top:3px solid var(--ink)}
+
+/* ============================================================
+   ⑩ 오늘의 한마디형
+   ============================================================ */
+#v-quote{gap:3vw;padding:1vh 4vw 5vh}
+.qcard{
+  flex:1.4; display:flex; flex-direction:column; justify-content:center; gap:3vh;
+  padding:6vh 5vw; background:#fff; border-radius:1.8rem;
+}
+.qdate{font-size:1rem;color:var(--muted)}
+.qtext{margin:0;font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:2.7rem;line-height:1.55;word-break:keep-all}
+.qwho{font-size:1.05rem;color:var(--muted)}
+.qlinks{flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:center;gap:.8rem}
+.qlinks a{
+  display:flex;align-items:center;justify-content:center;text-align:center;min-height:4.2rem;padding:0 .8rem;
+  border-radius:1rem;background:#fff;text-decoration:none;font-weight:700;font-size:1.05rem
+}
+.qlinks a:first-child{grid-column:1 / -1;background:var(--ink);color:#fff;min-height:5rem;font-size:1.2rem}
+
+/* ============================================================
+   대상별 입구: 눌렀을 때 뜨는 목록 창
+   ============================================================ */
+.sheet{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,38,58,.45);padding:4vw;z-index:10}
+.sheet[hidden]{display:none}
+.panel{width:min(620px,100%);max-height:85dvh;overflow:auto;background:#fff;color:var(--ink);border-radius:1.4rem;padding:1.6rem}
+.panel header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+.panel h2{margin:0;font-family:'Do Hyeon',sans-serif;font-weight:400;font-size:1.8rem}
+.panel .close{min-width:44px;min-height:44px;border:0;border-radius:50%;background:#EEF3F5;cursor:pointer;font-size:1.3rem}
+.panel a{display:flex;flex-direction:column;gap:.15rem;padding:.9rem 0;border-top:1px solid #E1E9ED;text-decoration:none}
+.panel a b{font-size:1.1rem}
+.panel a span{font-size:.85rem;color:var(--muted)}
+.panel .note{margin:.8rem 0 0;font-size:.85rem;color:var(--muted)}
+
+/* ============================================================
+   세로 화면 (스마트폰, 세로로 든 아이패드)
+   ============================================================ */
+@media (max-width:720px), (orientation:portrait) and (max-width:1024px){
+  :root{--bar-h:auto}
+  .bar{flex-direction:column;align-items:stretch;gap:.6rem;padding:.9rem 1rem .4rem}
+  .switch{overflow-x:auto}
+  .switch button{flex:0 0 auto;padding:0 .9rem}
+  .switch .shuffle span{display:none}
+  main{height:auto;min-height:0}
+  .view.on{min-height:calc(100dvh - 7rem)}
+
+  #v-door{padding:.5rem 1rem 1.5rem;gap:1rem}
+  #v-door h1{font-size:2.1rem}
+  .doors{grid-template-columns:1fr;gap:.9rem}
+  .door{min-height:30vh;border-radius:6rem 6rem 1.2rem 1.2rem;padding:1.4rem 1.4rem 1.2rem}
+  .door .who{align-self:flex-start;text-align:left}
+
+  #v-time{flex-direction:column;padding:.5rem 1rem 1.5rem;gap:1.2rem}
+  .now{padding:1.6rem}
+  .now .big{font-size:3.4rem}
+  .now .cls{font-size:1.15rem}
+  .now .go{align-self:stretch;justify-content:center}
+
+  #v-school{padding:.5rem 1rem 0}
+  #v-school h1{font-size:2.2rem}
+  .roof{height:90px}
+  .body{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;gap:.8rem;padding:1rem}
+  .win{min-height:88px;font-size:1.35rem}
+  .gate{grid-column:1 / -1;min-height:110px}
+  .ground{margin-top:0}
+
+  #v-quote{flex-direction:column;padding:.5rem 1rem 1.5rem;gap:1rem}
+  .qcard{padding:2rem 1.6rem}
+  .qtext{font-size:1.75rem}
+}
+</style>
+</head>
+<body data-v="door">
+
+<header class="bar">
+  <a class="logo" href="./">moontr.site</a>
+  <nav class="switch" aria-label="대문 디자인 선택">
+    <button type="button" data-go="door">입구</button>
+    <button type="button" data-go="time">시간표</button>
+    <button type="button" data-go="school">학교</button>
+    <button type="button" data-go="quote">한마디</button>
+    <button type="button" class="shuffle" id="shuffle" aria-label="다른 대문 보기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+      <span>다른 대문</span>
+    </button>
+  </nav>
+</header>
+
+<main>
+  <!-- ② 대상별 입구형 -->
+  <section class="view" id="v-door" aria-label="대상별 입구">
+    <h1>어디로 들어갈까요?</h1>
+    <div class="doors">
+      <button type="button" class="door d1" data-sheet="student">
+        <span class="who">수업 · 우리반 · 기출 학습</span><span class="knob"></span>
+        <span class="name">학생 입장 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+      </button>
+      <button type="button" class="door d2" data-sheet="teacher">
+        <span class="who">관리 화면 바로가기</span><span class="knob"></span>
+        <span class="name">선생님 도구 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+      </button>
+      <button type="button" class="door d3" data-sheet="peer">
+        <span class="who">웹앱 소개 · 만드는 방법</span><span class="knob"></span>
+        <span class="name">동료 선생님께 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ④ 시간표 연동형 -->
+  <section class="view" id="v-time" aria-label="시간표">
+    <div class="now" id="now"></div>
+    <div class="today" id="today"></div>
+  </section>
+
+  <!-- ⑦ 학교 지도형 -->
+  <section class="view" id="v-school" aria-label="학교 지도">
+    <h1>문쌤네 학교에 놀러 오세요</h1>
+    <p class="hint">가고 싶은 교실을 눌러 보세요</p>
+    <div class="building">
+      <div class="roof">
+        <svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+          <polygon points="50,1 99.5,29.5 0.5,29.5" fill="#7CC6F0" stroke="#17324A" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+        </svg>
+        <span class="clock" id="clock" aria-hidden="true"></span>
+      </div>
+      <div class="body" id="rooms"></div>
+    </div>
+    <div class="ground"></div>
+  </section>
+
+  <!-- ⑩ 오늘의 한마디형 -->
+  <section class="view" id="v-quote" aria-label="오늘의 한마디">
+    <div class="qcard">
+      <div class="qdate" id="qdate"></div>
+      <p class="qtext" id="qtext"></p>
+      <div class="qwho" id="qwho"></div>
+    </div>
+    <div class="qlinks" id="qlinks"></div>
+  </section>
+</main>
+
+<!-- 입구 문을 누르면 뜨는 목록 창 -->
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <header><h2 id="sheetTitle"></h2><button type="button" class="close" id="sheetClose" aria-label="닫기">✕</button></header>
+    <div id="sheetList"></div>
+    <p class="note" id="sheetNote"></p>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ✏️ 여기만 고치면 됩니다 (메모장으로 열어서 수정 가능)
+   ============================================================ */
+
+// 1) 학생용 웹앱 목록 — 입구·학교·한마디 대문에 공통으로 쓰입니다
+//    id: 시간표에서 연결할 때 쓰는 짧은 이름 / room: 학교 지도에 표시될 교실 이름
+const APPS = [
+  { id:'110',       name:'1학년 10반 공지',   desc:'오늘의 공지와 이번 주 공지', url:'/110/',       room:'1학년 10반 게시판' },
+  { id:'justice01', name:'사회 정의 수업',    desc:'통합사회 · 사회 정의와 불평등', url:'/justice01/', room:'사회 교실' },
+  { id:'check04',   name:'출석체크',          desc:'분반 수업 출석 확인',        url:'/check04/',   room:'출석부' },
+  { id:'idea',      name:'윤사 만점 다이어리', desc:'3학년 윤리와 사상 기출 학습', url:'/idea/',      room:'윤사 도서실' },
+  { id:'app',       name:'생윤 만점 다이어리', desc:'3학년 생활과 윤리 기출 학습', url:'/app/',       room:'생윤 자습실' }
+];
+
+// 학교 지도에서 큰 대문(아래 가운데 문)으로 쓸 앱
+const MAIN_GATE = '110';
+
+// 2) 선생님 도구 — ⚠️ 이 사이트는 누구나 볼 수 있어요.
+//    교사용 화면·구글 시트 주소는 넣지 말고, 로그인해야 들어가는 화면만 넣으세요.
+const TEACHER_LINKS = [
+  { name:'[교사용 관리 화면 이름]', desc:'로그인이 필요한 화면만 넣어 주세요', url:'#' }
+];
+
+// 3) 동료 선생님께
+const PEER_LINKS = [
+  { name:'선생님들 웹앱 모음', desc:'jsun.site', url:'https://jsun.site' },
+  { name:'바이브코딩으로 웹앱 만들기', desc:'[매뉴얼 웹앱 주소를 넣어 주세요]', url:'#' }
+];
+
+// 4) 종 시간 (학교 일과표에 맞게 고쳐 주세요)
+const BELL = [
+  ['08:40','09:30'], ['09:40','10:30'], ['10:40','11:30'], ['11:40','12:30'],
+  ['13:30','14:20'], ['14:30','15:20'], ['15:30','16:20']
+];
+
+// 5) 요일별 시간표 (예시예요 — 실제 시간표로 바꿔 주세요)
+//    빈칸('')은 공강. app에는 위 APPS의 id를 적으면 그 앱 버튼이 나옵니다.
+const WEEK = {
+  1: [ {c:'1학년 4반 통합사회',app:'justice01'}, '', {c:'1학년 6반 통합사회',app:'justice01'}, {c:'3학년 윤리와 사상',app:'idea'}, '', {c:'1학년 10반 통합사회',app:'justice01'}, '' ],
+  2: [ '', {c:'1학년 5반 통합사회',app:'justice01'}, {c:'1학년 7반 통합사회',app:'justice01'}, '', {c:'3학년 윤리와 사상',app:'idea'}, '', '' ],
+  3: [ {c:'1학년 8반 통합사회',app:'justice01'}, '', '', {c:'1학년 9반 통합사회',app:'justice01'}, '', {c:'1학년 11반 통합사회',app:'justice01'}, '' ],
+  4: [ '', {c:'3학년 윤리와 사상',app:'idea'}, {c:'1학년 4반 통합사회',app:'justice01'}, '', {c:'1학년 10반 통합사회',app:'justice01'}, '', '' ],
+  5: [ {c:'1학년 6반 통합사회',app:'justice01'}, '', {c:'1학년 5반 통합사회',app:'justice01'}, '', '', {c:'1학년 10반 창체',app:'110'}, '' ]
+};
+
+// 6) 오늘의 한마디 (들어올 때마다 하나씩 무작위로 나옵니다)
+const QUOTES = [
+  { t:'배우고 때때로 익히면\n또한 기쁘지 아니한가', w:'공자, 『논어』 학이편' },
+  { t:'음미하지 않는 삶은\n살 가치가 없다', w:'소크라테스, 플라톤 『소크라테스의 변론』' },
+  { t:'우리는 정의로운 행동을 함으로써\n정의로운 사람이 된다', w:'아리스토텔레스, 『니코마코스 윤리학』' },
+  { t:'측은히 여기는 마음은\n어짊의 실마리이다', w:'맹자, 『맹자』 공손추 상' },
+  { t:'인격을 언제나 목적으로 대하고\n결코 수단으로만 대하지 말라', w:'칸트, 『도덕 형이상학 정초』' }
+];
+
+// 7) 무작위로 보여 줄 대문 (빼고 싶은 대문은 지우세요)
+//    door=입구, time=시간표, school=학교, quote=한마디
+const RANDOM_POOL = ['door','time','school','quote'];
+
+/* ============================================================
+   아래부터는 작동 코드 (고치지 않아도 됩니다)
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const appById = id => APPS.find(a => a.id === id);
+const VIEWS = ['door','time','school','quote'];
+
+/* 대문 바꾸기 */
+function show(v){
+  document.body.dataset.v = v;
+  document.querySelectorAll('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
+  document.querySelectorAll('[data-go]').forEach(b => b.setAttribute('aria-pressed', b.dataset.go === v));
+  try { localStorage.setItem('moontr-last', v); } catch(e) {}
+}
+function pickRandom(){
+  let last = null;
+  try { last = localStorage.getItem('moontr-last'); } catch(e) {}
+  const pool = RANDOM_POOL.filter(v => v !== last);
+  const list = pool.length ? pool : RANDOM_POOL;
+  return list[Math.floor(Math.random() * list.length)];
+}
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go)));
+$('#shuffle').addEventListener('click', () => show(pickRandom()));
+
+/* ② 입구: 목록 창 */
+const SHEETS = {
+  student:{ title:'학생 입장', list:APPS, note:'' },
+  teacher:{ title:'선생님 도구', list:TEACHER_LINKS, note:'교사용 화면은 로그인이 필요합니다.' },
+  peer:{ title:'동료 선생님께', list:PEER_LINKS, note:'' }
+};
+let lastFocus = null;
+function openSheet(key){
+  const s = SHEETS[key];
+  $('#sheetTitle').textContent = s.title;
+  $('#sheetList').innerHTML = s.list.map(a =>
+    `<a href="${esc(a.url)}"><b>${esc(a.name)}</b><span>${esc(a.desc || '')}</span></a>`).join('');
+  $('#sheetNote').textContent = s.note;
+  lastFocus = document.activeElement;
+  $('#sheet').hidden = false;
+  $('#sheetClose').focus();
+}
+function closeSheet(){ $('#sheet').hidden = true; if (lastFocus) lastFocus.focus(); }
+document.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => openSheet(b.dataset.sheet)));
+$('#sheetClose').addEventListener('click', closeSheet);
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
+
+/* ④ 시간표 */
+const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60 + m; };
+function renderTime(){
+  const d = new Date(), day = d.getDay(), m = d.getHours()*60 + d.getMinutes();
+  const today = WEEK[day];
+  const gate = appById(MAIN_GATE);
+  let html = '', cur = -1, next = -1;
+
+  if (today){
+    BELL.forEach(([s,e], i) => {
+      if (m >= toMin(s) && m <= toMin(e)) cur = i;
+      if (next < 0 && m < toMin(s)) next = i;
+    });
+  }
+  const slot = i => (today && today[i]) ? today[i] : null;
+
+  if (!today){
+    html = `<span class="chip rest">쉬는 날</span><div class="big">주말</div>
+            <div class="cls">푹 쉬고 월요일에 만나요</div>`;
+  } else if (cur >= 0 && slot(cur)){
+    const a = appById(slot(cur).app);
+    html = `<span class="chip">지금 수업 중</span><div class="big">${cur+1}교시</div>
+            <div class="cls">${esc(slot(cur).c)}</div>
+            ${a ? `<a class="go" href="${esc(a.url)}">${esc(a.name)} 열기</a>` : ''}`;
+  } else {
+    let n = -1;
+    for (let i = Math.max(next, 0); next >= 0 && i < BELL.length; i++){ if (slot(i)) { n = i; break; } }
+    if (n >= 0){
+      html = `<span class="chip rest">다음 수업</span><div class="big">${n+1}교시</div>
+              <div class="cls">${esc(slot(n).c)} · ${BELL[n][0]} 시작</div>`;
+    } else {
+      html = `<span class="chip rest">오늘 수업 끝</span><div class="big">수고했어요</div>
+              <div class="cls">오늘 수업이 모두 끝났어요</div>`;
+    }
+    if (gate) html += `<a class="go" href="${esc(gate.url)}">${esc(gate.name)} 보기</a>`;
+  }
+  $('#now').innerHTML = html;
+
+  const rows = BELL.map(([s], i) => {
+    const x = slot(i), a = x && appById(x.app);
+    const inner = `<span class="no">${i+1}교시</span><span>${x ? esc(x.c) : '공강'}</span><span class="time">${s}</span>`;
+    const cls = 'row' + (i === cur ? ' cur' : '');
+    return a ? `<a class="${cls}" href="${esc(a.url)}">${inner}</a>` : `<div class="${cls}">${inner}</div>`;
+  }).join('');
+  $('#today').innerHTML = `<h2>${today ? '오늘 시간표' : '다음 주 월요일 시간표'}</h2>` +
+    (today ? rows : BELL.map(([s], i) => {
+      const x = WEEK[1][i];
+      return `<div class="row"><span class="no">${i+1}교시</span><span>${x ? esc(x.c) : '공강'}</span><span class="time">${s}</span></div>`;
+    }).join(''));
+}
+
+/* ⑦ 학교 지도 */
+function renderSchool(){
+  const gate = appById(MAIN_GATE);
+  const rooms = APPS.filter(a => a.id !== MAIN_GATE);
+  $('#rooms').innerHTML =
+    rooms.map(a => `<a class="win" href="${esc(a.url)}">${esc(a.room || a.name)}</a>`).join('') +
+    (gate ? `<a class="win gate" href="${esc(gate.url)}">${esc(gate.room || gate.name)}</a>` : '');
+  const d = new Date(), c = $('#clock');
+  c.style.setProperty('--h', ((d.getHours()%12)*30 + d.getMinutes()*0.5) + 'deg');
+  c.style.setProperty('--m', (d.getMinutes()*6) + 'deg');
+}
+
+/* ⑩ 오늘의 한마디 */
+function renderQuote(){
+  const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+  $('#qdate').textContent = new Date().toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'long' });
+  $('#qtext').innerHTML = esc(q.t).replace(/\n/g, '<br>');
+  $('#qwho').textContent = q.w;
+  const gate = appById(MAIN_GATE);
+  const ordered = gate ? [gate, ...APPS.filter(a => a !== gate)] : APPS;
+  $('#qlinks').innerHTML = ordered.map(a => `<a href="${esc(a.url)}">${esc(a.name)}</a>`).join('');
+}
+
+/* 시작: 주소 끝에 #time 처럼 붙어 있으면 그 대문, 아니면 무작위 */
+renderTime(); renderSchool(); renderQuote();
+setInterval(() => { renderTime(); renderSchool(); }, 30000);
+const fixed = location.hash.slice(1);
+show(VIEWS.includes(fixed) ? fixed : pickRandom());
+</script>
+</body>
+</html>
