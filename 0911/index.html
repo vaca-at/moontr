@@ -211,6 +211,11 @@ body[data-design="mag"] .flow .item{background:transparent;border-bottom:1px sol
 .bars .tr{flex:1;background:var(--card);border-radius:999px;height:20px;overflow:hidden;}
 .bars .fl{height:100%;background:var(--accent);border-radius:999px;}
 .bars .vl{flex:0 0 40px;color:var(--sub);font-size:13px;}
+.bars.adm{max-width:none;margin:6px 0 16px;}
+.bars.adm .row{font-size:12.5px;margin-bottom:5px;gap:8px;}
+.bars.adm .lb{flex:0 0 108px;}
+.bars.adm .tr{height:14px;}
+.bars.adm .vl{flex:0 0 100px;font-size:11.5px;}
 
 figure{margin:16px 0;}
 figure img{width:100%;border-radius:var(--radius);border:1px solid var(--line);display:block;}
@@ -1550,7 +1555,12 @@ body[data-slide="on"] .pagejump.on{display:block;position:fixed;left:0;right:0;b
         </div>
         <div id="tabLog" style="display:none">
           <div class="note">익명 접속 기록입니다. 접속 시각, 기기 구분, 전체 머문 시간, 각 칸에 머문 시간이 기록됩니다.</div>
-          <div style="margin-bottom:10px"><button class="btn" id="logReload" style="margin-top:0">새로고침</button></div>
+          <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn" id="logReload" style="margin-top:0">새로고침</button>
+            <button class="btn" id="logDelSel" style="margin-top:0;background:#b45309">선택 삭제</button>
+            <button class="btn" id="logDelAll" style="margin-top:0;background:#991b1b">전체 삭제</button>
+          </div>
+          <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-bottom:10px"><input type="checkbox" id="adminDev"> 이 기기(브라우저)는 접속 기록에서 제외</label>
           <div id="logList" style="overflow-x:auto"></div>
         </div>
       </div>
@@ -1583,7 +1593,10 @@ const Store={
   async delImage(k){ if(USE_FB){await db.collection("talkImages").doc(k).delete();return;} const o=LS.get("talk-images")||{};delete o[k];LS.set("talk-images",o); },
   async newSession(r){ if(USE_FB){const x=await db.collection("talkSessions").add(r);return x.id;} const a=LS.get("talk-sessions")||[];const id="loc"+Date.now();a.push({id,...r});LS.set("talk-sessions",a);return id; },
   async updateSession(id,r){ if(USE_FB){try{await db.collection("talkSessions").doc(id).set(r,{merge:true});}catch(e){}return;} const a=LS.get("talk-sessions")||[];const i=a.findIndex(x=>x.id===id);if(i>=0){a[i]={...a[i],...r};LS.set("talk-sessions",a);} },
-  async listSessions(){ if(USE_FB){try{const s=await db.collection("talkSessions").orderBy("startedAt","desc").limit(80).get();return s.docs.map(d=>({id:d.id,...d.data()}));}catch(e){console.warn(e);return[];}} return (LS.get("talk-sessions")||[]).slice().reverse(); }
+  async listSessions(){ if(USE_FB){try{const s=await db.collection("talkSessions").orderBy("startedAt","desc").limit(80).get();return s.docs.map(d=>({id:d.id,...d.data()}));}catch(e){console.warn(e);return[];}} return (LS.get("talk-sessions")||[]).slice().reverse(); },
+  async allSessionIds(){ if(USE_FB){ try{ const s=await db.collection("talkSessions").get(); return s.docs.map(d=>d.id); }catch(e){ console.warn(e); return []; } } return (LS.get("talk-sessions")||[]).map(x=>x.id); },
+  async sessionIdsOfDev(dev){ if(USE_FB){ try{ const s=await db.collection("talkSessions").where("dev","==",dev).get(); return s.docs.map(d=>d.id); }catch(e){ console.warn(e); return []; } } return (LS.get("talk-sessions")||[]).filter(x=>x.dev===dev).map(x=>x.id); },
+  async delSessions(ids){ if(!ids.length) return; if(USE_FB){ for(let i=0;i<ids.length;i+=400){ const b=db.batch(); ids.slice(i,i+400).forEach(id=>b.delete(db.collection("talkSessions").doc(id))); await b.commit(); } return; } const del=new Set(ids); LS.set("talk-sessions",(LS.get("talk-sessions")||[]).filter(x=>!del.has(x.id))); }
 };
 
 /* ══ 2. 사진 ══ */
@@ -1618,16 +1631,18 @@ function envLabel(){ const u=navigator.userAgent||"";
   const os=/iPhone/.test(u)?"iPhone":(/iPad/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))?"iPad":/Android/.test(u)?"Android":/Windows/.test(u)?"Windows":/Macintosh/.test(u)?"Mac":/CrOS/.test(u)?"Chromebook":/Linux/.test(u)?"Linux":"기타";
   const br=/Edg\//.test(u)?"Edge":/(Chrome|CriOS)\//.test(u)?"Chrome":/(Firefox|FxiOS)\//.test(u)?"Firefox":/Safari\//.test(u)?"Safari":"기타";
   return os+" · "+br; }
-const Track=(()=>{ let sid=null,cur=null,t0=Date.now(),times={},total=0;
+const Track=(()=>{ let sid=null,iv=null,cur=null,t0=Date.now(),times={},total=0;
   const tick=()=>{const n=Date.now(),d=(n-t0)/1000;if(cur&&d>0){times[cur]=(times[cur]||0)+d;total+=d;}t0=n;};
   const flush=async()=>{tick();if(!sid)return;
     await Store.updateSession(sid,{lastAt:Date.now(),total:Math.round(total),
       sections:Object.fromEntries(Object.entries(times).map(([k,v])=>[k,Math.round(v)]))});};
-  return{ async init(){ sid=await Store.newSession({startedAt:Date.now(),lastAt:Date.now(),total:0,sections:{},
+  return{ async init(){ if(LS.get("talk-admin-dev")) return; sid=await Store.newSession({startedAt:Date.now(),lastAt:Date.now(),total:0,sections:{},
         screen:(window.innerWidth<860?"모바일/태블릿":"PC"),dev:devId(),env:envLabel()});
-      setInterval(flush,20000); window.addEventListener("pagehide",flush);
+      iv=setInterval(flush,20000); window.addEventListener("pagehide",flush);
       document.addEventListener("visibilitychange",()=>{if(document.hidden)flush();else t0=Date.now();}); },
-    enter(id){tick();cur=id;} };
+    enter(id){tick();cur=id;},
+    stop(){ sid=null; if(iv){ clearInterval(iv); iv=null; } },
+    id(){ return sid; } };
 })();
 Track.init();
 
@@ -1968,6 +1983,7 @@ function when(t){const d=new Date(t),p=n=>String(n).padStart(2,"0");
   return (d.getMonth()+1)+"/"+d.getDate()+" "+p(d.getHours())+":"+p(d.getMinutes());}
 async function loadLog(){
   const el=document.getElementById("logList"); el.innerHTML="불러오는 중…";
+  document.getElementById("adminDev").checked=!!LS.get("talk-admin-dev");
   const rows=await Store.listSessions();
   if(!rows.length){el.innerHTML='<div class="note">아직 기록이 없습니다.</div>';return;}
   const keys=Object.keys(SECTION_NAMES);
@@ -1978,16 +1994,55 @@ async function loadLog(){
   const devCell=r=> r.dev
     ? '<b>기기 '+devNo[r.dev]+'</b><br><span style="font-size:10.5px;color:var(--sub)">'+esc(r.env||r.screen||"")+'</span>'
     : esc(r.screen||"-")+'<br><span style="font-size:10.5px;color:var(--sub)">기기 구분 없음</span>';
-  let h='<table class="log"><tr><th>접속</th><th>기기</th><th>전체</th>';
+  const stat=keys.map(k=>{ let sum=0,c=0; rows.forEach(r=>{ const v=(r.sections||{})[k]; if(v>0){sum+=v;c++;} }); return {k,c,avg:c?sum/c:0}; })
+    .filter(x=>x.c).sort((x,y)=>y.avg-x.avg);
+  const mx=stat.length?stat[0].avg:1;
+  const bars=stat.length
+    ? '<div style="font-size:13px;font-weight:700;margin:6px 0 2px">구간별 평균 체류 시간</div><div style="font-size:11.5px;color:var(--sub);margin-bottom:6px">해당 부분을 본 접속만 계산했습니다.</div><div class="bars adm">'
+      +stat.map(x=>'<div class="row"><div class="lb">'+esc(SECTION_NAMES[x.k])+'</div><div class="tr"><div class="fl" style="width:'+Math.max(3,Math.round(x.avg/mx*100))+'%"></div></div><div class="vl">'+fmt(x.avg)+' · '+x.c+'회</div></div>').join("")+'</div>'
+    : "";
+  let h='<table class="log"><tr><th><input type="checkbox" id="logAll" title="전체 선택"></th><th>접속</th><th>기기</th><th>전체</th>';
   keys.forEach(k=>h+='<th>'+SECTION_NAMES[k]+'</th>'); h+='</tr>';
-  rows.forEach(r=>{ h+='<tr><td>'+when(r.startedAt)+'</td><td>'+devCell(r)+'</td><td class="num"><b>'+fmt(r.total)+'</b></td>';
+  rows.forEach(r=>{ h+='<tr><td><input type="checkbox" class="logck" data-id="'+esc(r.id)+'"></td><td>'+when(r.startedAt)+'</td><td>'+devCell(r)+'</td><td class="num"><b>'+fmt(r.total)+'</b></td>';
     keys.forEach(k=>{const v=(r.sections||{})[k];h+='<td class="num">'+(v?fmt(v):"·")+'</td>';}); h+='</tr>'; });
   h+='</table>';
   const n=rows.length,avg=rows.reduce((a,b)=>a+(b.total||0),0)/n;
   el.innerHTML='<div style="font-size:13px;margin-bottom:6px">접속 <b>'+n+'회</b> · 서로 다른 기기 <b>'+nd+'대</b> · 평균 체류 <b>'+fmt(avg)+'</b></div>'
-    +'<div style="font-size:11.5px;color:var(--sub);margin-bottom:10px">기기 번호는 브라우저마다 임의로 만든 코드로 구분합니다(같은 브라우저는 같은 기기, 다른 브라우저 · 시크릿 창은 다른 기기로 셉니다). 이 기능 이전 접속 '+legacy+'건은 기기를 구분할 수 없습니다.</div>'+h;
+    +'<div style="font-size:11.5px;color:var(--sub);margin-bottom:10px">기기 번호는 브라우저마다 임의로 만든 코드로 구분합니다(같은 브라우저는 같은 기기, 다른 브라우저 · 시크릿 창은 다른 기기로 셉니다). 이 기능 이전 접속 '+legacy+'건은 기기를 구분할 수 없습니다. 최근 80건까지 표시합니다.</div>'+bars+h;
 }
 document.getElementById("logReload").onclick=loadLog;
+document.getElementById("logList").addEventListener("change",e=>{ if(e.target.id==="logAll") document.querySelectorAll(".logck").forEach(c=>c.checked=e.target.checked); });
+async function delLogs(ids){
+  try{ if(ids.indexOf(Track.id())>=0) Track.stop(); await Store.delSessions(ids); }
+  catch(e){ console.warn(e); alert("삭제하지 못했습니다. 잠시 뒤 다시 시도해 주세요."); }
+  loadLog();
+}
+document.getElementById("logDelSel").onclick=async()=>{
+  const ids=[...document.querySelectorAll(".logck:checked")].map(x=>x.dataset.id);
+  if(!ids.length){ alert("삭제할 접속 기록을 먼저 선택해 주세요."); return; }
+  if(!confirm("선택한 "+ids.length+"건의 접속 기록을 삭제할까요?\n되돌릴 수 없습니다.")) return;
+  await delLogs(ids);
+};
+document.getElementById("logDelAll").onclick=async()=>{
+  if(!confirm("접속 기록을 전부 삭제할까요?\n화면에 보이지 않는 오래된 기록까지 모두 지워지며, 되돌릴 수 없습니다.")) return;
+  let ids=[]; try{ ids=await Store.allSessionIds(); }catch(e){ console.warn(e); }
+  if(!ids.length){ alert("삭제할 기록이 없습니다."); return; }
+  Track.stop(); await delLogs(ids);
+};
+document.getElementById("adminDev").onchange=async e=>{
+  try{
+    if(e.target.checked){
+      LS.set("talk-admin-dev",true); Track.stop();
+      const ids=await Store.sessionIdsOfDev(devId());
+      if(ids.length&&confirm("이 기기에서 이미 기록된 접속 "+ids.length+"건도 함께 삭제할까요?")) await Store.delSessions(ids);
+      alert("이제 이 기기(브라우저)의 접속은 기록되지 않습니다.");
+    }else{
+      LS.set("talk-admin-dev",false);
+      alert("이 기기의 접속도 다시 기록됩니다. 새로고침한 다음 접속부터 적용됩니다.");
+    }
+  }catch(err){ console.warn(err); alert("설정을 저장하지 못했습니다."); }
+  loadLog();
+};
 
 /* ══ 사진 가리기 ══ */
 let pmKey=null, pmRects=[], pmDrag=null, pmColor="#15181c";
