@@ -1,4 +1,5 @@
 
+
 <!doctype html>
 <html lang="ko">
 <head>
@@ -169,6 +170,22 @@ main{height:calc(100dvh - var(--bar-h)); min-height:520px}
 .panel a span{font-size:.85rem;color:var(--muted)}
 .panel .note{margin:.8rem 0 0;font-size:.85rem;color:var(--muted)}
 
+/* 관리자 모드 */
+#adminBody h3{margin:1.2rem 0 .5rem;font-size:1.05rem}
+#adminBody h3:first-child{margin-top:0}
+.adm-bell-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.adm-bell-row span:first-child{width:3.4rem}
+.adm-bell-row input[type=time]{padding:.4rem;border-radius:.5rem;border:1px solid #ccc}
+.adm-bell-row button{margin-left:auto;border:0;background:#f3d9d9;border-radius:.5rem;padding:.3rem .7rem;cursor:pointer}
+#admAddPeriod{border:1px dashed #999;background:none;border-radius:.5rem;padding:.4rem .8rem;cursor:pointer;margin-bottom:1rem}
+table.adm-week{border-collapse:collapse;width:100%}
+table.adm-week th,table.adm-week td{border:1px solid #e1e9ed;padding:.4rem;font-size:.85rem;vertical-align:top}
+table.adm-week input[type=text]{width:100%;padding:.3rem;border:1px solid #ccc;border-radius:.4rem;margin-bottom:.3rem;box-sizing:border-box}
+table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radius:.4rem;box-sizing:border-box}
+#admSave{border:0;background:var(--ink);color:#fff;font-weight:700;padding:.7rem 1.2rem;border-radius:.6rem;cursor:pointer}
+#admLogout{border:1px solid #ccc;background:#fff;padding:.7rem 1.2rem;border-radius:.6rem;cursor:pointer}
+#loginPw{letter-spacing:.3em;text-align:center}
+
 /* ============================================================
    세로 화면 (스마트폰, 세로로 든 아이패드)
    ============================================================ */
@@ -219,6 +236,10 @@ main{height:calc(100dvh - var(--bar-h)); min-height:520px}
     <button type="button" class="shuffle" id="shuffle" aria-label="다른 대문 보기">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
       <span>다른 대문</span>
+    </button>
+    <button type="button" class="shuffle" id="adminBtn" aria-label="관리자 모드">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span>관리자</span>
     </button>
   </nav>
 </header>
@@ -285,7 +306,37 @@ main{height:calc(100dvh - var(--bar-h)); min-height:520px}
   </div>
 </div>
 
-<script>
+<!-- 관리자 모드 (로그인 · 시간표 편집) -->
+<div class="sheet" id="adminSheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+    <header><h2 id="adminTitle">관리자 모드</h2><button type="button" class="close" id="adminClose" aria-label="닫기">✕</button></header>
+    <div id="adminBody"></div>
+  </div>
+</div>
+
+<script type="module">
+/* ============================================================
+   🔥 파이어베이스 (관리자 모드 · 시간표 저장용)
+   ============================================================ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765",
+  measurementId: "G-57BJWS6C9J"
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const TIMETABLE_DOC = doc(db, 'moontr_config', 'timetable');
+
 /* ============================================================
    ✏️ 여기만 고치면 됩니다 (메모장으로 열어서 수정 가능)
    ============================================================ */
@@ -311,8 +362,9 @@ const TEACHER_LINKS = [
 
 // 3) 동료 선생님께
 const PEER_LINKS = [
-  { name:'선생님들 웹앱 모음', desc:'jsun.site', url:'https://jsun.site' },
-  { name:'바이브코딩으로 웹앱 만들기', desc:'[매뉴얼 웹앱 주소를 넣어 주세요]', url:'#' }
+  { name:'바이브코딩으로 웹앱 만들기', desc:'웹앱 만드는 방법 매뉴얼', url:'/vibe/' },
+  { name:'2026 9월 컨설팅장학 수업 사례', desc:'컨설팅장학 수업 공개 자료', url:'/0911/' },
+  { name:'선생님들 웹앱 모음', desc:'준비중입니다', url:'#' }
 ];
 
 // 4) 종 시간 (학교 일과표에 맞게 고쳐 주세요)
@@ -465,6 +517,143 @@ function renderQuote(){
   const ordered = gate ? [gate, ...APPS.filter(a => a !== gate)] : APPS;
   $('#qlinks').innerHTML = ordered.map(a => `<a href="${esc(a.url)}">${esc(a.name)}</a>`).join('');
 }
+
+/* ============================================================
+   관리자 모드: 로그인 + 시간표 편집
+   ============================================================ */
+let currentUser = null;
+const dayNames = ['일','월','화','수','목','금','토'];
+
+function openAdmin(){
+  $('#adminSheet').hidden = false;
+  renderAdmin();
+}
+function closeAdmin(){ $('#adminSheet').hidden = true; }
+$('#adminBtn').addEventListener('click', openAdmin);
+$('#adminClose').addEventListener('click', closeAdmin);
+$('#adminSheet').addEventListener('click', e => { if (e.target.id === 'adminSheet') closeAdmin(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#adminSheet').hidden) closeAdmin(); });
+
+function renderAdmin(){
+  const body = $('#adminBody');
+  if (!currentUser){
+    body.innerHTML = `
+      <p class="note">관리자 비밀번호(숫자 6자리)를 입력하세요.</p>
+      <form id="loginForm">
+        <input type="password" id="loginPw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" required
+          style="width:100%;padding:.8rem;font-size:1.2rem;border-radius:.6rem;border:1px solid #ccc;margin:.6rem 0;box-sizing:border-box">
+        <button type="submit" style="width:100%;padding:.8rem;border:0;border-radius:.6rem;background:var(--ink);color:#fff;font-weight:700;cursor:pointer">로그인</button>
+      </form>
+      <p class="note" id="loginError" style="color:#c0392b"></p>`;
+    $('#loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const pw = $('#loginPw').value;
+      try {
+        await signInWithEmailAndPassword(auth, ADMIN_EMAIL, pw);
+      } catch (err){
+        $('#loginError').textContent = '로그인 실패: 비밀번호를 확인해 주세요';
+      }
+    });
+    return;
+  }
+
+  const bellRows = BELL.map(([s,e], i) => `
+    <div class="adm-bell-row" data-i="${i}">
+      <span>${i+1}교시</span>
+      <input type="time" class="adm-start" value="${s}">
+      <span>~</span>
+      <input type="time" class="adm-end" value="${e}">
+      <button type="button" class="adm-del-period" data-i="${i}">삭제</button>
+    </div>`).join('');
+
+  let weekTable = `<table class="adm-week"><thead><tr><th></th>${[1,2,3,4,5].map(d=>`<th>${dayNames[d]}</th>`).join('')}</tr></thead><tbody>`;
+  BELL.forEach((_, i) => {
+    weekTable += `<tr><th>${i+1}교시</th>`;
+    [1,2,3,4,5].forEach(d => {
+      const cell = (WEEK[d] && WEEK[d][i]) || '';
+      const c = cell ? cell.c : '';
+      const app = cell ? cell.app : '';
+      weekTable += `<td>
+        <input type="text" class="adm-c" data-d="${d}" data-i="${i}" value="${esc(c)}" placeholder="과목명">
+        <select class="adm-app" data-d="${d}" data-i="${i}">
+          <option value="">(앱 없음)</option>
+          ${APPS.map(a=>`<option value="${a.id}" ${a.id===app?'selected':''}>${esc(a.name)}</option>`).join('')}
+        </select>
+      </td>`;
+    });
+    weekTable += `</tr>`;
+  });
+  weekTable += `</tbody></table>`;
+
+  body.innerHTML = `
+    <h3>종 시간표</h3>
+    <div id="admBellList">${bellRows}</div>
+    <button type="button" id="admAddPeriod">+ 교시 추가</button>
+    <h3>요일별 시간표</h3>
+    <div style="overflow-x:auto">${weekTable}</div>
+    <div style="display:flex;gap:.6rem;margin-top:1rem">
+      <button type="button" id="admSave">저장</button>
+      <button type="button" id="admLogout">로그아웃</button>
+    </div>
+    <p class="note" id="admMsg"></p>`;
+
+  $('#admAddPeriod').addEventListener('click', () => {
+    BELL.push(['00:00','00:00']);
+    renderAdmin();
+  });
+  body.querySelectorAll('.adm-del-period').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      BELL.splice(i, 1);
+      Object.keys(WEEK).forEach(d => WEEK[d].splice(i, 1));
+      renderAdmin();
+    });
+  });
+  $('#admSave').addEventListener('click', async () => {
+    body.querySelectorAll('.adm-bell-row').forEach(row => {
+      const i = +row.dataset.i;
+      BELL[i] = [row.querySelector('.adm-start').value, row.querySelector('.adm-end').value];
+    });
+    body.querySelectorAll('.adm-c').forEach(inp => {
+      const d = inp.dataset.d, i = +inp.dataset.i;
+      WEEK[d] = WEEK[d] || [];
+      const app = body.querySelector(`.adm-app[data-d="${d}"][data-i="${i}"]`).value;
+      const c = inp.value.trim();
+      WEEK[d][i] = c ? { c, app } : '';
+    });
+    try {
+      await setDoc(TIMETABLE_DOC, {
+        bell: BELL,
+        week: Object.fromEntries(Object.entries(WEEK).map(([k, v]) => [String(k), v]))
+      });
+      $('#admMsg').textContent = '저장했습니다.';
+      renderTime();
+    } catch (err){
+      $('#admMsg').textContent = '저장 실패: ' + err.message;
+    }
+  });
+  $('#admLogout').addEventListener('click', () => signOut(auth));
+}
+
+onAuthStateChanged(auth, user => {
+  currentUser = (user && user.email === ADMIN_EMAIL) ? user : null;
+  if (!$('#adminSheet').hidden) renderAdmin();
+});
+
+/* Firestore에 저장된 시간표가 있으면 그걸로 덮어씁니다 (없으면 위 기본값 사용) */
+onSnapshot(TIMETABLE_DOC, snap => {
+  if (!snap.exists()) return;
+  const data = snap.data();
+  if (Array.isArray(data.bell)){
+    BELL.length = 0;
+    BELL.push(...data.bell);
+  }
+  if (data.week){
+    Object.keys(WEEK).forEach(k => delete WEEK[k]);
+    Object.entries(data.week).forEach(([k, v]) => { WEEK[k] = v; });
+  }
+  renderTime();
+}, () => {});
 
 /* 시작: 주소 끝에 #time 처럼 붙어 있으면 그 대문, 아니면 무작위 */
 renderTime(); renderSchool(); renderQuote();
