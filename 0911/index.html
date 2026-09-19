@@ -352,6 +352,9 @@ details.more .body{padding-top:6px;}
   #a1 .topinfo .box.std p{font-size:11.2px;line-height:1.5;}
 }
 body[data-slide="on"] #a1{padding-top:26px;}
+body[data-slide="on"] #scene{padding-top:20px;}
+body[data-slide="on"] #scene figure.hasimg{margin:8px auto 16px;}
+body[data-slide="on"] #scene figure.hasimg img{max-height:42vh;}
 body[data-slide="on"] #a1 h2{font-size:29px;margin:8px 0 6px;}
 body[data-slide="on"] #a1 .goal{margin:6px 0;padding:7px 12px;font-size:13px;}
 body[data-slide="on"] #a1 .topinfo .box{padding:9px 12px;}
@@ -1488,6 +1491,8 @@ const Store={
 };
 
 /* ══ 2. 사진 ══ */
+let refitTimer=null;
+function refitLater(){ clearTimeout(refitTimer); refitTimer=setTimeout(()=>{ try{ if(typeof slideOn!=="undefined"&&slideOn&&typeof fitBlocks==="function"){ fitBlocks(); recalcPages(); showPage(pageIdx); } }catch(e){} },120); }
 async function renderImages(){
   const imgs=await Store.getImages();
   document.querySelectorAll("figure[data-slot]").forEach(f=>{
@@ -1495,7 +1500,7 @@ async function renderImages(){
     const slot=f.querySelector(".slot");
     if(imgs[k]){ if(cur)cur.src=imgs[k];
       else{if(slot)slot.style.display="none";
-        const im=document.createElement("img");im.src=imgs[k];im.alt=SLOT_NAMES[k]||"";
+        const im=document.createElement("img");im.alt=SLOT_NAMES[k]||"";im.addEventListener("load",refitLater);im.src=imgs[k];
         f.insertBefore(im,f.querySelector("figcaption"));}
       f.classList.add("hasimg");
       if(!f.querySelector("figcaption")){
@@ -1507,6 +1512,7 @@ async function renderImages(){
       const cap=f.querySelector("figcaption");if(cap)cap.remove();
       if(slot)slot.style.display="";}
   });
+  refitLater();
 }
 renderImages();
 
