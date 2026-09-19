@@ -1047,7 +1047,7 @@ body[data-slide="on"] .pagejump.on{display:block;position:fixed;left:0;right:0;b
   </div>
 
   <div class="pagefoot">
-    <p><b>진선여고 윤리과 문선영</b> · anstjsdud@sen.go.kr · 이 자료는 웹앱으로 만들어졌습니다. 개선을 위해 익명으로 접속 기록(머문 시간 · 열람 부분)이 남으며, 이름 · 이메일 등 개인을 식별할 수 있는 정보는 수집하지 않습니다. <span id="lastMod"></span><br><button class="flink" data-open="legal">이용약관</button> · <button class="flink" data-open="legal">개인정보 처리방침</button></p>
+    <p><b>진선여고 윤리과 문선영</b> · anstjsdud@sen.go.kr · 이 자료는 웹앱으로 만들어졌습니다. 개선을 위해 익명으로 접속 기록(머문 시간 · 열람 부분 · 기기 종류)이 남으며, 이름 · 이메일 등 개인을 식별할 수 있는 정보는 수집하지 않습니다. <span id="lastMod"></span><br><button class="flink" data-open="legal">이용약관</button> · <button class="flink" data-open="legal">개인정보 처리방침</button></p>
   </div>
 </section>
 
@@ -1465,7 +1465,7 @@ body[data-slide="on"] .pagejump.on{display:block;position:fixed;left:0;right:0;b
 
       <h4 style="margin-top:24px">개인정보 처리방침</h4>
       <ul>
-        <li><b>수집하는 정보</b> 익명 접속 기록만 남습니다 — 접속 시각, 마지막 활동 시각, 전체 머문 시간, 각 부분에 머문 시간, 화면 구분(PC 또는 모바일 · 태블릿).</li>
+        <li><b>수집하는 정보</b> 익명 접속 기록만 남습니다 — 접속 시각, 마지막 활동 시각, 전체 머문 시간, 각 부분에 머문 시간, 화면 구분(PC 또는 모바일 · 태블릿), 기기 구분(브라우저에 임의로 만든 코드와 기기 · 브라우저 종류).</li>
         <li><b>수집하지 않는 정보</b> 이름, 학번, 이메일, 연락처, 계정 정보는 받지 않습니다. 로그인 절차가 없습니다.</li>
         <li><b>이용 목적</b> 발표 자료를 고치는 데만 씁니다. 어느 부분을 오래 보시는지 확인해 설명을 보완합니다.</li>
         <li><b>보관과 위탁</b> 기록은 구글 파이어베이스(Firestore)에 저장됩니다. 발표 자료 운영을 마치면 삭제하며, 늦어도 수집일로부터 1년 안에 지웁니다.</li>
@@ -1550,7 +1550,7 @@ body[data-slide="on"] .pagejump.on{display:block;position:fixed;left:0;right:0;b
           <div id="slotList"></div>
         </div>
         <div id="tabLog" style="display:none">
-          <div class="note">익명 접속 기록입니다. 접속 시각, 전체 머문 시간, 각 칸에 머문 시간이 기록됩니다.</div>
+          <div class="note">익명 접속 기록입니다. 접속 시각, 기기 구분, 전체 머문 시간, 각 칸에 머문 시간이 기록됩니다.</div>
           <div style="margin-bottom:10px"><button class="btn" id="logReload" style="margin-top:0">새로고침</button></div>
           <div id="logList" style="overflow-x:auto"></div>
         </div>
@@ -1614,13 +1614,18 @@ async function renderImages(){
 renderImages();
 
 /* ══ 3. 익명 접속 기록 ══ */
+function devId(){ let d=LS.get("talk-dev"); if(!d){ d=Date.now().toString(36)+Math.random().toString(36).slice(2,8); LS.set("talk-dev",d); } return d; }
+function envLabel(){ const u=navigator.userAgent||"";
+  const os=/iPhone/.test(u)?"iPhone":(/iPad/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))?"iPad":/Android/.test(u)?"Android":/Windows/.test(u)?"Windows":/Macintosh/.test(u)?"Mac":/CrOS/.test(u)?"Chromebook":/Linux/.test(u)?"Linux":"기타";
+  const br=/Edg\//.test(u)?"Edge":/(Chrome|CriOS)\//.test(u)?"Chrome":/(Firefox|FxiOS)\//.test(u)?"Firefox":/Safari\//.test(u)?"Safari":"기타";
+  return os+" · "+br; }
 const Track=(()=>{ let sid=null,cur=null,t0=Date.now(),times={},total=0;
   const tick=()=>{const n=Date.now(),d=(n-t0)/1000;if(cur&&d>0){times[cur]=(times[cur]||0)+d;total+=d;}t0=n;};
   const flush=async()=>{tick();if(!sid)return;
     await Store.updateSession(sid,{lastAt:Date.now(),total:Math.round(total),
       sections:Object.fromEntries(Object.entries(times).map(([k,v])=>[k,Math.round(v)]))});};
   return{ async init(){ sid=await Store.newSession({startedAt:Date.now(),lastAt:Date.now(),total:0,sections:{},
-        screen:(window.innerWidth<860?"모바일/태블릿":"PC")});
+        screen:(window.innerWidth<860?"모바일/태블릿":"PC"),dev:devId(),env:envLabel()});
       setInterval(flush,20000); window.addEventListener("pagehide",flush);
       document.addEventListener("visibilitychange",()=>{if(document.hidden)flush();else t0=Date.now();}); },
     enter(id){tick();cur=id;} };
@@ -1941,14 +1946,22 @@ async function loadLog(){
   const el=document.getElementById("logList"); el.innerHTML="불러오는 중…";
   const rows=await Store.listSessions();
   if(!rows.length){el.innerHTML='<div class="note">아직 기록이 없습니다.</div>';return;}
-  const keys=Object.keys(SECTION_NAMES); 
+  const keys=Object.keys(SECTION_NAMES);
+  const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const devNo={}; let nd=0;
+  rows.slice().reverse().forEach(r=>{ if(r.dev&&!(r.dev in devNo)) devNo[r.dev]=++nd; });
+  const legacy=rows.filter(r=>!r.dev).length;
+  const devCell=r=> r.dev
+    ? '<b>기기 '+devNo[r.dev]+'</b><br><span style="font-size:10.5px;color:var(--sub)">'+esc(r.env||r.screen||"")+'</span>'
+    : esc(r.screen||"-")+'<br><span style="font-size:10.5px;color:var(--sub)">기기 구분 없음</span>';
   let h='<table class="log"><tr><th>접속</th><th>기기</th><th>전체</th>';
   keys.forEach(k=>h+='<th>'+SECTION_NAMES[k]+'</th>'); h+='</tr>';
-  rows.forEach(r=>{ h+='<tr><td>'+when(r.startedAt)+'</td><td>'+(r.screen||"-")+'</td><td class="num"><b>'+fmt(r.total)+'</b></td>';
+  rows.forEach(r=>{ h+='<tr><td>'+when(r.startedAt)+'</td><td>'+devCell(r)+'</td><td class="num"><b>'+fmt(r.total)+'</b></td>';
     keys.forEach(k=>{const v=(r.sections||{})[k];h+='<td class="num">'+(v?fmt(v):"·")+'</td>';}); h+='</tr>'; });
   h+='</table>';
   const n=rows.length,avg=rows.reduce((a,b)=>a+(b.total||0),0)/n;
-  el.innerHTML='<div style="font-size:13px;margin-bottom:10px">모두 <b>'+n+'명</b> · 평균 체류 <b>'+fmt(avg)+'</b></div>'+h;
+  el.innerHTML='<div style="font-size:13px;margin-bottom:6px">접속 <b>'+n+'회</b> · 서로 다른 기기 <b>'+nd+'대</b> · 평균 체류 <b>'+fmt(avg)+'</b></div>'
+    +'<div style="font-size:11.5px;color:var(--sub);margin-bottom:10px">기기 번호는 브라우저마다 임의로 만든 코드로 구분합니다(같은 브라우저는 같은 기기, 다른 브라우저 · 시크릿 창은 다른 기기로 셉니다). 이 기능 이전 접속 '+legacy+'건은 기기를 구분할 수 없습니다.</div>'+h;
 }
 document.getElementById("logReload").onclick=loadLog;
 
