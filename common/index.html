@@ -336,6 +336,37 @@ body.quiz .view mark:not(.show)::selection{color:transparent}
 .write .txt{flex:1}
 .close{position:absolute;top:20px;right:26px;z-index:21;border:0;background:#fff;border-radius:50%;width:64px;height:64px;font-size:1.2em;box-shadow:0 4px 10px rgba(0,0,0,.25)}
 
+
+/* ===== 영상 보기 버튼 · 팝업 ===== */
+.vid{margin-top:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.vbtn{
+  display:inline-flex;align-items:center;gap:10px;border:2px solid var(--ink);border-radius:999px;
+  padding:8px 22px;background:#fff;font-size:.9em;line-height:1.2;
+}
+.page.left .vbtn{box-shadow:4px 4px 0 var(--hl-mac)}
+.page.right .vbtn{box-shadow:4px 4px 0 var(--hl-san)}
+.vbtn:hover{transform:translateY(-2px)}
+.vbtn .play{
+  width:1.5em;height:1.5em;border-radius:50%;background:var(--ink);color:#fff;
+  display:grid;place-items:center;font-size:.72em;
+}
+.vid .from{font-size:.68em;color:var(--ink-soft);line-height:1.4}
+
+.vmodal{position:fixed;inset:0;z-index:40;background:rgba(31,42,68,.72);display:none;padding:32px}
+.vmodal.on{display:flex}
+.vbox{margin:auto;width:min(1280px,100%);background:var(--paper);border-radius:12px;padding:20px 20px 16px;
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.55)}
+.vhead{display:flex;align-items:baseline;gap:6px 18px;flex-wrap:wrap;margin:0 4px 12px}
+.vhead h3{margin:0;font-size:1.15em}
+.vhead .from{font-size:.72em;color:var(--ink-soft)}
+.vframe{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden}
+.vframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vfoot{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:12px 4px 0;font-size:.7em;color:var(--ink-soft)}
+.vfoot a{color:var(--ink)}
+.vclose{
+  margin-left:auto;border:2px solid var(--ink);background:#fff;border-radius:999px;padding:6px 20px;
+  font-size:1.3em;min-height:44px;
+}
 /* ===== 화면 폭에 따라 통째로 줄이기 =====
    전자칠판·노트북처럼 폭이 좁은 화면에서도
    사상가 2단과 사례 5×2가 그대로 보이도록 글자와 여백만 줄입니다.
@@ -499,6 +530,10 @@ body.quiz .view mark:not(.show)::selection{color:transparent}
           <div class="keys">
             <span class="key">덕 윤리</span><span class="key">서사적 존재</span><span class="key">공동체의 전통</span><span class="key">좋은 삶</span>
           </div>
+          <div class="vid">
+            <button class="vbtn" data-vid="0Ik3rPtamj0" data-start="130" data-title="매킨타이어의 덕 윤리 · EBSi 5분 특강"><span class="play">▶</span>영상으로 보기</button>
+            <span class="from">2분 10초부터 보세요</span>
+          </div>
         </div>
       </article>
 
@@ -540,6 +575,10 @@ body.quiz .view mark:not(.show)::selection{color:transparent}
           <h3>핵심 키워드</h3>
           <div class="keys">
             <span class="key">연고적 자아</span><span class="key">구성적 공동체</span><span class="key">연대의 의무</span><span class="key">공동선</span>
+          </div>
+          <div class="vid">
+            <button class="vbtn" data-vid="suOXHkN35xw" data-start="62" data-title="샌델이 말하는 공동선 · JTBC 차이나는 클라스 194회"><span class="play">▶</span>영상으로 보기</button>
+            <span class="from">1분 2초부터 보세요</span>
           </div>
         </div>
       </article>
@@ -794,6 +833,21 @@ body.quiz .view mark:not(.show)::selection{color:transparent}
 
 <input type="file" id="photoFile" accept="image/*" hidden>
 
+
+<!-- 영상 팝업 -->
+<div class="vmodal" id="vModal" role="dialog" aria-modal="true" aria-labelledby="vTitle">
+  <div class="vbox">
+    <div class="vhead">
+      <h3 id="vTitle"></h3>
+      <span class="from" id="vFrom"></span>
+    </div>
+    <div class="vframe"><iframe id="vFrame" title="수업 영상" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+    <div class="vfoot">
+      <span>영상이 뜨지 않으면(학교망 차단) <a id="vOpen" href="#" target="_blank" rel="noopener">유튜브에서 바로 열기</a></span>
+      <button class="vclose" id="vClose">닫기 ✕</button>
+    </div>
+  </div>
+</div>
 <script>
 /* ============================================================
    ✏️ 선생님이 바꾸기 쉬운 설정
@@ -1046,7 +1100,38 @@ document.getElementById('dNext').onclick = () => openCase((cur + 1) % CASES.leng
 function closeCase(){ detail.classList.remove('on'); cur = null; }
 document.getElementById('dClose').onclick = closeCase;
 detail.addEventListener('click', e => { if (e.target === detail) closeCase(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && detail.classList.contains('on')) closeCase(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (vModal.classList.contains('on')) { closeVideo(); return; }
+  if (detail.classList.contains('on')) closeCase();
+});
+
+/* ===== 영상 팝업 ===== */
+const vModal = document.getElementById('vModal'),
+      vFrame = document.getElementById('vFrame'),
+      vTitle = document.getElementById('vTitle'),
+      vFrom  = document.getElementById('vFrom'),
+      vOpen  = document.getElementById('vOpen');
+
+function fmtTime(s){
+  const m = Math.floor(s / 60), r = s % 60;
+  return (m ? m + '분 ' : '') + (r ? r + '초' : '') + '부터';
+}
+function openVideo(btn){
+  const id = btn.dataset.vid, start = +btn.dataset.start || 0;
+  vTitle.textContent = btn.dataset.title;
+  vFrom.textContent = start ? fmtTime(start) + ' 보세요' : '';
+  vFrame.src = 'https://www.youtube-nocookie.com/embed/' + id + '?start=' + start + '&rel=0&modestbranding=1&autoplay=1';
+  vOpen.href = 'https://youtu.be/' + id + '?t=' + start;
+  vModal.classList.add('on');
+}
+function closeVideo(){
+  vModal.classList.remove('on');
+  vFrame.src = '';            /* 소리가 계속 나지 않도록 비웁니다 */
+}
+document.querySelectorAll('.vbtn').forEach(b => b.onclick = () => openVideo(b));
+document.getElementById('vClose').onclick = closeVideo;
+vModal.onclick = e => { if (e.target === vModal) closeVideo(); };
 </script>
 </body>
 </html>
