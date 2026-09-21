@@ -92,13 +92,18 @@
   .q-fixed{display:none;}
   .q-fixed.show{display:block;}
   .qlist{display:flex;flex-direction:column;gap:8px;}
-  .qlist .q{
-    text-align:left;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
-    font-size:17px;line-height:1.5;padding:12px 14px;width:100%;
+  .qrow{
+    display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;
+    background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;
   }
-  .qlist .q:hover{border-color:var(--present);}
-  .qlist .q.cur{border-color:var(--present);color:var(--present);}
-  .qlist h4{margin:16px 0 2px;font-size:16px;color:var(--muted);font-weight:400;}
+  .qrow.cur{border-color:var(--present);}
+  .qnum{color:var(--muted);font-size:15px;min-width:24px;text-align:right;padding-top:12px;}
+  .q-edit{
+    flex:1;min-width:180px;min-height:44px;font-size:17px;line-height:1.5;
+    padding:9px 12px;resize:none;overflow:hidden;
+  }
+  .q-edit:focus{outline:none;border-color:var(--present);}
+  .qbtn{padding:10px 12px;font-size:15px;flex-shrink:0;}
   .qtag{font-size:13px;color:var(--muted);margin-top:4px;}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--present);color:#08221a;padding:12px 22px;border-radius:22px;font-size:17px;opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:95;}
   .toast.show{opacity:1;}
@@ -199,7 +204,7 @@
     </div>
 
     <div class="row" style="margin-top:12px;">
-      <button class="ghost" id="viewQuestions">질문 목록 보기 (<span id="qCount">0</span>개)</button>
+      <button class="ghost" id="viewQuestions">질문 목록 보기 · 고치기 (<span id="qCount">0</span>개)</button>
     </div>
   </div>
 
@@ -256,6 +261,9 @@
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-foot">
       <button class="ghost" id="modalPrint">인쇄</button>
+      <button class="ghost" id="modalResetQ">기본 질문으로 되돌리기</button>
+      <button class="ghost" id="modalAddQ">＋ 질문 추가</button>
+      <button id="modalSaveQ">목록 저장</button>
       <button id="modalOk">닫기</button>
     </div>
   </div>
@@ -344,8 +352,7 @@ const DEFAULT_QUESTION = '오늘 이 시간, 어떤 마음으로 왔나요? 한 
 const DAYS = ['일','월','화','수','목','금','토'];
 
 /* ===== 오늘의 질문 후보 =====
-   여기에 줄을 더하거나 지우면 질문이 바뀝니다.
-   (학생용 파일 index.html의 QUESTIONS 목록도 똑같이 맞춰 주세요) */
+   교사용 화면에서 고친 목록이 있으면 그걸 쓰고, 없으면 아래 기본 목록을 씁니다. */
 const QUESTIONS = [
   /* — 나의 장점 — */
   '친구들이 말해준 내 장점 중에, 제일 기분 좋았던 말은 뭐야?',
@@ -401,6 +408,12 @@ const QUESTIONS = [
   '오늘 하루가 좋은 하루가 되려면 무슨 일이 일어나면 될까?'
 ];
 
+/* 교사용 화면에서 저장한 목록 (없으면 위의 기본 목록) */
+let QUESTIONS_DB = null;
+function questionList(){
+  return (Array.isArray(QUESTIONS_DB) && QUESTIONS_DB.length) ? QUESTIONS_DB : QUESTIONS;
+}
+
 /* 날짜+반 이름으로 고정된 수를 만들어, 같은 날은 모두 같은 질문을 보게 합니다 */
 function hashOf(s){
   let h = 2166136261;
@@ -409,23 +422,24 @@ function hashOf(s){
 }
 /* mode: 'daily' 날마다 바뀜(기본) · 'each' 학생마다 다른 질문 */
 function autoQuestion(mode){
-  if (!QUESTIONS.length) return DEFAULT_QUESTION;
+  const list = questionList();
+  if (!list.length) return DEFAULT_QUESTION;
   if (mode === 'each'){
     const key = 'qIdx__' + DAY_KEY;
     let i = Number(sessionStorage.getItem(key));
     if (!Number.isInteger(i) || !sessionStorage.getItem(key)){
-      i = Math.floor(Math.random() * QUESTIONS.length);
+      i = Math.floor(Math.random() * list.length);
       try{ sessionStorage.setItem(key, String(i)); }catch(e){}
     }
-    return QUESTIONS[i % QUESTIONS.length];
+    return list[i % list.length];
   }
   /* 날마다: 목록을 한 바퀴 다 돌 때까지 같은 질문이 다시 나오지 않게 건너뛰며 고릅니다 */
-  const n = QUESTIONS.length;
+  const n = list.length;
   const gcd = (a,b) => b ? gcd(b, a % b) : a;
   let step = 1;
   for (const s of [7,5,11,13,17,19,23,3]) if (gcd(s, n) === 1) { step = s; break; }
   const days = Math.floor(Date.parse(TODAY) / 86400000);
-  return QUESTIONS[(days * step + hashOf(CLASS_NAME)) % n];
+  return list[(days * step + hashOf(CLASS_NAME)) % n];
 }
 
 const params = new URLSearchParams(location.search);
@@ -490,9 +504,9 @@ tick(); setInterval(tick, 1000);
 
 /* ===== 반 설정 ===== */
 let Q_MODE = 'daily', Q_FIXED = '';
-document.getElementById('qCount').textContent = QUESTIONS.length;
 
 function drawQuestionBox(){
+  document.getElementById('qCount').textContent = questionList().length;
   document.querySelectorAll('#qModeRow .mode').forEach(b =>
     b.classList.toggle('on', b.dataset.mode === Q_MODE));
   document.getElementById('qFixedBox').classList.toggle('show', Q_MODE === 'fixed');
@@ -503,7 +517,7 @@ function drawQuestionBox(){
     now.textContent = Q_FIXED || DEFAULT_QUESTION;
     hint.textContent = '선생님이 적은 질문이 그대로 나갑니다.';
   } else if (Q_MODE === 'each'){
-    now.textContent = '학생마다 다른 질문 (' + QUESTIONS.length + '개 중에서 무작위)';
+    now.textContent = '학생마다 다른 질문 (' + questionList().length + '개 중에서 무작위)';
     hint.textContent = '학생마다 다른 질문을 받습니다. 한 번 받은 질문은 그 학생 화면에서 바뀌지 않아요.';
   } else {
     now.textContent = autoQuestion('daily');
@@ -516,10 +530,12 @@ onSnapshot(doc(db,'classes',CLASS_NAME), snap => {
   const d = snap.exists() ? snap.data() : {};
   Q_MODE = d.questionMode || 'daily';
   Q_FIXED = d.question || '';
+  if (Array.isArray(d.questions)) QUESTIONS_DB = d.questions.filter(q => typeof q === 'string' && q.trim());
   const q = document.getElementById('questionInput');
   if (document.activeElement !== q) q.value = Q_FIXED;
   drawQuestionBox();
-  if (document.getElementById('modal').classList.contains('show') && MODAL_MODE==='questions') drawQuestions();
+  /* 고치는 중일 때는 화면을 다시 그리지 않습니다 (적던 내용이 날아가지 않게) */
+  if (document.getElementById('modal').classList.contains('show') && MODAL_MODE==='questions' && !QDIRTY) drawQuestions();
   if (Array.isArray(d.roster) && d.roster.length) ROSTER = d.roster;
   const r = document.getElementById('rosterInput');
   if (document.activeElement !== r) r.value = ROSTER.join(',');
@@ -559,30 +575,103 @@ document.getElementById('saveQBtn').addEventListener('click', () => {
   saveQuestionSetting({ question: text, questionMode:'fixed' }, '질문 지정됨 — 학생 화면에 바로 반영돼요');
 });
 document.getElementById('pickRandomBtn').addEventListener('click', () => {
-  document.getElementById('questionInput').value =
-    QUESTIONS[Math.floor(Math.random()*QUESTIONS.length)];
+  const list = questionList();
+  document.getElementById('questionInput').value = list[Math.floor(Math.random()*list.length)];
   showToast('뽑았어요 — [이 질문으로 지정]을 누르면 반영됩니다');
 });
 
-/* 질문 목록 */
+/* ===== 질문 목록 고치기 ===== */
+let QDRAFT = [];          // 고치는 중인 목록 (저장을 눌러야 반영)
+let QDIRTY = false;       // 고친 내용이 아직 저장 안 됨
+
 function drawQuestions(){
+  QDRAFT = questionList().slice();
+  QDIRTY = false;
+  renderQDraft();
+}
+
+function renderQDraft(){
   const cur = Q_MODE === 'fixed' ? Q_FIXED : (Q_MODE === 'daily' ? autoQuestion('daily') : '');
   document.getElementById('modalBody').innerHTML =
-    '<p class="hint" style="margin-top:0;">질문을 누르면 그 질문이 바로 학생 화면에 나갑니다. (직접 지정 방식으로 바뀝니다)</p>' +
+    '<p class="hint" style="margin-top:0;">칸을 눌러 바로 고칠 수 있어요. 다 고쳤으면 아래 <b>[목록 저장]</b>을 눌러주세요.<br>' +
+    '<b>[지정]</b>을 누르면 그 질문이 곧바로 학생 화면에 나갑니다.' +
+    (QDIRTY ? '<br><span style="color:var(--late)">아직 저장하지 않은 수정이 있어요.</span>' : '') + '</p>' +
     '<div class="qlist">' +
-    QUESTIONS.map((q,i) => `<button class="q ${q===cur?'cur':''}" data-qi="${i}">${esc(q)}</button>`).join('') +
-    '</div>';
+    QDRAFT.map((q,i) => `
+      <div class="qrow ${q && q===cur ? 'cur':''}">
+        <span class="qnum">${i+1}</span>
+        <textarea class="q-edit" data-qi="${i}" rows="1" placeholder="질문을 적어주세요">${esc(q)}</textarea>
+        <button class="ghost qbtn" data-pick="${i}">지정</button>
+        <button class="ghost qbtn" data-del="${i}">삭제</button>
+      </div>`).join('') +
+    '</div>' +
+    '<p class="hint">모두 ' + QDRAFT.length + '개</p>';
+  growAll();
 }
+
+function grow(t){ t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
+function growAll(){ document.querySelectorAll('#modalBody .q-edit').forEach(grow); }
+
 document.getElementById('viewQuestions').addEventListener('click', () => {
-  MODAL_MODE='questions'; openModal('질문 목록 · '+QUESTIONS.length+'개'); drawQuestions();
+  MODAL_MODE='questions';
+  openModal('질문 목록 고치기');
+  setQuestionButtons(true);
+  drawQuestions();
 });
+
+/* 칸에 입력할 때: 다시 그리지 않고 값만 기억해 둡니다 */
+document.getElementById('modalBody').addEventListener('input', e => {
+  const t = e.target.closest('.q-edit');
+  if (!t) return;
+  QDRAFT[Number(t.dataset.qi)] = t.value;
+  QDIRTY = true;
+  grow(t);
+});
+
 document.getElementById('modalBody').addEventListener('click', e => {
-  const b = e.target.closest('[data-qi]');
-  if (!b) return;
-  const text = QUESTIONS[Number(b.dataset.qi)];
-  document.getElementById('questionInput').value = text;
-  saveQuestionSetting({ question: text, questionMode:'fixed' }, '이 질문으로 지정했어요');
-  closeModal();
+  const del = e.target.closest('[data-del]');
+  if (del){
+    QDRAFT.splice(Number(del.dataset.del), 1);
+    QDIRTY = true; renderQDraft();
+    return;
+  }
+  const pick = e.target.closest('[data-pick]');
+  if (pick){
+    const text = (QDRAFT[Number(pick.dataset.pick)] || '').trim();
+    if (!text) { showToast('빈 질문은 지정할 수 없어요'); return; }
+    document.getElementById('questionInput').value = text;
+    saveQuestionSetting({ question: text, questionMode:'fixed' },
+      QDIRTY ? '지정했어요 — 고친 목록은 [목록 저장]을 눌러야 남아요' : '이 질문으로 지정했어요');
+    if (!QDIRTY) closeModal();
+  }
+});
+
+document.getElementById('modalAddQ').addEventListener('click', () => {
+  QDRAFT.push('');
+  QDIRTY = true; renderQDraft();
+  const boxes = document.querySelectorAll('#modalBody .q-edit');
+  const last = boxes[boxes.length-1];
+  if (last) last.focus();
+});
+
+document.getElementById('modalResetQ').addEventListener('click', () => {
+  if (!confirm('처음 기본 질문 ' + QUESTIONS.length + '개로 되돌릴까요?\n(아직 저장은 안 되고, [목록 저장]을 눌러야 반영됩니다)')) return;
+  QDRAFT = QUESTIONS.slice();
+  QDIRTY = true; renderQDraft();
+});
+
+document.getElementById('modalSaveQ').addEventListener('click', async () => {
+  const clean = QDRAFT.map(s => String(s).trim()).filter(Boolean);
+  if (!clean.length) { showToast('질문이 하나도 없어요'); return; }
+  const btn = document.getElementById('modalSaveQ');
+  btn.disabled = true; btn.textContent = '저장 중...';
+  try{
+    await setDoc(doc(db,'classes',CLASS_NAME), { questions: clean }, { merge:true });
+    QUESTIONS_DB = clean; QDIRTY = false;
+    drawQuestionBox(); drawQuestions();
+    showToast('질문 ' + clean.length + '개 저장됨 — 학생 화면에 바로 반영돼요');
+  }catch(e){ showToast('저장 실패'); }
+  btn.disabled = false; btn.textContent = '목록 저장';
 });
 document.getElementById('saveRosterBtn').addEventListener('click', async () => {
   const ids = document.getElementById('rosterInput').value.split(',').map(s=>s.trim()).filter(Boolean);
@@ -713,8 +802,23 @@ document.getElementById('markMemoSave').addEventListener('click', async () => {
 /* ===== 현황 보기 ===== */
 let MODAL_MODE = null;
 const modal = document.getElementById('modal');
-function openModal(t){ document.getElementById('modalTitle').textContent = t; modal.classList.add('show'); }
-function closeModal(){ modal.classList.remove('show'); MODAL_MODE = null; }
+function openModal(t){
+  document.getElementById('modalTitle').textContent = t;
+  setQuestionButtons(false);
+  modal.classList.add('show');
+}
+function closeModal(){
+  if (MODAL_MODE === 'questions' && QDIRTY &&
+      !confirm('저장하지 않은 수정이 있어요. 그냥 닫을까요?')) return;
+  modal.classList.remove('show'); MODAL_MODE = null; QDIRTY = false;
+}
+/* 질문 목록일 때만 목록 편집 버튼을 보여줍니다 */
+function setQuestionButtons(on){
+  document.getElementById('modalPrint').style.display = on ? 'none' : '';
+  ['modalResetQ','modalAddQ','modalSaveQ'].forEach(id =>
+    document.getElementById(id).style.display = on ? '' : 'none');
+}
+setQuestionButtons(false);
 document.getElementById('modalClose').addEventListener('click', closeModal);
 document.getElementById('modalOk').addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
