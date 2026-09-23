@@ -3052,10 +3052,10 @@
                 되고 쓰기가 다시 읽기의 이유가</span> 되었습니다.</p>
           </details>
           <h3>둘. 이 활동들은 웹앱과 디지털 기기가 있었기에 가능했습니다</h3>
-          <p>앞의 활동들을 한 흐름에 담을 수 있었던 것은 제가 직접 <strong>바이브코딩으로 만든 웹앱</strong>과 학생들의 <strong>디벗</strong> 덕분입니다. 무엇보다 <span
-              class="mark">활동이 낱개로 흩어지지 않았습니다.</span> 1차시에 세운 개념이 3차시 담벼락에, 3차시에 쓴 편지가 4차시 본론에 다시 나타나기 때문에, 학생은 매번 새로
-            시작하는 대신 앞서 한 자기 생각 위에 다음 생각을 얹었습니다. 발표가 부담스러웠던 학생도 손을 들지 않고 화면에 쓰기만 하면 반 전체에 생각을 내놓을 수 있었습니다. 기성 도구를 가져다
-            썼다면 활동을 도구에 맞춰야 했겠지만, 직접 만들었기에 <strong>수업 흐름에 꼭 맞는 기능만</strong> 남기고 나머지는 덜어낼 수 있었습니다.</p>
+          <p>앞의 활동들은 <strong>웹앱과 디지털 기기</strong>가 있었기에 <span class="mark">제한된 교실 환경에서 가능했습니다.</span> 제한된 시간 안에 친구들의
+            생각을 공유하고, AI 기능을 활용하여, 탐구하고 고민한 내용을 글로 풀어쓸 수 있었습니다. 발표가 부담스러웠던 학생도 손을 들지 않고 화면에 쓰기만 하면 반 전체에 생각을 내놓을 수
+            있었습니다. 기성 도구를 가져다 썼다면 활동을 도구에 맞춰야 했겠지만, 직접 만들었기에 <strong>수업 흐름에 꼭 맞는 기능만</strong> 남기고 나머지는 덜어낼 수
+            있었습니다.</p>
           <p>다만 공개수업이라고 해서 <strong>웹앱의 기능을 뽐내는 자리로 만들고 싶지는 않았습니다.</strong> 보여주기 식으로 짜여진 수업이 아니라, 학생이 충분히 탐구할 시간을 확보하고
             그 생각을 끌어낼 비계를 어디에, 어떻게 놓을지를 가장 오래 고민한 수업입니다.</p>
           <h3>셋. 철학적 탐구를 글로 옮기도록, 비계를 촘촘히 놓았습니다</h3>
@@ -4557,11 +4557,19 @@
         let after = w.nextElementSibling; if (after && after.classList.contains("fitspacer")) after = after.nextElementSibling;
         const pb = (sec && !after) ? (parseFloat(getComputedStyle(sec).paddingBottom) || 0) : 0;
         let r = w.getBoundingClientRect(), top = r.top - origin(), pageTop = Math.floor(top / ph) * ph;
-        const startOff = top - pageTop;
-        const avail = ph - startOff - pb - 8;
+        let startOff = top - pageTop;
+        let avail = ph - startOff - pb - 8;
+        let push = 0;                                   // 다음 쪽 처음까지 밀어 내릴 양
         if (r.height > avail) {
           const z = avail / r.height;
-          if (z >= 0.82) w.style.zoom = z.toFixed(3);   // 조금 넘치면 줄여서 한 쪽에
+          if (z >= 0.82) {
+            w.style.zoom = z.toFixed(3);                // 조금 넘치면 줄여서 한 쪽에
+          } else if (startOff > 8 && r.height * 0.82 <= ph - pb - 8) {
+            push = ph - startOff;                       // 이 쪽엔 자리가 모자라니 다음 쪽 처음부터
+            startOff = 0;
+            avail = ph - pb - 8;
+            if (r.height > avail) w.style.zoom = (avail / r.height).toFixed(3);
+          }                                             // 밀어도 한 쪽에 못 담을 만큼 크면 그대로 두 쪽에
         }
         r = w.getBoundingClientRect();
         const over = (startOff + r.height + pb) - ph;
@@ -4573,13 +4581,16 @@
         const leftover = ph - startOff - r.height - pb;
         if (leftover > 28) {                            // 남으면 가운데로
           const half = Math.round(leftover / 2);
-          w.style.marginTop = half + "px";
+          w.style.marginTop = (push + half) + "px";
           if (sp) sp.style.height = (leftover - half) + "px";
-        } else if (sp) {                               // 두 쪽에 걸치면 다음 경계까지
-          const end = startOff + r.height + pb;
-          let gap = (ph - (end % ph)) % ph;
-          if (gap > ph - 40) gap = 0;                  // 거의 한 쪽을 채울 만큼이면 빈 쪽이 되니 두지 않는다
-          sp.style.height = Math.round(gap) + "px";
+        } else {
+          if (push) w.style.marginTop = push + "px";
+          if (sp) {                                     // 두 쪽에 걸치면 다음 경계까지
+            const end = startOff + r.height + pb;
+            let gap = (ph - (end % ph)) % ph;
+            if (gap > ph - 40) gap = 0;                 // 거의 한 쪽을 채울 만큼이면 빈 쪽이 되니 두지 않는다
+            sp.style.height = Math.round(gap) + "px";
+          }
         }
       });
     }
