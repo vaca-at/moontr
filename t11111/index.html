@@ -2086,10 +2086,23 @@
           if (inputs['링크'].value.trim() && !confirm('이미 들어 있는 링크를 좌표 링크로 바꿀까요?')) return;
           inputs['링크'].value = gmapLink(lat, lng);
           tr.classList.add('dirty');
-          tr.dispatchEvent(new Event('input', { bubbles: true }));
+          inputs['링크'].dispatchEvent(new Event('input', { bubbles: true }));
           toast('링크를 넣었습니다. [저장]을 누르세요.');
         });
-        return [searchBtn, pickBtn, linkBtn];
+        // 링크 칸의 주소를 새 탭에서 열어 확인 (저장 전 칸 내용 기준)
+        const openBtn = el('button', { class: 'btn icon', title: '링크 열어보기', 'aria-label': '링크 열어보기' }, [icon('external-link')]);
+        openBtn.addEventListener('click', function() {
+          const url = inputs['링크'].value.trim();
+          if (!/^https?:\/\//i.test(url)) { toast(url ? '링크가 http:// 또는 https:// 로 시작하지 않습니다.' : '링크 칸이 비어 있습니다. 🔗로 먼저 넣으세요.', true); return; }
+          window.open(url, '_blank', 'noopener');
+        });
+        const syncOpen = function() { openBtn.disabled = !inputs['링크'].value.trim(); };
+        inputs['링크'].addEventListener('input', syncOpen);
+        syncOpen();
+        // 링크 칸을 더블클릭해도 열림
+        inputs['링크'].addEventListener('dblclick', function() { if (inputs['링크'].value.trim()) openBtn.click(); });
+        inputs['링크'].title = '더블클릭하면 링크가 열립니다';
+        return [searchBtn, pickBtn, linkBtn, openBtn];
       }
       return [];
     }
@@ -2225,6 +2238,7 @@
           const lat = parseFloat(r.inputs['위도'].value), lng = parseFloat(r.inputs['경도'].value);
           if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90) { noCoord++; return; }
           inp.value = gmapLink(lat, lng);
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
           r.tr.classList.add('dirty');
           n++;
         });
