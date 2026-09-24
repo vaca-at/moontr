@@ -1083,6 +1083,8 @@
     return m ? [+m[1], +m[2]] : null;
   }
   const MAP_COLS = ['장소명', '위도', '경도', '설명', '링크'];
+  // 좌표로 여는 구글 지도 링크 (링크 칸이 비었을 때 [길찾기]도 같은 주소)
+  function gmapLink(lat, lng) { return 'https://www.google.com/maps/search/?api=1&query=' + lat + '%2C' + lng; }
   function mapFields(f) {
     f = f || {};
     const get = function(c) { return String(f[c] == null ? '' : f[c]).trim(); };
@@ -1129,7 +1131,7 @@
       const name = mf.장소명;
       const desc = mf.설명;
       const rawLink = mf.링크;
-      const link = rawLink || (hasCoords ? ('https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lng) : '');
+      const link = rawLink || (hasCoords ? gmapLink(lat, lng) : '');
       if (hasCoords) points.push({ lat: lat, lng: lng, name: name, desc: desc, n: i + 1 });
       const item = document.createElement('div'); item.className = 'map-list-item';
       item.innerHTML = '<span class="map-list-no">' + (i + 1) + '</span>';
@@ -1915,7 +1917,7 @@
   const TYPE_HINTS = {
     schedule: '날짜와 시간을 넣으면 방문자 화면에서 날짜별(1일차, 2일차…)로 묶이고 시간 순으로 정렬됩니다. 새 줄의 날짜는 마지막 일정 날짜로 미리 채워집니다.',
     people: '이름은 전체를 입력해도 저장할 때 가운데 글자를 *로 가려서 저장합니다 (전체 이름은 남지 않음). "정*상 교장선생님", "이*아 교감선생님", "이*호 부장선생님", "김*식 행정실장님", "김*우 행정실선생님", 그 밖에는 "국어과 손*현선생님"처럼 보입니다. 행정실장은 구분을 "행정실장"으로 쓰거나, 교장・교감 바로 다음 줄에 "행정실"로 두면 됩니다. 화살표로 순서를 바꿉니다.',
-    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 열고, 공식 홈페이지・구글 지도 장소 주소 등을 넣으면 그 주소를 엽니다.',
+    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 엽니다. [빈 링크 채우기]를 누르면 그 링크가 칸에 들어가고, 공식 홈페이지・구글 지도 장소 주소 등으로 바꿔 넣어도 됩니다.',
     table: '칸 안의 내용이 http:// 또는 https:// 로 시작하면 방문자 화면에 "바로가기" 링크와 복사 버튼으로 보입니다.'
   };
 
@@ -2200,6 +2202,27 @@
     card.appendChild(el('p', { class: 'hint', text: '여러 줄을 고친 뒤 [수정한 줄 모두 저장]을 한 번 누르면 됩니다. 체크박스는 Shift를 누른 채 누르면 범위로 선택됩니다. 엑셀에서 복사한 여러 줄을 맨 아래 새 줄 칸에 바로 붙여넣어도 한꺼번에 추가됩니다.' }));
     dashBodyInner.appendChild(card);
     updateToolbar();
+
+    // 지도: 링크 칸이 빈 줄에 좌표로 구글 지도 링크 채우기 (칸에만 넣고, 저장은 [수정한 줄 모두 저장]으로)
+    if (type === 'map') {
+      const linkBtn = el('button', { class: 'btn' }, [icon('link'), '빈 링크 채우기']);
+      linkBtn.addEventListener('click', function() {
+        let n = 0, noCoord = 0;
+        existing.forEach(function(r) {
+          const inp = r.inputs['링크'];
+          if (!inp || inp.value.trim()) return;
+          const lat = parseFloat(r.inputs['위도'].value), lng = parseFloat(r.inputs['경도'].value);
+          if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90) { noCoord++; return; }
+          inp.value = gmapLink(lat, lng);
+          r.tr.classList.add('dirty');
+          n++;
+        });
+        updateToolbar();
+        if (n) toast(n + '줄에 링크를 넣었습니다. 확인 후 [수정한 줄 모두 저장]을 누르세요.' + (noCoord ? ' (좌표가 없는 ' + noCoord + '줄은 건너뜀)' : ''));
+        else toast(noCoord ? '좌표가 없거나 칸이 밀린 줄이라 채우지 못했습니다. 좌표부터 정리하세요.' : '링크 칸이 빈 줄이 없습니다.', !!noCoord);
+      });
+      card.querySelector('.bulk-bar').insertBefore(linkBtn, saveAllBtn);
+    }
 
     // 고쳐야 할 줄이 있으면 표 위에 눈에 띄는 경고 띠 + 버튼
     function addFixBanner(msg, btn) {
