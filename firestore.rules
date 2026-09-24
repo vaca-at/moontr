@@ -44,25 +44,21 @@ service cloud.firestore {
     match /yunsa_logs/{id} { allow create: if true; allow read, delete: if isTeacher(); }
     match /yunsa_reports/{id} { allow create: if true; allow read, update, delete: if isTeacher(); }
 
-    // 문항이 언제 바뀌었는지만 담는 작은 문서 (학생 앱이 문항을 다시 받을지 판단하는 용도)
     match /yunsa_meta/{id} {
       allow read: if true;
       allow write: if isTeacher();
     }
 
-    // 갑・을 OX 문항 (두 사상가의 공통점・차이점 진술. 개인정보 없음)
     match /yunsa_compare/{id} {
       allow read: if true;
       allow write: if isTeacher();
     }
 
-    // 익명 접속 기록 (기기 종류・브라우저・날짜・시간대만. 학번・닉네임 없음)
     match /yunsa_visits/{id} {
       allow create: if request.resource.data.keys().hasOnly(['d','h','dev','os','br','w','vid']);
       allow read, delete: if isTeacher();
     }
 
-    // 신고된 문항 표시 (문항ID만 저장, 개인정보 없음) — 모든 학생 화면에 "신고된 문항" 배너
     match /yunsa_flags/{qid} {
       allow read: if true;
       allow create, update: if request.resource.data.keys().hasOnly(['at']);
@@ -94,25 +90,21 @@ service cloud.firestore {
     match /saengyun_logs/{id} { allow create: if true; allow read, delete: if isTeacher(); }
     match /saengyun_reports/{id} { allow create: if true; allow read, update, delete: if isTeacher(); }
 
-    // 문항이 언제 바뀌었는지만 담는 작은 문서 (학생 앱이 문항을 다시 받을지 판단하는 용도)
     match /saengyun_meta/{id} {
       allow read: if true;
       allow write: if isTeacher();
     }
 
-    // 갑・을 OX 문항 (두 사상가의 공통점・차이점 진술. 개인정보 없음)
     match /saengyun_compare/{id} {
       allow read: if true;
       allow write: if isTeacher();
     }
 
-    // 익명 접속 기록 (기기 종류・브라우저・날짜・시간대만. 학번・닉네임 없음)
     match /saengyun_visits/{id} {
       allow create: if request.resource.data.keys().hasOnly(['d','h','dev','os','br','w','vid']);
       allow read, delete: if isTeacher();
     }
 
-    // 신고된 문항 표시 (문항ID만 저장, 개인정보 없음) — 모든 학생 화면에 "신고된 문항" 배너
     match /saengyun_flags/{qid} {
       allow read: if true;
       allow create, update: if request.resource.data.keys().hasOnly(['at']);
@@ -136,6 +128,144 @@ service cloud.firestore {
       allow update: if request.resource.data.studentId == resource.data.studentId
         && request.resource.data.nickname == resource.data.nickname;
       allow list, delete: if isTeacher();
+    }
+
+    // ===== moontr.site 대문 시간표 =====
+    match /moontr_config/{id} {
+      allow read: if true;
+      allow write: if isTeacher();
+    }
+
+    // ===== 진선 50주년 기념 웹앱 =====
+    // 메뉴 안내글: 누구나 보기, 관리자만 쓰기
+    match /jinsun50_menus/{menuId} {
+      allow read: if true;
+      allow write: if isTeacher()
+        && request.resource.data.body is string
+        && request.resource.data.body.size() < 20000;
+    }
+
+    // 후원금 전광판: 누구나 보기, 관리자만 추가·수정·삭제 (메모는 선택, 30자 이내)
+    match /jinsun50_donations/{id} {
+      allow read: if true;
+      allow create, update: if isTeacher()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 20
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && (!('memo' in request.resource.data)
+            || (request.resource.data.memo is string
+                && request.resource.data.memo.size() <= 30));
+      allow delete: if isTeacher();
+    }
+
+    // 후원자 실명: 관리자만 읽기·쓰기 (전광판에는 공개되지 않음)
+    match /jinsun50_donors_private/{id} {
+      allow read, delete: if isTeacher();
+      allow create, update: if isTeacher()
+        && request.resource.data.realName is string
+        && request.resource.data.realName.size() <= 20;
+    }
+
+    // 사이트 설정 (기본 디자인·글꼴·후원 계좌): 누구나 보기, 관리자만 저장
+    match /jinsun50_settings/{docId} {
+      allow read: if true;
+      allow write: if isTeacher()
+        && (!('theme' in request.resource.data)
+            || request.resource.data.theme in ['navy', 'lotus', 'night', 'album'])
+        && (!('font' in request.resource.data)
+            || request.resource.data.font in ['batang', 'jua', 'blackhan', 'yuntaeng'])
+        && (!('account' in request.resource.data)
+            || request.resource.data.account == null
+            || request.resource.data.account is map);
+    }
+
+    // 익명 방문 기록: 누구나 남기기(정해진 항목만), 관리자만 보기·지우기
+    match /jinsun50_visits/{id} {
+      allow create, update: if request.resource.data.keys().hasOnly(
+          ['vid','dev','os','br','w','d','h','startMs','lastMs','dur','menus','opens','secs','ref'])
+        && request.resource.data.dur is int
+        && request.resource.data.dur >= 0
+        && request.resource.data.dur < 86400;
+      allow read, delete: if isTeacher();
+    }
+
+    // 첫 화면 방문자 수 (오늘 d2026-09-23 · 누적 total): 누구나 보기, 숫자는 1씩 올리기만
+    match /jinsun50_counts/{id} {
+      allow read: if true;
+      allow create: if (id == 'total' || id.matches('^d[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+        && request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == 1;
+      allow update: if request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == resource.data.n + 1;
+      allow delete: if isTeacher();
+    }
+
+    // 축하 방명록: 누구나 쓰기(승인 전 상태로만), 승인된 글만 공개, 관리자만 승인·삭제
+    match /jinsun50_guestbook/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['name','msg','createdAtMs','approved'])
+        && request.resource.data.approved == false
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
+        && request.resource.data.msg is string
+        && request.resource.data.msg.size() > 0 && request.resource.data.msg.size() <= 300
+        && request.resource.data.createdAtMs is int;
+      allow read: if resource.data.approved == true || isTeacher();
+      allow update, delete: if isTeacher();
+    }
+
+    // 추억 갤러리: 누구나 보기, 관리자만 올리기 (작은 사진 / 큰 사진 따로 저장)
+    match /jinsun50_gallery/{id} {
+      allow read: if true;
+      allow create, update: if isTeacher()
+        && request.resource.data.thumb is string
+        && request.resource.data.thumb.size() < 200000;
+      allow delete: if isTeacher();
+    }
+    match /jinsun50_gallery_full/{id} {
+      allow read: if true;
+      allow create, update: if isTeacher()
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 900000;
+      allow delete: if isTeacher();
+    }
+
+    // 사진 제보: 누구나 보내기(정해진 항목·크기만), 관리자만 보기·게시·삭제
+    // 사진 연도(year)는 비워 두거나 1900~2100 숫자, 메모(memo)는 200자 이내
+    match /jinsun50_submissions/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['thumb','year','caption','memo','by','createdAtMs'])
+        && request.resource.data.thumb is string && request.resource.data.thumb.size() < 200000
+        && (request.resource.data.year == null
+            || (request.resource.data.year is int
+                && request.resource.data.year >= 1900 && request.resource.data.year <= 2100))
+        && request.resource.data.caption is string && request.resource.data.caption.size() <= 60
+        && request.resource.data.memo is string && request.resource.data.memo.size() <= 200
+        && request.resource.data.by is string && request.resource.data.by.size() <= 20
+        && request.resource.data.createdAtMs is int;
+      allow read, delete: if isTeacher();
+    }
+    match /jinsun50_submissions_full/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['data'])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 900000;
+      allow read, delete: if isTeacher();
+    }
+
+    // ===== 50주년 해외연수 (/t11111) =====
+    // 설정・카테고리・항목・메모: 누구나 보기, 관리자만 쓰기
+    match /gt_settings/{id}   { allow read: if true; allow write: if isTeacher(); }
+    match /gt_categories/{id} { allow read: if true; allow write: if isTeacher(); }
+    match /gt_items/{id}      { allow read: if true; allow write: if isTeacher(); }
+    match /gt_memos/{id}      { allow read: if true; allow write: if isTeacher(); }
+
+    // 익명 접속 기록 (종류・카테고리명・시각만): 누구나 남기기(정해진 항목만), 관리자만 보기・지우기
+    match /gt_logs/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['type', 'category', 'at'])
+        && request.resource.data.type in ['visit', 'open']
+        && request.resource.data.category is string
+        && request.resource.data.category.size() <= 100
+        && request.resource.data.at == request.time;
+      allow read, delete: if isTeacher();
     }
 
     match /{document=**} { allow read, write: if false; }
