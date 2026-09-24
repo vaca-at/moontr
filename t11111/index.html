@@ -706,7 +706,7 @@
   const TYPES = {
     schedule: { label: '일정', icon: 'calendar-event', desc: '날짜・시간별 일정표. 날짜별로 묶여 보입니다.', columns: ['날짜', '시간', '내용', '장소'] },
     people:   { label: '명단', icon: 'users', desc: '선생님 명단. 구분(교장・부장・교사…)과 이름.', columns: ['구분', '이름', '비고'] },
-    map:      { label: '지도', icon: 'map-pin', desc: '방문지 지도. 장소를 검색하거나 지도를 눌러 좌표 입력.', columns: ['장소명', '설명', '위도', '경도', '링크'] },
+    map:      { label: '지도', icon: 'map-pin', desc: '방문지 지도. 장소를 검색하거나 지도를 눌러 좌표 입력.', columns: ['장소명', '위도', '경도', '설명', '링크'] },
     table:    { label: '표', icon: 'table', desc: '자유 형식 표. 칸 이름을 직접 정합니다.', columns: null }
   };
   const TYPE_ORDER = ['schedule', 'people', 'map', 'table'];
@@ -1011,8 +1011,9 @@
     const g = String(f['구분'] == null ? '' : f['구분']).trim();
     const n = String(f['이름'] == null ? '' : f['이름']).trim();
     const b = String(f['비고'] == null ? '' : f['비고']).trim();
-    if (isNumStr(g) && n && b) return { 구분: n, 이름: b, 비고: '' };
-    return { 구분: g, 이름: n, 비고: b };
+    // 이름은 가린 형태(정*상)로만 저장 — 공개 데이터라 전체 이름이 남지 않게
+    if (isNumStr(g) && n && b) return { 구분: n, 이름: maskName(b), 비고: '' };
+    return { 구분: g, 이름: maskName(n), 비고: b };
   }
   function peopleNeedsFix(f) {
     const p = peopleFields(f);
@@ -1021,12 +1022,14 @@
   // 명단 표기
   //  교장 → "정*상 교장선생님",  교감 → "이*아 교감선생님"
   //  행정실장 → "김*식 행정실장님" (구분이 '행정실장'이거나, 교장・교감과 함께 맨 앞 묶음에 있는 '행정실')
+  //  행정실 → "김*우 행정실선생님"
   //  그 밖의 모든 분 → "국어과 손*현선생님" (구분 + 띄우고 + 이름선생님), 구분이 없으면 "손*현선생님"
   function peopleLabel(gubun, name, isChief) {
     const g = String(gubun || '').trim();
     const n = '<b class="name-star">' + escapeHtml(maskName(name)) + '</b>';
     if (g === '교장' || g === '교감') return n + ' ' + escapeHtml(g) + '선생님';
     if (g === '행정실장' || isChief) return n + ' 행정실장님';
+    if (g === '행정실') return n + ' 행정실선생님';
     if (!g) return n + '선생님';
     return escapeHtml(g) + ' ' + n + '선생님';
   }
@@ -1074,7 +1077,7 @@
     const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(String(v == null ? '' : v));
     return m ? [+m[1], +m[2]] : null;
   }
-  const MAP_COLS = ['장소명', '설명', '위도', '경도', '링크'];
+  const MAP_COLS = ['장소명', '위도', '경도', '설명', '링크'];
   function mapFields(f) {
     f = f || {};
     const get = function(c) { return String(f[c] == null ? '' : f[c]).trim(); };
@@ -1524,7 +1527,7 @@
       }
       if (type === 'people') {
         const shifted = list.filter(function(it) { return peopleNeedsFix(it.fields); }).length;
-        if (shifted) issues.push(['"' + c.name + '" 명단 ' + shifted + '줄의 칸이 밀려 있습니다 (구분 칸에 번호 등). [명단 칸 자동 정리]로 고치세요.', 'items', c.id]);
+        if (shifted) issues.push(['"' + c.name + '" 명단 ' + shifted + '줄이 칸이 밀렸거나 전체 이름이 저장되어 있습니다 (공개 데이터라 누구나 읽을 수 있음). [명단 정리・이름 가리기]로 고치세요.', 'items', c.id]);
       }
       if (type === 'schedule') {
         const bad = list.filter(function(it) { return !parseISODate(fieldOf(it, '날짜')); }).length;
@@ -1895,7 +1898,8 @@
     });
     dashBodyInner.appendChild(chips);
 
-    const cols = cat.columns && cat.columns.length ? cat.columns : (TYPES[type].columns || []);
+    // 일정・명단・지도는 정해진 칸 순서로 보여줌 (예전에 만든 카테고리의 저장된 순서와 달라도 됨)
+    const cols = type === 'table' ? (cat.columns || []) : columnsForType(type, cat.columns);
     if (!cols.length) {
       dashBodyInner.appendChild(el('div', { class: 'card' }, [el('div', { class: 'empty', text: '이 표에 칸 이름이 없습니다. 카테고리 탭에서 칸 이름을 먼저 정하세요.' })]));
       return;
@@ -1905,8 +1909,8 @@
 
   const TYPE_HINTS = {
     schedule: '날짜와 시간을 넣으면 방문자 화면에서 날짜별(1일차, 2일차…)로 묶이고 시간 순으로 정렬됩니다. 새 줄의 날짜는 마지막 일정 날짜로 미리 채워집니다.',
-    people: '이름은 전체를 입력하면 방문자 화면에서 가운데 글자가 *로 가려집니다. "정*상 교장선생님", "이*아 교감선생님", "김*식 행정실장님", 그 밖에는 "국어과 손*현선생님"처럼 보입니다. 행정실장은 구분을 "행정실장"으로 쓰거나, 교장・교감 바로 다음 줄에 "행정실"로 두면 됩니다. 화살표로 순서를 바꿉니다.',
-    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다.',
+    people: '이름은 전체를 입력해도 저장할 때 가운데 글자를 *로 가려서 저장합니다 (전체 이름은 남지 않음). "정*상 교장선생님", "이*아 교감선생님", "김*식 행정실장님", "김*우 행정실선생님", 그 밖에는 "국어과 손*현선생님"처럼 보입니다. 행정실장은 구분을 "행정실장"으로 쓰거나, 교장・교감 바로 다음 줄에 "행정실"로 두면 됩니다. 화살표로 순서를 바꿉니다.',
+    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 열고, 공식 홈페이지・구글 지도 장소 주소 등을 넣으면 그 주소를 엽니다.',
     table: '칸 안의 내용이 http:// 또는 https:// 로 시작하면 방문자 화면에 "바로가기" 링크와 복사 버튼으로 보입니다.'
   };
 
@@ -2196,7 +2200,7 @@
     if (type === 'people') {
       const shifted = existing.filter(function(r) { return peopleNeedsFix(r.it.fields); });
       if (shifted.length) {
-        const fixBtn = el('button', { class: 'btn' }, [icon('wand'), '명단 칸 자동 정리 (' + shifted.length + '줄)']);
+        const fixBtn = el('button', { class: 'btn' }, [icon('wand'), '명단 정리・이름 가리기 (' + shifted.length + '줄)']);
         fixBtn.addEventListener('click', function() {
           const ex = peopleFields(shifted[0].it.fields);
           if (!confirm(shifted.length + '줄의 칸을 제자리로 옮겨 저장할까요?\n\n예) 구분 "' + ex.구분 + '", 이름 "' + ex.이름 + '"')) return;
@@ -2321,6 +2325,7 @@
   function normalizeCell(type, col, v) {
     if (type === 'schedule' && col === '날짜') return normalizeDate(v);
     if (type === 'schedule' && col === '시간') return normalizeTime(v);
+    if (type === 'people' && col === '이름') return maskName(v);
     return String(v == null ? '' : v).trim();
   }
 
