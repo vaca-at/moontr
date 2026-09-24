@@ -456,6 +456,11 @@
   .bulk-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; margin-bottom:8px;
     background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 14px -12px rgba(0,0,0,.4); }
   .bulk-bar .chk{ font-weight:700; color:var(--ink); padding:4px 2px; }
+  .fix-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 14px; margin-bottom:10px; border-radius:10px;
+    background:var(--accent-soft); border:2px solid var(--accent); font-size:13px; font-weight:700; line-height:1.5; }
+  .fix-banner > .ti{ font-size:22px; color:var(--accent); }
+  .fix-banner-text{ flex:1; min-width:200px; }
+  .fix-banner .btn{ font-size:13px; padding:9px 14px; }
   .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   .item-table .field{ min-width:90px; font-size:12px; padding:6px 7px; }
   .item-table .field.w-date{ min-width:130px; } .item-table .field.w-time{ min-width:96px; } .item-table .field.w-coord{ min-width:100px; } .item-table .field.w-wide{ min-width:200px; }
@@ -2196,11 +2201,21 @@
     dashBodyInner.appendChild(card);
     updateToolbar();
 
+    // 고쳐야 할 줄이 있으면 표 위에 눈에 띄는 경고 띠 + 버튼
+    function addFixBanner(msg, btn) {
+      const banner = el('div', { class: 'fix-banner', role: 'alert' }, [
+        icon('alert-triangle'), el('span', { class: 'fix-banner-text', text: msg }), btn
+      ]);
+      const bar = card.querySelector('.bulk-bar');
+      card.insertBefore(banner, bar);
+      banner.scrollIntoView({ block: 'nearest' });
+    }
+
     // 명단: "번호 / 구분 / 이름"이 한 칸씩 밀려 저장된 줄을 한꺼번에 제자리로
     if (type === 'people') {
       const shifted = existing.filter(function(r) { return peopleNeedsFix(r.it.fields); });
       if (shifted.length) {
-        const fixBtn = el('button', { class: 'btn' }, [icon('wand'), '명단 정리・이름 가리기 (' + shifted.length + '줄)']);
+        const fixBtn = el('button', { class: 'btn primary' }, [icon('wand'), '명단 정리・이름 가리기 (' + shifted.length + '줄)']);
         fixBtn.addEventListener('click', function() {
           const ex = peopleFields(shifted[0].it.fields);
           if (!confirm(shifted.length + '줄의 칸을 제자리로 옮겨 저장할까요?\n\n예) 구분 "' + ex.구분 + '", 이름 "' + ex.이름 + '"')) return;
@@ -2211,7 +2226,7 @@
             return function(b) { b.update(db.collection('gt_items').doc(r.it.id), { fields: f }); };
           })), shifted.length + '줄을 정리했습니다.');
         });
-        card.querySelector('.bulk-bar').insertBefore(fixBtn, saveAllBtn);
+        addFixBanner('명단 ' + shifted.length + '줄의 칸이 밀렸거나 전체 이름이 저장되어 있습니다. 아래 버튼을 누르면 한 번에 고쳐집니다.', fixBtn);
       }
     }
 
@@ -2219,7 +2234,7 @@
     if (type === 'map') {
       const shifted = existing.filter(function(r) { return mapNeedsFix(r.it.fields); });
       if (shifted.length) {
-        const fixBtn = el('button', { class: 'btn' }, [icon('wand'), '좌표 칸 자동 정리 (' + shifted.length + '줄)']);
+        const fixBtn = el('button', { class: 'btn primary' }, [icon('wand'), '좌표 칸 자동 정리 (' + shifted.length + '줄)']);
         fixBtn.addEventListener('click', function() {
           const ex = mapFields(shifted[0].it.fields);
           if (!confirm(shifted.length + '줄의 칸을 제자리로 옮겨 저장할까요?\n\n예) ' + (ex.장소명 || '(이름 없음)') + ' → 위도 ' + (ex.위도 || '없음') + ', 경도 ' + (ex.경도 || '없음'))) return;
@@ -2231,7 +2246,7 @@
             return function(b) { b.update(db.collection('gt_items').doc(r.it.id), { fields: f }); };
           })), shifted.length + '줄을 정리했습니다.');
         });
-        card.querySelector('.bulk-bar').insertBefore(fixBtn, saveAllBtn);
+        addFixBanner('좌표 ' + shifted.length + '줄이 칸이 밀려 있습니다 (위도 칸에 경도, 설명 칸에 위도). 다시 입력하지 말고 아래 버튼을 누르세요.', fixBtn);
       }
     }
 
@@ -2241,7 +2256,7 @@
         return ['날짜', '시간'].some(function(c) { const v = fieldOf(r.it, c); return v && normalizeCell(type, c, v) !== v; });
       });
       if (fixable.length) {
-        const fixBtn = el('button', { class: 'btn' }, [icon('wand'), '날짜・시간 형식 맞추기 (' + fixable.length + '줄)']);
+        const fixBtn = el('button', { class: 'btn primary' }, [icon('wand'), '날짜・시간 형식 맞추기 (' + fixable.length + '줄)']);
         fixBtn.addEventListener('click', function() {
           if (!confirm(fixable.length + '줄의 날짜・시간을 2027-02-14 / 09:30 형식으로 바꿔 저장할까요?')) return;
           fixBtn.disabled = true;
@@ -2251,7 +2266,7 @@
             return function(b) { b.update(db.collection('gt_items').doc(r.it.id), { fields: f }); };
           })), fixable.length + '줄의 형식을 맞췄습니다.');
         });
-        card.querySelector('.bulk-bar').insertBefore(fixBtn, saveAllBtn);
+        addFixBanner('일정 ' + fixable.length + '줄의 날짜・시간 형식이 달라 날짜별로 묶이지 않습니다. 아래 버튼을 누르면 한 번에 맞춰집니다.', fixBtn);
       }
     }
 
