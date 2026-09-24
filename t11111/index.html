@@ -335,6 +335,8 @@
   .dash-tab{ border:none; background:none; color:var(--muted); font-size:13px; font-weight:700; padding:10px 12px; cursor:pointer; border-bottom:3px solid transparent;
     white-space:nowrap; display:flex; align-items:center; gap:4px; font-family:inherit; }
   .dash-tab.active{ color:var(--ink); border-bottom-color:var(--accent); }
+  .dash-cat-tabs{ display:contents; }
+  .dash-tab.muted-tab{ opacity:.6; }
   .dash-body{ flex:1; overflow-y:auto; }
   .dash-body-inner{ max-width:1000px; margin:0 auto; padding:18px 16px 80px; font-size:13px; }
 
@@ -574,7 +576,7 @@
         <button class="dash-tab" data-tab="overview"><i class="ti ti-chart-bar"></i>개요</button>
         <button class="dash-tab" data-tab="settings"><i class="ti ti-settings"></i>기본 설정</button>
         <button class="dash-tab" data-tab="categories"><i class="ti ti-layout-grid"></i>카테고리</button>
-        <button class="dash-tab" data-tab="items"><i class="ti ti-pencil"></i>내용 입력</button>
+        <span class="dash-cat-tabs" id="dashCatTabs"></span>
         <button class="dash-tab" data-tab="memos"><i class="ti ti-speakerphone"></i>공지・메모</button>
       </nav>
     </div>
@@ -1016,13 +1018,44 @@
     const g = String(f['구분'] == null ? '' : f['구분']).trim();
     const n = String(f['이름'] == null ? '' : f['이름']).trim();
     const b = String(f['비고'] == null ? '' : f['비고']).trim();
-    // 이름은 가린 형태(정*상)로만 저장 — 공개 데이터라 전체 이름이 남지 않게
-    if (isNumStr(g) && n && b) return { 구분: n, 이름: maskName(b), 비고: '' };
-    return { 구분: g, 이름: maskName(n), 비고: b };
+    if (isNumStr(g) && n && b) return { 구분: n, 이름: b, 비고: '' };
+    return { 구분: g, 이름: n, 비고: b };
   }
+  // 칸이 밀렸거나, 공개 데이터에 가리지 않은 전체 이름이 남아 있으면 정리 대상
   function peopleNeedsFix(f) {
     const p = peopleFields(f);
-    return ['구분', '이름', '비고'].some(function(c) { return String((f || {})[c] == null ? '' : f[c]).trim() !== p[c]; });
+    const shifted = ['구분', '이름', '비고'].some(function(c) { return String((f || {})[c] == null ? '' : f[c]).trim() !== p[c]; });
+    const unmasked = !!p.이름 && p.이름.indexOf('*') === -1 && Array.from(p.이름).length > 1;
+    return shifted || unmasked;
+  }
+
+  // ---- 명단 전체 이름: 공개 데이터(gt_items)에는 가린 이름만, 전체 이름은 관리자만 읽는 gt_people_private/{항목ID} = { name } ----
+  let privateNames = {};        // 항목ID → 전체 이름 (관리자 로그인 중에만)
+  let privateNamesError = null;
+  let unsubPrivate = null;
+  // 저장할 칸을 공개용(가린 이름)과 관리자용 전체 이름으로 나눔
+  function splitPeople(type, fields) {
+    if (type !== 'people') return { pub: fields, full: null };
+    const full = String(fields['이름'] == null ? '' : fields['이름']).trim();
+    return { pub: Object.assign({}, fields, { 이름: maskName(full) }), full: full && full.indexOf('*') === -1 ? full : null };
+  }
+  // 공개 저장이 끝난 뒤 전체 이름을 따로 저장 (규칙이 아직 없어도 공개 저장은 막히지 않게)
+  function savePrivateNames(list) {
+    list = list.filter(function(x) { return x && x.full; });
+    if (!list.length) return Promise.resolve();
+    return batchWrite(list.map(function(x) {
+      return function(b) { b.set(db.collection('gt_people_private').doc(x.id), { name: x.full }); };
+    })).then(function() {
+      list.forEach(function(x) { privateNames[x.id] = x.full; });
+    }).catch(function(err) {
+      toast('가린 이름은 저장했지만 관리자용 전체 이름은 저장하지 못했습니다. Firestore 규칙에 gt_people_private를 추가하세요. (' + (err.code || err.message) + ')', true);
+    });
+  }
+  function deletePrivateNames(ids) {
+    if (!ids.length) return Promise.resolve();
+    return batchWrite(ids.map(function(id) {
+      return function(b) { b.delete(db.collection('gt_people_private').doc(id)); };
+    })).catch(function() {});
   }
   // 명단 표기
   //  교장・교감・부장 → "정*상 교장선생님", "이*아 교감선생님", "이*호 부장선생님"
@@ -1250,6 +1283,17 @@
   });
 
   function startAdminData() {
+    if (!unsubPrivate) {
+      unsubPrivate = db.collection('gt_people_private').onSnapshot(function(snap) {
+        privateNames = {};
+        snap.docs.forEach(function(d) { privateNames[d.id] = d.data().name || ''; });
+        privateNamesError = null;
+        if (dashTab === 'items') refreshDashboard();
+      }, function(err) {
+        privateNamesError = err;
+        if (dashTab === 'items') refreshDashboard();
+      });
+    }
     if (unsubLogs) return;
     const since = startOfDay(new Date()); since.setDate(since.getDate() - 29);
     unsubLogs = db.collection('gt_logs').where('at', '>=', since).orderBy('at', 'desc').onSnapshot(function(snap) {
@@ -1266,7 +1310,9 @@
   }
   function stopAdminData() {
     if (unsubLogs) { unsubLogs(); unsubLogs = null; }
+    if (unsubPrivate) { unsubPrivate(); unsubPrivate = null; }
     logs = []; logsError = null;
+    privateNames = {}; privateNamesError = null;
   }
 
   // ---------------- 관리자 대시보드: 공통 ----------------
@@ -1342,10 +1388,41 @@
     document.body.style.overflow = '';
     hideTip();
   }
+  // 상단 탭: 카테고리마다 "○○ 수정" 탭 (카테고리를 추가・이름 변경하면 따라 바뀜)
+  function renderDashTabs() {
+    const box = document.getElementById('dashCatTabs');
+    box.innerHTML = '';
+    const cats = sortedCategories();
+    if (!cats.length) {
+      const b = el('button', { class: 'dash-tab', 'data-tab': 'items' }, [icon('pencil'), '내용 입력']);
+      b.addEventListener('click', function() { switchTab('items', false); });
+      box.appendChild(b);
+    }
+    cats.forEach(function(c) {
+      const b = el('button', { class: 'dash-tab' + (c.show === false ? ' muted-tab' : ''), 'data-tab': 'items', 'data-cat': c.id,
+        html: iconHtml(c.icon, catType(c)) + escapeHtml(c.name) + ' 수정' });
+      b.addEventListener('click', function() { openItemsFor(c.id); });
+      box.appendChild(b);
+    });
+    markActiveTab();
+  }
+  function markActiveTab() {
+    document.querySelectorAll('.dash-tab').forEach(function(t) {
+      t.classList.toggle('active', t.dataset.tab === dashTab && (!t.dataset.cat || t.dataset.cat === dashItemCatId));
+    });
+  }
+  function openItemsFor(catId) {
+    if (dashTab === 'items' && dashItemCatId === catId) return;
+    if (!confirmLeave()) return;
+    dashItemCatId = catId;
+    dashTab = 'items';
+    dashBody.scrollTop = 0;
+    renderDash();
+  }
   function switchTab(tab, force) {
     if (!force && tab !== dashTab && !confirmLeave()) return;
     dashTab = tab;
-    document.querySelectorAll('.dash-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === tab); });
+    markActiveTab();
     dashBody.scrollTop = 0;
     renderDash();
   }
@@ -1360,11 +1437,13 @@
     else if (dashTab === 'categories') renderCategoriesTab();
     else if (dashTab === 'items') renderItemsTab();
     else if (dashTab === 'memos') renderMemosTab();
+    renderDashTabs();
     dashBody.scrollTop = scroll;
   }
   // 데이터가 바뀌면 다시 그리되, 편집 중인(저장 안 한) 내용이 있으면 덮어쓰지 않음
   function refreshDashboard() {
     if (!dash.classList.contains('open')) return;
+    renderDashTabs();
     if (hasUnsaved()) return;
     renderDash();
   }
@@ -1830,9 +1909,10 @@
     delBtn.addEventListener('click', function() {
       if (!confirm('"' + cat.name + '" 카테고리를 삭제할까요?\n안의 내용 ' + count + '개도 함께 삭제됩니다.')) return;
       const ops = [function(b) { b.delete(db.collection('gt_categories').doc(cat.id)); }];
-      itemsOf(cat.id).forEach(function(it) { ops.push(function(b) { b.delete(db.collection('gt_items').doc(it.id)); }); });
+      const itemIds = itemsOf(cat.id).map(function(it) { return it.id; });
+      itemIds.forEach(function(id) { ops.push(function(b) { b.delete(db.collection('gt_items').doc(id)); }); });
       if (openCategoryId === cat.id) openCategoryId = null;
-      run(batchWrite(ops), '삭제했습니다.', row);
+      run(batchWrite(ops).then(function() { if (oldType === 'people') return deletePrivateNames(itemIds); }), '삭제했습니다.', row);
     });
 
     row.appendChild(moveButtons(cats, idx, function(m) { run(renumber('gt_categories', m, function(i) { return i + 1; })); }));
@@ -1918,17 +1998,6 @@
     const cat = cats.find(function(c) { return c.id === dashItemCatId; });
     const type = catType(cat);
 
-    const chips = el('div', { class: 'chip-row' });
-    cats.forEach(function(c) {
-      const chip = el('button', { class: 'chip' + (c.id === cat.id ? ' active' : '') + (c.show === false ? ' muted' : ''), html:
-        iconHtml(c.icon, catType(c)) + ' ' + escapeHtml(c.name) + ' <small>' + itemsOf(c.id).length + '</small>' });
-      chip.addEventListener('click', function() {
-        if (c.id === dashItemCatId || !confirmLeave()) return;
-        dashItemCatId = c.id; dashBody.scrollTop = 0; renderDash();
-      });
-      chips.appendChild(chip);
-    });
-    dashBodyInner.appendChild(chips);
 
     // 일정・명단・지도는 정해진 칸 순서로 보여줌 (예전에 만든 카테고리의 저장된 순서와 달라도 됨)
     const cols = type === 'table' ? (cat.columns || []) : columnsForType(type, cat.columns);
@@ -1941,7 +2010,7 @@
 
   const TYPE_HINTS = {
     schedule: '날짜와 시간을 넣으면 방문자 화면에서 날짜별(1일차, 2일차…)로 묶이고 시간 순으로 정렬됩니다. 새 줄의 날짜는 마지막 일정 날짜로 미리 채워집니다.',
-    people: '이름은 전체를 입력해도 저장할 때 가운데 글자를 *로 가려서 저장합니다 (전체 이름은 남지 않음). "정*상 교장선생님", "이*아 교감선생님", "이*호 부장선생님", "김*식 행정실장님", "김*우 행정실선생님", 그 밖에는 "국어과 손*현선생님"처럼 보입니다. 행정실장은 구분을 "행정실장"으로 쓰거나, 교장・교감 바로 다음 줄에 "행정실"로 두면 됩니다. 화살표로 순서를 바꿉니다.',
+    people: '이름은 전체를 입력하세요. 관리자 화면에는 전체 이름이 보이고, 방문자 화면과 공개 데이터에는 가운데를 가린 이름(정*상)만 남습니다. 전체 이름은 관리자만 읽을 수 있는 곳에 따로 저장됩니다. "정*상 교장선생님", "이*아 교감선생님", "이*호 부장선생님", "김*식 행정실장님", "김*우 행정실선생님", 그 밖에는 "국어과 손*현선생님"처럼 보입니다. 행정실장은 구분을 "행정실장"으로 쓰거나, 교장・교감 바로 다음 줄에 "행정실"로 두면 됩니다. 화살표로 순서를 바꿉니다.',
     map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 엽니다. 줄의 🔗 버튼이나 표 위 [빈 링크 채우기]를 누르면 그 링크가 칸에 들어갑니다. 링크 칸은 두 번 눌러야 고칠 수 있고, 구글 지도 링크를 붙여넣으면 위도・경도가 자동으로 바뀝니다. 확인은 [링크 열기](새 창)로 하세요.',
     table: '칸 안의 내용이 http:// 또는 https:// 로 시작하면 방문자 화면에 "바로가기" 링크와 복사 버튼으로 보입니다.'
   };
@@ -2026,10 +2095,14 @@
       const dirty = existing.filter(function(r) { return r.tr.classList.contains('dirty'); });
       if (!dirty.length) return;
       saveAllBtn.disabled = true;
+      const privs = [];
       batchWrite(dirty.map(function(r) {
-        const fields = collectFields(r);
-        return function(b) { b.update(db.collection('gt_items').doc(r.it.id), { fields: fields }); };
+        const s = splitPeople(type, collectFields(r));
+        privs.push({ id: r.it.id, full: s.full });
+        return function(b) { b.update(db.collection('gt_items').doc(r.it.id), { fields: s.pub }); };
       })).then(function() {
+        return savePrivateNames(privs);
+      }).then(function() {
         dirty.forEach(function(r) { r.tr.classList.remove('dirty'); });
         toast(dirty.length + '줄을 저장했습니다.');
         refreshDashboard();
@@ -2043,6 +2116,7 @@
       batchWrite(sel.map(function(r) {
         return function(b) { b.delete(db.collection('gt_items').doc(r.it.id)); };
       })).then(function() {
+        if (type === 'people') deletePrivateNames(sel.map(function(r) { return r.it.id; }));
         // 다른 줄에 저장 안 한 수정이 있어도 지운 줄은 바로 사라지게
         sel.forEach(function(r) { r.tr.remove(); existing.splice(existing.indexOf(r), 1); });
         toast(sel.length + '줄을 삭제했습니다.');
@@ -2197,7 +2271,9 @@
       tr.appendChild(el('td', { class: 'num', text: String(idx + 1) }));
       const inputs = {};
       cols.forEach(function(c) {
-        inputs[c] = makeInput(type, c, fieldOf(it, c));
+        // 명단 이름: 관리자 화면에는 전체 이름(있으면), 없으면 저장된 가린 이름
+        const v = (type === 'people' && c === '이름' && privateNames[it.id]) ? privateNames[it.id] : fieldOf(it, c);
+        inputs[c] = makeInput(type, c, v);
         tr.appendChild(el('td', {}, [inputs[c]]));
       });
       const info = { tr: tr, inputs: inputs, n: idx + 1 };
@@ -2207,12 +2283,16 @@
       const extra = wireRow(tr, inputs, info);
       const saveBtn = el('button', { class: 'btn primary', text: '저장' });
       saveBtn.addEventListener('click', function() {
-        run(db.collection('gt_items').doc(it.id).update({ fields: collectFields(rowRec) }), '저장했습니다.', tr).then(updateToolbar);
+        const s = splitPeople(type, collectFields(rowRec));
+        run(db.collection('gt_items').doc(it.id).update({ fields: s.pub }).then(function() {
+          return savePrivateNames([{ id: it.id, full: s.full }]);
+        }), '저장했습니다.', tr).then(updateToolbar);
       });
       const delBtn = el('button', { class: 'btn danger icon', title: '삭제', 'aria-label': '삭제' }, [icon('trash')]);
       delBtn.addEventListener('click', function() {
         if (!confirm((idx + 1) + '번 줄을 삭제할까요?')) return;
         db.collection('gt_items').doc(it.id).delete().then(function() {
+          if (type === 'people') deletePrivateNames([it.id]);
           tr.remove(); existing.splice(existing.indexOf(rowRec), 1);
           toast('삭제했습니다.'); updateToolbar(); refreshDashboard();
         }).catch(function(err) { toast(errText(err), true); });
@@ -2258,7 +2338,11 @@
       if (!cols.some(function(c) { return fields[c]; })) { toast('내용을 입력하세요.', true); return; }
       if (type === 'people' && !fields['이름']) { toast('이름을 입력하세요.', true); return; }
       const maxOrder = itemsOf(cat.id).reduce(function(m, it) { return Math.max(m, it.order || 0); }, 0);
-      run(db.collection('gt_items').add({ categoryId: cat.id, order: maxOrder + 1, fields: fields }), '추가했습니다.', newTr).then(function() {
+      const ref = db.collection('gt_items').doc();
+      const s = splitPeople(type, fields);
+      run(ref.set({ categoryId: cat.id, order: maxOrder + 1, fields: s.pub }).then(function() {
+        return savePrivateNames([{ id: ref.id, full: s.full }]);
+      }), '추가했습니다.', newTr).then(function() {
         const first = newTr.querySelector('input:not([type=date])');
         if (first && !hasUnsaved()) {
           const again = dashBodyInner.querySelector('tr.new-row input:not([type=date])');
@@ -2310,6 +2394,16 @@
       banner.scrollIntoView({ block: 'nearest' });
     }
 
+    // 명단: 관리자용 전체 이름 저장소 상태 안내
+    if (type === 'people') {
+      if (privateNamesError) {
+        addFixBanner('관리자용 전체 이름을 읽지 못했습니다. Firestore 규칙에 gt_people_private (관리자만 읽기・쓰기)를 추가해야 전체 이름이 보입니다. (' + (privateNamesError.code || privateNamesError.message) + ')', null);
+      } else if (existing.length && !existing.some(function(r) { return privateNames[r.it.id]; }) &&
+                 existing.every(function(r) { return fieldOf(r.it, '이름').indexOf('*') > -1; })) {
+        addFixBanner('전체 이름이 저장되어 있지 않아 가린 이름으로 보입니다. [전체 선택] → [선택 삭제] 후 아래 "여러 줄 한 번에 추가"에 명단을 다시 붙여넣으면 관리자 화면에 전체 이름이 보입니다.', null);
+      }
+    }
+
     // 명단: "번호 / 구분 / 이름"이 한 칸씩 밀려 저장된 줄을 한꺼번에 제자리로
     if (type === 'people') {
       const shifted = existing.filter(function(r) { return peopleNeedsFix(r.it.fields); });
@@ -2319,11 +2413,13 @@
           const ex = peopleFields(shifted[0].it.fields);
           if (!confirm(shifted.length + '줄의 칸을 제자리로 옮겨 저장할까요?\n\n예) 구분 "' + ex.구분 + '", 이름 "' + ex.이름 + '"')) return;
           fixBtn.disabled = true;
+          const privs = [];
           run(batchWrite(shifted.map(function(r) {
             const p = peopleFields(r.it.fields);
-            const f = Object.assign({}, r.it.fields || {}, { 구분: p.구분, 이름: p.이름, 비고: p.비고 });
-            return function(b) { b.update(db.collection('gt_items').doc(r.it.id), { fields: f }); };
-          })), shifted.length + '줄을 정리했습니다.');
+            const s = splitPeople('people', Object.assign({}, r.it.fields || {}, { 구분: p.구분, 이름: p.이름, 비고: p.비고 }));
+            privs.push({ id: r.it.id, full: s.full });
+            return function(b) { b.update(db.collection('gt_items').doc(r.it.id), { fields: s.pub }); };
+          })).then(function() { return savePrivateNames(privs); }), shifted.length + '줄을 정리했습니다.');
         });
         addFixBanner('명단 ' + shifted.length + '줄의 칸이 밀렸거나 전체 이름이 저장되어 있습니다. 아래 버튼을 누르면 한 번에 고쳐집니다.', fixBtn);
       }
@@ -2439,7 +2535,6 @@
   function normalizeCell(type, col, v) {
     if (type === 'schedule' && col === '날짜') return normalizeDate(v);
     if (type === 'schedule' && col === '시간') return normalizeTime(v);
-    if (type === 'people' && col === '이름') return maskName(v);
     return String(v == null ? '' : v).trim();
   }
 
@@ -2495,10 +2590,14 @@
     if (!rows.length) { toast('붙여넣은 내용이 없습니다.', true); return Promise.resolve(); }
     if (rows.length > 1 && !confirm(rows.length + '줄을 "' + cat.name + '"에 추가할까요?\n칸 순서: ' + cols.join(' / '))) return Promise.resolve();
     const base = itemsOf(cat.id).reduce(function(m, it) { return Math.max(m, it.order || 0); }, 0);
+    const privs = [];
     const ops = rows.map(function(fields, i) {
-      return function(b) { b.set(db.collection('gt_items').doc(), { categoryId: cat.id, order: base + i + 1, fields: fields }); };
+      const ref = db.collection('gt_items').doc();
+      const s = splitPeople(type, fields);
+      privs.push({ id: ref.id, full: s.full });
+      return function(b) { b.set(ref, { categoryId: cat.id, order: base + i + 1, fields: s.pub }); };
     });
-    return run(batchWrite(ops), rows.length + '줄을 추가했습니다.', cleanNode);
+    return run(batchWrite(ops).then(function() { return savePrivateNames(privs); }), rows.length + '줄을 추가했습니다.', cleanNode);
   }
 
   // 일괄 추가 (스프레드시트에서 복사해 붙여넣기)
