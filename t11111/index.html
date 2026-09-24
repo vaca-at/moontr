@@ -456,11 +456,6 @@
   .bulk-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; margin-bottom:8px;
     background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 14px -12px rgba(0,0,0,.4); }
   .bulk-bar .chk{ font-weight:700; color:var(--ink); padding:4px 2px; }
-  .link-cell{ display:flex; align-items:center; gap:4px; min-width:150px; }
-  .link-view{ flex:1; min-width:0; padding:6px 8px; border:1px dashed color-mix(in srgb,var(--accent) 45%,var(--line)); border-radius:8px; color:var(--accent);
-    font-weight:700; font-size:12px; text-decoration:underline; text-underline-offset:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
-  .link-view:hover{ background:var(--accent-soft); }
-  body[data-theme="yatai"] .link-view{ color:var(--gold); }
   .fix-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 14px; margin-bottom:10px; border-radius:10px;
     background:var(--accent-soft); border:2px solid var(--accent); font-size:13px; font-weight:700; line-height:1.5; }
   .fix-banner > .ti{ font-size:22px; color:var(--accent); }
@@ -1090,6 +1085,24 @@
   const MAP_COLS = ['장소명', '위도', '경도', '설명', '링크'];
   // 좌표로 여는 구글 지도 링크 (링크 칸이 비었을 때 [길찾기]도 같은 주소)
   function gmapLink(lat, lng) { return 'https://www.google.com/maps/search/?api=1&query=' + lat + '%2C' + lng; }
+  // 구글 지도 링크에서 좌표 읽기
+  //  1) !3d위도!4d경도 — 장소의 실제 위치 (여러 개면 마지막 것이 장소, 앞의 것은 찍은 핀)
+  //  2) @위도,경도 — 화면 중심
+  //  3) query= / q= / ll= / destination= 뒤의 "위도,경도"
+  //  짧은 링크(maps.app.goo.gl)에는 좌표가 없어 읽을 수 없음
+  function coordsFromLink(url) {
+    let s = String(url || '');
+    try { s = decodeURIComponent(s); } catch (e) {}
+    let m, last = null;
+    const re = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/g;
+    while ((m = re.exec(s))) last = m;
+    if (!last) last = /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(s);
+    if (!last) last = /[?&](?:query|q|ll|destination|center)=(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/.exec(s);
+    if (!last) return null;
+    const lat = +last[1], lng = +last[2];
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat: lat, lng: lng };
+  }
   function mapFields(f) {
     f = f || {};
     const get = function(c) { return String(f[c] == null ? '' : f[c]).trim(); };
@@ -2094,34 +2107,30 @@
           inputs['링크'].dispatchEvent(new Event('input', { bubbles: true }));
           toast('링크를 넣었습니다. [저장]을 누르세요.');
         });
-        // 링크 칸: 링크가 있으면 한 번 눌러 바로 열리는 하이퍼링크로 보여주고, ✎를 눌러야 입력 칸으로 바뀜
+        // 링크 칸은 그대로 고칠 수 있는 입력 칸. 옆 [링크 열기] 버튼으로 새 창에서 확인
         const linkInput = inputs['링크'];
-        const linkView = el('a', { class: 'link-view', target: '_blank', rel: 'noopener' });
-        const editBtn = el('button', { class: 'btn icon', type: 'button', title: '링크 고치기', 'aria-label': '링크 고치기' }, [icon('pencil')]);
-        const cell = el('div', { class: 'link-cell' });
-        linkInput.parentNode.appendChild(cell);
-        cell.appendChild(linkView); cell.appendChild(linkInput); cell.appendChild(editBtn);
-        let editing = false;
-        function linkLabel(url) {
-          try {
-            const h = new URL(url).hostname.replace(/^www\./, '');
-            return (/google\./.test(h) || h === 'maps.app.goo.gl' || h === 'goo.gl') ? '구글 지도 ↗' : h + ' ↗';
-          } catch (e) { return url; }
-        }
-        function syncLink() {
+        const openBtn = el('button', { class: 'btn', type: 'button', title: '링크를 새 창에서 열기' }, [icon('external-link'), '링크 열기']);
+        openBtn.addEventListener('click', function() {
           const url = linkInput.value.trim();
-          const ok = /^https?:\/\//i.test(url);
-          const showView = ok && !editing;
-          linkView.style.display = showView ? '' : 'none';
-          linkInput.style.display = showView ? 'none' : '';
-          editBtn.style.display = showView ? '' : 'none';
-          if (ok) { linkView.href = url; linkView.textContent = linkLabel(url); linkView.title = url; }
+          if (!/^https?:\/\//i.test(url)) { toast(url ? '링크가 http:// 또는 https:// 로 시작하지 않습니다.' : '링크 칸이 비어 있습니다. 🔗로 먼저 넣으세요.', true); return; }
+          const w = Math.min(1200, screen.availWidth - 80), h = Math.min(860, screen.availHeight - 80);
+          window.open(url, 'gtLinkCheck', 'noopener,width=' + w + ',height=' + h + ',left=40,top=40');
+        });
+        const syncOpen = function() { openBtn.disabled = !linkInput.value.trim(); };
+        // 링크를 붙여넣거나 고치면 링크 속 좌표로 위도・경도 자동 수정
+        function applyLinkCoords() {
+          const c = coordsFromLink(linkInput.value);
+          if (!c) return;
+          const oldLat = parseFloat(inputs['위도'].value), oldLng = parseFloat(inputs['경도'].value);
+          if (Math.abs(oldLat - c.lat) < 1e-7 && Math.abs(oldLng - c.lng) < 1e-7) return;
+          setCoords(info, c.lat, c.lng);
+          toast('링크에서 좌표를 읽어 위도 ' + round6(c.lat) + ', 경도 ' + round6(c.lng) + '로 바꿨습니다. [저장]을 누르세요.');
         }
-        editBtn.addEventListener('click', function() { editing = true; syncLink(); linkInput.focus(); linkInput.select(); });
-        linkInput.addEventListener('blur', function() { editing = false; syncLink(); });
-        linkInput.addEventListener('input', function() { if (document.activeElement !== linkInput) syncLink(); });
-        syncLink();
-        return [searchBtn, pickBtn, linkBtn];
+        linkInput.addEventListener('input', syncOpen);
+        linkInput.addEventListener('change', applyLinkCoords);
+        linkInput.addEventListener('paste', function() { setTimeout(function() { applyLinkCoords(); syncOpen(); }, 0); });
+        syncOpen();
+        return [searchBtn, pickBtn, linkBtn, openBtn];
       }
       return [];
     }
