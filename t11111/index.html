@@ -456,6 +456,11 @@
   .bulk-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; margin-bottom:8px;
     background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 14px -12px rgba(0,0,0,.4); }
   .bulk-bar .chk{ font-weight:700; color:var(--ink); padding:4px 2px; }
+  .link-cell{ display:flex; align-items:center; gap:4px; min-width:150px; }
+  .link-view{ flex:1; min-width:0; padding:6px 8px; border:1px dashed color-mix(in srgb,var(--accent) 45%,var(--line)); border-radius:8px; color:var(--accent);
+    font-weight:700; font-size:12px; text-decoration:underline; text-underline-offset:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+  .link-view:hover{ background:var(--accent-soft); }
+  body[data-theme="yatai"] .link-view{ color:var(--gold); }
   .fix-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 14px; margin-bottom:10px; border-radius:10px;
     background:var(--accent-soft); border:2px solid var(--accent); font-size:13px; font-weight:700; line-height:1.5; }
   .fix-banner > .ti{ font-size:22px; color:var(--accent); }
@@ -2089,20 +2094,34 @@
           inputs['링크'].dispatchEvent(new Event('input', { bubbles: true }));
           toast('링크를 넣었습니다. [저장]을 누르세요.');
         });
-        // 링크 칸의 주소를 새 탭에서 열어 확인 (저장 전 칸 내용 기준)
-        const openBtn = el('button', { class: 'btn icon', title: '링크 열어보기', 'aria-label': '링크 열어보기' }, [icon('external-link')]);
-        openBtn.addEventListener('click', function() {
-          const url = inputs['링크'].value.trim();
-          if (!/^https?:\/\//i.test(url)) { toast(url ? '링크가 http:// 또는 https:// 로 시작하지 않습니다.' : '링크 칸이 비어 있습니다. 🔗로 먼저 넣으세요.', true); return; }
-          window.open(url, '_blank', 'noopener');
-        });
-        const syncOpen = function() { openBtn.disabled = !inputs['링크'].value.trim(); };
-        inputs['링크'].addEventListener('input', syncOpen);
-        syncOpen();
-        // 링크 칸을 더블클릭해도 열림
-        inputs['링크'].addEventListener('dblclick', function() { if (inputs['링크'].value.trim()) openBtn.click(); });
-        inputs['링크'].title = '더블클릭하면 링크가 열립니다';
-        return [searchBtn, pickBtn, linkBtn, openBtn];
+        // 링크 칸: 링크가 있으면 한 번 눌러 바로 열리는 하이퍼링크로 보여주고, ✎를 눌러야 입력 칸으로 바뀜
+        const linkInput = inputs['링크'];
+        const linkView = el('a', { class: 'link-view', target: '_blank', rel: 'noopener' });
+        const editBtn = el('button', { class: 'btn icon', type: 'button', title: '링크 고치기', 'aria-label': '링크 고치기' }, [icon('pencil')]);
+        const cell = el('div', { class: 'link-cell' });
+        linkInput.parentNode.appendChild(cell);
+        cell.appendChild(linkView); cell.appendChild(linkInput); cell.appendChild(editBtn);
+        let editing = false;
+        function linkLabel(url) {
+          try {
+            const h = new URL(url).hostname.replace(/^www\./, '');
+            return (/google\./.test(h) || h === 'maps.app.goo.gl' || h === 'goo.gl') ? '구글 지도 ↗' : h + ' ↗';
+          } catch (e) { return url; }
+        }
+        function syncLink() {
+          const url = linkInput.value.trim();
+          const ok = /^https?:\/\//i.test(url);
+          const showView = ok && !editing;
+          linkView.style.display = showView ? '' : 'none';
+          linkInput.style.display = showView ? 'none' : '';
+          editBtn.style.display = showView ? '' : 'none';
+          if (ok) { linkView.href = url; linkView.textContent = linkLabel(url); linkView.title = url; }
+        }
+        editBtn.addEventListener('click', function() { editing = true; syncLink(); linkInput.focus(); linkInput.select(); });
+        linkInput.addEventListener('blur', function() { editing = false; syncLink(); });
+        linkInput.addEventListener('input', function() { if (document.activeElement !== linkInput) syncLink(); });
+        syncLink();
+        return [searchBtn, pickBtn, linkBtn];
       }
       return [];
     }
