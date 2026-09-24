@@ -1917,7 +1917,7 @@
   const TYPE_HINTS = {
     schedule: '날짜와 시간을 넣으면 방문자 화면에서 날짜별(1일차, 2일차…)로 묶이고 시간 순으로 정렬됩니다. 새 줄의 날짜는 마지막 일정 날짜로 미리 채워집니다.',
     people: '이름은 전체를 입력해도 저장할 때 가운데 글자를 *로 가려서 저장합니다 (전체 이름은 남지 않음). "정*상 교장선생님", "이*아 교감선생님", "이*호 부장선생님", "김*식 행정실장님", "김*우 행정실선생님", 그 밖에는 "국어과 손*현선생님"처럼 보입니다. 행정실장은 구분을 "행정실장"으로 쓰거나, 교장・교감 바로 다음 줄에 "행정실"로 두면 됩니다. 화살표로 순서를 바꿉니다.',
-    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 엽니다. [빈 링크 채우기]를 누르면 그 링크가 칸에 들어가고, 공식 홈페이지・구글 지도 장소 주소 등으로 바꿔 넣어도 됩니다.',
+    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 엽니다. 줄의 🔗 버튼이나 표 위 [빈 링크 채우기]를 누르면 그 링크가 칸에 들어가고, 공식 홈페이지・구글 지도 장소 주소 등으로 바꿔 넣어도 됩니다.',
     table: '칸 안의 내용이 http:// 또는 https:// 로 시작하면 방문자 화면에 "바로가기" 링크와 복사 버튼으로 보입니다.'
   };
 
@@ -2078,7 +2078,18 @@
         });
         const pickBtn = el('button', { class: 'btn icon', title: '지도에서 찍기', 'aria-label': '지도에서 찍기' }, [icon('crosshair')]);
         pickBtn.addEventListener('click', function() { setPickTarget(pickTarget === info ? null : info); });
-        return [searchBtn, pickBtn];
+        // 이 줄 좌표로 구글 지도 링크 넣기 (저장은 [저장] 또는 [수정한 줄 모두 저장])
+        const linkBtn = el('button', { class: 'btn icon', title: '좌표로 링크 넣기', 'aria-label': '좌표로 링크 넣기' }, [icon('link')]);
+        linkBtn.addEventListener('click', function() {
+          const lat = parseFloat(inputs['위도'].value), lng = parseFloat(inputs['경도'].value);
+          if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90) { toast('먼저 위도・경도를 넣으세요.', true); return; }
+          if (inputs['링크'].value.trim() && !confirm('이미 들어 있는 링크를 좌표 링크로 바꿀까요?')) return;
+          inputs['링크'].value = gmapLink(lat, lng);
+          tr.classList.add('dirty');
+          tr.dispatchEvent(new Event('input', { bubbles: true }));
+          toast('링크를 넣었습니다. [저장]을 누르세요.');
+        });
+        return [searchBtn, pickBtn, linkBtn];
       }
       return [];
     }
