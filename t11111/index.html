@@ -456,6 +456,7 @@
   .bulk-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; margin-bottom:8px;
     background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 14px -12px rgba(0,0,0,.4); }
   .bulk-bar .chk{ font-weight:700; color:var(--ink); padding:4px 2px; }
+  .item-table .field.locked{ background:var(--bg); cursor:default; color:var(--muted); }
   .fix-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 14px; margin-bottom:10px; border-radius:10px;
     background:var(--accent-soft); border:2px solid var(--accent); font-size:13px; font-weight:700; line-height:1.5; }
   .fix-banner > .ti{ font-size:22px; color:var(--accent); }
@@ -1941,7 +1942,7 @@
   const TYPE_HINTS = {
     schedule: '날짜와 시간을 넣으면 방문자 화면에서 날짜별(1일차, 2일차…)로 묶이고 시간 순으로 정렬됩니다. 새 줄의 날짜는 마지막 일정 날짜로 미리 채워집니다.',
     people: '이름은 전체를 입력해도 저장할 때 가운데 글자를 *로 가려서 저장합니다 (전체 이름은 남지 않음). "정*상 교장선생님", "이*아 교감선생님", "이*호 부장선생님", "김*식 행정실장님", "김*우 행정실선생님", 그 밖에는 "국어과 손*현선생님"처럼 보입니다. 행정실장은 구분을 "행정실장"으로 쓰거나, 교장・교감 바로 다음 줄에 "행정실"로 두면 됩니다. 화살표로 순서를 바꿉니다.',
-    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 엽니다. 줄의 🔗 버튼이나 표 위 [빈 링크 채우기]를 누르면 그 링크가 칸에 들어가고, 공식 홈페이지・구글 지도 장소 주소 등으로 바꿔 넣어도 됩니다.',
+    map: '장소명을 쓰고 [검색]을 누르면 좌표가 채워집니다. 또는 [지도에서 찍기]를 누른 뒤 위 지도를 클릭하세요. 구글 지도에서 복사한 "33.59, 130.40" 형식을 위도 칸에 붙여넣어도 됩니다. 링크는 비워 두면 [길찾기]가 좌표로 구글 지도를 엽니다. 줄의 🔗 버튼이나 표 위 [빈 링크 채우기]를 누르면 그 링크가 칸에 들어갑니다. 링크 칸은 두 번 눌러야 고칠 수 있고, 구글 지도 링크를 붙여넣으면 위도・경도가 자동으로 바뀝니다. 확인은 [링크 열기](새 창)로 하세요.',
     table: '칸 안의 내용이 http:// 또는 https:// 로 시작하면 방문자 화면에 "바로가기" 링크와 복사 버튼으로 보입니다.'
   };
 
@@ -2132,6 +2133,22 @@
           setCoords(info, c.lat, c.lng);
           toast('링크에서 좌표를 읽어 위도 ' + round6(c.lat) + ', 경도 ' + round6(c.lng) + '로 바꿨습니다. [저장]을 누르세요.');
         }
+        // 링크가 들어 있으면 잠가 두고, 두 번 눌러야 고칠 수 있음 (한 번 눌러서는 아무 일도 없음)
+        function lockLink() {
+          linkInput.readOnly = !!linkInput.value.trim();
+          linkInput.classList.toggle('locked', linkInput.readOnly);
+        }
+        linkInput.title = '두 번 누르면 고칠 수 있습니다';
+        linkInput.addEventListener('dblclick', function() {
+          linkInput.readOnly = false;
+          linkInput.classList.remove('locked');
+          linkInput.focus();
+          linkInput.select();
+        });
+        linkInput.addEventListener('blur', lockLink);
+        linkInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !linkInput.readOnly) linkInput.blur(); });
+        linkInput.addEventListener('input', function() { if (document.activeElement !== linkInput) lockLink(); });
+        lockLink();
         linkInput.addEventListener('input', syncOpen);
         linkInput.addEventListener('change', applyLinkCoords);
         linkInput.addEventListener('paste', function() { setTimeout(function() { applyLinkCoords(); syncOpen(); }, 0); });
