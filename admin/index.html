@@ -5,149 +5,233 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>관리자 허브 · moontr.site</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gowun+Dodum&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
+/* 관리자 대시보드 공통 모양 (진선 50주년 대시보드와 같은 틀) */
 :root{
-  --ink:#17324A; --muted:#5A6F80; --cream:#F7F4EC; --line:#E4DED0; --paper:#fff; --hover:#EEF4F7;
+  --bg:#F3F5F9; --surface:#FFFFFF; --ink:#17243B; --muted:#65728A; --line:#DCE2EC;
+  --accent:#1F3A6B; --on-accent:#FFFFFF; --accent-soft:#E8EDF6; --gold:#B8923A;
   --fb:#1F9A7A; --pw:#D98A2B; --gs:#2C7FC0;
+  --sheet:#1E8E4E; --code:#444C56; --etc:#6B5B95;
 }
 *{box-sizing:border-box}
-body{margin:0;min-height:100dvh;font-family:'Gowun Dodum',sans-serif;font-size:15px;color:var(--ink);background:var(--cream)}
+html,body{height:100%}
+body{margin:0;font-family:Pretendard,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;font-size:15px;color:var(--ink);background:var(--bg)}
 a{color:inherit;text-decoration:none}
 button{font:inherit;color:inherit}
-:focus-visible{outline:3px solid #1E6FA8;outline-offset:2px}
+:focus-visible{outline:3px solid #4C7BD9;outline-offset:2px}
+[hidden]{display:none !important}
+svg{width:16px;height:16px;flex:none}
 
 /* 위쪽 막대 */
-.bar{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.7rem clamp(16px,3vw,40px);border-bottom:1px solid var(--line);background:var(--paper)}
-.bar h1{margin:0;font-family:'Do Hyeon',sans-serif;font-weight:400;font-size:1.5rem}
-.bar .home{font-size:.85rem;color:var(--muted)}
-.views{display:flex;gap:2px;margin-left:auto;padding:3px;background:#F1EDE3;border-radius:999px}
-.views button{min-height:34px;padding:0 .8rem;border:0;border-radius:999px;background:none;cursor:pointer;font-size:.85rem;color:var(--muted)}
-.views button[aria-pressed="true"]{background:var(--ink);color:#fff}
-#logout{min-height:34px;padding:0 .9rem;border:1px solid var(--line);border-radius:999px;background:var(--paper);cursor:pointer;font-size:.85rem}
-[hidden]{display:none !important}
+.top{position:sticky;top:0;z-index:30;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.7rem clamp(16px,2.5vw,32px)}
+.brand{display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:1.1rem}
+.brand .mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--accent);color:#fff;font-weight:800}
+.brand .badge{font-size:.72rem;font-weight:700;color:var(--gold);background:#F7EFD9;border-radius:999px;padding:.15rem .55rem}
+.acts{display:flex;gap:.45rem;margin-left:auto;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:.4rem;min-height:38px;padding:0 .95rem;border:1px solid var(--line);border-radius:999px;background:var(--surface);cursor:pointer;font-size:.88rem;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700;box-shadow:0 6px 16px -8px var(--accent)}
+.btn.primary:hover{filter:brightness(1.12)}
+.btn[aria-pressed="true"]{background:#B3261E;border-color:#B3261E;color:#fff}
 
-main{padding:1rem clamp(16px,3vw,40px) 2rem}
-.legend{display:flex;gap:1rem;flex-wrap:wrap;margin:0 0 .9rem;font-size:.8rem;color:var(--muted)}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
+/* 탭 (묶음) — 앱이 여러 개인 탭은 아래로 목록이 열림 */
+.tabs{display:flex;gap:.2rem;padding:0 clamp(8px,2vw,24px);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{position:relative;flex:none}
+.tab > button{display:flex;align-items:center;gap:.45rem;min-height:46px;padding:0 .9rem;border:0;border-bottom:3px solid transparent;background:none;cursor:pointer;color:var(--muted);font-size:.95rem;white-space:nowrap}
+.tab > button:hover{color:var(--ink)}
+.tab.on > button{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+.tab .cur{font-weight:400;color:var(--muted);font-size:.85rem}
+.tab .caret{width:12px;height:12px;opacity:.6}
+.menu{position:fixed;z-index:40;min-width:260px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px -16px rgba(0,0,0,.35)}
+.menu button{display:flex;align-items:center;gap:.6rem;width:100%;min-height:40px;padding:0 .7rem;border:0;border-radius:8px;background:none;cursor:pointer;text-align:left;font-size:.92rem}
+.menu button:hover{background:var(--accent-soft)}
+.menu button[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.dot{flex:none;display:inline-block;width:8px;height:8px;border-radius:50%}
 .dot.fb{background:var(--fb)}.dot.pw{background:var(--pw)}.dot.gs{background:var(--gs)}
+.menu .note{margin:.3rem .7rem .2rem;font-size:.75rem;color:var(--muted)}
+
+/* 본문: 고른 앱의 관리자 화면 */
+#frame{display:block;width:100%;height:calc(100dvh - var(--top-h, 110px));border:0;background:var(--surface)}
+.frame-note{display:flex;align-items:center;gap:.5rem;padding:.45rem clamp(16px,2.5vw,32px);font-size:.8rem;color:var(--muted);background:#FBFCFE;border-bottom:1px solid var(--line)}
 
 /* 로그인 */
-.login{max-width:380px;margin:3rem auto;background:var(--paper);border-radius:1rem;padding:1.5rem}
-.login input{width:100%;padding:.8rem;font-size:1.2rem;letter-spacing:.3em;text-align:center;border-radius:.6rem;border:1px solid #ccc;margin:.6rem 0}
-.login button{width:100%;min-height:46px;border:0;border-radius:.6rem;background:var(--ink);color:#fff;font-weight:700;cursor:pointer}
+.login{max-width:380px;margin:4rem auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:1.6rem}
+.login h2{margin:0 0 .8rem;font-size:1.2rem}
+.login input{width:100%;padding:.8rem;font-size:1.2rem;letter-spacing:.3em;text-align:center;border-radius:10px;border:1px solid var(--line);margin:.6rem 0}
+.login button{width:100%;min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
 .err{color:#B3261E;min-height:1.4em;margin:.6rem 0 0;font-size:.9rem}
 
-/* 공통: 작은 아이콘 */
-.ic{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;color:#fff;font-size:.72rem;font-weight:700}
-.stu{flex:none;font-size:.75rem;color:var(--muted);padding:.15rem .5rem;border:1px solid var(--line);border-radius:999px;background:var(--paper)}
-.stu:hover{color:var(--ink);border-color:var(--muted)}
+/* ===== 홈 탭: 웹앱별 방문 현황 ===== */
+#home{padding:1.4rem clamp(16px,2.5vw,32px) 3rem}
+.home-head{display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.home-head h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+.home-head p{margin:.3rem 0 0;color:var(--muted);font-size:.9rem}
+.home-head .btn{margin-left:auto}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem;margin-bottom:1rem}
+.sum div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.2rem}
+.sum small{display:block;color:var(--muted);font-size:.82rem}
+.sum b{display:block;font-size:1.8rem;margin-top:.2rem;letter-spacing:-.02em}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:.8rem}
+.card{display:flex;flex-direction:column;gap:.7rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;cursor:pointer;text-align:left}
+.card:hover{border-color:var(--accent);box-shadow:0 10px 24px -18px var(--accent)}
+.card-h{display:flex;align-items:center;gap:.5rem;font-weight:700}
+.card-h .grp{margin-left:auto;font-weight:400;font-size:.75rem;color:var(--muted)}
+.nums{display:flex;gap:1.4rem;align-items:baseline}
+.nums b{font-size:1.7rem;letter-spacing:-.02em}
+.nums small{color:var(--muted);font-size:.8rem;margin-left:.2rem}
+.nums .tot b{font-size:1.1rem}
+.grass{display:grid;grid-template-rows:repeat(7,10px);grid-auto-flow:column;grid-auto-columns:10px;gap:2px;overflow:hidden;justify-content:end}
+.grass i{border-radius:2px;background:#EBEEF3}
+.grass i.l1{background:#C9D5EA}.grass i.l2{background:#8FA6CF}.grass i.l3{background:#4F6FA6}.grass i.l4{background:var(--accent)}
+.grass i.fut{background:transparent}
+.card .msg,#homeCards .msg{font-size:.8rem;color:var(--muted);margin:0}
+.nostat{margin-top:1rem;font-size:.82rem;color:var(--muted)}
 
-/* ① 즐겨찾기 막대 */
-.v-bar .bm{display:flex;flex-wrap:wrap;gap:4px;padding:6px;background:var(--paper);border:1px solid var(--line);border-radius:10px}
+/* ===== 즐겨찾기 탭 ===== */
+#bm{padding:1.4rem clamp(16px,2.5vw,32px) 3rem}
+.bm-head{display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.bm-head h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+.bm-head p{margin:.3rem 0 0;color:var(--muted);font-size:.9rem}
+.views{display:flex;gap:2px;margin-left:auto;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:999px}
+.views button{min-height:34px;padding:0 .8rem;border:0;border-radius:999px;background:none;cursor:pointer;font-size:.85rem;color:var(--muted)}
+.views button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.ic{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;color:#fff;font-size:.72rem;font-weight:700;overflow:hidden}
+img.ic{background:#fff;border:1px solid var(--line);padding:2px;object-fit:contain}
+.chips{flex:none;display:flex;gap:3px;align-items:center}
+.chip{font-size:.7rem;line-height:1;padding:.3rem .5rem;border-radius:999px;border:1px solid currentColor;background:var(--surface);white-space:nowrap}
+.chip.adm{color:var(--accent)} .chip.sheet{color:var(--sheet)} .chip.code{color:var(--code)} .chip.etc{color:var(--etc)}
+.chip:hover{background:currentColor}
+.chip:hover span{color:#fff}
+.del{display:none;flex:none;border:0;background:#FBE4E2;color:#B3261E;border-radius:999px;padding:.3rem .55rem;font-size:.7rem;line-height:1;cursor:pointer}
+body.editing .del{display:inline-block}
+.sub{opacity:.72}
+.sub .go{font-size:.9em}
+.gap{margin-top:.7rem !important}
+.legend{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center;margin:0 0 .9rem;font-size:.8rem;color:var(--muted)}
+
+.v-bar .bm{display:flex;flex-wrap:wrap;gap:4px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
 .v-bar details{position:relative}
 .v-bar summary{list-style:none;display:flex;align-items:center;gap:.4rem;min-height:36px;padding:0 .8rem;border-radius:8px;cursor:pointer;font-size:.9rem}
 .v-bar summary::-webkit-details-marker{display:none}
-.v-bar summary:hover,.v-bar details[open] summary{background:var(--hover)}
-.v-bar summary svg{width:16px;height:16px;color:#C9A227}
-.v-bar .menu{position:absolute;left:0;top:calc(100% + 4px);z-index:5;min-width:300px;padding:6px;background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 30px -12px rgba(0,0,0,.3)}
-.v-bar .row{display:flex;align-items:center;gap:.6rem;padding:.45rem .6rem;border-radius:7px}
-.v-bar .row:hover{background:var(--hover)}
-.v-bar .row a.go{flex:1;display:flex;align-items:center;gap:.6rem}
-.v-bar .tip{margin:.9rem .2rem 0;font-size:.85rem;color:var(--muted)}
+.v-bar summary:hover,.v-bar details[open] summary{background:var(--accent-soft)}
+.v-bar summary svg{color:var(--gold)}
+.v-bar .bmenu{position:absolute;left:0;top:calc(100% + 4px);z-index:5;min-width:340px;max-height:70vh;overflow:auto;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px -12px rgba(0,0,0,.3)}
+.v-bar .row{display:flex;align-items:center;gap:.6rem;padding:.4rem .6rem;border-radius:7px}
+.v-bar .row:hover{background:var(--accent-soft)}
+.v-bar .row a.go{flex:1;display:flex;align-items:center;gap:.6rem;min-width:0}
 
-/* ② 폴더 트리 */
-.v-tree{columns:2 360px;column-gap:2rem}
-.v-tree details{break-inside:avoid;margin:0 0 .6rem}
+.v-tree{columns:2 380px;column-gap:2rem}
+.v-tree details{break-inside:avoid;margin:0 0 .8rem}
 .v-tree summary{display:flex;align-items:center;gap:.45rem;min-height:32px;cursor:pointer;font-weight:700}
-.v-tree summary svg{width:18px;height:18px;color:#C9A227}
+.v-tree summary svg{width:18px;height:18px;color:var(--gold)}
 .v-tree summary small{font-weight:400;color:var(--muted)}
 .v-tree ul{list-style:none;margin:0 0 0 .6rem;padding:0 0 0 1rem;border-left:1px dashed var(--line)}
 .v-tree li{display:flex;align-items:center;gap:.55rem;min-height:32px;padding:0 .4rem;border-radius:6px}
-.v-tree li:hover{background:var(--paper)}
+.v-tree li:hover{background:var(--surface)}
 .v-tree li a.go{display:flex;align-items:center;gap:.55rem;min-width:0;flex:1}
-.v-tree li .d{color:var(--muted);font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v-tree li a.go span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ③ 자세히 보기 */
-.v-list table{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:.9rem}
-.v-list th{text-align:left;font-weight:400;font-size:.78rem;color:var(--muted);padding:.5rem .8rem;border-bottom:1px solid var(--line);background:#FBFAF6}
-.v-list td{padding:0 .8rem;height:34px;border-bottom:1px solid #F1EDE3;white-space:nowrap}
-.v-list tr.grp td{height:28px;background:#FBFAF6;font-size:.78rem;color:var(--muted);font-weight:700}
-.v-list tr.it:hover td{background:var(--hover)}
+.v-list table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);font-size:.9rem}
+.v-list th{text-align:left;font-weight:400;font-size:.78rem;color:var(--muted);padding:.5rem .8rem;border-bottom:1px solid var(--line);background:#FAFBFD}
+.v-list td{padding:0 .8rem;height:34px;border-bottom:1px solid #EEF1F6;white-space:nowrap}
+.v-list tr.grp td{height:28px;background:#FAFBFD;font-size:.78rem;color:var(--muted);font-weight:700}
+.v-list tr.it:hover td{background:var(--accent-soft)}
 .v-list td a.go{display:flex;align-items:center;gap:.55rem}
-.v-list td.d{color:var(--muted);font-size:.82rem;white-space:normal}
-.v-list td.lg{font-size:.8rem;color:var(--muted)}
+.v-list td.host{color:var(--muted);font-size:.8rem;max-width:22rem;overflow:hidden;text-overflow:ellipsis}
+.v-list td.lv{font-size:.75rem;color:var(--muted)}
 
-/* ④ 큰 아이콘 */
 .v-icons section{margin-bottom:1rem}
 .v-icons h2{margin:0 0 .4rem;font-size:.8rem;font-weight:700;color:var(--muted)}
 .v-icons .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:.4rem}
 .v-icons .tile{display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:.7rem .3rem .5rem;border-radius:10px;text-align:center}
-.v-icons .tile:hover{background:var(--paper)}
-.v-icons .tile .ic{width:48px;height:48px;border-radius:14px;font-size:1.2rem;position:relative}
-.v-icons .tile .ic .dot{position:absolute;right:-3px;bottom:-3px;margin:0;border:2px solid var(--cream);width:12px;height:12px}
+.v-icons .tile:hover{background:var(--surface)}
+.v-icons .tile a.go{display:flex;flex-direction:column;align-items:center;gap:.35rem}
+.v-icons .tile .ic{width:48px;height:48px;border-radius:14px;font-size:1.2rem}
 .v-icons .tile b{font-weight:400;font-size:.82rem;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.v-icons .tile .stu{font-size:.68rem;padding:.05rem .45rem}
+.v-icons .tile .chips{flex-wrap:wrap;justify-content:center}
 
-/* ⑤ 칸 나누기 */
-.v-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.8rem;align-items:start}
-.v-cols section{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.6rem}
-.v-cols h2{margin:0 0 .3rem;padding:.2rem .4rem;font-size:.85rem}
+.v-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.8rem;align-items:start}
+.v-cols section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.6rem}
+.v-cols h2{margin:0 0 .3rem;padding:.2rem .4rem;font-size:.9rem}
 .v-cols h2 small{font-weight:400;color:var(--muted)}
-.v-cols .row{display:flex;align-items:center;gap:.5rem;min-height:36px;padding:0 .4rem;border-radius:7px}
-.v-cols .row:hover{background:var(--hover)}
+.v-cols .row{display:flex;align-items:center;gap:.5rem;min-height:34px;padding:0 .4rem;border-radius:7px}
+.v-cols .row:hover{background:var(--accent-soft)}
 .v-cols .row a.go{flex:1;display:flex;align-items:center;gap:.5rem;min-width:0;font-size:.9rem}
 .v-cols .row a.go span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.v-cols .row .stu{opacity:0}
-.v-cols .row:hover .stu,.v-cols .row .stu:focus-visible{opacity:1}
 
-/* 편집(삭제) */
-#edit{min-height:34px;padding:0 .9rem;border:1px solid var(--line);border-radius:999px;background:var(--paper);cursor:pointer;font-size:.85rem}
-#edit[aria-pressed="true"]{background:#B3261E;border-color:#B3261E;color:#fff}
-.del{display:none;flex:none;border:0;background:#FBE4E2;color:#B3261E;border-radius:999px;padding:.15rem .55rem;font-size:.75rem;cursor:pointer}
-body.editing .del{display:inline-block}
-body.editing .v-cols .row .stu{opacity:1}
-.v-icons .tile .del{font-size:.68rem;padding:.05rem .45rem}
-.hiddenbox{margin-top:1.4rem;padding:.8rem 1rem;background:var(--paper);border:1px dashed var(--line);border-radius:10px;font-size:.85rem}
+.hiddenbox{margin-top:1.4rem;padding:.8rem 1rem;background:var(--surface);border:1px dashed var(--line);border-radius:10px;font-size:.85rem}
 .hiddenbox b{display:block;margin-bottom:.4rem;color:var(--muted);font-weight:400}
 .hiddenbox .row{display:flex;align-items:center;gap:.6rem;min-height:32px}
 .hiddenbox .row span{flex:1;color:var(--muted);text-decoration:line-through}
-.hiddenbox button{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:.15rem .7rem;font-size:.78rem;cursor:pointer}
+.hiddenbox button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:.15rem .7rem;font-size:.78rem;cursor:pointer}
 
 @media (max-width:640px){
+  .acts .btn span.t{display:none}
   .views{margin-left:0;width:100%;overflow-x:auto}
-  .v-list td.d,.v-list th.d,.v-list td.lg,.v-list th.lg{display:none}
-  .v-bar .menu{min-width:min(300px,calc(100vw - 32px))}
-  .v-cols .row .stu{opacity:1}
+  .v-list td.host,.v-list th.host,.v-list td.lv,.v-list th.lv{display:none}
+  .v-bar .bmenu{min-width:min(340px,calc(100vw - 32px))}
 }
 </style>
 </head>
 <body>
 
-<header class="bar">
-  <h1>관리자 허브</h1>
-  <a class="home" href="/">moontr.site</a>
-  <nav class="views" id="views" aria-label="보기 방식" hidden></nav>
-  <button type="button" id="edit" aria-pressed="false" hidden>편집</button>
-  <button type="button" id="logout" hidden>로그아웃</button>
+<header class="top" id="top">
+  <div class="top-row">
+    <a class="brand" href="/"><span class="mark">M</span>moontr.site <span class="badge">관리자</span></a>
+    <div class="acts" id="acts" hidden>
+      <a class="btn primary" id="siteBtn" href="/" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span class="t">사이트 보기</span></a>
+      <a class="btn" id="newWin" href="/" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14L21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg><span class="t">새 창으로</span></a>
+      <button type="button" class="btn" id="edit" aria-pressed="false" hidden><span class="t">편집</span></button>
+      <button type="button" class="btn" id="logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span class="t">로그아웃</span></button>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="관리자 화면 고르기" hidden></nav>
 </header>
+<div class="menu" id="menu" role="menu" hidden></div>
 
 <main>
   <form class="login" id="login" hidden>
+    <h2>관리자 로그인</h2>
     <label for="pw">관리자 비밀번호(숫자 6자리)</label>
     <input type="password" id="pw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" autocomplete="current-password" required>
     <button type="submit">로그인</button>
     <p class="err" id="err" role="alert"></p>
   </form>
 
-  <div id="list" hidden></div>
+  <section id="home" hidden>
+    <div class="home-head">
+      <div><h1>오늘의 현황</h1><p>웹앱마다 오늘 방문 · 누적 방문 · 최근 20주 잔디입니다. 카드를 누르면 그 관리자 화면이 열립니다.</p></div>
+      <button type="button" class="btn" id="homeReload">새로고침</button>
+    </div>
+    <div class="sum" id="homeSum"></div>
+    <div class="cards" id="homeCards"></div>
+    <p class="nostat" id="homeNo"></p>
+  </section>
+
+  <div id="stage" hidden>
+    <div class="frame-note" id="frameNote" hidden></div>
+    <iframe id="frame" title="관리자 화면"></iframe>
+  </div>
+
+  <section id="bm" hidden>
+    <div class="bm-head">
+      <div><h1>즐겨찾기</h1><p>이름을 누르면 새 창으로 열립니다.</p></div>
+      <nav class="views" id="views" aria-label="보기 방식"></nav>
+    </div>
+    <div id="bmList"></div>
+  </section>
 </main>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
@@ -157,43 +241,121 @@ const firebaseConfig = {
   messagingSenderId: "126636401536",
   appId: "1:126636401536:web:25b8a8296ec42b86f99765"
 };
-import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
-/* 허브에서 삭제한 항목(관리자 주소 목록)은 여기에 저장됩니다 → 어느 기기에서 열어도 똑같이 보입니다 */
-const HIDDEN_DOC = doc(db, 'moontr_config', 'adminHub');
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+/* 즐겨찾기에서 삭제한 항목(주소 목록)은 여기에 저장됩니다 → 어느 기기에서 열어도 똑같이 보입니다 */
+const HIDDEN_DOC = doc(db, 'moontr_config', 'adminHub');
 
 /* ============================================================
-   ✏️ 여기만 고치면 됩니다 — 웹앱이 늘면 줄 하나 추가
-   login: 'fb' = 여기서 로그인하면 자동으로 들어가짐
-          'pw' = 다른 주소라 처음 한 번은 같은 비밀번호 입력
-          'gs' = 구글 앱스 스크립트(구글 계정으로 확인)
-   student: 학생용 주소 (없으면 비워 두기)
+   ✏️ ① 관리자 화면 — 위쪽 탭 (묶음 하나 = 탭 하나, 앱이 여러 개면 탭을 누르면 아래로 목록)
+   admin  : 관리자 화면 주소 (허브 안에 열림)
+   student: 학생용 주소 → [사이트 보기]
+   login  : 'fb' = 여기서 로그인하면 자동으로 들어가짐
+            'pw' = 다른 주소라 처음 한 번은 같은 비밀번호 입력
+            'gs' = 구글 앱스 스크립트(구글 계정으로 확인)
+   icon   : 탭 그림 (home·book·tool·flag·code 중 하나)
    ============================================================ */
-const GROUPS = [
-  { title:'대문', items:[
-    { name:'대문 시간표', desc:'종 시간과 요일별 시간표 편집', admin:'/#admin', student:'/', login:'fb' }
+const ADMIN_GROUPS = [
+  { title:'대문', icon:'home', items:[
+    { name:'대문 시간표', admin:'/#admin', student:'/', login:'fb' }
   ]},
-  { title:'기출 학습', items:[
-    { name:'생윤 만점 다이어리', desc:'문항 관리 · 학생 기록', admin:'/app/?admin', student:'/app/', login:'fb' },
-    { name:'윤사 만점 다이어리', desc:'문항 관리 · 학생 기록', admin:'/idea/?admin', student:'/idea/', login:'fb' }
+  { title:'기출 학습', icon:'book', items:[
+    { name:'생윤 만점 다이어리', admin:'/app/?admin', student:'/app/', login:'fb' },
+    { name:'윤사 만점 다이어리', admin:'/idea/?admin', student:'/idea/', login:'fb' }
   ]},
-  { title:'수업 도구', items:[
-    { name:'출석체크', desc:'분반 수업 출석 확인 · 질문 목록', admin:'/check04/#teacher', student:'/check04/', login:'fb' },
-    { name:'바이브코딩 매뉴얼', desc:'이미지 · 코드 · 방문 기록', admin:'/vibe/?admin', student:'/vibe/', login:'fb' },
-    { name:'9월 컨설팅장학 수업 사례', desc:'사진 · 접속 기록', admin:'/0911/#admin', student:'/0911/', login:'fb' }
+  { title:'수업 도구', icon:'tool', items:[
+    { name:'출석체크', admin:'/check04/#teacher', student:'/check04/', login:'fb' },
+    { name:'바이브코딩 매뉴얼', admin:'/vibe/?admin', student:'/vibe/', login:'fb' },
+    { name:'9월 컨설팅장학 수업 사례', admin:'/0911/#admin', student:'/0911/', login:'fb' }
   ]},
-  { title:'행사 · 연수', items:[
-    { name:'진선 50주년 기념', desc:'안내글 · 후원 · 방명록 승인 · 갤러리 · 사진 제보', admin:'https://jinseon50th.com/#admin', student:'https://jinseon50th.com/', login:'pw' },
-    { name:'50주년 해외연수', desc:'카테고리 · 항목 · 메모 · 접속 기록', admin:'https://jinseon50th.com/gt/#admin', student:'https://jinseon50th.com/gt/', login:'pw' }
+  { title:'행사 · 연수', icon:'flag', items:[
+    { name:'진선 50주년 기념', admin:'https://jinseon50th.com/#admin', student:'https://jinseon50th.com/', login:'pw' },
+    { name:'50주년 해외연수', admin:'https://jinseon50th.com/gt/#admin', student:'https://jinseon50th.com/gt/', login:'pw' }
   ]},
-  { title:'교사용 화면 (앱스 스크립트)', items:[
-    { name:'/ct 교사용', desc:'학생용은 /cs', admin:'/ct/', student:'/cs/', login:'gs' },
-    { name:'/ct1 교사용', desc:'학생용은 /cs1', admin:'/ct1/', student:'/cs1/', login:'gs' },
-    { name:'/ct2 교사용', desc:'학생용은 /cs2', admin:'/ct2/', student:'/cs2/', login:'gs' },
-    { name:'/ct8 교사용', desc:'학생용은 /cs8', admin:'/ct8/', student:'/cs8/', login:'gs' }
+  { title:'교사용 화면', icon:'code', items:[
+    { name:'/ct 교사용', admin:'/ct/', student:'/cs/', login:'gs' },
+    { name:'/ct1 교사용', admin:'/ct1/', student:'/cs1/', login:'gs' },
+    { name:'/ct2 교사용', admin:'/ct2/', student:'/cs2/', login:'gs' },
+    { name:'/ct8 교사용', admin:'/ct8/', student:'/cs8/', login:'gs' }
+  ]}
+];
+
+/* ============================================================
+   ✏️ ② 즐겨찾기 목록 (위쪽 [즐겨찾기] 탭) — 즐겨찾기가 늘면 줄 하나 추가
+   name  : 이름
+   url   : 누르면 열리는 주소 (웹앱·홈페이지)
+   admin : 관리자 화면 주소 (있을 때만) → [관리자] 버튼
+   links : 그 밖의 바로가기 → 주소를 보고 [시트]·[코드]·[드라이브]·[관리] 버튼이 자동으로 붙음
+           이름을 직접 붙이려면 ['윤사', '/idea/'] 처럼 [이름, 주소]로 적기
+   sub   : true 면 하위 항목 (흐리고 작게)
+   gap   : true 면 그 줄 위에 한 칸 띄움
+   ============================================================ */
+const BOOKMARKS = [
+  { title:'웹앱 즐겨찾기', items:[
+    { name:'나만의즐겨찾기', url:'https://script.google.com/macros/s/AKfycbzaZDZIIheaMRtYWUQZSp36RSJX4RZPCmeksHJy16DAlobxloQdkmv0kbEzwaYnqh-b/exec',
+      links:['https://docs.google.com/spreadsheets/d/1I74JGiflh9he3dmtCx8nX4GFyUxvrnMOAyhK8sSEYtI/edit?gid=1799316044#gid=1799316044'] },
+    { name:'MOONTR_110', url:'/110/',
+      links:['https://docs.google.com/spreadsheets/d/1JCrOgfJwUOwZQGzVkz6MAKXuR61mmaZq7I7HdWIL6cU/edit?gid=691238031#gid=691238031'] },
+    { name:'바이브코딩매뉴얼', url:'/vibe/', admin:'/vibe/?admin',
+      links:['https://github.com/vaca-at/moontr/tree/main/vibe'] },
+    { name:'컨설팅수업사례발표', url:'/0911/', admin:'/0911/#admin' },
+    { name:'미도약출석부(수정)', url:'/check04/', admin:'/check04/#teacher' },
+    { name:'통사중간고사범위', url:'https://script.google.com/macros/s/AKfycbzGf_oDnmQFbhSeHLkkkDu5Xn6RNFS6iuWcY_H8YkCevbivot_HTOFeUcIT7jBnOA/exec',
+      links:['https://docs.google.com/spreadsheets/d/1Modk-54WTUVHMaKU_tXdx9ncYD55wvTnhSzOvhutRNU/edit?gid=925704671#gid=925704671'] },
+    { name:'생윤 다이어리', url:'/app/', admin:'/app/?admin' },
+    { name:'윤사 다이어리', url:'/idea/', admin:'/idea/?admin' },
+    { name:'통사컨설팅장학(최종)', url:'/c4/',
+      links:['https://docs.google.com/spreadsheets/d/1EXrVcBucVeC5uf7gFGNFz6U8FTP4Xwqi5OEtiZf7ciE/edit?gid=0#gid=0'] },
+    { name:'진선50주년', url:'https://jinseon50th.com/', admin:'https://jinseon50th.com/#admin' },
+    { name:'해외연수(GT)', url:'https://jinseon50th.com/gt/', admin:'https://jinseon50th.com/gt/#admin',
+      links:['https://docs.google.com/spreadsheets/d/1VDCliDzfOOJUp9bNYtJyBSZp8DhzEGRoAVRerajw3lM/edit?pli=1&gid=30556380#gid=30556380'] },
+
+    { name:'미도약출석부', gap:true, url:'https://script.google.com/macros/s/AKfycbwCcP1t_Cg42ctzuFonfzvpospkjIK8GhjXZp9gR1OQzOCuL-Cjq1oSjNt7tgofW-Jf/exec',
+      links:['https://docs.google.com/spreadsheets/d/1fFQMHA0antplZlgBEfT85kJM-YkYRczWfsYgvSMhf78/edit?gid=0#gid=0'] },
+    { name:'통사3차시(4~11반)', url:'/cs8/', admin:'/ct8/',
+      links:['https://docs.google.com/spreadsheets/d/1JF2amM4mgMHUZRe7Xanp1GuURQkt1TrcrFlc4pR5cPo/edit?gid=0#gid=0'] },
+    { name:'통사1차시학생용', url:'https://script.google.com/macros/s/AKfycbxQ3guglRIMm6-YPwq0sYPfiWr1FZ0-RRVN1YT3W5MHL4jMjA2aSeLm9na967Duz9t-/exec',
+      links:['https://docs.google.com/spreadsheets/d/1quS_Uxsmo-CnxP7-wrOYZYssjJGZzx4ZDBVFokb2VUU/edit?gid=0#gid=0'] },
+    { name:'통사2차시(연습용)', url:'https://script.google.com/macros/s/AKfycbwlvGM8d1WWK_WQtO_THY69pc0yozcxB7ncTxZ58FCS2be6O5j3I3V1T9MIqaCkJlyFWg/exec',
+      links:['https://docs.google.com/spreadsheets/d/1Ti_DYBIXQTWfFjXf55A_3aBBxcoB1cHMkxRThXTUpkA/edit?gid=0#gid=0'] },
+    { name:'통사3차시(연습용)', url:'https://script.google.com/macros/s/AKfycbzPQcIPDmdQcAY7QoNDI3iNfbRc3dQYY9OdiAHDZ9XpvOmcRXzsWoEanfrR2mYl0Ff6/exec',
+      links:['https://docs.google.com/spreadsheets/d/1dsZLqOa5ujX9IoJLSY0VvBjpwObTWqnfOPYnR0ZKxIU/edit?gid=0#gid=0'] },
+    { name:'통사4차시(공동체주의)', url:'/common/' },
+    { name:'또래상담부DRS', sub:true, url:'/drs/',
+      links:['https://docs.google.com/spreadsheets/d/1uAEmgRwgLKOVSB9pX0N2fLAx_r1XeWsSPrTNMK3CXrk/edit?gid=1472664041#gid=1472664041'] },
+    { name:'진불동나무고르기', sub:true, url:'https://script.google.com/macros/s/AKfycbzmiKz5gweuGJ55LezQ29G6mpf5HKrslBXCgSE6tFGKnkjCK27tbkPEoe3zjufVWC-7/exec',
+      links:['https://docs.google.com/spreadsheets/d/1YNrW93OBTllXmMqm0BeUXIqCn0tbQHa0N-wkUNbqasw/edit?gid=0#gid=0'] }
+  ]},
+  { title:'자주 가는 홈페이지', items:[
+    { name:'내친구 Claude', url:'https://claude.ai/new' },
+    { name:'내사랑 iCloud', url:'https://www.icloud.com/' },
+    { name:'파이어베이스', url:'https://console.firebase.google.com/' },
+    { name:'저장소관리사이트', url:'https://github.com/' },
+    { name:'다양한아이콘', url:'https://emojipedia.org/' },
+    { name:'무료폰트', url:'https://noonnu.cc/' },
+    { name:'카카오개발자', url:'https://developers.kakao.com/' },
+    { name:'버셀(배포)', gap:true, sub:true, url:'https://vercel.com/' },
+    { name:'핀터레스트', sub:true, url:'https://kr.pinterest.com/' },
+    { name:'Claude Console', sub:true, url:'https://platform.claude.com/dashboard' },
+    { name:'플리커스', sub:true, url:'https://www.plickers.com/library' }
+  ]},
+  { title:'웹앱 연수 자료', items:[
+    { name:'교사개발자플랫폼', url:'https://sendev.kr/home' },
+    { name:'교사개발자성장형원', url:'https://drive.google.com/drive/folders/1FfuSIKJdCmNkhet5bkorcTIsuVUuvZuU' },
+    { name:'해커튼패들렛', gap:true, sub:true, url:'https://padlet.com/DCMSKR/2026-1-0904-s023987i3l7fptpkg6iv' },
+    { name:'학운위기준자료', sub:true, url:'https://www.wowideas.co.kr/bid_app/cwinfo.wowideas/project.html?_bid=IF36&prj_id=TC34R5' }
+  ]},
+  { title:'수업 관련 블로그', items:[
+    { name:'수업사례모으기', sub:true, url:'https://blog.naver.com/moontools' }
+  ]},
+  { title:'기타', items:[
+    { name:'키링만들기재료', sub:true, url:'https://script.google.com/macros/s/AKfycbw-5RWOU5TaLFGstSmJG-DTawJLuQ_6L_VfRAHVAkiZ3Eau9SFzyC1aooOEwXy4Udl8fw/exec',
+      links:['https://docs.google.com/spreadsheets/d/180JcrBdcr6dMR0s1mMo5TKeRdWSkOPQ-QqtPTUqiodQ/edit?gid=0#gid=0'] },
+    { name:'장바구니', sub:true, url:'https://script.google.com/macros/s/AKfycbyiKRN8iAdGRO3TAS8CSF32tDM268wHf4OcP8hr4WvoXA_VAp3cIxW--iY2sc4FkKTk/exec',
+      links:['https://docs.google.com/spreadsheets/d/19zoPWvEXzpi70YtVNNDiSiMFconajQAGqYgrRb_EF-c/edit?usp=sharing'] },
+    { name:'쿠팡', sub:true, url:'https://partners.coupang.com/#affiliate/ws' }
   ]}
 ];
 
@@ -202,72 +364,256 @@ const GROUPS = [
    ============================================================ */
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const TAG = { fb:'자동 로그인', pw:'다른 주소 (처음 한 번 비밀번호)', gs:'구글 계정' };
-const COLORS = ['#17324A','#1F7A65','#B8573A','#8A5AA8','#2C7FC0','#9A7B1C'];
+const ICONS = {
+  home:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  book:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/>',
+  tool:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/>',
+  flag:'<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+  code:'<path d="M8 8l-4 4 4 4"/><path d="M16 8l4 4-4 4"/>',
+  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  star:'<path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.3L12 17.5 6.5 20.4l1-6.3L3 9.7l6.2-.9z"/>'
+};
+const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[k] || ''}</svg>`;
+const CARET = '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+const ALL_APPS = ADMIN_GROUPS.flatMap(g => g.items);
+const LOGIN_NOTE = {
+  pw:'다른 주소(jinseon50th.com)라 이 창 안에서 처음 한 번은 같은 비밀번호를 입력합니다. 안 되면 [새 창으로]를 누르세요.',
+  gs:'구글 앱스 스크립트 화면입니다. 구글 계정 확인이 필요하면 [새 창으로]를 누르세요.'
+};
+
+/* ---------- 지금 보고 있는 화면 ---------- */
+/* 허브를 열면 늘 [홈]부터 보여 줍니다 */
+let cur = 'home';         // 'home' = 홈, null = 즐겨찾기, 그 밖에는 고른 앱
+
+function renderTabs(){
+  $('#tabs').innerHTML = ADMIN_GROUPS.map((g, gi) => {
+    const on = g.items.includes(cur);
+    const multi = g.items.length > 1;
+    return `<div class="tab ${on ? 'on' : ''}"><button type="button" data-g="${gi}" ${multi ? 'aria-haspopup="menu"' : ''}>
+      ${svg(g.icon)}${esc(g.title)}${on && multi ? `<span class="cur">· ${esc(cur.name)}</span>` : ''}${multi ? CARET : ''}</button></div>`;
+  }).join('') + `<div class="tab ${cur ? '' : 'on'}"><button type="button" data-bm>${svg('star')}즐겨찾기</button></div>`;
+  $('#tabs').insertAdjacentHTML('afterbegin', `<div class="tab ${cur === 'home' ? 'on' : ''}"><button type="button" data-home>${svg('chart')}홈</button></div>`);
+}
+function show(app){
+  cur = app;
+  closeMenu();
+  renderTabs();
+  const isApp = !!app && app !== 'home';
+  $('#home').hidden = app !== 'home';
+  $('#stage').hidden = !isApp;
+  $('#bm').hidden = app !== null;
+  $('#edit').hidden = app !== null;
+  $('#siteBtn').hidden = $('#newWin').hidden = !isApp;
+  if (app === 'home') renderHome();
+  else if (isApp){
+    if ($('#frame').dataset.src !== app.admin){ $('#frame').dataset.src = app.admin; $('#frame').src = app.admin; }
+    $('#siteBtn').href = app.student || app.admin;
+    $('#newWin').href = app.admin;
+    const note = LOGIN_NOTE[app.login];
+    $('#frameNote').hidden = !note;
+    $('#frameNote').textContent = note || '';
+  } else renderBm();
+  fitFrame();
+}
+/* iframe 높이 = 화면 높이 − 위쪽 막대 */
+function fitFrame(){
+  const h = $('#top').offsetHeight + ($('#frameNote').hidden ? 0 : $('#frameNote').offsetHeight);
+  document.documentElement.style.setProperty('--top-h', h + 'px');
+}
+addEventListener('resize', fitFrame);
+
+/* ---------- 탭 아래로 열리는 목록 ---------- */
+let menuFor = null;
+function openMenu(btn, gi){
+  const g = ADMIN_GROUPS[gi], r = btn.getBoundingClientRect();
+  const m = $('#menu');
+  m.innerHTML = g.items.map((a, i) => `<button type="button" role="menuitem" data-i="${i}" ${a === cur ? 'aria-current="true"' : ''}>
+      <span class="dot ${a.login}"></span>${esc(a.name)}</button>`).join('');
+  m.hidden = false;
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.top = (r.bottom + 4) + 'px';
+  menuFor = gi;
+  m.querySelector('button').focus();
+}
+function closeMenu(){ $('#menu').hidden = true; menuFor = null; }
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.hasAttribute('data-bm')) return show(null);
+  if (b.hasAttribute('data-home')) return show('home');
+  const gi = +b.dataset.g, g = ADMIN_GROUPS[gi];
+  if (g.items.length === 1) return show(g.items[0]);
+  if (menuFor === gi) return closeMenu();
+  openMenu(b, gi);
+});
+$('#menu').addEventListener('click', e => {
+  const b = e.target.closest('button[data-i]'); if (!b) return;
+  show(ADMIN_GROUPS[menuFor].items[+b.dataset.i]);
+});
+document.addEventListener('click', e => { if (!e.target.closest('#menu') && !e.target.closest('#tabs')) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+$('#tabs').addEventListener('scroll', closeMenu);
+
+/* ============================================================
+   홈 탭: 웹앱별 방문 현황
+   각 앱이 Firestore 에 남기는 방문 기록을 읽어 날짜별로 셉니다.
+   (기록을 남기지 않는 화면은 아래에 이름만 보여 줍니다)
+   ============================================================ */
+const ymd = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+const toDay = v => {
+  if (!v) return null;
+  if (v.toDate) return ymd(v.toDate());
+  if (typeof v === 'number') return ymd(new Date(v));
+  const m = String(v).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
+  return m ? `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}` : null;
+};
+/* 관리자 화면 주소 → 방문 기록이 있는 곳 */
+const STATS = {
+  '/app/?admin':        { col:'saengyun_visits', day:x => toDay(x.d), unit:'방문' },
+  '/idea/?admin':       { col:'yunsa_visits', day:x => toDay(x.d), unit:'방문' },
+  '/check04/#teacher':  { col:'attendance', day:x => toDay(x.date), unit:'출석' },
+  '/0911/#admin':       { col:'talkSessions', day:x => toDay(x.startedAt), unit:'방문' },
+  '/vibe/?admin':       { col:'progress', vibe:true, unit:'방문' },
+  'https://jinseon50th.com/#admin':    { col:'jinsun50_visits', day:x => toDay(x.d || x.startMs), unit:'방문' },
+  'https://jinseon50th.com/gt/#admin': { col:'gt_logs', filter:x => x.type === 'visit', day:x => toDay(x.at), unit:'방문' }
+};
+const WEEKS = 20;
+let homeData = null;
+
+async function loadStats(){
+  const today = ymd(new Date());
+  const out = {};
+  await Promise.all(Object.entries(STATS).map(async ([key, st]) => {
+    try {
+      const snap = await getDocs(collection(db, st.col));
+      let docs = snap.docs.map(d => d.data());
+      if (st.filter) docs = docs.filter(st.filter);
+      if (st.vibe){
+        /* 바이브코딩은 기기마다 누적 방문 수와 마지막 방문만 남깁니다 (날짜별 기록 없음) */
+        out[key] = { today: docs.filter(x => x.lastSeen && toDay(Date.parse(x.lastSeen)) === today).length,
+                     total: docs.reduce((n, x) => n + (x.visits || 0), 0), days:null, devices: docs.length };
+        return;
+      }
+      const days = {};
+      docs.forEach(x => { const k = st.day(x); if (k) days[k] = (days[k] || 0) + 1; });
+      out[key] = { today: days[today] || 0, total: docs.length, days };
+    } catch (e) { out[key] = { error: e.code || e.message }; }
+  }));
+  return out;
+}
+function grass(days){
+  const end = new Date(); end.setHours(0,0,0,0);
+  const start = new Date(end); start.setDate(start.getDate() - end.getDay() - (WEEKS - 1) * 7);   // 20주 전 일요일부터
+  const vals = []; for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) vals.push([ymd(dt), days[ymd(dt)] || 0]);
+  const max = Math.max(1, ...vals.map(v => v[1]));
+  const lv = n => !n ? '' : n <= max * .25 ? 'l1' : n <= max * .5 ? 'l2' : n <= max * .75 ? 'l3' : 'l4';
+  const fut = 6 - end.getDay();
+  return `<div class="grass" aria-hidden="true">${vals.map(([k, n]) => `<i class="${lv(n)}" title="${k.slice(5).replace('-', '/')} · ${n}"></i>`).join('')}${'<i class="fut"></i>'.repeat(fut)}</div>`;
+}
+async function renderHome(force){
+  if (!homeData || force){
+    $('#homeCards').innerHTML = '<p class="msg">불러오는 중...</p>';
+    homeData = await loadStats();
+    if (cur !== 'home') return;
+  }
+  const apps = ADMIN_GROUPS.flatMap(g => g.items.map(a => ({ a, g })));
+  const withStat = apps.filter(({ a }) => STATS[a.admin]);
+  const okData = withStat.map(({ a }) => homeData[a.admin]).filter(d => d && !d.error);
+  const sum = f => okData.reduce((n, d) => n + f(d), 0);
+  $('#homeSum').innerHTML = `
+    <div><small>오늘 전체</small><b>${sum(d => d.today)}회</b></div>
+    <div><small>누적 전체</small><b>${sum(d => d.total).toLocaleString()}회</b></div>
+    <div><small>오늘 쓰인 웹앱</small><b>${okData.filter(d => d.today).length} / ${withStat.length}개</b></div>`;
+  $('#homeCards').innerHTML = withStat.map(({ a, g }) => {
+    const d = homeData[a.admin] || {}, unit = STATS[a.admin].unit;
+    const body = d.error
+      ? `<p class="msg">기록을 읽지 못했습니다 (${esc(d.error)})</p>`
+      : `<div class="nums"><span><b>${d.today}</b><small>오늘 ${unit}</small></span><span class="tot"><b>${d.total.toLocaleString()}</b><small>누적</small></span></div>
+         ${d.days ? grass(d.days) : `<p class="msg">날짜별 기록이 없어 잔디는 없습니다 · 기기 ${d.devices}대</p>`}`;
+    return `<button type="button" class="card" data-open="${esc(a.admin)}">
+      <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}<span class="grp">${esc(g.title)}</span></span>${body}</button>`;
+  }).join('');
+  const none = apps.filter(({ a }) => !STATS[a.admin]).map(({ a }) => a.name);
+  $('#homeNo').textContent = none.length ? '방문 기록을 남기지 않는 화면: ' + none.join(', ') : '';
+}
+$('#homeCards').addEventListener('click', e => {
+  const c = e.target.closest('[data-open]'); if (!c) return;
+  show(ALL_APPS.find(a => a.admin === c.dataset.open));
+});
+$('#homeReload').addEventListener('click', () => renderHome(true));
+
+/* ============================================================
+   즐겨찾기 탭
+   ============================================================ */
+const COLORS = ['#1F3A6B','#1F7A65','#B8573A','#8A5AA8','#2C7FC0','#9A7B1C'];
 const FOLDER = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>';
+const host = u => { try { return new URL(u, location.origin).host; } catch { return ''; } };
+const isHere = u => host(u) === location.host;
+function icon(a, gi){
+  if (!isHere(a.url)) return `<img class="ic" src="https://www.google.com/s2/favicons?domain=${esc(host(a.url))}&sz=64" alt="" loading="lazy">`;
+  return `<span class="ic" style="background:${COLORS[gi % COLORS.length]}">${esc(a.name.replace(/^\//, '').charAt(0))}</span>`;
+}
+function linkInfo(l){
+  const [label, href] = Array.isArray(l) ? l : [null, l];
+  if (label) return { label, href, cls:'etc' };
+  if (/docs\.google\.com\/spreadsheets/.test(href)) return { label:'시트', href, cls:'sheet' };
+  if (/github\.com/.test(href)) return { label:'코드', href, cls:'code' };
+  if (/drive\.google\.com/.test(href)) return { label:'드라이브', href, cls:'etc' };
+  return { label:'관리', href, cls:'etc' };
+}
+const chip = (label, href, cls) => `<a class="chip ${cls}" href="${esc(href)}" target="_blank" rel="noopener"><span>${esc(label)}</span></a>`;
+const chips = a => `<span class="chips">${a.admin ? chip('관리자', a.admin, 'adm') : ''}${(a.links || []).map(l => { const i = linkInfo(l); return chip(i.label, i.href, i.cls); }).join('')}<button type="button" class="del" data-del="${esc(a.url)}">삭제</button></span>`;
+const go = (a, gi, inner) => `<a class="go" href="${esc(a.url)}" target="_blank" rel="noopener" title="${esc(host(a.url))}">${icon(a, gi)}${inner}</a>`;
+const cls = a => [a.sub ? 'sub' : '', a.gap ? 'gap' : ''].join(' ');
 
-const icon = (a, gi) => `<span class="ic" style="background:${COLORS[gi % COLORS.length]}">${esc(a.name.replace(/^\//, '').charAt(0))}</span>`;
-const go = (a, gi, inner) => `<a class="go" href="${esc(a.admin)}" title="${esc(a.desc || '')}">${icon(a, gi)}${inner}</a>`;
-const stu = a => (a.student ? `<a class="stu" href="${esc(a.student)}">학생용</a>` : '') +
-  `<button type="button" class="del" data-del="${esc(a.admin)}">삭제</button>`;
 let hidden = [];
-const shown = g => ({ ...g, items: g.items.filter(a => !hidden.includes(a.admin)) });
-const each = fn => GROUPS.map((g, gi) => [shown(g), gi]).filter(([g]) => g.items.length).map(([g, gi]) => fn(g, gi)).join('');
+const shown = g => ({ ...g, items: g.items.filter(a => !hidden.includes(a.url)) });
+const each = fn => BOOKMARKS.map((g, gi) => [shown(g), gi]).filter(([g]) => g.items.length).map(([g, gi]) => fn(g, gi)).join('');
 
-/* 보기 방식 다섯 가지 */
 const VIEWS = {
-  bar:  { label:'즐겨찾기 막대', render: () => `
-    <div class="v-bar">
-      <div class="bm">${each((g, gi) => `
-        <details><summary>${FOLDER}${esc(g.title)}</summary>
-          <div class="menu">${g.items.map(a => `<div class="row">${go(a, gi, `<span>${esc(a.name)}</span>`)}<span class="dot ${a.login}"></span>${stu(a)}</div>`).join('')}</div>
-        </details>`)}
-      </div>
-      <p class="tip">폴더를 누르면 목록이 열립니다. 이름을 누르면 관리자 화면으로 갑니다.</p>
+  cols: { label:'칸 나누기', render: () => `
+    <div class="v-cols">${each((g, gi) => `
+      <section><h2>${esc(g.title)} <small>${g.items.length}</small></h2>
+        ${g.items.map(a => `<div class="row ${cls(a)}">${go(a, gi, `<span>${esc(a.name)}</span>`)}${chips(a)}</div>`).join('')}
+      </section>`)}
     </div>` },
+  bar:  { label:'즐겨찾기 막대', render: () => `
+    <div class="v-bar"><div class="bm">${each((g, gi) => `
+      <details><summary>${FOLDER}${esc(g.title)}</summary>
+        <div class="bmenu">${g.items.map(a => `<div class="row ${cls(a)}">${go(a, gi, `<span>${esc(a.name)}</span>`)}${chips(a)}</div>`).join('')}</div>
+      </details>`)}</div></div>` },
   tree: { label:'폴더', render: () => `
     <div class="v-tree">${each((g, gi) => `
       <details open><summary>${FOLDER}${esc(g.title)} <small>${g.items.length}</small></summary>
-        <ul>${g.items.map(a => `<li>${go(a, gi, `<span>${esc(a.name)}</span><span class="d">${esc(a.desc || '')}</span>`)}<span class="dot ${a.login}"></span>${stu(a)}</li>`).join('')}</ul>
+        <ul>${g.items.map(a => `<li class="${cls(a)}">${go(a, gi, `<span>${esc(a.name)}</span>`)}${chips(a)}</li>`).join('')}</ul>
       </details>`)}
     </div>` },
   list: { label:'자세히', render: () => `
     <div class="v-list"><table>
-      <thead><tr><th>이름</th><th class="d">하는 일</th><th class="lg">로그인</th><th></th></tr></thead>
+      <thead><tr><th>이름</th><th class="host">주소</th><th class="lv">구분</th><th>바로가기</th></tr></thead>
       <tbody>${each((g, gi) => `<tr class="grp"><td colspan="4">${esc(g.title)}</td></tr>` + g.items.map(a => `
-        <tr class="it"><td>${go(a, gi, `<span>${esc(a.name)}</span>`)}</td><td class="d">${esc(a.desc || '')}</td>
-        <td class="lg"><span class="dot ${a.login}"></span>${TAG[a.login].split(' (')[0]}</td><td>${stu(a)}</td></tr>`).join(''))}
+        <tr class="it ${a.sub ? 'sub' : ''}"><td>${go(a, gi, `<span>${esc(a.name)}</span>`)}</td>
+        <td class="host">${esc(host(a.url))}</td><td class="lv">${a.sub ? '하위' : '상위'}</td><td>${chips(a)}</td></tr>`).join(''))}
       </tbody></table></div>` },
   icons:{ label:'큰 아이콘', render: () => `
     <div class="v-icons">${each((g, gi) => `
       <section><h2>${esc(g.title)}</h2><div class="tiles">${g.items.map(a => `
-        <div class="tile"><a class="go" href="${esc(a.admin)}" title="${esc(a.desc || '')}" style="display:contents">
-          <span class="ic" style="background:${COLORS[gi % COLORS.length]}">${esc(a.name.replace(/^\//, '').charAt(0))}<span class="dot ${a.login}"></span></span>
-          <b>${esc(a.name)}</b></a>${stu(a)}</div>`).join('')}</div></section>`)}
-    </div>` },
-  cols: { label:'칸 나누기', render: () => `
-    <div class="v-cols">${each((g, gi) => `
-      <section><h2>${esc(g.title)} <small>${g.items.length}</small></h2>
-        ${g.items.map(a => `<div class="row">${go(a, gi, `<span>${esc(a.name)}</span>`)}<span class="dot ${a.login}"></span>${stu(a)}</div>`).join('')}
-      </section>`)}
+        <div class="tile ${a.sub ? 'sub' : ''}">${go(a, gi, `<b>${esc(a.name)}</b>`)}${chips(a)}</div>`).join('')}</div></section>`)}
     </div>` }
 };
-
 let view = 'cols';
 try { if (VIEWS[localStorage.getItem('hub-view')]) view = localStorage.getItem('hub-view'); } catch {}
 
-function renderViews(){
+function renderBm(){
   $('#views').innerHTML = Object.entries(VIEWS).map(([k, v]) =>
     `<button type="button" data-v="${k}" aria-pressed="${k === view}">${v.label}</button>`).join('');
-}
-function renderList(){
-  $('#list').innerHTML = `<p class="legend">${Object.entries(TAG).map(([k, t]) => `<span><span class="dot ${k}"></span>${t}</span>`).join('')}</p>` + VIEWS[view].render() + hiddenBox();
+  $('#bmList').innerHTML = `<p class="legend">${chip('관리자', '#', 'adm')} 관리자 화면 ${chip('시트', '#', 'sheet')} 구글 시트 ${chip('코드', '#', 'code')} 깃허브</p>`
+    .replace(/href="#" target="_blank" rel="noopener"/g, 'tabindex="-1" aria-hidden="true"') + VIEWS[view].render() + hiddenBox();
 }
 function hiddenBox(){
   if (!document.body.classList.contains('editing') || !hidden.length) return '';
-  const all = GROUPS.flatMap(g => g.items);
+  const all = BOOKMARKS.flatMap(g => g.items);
   return `<div class="hiddenbox"><b>삭제한 항목 ${hidden.length}개 — 되돌리면 다시 보입니다</b>${hidden.map(h => {
-    const a = all.find(x => x.admin === h);
+    const a = all.find(x => x.url === h);
     return `<div class="row"><span>${esc(a ? a.name : h)}</span><button type="button" data-undo="${esc(h)}">되돌리기</button></div>`;
   }).join('')}</div>`;
 }
@@ -275,51 +621,49 @@ async function saveHidden(next){
   try { await setDoc(HIDDEN_DOC, { hidden: next }); }
   catch (err){ alert('저장하지 못했습니다: ' + err.message); }
 }
-$('#edit').addEventListener('click', () => {
-  const on = !document.body.classList.contains('editing');
-  document.body.classList.toggle('editing', on);
-  $('#edit').setAttribute('aria-pressed', on);
-  $('#edit').textContent = on ? '편집 끝' : '편집';
-  renderList();
-});
-$('#list').addEventListener('click', e => {
-  const d = e.target.closest('[data-del]'), u = e.target.closest('[data-undo]');
-  if (d){
-    e.preventDefault();
-    const a = GROUPS.flatMap(g => g.items).find(x => x.admin === d.dataset.del);
-    if (confirm(`'${a ? a.name : d.dataset.del}'을(를) 허브에서 삭제할까요?
-(앱 자체는 지워지지 않고, 편집에서 되돌릴 수 있습니다)`))
-      saveHidden([...new Set([...hidden, d.dataset.del])]);
-  }
-  if (u) saveHidden(hidden.filter(h => h !== u.dataset.undo));
-});
 $('#views').addEventListener('click', e => {
   const b = e.target.closest('button[data-v]'); if (!b) return;
   view = b.dataset.v;
   try { localStorage.setItem('hub-view', view); } catch {}
-  renderViews(); renderList();
+  renderBm();
 });
-/* 즐겨찾기 막대: 하나를 열면 다른 폴더는 닫고, 바깥을 누르면 닫기 */
+$('#edit').addEventListener('click', () => {
+  const on = !document.body.classList.contains('editing');
+  document.body.classList.toggle('editing', on);
+  $('#edit').setAttribute('aria-pressed', on);
+  $('#edit .t').textContent = on ? '편집 끝' : '편집';
+  renderBm();
+});
+$('#bmList').addEventListener('click', e => {
+  const d = e.target.closest('[data-del]'), u = e.target.closest('[data-undo]');
+  if (d){
+    e.preventDefault();
+    const a = BOOKMARKS.flatMap(g => g.items).find(x => x.url === d.dataset.del);
+    if (confirm(`'${a ? a.name : d.dataset.del}'을(를) 즐겨찾기에서 삭제할까요?\n(사이트 자체는 지워지지 않고, 편집에서 되돌릴 수 있습니다)`))
+      saveHidden([...new Set([...hidden, d.dataset.del])]);
+  }
+  if (u) saveHidden(hidden.filter(h => h !== u.dataset.undo));
+});
 document.addEventListener('click', e => {
   document.querySelectorAll('.v-bar details[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; });
 });
 
+/* ============================================================
+   로그인
+   ============================================================ */
 let unsubHidden = null;
 onAuthStateChanged(auth, user => {
   const ok = !!user && user.email === ADMIN_EMAIL;
   $('#login').hidden = ok;
-  $('#list').hidden = !ok;
-  $('#logout').hidden = !ok;
-  $('#views').hidden = !ok;
-  $('#edit').hidden = !ok;
-  if (ok){ renderViews(); renderList(); } else $('#pw').focus();
+  $('#acts').hidden = $('#tabs').hidden = !ok;
+  if (ok) show(cur);
+  else { $('#stage').hidden = $('#bm').hidden = $('#home').hidden = true; homeData = null; $('#frame').removeAttribute('src'); delete $('#frame').dataset.src; $('#pw').focus(); }
   if (ok && !unsubHidden) unsubHidden = onSnapshot(HIDDEN_DOC, snap => {
     hidden = (snap.exists() && Array.isArray(snap.data().hidden)) ? snap.data().hidden : [];
-    renderList();
+    if (!cur) renderBm();
   }, () => {});
   if (!ok && unsubHidden){ unsubHidden(); unsubHidden = null; }
 });
-
 $('#login').addEventListener('submit', async e => {
   e.preventDefault();
   $('#err').textContent = '';
@@ -327,7 +671,7 @@ $('#login').addEventListener('submit', async e => {
   catch { $('#err').textContent = '로그인 실패: 비밀번호를 확인해 주세요'; }
   $('#pw').value = '';
 });
-$('#logout').addEventListener('click', () => signOut(auth));
+$('#logout').addEventListener('click', () => { if (confirm('로그아웃할까요?')) signOut(auth); });
 </script>
 </body>
 </html>

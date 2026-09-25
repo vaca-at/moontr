@@ -739,6 +739,11 @@
 
   .data-table-wrap{ overflow-x:auto; border:1.5px solid var(--line); border-radius:8px; }
   table.data-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  /* 학생별 기록: 제목 칸을 누르면 정렬 (▲ 오름차순 · ▼ 내림차순) */
+  .data-table th.sortable{ cursor:pointer; user-select:none; }
+  .data-table th.sortable:hover{ color:var(--green); }
+  .data-table th .sort-ar{ display:inline-block; margin-left:3px; font-size:9px; opacity:.35; }
+  .data-table th.sorted .sort-ar{ opacity:1; }
   .data-table th{ background:var(--paper-2); color:var(--green-dark); font-weight:800; text-align:left; padding:8px 10px; border-bottom:1.5px solid var(--line); white-space:nowrap; }
   .data-table td{ padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
   .data-table tr:last-child td{ border-bottom:none; }
@@ -4948,6 +4953,22 @@ function initAdmin(){
         };
       });
 
+      // 학생별 기록 표에서 정렬할 칸 (label: 제목, key: 정렬 기준값)
+      const STUDENT_COLS = [
+        { label:'학번', key:r=>r.s.studentId },
+        { label:'닉네임', key:r=>r.s.nickname },
+        { label:'푼 문항', key:r=>r.solved },
+        { label:'정답률', key:r=>r.rate },
+        { label:'선지 O/X', key:r=>r.soxT ? r.soxRate : null },
+        { label:'현재 오답', key:r=>r.wrongIds.length },
+        { label:'즐겨찾기', key:r=>r.fav },
+        { label:'메모', key:r=>r.memo },
+        { label:'형광펜', key:r=>r.hl },
+        { label:'공부한 날', key:r=>r.dayCount },
+        { label:'노트', key:r=>r.noteLen },
+        { label:'최근 접속', key:r=>r.s.lastSeen?.toMillis ? r.s.lastSeen.toMillis() : null }
+      ];
+
       // 날짜별 접속 현황 (최근 14일) — 학생들이 언제 들어와 풀었는지
       const today = new Date(); today.setHours(0,0,0,0);
       const recent = [];
@@ -4969,7 +4990,7 @@ function initAdmin(){
       el.innerHTML = `
         <div class="badge-row">
           <span class="badge">로그인한 학생 ${list.length}명</span>
-          <span class="badge off">학번 순 정렬</span>
+          <span class="badge off" id="student-sort-badge">학번 오름차순</span>
           <button class="small-btn line" id="students-csv" type="button">CSV로 내려받기</button>
         </div>
         <div class="section-hint">닉네임을 잊은 학생은 [닉네임 재설정]으로 새 닉네임을 정해주면 기존 학습 기록이 그대로 옮겨져요.</div>
@@ -4996,10 +5017,10 @@ function initAdmin(){
 
         <div class="section-title">학생별 기록</div>
         <div id="student-note-view"></div>
-        <div class="data-table-wrap"><table class="data-table">
-          <thead><tr><th>학번</th><th>닉네임</th><th>푼 문항</th><th>정답률</th><th>선지 O/X</th><th>현재 오답</th><th>즐겨찾기</th><th>메모</th><th>형광펜</th><th>공부한 날</th><th>노트</th><th>최근 접속</th><th></th></tr></thead>
-          <tbody>${rows.map(r=>`
-            <tr>
+        <div class="data-table-wrap"><table class="data-table" id="student-table">
+          <thead><tr>${STUDENT_COLS.map((c,i)=>`<th class="sortable" data-sort="${i}" title="눌러서 정렬">${c.label}<span class="sort-ar">▲▼</span></th>`).join('')}<th></th></tr></thead>
+          <tbody>${rows.map((r,i)=>`
+            <tr data-i="${i}">
               <td><b>${escapeHtml(r.s.studentId)}</b></td>
               <td>${escapeHtml(r.s.nickname)}</td>
               <td>${r.solved} <span style="color:var(--muted);font-size:11px;">(${r.attempts}회)</span></td>
@@ -5067,6 +5088,39 @@ function initAdmin(){
       renderVisitStats();
 
       const byKey = k => list.find(x => x.key === k);
+
+      // ----- 학생별 기록: 제목 칸을 누를 때마다 오름차순 ↔ 내림차순 (줄을 옮기기만 해서 버튼은 그대로 작동) -----
+      {
+        const table = document.getElementById('student-table');
+        const body = table.querySelector('tbody');
+        const trs = [...body.querySelectorAll('tr[data-i]')];
+        let sortCol = 0, sortDir = 1;
+        const paint = ()=>{
+          table.querySelectorAll('th[data-sort]').forEach(th=>{
+            const on = +th.dataset.sort === sortCol;
+            th.classList.toggle('sorted', on);
+            th.querySelector('.sort-ar').textContent = on ? (sortDir > 0 ? '▲' : '▼') : '▲▼';
+          });
+          document.getElementById('student-sort-badge').textContent = STUDENT_COLS[sortCol].label + (sortDir > 0 ? ' 오름차순' : ' 내림차순');
+        };
+        const sortRows = ()=>{
+          const key = STUDENT_COLS[sortCol].key;
+          const empty = v => v === null || v === undefined || v === '';
+          trs.slice().sort((x,y)=>{
+            const a = key(rows[x.dataset.i]), b = key(rows[y.dataset.i]);
+            if(empty(a) || empty(b)) return empty(a) - empty(b);   // 빈 값은 늘 맨 아래
+            const d = (typeof a === 'number' && typeof b === 'number') ? a - b : String(a).localeCompare(String(b), 'ko', { numeric:true });
+            return d * sortDir;
+          }).forEach(tr=> body.appendChild(tr));
+          paint();
+        };
+        table.querySelectorAll('th[data-sort]').forEach(th=> th.addEventListener('click', ()=>{
+          const c = +th.dataset.sort;
+          if(c === sortCol) sortDir = -sortDir; else { sortCol = c; sortDir = 1; }
+          sortRows();
+        }));
+        sortRows();
+      }
 
       el.querySelectorAll('[data-note]').forEach(b=> b.addEventListener('click', ()=>{
         const s = byKey(b.dataset.note);
