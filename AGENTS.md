@@ -16,6 +16,7 @@
 
 ## 관리자 허브 (`/admin`)
 - `admin/index.html`은 모든 웹앱의 관리자 화면을 모아 둔 페이지입니다.
+- 허브의 [편집 → 삭제]는 코드를 지우지 않고 Firestore `moontr_config/adminHub` 의 `hidden` 목록에 숨깁니다. 코드에서 완전히 빼려면 `GROUPS`에서 줄을 지웁니다.
 - **관리자 화면이 있는 새 앱을 만들면** `admin/index.html` 맨 위 `GROUPS`에 한 줄 추가합니다.
   - `login: 'fb'` = moontr.site 안의 앱 (자동 로그인)
   - `login: 'pw'` = 다른 주소의 앱 (jinseon50th.com 등, 같은 비밀번호를 한 번 더)
