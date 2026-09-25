@@ -23,7 +23,7 @@
   - `login: 'pw'` = 다른 주소의 앱 (jinseon50th.com 등, 같은 비밀번호를 한 번 더)
   - `login: 'gs'` = 구글 앱스 스크립트 교사용 화면
 - **새 웹앱에는 방문 수 세기 한 줄을 꼭 넣습니다**: `</body>` 바로 위에 `<script type="module" src="/visit.js?app=폴더이름"></script>` (다른 주소면 `https://moontr.site/visit.js?app=...`). 왼쪽 아래에 오늘·누적 방문 수가 작게 보이고, 허브 [홈]에 모입니다. 관리자 화면이 없는 앱은 `admin/index.html`의 `SITE_NAMES`에 이름을 추가합니다.
-- **새 웹앱에는 맨 아래 이용약관·개인정보 처리방침 링크를 넣습니다**: 공통 안내는 `policy/index.html`에 앱마다 칸(`<section id="...">`)을 하나 추가하고, 앱 바닥글에서 `/policy/#그칸`으로 연결합니다. 화면 전체가 iframe이라 바닥글을 둘 수 없으면 `visit.js`에 `&policy=/policy/%23그칸`을 붙입니다.
+- **새 웹앱에는 맨 아래에 그 웹앱만의 이용약관·개인정보 처리방침을 넣습니다**: 다른 웹앱의 이름·주소는 적지 않습니다(대문에 공개하지 않은 앱이 드러나면 안 됨). `policy/index.html`은 **대문 전용**이라 다른 앱을 추가하지 않습니다. 출석체크(`check04`)의 `<footer class="policy-foot"><details>…` 모양을 따라 앱 안에 펼쳐지게 넣고, 화면 전체가 iframe이면 `visit.js`에 `&policy=gas`(구글 시트 웹앱 안내 작은 창)를 붙입니다.
 - 학생용 입구에도 보여야 하면 대문 `index.html`의 `APPS` 목록에도 추가합니다.
 
 ## Firebase
