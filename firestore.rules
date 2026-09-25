@@ -136,6 +136,19 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
+    // ===== 모든 웹앱 방문 수 (/visit.js) =====
+    // 문서 이름: "앱이름__total"(누적) · "앱이름__d2026-09-25"(그날), 숫자 n 하나만
+    // 누구나 보기, 누구나 1씩 올리기만 (처음 만들 때는 1), 관리자는 숫자를 맞추거나 지우기
+    match /site_counts/{id} {
+      allow read: if true;
+      allow create: if id.matches('^[a-z0-9_-]+__(total|d[0-9]{4}-[0-9]{2}-[0-9]{2})$')
+        && request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == 1;
+      allow update: if request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == resource.data.n + 1;
+      allow write: if isTeacher();
+    }
+
     // ===== 진선 50주년 기념 웹앱 =====
     // 메뉴 안내글: 누구나 보기, 관리자만 쓰기
     match /jinsun50_menus/{menuId} {

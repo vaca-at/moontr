@@ -71,7 +71,25 @@ svg{width:16px;height:16px;flex:none}
 .home-head p{margin:.3rem 0 0;color:var(--muted);font-size:.9rem}
 .home-head .btn{margin-left:auto}
 .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem;margin-bottom:1rem}
-.sum div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.2rem}
+.sum button{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.2rem;cursor:pointer;position:relative}
+.sum button:hover{border-color:var(--accent)}
+.sum button[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.sum button::after{content:"순위 보기 ▾";position:absolute;right:1rem;top:1rem;font-size:.72rem;color:var(--muted)}
+.sum button[aria-expanded="true"]::after{content:"접기 ▴";color:var(--accent)}
+/* 요약 칸을 누르면 아래로 열리는 순위 */
+.rank{margin:-.2rem 0 1rem;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:.6rem .8rem}
+.rank h3{margin:.2rem .4rem .5rem;font-size:.9rem}
+.rank-row{display:grid;grid-template-columns:2rem minmax(8rem,14rem) 1fr 5.5rem;align-items:center;gap:.7rem;width:100%;min-height:38px;padding:0 .4rem;border:0;border-radius:8px;background:none;cursor:pointer;text-align:left;font-size:.9rem}
+.rank-row:hover{background:var(--accent-soft)}
+.rank-row .no{font-weight:800;color:var(--muted);text-align:center}
+.rank-row:nth-child(-n+4) .no{color:var(--gold)}
+.rank-row .nm{display:flex;align-items:center;gap:.45rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-row .bar{height:8px;border-radius:99px;background:#EBEEF3;overflow:hidden}
+.rank-row .bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.rank-row .v{text-align:right;font-weight:700}
+.rank-row.zero{opacity:.5}
+.rank .foot{margin:.4rem .4rem .1rem;font-size:.78rem;color:var(--muted)}
+@media (max-width:640px){ .rank-row{grid-template-columns:1.6rem 1fr 4.5rem} .rank-row .bar{display:none} }
 .sum small{display:block;color:var(--muted);font-size:.82rem}
 .sum b{display:block;font-size:1.8rem;margin-top:.2rem;letter-spacing:-.02em}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:.8rem}
@@ -88,7 +106,16 @@ svg{width:16px;height:16px;flex:none}
 .grass i.l1{background:#C9D5EA}.grass i.l2{background:#8FA6CF}.grass i.l3{background:#4F6FA6}.grass i.l4{background:var(--accent)}
 .grass i.fut{background:transparent}
 .card .msg,#homeCards .msg{font-size:.8rem;color:var(--muted);margin:0}
-.nostat{margin-top:1rem;font-size:.82rem;color:var(--muted)}
+.nostat{margin-top:1.4rem}
+.others-h{margin:0 0 .6rem;font-size:1rem}
+.others-h small{font-weight:400;color:var(--muted);font-size:.8rem;margin-left:.4rem}
+.others{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.4rem .6rem}
+.orow{display:grid;grid-template-columns:minmax(9rem,14rem) 5rem 6rem 1fr;align-items:center;gap:.8rem;min-height:40px;padding:.2rem .5rem;border-radius:8px;font-size:.88rem}
+.orow:hover{background:var(--accent-soft)}
+.orow .v{color:var(--muted);font-size:.8rem;text-align:right}
+.orow .v b{color:var(--ink);font-size:.95rem}
+.orow .grass{grid-template-rows:repeat(7,6px);grid-auto-columns:6px;gap:1px}
+@media (max-width:640px){ .orow{grid-template-columns:1fr 4rem 5rem} .orow .grass{display:none} }
 
 /* ===== 즐겨찾기 탭 ===== */
 #bm{padding:1.4rem clamp(16px,2.5vw,32px) 3rem}
@@ -210,8 +237,9 @@ body.editing .del{display:inline-block}
       <button type="button" class="btn" id="homeReload">새로고침</button>
     </div>
     <div class="sum" id="homeSum"></div>
+    <div class="rank" id="homeRank" hidden></div>
     <div class="cards" id="homeCards"></div>
-    <p class="nostat" id="homeNo"></p>
+    <div class="nostat" id="homeNo"></div>
   </section>
 
   <div id="stage" hidden>
@@ -466,31 +494,61 @@ const toDay = v => {
   const m = String(v).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
   return m ? `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}` : null;
 };
-/* 관리자 화면 주소 → 방문 기록이 있는 곳 */
+/* 관리자 화면 주소 → 방문 기록이 있는 곳
+   site: /visit.js 로 세는 앱 이름 (site_counts)
+   seed: 앱이 따로 남기던 기록이 있으면, 웹앱 왼쪽 아래에 보이는 누적 수를 그 기록에 맞춰 올려 둡니다 */
 const STATS = {
-  '/app/?admin':        { col:'saengyun_visits', day:x => toDay(x.d), unit:'방문' },
-  '/idea/?admin':       { col:'yunsa_visits', day:x => toDay(x.d), unit:'방문' },
+  '/#admin':            { site:'home', unit:'방문' },
+  '/app/?admin':        { col:'saengyun_visits', day:x => toDay(x.d), unit:'방문', seed:'app' },
+  '/idea/?admin':       { col:'yunsa_visits', day:x => toDay(x.d), unit:'방문', seed:'idea' },
   '/check04/#teacher':  { col:'attendance', day:x => toDay(x.date), unit:'출석' },
-  '/0911/#admin':       { col:'talkSessions', day:x => toDay(x.startedAt), unit:'방문' },
-  '/vibe/?admin':       { col:'progress', vibe:true, unit:'방문' },
+  '/0911/#admin':       { col:'talkSessions', day:x => toDay(x.startedAt), unit:'방문', seed:'0911' },
+  '/vibe/?admin':       { col:'progress', vibe:true, unit:'방문 기기', seed:'vibe' },
   'https://jinseon50th.com/#admin':    { col:'jinsun50_visits', day:x => toDay(x.d || x.startMs), unit:'방문' },
-  'https://jinseon50th.com/gt/#admin': { col:'gt_logs', filter:x => x.type === 'visit', day:x => toDay(x.at), unit:'방문' }
+  'https://jinseon50th.com/gt/#admin': { col:'gt_logs', filter:x => x.type === 'visit', day:x => toDay(x.at), unit:'방문', seed:'jinseon-gt' }
 };
+/* 관리자 화면이 없는 웹앱 (/visit.js 이름 → 보여 줄 이름) — 홈 맨 아래 표에 나옵니다 */
+const SITE_NAMES = {
+  '110':'1학년 10반 공지', justice01:'사회 정의 수업', common:'통사4차시(공동체주의)', c1:'/c1', c2:'2학기 통사 학습지', c4:'통사컨설팅장학(최종)',
+  check:'/check', check03:'/check03', cs:'/cs', cs1:'/cs1', cs2:'/cs2', cs4:'/cs4', cs8:'통사3차시(4~11반)', drs:'또래상담부DRS', gt:'/gt',
+  check04:'출석체크 (학생 화면 방문)'
+};
+let siteData = {};
 const WEEKS = 20;
 let homeData = null;
 
 async function loadStats(){
   const today = ymd(new Date());
   const out = {};
+  /* /visit.js 가 센 숫자: "이름__total", "이름__d2026-09-25" */
+  siteData = {};
+  try {
+    (await getDocs(collection(db, 'site_counts'))).docs.forEach(d => {
+      const m = d.id.match(/^(.+)__(total|d(\d{4}-\d{2}-\d{2}))$/); if (!m) return;
+      const o = siteData[m[1]] = siteData[m[1]] || { total:0, days:{} };
+      if (m[2] === 'total') o.total = d.data().n || 0; else o.days[m[3]] = d.data().n || 0;
+    });
+  } catch {}
   await Promise.all(Object.entries(STATS).map(async ([key, st]) => {
+    if (st.site){
+      const o = siteData[st.site] || { total:0, days:{} };
+      out[key] = { today: o.days[today] || 0, total: o.total, days: o.days };
+      return;
+    }
     try {
       const snap = await getDocs(collection(db, st.col));
       let docs = snap.docs.map(d => d.data());
       if (st.filter) docs = docs.filter(st.filter);
       if (st.vibe){
-        /* 바이브코딩은 기기마다 누적 방문 수와 마지막 방문만 남깁니다 (날짜별 기록 없음) */
-        out[key] = { today: docs.filter(x => x.lastSeen && toDay(Date.parse(x.lastSeen)) === today).length,
-                     total: docs.reduce((n, x) => n + (x.visits || 0), 0), days:null, devices: docs.length };
+        /* 바이브코딩: 기기마다 들어온 날짜(days)를 남깁니다 → 날짜별 인원수
+           (날짜 기록을 시작하기 전 방문은 처음·마지막 방문한 날만 알 수 있어 그 두 날로 셉니다) */
+        const days = {};
+        docs.forEach(x => {
+          const set = new Set(Object.keys(x.days || {}));
+          [x.firstSeen, x.lastSeen].forEach(t => { const k = t && toDay(Date.parse(t)); if (k) set.add(k); });
+          set.forEach(k => { days[k] = (days[k] || 0) + 1; });
+        });
+        out[key] = { today: days[today] || 0, total: docs.reduce((n, x) => n + (x.visits || 0), 0), days, devices: docs.length };
         return;
       }
       const days = {};
@@ -498,7 +556,17 @@ async function loadStats(){
       out[key] = { today: days[today] || 0, total: docs.length, days };
     } catch (e) { out[key] = { error: e.code || e.message }; }
   }));
+  seedSiteCounts(out, today);
   return out;
+}
+/* 앱이 따로 남기던 기록이 더 많으면, 웹앱에 보이는 누적·오늘 숫자를 그만큼 올려 둡니다 (줄이지는 않음) */
+function seedSiteCounts(out, today){
+  Object.entries(STATS).forEach(([key, st]) => {
+    const d = out[key]; if (!st.seed || !d || d.error) return;
+    const o = siteData[st.seed] || { total:0, days:{} };
+    if (d.total > o.total) setDoc(doc(db, 'site_counts', `${st.seed}__total`), { n: d.total }).catch(() => {});
+    if (d.today > (o.days[today] || 0)) setDoc(doc(db, 'site_counts', `${st.seed}__d${today}`), { n: d.today }).catch(() => {});
+  });
 }
 function grass(days){
   const end = new Date(); end.setHours(0,0,0,0);
@@ -520,21 +588,58 @@ async function renderHome(force){
   const okData = withStat.map(({ a }) => homeData[a.admin]).filter(d => d && !d.error);
   const sum = f => okData.reduce((n, d) => n + f(d), 0);
   $('#homeSum').innerHTML = `
-    <div><small>오늘 전체</small><b>${sum(d => d.today)}회</b></div>
-    <div><small>누적 전체</small><b>${sum(d => d.total).toLocaleString()}회</b></div>
-    <div><small>오늘 쓰인 웹앱</small><b>${okData.filter(d => d.today).length} / ${withStat.length}개</b></div>`;
+    <button type="button" data-rank="today" aria-expanded="${rankOpen === 'today'}"><small>오늘 전체</small><b>${sum(d => d.today)}회</b></button>
+    <button type="button" data-rank="total" aria-expanded="${rankOpen === 'total'}"><small>누적 전체</small><b>${sum(d => d.total).toLocaleString()}회</b></button>
+    <button type="button" data-rank="used" aria-expanded="${rankOpen === 'used'}"><small>오늘 쓰인 웹앱</small><b>${okData.filter(d => d.today).length} / ${withStat.length}개</b></button>`;
+  renderRank();
   $('#homeCards').innerHTML = withStat.map(({ a, g }) => {
     const d = homeData[a.admin] || {}, unit = STATS[a.admin].unit;
     const body = d.error
       ? `<p class="msg">기록을 읽지 못했습니다 (${esc(d.error)})</p>`
       : `<div class="nums"><span><b>${d.today}</b><small>오늘 ${unit}</small></span><span class="tot"><b>${d.total.toLocaleString()}</b><small>누적</small></span></div>
-         ${d.days ? grass(d.days) : `<p class="msg">날짜별 기록이 없어 잔디는 없습니다 · 기기 ${d.devices}대</p>`}`;
+         ${grass(d.days)}${d.devices ? `<p class="msg">기기 ${d.devices}대 · 잔디는 날짜별 들어온 기기 수</p>` : ''}`;
     return `<button type="button" class="card" data-open="${esc(a.admin)}">
       <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}<span class="grp">${esc(g.title)}</span></span>${body}</button>`;
   }).join('');
-  const none = apps.filter(({ a }) => !STATS[a.admin]).map(({ a }) => a.name);
-  $('#homeNo').textContent = none.length ? '방문 기록을 남기지 않는 화면: ' + none.join(', ') : '';
+  const today = ymd(new Date());
+  const others = Object.keys(SITE_NAMES).map(k => ({ k, name: SITE_NAMES[k], o: siteData[k] || { total:0, days:{} } }))
+    .sort((x, y) => (y.o.days[today] || 0) - (x.o.days[today] || 0) || y.o.total - x.o.total);
+  $('#homeNo').innerHTML = `<h2 class="others-h">그 밖의 웹앱 <small>관리자 화면이 없는 웹앱 · 오늘 방문 많은 순</small></h2>
+    <div class="others">${others.map(r => `<a class="orow" href="/${esc(r.k)}/" target="_blank" rel="noopener">
+      <span class="nm">${esc(r.name)}</span><span class="v"><b>${r.o.days[today] || 0}</b> 오늘</span><span class="v">${r.o.total.toLocaleString()} 누적</span>${grass(r.o.days)}</a>`).join('')}</div>`;
 }
+/* 요약 칸을 누르면 아래로 순위가 열립니다 (많은 순) */
+let rankOpen = null;
+function renderRank(){
+  const box = $('#homeRank');
+  if (!rankOpen || !homeData){ box.hidden = true; return; }
+  const key = rankOpen === 'total' ? 'total' : 'today';
+  const rows = ADMIN_GROUPS.flatMap(g => g.items).filter(a => STATS[a.admin])
+    .map(a => ({ a, d: homeData[a.admin] || {} })).filter(r => !r.d.error)
+    .map(r => ({ ...r, v: r.d[key] || 0 })).sort((x, y) => y.v - x.v);
+  const list = rankOpen === 'used' ? rows.filter(r => r.v > 0) : rows;
+  const max = Math.max(1, ...list.map(r => r.v));
+  const title = { today:'오늘 방문이 많은 웹앱', total:'누적 방문이 많은 웹앱', used:'오늘 쓰인 웹앱 (많이 쓰인 순)' }[rankOpen];
+  const unused = rankOpen === 'used' ? rows.filter(r => !r.v).map(r => r.a.name) : [];
+  box.innerHTML = `<h3>${title}</h3>${list.map((r, i) => `
+    <button type="button" class="rank-row ${r.v ? '' : 'zero'}" data-open="${esc(r.a.admin)}">
+      <span class="no">${i + 1}</span><span class="nm"><span class="dot ${r.a.login}"></span>${esc(r.a.name)}</span>
+      <span class="bar"><i style="width:${Math.round(r.v / max * 100)}%"></i></span>
+      <span class="v">${r.v.toLocaleString()}${STATS[r.a.admin].unit === '출석' ? '명' : '회'}</span></button>`).join('') || '<p class="foot">오늘은 아직 쓰인 웹앱이 없습니다.</p>'}
+    ${unused.length ? `<p class="foot">오늘 안 쓰인 웹앱: ${unused.map(esc).join(', ')}</p>` : ''}
+    <p class="foot">줄을 누르면 그 관리자 화면이 열립니다.</p>`;
+  box.hidden = false;
+}
+$('#homeSum').addEventListener('click', e => {
+  const b = e.target.closest('[data-rank]'); if (!b) return;
+  rankOpen = rankOpen === b.dataset.rank ? null : b.dataset.rank;
+  $('#homeSum').querySelectorAll('[data-rank]').forEach(x => x.setAttribute('aria-expanded', x.dataset.rank === rankOpen));
+  renderRank();
+});
+$('#homeRank').addEventListener('click', e => {
+  const c = e.target.closest('[data-open]'); if (!c) return;
+  show(ALL_APPS.find(a => a.admin === c.dataset.open));
+});
 $('#homeCards').addEventListener('click', e => {
   const c = e.target.closest('[data-open]'); if (!c) return;
   show(ALL_APPS.find(a => a.admin === c.dataset.open));

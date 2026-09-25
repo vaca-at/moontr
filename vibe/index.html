@@ -385,6 +385,31 @@ body[data-design="b"] .note-box{border-radius:0;border-left:3px solid var(--acce
 .ref-ul li::before{content:'';position:absolute;left:4px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
 .ta{width:100%;background:var(--panel2);border:1.5px solid var(--line);border-radius:var(--rSm);padding:12px;font-size:.9rem;line-height:1.7;color:var(--ink);resize:vertical;min-height:120px}
 .ta:focus{border-color:var(--accent);outline:none}
+/* ===== 공통 관리자 틀 — 모든 웹앱 관리자 화면이 같은 구조
+   ① 위쪽 막대: 앱 이름 + 관리자 표시 / [사이트 보기] [관리자 허브] [로그아웃]
+   ② 탭: 그림 + 이름, 고른 탭은 밑줄   ③ 본문: 큰 제목 + 한 줄 설명, 내용은 흰 카드 안에 ===== */
+.ka{position:fixed;inset:0;z-index:95;overflow-y:auto;background:var(--bg);color:var(--ink)}
+.ka-top{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.ka-row{max-width:1200px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ka-brand{display:flex;align-items:center;gap:10px;margin-right:auto;font-weight:800;font-size:1.05rem}
+.ka-logo{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--accent);color:var(--accentInk)}
+.ka-badge{font-size:.7rem;font-weight:800;padding:3px 9px;border-radius:999px;background:var(--accentSoft);color:var(--accent)}
+.ka-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.ka-btn:hover{border-color:var(--accent)}
+.ka-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accentInk);box-shadow:0 6px 16px -8px var(--accent)}
+.ka-btn.primary:hover{filter:brightness(1.1)}
+.ka-btn svg{width:15px;height:15px}
+.ka-tabs{max-width:1200px;margin:0 auto;padding:0 12px;display:flex;gap:2px;overflow-x:auto}
+.ka-tab{display:inline-flex;align-items:center;gap:6px;padding:12px;font-size:.9rem;font-weight:800;color:var(--ink3);border-bottom:3px solid transparent;white-space:nowrap}
+.ka-tab:hover{color:var(--ink2)}
+.ka-tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.ka-tab svg{width:16px;height:16px}
+.ka-body{max-width:1200px;margin:0 auto;padding:24px 20px 60px}
+.ka-head h1{margin:0;font-size:1.75rem;font-weight:800;letter-spacing:-.02em}
+.ka-head p{margin:6px 0 18px;font-size:.88rem;color:var(--ink3)}
+.ka-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;display:flex;flex-direction:column;gap:12px}
+html.in-hub .ka-hub{display:none}
+@media (max-width:640px){.ka-btn .t{display:none}.ka-card{padding:16px 14px}.ka-head h1{font-size:1.35rem}}
 .adm-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding:0 20px;margin:-14px -20px 0;background:var(--panel)}
 .adm-tab{padding:11px 14px;font-size:.85rem;font-weight:800;color:var(--ink3);border-bottom:2.5px solid transparent}
 .adm-tab:hover{color:var(--ink2)}
@@ -470,6 +495,7 @@ body[data-design="b"] .note-box{border-radius:0;border-left:3px solid var(--acce
   .xref{width:100%}
 }
 </style>
+<script>try{ if(window.top !== window) document.documentElement.classList.add('in-hub'); }catch(e){ document.documentElement.classList.add('in-hub'); }</script>
 </head>
 <body data-design="a" data-font="nanum">
 <div id="root"></div>
@@ -510,9 +536,11 @@ async function trackVisit(){
   if(!cloudReady) return;
   const ref=db.collection('progress').doc(DEV);
   const now=new Date().toISOString();
+  // 들어온 날짜도 남깁니다 (관리자 허브에서 날짜별 인원수·잔디로 보여 줌)
+  const d=new Date(), day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const snap=await ref.get();
-  if(snap.exists) await ref.set({lastSeen:now, visits:(snap.data().visits||0)+1},{merge:true});
-  else await ref.set({firstSeen:now,lastSeen:now,visits:1,steps:{},asks:0});
+  if(snap.exists) await ref.set({lastSeen:now, visits:(snap.data().visits||0)+1, days:{[day]:true}},{merge:true});
+  else await ref.set({firstSeen:now,lastSeen:now,visits:1,steps:{},asks:0,days:{[day]:true}});
 }
 async function trackSave(p){ if(!cloudReady) return;
   await db.collection('progress').doc(DEV).set({...p,lastSeen:new Date().toISOString()},{merge:true}); }
@@ -1836,24 +1864,47 @@ function CodePanel({ codeMap, setCodeMap }){
   </>;
 }
 
+/* 관리자 화면 (공통 관리자 틀: 위쪽 막대 · 탭 · 큰 제목 · 카드) */
+const KA_SVG={
+  stat:'M3 3v18h18M7 15l4-4 3 3 5-6',
+  img:'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6',
+  code:'M8 8l-4 4 4 4M16 8l4 4-4 4',
+  eye:'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+  grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+  out:'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9'
+};
+const kaIc=k=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={KA_SVG[k]}/></svg>;
 function AdminModal({ imgMap, setImgMap, codeMap, setCodeMap, onClose }){
   const [tab,setTab]=useState('stat');
-  const TABS=[{k:'stat',n:'진도 현황'},{k:'img',n:'이미지'},{k:'code',n:'코드 선물'}];
-  return <div className="back" onClick={onClose}>
-    <div className="sheet wide" onClick={e=>e.stopPropagation()}>
-      <div className="sheet-h">
-        <div><h3 className="sheet-t">관리자</h3>
-          <p className="sheet-s">진도 현황과 이미지, 코드 선물을 여기서 관리합니다.</p></div>
-        <button className="x" onClick={onClose}>{I.x()}</button></div>
-      <div className="sheet-b">
-        <div className="adm-tabs">
-          {TABS.map(t=><button key={t.k} className={`adm-tab ${tab===t.k?'on':''}`} onClick={()=>setTab(t.k)}>{t.n}</button>)}
-        </div>
+  const TABS=[
+    {k:'stat',n:'진도 현황',d:'선생님들이 어느 단계까지 따라왔는지, 남긴 질문과 방문 기록입니다.'},
+    {k:'img',n:'이미지',d:'매뉴얼 단계마다 넣는 화면 캡처를 올리고 바꿉니다.'},
+    {k:'code',n:'코드 선물',d:'단계마다 선생님들께 드리는 코드를 넣고 고칩니다.'}];
+  const cur=TABS.find(t=>t.k===tab);
+  useEffect(()=>{ const f=e=>{ if(e.key==='Escape') onClose(); }; window.addEventListener('keydown',f); return ()=>window.removeEventListener('keydown',f); },[]);
+  const logout=async()=>{ if(!confirm('로그아웃할까요?')) return; try{ await firebase.auth().signOut(); }catch{} onClose(); };
+  return <div className="ka" role="dialog" aria-label="관리자 화면">
+    <header className="ka-top">
+      <div className="ka-row">
+        <div className="ka-brand"><span className="ka-logo">{I.lock({s:16})}</span>바이브코딩 매뉴얼<span className="ka-badge">관리자</span></div>
+        <button className="ka-btn primary" onClick={onClose}>{kaIc('eye')}<span className="t">사이트 보기</span></button>
+        <a className="ka-btn ka-hub" href="/admin/">{kaIc('grid')}<span className="t">관리자 허브</span></a>
+        <button className="ka-btn" onClick={logout}>{kaIc('out')}<span className="t">로그아웃</span></button>
+      </div>
+      <nav className="ka-tabs">
+        {TABS.map(t=><button key={t.k} className={`ka-tab ${tab===t.k?'on':''}`} onClick={()=>setTab(t.k)}>{kaIc(t.k)}{t.n}</button>)}
+      </nav>
+    </header>
+    <main className="ka-body">
+      <div className="ka-head"><h1>{cur.n}</h1><p>{cur.d}</p></div>
+      <div className="ka-card">
         {!cloudReady&&<p className="err">파이어스토어가 연결되어 있지 않습니다.</p>}
         {tab==='stat'&&<StatPanel />}
         {tab==='img'&&<ImagePanel imgMap={imgMap} setImgMap={setImgMap} />}
         {tab==='code'&&<CodePanel codeMap={codeMap} setCodeMap={setCodeMap} />}
-      </div></div></div>;
+      </div>
+    </main>
+  </div>;
 }
 
 
@@ -2055,5 +2106,7 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
+<!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
+<script type="module" src="/visit.js?app=vibe"></script>
 </body>
 </html>
