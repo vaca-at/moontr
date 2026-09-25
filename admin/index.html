@@ -614,7 +614,10 @@ async function renderHome(force){
     <button type="button" data-rank="total" aria-expanded="${rankOpen === 'total'}"><small>누적 전체</small><b>${sum(d => d.total).toLocaleString()}회</b></button>
     <button type="button" data-rank="used" aria-expanded="${rankOpen === 'used'}"><small>오늘 쓰인 웹앱</small><b>${okData.filter(d => d.today).length} / ${withStat.length}개</b></button>`;
   renderRank();
-  $('#homeCards').innerHTML = withStat.map(({ a, g }) => {
+  /* 카드는 오늘 방문이 많은 순서로 (같으면 누적이 많은 순, 기록을 못 읽은 카드는 맨 뒤) */
+  const score = ({ a }) => { const d = homeData[a.admin]; return d && !d.error ? d : { today:-1, total:-1 }; };
+  const cards = [...withStat].sort((x, y) => (score(y).today - score(x).today) || (score(y).total - score(x).total));
+  $('#homeCards').innerHTML = cards.map(({ a, g }) => {
     const d = homeData[a.admin] || {}, unit = STATS[a.admin].unit;
     const body = d.error
       ? `<p class="msg">기록을 읽지 못했습니다 (${esc(d.error)})</p>`
