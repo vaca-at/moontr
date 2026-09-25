@@ -4275,8 +4275,8 @@
       <div class="pane" id="pane-admin">
         <div id="loginView">
           <h3>관리자</h3>
-          <p class="sub" style="font-size:13.5px">비밀번호를 입력하세요.</p>
-          <input type="password" id="pwInput" placeholder="비밀번호" autocomplete="off">
+          <p class="sub" style="font-size:13.5px">관리자 비밀번호(숫자 6자리)를 입력하세요.</p>
+          <input type="password" id="pwInput" inputmode="numeric" maxlength="6" placeholder="숫자 6자리" autocomplete="off">
           <div id="pwErr" style="color:#c2410c;font-size:12.5px;margin-top:7px;display:none">비밀번호가 맞지 않습니다.</div>
           <button class="btn" id="pwBtn">들어가기</button>
         </div>
@@ -4309,6 +4309,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-auth-compat.js"></script>
   <script>
     /* ══ 0. 이름표 ══ */
     const SECTION_NAMES = {
@@ -4701,42 +4702,32 @@
       if (i) i.value = ""; if (er) er.style.display = "none";
       openPane("admin");
       if (i) setTimeout(() => i.focus(), 50);
+      adminReady().then(ok => { if (ok) showAdminView(); });
     };
 
     /* ══ 9. 관리자 ══ */
-    function sha256(m) {
-      const K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
-      const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
-      const b = unescape(encodeURIComponent(m)), n = b.length, len = (((n + 8) >> 6) + 1) * 16, w = new Array(len).fill(0);
-      for (let i = 0; i < n; i++) w[i >> 2] |= b.charCodeAt(i) << (24 - (i % 4) * 8);
-      w[n >> 2] |= 0x80 << (24 - (n % 4) * 8); w[len - 1] = n * 8;
-      const rr = (v, a) => (v >>> a) | (v << (32 - a));
-      for (let j = 0; j < len; j += 16) {
-        const W = new Array(64); for (let t = 0; t < 16; t++) W[t] = w[j + t] | 0;
-        for (let t = 16; t < 64; t++) { const s0 = rr(W[t - 15], 7) ^ rr(W[t - 15], 18) ^ (W[t - 15] >>> 3), s1 = rr(W[t - 2], 17) ^ rr(W[t - 2], 19) ^ (W[t - 2] >>> 10); W[t] = (W[t - 16] + s0 + W[t - 7] + s1) | 0; }
-        let [a, c, d, e, f, g, h, i2] = H;
-        for (let t = 0; t < 64; t++) {
-          const S1 = rr(f, 6) ^ rr(f, 11) ^ rr(f, 25), ch = (f & g) ^ (~f & h), t1 = (i2 + S1 + ch + K[t] + W[t]) | 0;
-          const S0 = rr(a, 2) ^ rr(a, 13) ^ rr(a, 22), mj = (a & c) ^ (a & d) ^ (c & d), t2 = (S0 + mj) | 0;
-          i2 = h; h = g; g = f; f = (e + t1) | 0; e = d; d = c; c = a; a = (t1 + t2) | 0;
-        }
-        H[0] = (H[0] + a) | 0; H[1] = (H[1] + c) | 0; H[2] = (H[2] + d) | 0; H[3] = (H[3] + e) | 0; H[4] = (H[4] + f) | 0; H[5] = (H[5] + g) | 0; H[6] = (H[6] + h) | 0; H[7] = (H[7] + i2) | 0;
-      }
-      return H.map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
+    /* 관리자는 센메일 계정으로 로그인합니다 (관리자 허브에서 로그인했으면 바로 열립니다) */
+    const ADMIN_EMAIL = "anstjsdud@sen.go.kr";
+    const AUTH = USE_FB && firebase.auth ? firebase.auth() : null;
+    function adminReady() {
+      return new Promise(res => {
+        if (!AUTH) return res(false);
+        const off = AUTH.onAuthStateChanged(u => { off(); res(!!u && u.email === ADMIN_EMAIL); });
+      });
     }
-    const ADMIN_SALT = "talk0911:s1";
-    function adminHash(pw) { let h = sha256(ADMIN_SALT + pw); for (let i = 0; i < 3000; i++) h = sha256(h + ADMIN_SALT); return h; }
-    const ADMIN_HASH = "95348625c73e654519422dd38037a2056e97ee9e39ba6b3402efcdee3ceff1f7";
-    function tryLogin() {
-      const v = document.getElementById("pwInput").value.trim();
-      if (adminHash(v) === ADMIN_HASH) {
+    function showAdminView() {
         document.getElementById("loginView").style.display = "none";
         document.getElementById("adminView").style.display = "";
         document.getElementById("storeNote").innerHTML = USE_FB
           ? "파이어스토어에 연결되어 있습니다. 올리신 사진은 모든 사람에게 보입니다."
           : "<b>연결되지 않아 이 브라우저에만 저장됩니다.</b> file:// 로 여신 경우일 수 있습니다. 서버에 올리거나 Live Server로 열어 보세요.";
         buildSlots();
-      } else { document.getElementById("pwErr").style.display = ""; }
+    }
+    async function tryLogin() {
+      const i = document.getElementById("pwInput");
+      try { await AUTH.signInWithEmailAndPassword(ADMIN_EMAIL, i.value.trim()); showAdminView(); }
+      catch (e) { document.getElementById("pwErr").style.display = ""; }
+      i.value = "";
     }
     document.getElementById("pwBtn").onclick = tryLogin;
     document.getElementById("pwInput").addEventListener("keydown", e => { if (e.key === "Enter") tryLogin(); });
@@ -4949,6 +4940,8 @@
     const CHECK = [['Pretendard', '프리텐다드'], ['NexonMaplestory', '메이플'], ['OwnglyphYuntaeng', '윤탱체'], ['OngleipKimkonghae', '김콩해'], ['OngleebDaisy', '데이지'], ['OngleipRyudung', '류뚱'], ['OngleipParkDahyeon', '박다현'], ['Eommakkaturi', '카투리']];
     Promise.all(CHECK.map(([f, l]) => document.fonts.load('16px "' + f + '"', "가나다").then(a => a.length ? null : l).catch(() => l)))
       .then(r => { const bad = r.filter(Boolean); if (bad.length) document.getElementById("fontWarn").textContent = "⚠ " + bad.join(", ") + " 차단됨"; }).catch(() => { });
+    /* 관리자 허브(/admin/)에서 #admin 으로 들어오면 바로 관리자 창을 엽니다 */
+    if (location.hash === "#admin") document.getElementById("adminBtn").click();
   </script>
 </body>
 

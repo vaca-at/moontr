@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>관리자 허브 · moontr.site</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gowun+Dodum&display=swap">
+<style>
+:root{
+  --ink:#17324A; --muted:#4A6275; --cream:#F7F4EC; --line:#E1E9ED;
+  --sky-soft:#D6EFFA; --mint:#7FD8C2; --mint-soft:#D2F2E8; --mint-deep:#1F7A65; --peach:#FFE3C7;
+}
+*{box-sizing:border-box}
+html{font-size:clamp(15px, 0.6vw + 0.6vh, 20px)}
+body{margin:0;min-height:100dvh;font-family:'Gowun Dodum',sans-serif;color:var(--ink);background:var(--cream)}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #1E6FA8;outline-offset:3px}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem clamp(16px,4vw,48px)}
+.logo{font-weight:700;text-decoration:none}
+.bar button{min-height:44px;padding:0 1rem;border:1px solid #D8D1BF;border-radius:999px;background:#fff;cursor:pointer}
+.bar button[hidden]{display:none}
+
+main{max-width:1100px;margin:0 auto;padding:0 clamp(16px,4vw,48px) 4rem}
+h1{margin:.5rem 0 .3rem;font-family:'Do Hyeon',sans-serif;font-weight:400;font-size:2.3rem}
+.lead{margin:0 0 2rem;color:var(--muted)}
+
+/* 로그인 */
+.login{max-width:420px;background:#fff;border-radius:1.2rem;padding:1.6rem}
+.login input{width:100%;padding:.8rem;font-size:1.2rem;letter-spacing:.3em;text-align:center;border-radius:.6rem;border:1px solid #ccc;margin:.6rem 0}
+.login button{width:100%;min-height:48px;border:0;border-radius:.6rem;background:var(--ink);color:#fff;font-weight:700;cursor:pointer}
+.err{color:#B3261E;min-height:1.4em;margin:.6rem 0 0;font-size:.9rem}
+
+/* 목록 */
+section{margin-bottom:2.2rem}
+h2{margin:0 0 .8rem;font-size:1.1rem;display:flex;align-items:baseline;gap:.6rem}
+h2 small{font-weight:400;font-size:.85rem;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.9rem}
+.card{display:flex;flex-direction:column;gap:.5rem;background:#fff;border-radius:1rem;padding:1.1rem 1.2rem}
+.card b{font-size:1.1rem}
+.card p{margin:0;color:var(--muted);font-size:.88rem;flex:1}
+.tag{align-self:flex-start;font-size:.75rem;padding:.15rem .6rem;border-radius:999px}
+.tag.fb{background:var(--mint-soft);color:var(--mint-deep)}
+.tag.pw{background:var(--peach);color:#7A4A12}
+.tag.gs{background:var(--sky-soft);color:#1E5A85}
+.links{display:flex;gap:.5rem;margin-top:.3rem}
+.links a{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 1rem;border-radius:.6rem;text-decoration:none;font-weight:700;font-size:.92rem}
+.links .adm{flex:1;background:var(--ink);color:#fff}
+.links .stu{border:1px solid var(--line);color:var(--muted);font-weight:400}
+.note{color:var(--muted);font-size:.85rem;margin:2rem 0 0;line-height:1.7}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <a class="logo" href="/">moontr.site</a>
+  <button type="button" id="logout" hidden>로그아웃</button>
+</header>
+
+<main>
+  <h1>관리자 허브</h1>
+  <p class="lead">웹앱마다 흩어진 관리자 화면을 한곳에 모았습니다.</p>
+
+  <form class="login" id="login" hidden>
+    <label for="pw">관리자 비밀번호(숫자 6자리)</label>
+    <input type="password" id="pw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" autocomplete="current-password" required>
+    <button type="submit">로그인</button>
+    <p class="err" id="err" role="alert"></p>
+  </form>
+
+  <div id="list" hidden></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765"
+};
+const auth = getAuth(initializeApp(firebaseConfig));
+const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+
+/* ============================================================
+   ✏️ 여기만 고치면 됩니다 — 웹앱이 늘면 줄 하나 추가
+   login: 'fb' = 여기서 로그인하면 자동으로 들어가짐
+          'pw' = 그 앱에서 암호를 한 번 더 입력
+          'gs' = 구글 앱스 스크립트(구글 계정으로 확인)
+   student: 학생용 주소 (없으면 비워 두기)
+   ============================================================ */
+const GROUPS = [
+  { title:'대문', items:[
+    { name:'대문 시간표', desc:'종 시간과 요일별 시간표 편집', admin:'/#admin', student:'/', login:'fb' }
+  ]},
+  { title:'기출 학습', items:[
+    { name:'생윤 만점 다이어리', desc:'문항 관리 · 학생 기록', admin:'/app/?admin', student:'/app/', login:'fb' },
+    { name:'윤사 만점 다이어리', desc:'문항 관리 · 학생 기록', admin:'/idea/?admin', student:'/idea/', login:'fb' }
+  ]},
+  { title:'수업 도구', items:[
+    { name:'출석체크', desc:'분반 수업 출석 확인 · 질문 목록', admin:'/check04/#teacher', student:'/check04/', login:'fb' },
+    { name:'바이브코딩 매뉴얼', desc:'이미지 · 코드 · 방문 기록', admin:'/vibe/?admin', student:'/vibe/', login:'fb' },
+    { name:'2026 9월 컨설팅장학 수업 사례', desc:'사진 · 접속 기록', admin:'/0911/#admin', student:'/0911/', login:'fb' }
+  ]},
+  { title:'행사 · 연수', items:[
+    { name:'진선 50주년 기념', desc:'안내글 · 후원 · 방명록 승인 · 갤러리 · 사진 제보 (다른 주소라 처음 한 번은 비밀번호 입력)', admin:'https://jinseon50th.com/#admin', student:'https://jinseon50th.com/', login:'pw' },
+    { name:'50주년 해외연수', desc:'카테고리 · 항목 · 메모 · 접속 기록 (50주년에서 로그인했으면 바로 열림)', admin:'https://jinseon50th.com/gt/#admin', student:'https://jinseon50th.com/gt/', login:'pw' }
+  ]},
+  { title:'교사용 화면 (구글 앱스 스크립트)', items:[
+    { name:'/ct 교사용', desc:'학생용은 /cs', admin:'/ct/', student:'/cs/', login:'gs' },
+    { name:'/ct1 교사용', desc:'학생용은 /cs1', admin:'/ct1/', student:'/cs1/', login:'gs' },
+    { name:'/ct2 교사용', desc:'학생용은 /cs2', admin:'/ct2/', student:'/cs2/', login:'gs' },
+    { name:'/ct8 교사용', desc:'학생용은 /cs8', admin:'/ct8/', student:'/cs8/', login:'gs' },
+    { name:'/t4 교사용', desc:'학생용은 /c4', admin:'/t4/', student:'/c4/', login:'gs' }
+  ]}
+];
+
+/* ============================================================
+   아래부터는 작동 코드 (고치지 않아도 됩니다)
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TAG = { fb:'자동 로그인', pw:'다른 주소', gs:'구글 계정' };
+
+function renderList(){
+  $('#list').innerHTML = GROUPS.map(g => `
+    <section>
+      <h2>${esc(g.title)} <small>${g.items.length}개</small></h2>
+      <div class="grid">${g.items.map(a => `
+        <div class="card">
+          <span class="tag ${a.login}">${TAG[a.login] || ''}</span>
+          <b>${esc(a.name)}</b>
+          <p>${esc(a.desc || '')}</p>
+          <div class="links">
+            <a class="adm" href="${esc(a.admin)}">관리자 화면</a>
+            ${a.student ? `<a class="stu" href="${esc(a.student)}">학생용</a>` : ''}
+          </div>
+        </div>`).join('')}
+      </div>
+    </section>`).join('') + `
+    <p class="note">자동 로그인: 이 허브에서 로그인하면 바로 관리자 화면이 열립니다.<br>
+    다른 주소: jinseon50th.com 은 주소가 달라 처음 한 번은 같은 비밀번호를 입력합니다.</p>`;
+}
+
+onAuthStateChanged(auth, user => {
+  const ok = !!user && user.email === ADMIN_EMAIL;
+  $('#login').hidden = ok;
+  $('#list').hidden = !ok;
+  $('#logout').hidden = !ok;
+  if (ok) renderList(); else $('#pw').focus();
+});
+
+$('#login').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('#err').textContent = '';
+  try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $('#pw').value); }
+  catch { $('#err').textContent = '로그인 실패: 비밀번호를 확인해 주세요'; }
+  $('#pw').value = '';
+});
+$('#logout').addEventListener('click', () => signOut(auth));
+</script>
+</body>
+</html>

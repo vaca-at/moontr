@@ -18,6 +18,7 @@
 <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
 <style>
 @font-face{
@@ -479,7 +480,8 @@ var FIREBASE_CONFIG = {
   messagingSenderId: "126636401536",
   appId: "1:126636401536:web:25b8a8296ec42b86f99765"
 };
-var ADMIN_PW = "1212";
+// 관리자는 센메일 계정으로 로그인합니다 (관리자 허브에서 로그인했으면 바로 열립니다)
+var ADMIN_EMAIL = "anstjsdud@sen.go.kr";
 </script>
 
 <script type="text/babel">
@@ -1583,8 +1585,17 @@ function RefModal({ r, onClose }){
     </div></div>;
 }
 
+// 로그인 상태가 확인될 때까지 기다렸다가 관리자 계정인지 알려 줍니다
+function adminReady(){
+  return new Promise(res=>{
+    try{ const off=firebase.auth().onAuthStateChanged(u=>{ off(); res(!!u&&u.email===ADMIN_EMAIL); }); }
+    catch{ res(false); }
+  });
+}
+
 function PwModal({ onOk, onClose }){
   const [v,setV]=useState(''),[e,setE]=useState('');const r=useRef(null);
+  useEffect(()=>{ adminReady().then(ok=>{ if(ok) onOk(); }); },[]);
   // 매번 빈 칸에서 시작하도록, 브라우저가 자동으로 채워 넣은 값까지 지웁니다
   const nm=useRef('c'+Math.random().toString(36).slice(2,9));
   useEffect(()=>{
@@ -1594,12 +1605,15 @@ function PwModal({ onOk, onClose }){
     const t1=setTimeout(clear,60), t2=setTimeout(clear,300);
     return ()=>{ clearTimeout(t1); clearTimeout(t2); };
   },[]);
-  const go=(ev)=>{ev.preventDefault(); v.trim()===ADMIN_PW?onOk():(setE('비밀번호가 맞지 않습니다.'),setV(''),r.current?.focus())};
+  const go=(ev)=>{ev.preventDefault();
+    firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, v.trim()).then(()=>onOk())
+      .catch(()=>{ setE('비밀번호가 맞지 않습니다.'); setV(''); r.current?.focus(); });
+  };
   return <div className="back" onClick={onClose}>
     <div className="sheet" style={{maxWidth:400}} onClick={ev=>ev.stopPropagation()}>
       <div className="sheet-h"><h3 className="sheet-t">진도 현황 보기</h3><button className="x" onClick={onClose}>{I.x()}</button></div>
       <form className="sheet-b" onSubmit={go} autoComplete="off">
-        <input ref={r} type="text" inputMode="numeric" name={nm.current} className="pw" placeholder="••••" maxLength={12}
+        <input ref={r} type="text" inputMode="numeric" name={nm.current} className="pw" placeholder="숫자 6자리" maxLength={12}
           autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} data-lpignore="true" data-1p-ignore="true"
           value={v} onChange={ev=>{setV(ev.target.value);setE('')}} />
         {e&&<p className="err">{e}</p>}
