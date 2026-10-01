@@ -2174,5 +2174,33 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 <!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
 <script src="/table-sort.js" defer></script>
 <script type="module" src="/visit.js?app=vibe"></script>
+<!-- 🔄 새로고침 단추: 아이폰 '홈 화면에 추가'로 연 앱(주소창 없음)에서만 오른쪽 위에 보여요. 사파리 · PC에서는 안 보여요. (주소 끝에 ?app=1 을 붙이면 미리 볼 수 있어요) -->
+<script id="app-refresh">
+(function () {
+  var app = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || /[?&]app=1\b/.test(location.search);
+  if (!app) return;
+  var b = document.createElement('button');
+  b.type = 'button'; b.title = '새로고침'; b.setAttribute('aria-label', '새로고침');
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>';
+  b.style.cssText = 'position:fixed;z-index:2147483000;top:calc(env(safe-area-inset-top,0px) + 8px);right:calc(env(safe-area-inset-right,0px) + 8px);width:40px;height:40px;padding:0;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);color:#333;box-shadow:0 2px 10px rgba(0,0,0,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:pointer;transition:transform .5s';
+  b.addEventListener('click', function () { b.style.transform = 'rotate(360deg)'; setTimeout(function () { location.reload(); }, 180); });
+  document.body.appendChild(b);
+  // 오른쪽 위에 그 페이지의 단추 · 링크가 있으면 가리지 않게 빈자리까지 조금씩 내려가요
+  function place() {
+    for (var y = 8; y <= 260; y += 6) {
+      b.style.top = 'calc(env(safe-area-inset-top,0px) + ' + y + 'px)'; b.style.visibility = 'hidden';
+      var r = b.getBoundingClientRect(), hit = false;
+      [[r.left + 3, r.top + 3], [r.right - 3, r.top + 3], [r.left + 3, r.bottom - 3], [r.right - 3, r.bottom - 3], [r.left + r.width / 2, r.top + r.height / 2]].forEach(function (p) {
+        var el = document.elementFromPoint(p[0], p[1]);
+        if (el && el.closest && el.closest('button,a,input,select,textarea,label,summary,[data-act],[role=button],[onclick]')) hit = true;
+      });
+      b.style.visibility = '';
+      if (!hit) return;
+    }
+    b.style.top = 'calc(env(safe-area-inset-top,0px) + 8px)';
+  }
+  place(); [300, 1200, 3000].forEach(function (t) { setTimeout(place, t); }); window.addEventListener('resize', place);
+})();
+</script>
 </body>
 </html>
