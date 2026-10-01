@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>바이브코딩으로 웹앱 만들기 (이론편)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<!-- 파이어베이스(제출·피드백 저장용) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#FFF7F2;
+  --ink:#5B4850;
+  --ink2:#957F87;
+  --line:#F2DED6;
+  --pink:#F291B2;
+  --green:#7EC49A;
+  --mustard:#D9A548;
+  --rose:#E0698F;
+  --sky:#79B4DE;
+  --lav:#A893D6;
+  --coral:#EE9D78;
+  --teal:#5FBDB0;
+  --hand:'Gaegu', 'Gowun Dodum', sans-serif;
+  --body:'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:anywhere}
+button,input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--rose);outline-offset:2px}
+
+/* ===== 전체 틀 ===== */
+.app{height:100vh;display:grid;grid-template-rows:auto 1fr;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+header{display:flex;align-items:center;gap:18px;padding:14px 28px 10px}
+.logo{font-size:44px;line-height:1}
+.titles{flex:1;min-width:0}
+.course{display:inline-block;font-family:var(--hand);font-weight:700;font-size:17px;color:#fff;background:var(--pink);padding:1px 12px 2px;border-radius:999px}
+h1{margin:2px 0 0;font-family:var(--hand);font-weight:700;font-size:36px;line-height:1.15;letter-spacing:-.5px}
+h1 small{font-size:24px;color:var(--ink2);font-weight:700}
+.tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:flex;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;border-radius:999px;padding:5px 14px;font-family:var(--hand);font-weight:700;font-size:18px;color:var(--ink2)}
+.seg button.on{background:var(--pink);color:#fff}
+.seg button small{font-family:var(--body);font-weight:400;font-size:12px;margin-left:4px;opacity:.85}
+.pill{border:2px solid var(--line);background:#fff;border-radius:999px;padding:6px 16px;font-family:var(--hand);font-weight:700;font-size:18px}
+.pill:hover{border-color:var(--pink)}
+.pill.teacher-on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+.main{display:grid;grid-template-columns:270px 1fr;gap:0;min-height:0;padding:0 24px 18px 0}
+
+/* ===== 왼쪽 책갈피 탭 ===== */
+nav.tabs{display:flex;flex-direction:column;gap:7px;padding:8px 0 8px 0;overflow-y:auto;min-height:0}
+.tab{position:relative;display:flex;align-items:center;gap:10px;border:0;text-align:left;
+  background:#fff;color:var(--ink);padding:9px 34px 9px 22px;margin-right:18px;
+  clip-path:polygon(0 0,100% 0,calc(100% - 16px) 50%,100% 100%,0 100%);
+  transition:margin-right .2s ease, background .2s ease}
+.tab .no{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--c);color:var(--c);display:grid;place-items:center;font-family:var(--hand);font-weight:700;font-size:18px;background:#fff}
+.tab .lab{flex:1;min-width:0;font-family:var(--hand);font-weight:700;font-size:18px;line-height:1.2;white-space:nowrap}
+.tab .lab small{display:block;overflow:hidden;text-overflow:ellipsis;font-family:var(--body);font-weight:400;font-size:12px;color:var(--ink2)}
+.tab:hover{background:color-mix(in srgb,var(--c) 14%,#fff)}
+.tab.on{background:var(--c);color:#fff;margin-right:0}
+.tab.on .lab small{color:rgba(255,255,255,.9)}
+.tab.on .no{border-color:#fff}
+
+/* ===== 무대(한 슬라이드) ===== */
+.stage{display:flex;flex-direction:column;min-height:0;min-width:0}
+.slide-head{display:flex;align-items:flex-end;gap:16px;padding:4px 4px 12px 26px}
+.slide-no{font-family:var(--hand);font-weight:700;font-size:64px;line-height:.85;color:var(--c)}
+.slide-title{flex:1;min-width:0}
+.slide-title h2{margin:0;font-family:var(--hand);font-weight:700;font-size:38px;line-height:1.1}
+.slide-title p{margin:2px 0 0;color:var(--ink2);font-size:15px}
+.time{font-family:var(--hand);font-weight:700;font-size:18px;color:var(--c);border:2px dashed var(--c);border-radius:999px;padding:2px 14px;white-space:nowrap}
+.progress{height:6px;background:var(--line);border-radius:6px;margin:0 4px 14px 26px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--c);border-radius:6px;transition:width .3s ease}
+
+.cols{flex:1;display:flex;gap:18px;min-height:0;padding-left:26px}
+
+/* 책갈피 기둥 */
+.col{--c:var(--pink);flex:1 1 0;min-width:0;display:flex;
+  background:color-mix(in srgb,var(--c) 32%,#fff);padding:2px;
+  clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 26px),0 100%)}
+.col.wide{flex-grow:1.55}
+.col.narrow{flex-grow:.8}
+.col-in{flex:1;display:flex;flex-direction:column;min-height:0;background:#fff;
+  clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 24px),0 100%)}
+.col-head{display:flex;align-items:center;gap:10px;background:var(--c);color:#fff;padding:12px 18px 13px;font-family:var(--hand);font-weight:700;font-size:25px;line-height:1.15}
+.col-head .cn{flex:none;width:30px;height:30px;border:2px solid #fff;border-radius:50%;display:grid;place-items:center;font-size:19px}
+.col-body{flex:1;overflow-y:auto;padding:16px 18px 44px;min-height:0}
+.col-body > *:first-child{margin-top:0}
+
+/* 본문 부품 */
+.big{font-family:var(--hand);font-weight:700;font-size:27px;line-height:1.3;margin:0 0 12px;color:var(--ink)}
+.mark{background:linear-gradient(transparent 58%,color-mix(in srgb,var(--c) 35%,transparent) 58%)}
+p{margin:0 0 10px}
+.muted{color:var(--ink2);font-size:15px}
+ul.ic{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:9px}
+ul.ic li{display:flex;gap:10px;align-items:flex-start}
+ul.ic li .e{flex:none;font-size:22px;line-height:1.3}
+ul.ic li b{font-family:var(--hand);font-size:21px}
+.box{background:color-mix(in srgb,var(--c) 11%,#fff);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+.box h4{margin:0 0 4px;font-family:var(--hand);font-weight:700;font-size:21px;color:var(--c)}
+.box.alt{background:#FFF4E6}
+.flow{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+.flow .st{background:#fff;border:2px solid color-mix(in srgb,var(--c) 40%,#fff);border-radius:14px;padding:8px 12px;font-size:16px}
+.flow .st b{font-family:var(--hand);font-size:20px}
+.flow .ar{text-align:center;color:var(--c);font-weight:700;line-height:1}
+.code{font-family:ui-monospace,Consolas,monospace;font-size:14px;background:#4B3E44;color:#FFE3EC;border-radius:12px;padding:10px 12px;white-space:pre-wrap;word-break:break-all;margin:0 0 12px}
+.prompt{background:#F7F2FF;border:2px dashed var(--lav);border-radius:14px;padding:10px 14px;font-size:16px;margin:0 0 12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.chip{background:#fff;border:2px solid color-mix(in srgb,var(--c) 40%,#fff);border-radius:999px;padding:3px 12px;font-family:var(--hand);font-weight:700;font-size:18px}
+.addr{font-family:ui-monospace,Consolas,monospace;font-size:13.5px;word-break:break-all;background:#fff;border:2px solid var(--line);border-radius:10px;padding:6px 10px;margin:4px 0 10px}
+.addr.good{border-color:var(--green);background:#F0FAF3}
+.tag{display:inline-block;font-family:var(--hand);font-weight:700;font-size:16px;background:var(--c);color:#fff;border-radius:999px;padding:0 10px;margin-left:6px;vertical-align:middle}
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
+.vs > div{border-radius:14px;padding:10px 12px;font-size:15.5px}
+.vs .old{background:#F4EFEF}
+.vs .new{background:color-mix(in srgb,var(--c) 14%,#fff)}
+.vs h5{margin:0 0 4px;font-family:var(--hand);font-size:20px}
+
+/* 폼 */
+.form{display:flex;flex-direction:column;gap:9px}
+.row2{display:grid;grid-template-columns:90px 110px 1fr;gap:8px}
+.form label{display:flex;flex-direction:column;gap:3px;font-family:var(--hand);font-weight:700;font-size:18px}
+.form label span.h{font-family:var(--body);font-weight:400;font-size:13px;color:var(--ink2)}
+.form input,.form textarea,.form select{border:2px solid var(--line);border-radius:12px;padding:8px 11px;background:#FFFCFA;font-size:16px;width:100%}
+.form textarea{resize:vertical;min-height:56px}
+.form input:focus,.form textarea:focus,.form select:focus{border-color:var(--c);outline:none;background:#fff}
+.btn{border:0;border-radius:16px;background:var(--c);color:#fff;font-family:var(--hand);font-weight:700;font-size:24px;padding:10px 18px;box-shadow:0 4px 0 color-mix(in srgb,var(--c) 70%,#000)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 color-mix(in srgb,var(--c) 70%,#000)}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn.sm{font-size:18px;padding:5px 12px;border-radius:12px;box-shadow:none}
+
+.notice{font-size:13.5px;background:#FFF4E6;border-radius:10px;padding:7px 10px;color:#8A6A3A;margin:0 0 10px}
+
+/* 목록 */
+.count{font-family:var(--hand);font-weight:700;font-size:20px;margin:0 0 8px}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pcard{text-align:left;border:2px solid var(--line);background:#fff;border-radius:14px;padding:9px 12px;width:100%}
+.pcard:hover{border-color:var(--c)}
+.pcard.sel{border-color:var(--c);background:color-mix(in srgb,var(--c) 10%,#fff)}
+.pcard .pt{font-family:var(--hand);font-weight:700;font-size:20px;line-height:1.2}
+.pcard .pm{font-size:13.5px;color:var(--ink2)}
+.pcard .detail{margin-top:8px;font-size:14.5px;border-top:1px dashed var(--line);padding-top:8px}
+.pcard .detail div{margin-bottom:4px}
+.pcard .detail b{color:var(--c)}
+.empty{color:var(--ink2);font-size:15px;text-align:center;padding:20px 6px;border:2px dashed var(--line);border-radius:14px}
+.del{border:0;background:none;color:#C0506F;font-size:13px;text-decoration:underline;padding:0;margin-top:4px}
+.fb{border-radius:14px;background:#FFFBF7;border:2px solid var(--line);padding:9px 12px;margin-bottom:8px;font-size:15px}
+.fb .who{font-family:var(--hand);font-weight:700;font-size:18px}
+.fb div{margin-top:2px}
+
+.navbtns{display:flex;justify-content:flex-end;gap:10px;padding:12px 0 0 26px}
+.navbtns button{border:2px solid var(--line);background:#fff;border-radius:999px;padding:4px 18px;font-family:var(--hand);font-weight:700;font-size:19px}
+.navbtns button:hover{border-color:var(--c)}
+
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;padding:10px 22px;border-radius:999px;font-family:var(--hand);font-weight:700;font-size:20px;transition:.25s;pointer-events:none;z-index:9}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ===== 작은 화면 ===== */
+@media (max-width: 900px){
+  .app{height:auto;min-height:100vh}
+  header{flex-wrap:wrap;padding:12px 16px 8px}
+  h1{font-size:28px} h1 small{font-size:19px}
+  .tools{width:100%;justify-content:flex-start}
+  .main{grid-template-columns:1fr;padding:0 0 18px}
+  nav.tabs{flex-direction:row;overflow-x:auto;padding:4px 12px 8px}
+  .tab{flex:none;margin:0;padding:7px 26px 7px 12px}
+  .tab .lab small{display:none}
+  .slide-head,.progress,.cols,.navbtns{padding-left:14px;margin-left:0}
+  .slide-head{padding-right:14px}
+  .progress{margin:0 14px 12px}
+  .slide-no{font-size:48px} .slide-title h2{font-size:28px}
+  .cols{flex-direction:column;padding-right:14px}
+  .col-body{overflow:visible}
+  .navbtns{padding-right:14px}
+  .row2{grid-template-columns:1fr 1fr}
+  .row2 label:last-child{grid-column:1 / -1}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo" aria-hidden="true">💻</div>
+    <div class="titles">
+      <span class="course">진로탐구수업</span>
+      <h1>바이브코딩으로 웹앱 만들기 <small>(이론편)</small></h1>
+    </div>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="반 선택">
+        <button data-ban="A">A반<small>11/2 월</small></button>
+        <button data-ban="B">B반<small>11/4 수</small></button>
+      </div>
+      <button class="pill" id="fsBtn">전체화면</button>
+      <button class="pill" id="teacherBtn">선생님</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <nav class="tabs" id="tabs" aria-label="수업 흐름"></nav>
+    <section class="stage" id="stage" aria-live="polite"></section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   1) 파이어베이스 설정
+   - 비워 두면 '체험 모드'로 이 컴퓨터(브라우저)에만 저장돼요.
+   - 파이어베이스 콘솔 > 프로젝트 설정 > 내 앱 > SDK 설정의 값을 붙여 넣으면
+     학생들이 낸 계획서와 피드백이 모두의 화면에 함께 보여요.
+   ========================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+const TEACHER_PW = "1212";
+const COL_PLANS = "vibe_plans";
+const COL_FB = "vibe_feedback";
+
+/* =========================================================
+   2) 저장소 (파이어스토어 ↔ 체험 모드)
+   ========================================================= */
+const LIVE = !!FIREBASE_CONFIG.apiKey && typeof firebase !== "undefined";
+let db = null;
+if (LIVE) { firebase.initializeApp(FIREBASE_CONFIG); db = firebase.firestore(); }
+
+const localGet = k => { try { return JSON.parse(localStorage.getItem("vt_" + k) || "[]"); } catch (e) { return []; } };
+const localSet = (k, v) => { try { localStorage.setItem("vt_" + k, JSON.stringify(v)); } catch (e) {} };
+const localListeners = {};
+
+const store = {
+  async upsert(col, id, data) {
+    data.updatedAt = Date.now();
+    if (LIVE) {
+      if (id) { await db.collection(col).doc(id).set(data, { merge: true }); return id; }
+      data.createdAt = Date.now();
+      const r = await db.collection(col).add(data); return r.id;
+    }
+    const arr = localGet(col);
+    if (id) { const i = arr.findIndex(x => x.id === id); if (i > -1) arr[i] = { ...arr[i], ...data }; }
+    else { data.id = "l" + Date.now() + Math.random().toString(36).slice(2, 6); data.createdAt = Date.now(); arr.push(data); id = data.id; }
+    localSet(col, arr); (localListeners[col] || []).forEach(f => f(localGet(col)));
+    return id;
+  },
+  async remove(col, id) {
+    if (LIVE) return db.collection(col).doc(id).delete();
+    localSet(col, localGet(col).filter(x => x.id !== id));
+    (localListeners[col] || []).forEach(f => f(localGet(col)));
+  },
+  listen(col, cb) {
+    if (LIVE) {
+      db.collection(col).onSnapshot(s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))),
+        err => { console.error(err); toast("저장소에 연결하지 못했어요. 보안 규칙을 확인하세요"); });
+      return;
+    }
+    (localListeners[col] = localListeners[col] || []).push(cb);
+    cb(localGet(col));
+  }
+};
+
+/* =========================================================
+   3) 상태
+   ========================================================= */
+let cur = 1;
+let ban = (() => { try { return localStorage.getItem("vt_ban") || "A"; } catch (e) { return "A"; } })();
+let teacher = false;
+let plans = [], feedbacks = [];
+let openPlan = null;   // 6번 슬라이드 목록에서 펼친 계획서
+let selPlan = null;    // 8번 슬라이드에서 고른 계획서
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nl = s => esc(s).replace(/\n/g, "<br>");
+function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200); }
+
+/* =========================================================
+   4) 슬라이드 내용
+   ========================================================= */
+const C = { pink: "var(--pink)", green: "var(--green)", mustard: "var(--mustard)", rose: "var(--rose)", sky: "var(--sky)", lav: "var(--lav)", coral: "var(--coral)", teal: "var(--teal)" };
+const DEMO = LIVE ? "" : `<p class="notice">지금은 체험 모드예요. 이 컴퓨터에만 저장돼요. 파이어베이스 설정을 넣으면 모든 친구의 화면에 함께 보여요.</p>`;
+
+const SLIDES = [
+{
+  tab: "바이브코딩이란?", sub: "새로운 만들기 방식", color: C.pink, time: 10,
+  title: "바이브코딩이란 무엇일까?", lead: "코드를 외워서 치는 대신, 말로 설명해서 만드는 시대",
+  cols: [
+    { t: "바이브코딩이란?", c: C.pink, html: `
+      <p class="big">만들고 싶은 것을 <span class="mark">말로 설명</span>하면, AI가 코드를 써 줘요.</p>
+      <p>2025년 2월, AI 연구자 <b>안드레이 카르파티</b>가 처음 쓴 말이에요. Vibe는 '느낌, 분위기'라는 뜻이에요.</p>
+      <div class="box"><h4>역할이 나뉘어요</h4>나는 <b>무엇을</b> 만들지 정하고 확인하는 사람,<br>AI는 <b>어떻게</b> 만들지 맡는 사람.</div>` },
+    { t: "예전 코딩과 무엇이 다를까?", c: C.green, html: `
+      <div class="vs">
+        <div class="old"><h5>예전 코딩</h5>프로그래밍 문법 공부<br>↓<br>한 줄씩 직접 입력<br>↓<br>오류도 직접 찾기</div>
+        <div class="new"><h5>바이브코딩</h5>원하는 것을 설명<br>↓<br>AI가 코드 작성<br>↓<br>실행해 보고 다시 말하기</div>
+      </div>
+      <p class="big" style="font-size:23px">'어떻게(How)'를 외우던 시대에서<br>'무엇을(What)'을 생각하는 시대로</p>` },
+    { t: "코딩을 배운 적 없는 윤리 선생님도", c: C.mustard, html: `
+      <p>선생님이 AI와 대화하며 직접 만든 웹앱들이에요.</p>
+      <div class="chips">
+        <span class="chip">✅ 분반 출석체크</span><span class="chip">📢 우리 반 게시판</span>
+        <span class="chip">⏰ 자습 습관 체크</span><span class="chip">⚖️ 정의론 학습지</span>
+        <span class="chip">📒 기출문제 다이어리</span><span class="chip">🎤 지금 이 수업 화면</span>
+      </div>
+      <p class="muted">오늘 수업이 끝나면 여러분도 '만들고 싶은 웹앱' 하나를 계획하게 돼요.</p>` },
+    { t: "그럼 무엇이 중요해질까?", c: C.rose, html: `
+      <ul class="ic">
+        <li><span class="e">💡</span><div><b>아이디어</b><br>누구의, 어떤 불편을 해결할까?</div></li>
+        <li><span class="e">🗣️</span><div><b>설명하는 힘</b><br>원하는 모습을 구체적으로 말하기</div></li>
+        <li><span class="e">🔍</span><div><b>확인하는 눈</b><br>직접 눌러 보고 맞는지 판단하기</div></li>
+      </ul>` }
+  ]
+},
+{
+  tab: "핵심 개념", sub: "HTML·저장·배포", color: C.green, time: 15,
+  title: "바이브코딩의 핵심 개념", lead: "AI와 대화하려면 몇 가지 단어는 알아 두어야 해요",
+  cols: [
+    { t: "웹페이지의 세 가지 재료", c: C.pink, html: `
+      <ul class="ic">
+        <li><span class="e">🦴</span><div><b>HTML</b> 뼈대<br>제목, 글, 버튼, 입력칸</div></li>
+        <li><span class="e">👗</span><div><b>CSS</b> 옷<br>색깔, 글꼴, 크기, 배치</div></li>
+        <li><span class="e">🏃</span><div><b>JavaScript</b> 움직임<br>버튼을 눌렀을 때 일어나는 일</div></li>
+      </ul>
+      <div class="code">&lt;button&gt;시작하기&lt;/button&gt;   ← HTML
+button { color: pink; }        ← CSS
+alert("시작!");                ← JavaScript</div>
+      <p class="muted">이 세 가지가 index.html 파일 하나에 다 들어갈 수 있어요.</p>` },
+    { t: "프론트엔드와 백엔드", c: C.green, html: `
+      <p class="big" style="font-size:24px">식당으로 생각해 봐요 🍝</p>
+      <div class="box"><h4>프론트엔드 = 홀</h4>손님이 보고 만지는 곳. 메뉴판, 테이블, 주문 버튼.<br>웹앱에서는 <b>화면</b>이에요.</div>
+      <div class="box alt"><h4 style="color:var(--mustard)">백엔드 = 주방과 창고</h4>손님 눈에 안 보이지만 주문을 처리하고 재료를 보관하는 곳.<br>웹앱에서는 <b>저장하고 계산하는 부분</b>이에요.</div>` },
+    { t: "저장", c: C.mustard, html: `
+      <p class="big" style="font-size:24px">새로고침해도 남아 있으려면?</p>
+      <p>저장소가 없으면 창을 닫는 순간 입력한 내용이 사라져요.</p>
+      <ul class="ic">
+        <li><span class="e">📊</span><div><b>구글 스프레드시트</b><br>표에 한 줄씩 쌓이는 저장소</div></li>
+        <li><span class="e">🔥</span><div><b>파이어베이스</b><br>구글이 만든 온라인 데이터 창고</div></li>
+      </ul>
+      <p class="muted">오늘 여러분이 낼 계획서도 이런 저장소에 모여요.</p>` },
+    { t: "배포와 권한", c: C.rose, html: `
+      <div class="box"><h4>배포</h4>내 컴퓨터 속 파일을 <b>누구나 열 수 있는 인터넷 주소</b>로 내놓는 것</div>
+      <div class="box"><h4>권한</h4>누가 <b>볼 수 있고</b>, 누가 <b>쓰고 고칠 수 있는지</b> 정하는 것</div>
+      <ul class="ic"><li><span class="e">🔑</span><div>비밀번호나 'API 키' 같은 열쇠는 아무에게나 주지 않아요.</div></li></ul>` }
+  ]
+},
+{
+  tab: "0단계", sub: "AI 채팅창에서 만들기", color: C.mustard, time: 10,
+  title: "0단계: AI 채팅창에서 바로 만들기", lead: "설치도 주소도 필요 없는 가장 쉬운 시작",
+  cols: [
+    { t: "무엇을 하나요?", c: C.pink, html: `
+      <div class="flow">
+        <div class="st"><b>① 말하기</b><br>AI 채팅에 "○○ 웹앱을 만들어 줘"</div><div class="ar">↓</div>
+        <div class="st"><b>② 바로 보기</b><br>옆 미리보기 화면에서 실행</div><div class="ar">↓</div>
+        <div class="st"><b>③ 다시 말하기</b><br>마음에 안 드는 곳을 고쳐 달라고</div>
+      </div>
+      <p class="muted">Claude, Gemini 같은 AI 채팅에서 할 수 있어요.</p>` },
+    { t: "만들어 줘, 잘 말하는 법", c: C.green, html: `
+      <ul class="ic">
+        <li><span class="e">🙋</span><div><b>누가</b> 쓰나요?</div></li>
+        <li><span class="e">🎯</span><div><b>무엇을</b> 하는 웹앱인가요?</div></li>
+        <li><span class="e">🎨</span><div><b>어떤 모습</b>인가요? 색, 분위기</div></li>
+        <li><span class="e">⭐</span><div>꼭 필요한 <b>기능</b>은?</div></li>
+      </ul>
+      <div class="prompt">고1 친구들이 쓰는 영단어 퀴즈 웹앱을 만들어 줘. 파스텔 분홍색의 귀여운 분위기로. 단어 10개를 랜덤으로 내고, 맞히면 점수가 올라가게 해 줘.</div>` },
+    { t: "고쳐 달라고 말하기", c: C.mustard, html: `
+      <ul class="ic">
+        <li><span class="e">☝️</span><div>한 번에 <b>하나씩</b> 부탁하기</div></li>
+        <li><span class="e">📍</span><div><b>위치와 모습</b>을 구체적으로<br><span class="muted">"시작 버튼을 화면 가운데에, 지금보다 두 배 크게"</span></div></li>
+        <li><span class="e">📋</span><div>오류 메시지는 <b>그대로 복사</b>해서 붙여넣기</div></li>
+        <li><span class="e">💾</span><div>마음에 드는 버전은 <b>따로 저장</b>해 두기</div></li>
+      </ul>` },
+    { t: "0단계의 한계", c: C.rose, html: `
+      <ul class="ic">
+        <li><span class="e">🔒</span><div>내 채팅창 안에서만 보여요</div></li>
+        <li><span class="e">💨</span><div>입력한 내용이 저장되지 않아요</div></li>
+        <li><span class="e">🔗</span><div>친구에게 링크로 주기 어려워요</div></li>
+      </ul>
+      <p class="big" style="font-size:24px">그래서 다음 단계가 필요해요!</p>` }
+  ]
+},
+{
+  tab: "1단계", sub: "스프레드시트 연동", color: C.rose, time: 5,
+  title: "1단계: 구글 스프레드시트와 연결하기", lead: "이런 방법도 있다는 것만 알고 넘어가요",
+  cols: [
+    { t: "어떻게 연결될까?", c: C.pink, html: `
+      <div class="flow">
+        <div class="st"><b>🪟 웹앱</b> 손님을 맞는 창구</div><div class="ar">↕</div>
+        <div class="st"><b>🏃 앱스 스크립트</b> 심부름꾼</div><div class="ar">↕</div>
+        <div class="st"><b>📊 스프레드시트</b> 창고</div>
+      </div>
+      <p class="muted">창구에서 받은 내용을 심부름꾼이 창고(시트)에 한 줄씩 적어 둬요.</p>` },
+    { t: "좋은 점", c: C.green, html: `
+      <ul class="ic">
+        <li><span class="e">📋</span><div>입력한 내용이 익숙한 표로 쌓여요</div></li>
+        <li><span class="e">👀</span><div>시트를 열면 바로 확인할 수 있어요</div></li>
+        <li><span class="e">🏫</span><div>학교 선생님들이 많이 쓰는 방법이에요</div></li>
+      </ul>` },
+    { t: "어려운 점", c: C.mustard, html: `
+      <ul class="ic">
+        <li><span class="e">🛂</span><div>구글 권한 허용 화면을 여러 번 거쳐야 해요</div></li>
+        <li><span class="e">🔁</span><div>고칠 때마다 새로 배포해야 해요</div></li>
+        <li><span class="e">📏</span><div>주소가 아주 길어요</div></li>
+      </ul>
+      <div class="addr">script.google.com/macros/s/AKfycbx…(아주 긴 글자)…/exec</div>
+      <div class="box"><h4>우리 실습에서는</h4>이 단계는 건너뛰고 2단계로 바로 가요.</div>` }
+  ]
+},
+{
+  tab: "2단계", sub: "깃허브·베셀 배포", color: C.sky, time: 15,
+  title: "2단계: 깃허브에 두고 베셀로 배포하기", lead: "index.html 파일 하나로 나만의 주소 만들기",
+  cols: [
+    { t: "세 걸음이면 주소가 생겨요", c: C.sky, html: `
+      <div class="flow">
+        <div class="st"><b>① 파일 받기</b><br>AI에게 index.html 한 개로 받기</div><div class="ar">↓</div>
+        <div class="st"><b>② 깃허브에 올리기</b><br>저장소를 만들고 파일 끌어다 놓기</div><div class="ar">↓</div>
+        <div class="st"><b>③ 베셀에서 배포하기</b><br>저장소를 불러와 Deploy 누르기</div>
+      </div>` },
+    { t: "깃허브와 베셀이 하는 일", c: C.green, html: `
+      <div class="box"><h4>🗄️ 깃허브</h4>파일을 보관하는 인터넷 서랍이에요. 언제 무엇을 고쳤는지 기록도 남아요.</div>
+      <div class="box"><h4>🚀 베셀</h4>서랍 속 파일을 웹사이트로 열어 주는 곳이에요.</div>
+      <p>깃허브에 고친 파일을 다시 올리면, 베셀이 <b>알아서 새로 배포</b>해요. 주소는 그대로!</p>` },
+    { t: "주소를 비교해 봐요", c: C.mustard, html: `
+      <p class="muted">구글 앱스 스크립트</p>
+      <div class="addr">script.google.com/macros/s/AKfycbx…/exec</div>
+      <p class="muted">깃허브 페이지</p>
+      <div class="addr">내아이디.github.io/저장소이름</div>
+      <p class="muted">베셀</p>
+      <div class="addr good">my-quiz.vercel.app</div>
+      <p>베셀에서는 주소 앞부분 이름을 내가 정할 수 있어요.</p>` },
+    { t: "실습편 준비물", c: C.rose, html: `
+      <ul class="ic">
+        <li><span class="e">📧</span><div>로그인할 수 있는 <b>이메일</b></div></li>
+        <li><span class="e">🐙</span><div><b>깃허브</b> 가입</div></li>
+        <li><span class="e">▲</span><div><b>베셀</b>은 깃허브 계정으로 로그인</div></li>
+        <li><span class="e">📝</span><div>오늘 쓰는 <b>웹앱 계획서</b></div></li>
+      </ul>
+      <p class="muted">비밀번호는 꼭 기억해 두세요. 실습 날 로그인이 안 되면 시간이 다 가요!</p>` }
+  ]
+},
+{
+  tab: "웹앱 계획서", sub: "직접 쓰고 제출하기", color: C.lav, time: 25, kind: "plan",
+  title: "나의 웹앱 계획서 쓰기", lead: "작게 시작할수록 끝까지 만들 수 있어요",
+  cols: [
+    { t: "좋은 계획서의 조건", c: C.lav, cls: "narrow", html: `
+      <ul class="ic">
+        <li><span class="e">🌱</span><div><b>작게</b> 시작하기<br>기능은 3개까지</div></li>
+        <li><span class="e">🙋</span><div><b>진짜 쓸 사람</b> 떠올리기</div></li>
+        <li><span class="e">🧩</span><div>화면을 <b>그림처럼</b> 설명하기</div></li>
+      </ul>
+      <p class="muted">이런 아이디어도 좋아요</p>
+      <div class="chips"><span class="chip">급식 메뉴 투표</span><span class="chip">영단어 퀴즈</span><span class="chip">동아리 출석</span><span class="chip">공부 시간 기록</span><span class="chip">시험 D-day</span></div>` },
+    { t: "계획서 작성", c: C.pink, cls: "wide", html: `${DEMO}
+      <form class="form" id="planForm" autocomplete="off">
+        <div class="row2">
+          <label>반<select name="ban"><option value="A">A반</option><option value="B">B반</option></select></label>
+          <label>학번<input name="sid" inputmode="numeric" maxlength="5" placeholder="10101" required></label>
+          <label>이름<input name="name" maxlength="10" required></label>
+        </div>
+        <label>웹앱 이름<input name="appName" maxlength="30" placeholder="예: 오늘의 영단어" required></label>
+        <label>누가 쓰나요? 어떤 불편을 해결하나요?<textarea name="problem" rows="2" required placeholder="예: 단어 외우기가 지루한 우리 반 친구들"></textarea></label>
+        <label>꼭 필요한 기능 3가지<textarea name="features" rows="3" required placeholder="1. &#10;2. &#10;3. "></textarea></label>
+        <label>화면 모습<span class="h">색깔, 분위기, 첫 화면에 보이는 것</span><textarea name="look" rows="2" required></textarea></label>
+        <label>AI에게 보낼 첫 문장<span class="h">누가·무엇을·어떤 모습·기능을 넣어서</span><textarea name="prompt" rows="3" required></textarea></label>
+        <button class="btn" type="submit">계획서 제출하기</button>
+        <p class="muted" style="margin:0">같은 학번으로 다시 내면 새 내용으로 바뀌어요.</p>
+      </form>` },
+    { t: "제출 현황", c: C.green, html: `<div id="planListBox"></div>` }
+  ]
+},
+{
+  tab: "주의할 점", sub: "안전하게 만들기", color: C.coral, time: 5,
+  title: "웹앱 만들 때 주의할 점", lead: "인터넷에 올리는 순간, 누구나 볼 수 있어요",
+  cols: [
+    { t: "개인정보는 넣지 않기", c: C.pink, html: `
+      <ul class="ic">
+        <li><span class="e">🙅</span><div>실명, 전화번호, 주소, 얼굴 사진</div></li>
+        <li><span class="e">🏫</span><div>친구의 정보는 더더욱 조심</div></li>
+        <li><span class="e">🧪</span><div>연습할 때는 <b>가짜 이름</b>으로</div></li>
+      </ul>` },
+    { t: "비밀 열쇠는 숨기기", c: C.green, html: `
+      <p>웹페이지 코드는 누구나 열어 볼 수 있어요.</p>
+      <ul class="ic">
+        <li><span class="e">🔑</span><div>내 비밀번호를 코드에 적지 않기</div></li>
+        <li><span class="e">🤖</span><div>AI 서비스의 'API 키'를 코드에 넣지 않기</div></li>
+      </ul>` },
+    { t: "AI의 답도 확인하기", c: C.mustard, html: `
+      <ul class="ic">
+        <li><span class="e">👆</span><div>모든 버튼을 <b>직접 눌러 보기</b></div></li>
+        <li><span class="e">🤔</span><div>그럴듯해도 틀릴 수 있어요. 내용이 맞는지 확인!</div></li>
+        <li><span class="e">🖼️</span><div>남의 그림, 캐릭터, 로고는 쓰지 않기</div></li>
+      </ul>` },
+    { t: "함께 쓰는 공간의 예절", c: C.rose, html: `
+      <ul class="ic">
+        <li><span class="e">💗</span><div>누군가를 놀리거나 상처 주는 기능은 만들지 않기</div></li>
+        <li><span class="e">🧑‍🤝‍🧑</span><div>공개하기 전에 친구 한 명에게 먼저 써 보게 하기</div></li>
+      </ul>` }
+  ]
+},
+{
+  tab: "친구와 피드백", sub: "칭찬·질문·제안", color: C.teal, time: 15, kind: "feedback",
+  title: "친구들과 피드백하기", lead: "친구의 계획서를 읽고 더 좋게 만들어 주세요",
+  cols: [
+    { t: "피드백 세 가지", c: C.teal, cls: "narrow", html: `
+      <ul class="ic">
+        <li><span class="e">👍</span><div><b>좋은 점</b><br>"이 기능이 있으면 진짜 쓸 것 같아"</div></li>
+        <li><span class="e">❓</span><div><b>궁금한 점</b><br>"점수는 어디에 저장돼?"</div></li>
+        <li><span class="e">💡</span><div><b>이런 건 어때?</b><br>"기능을 하나 줄이면 더 빨리 만들 수 있을 것 같아"</div></li>
+      </ul>
+      <p class="muted">상대를 평가하기보다, 웹앱을 함께 키워 주는 말을 써요.</p>` },
+    { t: "계획서 고르기", c: C.sky, html: `${DEMO}<div id="fbPickBox"></div>` },
+    { t: "피드백 쓰기", c: C.pink, cls: "wide", html: `<div id="fbFormBox"></div>` }
+  ]
+}
+];
+
+/* =========================================================
+   5) 그리기
+   ========================================================= */
+const tabsEl = document.getElementById("tabs");
+const stageEl = document.getElementById("stage");
+
+function renderTabs() {
+  tabsEl.innerHTML = SLIDES.map((s, i) => `
+    <button class="tab ${cur === i + 1 ? "on" : ""}" style="--c:${s.color}" data-go="${i + 1}" aria-current="${cur === i + 1 ? "page" : "false"}">
+      <span class="no">${i + 1}</span>
+      <span class="lab">${s.tab}<small>${s.sub} (${s.time}분)</small></span>
+    </button>`).join("");
+}
+
+function renderSlide() {
+  const s = SLIDES[cur - 1];
+  stageEl.style.setProperty("--c", s.color);
+  stageEl.innerHTML = `
+    <div class="slide-head">
+      <div class="slide-no">${cur}</div>
+      <div class="slide-title"><h2>${s.title}</h2><p>${s.lead}</p></div>
+      <span class="time">약 ${s.time}분</span>
+    </div>
+    <div class="progress"><i style="width:${cur / SLIDES.length * 100}%"></i></div>
+    <div class="cols">
+      ${s.cols.map((c, i) => `
+        <article class="col ${c.cls || ""}" style="--c:${c.c}">
+          <div class="col-in">
+            <div class="col-head"><span class="cn">${i + 1}</span>${c.t}</div>
+            <div class="col-body">${c.html}</div>
+          </div>
+        </article>`).join("")}
+    </div>
+    <div class="navbtns">
+      <button data-step="-1" ${cur === 1 ? "disabled" : ""}>이전</button>
+      <button data-step="1" ${cur === SLIDES.length ? "disabled" : ""}>다음</button>
+    </div>`;
+  if (s.kind === "plan") { bindPlanForm(); renderPlanList(); }
+  if (s.kind === "feedback") { renderFbPick(); renderFbForm(); }
+}
+
+function go(n) {
+  cur = Math.min(SLIDES.length, Math.max(1, n));
+  history.replaceState(null, "", "#" + cur);
+  renderTabs(); renderSlide();
+}
+
+/* ----- 6번: 계획서 ----- */
+function plansOfBan() { return plans.filter(p => p.ban === ban).sort((a, b) => (a.sid || "").localeCompare(b.sid || "")); }
+
+function bindPlanForm() {
+  const f = document.getElementById("planForm");
+  if (!f) return;
+  f.ban.value = ban;
+  f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(f).entries());
+    Object.keys(d).forEach(k => d[k] = d[k].trim());
+    if (!/^\d{5}$/.test(d.sid)) { toast("학번은 숫자 5자리로 적어 주세요"); f.sid.focus(); return; }
+    const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
+    try {
+      const old = plans.find(p => p.ban === d.ban && p.sid === d.sid);
+      await store.upsert(COL_PLANS, old ? old.id : null, d);
+      toast(old ? "계획서를 새 내용으로 바꿨어요" : "계획서를 제출했어요");
+      f.reset(); f.ban.value = ban;
+    } catch (err) { console.error(err); toast("제출하지 못했어요. 인터넷 연결을 확인하세요"); }
+    btn.disabled = false;
+  });
+}
+
+function planDetail(p) {
+  return `<div class="detail">
+    <div><b>누구를 위해</b><br>${nl(p.problem)}</div>
+    <div><b>기능</b><br>${nl(p.features)}</div>
+    <div><b>화면 모습</b><br>${nl(p.look)}</div>
+    <div><b>첫 문장</b><br>${nl(p.prompt)}</div>
+  </div>`;
+}
+
+function renderPlanList() {
+  const box = document.getElementById("planListBox");
+  if (!box) return;
+  const list = plansOfBan();
+  box.innerHTML = `
+    <p class="count">${ban}반 제출 ${list.length}건</p>
+    ${teacher ? `<p><button class="btn sm" id="csvBtn">${ban}반 엑셀 저장</button></p>` : ""}
+    ${list.length ? `<div class="plist">${list.map(p => `
+      <div>
+        <button class="pcard ${openPlan === p.id ? "sel" : ""}" data-open="${p.id}">
+          <div class="pt">${esc(p.appName)}</div>
+          <div class="pm">${esc(p.name)}${teacher ? " (" + esc(p.sid) + ")" : ""}</div>
+          ${openPlan === p.id ? planDetail(p) : ""}
+        </button>
+        ${teacher ? `<button class="del" data-delplan="${p.id}">삭제</button>` : ""}
+      </div>`).join("")}</div>`
+      : `<div class="empty">아직 제출한 계획서가 없어요.<br>첫 번째로 제출해 보세요!</div>`}`;
+}
+
+function downloadCSV() {
+  const rows = [["반", "학번", "이름", "웹앱 이름", "누가/어떤 불편", "기능", "화면 모습", "첫 문장", "받은 피드백 수"]];
+  plansOfBan().forEach(p => rows.push([p.ban, p.sid, p.name, p.appName, p.problem, p.features, p.look, p.prompt, feedbacks.filter(f => f.planId === p.id).length]));
+  const csv = "\uFEFF" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `웹앱계획서_${ban}반.csv`; a.click();
+}
+
+/* ----- 8번: 피드백 ----- */
+function renderFbPick() {
+  const box = document.getElementById("fbPickBox");
+  if (!box) return;
+  const list = plansOfBan();
+  box.innerHTML = list.length ? `<div class="plist">${list.map(p => {
+    const n = feedbacks.filter(f => f.planId === p.id).length;
+    return `<button class="pcard ${selPlan === p.id ? "sel" : ""}" data-pick="${p.id}">
+      <div class="pt">${esc(p.appName)}</div>
+      <div class="pm">${esc(p.name)} · 💬 ${n}</div>
+    </button>`;
+  }).join("")}</div>` : `<div class="empty">${ban}반에서 제출된 계획서가 아직 없어요.<br>6번에서 먼저 계획서를 내 주세요.</div>`;
+}
+
+function renderFbForm() {
+  const box = document.getElementById("fbFormBox");
+  if (!box) return;
+  const p = plans.find(x => x.id === selPlan);
+  if (!p) { box.innerHTML = `<div class="empty">왼쪽에서 친구의 계획서를 골라 주세요.</div>`; return; }
+  const list = feedbacks.filter(f => f.planId === p.id).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  box.innerHTML = `
+    <div class="box" style="--c:var(--pink)"><h4>${esc(p.name)}의 「${esc(p.appName)}」</h4>
+      <div style="font-size:15px">${nl(p.problem)}</div>
+      <div style="font-size:15px;margin-top:4px"><b>기능</b><br>${nl(p.features)}</div>
+    </div>
+    <form class="form" id="fbForm" autocomplete="off">
+      <label>내 이름<input name="from" maxlength="10" required></label>
+      <label>👍 좋은 점<textarea name="good" rows="2" required></textarea></label>
+      <label>❓ 궁금한 점<textarea name="question" rows="2"></textarea></label>
+      <label>💡 이런 건 어때?<textarea name="idea" rows="2"></textarea></label>
+      <button class="btn" type="submit">피드백 보내기</button>
+    </form>
+    <p class="count" style="margin-top:16px">받은 피드백 ${list.length}개</p>
+    ${list.map(f => `<div class="fb">
+      <div class="who">${esc(f.from)}</div>
+      <div>👍 ${nl(f.good)}</div>
+      ${f.question ? `<div>❓ ${nl(f.question)}</div>` : ""}
+      ${f.idea ? `<div>💡 ${nl(f.idea)}</div>` : ""}
+      ${teacher ? `<button class="del" data-delfb="${f.id}">삭제</button>` : ""}
+    </div>`).join("")}`;
+  document.getElementById("fbForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const f = e.target, d = Object.fromEntries(new FormData(f).entries());
+    Object.keys(d).forEach(k => d[k] = d[k].trim());
+    d.planId = p.id; d.ban = p.ban;
+    const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
+    try { await store.upsert(COL_FB, null, d); toast("피드백을 보냈어요"); }
+    catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); btn.disabled = false; }
+  });
+}
+
+function refreshLive() {
+  const s = SLIDES[cur - 1];
+  if (s.kind === "plan") renderPlanList();
+  if (s.kind === "feedback") {
+    renderFbPick();
+    // 쓰는 중인 글이 지워지지 않도록, 입력칸이 비어 있을 때만 다시 그림
+    const f = document.getElementById("fbForm");
+    const typing = f && [...f.querySelectorAll("input,textarea")].some(x => x.value.trim());
+    if (!typing) renderFbForm();
+  }
+}
+
+/* =========================================================
+   6) 이벤트
+   ========================================================= */
+tabsEl.addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (b) go(+b.dataset.go); });
+
+stageEl.addEventListener("click", async e => {
+  const t = e.target;
+  const step = t.closest("[data-step]"); if (step) return go(cur + +step.dataset.step);
+  const op = t.closest("[data-open]"); if (op) { openPlan = openPlan === op.dataset.open ? null : op.dataset.open; return renderPlanList(); }
+  const pk = t.closest("[data-pick]"); if (pk) { selPlan = pk.dataset.pick; renderFbPick(); return renderFbForm(); }
+  if (t.id === "csvBtn") return downloadCSV();
+  if (t.dataset.delplan && confirm("이 계획서를 삭제할까요?")) { await store.remove(COL_PLANS, t.dataset.delplan); toast("삭제했어요"); }
+  if (t.dataset.delfb && confirm("이 피드백을 삭제할까요?")) { await store.remove(COL_FB, t.dataset.delfb); toast("삭제했어요"); }
+});
+
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  ban = b.dataset.ban; try { localStorage.setItem("vt_ban", ban); } catch (e) {}
+  selPlan = null; openPlan = null; paintBan(); renderSlide();
+}));
+function paintBan() { document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.ban === ban)); }
+
+document.getElementById("fsBtn").addEventListener("click", () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.();
+});
+document.addEventListener("fullscreenchange", () => { document.getElementById("fsBtn").textContent = document.fullscreenElement ? "창 모드" : "전체화면"; });
+
+document.getElementById("teacherBtn").addEventListener("click", e => {
+  if (teacher) { teacher = false; }
+  else { const pw = prompt("선생님 비밀번호를 입력하세요"); if (pw === null) return; if (pw !== TEACHER_PW) { toast("비밀번호가 맞지 않아요"); return; } teacher = true; }
+  e.target.classList.toggle("teacher-on", teacher);
+  e.target.textContent = teacher ? "선생님 모드 끄기" : "선생님";
+  renderSlide();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input,textarea,select")) return;
+  if (["ArrowRight", "PageDown"].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+  if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+});
+
+/* =========================================================
+   7) 시작
+   ========================================================= */
+const h = parseInt(location.hash.slice(1), 10);
+if (h >= 1 && h <= SLIDES.length) cur = h;
+paintBan(); renderTabs(); renderSlide();
+store.listen(COL_PLANS, list => { plans = list; refreshLive(); });
+store.listen(COL_FB, list => { feedbacks = list; refreshLive(); });
+</script>
+</body>
+</html>
