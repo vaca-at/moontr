@@ -164,6 +164,15 @@ details.more[open] > summary{background:color-mix(in srgb,var(--c) 12%,#fff);mar
 details.more[open] > summary::after{content:"▴"}
 details.more > summary:hover{border-style:solid}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:.5625rem}
+/* 덮이는 창: 접기 버튼을 누르면 그 칸 위에 열려요(다른 칸 글자 크기는 그대로) */
+.col-body{position:relative}
+details.more.pop{display:inline-block;margin:0 .375rem .5rem 0}
+details.more.pop[open] > summary{background:none;margin-bottom:0}
+.pop-panel{position:absolute;inset:0;z-index:3;background:#fff;overflow-y:auto;padding:.875rem 1.125rem 2.75rem;animation:popIn .15s ease}
+@keyframes popIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.pop-title{margin:0 0 .625rem;font-family:var(--hand);font-weight:var(--hw);font-size:1.375rem;color:var(--c)}
+.pop-close{float:right;border:2px solid var(--line);background:#fff;border-radius:999px;padding:.0625rem .75rem;font-family:var(--hand);font-weight:var(--hw);font-size:.9375rem}
+.pop-close:hover{border-color:var(--c)}
 
 /* 본문 부품 */
 .big{font-family:var(--hand);font-weight:var(--hw);font-size:1.6875rem;line-height:1.3;margin:0 0 .75rem;color:var(--ink)}
@@ -325,6 +334,20 @@ dialog.doc.wide{width:min(72rem, calc(100vw - 2rem));height:90vh;height:90dvh;ma
 .tbl table{min-width:40rem}
 .tbl td .del{margin:0}
 .row2.me{grid-template-columns:1fr 1fr}
+/* 대시보드: 기기 접속 현황 */
+.vis-badge{background:var(--soft);border:1.5px solid var(--line);border-radius:999px;padding:.0625rem .75rem;font-size:.875rem;font-weight:700}
+.vis-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.625rem;margin-bottom:.625rem}
+.vis-card{border:1.5px solid var(--line);border-radius:.875rem;padding:.625rem .75rem;font-size:.8125rem}
+.vis-card > b{display:block;margin-bottom:.375rem;font-size:.875rem}
+.vis-row{display:grid;grid-template-columns:5.5rem 1fr 6.5rem;align-items:center;gap:.5rem;margin:.1875rem 0}
+.vis-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vis-track{height:.5rem;background:var(--gray);border-radius:999px;overflow:hidden}
+.vis-track i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.vis-num{text-align:right;color:var(--ink2);white-space:nowrap}
+.vis-hours{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;height:5rem;align-items:end}
+.vis-hours div{display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.vis-hours i{display:block;background:var(--accent);border-radius:3px 3px 0 0;min-height:1px}
+.vis-hours small{height:1rem;text-align:center;font-size:.6875rem;color:var(--ink2)}
 
 .toast{position:fixed;left:50%;bottom:calc(5rem + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;padding:.625rem 1.375rem;border-radius:999px;font-family:var(--hand);font-weight:var(--hw);font-size:1.25rem;transition:.25s;pointer-events:none;z-index:9;max-width:calc(100vw - 2rem);text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -431,6 +454,9 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
   .legal > span{flex-basis:100%;text-align:center}
   .toast{bottom:calc(1.5rem + env(safe-area-inset-bottom,0px))}
   .doc-body{padding:.875rem 1rem 1.25rem}
+  details.more.pop{display:block}
+  .pop-panel{position:static;padding:.5rem 0 0;animation:none;overflow:visible}
+  .pop-close,.pop-title{display:none}
 }
 @media (max-width:420px){
   .seg button small{display:none}
@@ -539,7 +565,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
       <tr><td>친구 피드백</td><td>쓴 사람의 학번·이름, 피드백 내용</td></tr>
       <tr><td>자동으로 저장</td><td>고른 반, 글꼴, 디자인(이 기기 브라우저에만 저장)</td></tr>
     </table>
-    <p>회원가입을 받지 않으며 전화번호, 이메일, 주소, 사진은 받지 않아요. 아래쪽 방문 수는 들어온 횟수만 세고, 누가 들어왔는지는 남기지 않아요.</p>
+    <p>회원가입을 받지 않으며 전화번호, 이메일, 주소, 사진은 받지 않아요. 아래쪽 방문 수와 접속 기록은 기기 종류·브라우저·화면 너비·접속 시각만 남기고, 학번·이름과 연결하지 않아서 누가 들어왔는지는 알 수 없어요.</p>
 
     <h4>2. 쓰는 곳</h4>
     <ul>
@@ -637,6 +663,7 @@ const COL_PLANS = "vibe_plans";     // 계획서 (누구나 보기, 학번·이�
 const COL_KEYS = "vibe_plan_keys";  // 문서 이름 = 반·학번·이름의 해시 → 계획서 번호·학번·이름 (관리자만 목록 보기)
 const COL_FB = "vibe_feedback";     // 피드백 (누구나 보기, 쓴 사람은 '학생 A'·'친구'로만)
 const COL_WHO = "vibe_fb_who";      // 피드백 쓴 사람의 학번·이름 (관리자만 보기)
+const COL_VISITS = "stuvibe_visits"; // 익명 접속 기록 (기기 종류·브라우저·날짜만, 학번·이름과 연결 안 됨)
 
 /* =========================================================
    2) 저장소 (파이어스토어 ↔ 인터넷이 안 될 때 체험 모드)
@@ -764,6 +791,33 @@ async function deleteFeedback(id) {
   localEmit(COL_FB); localEmit(COL_WHO);
 }
 
+// 익명 접속 기록: 한 번 들어올 때 한 번만 (관리자 화면·관리자 허브 안에서 열면 남기지 않아요)
+function deviceInfo() {
+  const ua = navigator.userAgent, w = window.innerWidth;
+  const tablet = /iPad|Tablet|SM-T|Nexus 7|Nexus 10/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const mobile = !tablet && /Android|iPhone|iPod|Mobile|Windows Phone/i.test(ua);
+  const os = /Android/i.test(ua) ? "Android" : /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iOS"
+    : /Mac OS X|Macintosh/i.test(ua) ? "Mac" : /Windows/i.test(ua) ? "Windows" : /CrOS/i.test(ua) ? "크롬북" : /Linux/i.test(ua) ? "Linux" : "기타";
+  const br = /SamsungBrowser/i.test(ua) ? "삼성 인터넷" : /Edg\//i.test(ua) ? "엣지" : /Whale/i.test(ua) ? "웨일"
+    : /KAKAOTALK/i.test(ua) ? "카카오톡" : /Firefox/i.test(ua) ? "파이어폭스" : /Chrome/i.test(ua) ? "크롬" : /Safari/i.test(ua) ? "사파리" : "기타";
+  return { dev: tablet ? "태블릿" : mobile ? "휴대폰" : "컴퓨터", os, br,
+    w: w < 400 ? "~399" : w < 600 ? "400~599" : w < 900 ? "600~899" : w < 1280 ? "900~1279" : "1280~" };
+}
+async function logVisit() {
+  let inHub = false; try { inHub = window.top !== window; } catch (e) { inHub = true; }
+  if (inHub || /[?&]admin/.test(location.search) || /^#(admin|teacher)/.test(location.hash)) return;
+  try { if (sessionStorage.getItem("stuvibe-visit") === "1") return; sessionStorage.setItem("stuvibe-visit", "1"); } catch (e) {}
+  let vid = "";
+  try { vid = localStorage.getItem("stuvibe-vid") || ""; if (!vid) { vid = Math.random().toString(36).slice(2, 10); localStorage.setItem("stuvibe-vid", vid); } } catch (e) {}
+  const now = new Date();
+  const d = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const data = { ...deviceInfo(), d, h: now.getHours(), vid };
+  try {
+    if (LIVE) await db.collection(COL_VISITS).add(data);
+    else { const arr = localGet(COL_VISITS); arr.push({ ...data, id: "l" + Date.now() }); localSet(COL_VISITS, arr); localEmit(COL_VISITS); }
+  } catch (e) { console.error("접속 기록 실패", e); }
+}
+
 /* =========================================================
    3) 상태
    ========================================================= */
@@ -771,6 +825,7 @@ let cur = 1;
 let ban = (() => { try { return localStorage.getItem("vt_ban") || "A"; } catch (e) { return "A"; } })();
 let teacher = false;
 let plans = [], feedbacks = [];
+let visits = [];       // 익명 접속 기록 (관리자만)
 let people = {};       // 계획서 번호 → {학번, 이름} (관리자만)
 let writers = {};      // 피드백 번호 → {학번, 이름} (관리자만)
 let stopAdmin = [];
@@ -899,31 +954,49 @@ const SLIDES = [
       <ul class="ic ai">
         <li><a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener"><img class="ico" src="${ICON.claude}" alt="">Claude</a><div>부탁하면 옆에 <b>아티팩트</b> 화면이 열려요</div></li>
         <li><a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener"><img class="ico" src="${ICON.gemini}" alt="">Gemini</a><div>입력창의 <b>캔버스</b>를 켜고 부탁해요</div></li>
+      </ul>
+      <details class="more pop"><summary>💬 잘 말하는 법</summary><div class="pop-panel">
+        <button type="button" class="pop-close">✕ 닫기</button>
+        <h4 class="pop-title">💬 잘 말하는 법</h4>
+        <ul class="ic">
+          <li><span class="e">🙋</span><div><b>누가</b> 쓰나요?</div></li>
+          <li><span class="e">🎯</span><div><b>무엇을</b> 하는 웹앱인가요?</div></li>
+          <li><span class="e">🎨</span><div><b>어떤 모습</b>인가요? 색, 분위기</div></li>
+          <li><span class="e">⭐</span><div>꼭 필요한 <b>기능</b>은?</div></li>
+        </ul>
+        <div class="prompt">고1 친구들이 쓰는 영단어 퀴즈 웹앱을 만들어 줘. 파스텔 분홍색의 귀여운 분위기로. 단어 10개를 랜덤으로 내고, 맞히면 점수가 올라가게 해 줘.</div>
+        <p class="muted">💡 이 문장을 복사해서 Claude나 Gemini에 붙여 넣어 보세요.</p></div></details>
+      <details class="more pop"><summary>🔧 고쳐 달라고 말하기</summary><div class="pop-panel">
+        <button type="button" class="pop-close">✕ 닫기</button>
+        <h4 class="pop-title">🔧 고쳐 달라고 말하기</h4>
+        <ul class="ic">
+          <li><span class="e">☝️</span><div>한 번에 <b>하나씩</b> 부탁하기</div></li>
+          <li><span class="e">📍</span><div><b>위치와 모습</b>을 구체적으로</div></li>
+          <li><span class="e">📋</span><div>오류 메시지는 <b>그대로 복사</b>해서 붙여넣기</div></li>
+          <li><span class="e">💾</span><div>마음에 드는 버전은 <b>따로 저장</b>해 두기</div></li>
+        </ul>
+        <div class="prompt">시작 버튼을 화면 가운데에, 지금보다 두 배 크게 바꿔 줘.</div></div></details>` },
+    { t: "이렇게 쓸 수 있어요", c: C.green, html: `
+      <p class="big">대화만으로 만든 앱을 <span class="mark">바로 써 볼 수 있어요.</span></p>
+      <ul class="ic">
+        <li><span class="e">🔗</span><div><b>링크로 공유</b><br>친구들과 바로 함께 써요</div></li>
+        <li><span class="e">📁</span><div><b>파일로 내려받기</b><br>index.html 파일을 컴퓨터나 태블릿에서 열어요</div></li>
+        <li><span class="e">⚡</span><div><b>설치, 가입 없이</b><br>대화만으로 만든 앱을 바로 실행해요</div></li>
       </ul>` },
-    { t: "잘 말하는 법", c: C.green, html: `
+    { t: "이런 아쉬움이 있어요", c: C.mustard, html: `
+      <p class="big">점수나 기록이 <span class="mark">잘 남지 않아요.</span></p>
       <ul class="ic">
-        <li><span class="e">🙋</span><div><b>누가</b> 쓰나요?</div></li>
-        <li><span class="e">🎯</span><div><b>무엇을</b> 하는 웹앱인가요?</div></li>
-        <li><span class="e">🎨</span><div><b>어떤 모습</b>인가요? 색, 분위기</div></li>
-        <li><span class="e">⭐</span><div>꼭 필요한 <b>기능</b>은?</div></li>
-      </ul>
-      <div class="prompt">고1 친구들이 쓰는 영단어 퀴즈 웹앱을 만들어 줘. 파스텔 분홍색의 귀여운 분위기로. 단어 10개를 랜덤으로 내고, 맞히면 점수가 올라가게 해 줘.</div>
-      <p class="muted">💡 이 문장을 복사해서 Claude나 Gemini에 붙여 넣어 보세요.</p>` },
-    { t: "고쳐 달라고 말하기", c: C.mustard, html: `
+        <li><span class="e">💨</span><div><b>새로고침하면 사라져요</b><br>점수나 기록이 저장되지 않을 수 있어요</div></li>
+        <li><span class="e">📱</span><div><b>그 기기에만 남아요</b><br>다른 기기에서는 이어 볼 수 없어요</div></li>
+        <li><span class="e">🧩</span><div><b>한곳에 모이지 않아요</b><br>누가 참여했는지, 몇 점인지 모아 볼 수 없어요</div></li>
+      </ul>` },
+    { t: "다음 단계에서는", c: C.rose, html: `
+      <p class="big">하나의 <span class="mark">진짜 홈페이지</span>로 키워 가요.</p>
       <ul class="ic">
-        <li><span class="e">☝️</span><div>한 번에 <b>하나씩</b> 부탁하기</div></li>
-        <li><span class="e">📍</span><div><b>위치와 모습</b>을 구체적으로</div></li>
-        <li><span class="e">📋</span><div>오류 메시지는 <b>그대로 복사</b>해서 붙여넣기</div></li>
-        <li><span class="e">💾</span><div>마음에 드는 버전은 <b>따로 저장</b>해 두기</div></li>
-      </ul>
-      <div class="prompt">시작 버튼을 화면 가운데에, 지금보다 두 배 크게 바꿔 줘.</div>` },
-    { t: "0단계의 한계", c: C.rose, html: `
-      <ul class="ic">
-        <li><span class="e">🔒</span><div>내 채팅창 안에서만 보여요</div></li>
-        <li><span class="e">💨</span><div>입력한 내용이 저장되지 않아요</div></li>
-        <li><span class="e">🔗</span><div>친구에게 링크로 주기 어려워요</div></li>
-      </ul>
-      <p class="big md">그래서 다음 단계가 필요해요!</p>` }
+        <li><span class="e">☁️</span><div><b>온라인 저장소 연결</b><br>구글 시트나 파이어베이스에 기록이 쌓여요</div></li>
+        <li><span class="e">📊</span><div><b>관리자 대시보드</b><br>친구들의 참여와 점수를 한눈에 봐요</div></li>
+        <li><span class="e">✏️</span><div><b>온라인에서 바로 고치기</b><br>퀴즈 문제를 바로 추가하고 고쳐요</div></li>
+      </ul>` }
   ]
 },
 {
@@ -1162,6 +1235,8 @@ function fitSlide() {
     root.style.fontSize = size + "px";
   }
 }
+// 접기 버튼을 열고 닫을 때도 다시 맞춰요
+stageEl.addEventListener("toggle", fitSlide, true);
 let fitTimer;
 window.addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitSlide, 150); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSlide);
@@ -1347,12 +1422,63 @@ function setTeacher(on) {
   b.textContent = on ? "🔓 로그아웃" : "🔒 관리자 로그인";
   document.getElementById("dashBtn").hidden = !on;
   stopAdmin.forEach(f => f()); stopAdmin = [];
-  people = {}; writers = {};
+  people = {}; writers = {}; visits = [];
   if (on) {
     stopAdmin.push(listen(COL_KEYS, list => { people = {}; list.forEach(x => { people[x.planId] = { sid: x.sid, name: x.name }; }); renderDash(); }));
     stopAdmin.push(listen(COL_WHO, list => { writers = {}; list.forEach(x => { writers[x.id] = { sid: x.sid, name: x.name }; }); renderDash(); }));
+    stopAdmin.push(listen(COL_VISITS, list => { visits = list; renderDash(); }));
   } else document.getElementById("dlgAdmin").close();
   renderSlide();
+}
+
+// 기기 접속 현황 (익명, 두 반 합계)
+function visitStatsHTML() {
+  const total = visits.length;
+  const head = `<h4>📱 기기 접속 현황 ${total ? `<button type="button" class="btn sm" data-visit-clear>기록 비우기</button>` : ""}</h4>`;
+  if (!total) return head + `<div class="empty">아직 접속 기록이 없어요.</div>`;
+  const today = fmtDay(new Date());
+  const tally = key => {
+    const m = {};
+    visits.forEach(r => { const v = r[key] || "기타"; m[v] = (m[v] || 0) + 1; });
+    return Object.keys(m).sort((a, b) => m[b] - m[a]).map(k => ({ k, n: m[k] }));
+  };
+  const bars = list => list.map(x => `<div class="vis-row"><span class="vis-name">${esc(x.k)}</span>
+    <span class="vis-track"><i style="width:${Math.round(x.n / total * 100)}%"></i></span>
+    <span class="vis-num">${x.n}회 · ${Math.round(x.n / total * 100)}%</span></div>`).join("");
+  const hours = Array(24).fill(0);
+  visits.forEach(r => { const h = Number(r.h); if (h >= 0 && h <= 23) hours[h]++; });
+  const maxH = Math.max(1, ...hours);
+  const devices = new Set(visits.map(r => r.vid).filter(Boolean)).size;
+  return head + `
+    <div class="dash-top">
+      <span class="vis-badge">접속 ${total}회</span><span class="vis-badge">기기 ${devices}대</span>
+      <span class="vis-badge">오늘 ${visits.filter(r => r.d === today).length}회</span>
+    </div>
+    <div class="vis-grid">
+      <div class="vis-card"><b>기기 종류</b>${bars(tally("dev"))}</div>
+      <div class="vis-card"><b>운영체제</b>${bars(tally("os"))}</div>
+      <div class="vis-card"><b>브라우저</b>${bars(tally("br"))}</div>
+      <div class="vis-card"><b>화면 너비(px)</b>${bars(tally("w"))}</div>
+    </div>
+    <div class="vis-card"><b>시간대별 접속</b>
+      <div class="vis-hours">${hours.map((n, h) => `<div title="${h}시 · ${n}회"><i style="height:${Math.round(n / maxH * 100)}%"></i><small>${h % 3 === 0 ? h : ""}</small></div>`).join("")}</div>
+    </div>`;
+}
+const fmtDay = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+
+async function clearVisits() {
+  if (!confirm(`익명 접속 기록 ${visits.length}건을 모두 지울까요?`)) return;
+  try {
+    if (LIVE) {
+      const ids = visits.map(v => v.id);
+      for (let i = 0; i < ids.length; i += 400) {
+        const b = db.batch();
+        ids.slice(i, i + 400).forEach(id => b.delete(db.collection(COL_VISITS).doc(id)));
+        await b.commit();
+      }
+    } else { localSet(COL_VISITS, []); localEmit(COL_VISITS); }
+    toast("접속 기록을 비웠어요");
+  } catch (e) { console.error(e); toast("지우지 못했어요"); }
 }
 
 function renderDash() {
@@ -1367,6 +1493,7 @@ function renderDash() {
       </div>
       <span class="muted">계획서 ${ps.length}건 · 피드백 ${fs.length}개</span>
     </div>
+    ${visitStatsHTML()}
     <h4>📝 계획서 제출 명단 <button type="button" class="btn sm" data-csv="plan">엑셀 저장</button></h4>
     ${ps.length ? `<div class="tbl"><table>
       <tr><th>표시</th><th>학번</th><th>이름</th><th>웹앱 이름</th><th>받은 피드백</th><th>쓴 피드백</th><th>제출 시각</th><th></th></tr>
@@ -1472,6 +1599,7 @@ document.querySelector(".navbtns").addEventListener("click", e => { const b = e.
 stageEl.addEventListener("click", async e => {
   const t = e.target;
   const cp = t.closest(".copy"); if (cp) return copyBox(cp);
+  const pc = t.closest(".pop-close"); if (pc) { pc.closest("details").open = false; return; }
   if (t.closest("#headBtn")) {
     const wide = document.body.classList.toggle("wide-view");
     try { localStorage.setItem("vt_wide", wide ? "1" : ""); } catch (x) {}
@@ -1490,6 +1618,7 @@ document.getElementById("dashBox").addEventListener("click", async e => {
   const db_ = t.closest("[data-dban]"); if (db_) return setBan(db_.dataset.dban);
   if (t.dataset.csv === "plan") return planCSV();
   if (t.dataset.csv === "fb") return fbCSV();
+  if (t.closest("[data-visit-clear]")) return clearVisits();
   await deleteClick(t);
 });
 
@@ -1535,6 +1664,7 @@ if (h >= 1 && h <= SLIDES.length) cur = h;
 paintBan(); renderTabs(); renderSlide();
 listen(COL_PLANS, list => { plans = list; relabel(); refreshLive(); renderDash(); });
 listen(COL_FB, list => { feedbacks = list; refreshLive(); renderDash(); });
+logVisit();
 
 // 방문 수 표시(visit.js)는 왼쪽 아래에 떠서 약관 글자와 겹치므로, 아래 띠 안으로 옮겨요
 new MutationObserver((_, ob) => {
