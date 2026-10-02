@@ -264,7 +264,7 @@ service cloud.firestore {
       allow read, delete: if isTeacher();
     }
 
-    // ===== 50주년 해외연수 (/t11111) =====
+    // ===== 50주년 해외연수 (jinseon50th.com/gt) =====
     // 설정・카테고리・항목・메모: 누구나 보기, 관리자만 쓰기
     match /gt_settings/{id}   { allow read: if true; allow write: if isTeacher(); }
     match /gt_categories/{id} { allow read: if true; allow write: if isTeacher(); }
@@ -288,6 +288,72 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['name'])
         && request.resource.data.name is string
         && request.resource.data.name.size() <= 20;
+    }
+
+    // ===== 바이브코딩 수업 (stuvibe) =====
+    // 화면에는 학번·이름 대신 '학생 A'처럼 제출 순서로만 보이고,
+    // 학번·이름은 vibe_plan_keys / vibe_fb_who 에만 저장 (목록 보기는 관리자만)
+    function vibeText(d, k, minLen, maxLen) {
+      return d[k] is string && d[k].size() >= minLen && d[k].size() <= maxLen;
+    }
+    function vibeStudent(d) {
+      return d.sid is string && d.sid.matches('^[0-9]{5}$')
+        && d.name is string && d.name.matches('^[^ ]{2}$');
+    }
+
+    // 계획서 내용: 누구나 보기(학번·이름 없음), 정해진 항목만 쓰기, 관리자만 지우기
+    match /vibe_plans/{id} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(
+          ['ban','appName','problem','features','look','prompt','createdAt','updatedAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && vibeText(request.resource.data, 'appName', 1, 100)
+        && vibeText(request.resource.data, 'problem', 1, 2000)
+        && vibeText(request.resource.data, 'features', 1, 2000)
+        && vibeText(request.resource.data, 'look', 1, 2000)
+        && vibeText(request.resource.data, 'prompt', 1, 2000)
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int;
+      allow delete: if isTeacher();
+    }
+
+    // 제출한 학생: 문서 이름 = 반·학번·이름의 해시(64자리)
+    // 학번과 이름을 모두 알아야 하나만 찾을 수 있음(다시 제출할 때), 목록은 관리자만
+    match /vibe_plan_keys/{key} {
+      allow get: if true;
+      allow create: if key.size() == 64
+        && request.resource.data.keys().hasOnly(['planId','ban','sid','name'])
+        && request.resource.data.ban in ['A', 'B']
+        && vibeStudent(request.resource.data)
+        && request.resource.data.planId is string
+        && existsAfter(/databases/$(database)/documents/vibe_plans/$(request.resource.data.planId));
+      allow list, delete: if isTeacher();
+    }
+
+    // 친구 피드백 내용: 누구나 보기(쓴 사람은 '학생 ○'·'친구'로만 표시), 관리자만 지우기
+    match /vibe_feedback/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(
+          ['planId','ban','fromPlan','good','question','idea','createdAt','updatedAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.planId is string
+        && exists(/databases/$(database)/documents/vibe_plans/$(request.resource.data.planId))
+        && vibeText(request.resource.data, 'fromPlan', 0, 40)
+        && vibeText(request.resource.data, 'good', 1, 1000)
+        && vibeText(request.resource.data, 'question', 0, 1000)
+        && vibeText(request.resource.data, 'idea', 0, 1000)
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int
+        && existsAfter(/databases/$(database)/documents/vibe_fb_who/$(id));
+      allow delete: if isTeacher();
+    }
+
+    // 피드백 쓴 학생의 학번·이름: 피드백과 함께만 만들기, 관리자만 보기·지우기
+    match /vibe_fb_who/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['sid','name'])
+        && vibeStudent(request.resource.data)
+        && existsAfter(/databases/$(database)/documents/vibe_feedback/$(id));
+      allow read, delete: if isTeacher();
     }
 
     match /{document=**} { allow read, write: if false; }
