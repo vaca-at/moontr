@@ -235,6 +235,16 @@ service cloud.firestore {
         && request.resource.data.thumb.size() < 200000;
       allow delete: if isTeacher();
     }
+    // 추억 갤러리 사진별 조회수 (문서 이름 = 사진 id): 누구나 보기, 숫자는 1씩 올리기만, 있는 사진에만
+    match /jinsun50_gallery_views/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == 1
+        && exists(/databases/$(database)/documents/jinsun50_gallery/$(id));
+      allow update: if request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == resource.data.n + 1;
+      allow delete: if isTeacher();
+    }
     match /jinsun50_gallery_full/{id} {
       allow read: if true;
       allow create, update: if isTeacher()
