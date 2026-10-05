@@ -781,7 +781,8 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
     <table>
       <tr><th>활동</th><th>받는 정보</th></tr>
       <tr><td>웹앱 계획서 제출</td><td>반, 학번(숫자 5자리), 이름(두 글자), 계획서 내용(웹앱 이름, 해결할 불편, 기능, 화면 모습, AI에게 보낼 첫 문장)</td></tr>
-      <tr><td>친구 피드백</td><td>쓴 사람의 학번·이름, 피드백 내용</td></tr>
+      <tr><td>친구 피드백 · 모둠 채팅</td><td>쓴 사람의 학번·이름, 피드백 내용</td></tr>
+      <tr><td>수업 성찰</td><td>반, 학번, 이름, 배운 점 · 느낀 점 · 더 하고 싶은 점</td></tr>
       <tr><td>자동으로 저장</td><td>고른 반, 글꼴, 디자인(이 기기 브라우저에만 저장)</td></tr>
     </table>
     <p>회원가입을 받지 않으며 전화번호, 이메일, 주소, 사진은 받지 않아요. 아래쪽 방문 수와 접속 기록은 기기 종류·브라우저·화면 너비·접속 시각만 남기고, 학번·이름과 연결하지 않아서 누가 들어왔는지는 알 수 없어요.</p>
@@ -790,6 +791,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
     <ul>
       <li>계획서 제출 확인과 같은 반 친구들의 피드백 활동</li>
       <li>다음 실습편 수업 준비와 수업 지도</li>
+      <li>수업 성찰을 바탕으로 한 학교생활기록부(진로탐구수업 활동) 작성 참고</li>
     </ul>
     <p>위 목적 밖으로는 쓰지 않아요.</p>
 
@@ -798,10 +800,11 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
       <li>계획서 내용과 피드백 내용은 수업 활동을 위해 친구들이 함께 볼 수 있어요.</li>
       <li>이때 이름 대신 제출한 순서대로 <b>'학생 A', '학생 B'</b>처럼만 보여요. 피드백을 쓴 사람도 '학생 ○'나 '친구'로만 보여요.</li>
       <li><b>학번과 이름</b>은 내용과 따로 저장되고, 관리자(담당 선생님)만 볼 수 있어요.</li>
+      <li><b>수업 성찰</b>은 친구들에게 보이지 않고 담당 선생님만 볼 수 있어요.</li>
     </ul>
 
     <h4>4. 보관 기간과 삭제</h4>
-    <p>이 수업에서 저장한 모든 기록(계획서 · 피드백 · 학번 · 이름)은 <b>2026년 12월 31일에 모두 삭제</b>해요. 삭제한 정보는 되살릴 수 없게 지워요.</p>
+    <p>이 수업에서 저장한 모든 기록(계획서 · 피드백 · 성찰 · 학번 · 이름)은 <b>2026년 12월 31일에 모두 삭제</b>해요. 삭제한 정보는 되살릴 수 없게 지워요.</p>
 
     <h4>5. 저장 장소(처리 위탁)</h4>
     <p>제출한 내용은 Google LLC가 운영하는 Firebase(Cloud Firestore)에 저장돼요. 이 밖의 다른 사람이나 기관에게 제공하지 않아요. 단, 법령에 따라 요구되는 경우는 예외예요.</p>
@@ -882,6 +885,7 @@ const COL_PLANS = "vibe_plans";     // 계획서 (누구나 보기, 학번·이�
 const COL_KEYS = "vibe_plan_keys";  // 문서 이름 = 반·학번·이름의 해시 → 계획서 번호·학번·이름 (관리자만 목록 보기)
 const COL_FB = "vibe_feedback";     // 피드백 (누구나 보기, 쓴 사람은 '학생 A'·'친구'로만)
 const COL_WHO = "vibe_fb_who";      // 피드백 쓴 사람의 학번·이름 (관리자만 보기)
+const COL_REFLECT = "vibe_reflect";  // 수업 성찰 (문서 이름 = 반·학번·이름의 해시, 학생은 자기 것만 불러오기, 목록은 관리자만)
 const COL_VISITS = "stuvibe_visits"; // 익명 접속 기록 (기기 종류·브라우저·날짜만, 학번·이름과 연결 안 됨)
 
 /* =========================================================
@@ -960,6 +964,26 @@ async function savePlan(d) {
   }
   localSet(COL_PLANS, arr); localEmit(COL_PLANS);
   return !!planId;
+}
+
+// 수업 성찰 저장 · 불러오기: 같은 반 · 학번 · 이름이면 새 내용으로 바꿔요
+async function saveReflect(d) {
+  const key = await keyOf(d.ban, d.sid, d.name), now = Date.now();
+  if (LIVE) {
+    const ref = db.collection(COL_REFLECT).doc(key), old = await ref.get();
+    await ref.set({ ...d, createdAt: old.exists ? old.data().createdAt : now, updatedAt: now });
+    return old.exists;
+  }
+  const arr = localGet(COL_REFLECT), i = arr.findIndex(x => x.id === key);
+  const row = { ...d, id: key, createdAt: i >= 0 ? arr[i].createdAt : now, updatedAt: now };
+  if (i >= 0) arr[i] = row; else arr.push(row);
+  localSet(COL_REFLECT, arr); localEmit(COL_REFLECT);
+  return i >= 0;
+}
+async function loadReflect(m) {
+  const key = await keyOf(m.ban, m.sid, m.name);
+  if (LIVE) { const r = await db.collection(COL_REFLECT).doc(key).get(); return r.exists ? r.data() : null; }
+  return localGet(COL_REFLECT).find(x => x.id === key) || null;
 }
 
 // 피드백 저장: 내용은 공개, 쓴 사람 학번·이름은 관리자만 보는 곳에 따로
@@ -1044,7 +1068,8 @@ let cur = 1;
 let ban = (() => { try { return localStorage.getItem("vt_ban") || "A"; } catch (e) { return "A"; } })();
 let teacher = false;
 let plans = [], feedbacks = [];
-let visits = [];       // 익명 접속 기록 (관리자만)
+let visits = [];
+let reflects = [];     // 수업 성찰 (관리자만)       // 익명 접속 기록 (관리자만)
 let people = {};       // 계획서 번호 → {학번, 이름} (관리자만)
 let writers = {};      // 피드백 번호 → {학번, 이름} (관리자만)
 let stopAdmin = [];
@@ -1441,6 +1466,28 @@ ${PLAN_FORM("planForm")}` },
     { t: "모둠 친구 계획서", c: C.pink, html: `<div id="peerBox0"></div>` },
     { t: "모둠 친구 계획서", c: C.teal, html: `<div id="peerBox1"></div>` }
   ]
+},
+{
+  tab: "수업 성찰", sub: "배운 점·느낀 점·더 하고 싶은 점", color: C.lav, time: 10, kind: "reflect",
+  title: "수업 성찰 · 기록 남기기", lead: "오늘 배운 것을 내 말로 정리해요",
+  cols: [
+    { t: "오늘을 돌아봐요", c: C.lav, cls: "narrow", html: `
+      <p class="big">오늘 수업을 <span class="mark">내 말로 정리</span>하면 진짜 내 것이 돼요.</p>
+      <details class="more pop pt" open><summary><span class="pe">📚</span>배운 점</summary><div class="pop-panel"><span class="subl">새로 알게 된 개념이나 방법</span><span class="subl"><span class="ex-tag">예시</span> 웹앱은 홀 · 주방 · 창고로 나뉜다는 것을 알았다</span></div></details>
+      <details class="more pop pt" open><summary><span class="pe">💗</span>느낀 점</summary><div class="pop-panel"><span class="subl">활동하면서 든 생각이나 마음의 변화</span><span class="subl"><span class="ex-tag">예시</span> 친구 피드백으로 기능을 줄이니 계획이 또렷해졌다</span></div></details>
+      <details class="more pop pt" open><summary><span class="pe">🚀</span>더 하고 싶은 점</summary><div class="pop-panel"><span class="subl">다음에 해 보고 싶은 것, 더 알아보고 싶은 것</span><span class="subl"><span class="ex-tag">예시</span> 실습편에서 내 웹앱을 실제 주소로 배포해 보고 싶다</span></div></details>
+      <div class="box foot-box"><h4>📝 생활기록부로 이어져요</h4>쓴 내용은 선생님이 읽고 <b>진로탐구수업 활동 기록</b>을 쓸 때 참고해요. 내가 한 일과 생각이 드러나게 <b>구체적으로</b> 써 주세요.</div>` },
+    { t: "성찰 쓰기", c: C.pink, cls: "wide", html: `${DEMO}<div id="reflectBox"></div>` },
+    { t: "잘 쓰는 방법", c: C.green, html: `
+      <p class="big">무엇을 했고, <span class="mark">무엇이 달라졌는지</span> 써요.</p>
+      <ul class="chk">
+        <li><span>🎯</span><div>내가 한 일을 구체적으로<small>"재미있었다" 대신 "급식 투표 웹앱의 기능 3가지를 정했다"</small></div></li>
+        <li><span>🔁</span><div>바뀐 점을 담아요<small>처음 계획 → 피드백 → 고친 계획</small></div></li>
+        <li><span>💡</span><div>배운 개념을 내 말로<small>배포, 인증, 권한, 개인정보 …</small></div></li>
+        <li><span>🌱</span><div>진로와 이어 봐요<small>이 경험이 내가 하고 싶은 일과 어떻게 이어지는지</small></div></li>
+        <li><span>✍️</span><div>각 칸 2~3문장이면 충분해요</div></li>
+      </ul>` }
+  ]
 }
 ];
 
@@ -1515,6 +1562,7 @@ function renderSlide() {
   document.getElementById("prevBtn").disabled = cur === 1;
   document.getElementById("nextBtn").disabled = cur === SLIDES.length;
   if (s.kind === "plan") { bindPlanForm(); renderPlanList(); }
+  if (s.kind === "reflect") renderReflect();
   if (s.kind === "feedback") { renderPair(true); resolveMine().then(() => { if (SLIDES[cur - 1].kind === "feedback") renderPair(true); }); }
   fitSlide();
 }
@@ -1526,7 +1574,7 @@ function fitSlide() {
   root.style.fontSize = "";
   if (SCROLL_MODE.matches) return;
   stageEl.classList.add("fitting");
-  const bodies = [...stageEl.querySelectorAll(".col-body")].filter(b => !b.querySelector("form, .plist, .empty, #planListBox, #myPlanBox, #pairBox, [id^=peerBox], .fit-skip"));
+  const bodies = [...stageEl.querySelectorAll(".col-body")].filter(b => !b.querySelector("form, .plist, .empty, #planListBox, #myPlanBox, #pairBox, [id^=peerBox], #reflectBox, .fit-skip"));
   const over = () => bodies.some(b => b.scrollHeight - b.clientHeight > 2);
   let size = parseFloat(getComputedStyle(root).fontSize);
   for (let i = 0; i < 40 && size > 11 && over(); i++) {
@@ -1869,6 +1917,44 @@ function renderPair(full) {
   });
 }
 
+/* ----- 9번: 수업 성찰 (쓰는 내용은 이 기기에 임시 저장, [저장하기]는 선생님만 봐요) ----- */
+const RF_KEYS = ["learned", "felt", "more"];
+function renderReflect() {
+  const box = document.getElementById("reflectBox"); if (!box) return;
+  const m = getMe();
+  if (!m) { box.innerHTML = `<button type="button" class="edit-plan-btn wide" data-me-open>🙋 먼저 나를 알려 주세요</button><p class="muted">반 · 학번 · 이름을 알려 주면 성찰을 쓰고 저장할 수 있어요.</p>`; return; }
+  const mine = plans.find(x => x.id === myPlanId);
+  box.innerHTML = `<form class="form rf-form" id="rfForm" autocomplete="off">
+      <div class="who-line" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;background:color-mix(in srgb,var(--c) 10%,#fff);border-radius:.75rem;padding:.375rem .75rem;font-size:.9375rem">🙋 <b>${esc(m.ban)}반 ${esc(m.sid)} ${esc(m.name)}</b>${mine ? ` · 내 웹앱 「${esc(mine.appName)}」` : ""}<button type="button" class="link" data-me-open>바꾸기</button></div>
+      <label>📚 배운 점<textarea name="learned" rows="4" maxlength="1000" required placeholder="오늘 새로 알게 된 개념이나 방법을 써요"></textarea></label>
+      <label>💗 느낀 점<textarea name="felt" rows="4" maxlength="1000" required placeholder="활동하면서 든 생각, 마음의 변화를 써요"></textarea></label>
+      <label>🚀 더 하고 싶은 점<textarea name="more" rows="3" maxlength="1000" required placeholder="다음에 해 보고 싶은 것, 더 알아보고 싶은 것을 써요"></textarea></label>
+      <div class="plan-act"><button class="btn" type="submit">💾 성찰 저장하기</button><span class="draft-st" data-draft-st></span></div>
+      <p class="muted" style="margin:0">✍️ 쓰는 내용은 이 기기에 저절로 임시 저장돼요. 저장한 성찰은 <b>선생님만</b> 볼 수 있어요. 다시 저장하면 새 내용으로 바뀌어요. 모든 기록은 <b>2026년 12월 31일</b>에 삭제해요.</p>
+    </form>`;
+  const f = document.getElementById("rfForm");
+  const dkey = "vt_rf_" + m.sid + m.name;
+  let dr = null; try { dr = JSON.parse(localStorage.getItem(dkey) || "null"); } catch (e) {}
+  if (dr) { RF_KEYS.forEach(k => { f[k].value = dr[k] || ""; }); draftStamp(f, "📝 임시 저장된 글을 불러왔어요"); }
+  else loadReflect(m).then(r => { if (r && !RF_KEYS.some(k => f[k].value)) { RF_KEYS.forEach(k => { f[k].value = r[k] || ""; }); draftStamp(f, "📂 저장된 성찰을 불러왔어요"); } }).catch(e => console.error(e));
+  let t;
+  f.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => {
+    const d = {}; RF_KEYS.forEach(k => { d[k] = f[k].value; });
+    try { localStorage.setItem(dkey, JSON.stringify(d)); } catch (e) {}
+    draftStamp(f, "✓ 임시 저장 " + hhmm());
+  }, 400); });
+  f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const d = { ban: m.ban, sid: m.sid, name: m.name, appName: mine ? mine.appName : "" };
+    RF_KEYS.forEach(k => { d[k] = f[k].value.trim(); });
+    if (RF_KEYS.some(k => !d[k])) { toast("세 칸을 모두 채워 주세요"); return; }
+    const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
+    try { const again = await saveReflect(d); draftStamp(f, "☁️ 저장했어요 " + hhmm()); toast(again ? "고친 성찰을 저장했어요" : "성찰을 저장했어요. 수고했어요!"); }
+    catch (err) { console.error(err); toast("저장하지 못했어요. 인터넷 연결을 확인하세요"); }
+    btn.disabled = false;
+  });
+}
+
 // 대시보드 모둠 채팅방 하나 (선생님도 말을 보내요)
 function teacherRoomHTML(grp, gi) {
   const ids = grp.map(p => p.id);
@@ -1902,6 +1988,7 @@ function setTeacher(on) {
     stopAdmin.push(listen(COL_KEYS, list => { people = {}; list.forEach(x => { people[x.planId] = { sid: x.sid, name: x.name }; }); renderDash(); }));
     stopAdmin.push(listen(COL_WHO, list => { writers = {}; list.forEach(x => { writers[x.id] = { sid: x.sid, name: x.name }; }); renderDash(); }));
     stopAdmin.push(listen(COL_VISITS, list => { visits = list; renderDash(); }));
+    stopAdmin.push(listen(COL_REFLECT, list => { reflects = list; renderDash(); }));
   } else document.getElementById("dlgAdmin").close();
   renderSlide();
 }
@@ -1993,7 +2080,12 @@ function renderDash() {
         <td>${fmtTime(p.updatedAt)}</td>
         <td><button type="button" class="del" data-delplan="${p.id}">삭제</button></td>
       </tr>`).join("")}
-    </table></div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}`;
+    </table></div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}
+    <h4>📓 ${ban}반 수업 성찰 ${reflects.filter(r => r.ban === ban).length}건 <button type="button" class="btn sm" data-csv="rf">엑셀 저장</button><span class="muted" style="font-size:.875rem">생기부 작성 참고용</span></h4>
+    ${reflects.some(r => r.ban === ban) ? `<div class="tbl"><table>
+      <tr><th>학번</th><th>이름</th><th>웹앱</th><th>📚 배운 점</th><th>💗 느낀 점</th><th>🚀 더 하고 싶은 점</th><th>시각</th></tr>
+      ${reflects.filter(r => r.ban === ban).sort((a, b) => String(a.sid).localeCompare(String(b.sid))).map(r => `<tr><td>${esc(r.sid)}</td><td>${esc(r.name)}</td><td>${esc(r.appName || "-")}</td><td>${nl(r.learned)}</td><td>${nl(r.felt)}</td><td>${nl(r.more)}</td><td>${fmtTime(r.updatedAt)}</td></tr>`).join("")}
+    </table></div>` : `<div class="empty">아직 저장한 성찰이 없어요.</div>`}`;
 }
 
 // 주소 끝이 #admin · ?admin 이면(관리자 허브에서 열 때) 바로 관리자 화면:
@@ -2129,6 +2221,11 @@ document.getElementById("dashBox").addEventListener("click", async e => {
   const dt = t.closest("[data-dtab]"); if (dt) { dashTab = dt.dataset.dtab; const b = dashTab.slice(-1); if ((b === "A" || b === "B") && b !== ban) return setBan(b); return renderDash(); }
   if (t.dataset.csv === "plan") return planCSV();
   if (t.dataset.csv === "fb") return fbCSV();
+  if (t.dataset.csv === "rf") {
+    const rows = [["반", "학번", "이름", "웹앱 이름", "배운 점", "느낀 점", "더 하고 싶은 점", "저장 시각"]];
+    reflects.filter(r => r.ban === ban).sort((a, b) => String(a.sid).localeCompare(String(b.sid))).forEach(r => rows.push([r.ban, r.sid, r.name, r.appName, r.learned, r.felt, r.more, fmtTime(r.updatedAt)]));
+    return saveCSV(rows, `수업성찰_${ban}반.csv`);
+  }
   if (t.closest("[data-visit-clear]")) return clearVisits();
   await deleteClick(t);
 });
