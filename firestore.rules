@@ -366,6 +366,22 @@ service cloud.firestore {
       allow read, delete: if isTeacher();
     }
 
+    // 수업 성찰: 문서 이름 = 반·학번·이름의 해시(64자리). 학번과 이름을 알아야 하나만 불러오기, 목록은 관리자만
+    match /vibe_reflect/{key} {
+      allow get: if true;
+      allow create, update: if key.size() == 64
+        && request.resource.data.keys().hasOnly(['ban','sid','name','appName','learned','felt','more','createdAt','updatedAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && vibeStudent(request.resource.data)
+        && vibeText(request.resource.data, 'appName', 0, 100)
+        && vibeText(request.resource.data, 'learned', 1, 2000)
+        && vibeText(request.resource.data, 'felt', 1, 2000)
+        && vibeText(request.resource.data, 'more', 1, 2000)
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int;
+      allow list, delete: if isTeacher();
+    }
+
     // 익명 접속 기록 (기기 종류·브라우저·날짜만): 누구나 남기기(정해진 항목만), 관리자만 보기·지우기
     match /stuvibe_visits/{id} {
       allow create: if request.resource.data.keys().hasOnly(['d','h','dev','os','br','w','vid']);
