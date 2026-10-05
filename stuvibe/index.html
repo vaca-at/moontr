@@ -238,6 +238,15 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .pc-row{border-top:1px dashed var(--line);padding:.3125rem 0}
 .pc-row b{display:block;font-size:.8125rem;color:var(--c)}
 .ph{color:#B8AFB4}
+/* 8번: 내 계획서 칸(파랑) · 짝 친구 계획서 칸(분홍, 읽기만) */
+.plan-form.mini{gap:.4375rem;margin-top:.5rem}
+.plan-form.mini label{font-size:1rem}
+.plan-form.mini input,.plan-form.mini textarea{background:color-mix(in srgb,var(--c) 7%,#fff);border-color:color-mix(in srgb,var(--c) 35%,#fff)}
+.pv{display:flex;flex-direction:column;gap:.4375rem;margin:.5rem 0 .75rem}
+.pv-l{display:block;font-family:var(--hand);font-weight:var(--hw);font-size:1rem;margin-bottom:.1875rem}
+.pv-v{border:2px solid color-mix(in srgb,var(--c) 35%,#fff);background:color-mix(in srgb,var(--c) 7%,#fff);border-radius:.75rem;padding:.5rem .6875rem;font-size:.9375rem;line-height:1.5;min-height:2.5rem}
+.pv-v.big{font-family:var(--hand);font-weight:var(--hw);font-size:1.125rem;min-height:0}
+.chat-title{padding:.4375rem .75rem;font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;color:var(--c);border-bottom:2px solid var(--line);background:#fff}
 /* 8번: 짝 친구와 채팅 */
 .pair-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:.75rem;align-items:start}
 .pair-tabs{margin:0 0 .5rem}
@@ -1347,7 +1356,7 @@ ${PLAN_FORM("planForm")}` },
         <li><span>📱</span><div>휴대폰에서도 잘 보일까요?</div></li>
       </ul>` },
     { t: "내 계획서", c: C.sky, html: `${DEMO}<div id="myPlanBox"></div>` },
-    { t: "짝 친구와 이야기", c: C.pink, cls: "wide", html: `<div id="pairBox"></div>` }
+    { t: "짝 친구와 이야기", c: C.pink, html: `<div id="pairBox"></div>` }
   ]
 }
 ];
@@ -1481,9 +1490,11 @@ function bindPlanForm(f = document.getElementById("planForm")) {
   if (!f || f.dataset.bound) return;
   f.dataset.bound = "1";
   const dr = getDraft(), m = getMe();
-  f.ban.value = (dr && dr.ban) || (m && m.ban) || ban;
-  if (dr) { fillForm(f, dr); draftStamp(f, "📝 임시 저장된 글을 불러왔어요"); }
-  else if (m) { f.sid.value = m.sid; f.name.value = m.name; }
+  if (!f.dataset.nofill) {   // 8번의 작은 칸은 미리 채워서 와요
+    f.ban.value = (dr && dr.ban) || (m && m.ban) || ban;
+    if (dr) { fillForm(f, dr); draftStamp(f, "📝 임시 저장된 글을 불러왔어요"); }
+    else if (m) { f.sid.value = m.sid; f.name.value = m.name; }
+  }
   let t;
   f.addEventListener("input", () => {
     clearTimeout(t);
@@ -1610,39 +1621,58 @@ function pairOf(id) {
 }
 
 let partnerSel = "", chatTag = "👍";
-function planCard(p, who) {
-  const row = (label, v) => `<div class="pc-row"><b>${label}</b>${v ? nl(v) : `<span class="ph">아직 쓰지 않았어요</span>`}</div>`;
-  return `<div class="plancard ${p ? "" : "blank"}">
-    <div class="pc-top"><span class="pc-who">${who}</span>${p && p.updatedAt ? `<span class="pc-time">${fmtTime(p.updatedAt)}</span>` : ""}</div>
-    <div class="pc-name">${p && p.appName ? esc(p.appName) : `<span class="ph">웹앱 이름</span>`}</div>
-    ${row("🙋 누가 · 어떤 불편", p && p.problem)}${row("🧩 기능 3가지", p && p.features)}${row("🎨 화면 모습", p && p.look)}${row("💬 AI에게 보낼 첫 문장", p && p.prompt)}
-  </div>`;
+// 8번 ② 내 계획서: 칸 모양 그대로 보이고 바로 고쳐서 저장해요 (반 · 학번 · 이름은 위에서 확인한 '나')
+const MINI_FORM = fid => `
+      <form class="form plan-form mini" id="${fid}" autocomplete="off" data-nofill="1">
+        <input type="hidden" name="ban"><input type="hidden" name="sid"><input type="hidden" name="name">
+        <label>웹앱 이름<input name="appName" maxlength="30" placeholder="예: 오늘의 영단어" required></label>
+        <label>누가 쓰나요? 어떤 불편을 해결하나요?<textarea name="problem" rows="2" maxlength="500" required placeholder="예: 단어 외우기가 지루한 우리 반 친구들"></textarea></label>
+        <label>꼭 필요한 기능 3가지<textarea name="features" rows="3" maxlength="500" required placeholder="1. &#10;2. &#10;3. "></textarea></label>
+        <label>화면 모습<textarea name="look" rows="2" maxlength="500" required placeholder="색깔, 분위기, 첫 화면에 보이는 것"></textarea></label>
+        <label>AI에게 보낼 첫 문장<textarea name="prompt" rows="2" maxlength="500" required placeholder="누가·무엇을·어떤 모습·기능을 넣어서"></textarea></label>
+        <div class="plan-act"><button class="btn sm" type="submit">💾 고친 내용 저장하기</button><span class="draft-st" data-draft-st></span></div>
+      </form>`;
+// 8번 ③ 짝 친구 계획서: 내 칸과 같은 모양(분홍)으로 읽기만 해요
+function planView(p) {
+  const box = (label, v, big) => `<div class="pv-f"><span class="pv-l">${label}</span><div class="pv-v ${big ? "big" : ""}">${v ? nl(v) : `<span class="ph">아직 쓰지 않았어요</span>`}</div></div>`;
+  return `<div class="pv">${box("웹앱 이름", p && p.appName, true)}${box("누가 쓰나요? 어떤 불편을 해결하나요?", p && p.problem)}${box("꼭 필요한 기능 3가지", p && p.features)}${box("화면 모습", p && p.look)}${box("AI에게 보낼 첫 문장", p && p.prompt)}</div>`;
 }
 
-function renderMyPlan() {
+function renderMyPlan(full) {
   const box = document.getElementById("myPlanBox"); if (!box) return;
-  const m = getMe(), mine = plans.find(x => x.id === myPlanId), dr = getDraft();
+  const m = getMe(), mine = plans.find(x => x.id === myPlanId);
+  const form = document.getElementById("myPlanForm");
+  // 쓰는 중에는 칸을 다시 그리지 않아요 (이름표만 새로)
+  if (!full && form && m && form.sid.value === m.sid) {
+    const tag = box.querySelector("[data-me-tag]"); if (tag) tag.innerHTML = mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전";
+    return;
+  }
   if (!m) {
     box.innerHTML = `<form class="form who-form" id="whoForm" autocomplete="off">
-        <p class="muted" style="margin:0">계획서를 저장할 때 쓴 <b>학번과 이름</b>을 넣으면 내 글과 짝 친구가 보여요.</p>
+        <p class="muted" style="margin:0">계획서를 저장할 때 쓴 <b>학번과 이름</b>을 넣으면 내 계획서와 짝 친구가 보여요.</p>
         <div class="row2 me"><label>학번<input name="sid" inputmode="numeric" maxlength="5" placeholder="10101" required></label>
           <label>이름<input name="name" maxlength="2" placeholder="두 글자" required></label></div>
         <button class="btn sm" type="submit">나 확인하기</button>
-      </form>${planCard(null, "나의 계획서")}`;
+      </form>${planView(null)}`;
     document.getElementById("whoForm").addEventListener("submit", async e => {
       e.preventDefault();
       const f = e.target, sid = f.sid.value.trim(), name = f.name.value.trim();
       const bad = validMe(sid, name); if (bad) { toast(bad); return; }
       setMe({ ban, sid, name }); me = { sid, name };
       await resolveMine(); renderPair(true);
-      if (!myPlanId) toast("아직 저장한 계획서가 없어요. 계획서를 먼저 저장해 주세요");
+      if (!myPlanId) toast("아직 저장한 계획서가 없어요. 아래 칸에 쓰고 저장해 주세요");
     });
     return;
   }
-  box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.sid)} ${esc(m.name)}${mine ? ` · <b>${stu(mine.id)}</b>` : ""}</span><button type="button" class="link" data-me-reset>내가 아니에요</button></div>
-    <button type="button" class="edit-plan-btn wide" data-edit-plan>✏️ 내 계획서 ${mine ? "고치기" : "쓰기"}</button>
-    ${mine ? planCard(mine, "내 계획서") : planCard(dr && dr.appName ? dr : null, "임시 저장 · 아직 친구에게 안 보여요")}
-    ${mine ? "" : `<p class="muted" style="margin:.5rem 0 0">계획서를 <b>저장</b>하면 짝 친구가 정해져요.</p>`}`;
+  box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.sid)} ${esc(m.name)}<span data-me-tag>${mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전"}</span></span><button type="button" class="link" data-me-reset>내가 아니에요</button></div>
+    ${MINI_FORM("myPlanForm")}
+    <p class="muted" style="margin:.5rem 0 0">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>저장하기</b>를 눌러야 짝 친구와 선생님에게 보여요.</p>`;
+  const f = document.getElementById("myPlanForm");
+  const dr = getDraft();
+  // 임시 저장이 '나'의 글이면 그걸, 아니면 저장된 내 계획서를 칸에 채워요
+  if (dr && dr.sid === m.sid && dr.name === m.name) fillForm(f, dr); else if (mine) fillForm(f, mine);
+  f.ban.value = m.ban; f.sid.value = m.sid; f.name.value = m.name;
+  bindPlanForm(f);
 }
 
 function chatHTML(partner) {
@@ -1661,7 +1691,7 @@ function chatHTML(partner) {
 
 // full = true면 칸 전체를 새로 그려요. 아니면 쓰는 중인 글이 지워지지 않게 대화와 친구 글만 바꿔요
 function renderPair(full) {
-  renderMyPlan();
+  renderMyPlan(full);
   const box = document.getElementById("pairBox"); if (!box) return;
   const partners = myPlanId ? pairOf(myPlanId) : [];
   if (!partners.some(p => p.id === partnerSel)) partnerSel = partners[0] ? partners[0].id : "";
@@ -1670,27 +1700,28 @@ function renderPair(full) {
   if (!full && log && partner && box.dataset.partner === partner.id) {
     const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     log.innerHTML = chatHTML(partner); if (atEnd) log.scrollTop = log.scrollHeight;
-    const card = document.getElementById("partnerCard"); if (card) card.innerHTML = planCard(partner, stu(partner.id) + "의 계획서");
+    const card = document.getElementById("partnerCard"); if (card) card.innerHTML = planView(partner);
     return;
   }
   box.dataset.partner = partner ? partner.id : "";
   const how = `<p class="muted pair-how">🤝 짝은 계획서를 <b>먼저 저장한 순서</b>대로 두 명씩 정해져요. 혼자 남으면 바로 앞 짝과 셋이 한 모둠이 돼요.</p>`;
+  const head = partner ? `<div class="me-bar"><span>🤝 짝 친구 <b>${stu(partner.id)}</b>${partner.updatedAt ? ` · ${fmtTime(partner.updatedAt)} 저장` : ""}</span></div>` : `<div class="me-bar"><span>🤝 짝 친구</span></div>`;
   if (!partner) {
-    box.innerHTML = `<div class="pair-grid"><div>${planCard(null, "짝 친구의 계획서")}</div>
-      <div class="chat"><div class="chat-log"><div class="chat-empty">${myPlanId ? "짝 친구가 계획서를 저장하면<br>여기에서 이야기를 주고받을 수 있어요." : "왼쪽에서 나를 확인하고 계획서를 저장하면<br>짝 친구가 정해져요."}</div></div></div></div>${how}`;
+    box.innerHTML = `${head}<div id="partnerCard">${planView(null)}</div>
+      <div class="chat"><div class="chat-log"><div class="chat-empty">${myPlanId ? "짝 친구가 계획서를 저장하면<br>여기에서 이야기를 주고받을 수 있어요." : "왼쪽에서 나를 확인하고 계획서를 저장하면<br>짝 친구가 정해져요."}</div></div></div>${how}`;
     return;
   }
   box.innerHTML = `
     ${partners.length > 1 ? `<div class="seg pair-tabs" role="group" aria-label="모둠 친구 고르기">${partners.map(p => `<button type="button" class="${p.id === partner.id ? "on" : ""}" data-partner="${p.id}">${stu(p.id)}</button>`).join("")}</div>` : ""}
-    <div class="pair-grid">
-      <div id="partnerCard">${planCard(partner, stu(partner.id) + "의 계획서")}</div>
-      <div class="chat">
-        <div class="chat-log" id="chatLog">${chatHTML(partner)}</div>
-        <form class="chat-form" id="chatForm" autocomplete="off">
-          <div class="chat-tags">${TAGS.map(t => `<button type="button" class="${t === chatTag ? "on" : ""}" data-tag="${t}">${t} ${TAG_NAME[t]}</button>`).join("")}</div>
-          <div class="chat-in"><textarea name="msg" rows="2" maxlength="300" placeholder="${stu(partner.id)}에게 보낼 말 (Enter 보내기 · Shift+Enter 줄 바꿈)"></textarea><button class="btn sm" type="submit">보내기</button></div>
-        </form>
-      </div>
+    ${head}
+    <div id="partnerCard">${planView(partner)}</div>
+    <div class="chat">
+      <div class="chat-title">💬 ${stu(partner.id)}와 피드백 나누기</div>
+      <div class="chat-log" id="chatLog">${chatHTML(partner)}</div>
+      <form class="chat-form" id="chatForm" autocomplete="off">
+        <div class="chat-tags">${TAGS.map(t => `<button type="button" class="${t === chatTag ? "on" : ""}" data-tag="${t}">${t} ${TAG_NAME[t]}</button>`).join("")}</div>
+        <div class="chat-in"><textarea name="msg" rows="2" maxlength="300" placeholder="${stu(partner.id)}에게 보낼 말 (Enter 보내기 · Shift+Enter 줄 바꿈)"></textarea><button class="btn sm" type="submit">보내기</button></div>
+      </form>
     </div>${how}`;
   const log2 = document.getElementById("chatLog"); log2.scrollTop = log2.scrollHeight;
   const cf = document.getElementById("chatForm");
