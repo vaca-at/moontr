@@ -262,6 +262,8 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .ai-links{display:flex;gap:.625rem;margin-top:.4375rem;font-size:.8125rem}
 .ai-links a{display:inline-flex;align-items:center;gap:.25rem;color:var(--ink2)}
 .ai-links .ico{width:1rem;height:1rem}
+.slide-head .edit-plan-btn + .edit-plan-btn{margin-left:-.25rem}
+.edit-plan-btn.ai-full{background:linear-gradient(135deg,#8B7BEA,#5E9BF0);animation:none}
 .ai-mini{margin-top:.375rem;align-self:flex-start;font-size:.8125rem;color:#6B5BD6}
 .plan-act{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
 .draft-st{font-size:.875rem;color:var(--ink2)}
@@ -750,6 +752,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
 <dialog class="doc" id="dlgTips" aria-labelledby="dlgTipsT" style="--c:var(--teal)">
   <div class="doc-head"><h3 id="dlgTipsT">💬 피드백 팁 · 살펴볼 점</h3><button type="button" data-close>닫기</button></div>
   <div class="doc-body tips-body">
+    <div class="box foot-box" style="margin:0 0 .75rem"><h4>🤖 AI 도우미 피드백 받기</h4>제목 줄의 <b>🤖 AI 도우미 피드백 받기</b>를 누르면 내 계획서와 이 창의 팁 · 살펴볼 점을 담은 질문이 복사돼요. <b>활동을 시작할 때 한 번, 마칠 때 한 번</b> 눌러요. 마칠 때는 모둠 채팅에서 받은 피드백까지 담겨요.</div>
       <p class="big">평가보다 <span class="mark">함께 키워 주는 말</span>로 피드백해요.</p>
       <details class="more pop pt" open><summary><span class="pe">👍</span>좋은 점</summary><div class="pop-panel"><span class="subl">"이 기능이 있으면 진짜 쓸 것 같아"</span></div></details>
       <details class="more pop pt" open><summary><span class="pe">❓</span>궁금한 점</summary><div class="pop-panel"><span class="subl">"점수는 어디에 저장돼?"</span></div></details>
@@ -1470,7 +1473,7 @@ ${PLAN_FORM("planForm")}` },
 {
   tab: "친구와 피드백", sub: "칭찬·질문·제안", color: C.teal, time: 15, kind: "feedback",
   title: "친구들과 피드백하기", lead: "세 명과 선생님이 함께 계획서를 보며 이야기해요",
-  headBtn: `<button type="button" class="edit-plan-btn" data-dlg="dlgTips">💬 피드백 팁 · 살펴볼 점</button>`,
+  headBtn: `<button type="button" class="edit-plan-btn" data-dlg="dlgTips">💬 피드백 팁 · 살펴볼 점</button><button type="button" class="edit-plan-btn ai-full" data-ai="full" title="내 계획서 + 피드백 팁 · 살펴볼 점 + 받은 피드백을 담은 질문을 복사해요">🤖 AI 도우미 피드백 받기</button>`,
   below: `<div id="pairBox"></div>`,
   cols: [
     { t: "내 계획서", c: C.sky, html: `${DEMO}<div id="myPlanBox"></div>` },
@@ -1978,8 +1981,39 @@ function myPlanNow() {   // 지금 칸에 쓰고 있는 내용(저장 전이어�
   if (f && f.appName && f.appName.value) return formData(f);
   return plans.find(x => x.id === myPlanId) || getDraft();
 }
+// 피드백 팁 (8번 '피드백 팁 · 살펴볼 점' 창과 같은 내용)
+const FB_TIPS = ["좋은 점: 계획서에서 잘된 점을 구체적으로 말해 주기", "궁금한 점: 이해가 안 되거나 더 알고 싶은 점을 질문하기", "이런 건 어때?: 더 좋아질 방법을 부드럽게 제안하기", "구체적으로 말하기 (\"좋아\" 대신 무엇이 왜 좋은지)", "한 번에 하나씩, 제안은 '~하면 어때?'처럼 부드럽게"];
 function aiPrompt(kind) {
   const mine = myPlanNow();
+  // 🤖 AI 도우미 피드백 받기: 활동 처음에는 계획서 + 팁 + 살펴볼 점, 활동을 마칠 때는 모둠 채팅의 피드백까지 담아요
+  if (kind === "full") {
+    if (!mine || !mine.appName) return { err: "내 계획서를 먼저 써 주세요" };
+    const got = myPlanId ? feedbacks.filter(f => f.planId === myPlanId && f.fromPlan !== myPlanId && !/^💬 안녕하세요 👋/.test(f.good || "")).sort(byTime) : [];
+    const gotText = got.length ? `
+[모둠 친구와 선생님에게 받은 피드백]
+${got.map(f => `- ${f.fromPlan === TEACHER ? "선생님 · " + String(f.good || "").replace(/^💬 /, "") : "친구 · " + msgPlain(f)}`).join("\n")}
+` : "";
+    const ask = got.length
+      ? "3. 받은 피드백 중 꼭 반영하면 좋을 것을 골라 계획서를 어떻게 고칠지 알려 줘.\n4. 마지막으로 고친 계획서를 같은 칸 순서대로 다시 써 줘."
+      : "3. 마지막으로 고친 계획서를 같은 칸 순서대로 다시 써 줘.";
+    const text = `나는 고등학생이고, 진로탐구수업에서 웹앱 계획서를 썼어. 아래 기준으로 내 계획서에 피드백해 줘.
+
+[피드백 방법]
+${FB_TIPS.map(t => "- " + t).join("\n")}
+
+[살펴볼 점]
+${CHECKS.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+[내 계획서]
+${planText(mine)}
+${gotText}
+[부탁]
+1. 좋은 점 2가지, 궁금한 점 1가지, 이런 건 어때? 2가지로 피드백해 줘.
+2. 살펴볼 점 10가지를 ✅(괜찮음) / ⚠️(고칠 점)로 점검해 줘.
+${ask}
+내 생각은 그대로 살리고, 쉬운 말로 써 줘.`;
+    return { text, note: got.length ? `받은 피드백 ${got.length}개까지 담았어요` : "" };
+  }
   if (kind === "sum") {
     const got = feedbacks.filter(f => f.planId === myPlanId && f.fromPlan !== myPlanId).sort(byTime);
     if (!got.length) return { err: "아직 받은 피드백이 없어요" };
@@ -1991,7 +2025,7 @@ function aiPrompt(kind) {
 ${planText(mine)}
 
 [받은 피드백]
-${got.map(f => `- ${f.fromPlan === TEACHER ? "선생님" : "친구"} · ${msgPlain(f)}`).join("\n")}` };
+${got.map(f => `- ${f.fromPlan === TEACHER ? "선생님 · " + String(f.good || "").replace(/^💬 /, "") : "친구 · " + msgPlain(f)}`).join("\n")}` };
   }
   if (kind === "polish") {
     const cf = document.getElementById("chatForm"), text = cf && cf.msg.value.trim();
@@ -2038,7 +2072,7 @@ async function aiCopy(kind) {
   const r = aiPrompt(kind); if (!r) return;
   if (r.err) { toast(r.err); return; }
   const ok = await copyText(r.text);
-  toast(ok ? "복사했어요! Claude나 Gemini 창에 붙여 넣어요" : "복사하지 못했어요");
+  toast(ok ? (r.note ? r.note + " · " : "") + "복사했어요! Claude나 Gemini 창에 붙여 넣어요" : "복사하지 못했어요");
 }
 const AI_HELP = `<div class="ai-help">
     <div class="ai-head">🤖 AI 도우미 <small>누르면 질문이 복사돼요 → AI 창에 붙여 넣기</small></div>
