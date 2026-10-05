@@ -252,6 +252,17 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .room > .chat-log{flex:1;max-height:none}
 .tips-body .chk{margin-bottom:.5rem}
 @media (max-width:699px), (max-height:519px){ .below{height:auto;margin:.875rem 0 0} .room-body{grid-template-columns:1fr} .room-body .chat-log{max-height:22rem} .room-body .chat-form{border-left:0;border-top:2px solid var(--line)} }
+/* 🤖 AI 도우미 */
+.ai-help{margin-top:.875rem;border:2px dashed color-mix(in srgb,var(--lav) 55%,#fff);border-radius:1rem;padding:.625rem .75rem;background:linear-gradient(135deg,#F7F3FF,#F1F8FF)}
+.ai-head{font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;color:#6B5BD6;margin-bottom:.375rem}
+.ai-head small{display:block;font-family:var(--body);font-size:.75rem;color:var(--ink2)}
+.ai-btns{display:flex;flex-direction:column;gap:.3125rem}
+.ai-btns button,.ai-mini{text-align:left;border:1.5px solid #D9D2FA;background:#fff;border-radius:.75rem;padding:.375rem .625rem;font-size:.875rem;cursor:pointer}
+.ai-btns button:hover,.ai-mini:hover{border-color:#8B7BEA;background:#FBFAFF}
+.ai-links{display:flex;gap:.625rem;margin-top:.4375rem;font-size:.8125rem}
+.ai-links a{display:inline-flex;align-items:center;gap:.25rem;color:var(--ink2)}
+.ai-links .ico{width:1rem;height:1rem}
+.ai-mini{margin-top:.375rem;align-self:flex-start;font-size:.8125rem;color:#6B5BD6}
 .plan-act{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
 .draft-st{font-size:.875rem;color:var(--ink2)}
 .edit-plan-btn{border:0;border-radius:999px;background:linear-gradient(135deg,var(--g1,#FF8FB3),var(--g2,#B98CF0));color:#fff;font-family:var(--hand);font-weight:var(--hw);font-size:1.125rem;padding:.4375rem 1.125rem;box-shadow:0 3px 0 rgba(120,60,140,.35);cursor:pointer;white-space:nowrap;animation:editPulse 2.4s ease-in-out infinite}
@@ -1799,9 +1810,9 @@ const whoLabel = from => from === TEACHER ? "👩‍🏫 선생님" : (stu(from)
 let chatTag = "👍", chatTarget = "";
 const roomMsgs = ids => feedbacks.filter(f => ids.includes(f.planId)).sort(byTime);
 function bubbleHTML(f, meId, opt = {}) {
-  const mine = meId && f.fromPlan === meId, t = f.fromPlan === TEACHER, tag = tagOf(f.good);
-  const text = tag ? nl(f.good.slice(tag.length + 1)) : fbText(f);
-  const target = t ? "" : f.planId === meId ? "→ 내 계획서" : f.planId === f.fromPlan ? "→ 자기 계획서" : `→ ${esc(stu(f.planId))} 계획서`;
+  const mine = meId && f.fromPlan === meId, t = f.fromPlan === TEACHER, hi = /^💬 안녕하세요 👋/.test(f.good || ""), tag = hi ? "" : tagOf(f.good);
+  const text = hi ? nl(f.good.slice(3)) : tag ? nl(f.good.slice(tag.length + 1)) : fbText(f);
+  const target = t || hi ? "" : f.planId === meId ? "→ 내 계획서" : f.planId === f.fromPlan ? "→ 자기 계획서" : `→ ${esc(stu(f.planId))} 계획서`;
   return `<div class="bubble ${mine ? "me" : t ? "you t" : "you"}">
     <div class="b-who">${mine ? "나" : esc(whoLabel(f.fromPlan))}${tag && !t ? ` <span class="b-tag">${tag} ${TAG_NAME[tag]}</span>` : ""}${target ? ` <span class="b-to">${target}</span>` : ""}</div>
     <div class="b-text">${text}</div>
@@ -1842,7 +1853,8 @@ function renderMyPlan(full) {
   if (!m) { box.innerHTML = `<button type="button" class="edit-plan-btn wide" data-me-open>🙋 먼저 나를 알려 주세요</button>${planView(null)}`; return; }
   box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.sid)} ${esc(m.name)}<span data-me-tag>${mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전"}</span></span><button type="button" class="link" data-me-open>내가 아니에요</button></div>
     ${MINI_FORM("myPlanForm")}
-    <p class="muted" style="margin:.5rem 0 0">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>저장하기</b>를 눌러야 모둠 친구와 선생님에게 보여요.<br>💬 친구들이 내 계획서에 한 말은 아래 <b>모둠 채팅방</b>에 보여요.</p>`;
+    <p class="muted" style="margin:.5rem 0 0">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>저장하기</b>를 눌러야 모둠 친구와 선생님에게 보여요.<br>💬 친구들이 내 계획서에 한 말은 아래 <b>모둠 채팅방</b>에 보여요.</p>
+    ${AI_HELP}`;
   const f = document.getElementById("myPlanForm");
   const dr = getDraft();
   if (dr && dr.sid === m.sid && dr.name === m.name) fillForm(f, dr); else if (mine) fillForm(f, mine);
@@ -1879,6 +1891,7 @@ function renderPair(full) {
     return;
   }
   box.dataset.group = key;
+  if (friends.length) autoHello(ids);
   const members = `<div class="room-members">${grp.length ? grp.map(p => `<span class="mem ${p.id === myPlanId ? "me" : ""}">${p.id === myPlanId ? "🙋 나" : "👤 " + stu(p.id)}</span>`).join("") : `<span class="mem">🙋 나</span>`}<span class="mem t">👩‍🏫 선생님</span></div>`;
   if (!friends.length) {
     box.innerHTML = `<div class="room"><div class="room-head"><b>💬 우리 모둠 채팅방</b>${members}</div>
@@ -1893,6 +1906,7 @@ function renderPair(full) {
           <div class="chat-tags to"><span>누구 계획서 이야기?</span>${[...friends, ...grp.filter(p => p.id === myPlanId)].map(p => `<button type="button" class="${p.id === chatTarget ? "on" : ""}" data-to="${p.id}">${p.id === myPlanId ? "내 계획서 (답장)" : stu(p.id)}</button>`).join("")}</div>
           <div class="chat-tags">${TAGS.map(t => `<button type="button" class="${t === chatTag ? "on" : ""}" data-tag="${t}">${t} ${TAG_NAME[t]}</button>`).join("")}</div>
           <div class="chat-in"><textarea name="msg" rows="2" maxlength="300" placeholder="모둠에 보낼 말 (Enter 보내기 · Shift+Enter 줄 바꿈)"></textarea><button class="btn sm" type="submit">보내기</button></div>
+          <button type="button" class="ai-mini" data-ai="polish">✨ AI로 내 말 다듬기 (복사)</button>
         </form>
       </div>
     </div>`;
@@ -1953,6 +1967,109 @@ function renderReflect() {
     catch (err) { console.error(err); toast("저장하지 못했어요. 인터넷 연결을 확인하세요"); }
     btn.disabled = false;
   });
+}
+
+/* ----- 🤖 AI 도우미: API 키 없이, 내 계획서 · 대화를 담은 질문을 복사해 Claude · Gemini 창에 붙여 넣어요 ----- */
+const planText = p => p ? `웹앱 이름: ${p.appName || ""}\n누가 쓰나요? 어떤 불편을 해결하나요?: ${p.problem || ""}\n꼭 필요한 기능 3가지:\n${p.features || ""}\n화면 모습: ${p.look || ""}\nAI에게 보낼 첫 문장: ${p.prompt || ""}` : "(아직 쓰지 않았어요)";
+const msgPlain = f => { const tag = tagOf(f.good); return tag ? `${TAG_NAME[tag]}: ${f.good.slice(tag.length + 1)}` : [f.good, f.question, f.idea].filter(Boolean).join(" / "); };
+const CHECKS = ["개인정보(실명, 전화번호 등)를 받지 않는지", "종이 학습지나 공부 앱을 대신할 만큼 쓸모 있는지", "수업 실습 100분 안에 만들 수 있을 만큼 작은지", "누가, 언제 쓰는지 분명한지", "처음 보는 사람도 설명 없이 쓸 수 있는지", "저장해야 할 기록이 있다면 어디에 쌓을지", "비밀번호나 API 키를 코드에 넣지 않는지", "누군가에게 상처가 될 기능은 없는지", "남의 그림이나 로고를 쓰지 않는지", "휴대폰에서도 잘 보일지"];
+function myPlanNow() {   // 지금 칸에 쓰고 있는 내용(저장 전이어도)을 먼저 써요
+  const f = document.getElementById("myPlanForm") || document.getElementById("planForm");
+  if (f && f.appName && f.appName.value) return formData(f);
+  return plans.find(x => x.id === myPlanId) || getDraft();
+}
+function aiPrompt(kind) {
+  const mine = myPlanNow();
+  if (kind === "sum") {
+    const got = feedbacks.filter(f => f.planId === myPlanId && f.fromPlan !== myPlanId).sort(byTime);
+    if (!got.length) return { err: "아직 받은 피드백이 없어요" };
+    return { text: `나는 고등학생이고, 수업에서 웹앱 계획서를 쓰고 친구들과 선생님께 피드백을 받았어.
+아래 피드백을 '좋은 점'과 '고칠 점'으로 정리해 주고, 내 계획서를 어떻게 고치면 좋을지 3가지만 쉬운 말로 알려 줘.
+내 생각을 존중해서, 내가 직접 고칠 수 있게 방향만 알려 줘.
+
+[내 계획서]
+${planText(mine)}
+
+[받은 피드백]
+${got.map(f => `- ${f.fromPlan === TEACHER ? "선생님" : "친구"} · ${msgPlain(f)}`).join("\n")}` };
+  }
+  if (kind === "polish") {
+    const cf = document.getElementById("chatForm"), text = cf && cf.msg.value.trim();
+    if (!text) return { err: "아래 채팅 칸에 보낼 말을 먼저 써 주세요" };
+    const p = plans.find(x => x.id === chatTarget);
+    return { text: `친구의 웹앱 계획서에 줄 피드백을 다듬어 줘.
+조건: 한두 문장, 구체적으로, 부드러운 말투, "~하면 어때?"처럼 제안하기. 다듬은 문장 2가지만 보여 줘.
+
+[친구 계획서]
+${planText(p)}
+
+[내가 쓴 말]
+${text}` };
+  }
+  if (kind === "check") {
+    if (!mine || !mine.appName) return { err: "내 계획서를 먼저 써 주세요" };
+    return { text: `내 웹앱 계획서를 아래 체크리스트로 점검해 줘.
+각 항목마다 ✅(괜찮음) 또는 ⚠️(고칠 점)로 표시하고, ⚠️에는 어떻게 고치면 좋을지 한 줄로 알려 줘.
+
+[체크리스트]
+${CHECKS.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+[내 계획서]
+${planText(mine)}` };
+  }
+  if (kind === "first") {
+    if (!mine || !mine.appName) return { err: "내 계획서를 먼저 써 주세요" };
+    return { text: `아래 웹앱 계획서를 바탕으로, AI에게 웹앱을 만들어 달라고 보낼 '첫 프롬프트'를 완성해 줘.
+조건: index.html 파일 하나로 만들기, 기능은 계획서의 3가지만, 개인정보는 받지 않기, 휴대폰에서도 잘 보이게.
+누가 · 무엇을 · 어떤 모습 · 어떤 기능이 잘 드러나게 써 주고, 내가 바로 복사해 쓸 수 있게 프롬프트만 보여 줘.
+
+[내 계획서]
+${planText(mine)}` };
+  }
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (e) {
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (x) {} ta.remove(); return ok;
+  }
+}
+async function aiCopy(kind) {
+  const r = aiPrompt(kind); if (!r) return;
+  if (r.err) { toast(r.err); return; }
+  const ok = await copyText(r.text);
+  toast(ok ? "복사했어요! Claude나 Gemini 창에 붙여 넣어요" : "복사하지 못했어요");
+}
+const AI_HELP = `<div class="ai-help">
+    <div class="ai-head">🤖 AI 도우미 <small>누르면 질문이 복사돼요 → AI 창에 붙여 넣기</small></div>
+    <div class="ai-btns">
+      <button type="button" data-ai="sum">📥 받은 피드백 정리하기</button>
+      <button type="button" data-ai="check">✅ 체크리스트로 점검하기</button>
+      <button type="button" data-ai="first">🚀 첫 프롬프트 완성하기</button>
+    </div>
+    <div class="ai-links"><a href="https://claude.ai/new" target="_blank" rel="noopener"><img class="ico" src="${ICON.claude}" alt="">Claude 열기</a><a href="https://gemini.google.com/app" target="_blank" rel="noopener"><img class="ico" src="${ICON.gemini}" alt="">Gemini 열기</a></div>
+  </div>`;
+
+/* ----- 👋 모둠이 정해지면 처음 들어온 사람이 자동으로 인사해요 (한 모둠에 한 번) ----- */
+const HELLO = ["안녕하세요 👋 반가워요! 잘 부탁해요 😊", "안녕하세요 👋 우리 모둠 파이팅! 💪", "안녕하세요 👋 서로 계획서 잘 봐 줘요 🙌", "안녕하세요 👋 좋은 피드백 나눠 봐요 ✨"];
+let helloBusy = false;
+function autoHello(ids) {
+  const m = getMe(); if (!m || !myPlanId || ids.length < 2 || helloBusy) return;
+  const k = "vt_hi_" + ids.join(",") + "_" + myPlanId;
+  let done = false; try { done = localStorage.getItem(k) === "1"; } catch (e) {}
+  const said = feedbacks.some(f => f.fromPlan === myPlanId && ids.includes(f.planId) && /^💬 안녕하세요 👋/.test(f.good || ""));
+  if (done || said) { try { localStorage.setItem(k, "1"); } catch (e) {} return; }
+  helloBusy = true;
+  setTimeout(async () => {   // 기록을 다 불러온 뒤 한 번 더 확인하고 보내요
+    try {
+      const again = feedbacks.some(f => f.fromPlan === myPlanId && ids.includes(f.planId) && /^💬 안녕하세요 👋/.test(f.good || ""));
+      if (!again && SLIDES[cur - 1].kind === "feedback") {
+        await saveFeedback({ planId: myPlanId, ban, fromPlan: myPlanId, good: "💬 " + HELLO[Math.floor(Math.random() * HELLO.length)], question: "", idea: "" }, { sid: m.sid, name: m.name });
+      }
+      try { localStorage.setItem(k, "1"); } catch (e) {}
+    } catch (err) { console.error(err); }
+    helloBusy = false;
+  }, 1500);
 }
 
 // 대시보드 모둠 채팅방 하나 (선생님도 말을 보내요)
@@ -2160,6 +2277,7 @@ document.querySelectorAll("dialog.doc").forEach(d => {
 document.addEventListener("click", e => {
   if (e.target.closest("[data-edit-plan]")) { openPlanEditor(); return; }
   if (e.target.closest("[data-me-open]")) { openMeDlg(); return; }
+  const ai = e.target.closest("[data-ai]"); if (ai) { aiCopy(ai.dataset.ai); return; }
   const o = e.target.closest("[data-dlg]");
   if (o) { if (o.dataset.dlg === "dlgStyle") paintPicks(); openDlg(o.dataset.dlg); }
 });
