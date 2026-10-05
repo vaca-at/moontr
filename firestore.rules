@@ -370,16 +370,36 @@ service cloud.firestore {
     match /vibe_reflect/{key} {
       allow get: if true;
       allow create, update: if key.size() == 64
-        && request.resource.data.keys().hasOnly(['ban','sid','name','appName','learned','felt','more','createdAt','updatedAt'])
+        && request.resource.data.keys().hasOnly(['ban','sid','name','appName','learned','felt','wonder','picks','final','createdAt','updatedAt'])
         && request.resource.data.ban in ['A', 'B']
         && vibeStudent(request.resource.data)
         && vibeText(request.resource.data, 'appName', 0, 100)
-        && vibeText(request.resource.data, 'learned', 1, 2000)
-        && vibeText(request.resource.data, 'felt', 1, 2000)
-        && vibeText(request.resource.data, 'more', 1, 2000)
+        && vibeText(request.resource.data, 'learned', 0, 2000)
+        && vibeText(request.resource.data, 'felt', 0, 2000)
+        && vibeText(request.resource.data, 'wonder', 0, 2000)
+        && vibeText(request.resource.data, 'picks', 0, 3000)
+        && vibeText(request.resource.data, 'final', 1, 3000)
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int;
       allow list, delete: if isTeacher();
+    }
+
+    // 문장 담벼락: 누구나 보기(이름 없이), 쓴 사람 학번·이름은 vibe_wall_who 에만(관리자만 보기)
+    match /vibe_wall/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['ban','kind','text','createdAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.kind in ['learned', 'felt', 'wonder']
+        && vibeText(request.resource.data, 'text', 1, 300)
+        && request.resource.data.createdAt is int
+        && existsAfter(/databases/$(database)/documents/vibe_wall_who/$(id));
+      allow delete: if isTeacher();
+    }
+    match /vibe_wall_who/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['sid','name'])
+        && vibeStudent(request.resource.data)
+        && existsAfter(/databases/$(database)/documents/vibe_wall/$(id));
+      allow read, delete: if isTeacher();
     }
 
     // 익명 접속 기록 (기기 종류·브라우저·날짜만): 누구나 남기기(정해진 항목만), 관리자만 보기·지우기
