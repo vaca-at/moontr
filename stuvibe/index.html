@@ -457,9 +457,17 @@ dialog.doc::backdrop{background:rgba(40,40,50,.45)}
 .pick .sw{width:100%;height:2.25rem;border-radius:.625rem}
 .pick small{font-size:.8125rem;color:var(--ink2)}
 .err{color:#C0506F;font-size:.875rem;min-height:1.25em;margin:0}
-dialog.doc.wide{width:min(72rem, calc(100vw - 2rem));height:90vh;height:90dvh;max-height:none}
+dialog.doc.wide{width:min(110rem, calc(100vw - 1.5rem));height:90vh;height:90dvh;max-height:none}
 .dash-top{display:flex;align-items:center;gap:.875rem;flex-wrap:wrap;margin-bottom:.5rem}
 .dash-top .seg button{font-size:1rem}
+/* 대시보드 탭 · 글씨는 모두 언즈체 */
+#dlgAdmin, #dlgAdmin *:not(code):not(textarea){font-family:'OngleipUnz','Gowun Dodum',sans-serif!important}
+#dlgAdmin textarea{font-family:'OngleipUnz','Gowun Dodum',sans-serif}
+.dash-tabs{position:sticky;top:-1rem;z-index:2;display:flex;gap:.375rem;flex-wrap:wrap;background:#fff;padding:.5rem 0 .625rem;margin:-.25rem 0 .5rem;border-bottom:2px solid var(--line)}
+.dash-tabs button{border:2px solid var(--line);background:#fff;border-radius:999px;padding:.375rem 1rem;font-size:1.0625rem;cursor:pointer}
+.dash-tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#dlgAdmin .t-rooms{grid-template-columns:repeat(auto-fill,minmax(24rem,1fr))}
+#dlgAdmin .t-log{max-height:26rem;min-height:12rem}
 #dashBox h4{display:flex;align-items:center;gap:.75rem;margin-top:1.25rem}
 .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 .5rem}
 .tbl table{min-width:40rem}
@@ -1905,7 +1913,9 @@ async function clearVisits() {
   } catch (e) { console.error(e); toast("지우지 못했어요"); }
 }
 
+let dashTab = "planA";   // 대시보드에서 보고 있는 탭
 function renderDash() {
+  if (dashTab !== "visit" && dashTab.slice(-1) !== ban) dashTab = dashTab.slice(0, -1) + ban;
   const box = document.getElementById("dashBox");
   if (!teacher || !document.getElementById("dlgAdmin").open) return;
   const keep = {}; let focusKey = "";
@@ -1918,16 +1928,18 @@ function renderDash() {
     box.scrollTop = boxTop;
   });
   const ps = plansOfBan(), fs = fbOfBan();
+  const TABS = [["visit", "📱 기기 접속 현황"], ["planA", "📝 A반 계획서"], ["chatA", "💬 A반 채팅방"], ["planB", "📝 B반 계획서"], ["chatB", "💬 B반 채팅방"]];
+  const tabBar = `<div class="dash-tabs" role="tablist">${TABS.map(([k, n]) => `<button type="button" role="tab" class="${dashTab === k ? "on" : ""}" data-dtab="${k}">${n}</button>`).join("")}</div>`;
+  if (dashTab === "visit") { box.innerHTML = tabBar + visitStatsHTML(); return; }
+  if (dashTab.startsWith("chat")) {
+    box.innerHTML = tabBar + `
+    <h4>🗨️ ${ban}반 모둠 채팅방 <button type="button" class="btn sm" data-csv="fb">채팅 기록 저장</button><span class="muted" style="font-size:.875rem">모둠마다 한 방 · 선생님도 말을 보낼 수 있어요 · 피드백 ${fs.length}개</span></h4>
+    ${ps.length ? `<div class="t-rooms">${allGroups().map((g, gi) => teacherRoomHTML(g, gi)).join("")}</div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}`;
+    return;
+  }
   const who = w => w && w.sid ? `${esc(w.sid)} ${esc(w.name)}` : `<span class="muted">-</span>`;
-  box.innerHTML = `
-    <div class="dash-top">
-      <div class="seg" role="group" aria-label="대시보드 반 선택">
-        ${["A", "B"].map(b => `<button type="button" class="${b === ban ? "on" : ""}" data-dban="${b}">${b}반</button>`).join("")}
-      </div>
-      <span class="muted">계획서 ${ps.length}건 · 피드백 ${fs.length}개</span>
-    </div>
-    ${visitStatsHTML()}
-    <h4>📝 계획서 제출 명단 <button type="button" class="btn sm" data-csv="plan">엑셀 저장</button></h4>
+  box.innerHTML = tabBar + `
+    <h4>📝 ${ban}반 계획서 ${ps.length}건 <button type="button" class="btn sm" data-csv="plan">엑셀 저장</button></h4>
     ${ps.length ? `<div class="tbl"><table>
       <tr><th>표시</th><th>학번</th><th>이름</th><th>웹앱 이름</th><th>받은 피드백</th><th>쓴 피드백</th><th>제출 시각</th><th></th></tr>
       ${ps.map(p => `<tr>
@@ -1938,20 +1950,7 @@ function renderDash() {
         <td>${fmtTime(p.updatedAt)}</td>
         <td><button type="button" class="del" data-delplan="${p.id}">삭제</button></td>
       </tr>`).join("")}
-    </table></div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}
-    <h4>🗨️ 모둠 채팅방 <span class="muted" style="font-size:.875rem;font-weight:400">모둠마다 한 방 · 선생님도 말을 보낼 수 있어요</span></h4>
-    ${ps.length ? `<div class="t-rooms">${allGroups().map((g, gi) => teacherRoomHTML(g, gi)).join("")}</div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}
-    <h4>💬 친구 피드백 <button type="button" class="btn sm" data-csv="fb">엑셀 저장</button></h4>
-    ${fs.length ? `<div class="tbl"><table>
-      <tr><th>받은 학생</th><th>쓴 학생</th><th>내용</th><th>시각</th><th></th></tr>
-      ${fs.map(f => `<tr>
-        <td><b>${stu(f.planId)}</b></td>
-        <td>${who(writers[f.id])}<br><span class="muted">${fbFrom(f)}</span></td>
-        <td>${fbText(f)}</td>
-        <td>${fmtTime(f.createdAt)}</td>
-        <td><button type="button" class="del" data-delfb="${f.id}">삭제</button></td>
-      </tr>`).join("")}
-    </table></div>` : `<div class="empty">아직 피드백이 없어요.</div>`}`;
+    </table></div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}`;
 }
 
 // 주소 끝이 #admin · ?admin 이면(관리자 허브에서 열 때) 바로 관리자 화면:
@@ -2084,7 +2083,7 @@ document.getElementById("dashBox").addEventListener("keydown", e => {
 });
 document.getElementById("dashBox").addEventListener("click", async e => {
   const t = e.target;
-  const db_ = t.closest("[data-dban]"); if (db_) return setBan(db_.dataset.dban);
+  const dt = t.closest("[data-dtab]"); if (dt) { dashTab = dt.dataset.dtab; const b = dashTab.slice(-1); if ((b === "A" || b === "B") && b !== ban) return setBan(b); return renderDash(); }
   if (t.dataset.csv === "plan") return planCSV();
   if (t.dataset.csv === "fb") return fbCSV();
   if (t.closest("[data-visit-clear]")) return clearVisits();
