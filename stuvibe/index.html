@@ -224,6 +224,18 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .plan-form.has-me .who-line{display:flex}
 .me-pill{max-width:16rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .me-pill.need{background:linear-gradient(135deg,#FF8FB3,#B98CF0);color:#fff;border-color:transparent}
+/* 모둠 채팅방 · 선생님 말풍선 · 대시보드 */
+.b-to{display:inline-block;font-weight:400;color:var(--ink2);margin-left:.25rem}
+.chat-tags.to span{font-size:.8125rem;color:var(--ink2);align-self:center;margin-right:.125rem}
+.chat-tags.to button.on{border-color:#7BA7D6;background:#EAF4FF}
+.bubble.t{background:#FFF4D6;border:1.5px solid #F2D38A}
+.t-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:.75rem}
+.t-room{display:flex;flex-direction:column;border:2px solid var(--line);border-radius:1rem;overflow:hidden;background:linear-gradient(180deg,#FFF9FB,#F6FBFF)}
+.t-head{padding:.4375rem .75rem;background:#fff;border-bottom:2px solid var(--line);font-size:.9375rem;line-height:1.45}
+.t-mem{display:block;font-size:.8125rem}
+.t-log{display:flex;flex-direction:column;gap:.4375rem;padding:.625rem;max-height:18rem;min-height:6rem;overflow-y:auto}
+.t-form{display:flex;gap:.375rem;padding:.4375rem;border-top:2px solid var(--line);background:#fff}
+.t-form textarea{flex:1;border:2px solid var(--line);border-radius:.625rem;padding:.375rem .5rem;font:inherit;font-size:max(16px,.875rem);resize:none}
 .plan-act{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
 .draft-st{font-size:.875rem;color:var(--ink2)}
 .edit-plan-btn{border:0;border-radius:999px;background:linear-gradient(135deg,#FF8FB3,#B98CF0);color:#fff;font-family:var(--hand);font-weight:var(--hw);font-size:1.125rem;padding:.4375rem 1.125rem;box-shadow:0 3px 0 rgba(120,60,140,.35);cursor:pointer;white-space:nowrap;animation:editPulse 2.4s ease-in-out infinite}
@@ -1354,7 +1366,7 @@ ${PLAN_FORM("planForm")}` },
 },
 {
   tab: "친구와 피드백", sub: "칭찬·질문·제안", color: C.teal, time: 15, kind: "feedback",
-  title: "친구들과 피드백하기", lead: "세 명씩 모둠이 되어 돌아가며 피드백을 주고받아요",
+  title: "친구들과 피드백하기", lead: "세 명씩 모둠이 되어 서로의 계획서에 피드백해요",
   cols: [
     { t: "피드백 세 가지", c: C.teal, cls: "narrow", html: `
       <p class="big">평가보다 <span class="mark">함께 키워 주는 말</span>로 피드백해요.</p>
@@ -1383,7 +1395,7 @@ ${PLAN_FORM("planForm")}` },
         <li><span>📱</span><div>휴대폰에서도 잘 보일까요?</div></li>
       </ul>` },
     { t: "내 계획서", c: C.sky, html: `${DEMO}<div id="myPlanBox"></div>` },
-    { t: "친구 계획서에 피드백", c: C.pink, html: `<div id="pairBox"></div>` }
+    { t: "우리 모둠 채팅방", c: C.pink, html: `<div id="pairBox"></div>` }
   ]
 }
 ];
@@ -1659,7 +1671,7 @@ function fbCSV() {
 
 /* ----- 8번: 짝 친구와 피드백 (채팅) ----- */
 const fbOfBan = (b = ban) => feedbacks.filter(f => f.ban === b).sort(byTime);
-const fbFrom = f => (f.fromPlan && stu(f.fromPlan)) || "친구";
+const fbFrom = f => whoLabel(f.fromPlan);
 // 채팅 한 줄은 맨 앞 그림으로 종류를 나눠요 (👍 좋은 점 · ❓ 궁금한 점 · 💡 이런 건 어때? · 💬 답장)
 const TAGS = ["👍", "❓", "💡", "💬"];
 const TAG_NAME = { "👍": "좋은 점", "❓": "궁금한 점", "💡": "이런 건 어때?", "💬": "답장" };
@@ -1670,86 +1682,46 @@ function fbText(f) {
   return `👍 ${nl(f.good)}${f.question ? `<br>❓ ${nl(f.question)}` : ""}${f.idea ? `<br>💡 ${nl(f.idea)}` : ""}`;
 }
 
-let partnerSel = "";   // (예전 짝 고르기 단추용)
-// 짝 정하기: 계획서를 처음 저장한 순서대로 세 명씩 한 모둠, 모둠 안에서 돌아가며 피드백해요
-//   학생 A → B → C → A,  D → E → F → D …
-//   마지막에 한 명이 남으면 바로 앞 모둠에 들어가 넷이 돌고(… → J → A), 두 명이 남으면 둘이 서로 피드백해요
+let partnerSel = "";   // 8번에서 보고 있는 모둠 친구 계획서
+// 모둠 정하기: 계획서를 처음 저장한 순서대로 세 명씩 한 모둠 (학생 A · B · C, D · E · F …)
+//   마지막에 한 명이 남으면 바로 앞 모둠에 들어가 넷, 두 명이 남으면 둘이 한 모둠이에요
 function groupOf(id) {
   const list = plansOfBan(), n = list.length, i = list.findIndex(p => p.id === id);
-  if (i < 0 || n < 2) return [];
+  if (i < 0) return [];
   let g = Math.floor(i / 3) * 3;
-  if (n % 3 === 1 && g === n - 1) g -= 3;               // 혼자 남은 마지막 학생 → 앞 모둠으로
+  if (n % 3 === 1 && g === n - 1 && g > 0) g -= 3;      // 혼자 남은 마지막 학생 → 앞 모둠으로
   const size = (n % 3 === 1 && g === n - 4) ? 4 : Math.min(3, n - g);
   return list.slice(g, g + size);
 }
-// 내가 피드백할 친구(to)와 내 계획서에 피드백해 줄 친구(from)
-function ringOf(id) {
-  const grp = groupOf(id), k = grp.findIndex(p => p.id === id);
-  if (k < 0) return { to: null, from: null, grp };
-  return { to: grp[(k + 1) % grp.length], from: grp[(k - 1 + grp.length) % grp.length], grp };
+// 반 전체 모둠 목록 (대시보드)
+function allGroups() {
+  const out = [], seen = new Set();
+  plansOfBan().forEach(p => { if (seen.has(p.id)) return; const g = groupOf(p.id); g.forEach(x => seen.add(x.id)); out.push(g); });
+  return out;
 }
 
-// 채팅방 = 계획서 하나에 대한 이야기 (planId = 이야기하는 계획서, fromPlan = 보낸 사람)
-//   mine: 내 계획서에 온 피드백 + 내 답장 / peer: 내가 맡은 친구 계획서에 하는 피드백 + 친구 답장
-const chatTag = { mine: "💬", peer: "👍" };
-function roomMsgs(planId) { return feedbacks.filter(f => f.planId === planId).sort(byTime); }
-function chatHTML(planId, emptyText) {
-  const msgs = roomMsgs(planId);
-  if (!msgs.length) return `<div class="chat-empty">${emptyText}</div>`;
-  return msgs.map(f => {
-    const mine = f.fromPlan === myPlanId, tag = tagOf(f.good);
-    const text = tag ? nl(f.good.slice(tag.length + 1)) : fbText(f);
-    return `<div class="bubble ${mine ? "me" : "you"}">
-      <div class="b-who">${mine ? "나" : esc(stu(f.fromPlan) || "친구")}${tag ? ` <span class="b-tag">${tag} ${TAG_NAME[tag]}</span>` : ""}</div>
-      <div class="b-text">${text}</div>
-      <div class="b-time">${fmtTime(f.createdAt)}${teacher ? ` <button type="button" class="del" data-delfb="${f.id}">삭제</button>` : ""}</div>
-    </div>`;
-  }).join("");
+// 모둠 채팅방: 모둠 친구들 계획서에 대한 말을 한곳에 모아요 (planId = 이야기하는 계획서, fromPlan = 보낸 사람)
+// 선생님이 보낸 말은 fromPlan이 "teacher"예요 (학번 · 이름 칸은 00000 · 선생으로 남아요)
+const TEACHER = "teacher";
+const whoLabel = from => from === TEACHER ? "👩‍🏫 선생님" : (stu(from) || "친구");
+let chatTag = "👍", chatTarget = "";
+const roomMsgs = ids => feedbacks.filter(f => ids.includes(f.planId)).sort(byTime);
+function bubbleHTML(f, meId, opt = {}) {
+  const mine = meId && f.fromPlan === meId, t = f.fromPlan === TEACHER, tag = tagOf(f.good);
+  const text = tag ? nl(f.good.slice(tag.length + 1)) : fbText(f);
+  const target = t ? "" : f.planId === meId ? "→ 내 계획서" : f.planId === f.fromPlan ? "→ 자기 계획서" : `→ ${esc(stu(f.planId))} 계획서`;
+  return `<div class="bubble ${mine ? "me" : t ? "you t" : "you"}">
+    <div class="b-who">${mine ? "나" : esc(whoLabel(f.fromPlan))}${tag && !t ? ` <span class="b-tag">${tag} ${TAG_NAME[tag]}</span>` : ""}${target ? ` <span class="b-to">${target}</span>` : ""}</div>
+    <div class="b-text">${text}</div>
+    <div class="b-time">${fmtTime(f.createdAt)}${opt.del ? ` <button type="button" class="del" data-delfb="${f.id}">삭제</button>` : ""}</div>
+  </div>`;
 }
-const EMPTY = {
-  mine: "아직 온 피드백이 없어요.<br>친구가 보내면 여기에 바로 보여요.",
-  peer: "아직 보낸 피드백이 없어요.<br>먼저 <b>👍 좋은 점</b>부터 보내 볼까요?"
-};
-function roomHTML(kind, planId, title, who) {
-  return `<div class="chat ${kind}" data-room="${kind}" data-plan="${planId}">
-      <div class="chat-title">${title}</div>
-      <div class="chat-log" id="log_${kind}">${chatHTML(planId, EMPTY[kind])}</div>
-      <form class="chat-form" id="form_${kind}" autocomplete="off">
-        <div class="chat-tags">${TAGS.map(t => `<button type="button" class="${t === chatTag[kind] ? "on" : ""}" data-tag="${t}">${t} ${TAG_NAME[t]}</button>`).join("")}</div>
-        <div class="chat-in"><textarea name="msg" rows="2" maxlength="300" placeholder="${who}에게 보낼 말 (Enter 보내기 · Shift+Enter 줄 바꿈)"></textarea><button class="btn sm" type="submit">보내기</button></div>
-      </form>
-    </div>`;
-}
-function bindRoom(kind, planId) {
-  const log = document.getElementById("log_" + kind), cf = document.getElementById("form_" + kind);
-  if (!cf) return;
-  log.scrollTop = log.scrollHeight;
-  cf.msg.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); cf.requestSubmit(); } });
-  cf.addEventListener("click", e => {
-    const b = e.target.closest("[data-tag]"); if (!b) return;
-    chatTag[kind] = b.dataset.tag; cf.querySelectorAll("[data-tag]").forEach(x => x.classList.toggle("on", x === b)); cf.msg.focus();
-  });
-  cf.addEventListener("submit", async e => {
-    e.preventDefault();
-    const text = cf.msg.value.trim(), m = getMe(); if (!text || !m || !myPlanId) return;
-    const btn = cf.querySelector("button[type=submit]"); btn.disabled = true;
-    try {
-      await saveFeedback({ planId, ban, fromPlan: myPlanId, good: chatTag[kind] + " " + text, question: "", idea: "" }, { sid: m.sid, name: m.name });
-      cf.msg.value = "";
-      const lg = document.getElementById("log_" + kind); if (lg) lg.scrollTop = lg.scrollHeight;
-    } catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); }
-    btn.disabled = false; cf.msg.focus();
-  });
-}
-// 새 말이 오면 대화만 새로 그려요 (쓰는 중인 글은 그대로)
-function refreshRoom(kind) {
-  const room = document.querySelector(`[data-room="${kind}"]`), log = document.getElementById("log_" + kind);
-  if (!room || !log) return;
-  const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-  log.innerHTML = chatHTML(room.dataset.plan, EMPTY[kind]); if (atEnd) log.scrollTop = log.scrollHeight;
+function chatHTML(ids, meId, opt) {
+  const msgs = roomMsgs(ids);
+  return msgs.length ? msgs.map(f => bubbleHTML(f, meId, opt)).join("") : `<div class="chat-empty">아직 나눈 이야기가 없어요.<br>먼저 친구 계획서의 <b>👍 좋은 점</b>부터 보내 볼까요?</div>`;
 }
 
-// 8번 ② 내 계획서: 칸 모양 그대로 보이고 바로 고쳐서 저장해요 (반 · 학번 · 이름은 위에서 확인한 '나')
+// 8번 ② 내 계획서: 칸 모양 그대로 보이고 바로 고쳐서 저장해요 (반 · 학번 · 이름은 머리 줄의 '나')
 const MINI_FORM = fid => `
       <form class="form plan-form mini" id="${fid}" autocomplete="off" data-nofill="1">
         <input type="hidden" name="ban"><input type="hidden" name="sid"><input type="hidden" name="name">
@@ -1760,64 +1732,94 @@ const MINI_FORM = fid => `
         <label>AI에게 보낼 첫 문장<textarea name="prompt" rows="2" maxlength="500" required placeholder="누가·무엇을·어떤 모습·기능을 넣어서"></textarea></label>
         <div class="plan-act"><button class="btn sm" type="submit">💾 고친 내용 저장하기</button><span class="draft-st" data-draft-st></span></div>
       </form>`;
-// 8번 ③ 친구 계획서: 내 칸과 같은 모양(분홍)으로 읽기만 해요
+// 8번 ③ 모둠 친구 계획서: 내 칸과 같은 모양(분홍)으로 읽기만 해요
 function planView(p) {
   const box = (label, v, big) => `<div class="pv-f"><span class="pv-l">${label}</span><div class="pv-v ${big ? "big" : ""}">${v ? nl(v) : `<span class="ph">아직 쓰지 않았어요</span>`}</div></div>`;
   return `<div class="pv">${box("웹앱 이름", p && p.appName, true)}${box("누가 쓰나요? 어떤 불편을 해결하나요?", p && p.problem)}${box("꼭 필요한 기능 3가지", p && p.features)}${box("화면 모습", p && p.look)}${box("AI에게 보낼 첫 문장", p && p.prompt)}</div>`;
 }
-const ringNote = () => `<p class="muted pair-how">🔁 계획서를 <b>먼저 저장한 순서</b>대로 세 명씩 모둠이 돼요. 모둠 안에서 A → B → C → A처럼 돌아가며 피드백해요.</p>`;
+const groupNote = () => `<p class="muted pair-how">👥 계획서를 <b>먼저 저장한 순서</b>대로 세 명씩 한 모둠이 돼요. 모둠 채팅방에는 선생님도 함께 있어요.</p>`;
 
 function renderMyPlan(full) {
   const box = document.getElementById("myPlanBox"); if (!box) return;
   const m = getMe(), mine = plans.find(x => x.id === myPlanId);
   const form = document.getElementById("myPlanForm");
-  const ring = myPlanId ? ringOf(myPlanId) : { from: null };
-  // 쓰는 중에는 칸을 다시 그리지 않아요 (이름표와 대화만 새로)
-  const sameRoom = document.querySelector('[data-room="mine"]');
-  if (!full && form && m && form.sid.value === m.sid && (!!sameRoom === !!myPlanId)) {
+  if (!full && form && m && form.sid.value === m.sid) {   // 쓰는 중에는 칸을 다시 그리지 않아요
     const tag = box.querySelector("[data-me-tag]"); if (tag) tag.innerHTML = mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전";
-    const who = box.querySelector("[data-from-who]"); if (who) who.textContent = ring.from ? stu(ring.from.id) : "모둠 친구";
-    refreshRoom("mine");
     return;
   }
-  if (!m) {
-    box.innerHTML = `<button type="button" class="edit-plan-btn wide" data-me-open>🙋 먼저 나를 알려 주세요</button>${planView(null)}`;
-    return;
-  }
+  if (!m) { box.innerHTML = `<button type="button" class="edit-plan-btn wide" data-me-open>🙋 먼저 나를 알려 주세요</button>${planView(null)}`; return; }
   box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.sid)} ${esc(m.name)}<span data-me-tag>${mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전"}</span></span><button type="button" class="link" data-me-open>내가 아니에요</button></div>
     ${MINI_FORM("myPlanForm")}
-    <p class="muted" style="margin:.5rem 0 .75rem">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>저장하기</b>를 눌러야 모둠 친구와 선생님에게 보여요.</p>
-    ${myPlanId ? roomHTML("mine", myPlanId, `📥 나에게 온 피드백 · <span data-from-who>${ring.from ? stu(ring.from.id) : "모둠 친구"}</span>가 보내요`, "피드백 준 친구") : ""}`;
+    <p class="muted" style="margin:.5rem 0 0">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>저장하기</b>를 눌러야 모둠 친구와 선생님에게 보여요.<br>💬 친구들이 내 계획서에 한 말은 오른쪽 <b>모둠 채팅방</b>에 보여요.</p>`;
   const f = document.getElementById("myPlanForm");
   const dr = getDraft();
-  // 임시 저장이 '나'의 글이면 그걸, 아니면 저장된 내 계획서를 칸에 채워요
   if (dr && dr.sid === m.sid && dr.name === m.name) fillForm(f, dr); else if (mine) fillForm(f, mine);
   f.ban.value = m.ban; f.sid.value = m.sid; f.name.value = m.name;
   bindPlanForm(f);
-  if (myPlanId) bindRoom("mine", myPlanId);
 }
 
 // full = true면 칸 전체를 새로 그려요. 아니면 쓰는 중인 글이 지워지지 않게 대화와 친구 글만 바꿔요
 function renderPair(full) {
   renderMyPlan(full);
   const box = document.getElementById("pairBox"); if (!box) return;
-  const to = myPlanId ? ringOf(myPlanId).to : null;
-  if (!full && to && box.dataset.partner === to.id && document.getElementById("log_peer")) {
-    refreshRoom("peer");
-    const card = document.getElementById("partnerCard"); if (card) card.innerHTML = planView(to);
+  const grp = myPlanId ? groupOf(myPlanId) : [], ids = grp.map(p => p.id), friends = grp.filter(p => p.id !== myPlanId);
+  if (!friends.some(p => p.id === partnerSel)) partnerSel = friends[0] ? friends[0].id : "";
+  if (!ids.includes(chatTarget)) chatTarget = partnerSel || myPlanId;
+  const key = ids.join(",");
+  const log = document.getElementById("chatLog");
+  if (!full && log && box.dataset.group === key) {
+    const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    log.innerHTML = chatHTML(ids, myPlanId); if (atEnd) log.scrollTop = log.scrollHeight;
+    const card = document.getElementById("partnerCard"); if (card) card.innerHTML = planView(friends.find(p => p.id === partnerSel));
     return;
   }
-  box.dataset.partner = to ? to.id : "";
-  if (!to) {
-    box.innerHTML = `<div class="me-bar"><span>📤 내가 피드백할 친구</span></div><div id="partnerCard">${planView(null)}</div>
-      <div class="chat"><div class="chat-log"><div class="chat-empty">${myPlanId ? "모둠 친구가 계획서를 저장하면<br>여기에서 피드백을 보낼 수 있어요." : "왼쪽에서 나를 확인하고 계획서를 저장하면<br>모둠이 정해져요."}</div></div></div>${ringNote()}`;
+  box.dataset.group = key;
+  if (!friends.length) {
+    box.innerHTML = `<div class="me-bar"><span>👥 우리 모둠</span></div><div id="partnerCard">${planView(null)}</div>
+      <div class="chat"><div class="chat-log"><div class="chat-empty">${myPlanId ? "모둠 친구가 계획서를 저장하면<br>여기에서 함께 이야기할 수 있어요." : "계획서를 저장하면 모둠이 정해져요."}</div></div></div>${groupNote()}`;
     return;
   }
-  box.innerHTML = `<div class="me-bar"><span>📤 내가 피드백할 친구 <b>${stu(to.id)}</b>${to.updatedAt ? ` · ${fmtTime(to.updatedAt)} 저장` : ""}</span></div>
-    <div id="partnerCard">${planView(to)}</div>
-    ${roomHTML("peer", to.id, `💬 ${stu(to.id)}의 계획서에 피드백하기`, stu(to.id))}
-    ${ringNote()}`;
-  bindRoom("peer", to.id);
+  box.innerHTML = `<div class="me-bar"><span>👥 우리 모둠 · ${grp.map(p => p.id === myPlanId ? "나" : stu(p.id)).join(" · ")} · 👩‍🏫 선생님</span></div>
+    <div class="seg pair-tabs" role="group" aria-label="모둠 친구 계획서 고르기">${friends.map(p => `<button type="button" class="${p.id === partnerSel ? "on" : ""}" data-partner="${p.id}">${stu(p.id)}의 계획서</button>`).join("")}</div>
+    <div id="partnerCard">${planView(friends.find(p => p.id === partnerSel))}</div>
+    <div class="chat">
+      <div class="chat-title">💬 우리 모둠 채팅방</div>
+      <div class="chat-log" id="chatLog">${chatHTML(ids, myPlanId)}</div>
+      <form class="chat-form" id="chatForm" autocomplete="off">
+        <div class="chat-tags to"><span>누구 계획서 이야기?</span>${[...friends, ...grp.filter(p => p.id === myPlanId)].map(p => `<button type="button" class="${p.id === chatTarget ? "on" : ""}" data-to="${p.id}">${p.id === myPlanId ? "내 계획서 (답장)" : stu(p.id)}</button>`).join("")}</div>
+        <div class="chat-tags">${TAGS.map(t => `<button type="button" class="${t === chatTag ? "on" : ""}" data-tag="${t}">${t} ${TAG_NAME[t]}</button>`).join("")}</div>
+        <div class="chat-in"><textarea name="msg" rows="2" maxlength="300" placeholder="모둠에 보낼 말 (Enter 보내기 · Shift+Enter 줄 바꿈)"></textarea><button class="btn sm" type="submit">보내기</button></div>
+      </form>
+    </div>${groupNote()}`;
+  const lg = document.getElementById("chatLog"); lg.scrollTop = lg.scrollHeight;
+  const cf = document.getElementById("chatForm");
+  cf.msg.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); cf.requestSubmit(); } });
+  cf.addEventListener("click", e => {
+    const b = e.target.closest("[data-tag]"), to = e.target.closest("[data-to]");
+    if (b) { chatTag = b.dataset.tag; cf.querySelectorAll("[data-tag]").forEach(x => x.classList.toggle("on", x === b)); cf.msg.focus(); }
+    if (to) { chatTarget = to.dataset.to; cf.querySelectorAll("[data-to]").forEach(x => x.classList.toggle("on", x === to)); cf.msg.focus(); }
+  });
+  cf.addEventListener("submit", async e => {
+    e.preventDefault();
+    const text = cf.msg.value.trim(), m = getMe(); if (!text || !m || !myPlanId) return;
+    const btn = cf.querySelector("button[type=submit]"); btn.disabled = true;
+    cf.msg.value = "";
+    try {
+      await saveFeedback({ planId: chatTarget, ban, fromPlan: myPlanId, good: chatTag + " " + text, question: "", idea: "" }, { sid: m.sid, name: m.name });
+      const l2 = document.getElementById("chatLog"); if (l2) l2.scrollTop = l2.scrollHeight;
+    } catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); cf.msg.value = text; }
+    btn.disabled = false; cf.msg.focus();
+  });
+}
+
+// 대시보드 모둠 채팅방 하나 (선생님도 말을 보내요)
+function teacherRoomHTML(grp, gi) {
+  const ids = grp.map(p => p.id);
+  return `<div class="t-room">
+    <div class="t-head"><b>${gi + 1}모둠</b> ${grp.map(p => { const w = people[p.id] || {}; return `<span class="t-mem"><b>${stu(p.id)}</b> ${esc(w.sid || "")} ${esc(w.name || "")} · 「${esc(p.appName)}」</span>`; }).join("")}</div>
+    <div class="t-log" data-tlog="${ids.join(",")}">${chatHTML(ids, "", { del: true })}</div>
+    <form class="t-form" data-tform="${ids[0]}" data-tkey="${ids.join(",")}" autocomplete="off"><textarea name="msg" rows="1" maxlength="300" placeholder="${gi + 1}모둠에 선생님 말 보내기 (Enter)"></textarea><button class="btn sm" type="submit">보내기</button></form>
+  </div>`;
 }
 
 function refreshLive() {
@@ -1900,6 +1902,15 @@ async function clearVisits() {
 function renderDash() {
   const box = document.getElementById("dashBox");
   if (!teacher || !document.getElementById("dlgAdmin").open) return;
+  const keep = {}; let focusKey = "";
+  box.querySelectorAll("[data-tkey]").forEach(f => { if (f.msg.value) keep[f.dataset.tkey] = f.msg.value; if (document.activeElement === f.msg) focusKey = f.dataset.tkey; });
+  const scrolls = {}; box.querySelectorAll("[data-tlog]").forEach(l => { scrolls[l.dataset.tlog] = l.scrollHeight - l.scrollTop - l.clientHeight < 40 ? -1 : l.scrollTop; });
+  const boxTop = box.scrollTop;
+  setTimeout(() => {
+    box.querySelectorAll("[data-tkey]").forEach(f => { if (keep[f.dataset.tkey]) f.msg.value = keep[f.dataset.tkey]; if (focusKey === f.dataset.tkey) f.msg.focus(); });
+    box.querySelectorAll("[data-tlog]").forEach(l => { const v = scrolls[l.dataset.tlog]; l.scrollTop = v === undefined || v === -1 ? l.scrollHeight : v; });
+    box.scrollTop = boxTop;
+  });
   const ps = plansOfBan(), fs = fbOfBan();
   const who = w => w && w.sid ? `${esc(w.sid)} ${esc(w.name)}` : `<span class="muted">-</span>`;
   box.innerHTML = `
@@ -1922,6 +1933,8 @@ function renderDash() {
         <td><button type="button" class="del" data-delplan="${p.id}">삭제</button></td>
       </tr>`).join("")}
     </table></div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}
+    <h4>🗨️ 모둠 채팅방 <span class="muted" style="font-size:.875rem;font-weight:400">모둠마다 한 방 · 선생님도 말을 보낼 수 있어요</span></h4>
+    ${ps.length ? `<div class="t-rooms">${allGroups().map((g, gi) => teacherRoomHTML(g, gi)).join("")}</div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}
     <h4>💬 친구 피드백 <button type="button" class="btn sm" data-csv="fb">엑셀 저장</button></h4>
     ${fs.length ? `<div class="tbl"><table>
       <tr><th>받은 학생</th><th>쓴 학생</th><th>내용</th><th>시각</th><th></th></tr>
@@ -2042,12 +2055,27 @@ stageEl.addEventListener("click", async e => {
     return;
   }
   const op = t.closest("[data-open]"); if (op) { openPlan = openPlan === op.dataset.open ? null : op.dataset.open; return renderPlanList(); }
-  const pt = t.closest("[data-partner]"); if (pt) { partnerSel = pt.dataset.partner; return renderPair(true); }
+  const pt = t.closest("[data-partner]"); if (pt) { partnerSel = chatTarget = pt.dataset.partner; return renderPair(true); }
 
   await deleteClick(t);
 });
 
 document.getElementById("dashBtn").addEventListener("click", () => { openDlg("dlgAdmin"); renderDash(); });
+document.getElementById("dashBox").addEventListener("submit", async e => {
+  const f = e.target.closest("[data-tform]"); if (!f) return;
+  e.preventDefault();
+  const text = f.msg.value.trim(), p = plans.find(x => x.id === f.dataset.tform); if (!text || !p) return;
+  const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
+  f.msg.value = "";   // 보내는 동안 대시보드가 다시 그려져도 글이 남지 않게 먼저 비워요
+  try {
+    await saveFeedback({ planId: p.id, ban: p.ban, fromPlan: TEACHER, good: "💬 " + text, question: "", idea: "" }, { sid: "00000", name: "선생" });
+  } catch (err) { console.error(err); toast("보내지 못했어요. 관리자 로그인을 확인하세요"); const nf = document.querySelector(`[data-tform="${p.id}"]`); if (nf) nf.msg.value = text; }
+  btn.disabled = false;
+});
+document.getElementById("dashBox").addEventListener("keydown", e => {
+  const f = e.target.closest("[data-tform]");
+  if (f && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); f.requestSubmit(); }
+});
 document.getElementById("dashBox").addEventListener("click", async e => {
   const t = e.target;
   const db_ = t.closest("[data-dban]"); if (db_) return setBan(db_.dataset.dban);
