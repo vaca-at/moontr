@@ -219,6 +219,11 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .chk li span{flex:none}
 .chk li small{display:block;color:var(--ink2);font-size:.86em}   /* 피드백 체크리스트 */
 /* 계획서 저장 줄 · 고치기 단추 */
+.plan-form .who-line{display:none;align-items:center;gap:.75rem;flex-wrap:wrap;background:color-mix(in srgb,var(--c) 10%,#fff);border-radius:.75rem;padding:.375rem .75rem;font-size:.9375rem}
+.plan-form.has-me .who-fields{display:none}
+.plan-form.has-me .who-line{display:flex}
+.me-pill{max-width:16rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me-pill.need{background:linear-gradient(135deg,#FF8FB3,#B98CF0);color:#fff;border-color:transparent}
 .plan-act{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
 .draft-st{font-size:.875rem;color:var(--ink2)}
 .edit-plan-btn{border:0;border-radius:999px;background:linear-gradient(135deg,#FF8FB3,#B98CF0);color:#fff;font-family:var(--hand);font-weight:var(--hw);font-size:1.125rem;padding:.4375rem 1.125rem;box-shadow:0 3px 0 rgba(120,60,140,.35);cursor:pointer;white-space:nowrap;animation:editPulse 2.4s ease-in-out infinite}
@@ -600,6 +605,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
         <button type="button" data-ban="A">A반<small>11/2 월</small></button>
         <button type="button" data-ban="B">B반<small>11/4 수</small></button>
       </div>
+      <button type="button" class="pill me-pill" id="meBtn" data-me-open>🙋 나 확인하기</button>
       <button type="button" class="pill" data-dlg="dlgStyle">🎨 꾸미기</button>
       <button type="button" class="pill" id="reloadBtn">↻ 새로고침</button>
       <button type="button" class="pill" id="fsBtn">전체화면</button>
@@ -666,6 +672,24 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
   <div class="doc-body" id="dashBox"></div>
 </dialog>
 
+<!-- 시작할 때 한 번: 반 · 학번 · 이름 (이 기기에만 기억, 계획서 · 피드백을 저장할 때 써요) -->
+<dialog class="doc sm" id="dlgMe" aria-labelledby="dlgMeT" style="--c:var(--pink)">
+  <div class="doc-head"><h3 id="dlgMeT">🙋 수업 시작! 나를 알려 주세요</h3><button type="button" data-close>나중에</button></div>
+  <div class="doc-body">
+    <form class="form" id="meForm" autocomplete="off">
+      <div class="row2">
+        <label>반<select name="ban"><option value="A">A반</option><option value="B">B반</option></select></label>
+        <label>학번<input name="sid" inputmode="numeric" maxlength="5" placeholder="10101" required></label>
+        <label>이름<input name="name" maxlength="2" placeholder="두 글자" required></label>
+      </div>
+      <button class="btn" type="submit">시작하기</button>
+      <p class="muted" style="margin:0">🔒 학번과 이름은 계획서와 피드백을 저장할 때만 써요. 선생님만 볼 수 있고, 친구들에게는 '학생 A'처럼 보여요. 이 기기에 기억해 두니 한 번만 넣으면 돼요.</p>
+      <p class="muted" style="margin:0">🗓️ 이 수업에서 저장한 모든 기록(계획서 · 피드백)은 <b>2026년 12월 31일에 모두 삭제</b>해요.</p>
+      <p style="margin:0;text-align:center"><button type="button" class="link" data-close>선생님 · 구경만 할게요</button></p>
+    </form>
+  </div>
+</dialog>
+
 <!-- 내 계획서 고치기 (7번 · 8번 슬라이드에서 열어요) -->
 <dialog class="doc" id="dlgPlan" aria-labelledby="dlgPlanT" style="--c:var(--pink)">
   <div class="doc-head"><h3 id="dlgPlanT">✏️ 내 계획서 고치기</h3><button type="button" data-close>닫기</button></div>
@@ -702,7 +726,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
     </ul>
 
     <h4>4. 보관 기간과 삭제</h4>
-    <p>해당 학년도 수업이 끝나면 지체 없이 삭제해요. 삭제한 정보는 되살릴 수 없게 지워요.</p>
+    <p>이 수업에서 저장한 모든 기록(계획서 · 피드백 · 학번 · 이름)은 <b>2026년 12월 31일에 모두 삭제</b>해요. 삭제한 정보는 되살릴 수 없게 지워요.</p>
 
     <h4>5. 저장 장소(처리 위탁)</h4>
     <p>제출한 내용은 Google LLC가 운영하는 Firebase(Cloud Firestore)에 저장돼요. 이 밖의 다른 사람이나 기관에게 제공하지 않아요. 단, 법령에 따라 요구되는 경우는 예외예요.</p>
@@ -991,12 +1015,15 @@ const DEMO = LIVE ? "" : `<p class="notice">지금은 저장소에 연결되지 
 /* ----- 계획서 쓰는 칸 (6번 슬라이드와 '내 계획서 고치기' 창에서 함께 써요) ----- */
 const PLAN_FORM = fid => `
       <form class="form plan-form" id="${fid}" autocomplete="off">
-        <div class="row2">
-          <label>반<select name="ban"><option value="A">A반</option><option value="B">B반</option></select></label>
-          <label>학번<input name="sid" inputmode="numeric" maxlength="5" placeholder="10101" required></label>
-          <label>이름<input name="name" maxlength="2" placeholder="두 글자" required></label>
+        <div class="who-fields">
+          <div class="row2">
+            <label>반<select name="ban"><option value="A">A반</option><option value="B">B반</option></select></label>
+            <label>학번<input name="sid" inputmode="numeric" maxlength="5" placeholder="10101" required></label>
+            <label>이름<input name="name" maxlength="2" placeholder="두 글자" required></label>
+          </div>
+          <p class="muted" style="margin:.375rem 0 0">🔒 학번과 이름은 선생님만 볼 수 있어요. 친구들에게는 '학생 A'처럼 저장한 순서로만 보여요.</p>
         </div>
-        <p class="muted" style="margin:0">🔒 학번과 이름은 선생님만 볼 수 있어요. 친구들에게는 '학생 A'처럼 저장한 순서로만 보여요. <button type="button" class="link" data-load-plan>📂 내 계획서 불러오기</button></p>
+        <div class="who-line">🙋 <b data-who-text></b><button type="button" class="link" data-me-open>바꾸기</button><button type="button" class="link" data-load-plan>📂 저장한 계획서 다시 불러오기</button></div>
         <label>웹앱 이름<input name="appName" maxlength="30" placeholder="예: 오늘의 영단어" required></label>
         <div class="pair">
           <label>누가 쓰나요? 어떤 불편을 해결하나요?<textarea name="problem" rows="3" maxlength="500" required placeholder="예: 단어 외우기가 지루한 우리 반 친구들"></textarea></label>
@@ -1007,7 +1034,7 @@ const PLAN_FORM = fid => `
           <label>AI에게 보낼 첫 문장<textarea name="prompt" rows="3" maxlength="500" required placeholder="누가·무엇을·어떤 모습·기능을 넣어서"></textarea></label>
         </div>
         <div class="plan-act"><button class="btn" type="submit">💾 저장하기</button><span class="draft-st" data-draft-st></span></div>
-        <p class="muted" style="margin:0">✍️ 쓰는 내용은 이 기기에 <b>저절로 임시 저장</b>돼요. [저장하기]를 누르면 선생님과 짝 친구가 볼 수 있어요.<br>고친 뒤 다시 저장하면 <b>마지막에 저장한 내용이 최종안</b>이 돼요. 저장 전 <button type="button" class="link" data-dlg="dlgPrivacy">개인정보처리방침</button>을 확인해 주세요.</p>
+        <p class="muted" style="margin:0">✍️ 쓰는 내용은 이 기기에 <b>저절로 임시 저장</b>돼요. [저장하기]를 누르면 선생님과 짝 친구가 볼 수 있어요.<br>고친 뒤 다시 저장하면 <b>마지막에 저장한 내용이 최종안</b>이 돼요. 모든 기록은 <b>2026년 12월 31일</b>에 삭제해요. <button type="button" class="link" data-dlg="dlgPrivacy">개인정보처리방침</button></p>
       </form>`;
 
 const SLIDES = [
@@ -1327,7 +1354,7 @@ ${PLAN_FORM("planForm")}` },
 },
 {
   tab: "친구와 피드백", sub: "칭찬·질문·제안", color: C.teal, time: 15, kind: "feedback",
-  title: "친구들과 피드백하기", lead: "짝 친구와 계획서를 보며 이야기를 주고받아요",
+  title: "친구들과 피드백하기", lead: "세 명씩 모둠이 되어 돌아가며 피드백을 주고받아요",
   cols: [
     { t: "피드백 세 가지", c: C.teal, cls: "narrow", html: `
       <p class="big">평가보다 <span class="mark">함께 키워 주는 말</span>로 피드백해요.</p>
@@ -1356,7 +1383,7 @@ ${PLAN_FORM("planForm")}` },
         <li><span>📱</span><div>휴대폰에서도 잘 보일까요?</div></li>
       </ul>` },
     { t: "내 계획서", c: C.sky, html: `${DEMO}<div id="myPlanBox"></div>` },
-    { t: "짝 친구와 이야기", c: C.pink, html: `<div id="pairBox"></div>` }
+    { t: "친구 계획서에 피드백", c: C.pink, html: `<div id="pairBox"></div>` }
   ]
 }
 ];
@@ -1492,8 +1519,16 @@ function bindPlanForm(f = document.getElementById("planForm")) {
   const dr = getDraft(), m = getMe();
   if (!f.dataset.nofill) {   // 8번의 작은 칸은 미리 채워서 와요
     f.ban.value = (dr && dr.ban) || (m && m.ban) || ban;
-    if (dr) { fillForm(f, dr); draftStamp(f, "📝 임시 저장된 글을 불러왔어요"); }
-    else if (m) { f.sid.value = m.sid; f.name.value = m.name; }
+    if (dr && (!m || (dr.sid === m.sid && dr.name === m.name))) { fillForm(f, dr); draftStamp(f, "📝 임시 저장된 글을 불러왔어요"); }
+    if (m) {
+      f.ban.value = m.ban; f.sid.value = m.sid; f.name.value = m.name;
+      f.classList.add("has-me");
+      const w = f.querySelector("[data-who-text]"); if (w) w.textContent = `${m.ban}반 ${m.sid} ${m.name}`;
+      if (!dr || dr.sid !== m.sid) resolveMine().then(() => {
+        const p = plans.find(x => x.id === myPlanId);
+        if (p && !f.appName.value) { fillForm(f, p); f.ban.value = m.ban; f.sid.value = m.sid; f.name.value = m.name; draftStamp(f, "📂 저장된 계획서를 불러왔어요"); }
+      });
+    }
   }
   let t;
   f.addEventListener("input", () => {
@@ -1509,7 +1544,7 @@ function bindPlanForm(f = document.getElementById("planForm")) {
     const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
     try {
       const replaced = await savePlan({ ...d });
-      setMe({ ban: d.ban, sid: d.sid, name: d.name }); me = { sid: d.sid, name: d.name }; setDraft(d);
+      setMe({ ban: d.ban, sid: d.sid, name: d.name }); me = { sid: d.sid, name: d.name }; setDraft(d); paintMe();
       await resolveMine();
       draftStamp(f, "☁️ 저장했어요 " + hhmm());
       toast(replaced ? "고친 내용으로 저장했어요" : "계획서를 저장했어요");
@@ -1532,6 +1567,31 @@ async function loadMyPlan(f) {
     draftStamp(f, "📂 저장된 계획서를 불러왔어요"); toast("내 계획서를 불러왔어요");
   } catch (err) { console.error(err); toast("불러오지 못했어요. 인터넷 연결을 확인하세요"); }
 }
+
+// 🙋 나 확인: 머리 줄 단추에 이름을 보여 주고, 창에서 바꿔요
+function paintMe() {
+  const b = document.getElementById("meBtn"), m = getMe(); if (!b) return;
+  b.textContent = m ? `🙋 ${m.ban}반 ${m.sid} ${m.name}` : "🙋 나 확인하기";
+  b.classList.toggle("need", !m);
+}
+function openMeDlg() {
+  const f = document.getElementById("meForm"), m = getMe();
+  f.ban.value = m ? m.ban : ban; f.sid.value = m ? m.sid : ""; f.name.value = m ? m.name : "";
+  openDlg("dlgMe");
+  setTimeout(() => (m ? f.sid : f.sid).focus(), 50);
+}
+document.getElementById("meForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, d = { ban: f.ban.value, sid: f.sid.value.trim(), name: f.name.value.trim() };
+  const bad = validMe(d.sid, d.name); if (bad) { toast(bad); (/학번/.test(bad) ? f.sid : f.name).focus(); return; }
+  const old = getMe();
+  if (!old || old.sid !== d.sid || old.name !== d.name) { setDraft(null); myPlanId = ""; }   // 다른 사람이면 임시 저장도 새로
+  setMe(d); me = { sid: d.sid, name: d.name };
+  document.getElementById("dlgMe").close();
+  if (d.ban !== ban) setBan(d.ban);
+  await resolveMine(); paintMe(); renderSlide();
+  toast(`${d.name}, 반가워요!`);
+});
 
 // '내 계획서 고치기' 창 (7번 · 8번 슬라이드)
 async function openPlanEditor() {
@@ -1610,17 +1670,85 @@ function fbText(f) {
   return `👍 ${nl(f.good)}${f.question ? `<br>❓ ${nl(f.question)}` : ""}${f.idea ? `<br>💡 ${nl(f.idea)}` : ""}`;
 }
 
-// 짝 정하기: 계획서를 처음 저장한 순서대로 두 명씩 (학생 A-B, C-D …). 혼자 남으면 바로 앞 짝과 셋이 한 모둠
-function pairOf(id) {
+let partnerSel = "";   // (예전 짝 고르기 단추용)
+// 짝 정하기: 계획서를 처음 저장한 순서대로 세 명씩 한 모둠, 모둠 안에서 돌아가며 피드백해요
+//   학생 A → B → C → A,  D → E → F → D …
+//   마지막에 한 명이 남으면 바로 앞 모둠에 들어가 넷이 돌고(… → J → A), 두 명이 남으면 둘이 서로 피드백해요
+function groupOf(id) {
   const list = plansOfBan(), n = list.length, i = list.findIndex(p => p.id === id);
-  if (i < 0) return [];
-  let g = Math.floor(i / 2) * 2;
-  if (n % 2 === 1 && g === n - 1 && g > 0) g -= 2;
-  const size = n % 2 === 1 && g === n - 3 ? 3 : 2;
-  return list.slice(g, g + size).filter(p => p.id !== id);
+  if (i < 0 || n < 2) return [];
+  let g = Math.floor(i / 3) * 3;
+  if (n % 3 === 1 && g === n - 1) g -= 3;               // 혼자 남은 마지막 학생 → 앞 모둠으로
+  const size = (n % 3 === 1 && g === n - 4) ? 4 : Math.min(3, n - g);
+  return list.slice(g, g + size);
+}
+// 내가 피드백할 친구(to)와 내 계획서에 피드백해 줄 친구(from)
+function ringOf(id) {
+  const grp = groupOf(id), k = grp.findIndex(p => p.id === id);
+  if (k < 0) return { to: null, from: null, grp };
+  return { to: grp[(k + 1) % grp.length], from: grp[(k - 1 + grp.length) % grp.length], grp };
 }
 
-let partnerSel = "", chatTag = "👍";
+// 채팅방 = 계획서 하나에 대한 이야기 (planId = 이야기하는 계획서, fromPlan = 보낸 사람)
+//   mine: 내 계획서에 온 피드백 + 내 답장 / peer: 내가 맡은 친구 계획서에 하는 피드백 + 친구 답장
+const chatTag = { mine: "💬", peer: "👍" };
+function roomMsgs(planId) { return feedbacks.filter(f => f.planId === planId).sort(byTime); }
+function chatHTML(planId, emptyText) {
+  const msgs = roomMsgs(planId);
+  if (!msgs.length) return `<div class="chat-empty">${emptyText}</div>`;
+  return msgs.map(f => {
+    const mine = f.fromPlan === myPlanId, tag = tagOf(f.good);
+    const text = tag ? nl(f.good.slice(tag.length + 1)) : fbText(f);
+    return `<div class="bubble ${mine ? "me" : "you"}">
+      <div class="b-who">${mine ? "나" : esc(stu(f.fromPlan) || "친구")}${tag ? ` <span class="b-tag">${tag} ${TAG_NAME[tag]}</span>` : ""}</div>
+      <div class="b-text">${text}</div>
+      <div class="b-time">${fmtTime(f.createdAt)}${teacher ? ` <button type="button" class="del" data-delfb="${f.id}">삭제</button>` : ""}</div>
+    </div>`;
+  }).join("");
+}
+const EMPTY = {
+  mine: "아직 온 피드백이 없어요.<br>친구가 보내면 여기에 바로 보여요.",
+  peer: "아직 보낸 피드백이 없어요.<br>먼저 <b>👍 좋은 점</b>부터 보내 볼까요?"
+};
+function roomHTML(kind, planId, title, who) {
+  return `<div class="chat ${kind}" data-room="${kind}" data-plan="${planId}">
+      <div class="chat-title">${title}</div>
+      <div class="chat-log" id="log_${kind}">${chatHTML(planId, EMPTY[kind])}</div>
+      <form class="chat-form" id="form_${kind}" autocomplete="off">
+        <div class="chat-tags">${TAGS.map(t => `<button type="button" class="${t === chatTag[kind] ? "on" : ""}" data-tag="${t}">${t} ${TAG_NAME[t]}</button>`).join("")}</div>
+        <div class="chat-in"><textarea name="msg" rows="2" maxlength="300" placeholder="${who}에게 보낼 말 (Enter 보내기 · Shift+Enter 줄 바꿈)"></textarea><button class="btn sm" type="submit">보내기</button></div>
+      </form>
+    </div>`;
+}
+function bindRoom(kind, planId) {
+  const log = document.getElementById("log_" + kind), cf = document.getElementById("form_" + kind);
+  if (!cf) return;
+  log.scrollTop = log.scrollHeight;
+  cf.msg.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); cf.requestSubmit(); } });
+  cf.addEventListener("click", e => {
+    const b = e.target.closest("[data-tag]"); if (!b) return;
+    chatTag[kind] = b.dataset.tag; cf.querySelectorAll("[data-tag]").forEach(x => x.classList.toggle("on", x === b)); cf.msg.focus();
+  });
+  cf.addEventListener("submit", async e => {
+    e.preventDefault();
+    const text = cf.msg.value.trim(), m = getMe(); if (!text || !m || !myPlanId) return;
+    const btn = cf.querySelector("button[type=submit]"); btn.disabled = true;
+    try {
+      await saveFeedback({ planId, ban, fromPlan: myPlanId, good: chatTag[kind] + " " + text, question: "", idea: "" }, { sid: m.sid, name: m.name });
+      cf.msg.value = "";
+      const lg = document.getElementById("log_" + kind); if (lg) lg.scrollTop = lg.scrollHeight;
+    } catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); }
+    btn.disabled = false; cf.msg.focus();
+  });
+}
+// 새 말이 오면 대화만 새로 그려요 (쓰는 중인 글은 그대로)
+function refreshRoom(kind) {
+  const room = document.querySelector(`[data-room="${kind}"]`), log = document.getElementById("log_" + kind);
+  if (!room || !log) return;
+  const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.innerHTML = chatHTML(room.dataset.plan, EMPTY[kind]); if (atEnd) log.scrollTop = log.scrollHeight;
+}
+
 // 8번 ② 내 계획서: 칸 모양 그대로 보이고 바로 고쳐서 저장해요 (반 · 학번 · 이름은 위에서 확인한 '나')
 const MINI_FORM = fid => `
       <form class="form plan-form mini" id="${fid}" autocomplete="off" data-nofill="1">
@@ -1632,115 +1760,64 @@ const MINI_FORM = fid => `
         <label>AI에게 보낼 첫 문장<textarea name="prompt" rows="2" maxlength="500" required placeholder="누가·무엇을·어떤 모습·기능을 넣어서"></textarea></label>
         <div class="plan-act"><button class="btn sm" type="submit">💾 고친 내용 저장하기</button><span class="draft-st" data-draft-st></span></div>
       </form>`;
-// 8번 ③ 짝 친구 계획서: 내 칸과 같은 모양(분홍)으로 읽기만 해요
+// 8번 ③ 친구 계획서: 내 칸과 같은 모양(분홍)으로 읽기만 해요
 function planView(p) {
   const box = (label, v, big) => `<div class="pv-f"><span class="pv-l">${label}</span><div class="pv-v ${big ? "big" : ""}">${v ? nl(v) : `<span class="ph">아직 쓰지 않았어요</span>`}</div></div>`;
   return `<div class="pv">${box("웹앱 이름", p && p.appName, true)}${box("누가 쓰나요? 어떤 불편을 해결하나요?", p && p.problem)}${box("꼭 필요한 기능 3가지", p && p.features)}${box("화면 모습", p && p.look)}${box("AI에게 보낼 첫 문장", p && p.prompt)}</div>`;
 }
+const ringNote = () => `<p class="muted pair-how">🔁 계획서를 <b>먼저 저장한 순서</b>대로 세 명씩 모둠이 돼요. 모둠 안에서 A → B → C → A처럼 돌아가며 피드백해요.</p>`;
 
 function renderMyPlan(full) {
   const box = document.getElementById("myPlanBox"); if (!box) return;
   const m = getMe(), mine = plans.find(x => x.id === myPlanId);
   const form = document.getElementById("myPlanForm");
-  // 쓰는 중에는 칸을 다시 그리지 않아요 (이름표만 새로)
-  if (!full && form && m && form.sid.value === m.sid) {
+  const ring = myPlanId ? ringOf(myPlanId) : { from: null };
+  // 쓰는 중에는 칸을 다시 그리지 않아요 (이름표와 대화만 새로)
+  const sameRoom = document.querySelector('[data-room="mine"]');
+  if (!full && form && m && form.sid.value === m.sid && (!!sameRoom === !!myPlanId)) {
     const tag = box.querySelector("[data-me-tag]"); if (tag) tag.innerHTML = mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전";
+    const who = box.querySelector("[data-from-who]"); if (who) who.textContent = ring.from ? stu(ring.from.id) : "모둠 친구";
+    refreshRoom("mine");
     return;
   }
   if (!m) {
-    box.innerHTML = `<form class="form who-form" id="whoForm" autocomplete="off">
-        <p class="muted" style="margin:0">계획서를 저장할 때 쓴 <b>학번과 이름</b>을 넣으면 내 계획서와 짝 친구가 보여요.</p>
-        <div class="row2 me"><label>학번<input name="sid" inputmode="numeric" maxlength="5" placeholder="10101" required></label>
-          <label>이름<input name="name" maxlength="2" placeholder="두 글자" required></label></div>
-        <button class="btn sm" type="submit">나 확인하기</button>
-      </form>${planView(null)}`;
-    document.getElementById("whoForm").addEventListener("submit", async e => {
-      e.preventDefault();
-      const f = e.target, sid = f.sid.value.trim(), name = f.name.value.trim();
-      const bad = validMe(sid, name); if (bad) { toast(bad); return; }
-      setMe({ ban, sid, name }); me = { sid, name };
-      await resolveMine(); renderPair(true);
-      if (!myPlanId) toast("아직 저장한 계획서가 없어요. 아래 칸에 쓰고 저장해 주세요");
-    });
+    box.innerHTML = `<button type="button" class="edit-plan-btn wide" data-me-open>🙋 먼저 나를 알려 주세요</button>${planView(null)}`;
     return;
   }
-  box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.sid)} ${esc(m.name)}<span data-me-tag>${mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전"}</span></span><button type="button" class="link" data-me-reset>내가 아니에요</button></div>
+  box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.sid)} ${esc(m.name)}<span data-me-tag>${mine ? ` · <b>${stu(mine.id)}</b>` : " · 아직 저장 전"}</span></span><button type="button" class="link" data-me-open>내가 아니에요</button></div>
     ${MINI_FORM("myPlanForm")}
-    <p class="muted" style="margin:.5rem 0 0">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>저장하기</b>를 눌러야 짝 친구와 선생님에게 보여요.</p>`;
+    <p class="muted" style="margin:.5rem 0 .75rem">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>저장하기</b>를 눌러야 모둠 친구와 선생님에게 보여요.</p>
+    ${myPlanId ? roomHTML("mine", myPlanId, `📥 나에게 온 피드백 · <span data-from-who>${ring.from ? stu(ring.from.id) : "모둠 친구"}</span>가 보내요`, "피드백 준 친구") : ""}`;
   const f = document.getElementById("myPlanForm");
   const dr = getDraft();
   // 임시 저장이 '나'의 글이면 그걸, 아니면 저장된 내 계획서를 칸에 채워요
   if (dr && dr.sid === m.sid && dr.name === m.name) fillForm(f, dr); else if (mine) fillForm(f, mine);
   f.ban.value = m.ban; f.sid.value = m.sid; f.name.value = m.name;
   bindPlanForm(f);
-}
-
-function chatHTML(partner) {
-  const msgs = feedbacks.filter(f => (f.planId === partner.id && f.fromPlan === myPlanId) || (f.planId === myPlanId && f.fromPlan === partner.id)).sort(byTime);
-  if (!msgs.length) return `<div class="chat-empty">아직 나눈 이야기가 없어요.<br>먼저 <b>👍 좋은 점</b>부터 보내 볼까요?</div>`;
-  return msgs.map(f => {
-    const mine = f.fromPlan === myPlanId, tag = tagOf(f.good);
-    const text = tag ? nl(f.good.slice(tag.length + 1)) : fbText(f);
-    return `<div class="bubble ${mine ? "me" : "you"}">
-      <div class="b-who">${mine ? "나" : stu(partner.id)}${tag ? ` <span class="b-tag">${tag} ${TAG_NAME[tag]}</span>` : ""}</div>
-      <div class="b-text">${text}</div>
-      <div class="b-time">${fmtTime(f.createdAt)}${teacher ? ` <button type="button" class="del" data-delfb="${f.id}">삭제</button>` : ""}</div>
-    </div>`;
-  }).join("");
+  if (myPlanId) bindRoom("mine", myPlanId);
 }
 
 // full = true면 칸 전체를 새로 그려요. 아니면 쓰는 중인 글이 지워지지 않게 대화와 친구 글만 바꿔요
 function renderPair(full) {
   renderMyPlan(full);
   const box = document.getElementById("pairBox"); if (!box) return;
-  const partners = myPlanId ? pairOf(myPlanId) : [];
-  if (!partners.some(p => p.id === partnerSel)) partnerSel = partners[0] ? partners[0].id : "";
-  const partner = partners.find(p => p.id === partnerSel);
-  const log = document.getElementById("chatLog");
-  if (!full && log && partner && box.dataset.partner === partner.id) {
-    const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-    log.innerHTML = chatHTML(partner); if (atEnd) log.scrollTop = log.scrollHeight;
-    const card = document.getElementById("partnerCard"); if (card) card.innerHTML = planView(partner);
+  const to = myPlanId ? ringOf(myPlanId).to : null;
+  if (!full && to && box.dataset.partner === to.id && document.getElementById("log_peer")) {
+    refreshRoom("peer");
+    const card = document.getElementById("partnerCard"); if (card) card.innerHTML = planView(to);
     return;
   }
-  box.dataset.partner = partner ? partner.id : "";
-  const how = `<p class="muted pair-how">🤝 짝은 계획서를 <b>먼저 저장한 순서</b>대로 두 명씩 정해져요. 혼자 남으면 바로 앞 짝과 셋이 한 모둠이 돼요.</p>`;
-  const head = partner ? `<div class="me-bar"><span>🤝 짝 친구 <b>${stu(partner.id)}</b>${partner.updatedAt ? ` · ${fmtTime(partner.updatedAt)} 저장` : ""}</span></div>` : `<div class="me-bar"><span>🤝 짝 친구</span></div>`;
-  if (!partner) {
-    box.innerHTML = `${head}<div id="partnerCard">${planView(null)}</div>
-      <div class="chat"><div class="chat-log"><div class="chat-empty">${myPlanId ? "짝 친구가 계획서를 저장하면<br>여기에서 이야기를 주고받을 수 있어요." : "왼쪽에서 나를 확인하고 계획서를 저장하면<br>짝 친구가 정해져요."}</div></div></div>${how}`;
+  box.dataset.partner = to ? to.id : "";
+  if (!to) {
+    box.innerHTML = `<div class="me-bar"><span>📤 내가 피드백할 친구</span></div><div id="partnerCard">${planView(null)}</div>
+      <div class="chat"><div class="chat-log"><div class="chat-empty">${myPlanId ? "모둠 친구가 계획서를 저장하면<br>여기에서 피드백을 보낼 수 있어요." : "왼쪽에서 나를 확인하고 계획서를 저장하면<br>모둠이 정해져요."}</div></div></div>${ringNote()}`;
     return;
   }
-  box.innerHTML = `
-    ${partners.length > 1 ? `<div class="seg pair-tabs" role="group" aria-label="모둠 친구 고르기">${partners.map(p => `<button type="button" class="${p.id === partner.id ? "on" : ""}" data-partner="${p.id}">${stu(p.id)}</button>`).join("")}</div>` : ""}
-    ${head}
-    <div id="partnerCard">${planView(partner)}</div>
-    <div class="chat">
-      <div class="chat-title">💬 ${stu(partner.id)}와 피드백 나누기</div>
-      <div class="chat-log" id="chatLog">${chatHTML(partner)}</div>
-      <form class="chat-form" id="chatForm" autocomplete="off">
-        <div class="chat-tags">${TAGS.map(t => `<button type="button" class="${t === chatTag ? "on" : ""}" data-tag="${t}">${t} ${TAG_NAME[t]}</button>`).join("")}</div>
-        <div class="chat-in"><textarea name="msg" rows="2" maxlength="300" placeholder="${stu(partner.id)}에게 보낼 말 (Enter 보내기 · Shift+Enter 줄 바꿈)"></textarea><button class="btn sm" type="submit">보내기</button></div>
-      </form>
-    </div>${how}`;
-  const log2 = document.getElementById("chatLog"); log2.scrollTop = log2.scrollHeight;
-  const cf = document.getElementById("chatForm");
-  cf.msg.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); cf.requestSubmit(); } });
-  cf.addEventListener("click", e => {
-    const b = e.target.closest("[data-tag]"); if (!b) return;
-    chatTag = b.dataset.tag; cf.querySelectorAll("[data-tag]").forEach(x => x.classList.toggle("on", x === b)); cf.msg.focus();
-  });
-  cf.addEventListener("submit", async e => {
-    e.preventDefault();
-    const text = cf.msg.value.trim(), m = getMe(); if (!text || !m) return;
-    const btn = cf.querySelector("button[type=submit]"); btn.disabled = true;
-    try {
-      await saveFeedback({ planId: partner.id, ban, fromPlan: myPlanId, good: chatTag + " " + text, question: "", idea: "" }, { sid: m.sid, name: m.name });
-      cf.msg.value = "";
-      const lg = document.getElementById("chatLog"); if (lg) lg.scrollTop = lg.scrollHeight;
-    } catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); }
-    btn.disabled = false; cf.msg.focus();
-  });
+  box.innerHTML = `<div class="me-bar"><span>📤 내가 피드백할 친구 <b>${stu(to.id)}</b>${to.updatedAt ? ` · ${fmtTime(to.updatedAt)} 저장` : ""}</span></div>
+    <div id="partnerCard">${planView(to)}</div>
+    ${roomHTML("peer", to.id, `💬 ${stu(to.id)}의 계획서에 피드백하기`, stu(to.id))}
+    ${ringNote()}`;
+  bindRoom("peer", to.id);
 }
 
 function refreshLive() {
@@ -1929,6 +2006,7 @@ document.querySelectorAll("dialog.doc").forEach(d => {
 });
 document.addEventListener("click", e => {
   if (e.target.closest("[data-edit-plan]")) { openPlanEditor(); return; }
+  if (e.target.closest("[data-me-open]")) { openMeDlg(); return; }
   const o = e.target.closest("[data-dlg]");
   if (o) { if (o.dataset.dlg === "dlgStyle") paintPicks(); openDlg(o.dataset.dlg); }
 });
@@ -1965,7 +2043,7 @@ stageEl.addEventListener("click", async e => {
   }
   const op = t.closest("[data-open]"); if (op) { openPlan = openPlan === op.dataset.open ? null : op.dataset.open; return renderPlanList(); }
   const pt = t.closest("[data-partner]"); if (pt) { partnerSel = pt.dataset.partner; return renderPair(true); }
-  if (t.closest("[data-me-reset]")) { setMe(null); myPlanId = ""; partnerSel = ""; return renderPair(true); }
+
   await deleteClick(t);
 });
 
@@ -2018,7 +2096,12 @@ document.addEventListener("keydown", e => {
    ========================================================= */
 const h = parseInt(location.hash.slice(1), 10);
 if (h >= 1 && h <= SLIDES.length) cur = h;
-paintBan(); renderTabs(); renderSlide();
+paintBan(); renderTabs(); renderSlide(); paintMe();
+(() => {
+  let inHub = false; try { inHub = window.top !== window; } catch (e) { inHub = true; }
+  let asked = false; try { asked = sessionStorage.getItem("vt_me_asked") === "1"; sessionStorage.setItem("vt_me_asked", "1"); } catch (e) {}
+  if (!getMe() && !adminIntent && !inHub && !asked) setTimeout(() => { if (!teacher) openMeDlg(); }, 600);
+})();
 listen(COL_PLANS, list => { plans = list; relabel(); refreshLive(); renderDash(); if (getMe() && !myPlanId) resolveMine().then(refreshLive); });
 listen(COL_FB, list => { feedbacks = list; refreshLive(); renderDash(); });
 logVisit();
