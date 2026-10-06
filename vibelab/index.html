@@ -254,6 +254,19 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .gal .g-url{font-family:ui-monospace,Consolas,monospace;font-size:.75rem;color:var(--ink2);word-break:break-all}
 .ckcard{border:1.5px solid var(--line);border-radius:.875rem;padding:.5rem .6875rem;margin-bottom:.5rem;font-size:.9375rem;background:var(--soft)}
 .ck-who{font-size:.75rem;color:var(--ink2);margin-bottom:.125rem}
+.g-lb{flex:none;min-width:1.75rem;height:1.75rem;padding:0 .375rem;border-radius:999px;background:var(--c);color:#fff;display:grid;place-items:center;font-family:var(--hand);font-weight:var(--hw);font-size:1rem}
+.thread{display:flex;flex-direction:column;gap:.3125rem;margin-top:.5rem;padding-top:.5rem;border-top:1.5px dashed var(--line);max-height:14rem;overflow-y:auto}
+.cmt{border-radius:.75rem;padding:.3125rem .625rem;font-size:.9rem;line-height:1.5;background:var(--soft)}
+.cmt.me{background:color-mix(in srgb,var(--c) 12%,#fff)}
+.cmt.t{background:#FFF4D6}
+.cmt-h{display:flex;gap:.375rem;align-items:baseline;font-size:.75rem;color:var(--ink2)}
+.cmt-h b{color:var(--ink);font-size:.8125rem}
+.ck-kinds{display:flex;gap:.3125rem;flex-wrap:wrap}
+.ck-kinds label{display:inline-flex;cursor:pointer}
+.ck-kinds input{position:absolute;opacity:0;pointer-events:none}
+.ck-kinds span{border:1.5px solid var(--line);border-radius:999px;padding:.0625rem .625rem;font-size:.875rem;background:#fff}
+.ck-kinds input:checked + span{border-color:var(--c);background:var(--c);color:#fff}
+.ck-kinds input:focus-visible + span{outline:2px solid var(--c);outline-offset:2px}
 
 /* 7번: 위 세 칸 + 아래 문장 담벼락 */
 .cols.with-below{flex:1.3 1 0}
@@ -799,12 +812,13 @@ async function saveCheck(d, who) {
   if (LIVE) {
     const ref = db.collection(COL_CHECK).doc(), b = db.batch();
     b.set(ref, data); b.set(db.collection(COL_CHECK_WHO).doc(ref.id), who);
-    return b.commit();
+    await b.commit(); return ref.id;
   }
   const id = newId();
   const arr = localGet(COL_CHECK); arr.push({ ...data, id }); localSet(COL_CHECK, arr);
   const ws = localGet(COL_CHECK_WHO); ws.push({ ...who, id }); localSet(COL_CHECK_WHO, ws);
   localEmit(COL_CHECK); localEmit(COL_CHECK_WHO);
+  return id;
 }
 
 async function saveReflect(d) {
@@ -951,7 +965,7 @@ function toggleTick(g, k) { const s = getTicks(g); if (s[k]) delete s[k]; else s
 // 다시 그려도 쓰던 글이 남게
 function keepForm(formId, fn) {
   const f = $(formId), vals = {}; let foc = "";
-  if (f) [...f.elements].forEach(el => { if (el.name) { vals[el.name] = el.value; if (document.activeElement === el) foc = el.name; } });
+  if (f) [...f.elements].forEach(el => { if (el.name && (el.type !== "radio" || el.checked)) { vals[el.name] = el.value; if (document.activeElement === el) foc = el.name; } });
   fn();
   const g = $(formId);
   if (g) Object.keys(vals).forEach(k => { if (g[k]) g[k].value = vals[k]; });
@@ -1163,7 +1177,7 @@ const SLIDES = [
 },
 {
   tab: "나 · AI · 친구 검증", sub: "점검하고 서로 써 보기", color: C.teal, time: 30, kind: "check",
-  title: "나, AI, 친구가 검증하기", lead: "내가 → AI가 → 친구가 차례로 오류를 찾아요. 고친 파일은 다시 깃허브에 넣어요",
+  title: "나, AI, 친구가 검증하기", lead: "내 주소를 올리고, 우리 반 웹앱마다 써 본 뒤 피드백을 자유롭게 달아요",
   cols: [
     { t: "나 · AI 검증", c: C.green, cls: "narrow", html: `
       <p class="chk-h" style="margin-top:0">🙋 내가 먼저</p>
@@ -1183,8 +1197,8 @@ const SLIDES = [
       <details class="more pop"><summary>🧾 개인정보처리방침 넣는 문장</summary><div class="pop-panel">${promptBox(FOOTER_PROMPT, "sm")}</div></details>
       <p class="muted" style="margin-top:.625rem">AI가 고쳐 준 것도 <b>마지막 확인은 내가</b> 해요.</p>` },
     { t: "내 웹앱 올리기", c: C.teal, cls: "narrow", html: `${DEMO}<div id="appFormBox" data-live></div>` },
-    { t: "친구 웹앱 써 보기", c: C.pink, cls: "wide", html: `<div id="checkBox" data-live></div>` },
-    { t: "내가 받은 검증", c: C.sky, html: `<div id="gotBox" data-live></div>` }
+    { t: "우리 반 웹앱 · 피드백", c: C.pink, cls: "wide", html: `<div id="checkBox" data-live></div>` },
+    { t: "내 웹앱에 달린 피드백", c: C.sky, html: `<div id="gotBox" data-live></div>` }
   ]
 },
 {
@@ -1374,39 +1388,52 @@ function paintAppStatus() {
 const doneKey = () => "vl_done_" + meKey();
 const getDone = () => { try { return JSON.parse(localStorage.getItem(doneKey()) || "[]"); } catch (e) { return []; } };
 const addDone = id => { const a = getDone(); if (!a.includes(id)) { a.push(id); try { localStorage.setItem(doneKey(), JSON.stringify(a)); } catch (e) {} } };
-const checkFormHTML = a => `<form class="form" id="checkForm" data-app="${a.id}" autocomplete="off">
-    <label>👍 좋은 점<textarea name="good" rows="2" maxlength="300" required placeholder="무엇이 왜 좋았는지 구체적으로"></textarea></label>
-    <label>🐞 찾은 오류<textarea name="bug" rows="2" maxlength="300" placeholder="어디서 무엇을 했을 때 어떻게 됐는지"></textarea></label>
-    <label>💡 이런 건 어때?<textarea name="idea" rows="2" maxlength="300" placeholder="~하면 어때? 처럼 부드럽게"></textarea></label>
-    <button class="btn sm" type="submit">📨 검증 보내기</button>
+const myCheckIds = () => { try { return JSON.parse(localStorage.getItem("vl_mychecks") || "[]"); } catch (e) { return []; } };
+const addMyCheck = id => { const a = myCheckIds(); a.push(id); try { localStorage.setItem("vl_mychecks", JSON.stringify(a)); } catch (e) {} };
+// 0 → A, 25 → Z, 26 → AA (반마다 웹앱을 올린 순서)
+function letter(i) { let s = ""; i++; while (i > 0) { i--; s = String.fromCharCode(65 + i % 26) + s; i = Math.floor(i / 26); } return s; }
+function appLabel(id) { const a = apps.find(x => x.id === id); if (!a) return ""; const i = appsOfBan(a.ban).findIndex(x => x.id === id); return i < 0 ? "" : letter(i); }
+// 피드백 쓴 사람: 학번·이름 대신 학생 A · 나 · 선생님
+function whoOf(c) {
+  if (c.fromApp === "teacher") return { cls: "t", n: "👩‍🏫 선생님" };
+  if ((myAppId && c.fromApp === myAppId) || myCheckIds().includes(c.id)) return { cls: "me", n: "🙋 나" };
+  const l = appLabel(c.fromApp);
+  return { cls: "", n: l ? "학생 " + l : "학생" };
+}
+const CK_KINDS = [["good", "👍 좋은 점", "무엇이 왜 좋았는지 구체적으로"], ["bug", "🐞 찾은 오류", "어디서 무엇을 했을 때 어떻게 됐는지"], ["idea", "💡 이런 건 어때?", "~하면 어때? 처럼 부드럽게"]];
+const cmtHTML = c => { const w = whoOf(c);
+  return `<div class="cmt ${w.cls}"><div class="cmt-h"><b>${w.n}</b><span>${fmtTime(c.createdAt)}</span></div>${CK_KINDS.filter(([k]) => c[k]).map(([k, n]) => `<div>${n.split(" ")[0]} ${nl(c[k])}</div>`).join("")}</div>`; };
+const checksOf = id => checks.filter(c => c.appId === id).sort(byTime);
+const checkFormHTML = a => `<form class="form" id="checkForm" data-app="${a.id}" autocomplete="off" style="margin-top:.5rem">
+    <div class="ck-kinds">${CK_KINDS.map(([k, n], i) => `<label><input type="radio" name="kind" value="${k}" ${i ? "" : "checked"}><span>${n}</span></label>`).join("")}</div>
+    <textarea name="text" rows="2" maxlength="300" required placeholder="써 보고 느낀 점을 구체적으로 적어요"></textarea>
+    <button class="btn sm" type="submit">📨 피드백 달기</button>
   </form>`;
 function renderCheck() {
   const box = $("checkBox"); if (!box) return;
-  if (!getMe()) { box.innerHTML = needMe(); return; }
-  const done = getDone();
-  const list = appsOfBan().filter(a => a.id !== myAppId)
-    .map(a => ({ a, n: checks.filter(c => c.appId === a.id).length }))
-    .sort((x, y) => x.n - y.n || byTime(x.a, y.a));
+  const m = getMe(), done = getDone();
+  const list = appsOfBan().filter(a => teacher || a.id !== myAppId);
   keepForm("checkForm", () => {
-    box.innerHTML = `<p class="muted" style="margin:0 0 .5rem">🔗 열어서 직접 써 본 뒤 ✍️ 검증을 남겨요. <b>검증을 적게 받은 웹앱</b>이 위에 있어요. 친구 <b>2명 이상</b> 검증해요. (내가 검증한 웹앱 ${done.length}개)</p>
-      ${myAppId ? "" : `<p class="notice">내 웹앱 주소를 먼저 올리면 친구들도 내 웹앱을 검증할 수 있어요.</p>`}
-      ${list.length ? `<div class="glist">${list.map(({ a, n }) => `<div class="gcard ${selCheck === a.id ? "sel" : ""}">
-        <div class="g-top"><div class="g-name">${esc(a.appName)}</div><span class="g-n">검증 ${n}개</span>${done.includes(a.id) ? '<span class="g-done">✔ 내가 검증함</span>' : ""}</div>
+    box.innerHTML = `<p class="muted" style="margin:0 0 .5rem">🔗 열어서 직접 써 본 뒤 ✍️ 피드백을 달아요. 다른 친구들이 단 피드백도 함께 보여요. 이름 대신 <b>학생 A, 학생 B</b>처럼 보여요. 웹앱 <b>2개 이상</b>에 달아 봐요. (내가 피드백한 웹앱 ${done.length}개)</p>
+      ${teacher || !m || myAppId ? "" : `<p class="notice">왼쪽에서 내 웹앱 주소를 먼저 올리면 피드백을 달 수 있어요.</p>`}
+      ${list.length ? `<div class="glist">${list.map(a => { const cs = checksOf(a.id); return `<div class="gcard ${selCheck === a.id ? "sel" : ""}">
+        <div class="g-top"><span class="g-lb">${appLabel(a.id)}</span><div class="g-name">${esc(a.appName)}</div><span class="g-n">피드백 ${cs.length}개</span>${done.includes(a.id) ? '<span class="g-done">✔ 내가 달았어요</span>' : ""}</div>
         ${a.intro ? `<div class="g-intro">${esc(a.intro)}</div>` : ""}
         ${a.ask ? `<div class="g-ask">🙋 ${esc(a.ask)}</div>` : ""}
-        <div class="g-btns"><a class="chip" href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener">🔗 열어 보기</a><button type="button" class="chip" data-check="${a.id}">✍️ ${selCheck === a.id ? "접기" : "검증하기"}</button></div>
+        <div class="g-btns"><a class="chip" href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener">🔗 열어 보기</a><button type="button" class="chip" data-check="${a.id}">✍️ ${selCheck === a.id ? "접기" : "피드백 달기"}</button></div>
+        ${cs.length ? `<div class="thread">${cs.map(cmtHTML).join("")}</div>` : ""}
         ${selCheck === a.id ? checkFormHTML(a) : ""}
-      </div>`).join("")}</div>` : `<div class="empty">아직 올라온 친구 웹앱이 없어요.<br>친구들이 주소를 올리면 여기에 나타나요.</div>`}`;
+      </div>`; }).join("")}</div>` : `<div class="empty">아직 올라온 친구 웹앱이 없어요.<br>친구들이 주소를 올리면 여기에 나타나요.</div>`}`;
   });
 }
 function renderGot() {
   const box = $("gotBox"); if (!box) return;
   if (!getMe()) { box.innerHTML = needMe(); return; }
-  if (!myAppId) { box.innerHTML = `<div class="empty">내 웹앱 주소를 올리면 친구들의 검증이 여기에 모여요.</div>`; return; }
-  const got = checks.filter(c => c.appId === myAppId).sort(byTime);
-  box.innerHTML = `<p class="count">받은 검증 ${got.length}개</p>
-    ${got.map(c => `<div class="ckcard"><div class="ck-who">👤 친구 · ${fmtTime(c.createdAt)}</div>${c.good ? `<div>👍 ${nl(c.good)}</div>` : ""}${c.bug ? `<div>🐞 ${nl(c.bug)}</div>` : ""}${c.idea ? `<div>💡 ${nl(c.idea)}</div>` : ""}</div>`).join("") || `<div class="empty">아직 받은 검증이 없어요.</div>`}
-    ${got.length ? `<button type="button" class="edit-plan-btn wide ai-full" data-ai="gotsum">🤖 받은 검증 정리 (복사)</button>` : ""}`;
+  if (!myAppId) { box.innerHTML = `<div class="empty">내 웹앱 주소를 올리면 친구들의 피드백이 여기에 모여요.</div>`; return; }
+  const got = checksOf(myAppId);
+  box.innerHTML = `<p class="count">🙋 나는 <b>학생 ${appLabel(myAppId)}</b> · 받은 피드백 ${got.length}개</p>
+    ${got.length ? `<div class="pick-list">${got.map(cmtHTML).join("")}</div>` : `<div class="empty">아직 받은 피드백이 없어요.</div>`}
+    ${got.length ? `<button type="button" class="edit-plan-btn wide ai-full" data-ai="gotsum" style="margin-top:.625rem">🤖 받은 피드백 정리 (복사)</button>` : ""}`;
 }
 
 /* ----- 7번: 갤러리 · 문장 담벼락 · 성찰 ----- */
@@ -1623,6 +1650,7 @@ function setTeacher(on) {
   stopAdmin.forEach(f => f()); stopAdmin = [];
   appWho = {}; checkWho = {}; wallWho = {}; planPeople = []; reflects = []; visits = [];
   if (SLIDES[cur - 1].kind === "finish") renderWall();   // 담벼락 삭제 단추
+  if (SLIDES[cur - 1].kind === "check") renderCheck();   // 선생님으로 피드백 달기
   if (on) {
     stopAdmin.push(listen(COL_APP_KEYS, l => { appWho = {}; l.forEach(x => { appWho[x.appId] = x; }); renderDash(); }));
     stopAdmin.push(listen(COL_CHECK_WHO, l => { checkWho = {}; l.forEach(x => { checkWho[x.id] = x; }); renderDash(); }));
@@ -1820,10 +1848,12 @@ stageEl.addEventListener("click", e => {
   }
   const pk = t.closest("[data-pick]"); if (pk) return togglePick(pk.dataset.pick);
   const ck = t.closest("[data-check]"); if (ck) {
+    if (!teacher && !getMe()) { toast("먼저 나를 알려 주세요"); openMeDlg(); return; }
+    if (!teacher && !myAppId) { toast("내 웹앱 주소를 먼저 올려요"); const af = $("appForm"); if (af) af.url.focus(); return; }
     selCheck = selCheck === ck.dataset.check ? "" : ck.dataset.check;
     const f = $("checkForm"); if (f) f.reset();
     renderCheck();
-    const nf = $("checkForm"); if (nf) nf.good.focus();
+    const nf = $("checkForm"); if (nf) nf.text.focus();
     return;
   }
 });
@@ -1836,6 +1866,21 @@ stageEl.addEventListener("keydown", e => {
 stageEl.addEventListener("submit", async e => {
   const f = e.target; e.preventDefault();
   const m = getMe();
+  if (f.id === "checkForm") {
+    const a = apps.find(x => x.id === f.dataset.app); if (!a) return;
+    if (!teacher && !m) { toast("먼저 나를 알려 주세요"); openMeDlg(); return; }
+    if (!teacher && !myAppId) { toast("내 웹앱 주소를 먼저 올려요"); return; }
+    const kind = f.kind.value || "good", text = f.text.value.trim();
+    if (!text) { toast("피드백을 써 주세요"); f.text.focus(); return; }
+    const d = { appId: a.id, ban: a.ban, fromApp: teacher ? "teacher" : myAppId, good: "", bug: "", idea: "" }; d[kind] = text;
+    const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
+    try {
+      addMyCheck(await saveCheck(d, teacher ? { sid: "00000", name: "선생" } : { sid: m.sid, name: m.name }));
+      addDone(a.id); selCheck = "";
+      toast("피드백을 달았어요. 고마워요!"); renderCheck();
+    } catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); }
+    btn.disabled = false; return;
+  }
   if (!m) { toast("먼저 나를 알려 주세요"); openMeDlg(); return; }
   const btn = f.querySelector("button[type=submit]");
   if (f.id === "appForm") {
@@ -1852,17 +1897,6 @@ stageEl.addEventListener("submit", async e => {
       renderLive(false);
     } catch (err) { console.error(err); toast("올리지 못했어요. 인터넷 연결을 확인하세요"); }
     btn.disabled = false; return;
-  }
-  if (f.id === "checkForm") {
-    const d = { appId: f.dataset.app, ban: m.ban, fromApp: myAppId || "", good: f.good.value.trim(), bug: f.bug.value.trim(), idea: f.idea.value.trim() };
-    if (!d.good) { toast("좋은 점을 먼저 써 주세요"); f.good.focus(); return; }
-    btn.disabled = true;
-    try {
-      await saveCheck(d, { sid: m.sid, name: m.name });
-      addDone(d.appId); selCheck = ""; f.reset();
-      toast("검증을 보냈어요. 고마워요!"); renderCheck();
-    } catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); btn.disabled = false; }
-    return;
   }
   if (f.id === "wallForm") {
     const items = WALL_KINDS.map(([k]) => [k, f[k].value.trim()]).filter(x => x[1]);
