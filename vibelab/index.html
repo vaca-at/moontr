@@ -268,7 +268,7 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .ck-kinds input:checked + span{border-color:var(--c);background:var(--c);color:#fff}
 .ck-kinds input:focus-visible + span{outline:2px solid var(--c);outline-offset:2px}
 
-/* 5번: 위 세 칸 + 아래 문장 담벼락 */
+/* 7번: 위 세 칸 + 아래 문장 담벼락 */
 .cols.with-below{flex:1.3 1 0}
 .below{flex:1 1 0;min-height:15rem;margin:.875rem 0 0 1.625rem}
 #wallBox{height:100%}
@@ -297,6 +297,10 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .rpick > span{flex:none;font-size:.75rem;color:var(--ink2)}
 .rpick .link{margin-left:auto;flex:none;font-size:.75rem}
 .pop-panel .gal{grid-template-columns:1fr}
+/* 5번: 꿀팁 */
+details.more.tip{display:block;margin:0 0 .4375rem}
+details.more.tip > summary{display:flex;width:100%}
+.tip-d{margin:0 0 .5rem;font-size:.9375rem;line-height:1.55}
 
 /* 3번: 깃허브 화면 그림 */
 .gh-steps{display:flex;gap:.3125rem;flex-wrap:wrap;margin-bottom:.5rem}
@@ -381,6 +385,11 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .gh-code i{flex:none;width:2.25rem;padding-right:.75rem;text-align:right;font-style:normal;color:#8c959f}
 .gh-code code{font-family:inherit;color:#1f2328}
 .gh-code .t{color:#116329}.gh-code .a{color:#0550ae}.gh-code .s{color:#0a3069}
+
+/* 3번: 아래 두 칸(올린 화면 · 막혔을 때) 높이 맞추기 */
+.sos-box{border:1px solid #d0d7de;border-radius:.625rem;background:#fff;padding:.625rem;overflow-y:auto;margin-top:.25rem}
+.sos-box details.more.pop{display:block;margin:0 0 .4375rem}
+.sos-box details.more > summary{display:flex;width:100%}
 
 /* 3번: 베셀 화면 그림 (깃허브 그림과 같은 틀) */
 .vc-logo{font-size:1.125rem;line-height:1}
@@ -1014,7 +1023,7 @@ let ban = (() => { try { return localStorage.getItem("vt_ban") || "A"; } catch (
 let teacher = false;
 let plans = [], feedbacks = [], apps = [], checks = [], wall = [];
 let myPlanId = "", myAppId = "";
-let selCheck = "";        // 4번에서 검증 칸을 연 친구 웹앱
+let selCheck = "";        // 6번에서 검증 칸을 연 친구 웹앱
 // 관리자만
 let appWho = {}, checkWho = {}, wallWho = {}, planPeople = [], reflects = [], visits = [], stopAdmin = [];
 
@@ -1115,6 +1124,38 @@ const AI_CHIPS = `<ul class="ic ai">
 </ul>`;
 const FOOTER_PROMPT = "내 웹앱 맨 아래에 이용약관과 개인정보 처리방침을 볼 수 있는 푸터를 만들어 줘.\n\n먼저 내 코드를 살펴보고, 이름·학번 같은 정보를 입력받는지, 어딘가에 저장하는지, 외부 폰트나 이미지를 쓰는지 확인해 줘.\n확인한 내용에 맞게 안내문 초안을 써 주고, 운영자 이름·연락처·보관 기간은 마음대로 만들지 말고 나에게 물어봐.\n안내문은 푸터를 누르면 작은 창으로 열리게 하고, 고친 index.html 전체를 다시 줘.";
 
+// 4번: 파이어스토어 연결 부탁 문장
+const FS_PROMPT = `내 웹앱 index.html을 첨부할게. 파이어베이스 Firestore를 연결해서 (퀴즈 점수와 닉네임)이 새로고침해도, 다른 기기에서도 남게 해 줘.
+
+[내 firebaseConfig]
+(파이어베이스에서 복사한 firebaseConfig를 여기에 붙여 넣기)
+
+[조건]
+- index.html 파일 하나 안에 넣어 줘 (파이어베이스 compat CDN 방식)
+- 실명, 전화번호 같은 개인정보는 저장하지 마
+- 내 웹앱에 맞는 Firestore 보안 규칙도 함께 써 줘
+- 고친 index.html 전체를 다시 줘`;
+// 5번: 꿀팁 (앞 6개는 선생님 꿀팁, 뒤 10개는 더 해 보기)
+const TIPS = [
+  { e: "🌐", t: "도메인 사고 폴더별로 정리하기", d: "도메인(1년 1~2만 원)을 사서 베셀에 연결하면 저장소 하나에 폴더별로 웹앱을 모을 수 있어요. 예: 내도메인.com/myquiz, 내도메인.com/diary", p: "내 웹앱 여러 개를 도메인 하나로 모으고 싶어. 가비아에서 산 도메인을 베셀에 연결하는 방법과, 깃허브 저장소 하나에 웹앱마다 폴더를 나눠 내도메인.com/폴더이름 으로 열리게 하는 방법을 단계별로 알려 줘." },
+  { e: "🧾", t: "개인정보처리방침 · 이용약관 넣기", d: "맨 아래 작은 글씨로 어떤 정보를 받고 언제 지우는지 알려 주면 믿고 쓸 수 있어요.", p: FOOTER_PROMPT },
+  { e: "📊", t: "관리자 대시보드 만들기", d: "나만 들어가는 화면에서 접속 현황과 받은 기록을 표로 보고, 엑셀로 내려받아요. (4번 파이어스토어가 필요해요)", p: "내 웹앱에 관리자만 볼 수 있는 대시보드를 만들어 줘.\n- 파이어베이스 Authentication 이메일 로그인으로 내 계정만 들어가게\n- 날짜별 접속 수(기기 종류만, 개인정보 없이)와 사람들이 남긴 기록을 표로 보여 줘\n- 엑셀(CSV)로 내려받는 단추도 넣어 줘\n- 관리자만 읽을 수 있게 보안 규칙도 함께 써 줘\n고친 index.html 전체를 다시 줘." },
+  { e: "🔗", t: "링크 복사 · 카카오톡 공유 단추", d: "친구에게 보내기 쉬워져요. 카톡 미리보기에 제목과 그림이 나오게 하면 더 좋아요.", p: "내 웹앱에 '링크 복사' 단추와 '카카오톡으로 공유' 단추를 만들어 줘.\n- 휴대폰에서는 공유 창(navigator.share)을 열고, 안 되면 링크를 복사해 줘\n- 카톡으로 보냈을 때 제목, 설명, 미리보기 그림이 나오게 og 태그도 넣어 줘\n고친 index.html 전체를 다시 줘." },
+  { e: "📱", t: "홈 화면 아이콘 만들기", d: "휴대폰 홈 화면에 추가하면 앱처럼 보여요. 아이콘 그림(icon.png)은 저장소에 index.html과 같이 올려요.", p: "내 웹앱을 휴대폰 홈 화면에 추가했을 때 보일 아이콘을 만들고 싶어.\n- 웹앱 내용에 어울리는 512x512 아이콘 그림 아이디어 3가지를 줘\n- index.html에 넣을 apple-touch-icon, manifest 코드를 알려 줘 (그림 파일 이름은 icon.png)\n고친 index.html 전체를 다시 줘." },
+  { e: "⏰", t: "시계 · 디데이 · QR 넣기", d: "작은 기능 하나로 자꾸 열어 보고 싶은 웹앱이 돼요.", p: "내 웹앱 위쪽에 지금 시각 시계와 '시험까지 D-○○' 디데이를 넣어 줘. 날짜는 내가 고를 수 있게 해 줘.\n그리고 내 웹앱 주소로 가는 QR 코드를 크게 보여 주는 단추도 만들어 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "🌙", t: "다크 모드 단추", d: "밤에 눈이 편하고, 단추 하나로 분위기가 확 바뀌어요.", p: "내 웹앱에 다크 모드 단추를 만들어 줘. 고른 모드는 다음에 열어도 기억하게 해 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "🔎", t: "휴대폰 화면 미리 점검", d: "컴퓨터에서 F12 → 왼쪽 위 휴대폰 모양을 누르면 휴대폰 화면으로 볼 수 있어요.", p: "내 웹앱을 휴대폰(가로 360px)에서 볼 때 글자가 너무 작거나, 옆으로 밀리거나, 단추가 누르기 힘든 곳을 찾아 고쳐 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "🎉", t: "정답 효과 (소리 · 진동 · 폭죽)", d: "맞히면 폭죽, 틀리면 살짝 흔들리기. 작은 반응이 재미를 키워요.", p: "퀴즈에서 정답이면 폭죽 효과와 짧은 효과음, 오답이면 화면이 살짝 흔들리고 휴대폰이 짧게 진동하게 해 줘. 소리 끄기 단추도 넣어 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "💾", t: "이 기기에 기록 남기기", d: "파이어스토어 없이도 내 기기에는 최고 점수를 남길 수 있어요. (localStorage)", p: "내 웹앱의 최고 점수와 마지막으로 푼 날짜를 이 기기에 저장해서(localStorage) 다시 열어도 보이게 해 줘. 기록 지우기 단추도 넣어 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "🔤", t: "무료 글꼴로 바꾸기", d: "눈누(noonnu.cc)에서 무료 한글 글꼴을 골라 분위기를 바꿔요. 상업 사용 가능 여부도 확인해요.", p: "내 웹앱 제목은 귀여운 손글씨 글꼴, 본문은 읽기 쉬운 글꼴로 바꿔 줘. 무료로 쓸 수 있는 웹폰트(CDN)를 써 주고 어떤 글꼴인지 알려 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "🙋", t: "처음 온 사람 안내 팝업", d: "처음 열면 '이렇게 써요' 3단계 안내가 뜨고, 다음부터는 안 뜨게 해요.", p: "내 웹앱을 처음 연 사람에게만 사용법을 3단계로 보여 주는 안내 팝업을 만들어 줘. '다시 보지 않기'를 누르면 다음부터 안 뜨게 하고, 오른쪽 위 ? 단추로 다시 볼 수 있게 해 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "🏆", t: "순위표 만들기", d: "4번 파이어스토어를 연결했다면 반 친구들과 점수를 겨룰 수 있어요. 닉네임만 받아요.", p: "파이어스토어에 저장된 퀴즈 점수로 상위 10명 순위표를 보여 줘. 실명 대신 닉네임만 받고, 이상한 말은 걸러 줘. 보안 규칙도 함께 써 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "📋", t: "구글 시트로 문제 관리하기", d: "영단어 목록을 구글 시트에 적어 두면 코드를 고치지 않고도 문제를 바꿀 수 있어요.", p: "영단어 퀴즈 문제를 구글 시트에서 불러오고 싶어. 시트를 '웹에 게시(CSV)'하는 방법을 알려 주고, 그 CSV 주소에서 단어와 뜻을 읽어 문제를 만들게 해 줘.\n고친 index.html 전체를 다시 줘." },
+  { e: "⏪", t: "깃허브 History로 되돌리기", d: "망가졌다면 깃허브에서 index.html → History를 누르면 예전 버전을 볼 수 있어요. 잘 되던 코드를 Raw로 열어 복사해요.", p: "" },
+  { e: "♿", t: "누구나 쓰기 쉽게", d: "글자 크기 키우기, 색 대비, 그림 설명(alt)을 챙기면 더 많은 사람이 편하게 써요.", p: "내 웹앱을 누구나 쓰기 쉽게 점검하고 고쳐 줘.\n- 글자 크기 크게/작게 단추\n- 글자와 배경 색 대비가 충분한지\n- 그림에 설명(alt), 단추에 이름 달기\n- 키보드만으로도 쓸 수 있는지\n고친 index.html 전체를 다시 줘." }
+];
+const tipHTML = tp => `<details class="more pop tip"><summary>${tp.e} ${tp.t}</summary><div class="pop-panel"><p class="tip-d">${tp.d}</p>${tp.p ? promptBox(tp.p, "sm") : ""}</div></details>`;
+
 const SLIDES = [
 {
   tab: "오늘의 실습", sub: "목표·준비물", color: C.pink, time: 5,
@@ -1123,9 +1164,9 @@ const SLIDES = [
     { t: "오늘 만들 것", c: C.pink, html: `
       <p class="big">이론편에서 쓴 계획서로 <span class="mark">진짜 주소를 가진 웹앱</span>을 만들어요.</p>
       <div class="flow">
-        <div class="st"><b>📝 계획서</b><br>이론편에서 쓰고 피드백 받은 것</div><div class="ar">↓</div>
+        <div class="st"><b>📝 계획서</b><br>이론편에서 쓰고 피드백 받은 것<br><span class="muted">예: 영단어 퀴즈</span></div><div class="ar">↓</div>
         <div class="st"><b>📄 index.html</b><br>AI와 대화하며 만들고 고치기</div><div class="ar">↓</div>
-        <div class="st"><b>🔗 내 주소</b><br>my-quiz.vercel.app</div>
+        <div class="st"><b>🔗 내 주소</b><br>myquiz.vercel.app</div>
       </div>
       <p class="muted">수업이 끝나면 친구 휴대폰에서도 내 웹앱이 열려요.</p>
       <a class="chip" href="${THEORY_URL}" target="_blank" rel="noopener">📘 이론편 다시 보기</a>` },
@@ -1155,7 +1196,7 @@ const SLIDES = [
   ]
 },
 {
-  tab: "계획서 → index.html", sub: "확인·프롬프트·파일 받기", color: C.lav, time: 30, kind: "plan",
+  tab: "계획서 → index.html", sub: "확인·프롬프트·파일 받기", color: C.lav, time: 25, kind: "plan",
   title: "계획서로 index.html 받기", lead: "계획서를 확인하고, 첫 프롬프트를 AI에게 보내 index.html 파일로 받아요",
   headBtn: `<button type="button" class="edit-plan-btn" data-edit-plan>✏️ 계획서 고치기</button>`,
   cols: [
@@ -1180,7 +1221,7 @@ const SLIDES = [
     { t: "파일로 받아 열기", c: C.green, html: `
       <p class="big md">마음에 들면 <span class="mark">index.html 파일</span>로 받아요.</p>
       <ul class="ic">
-        <li><span class="e">📁</span><div><b>먼저 폴더 만들기</b><br>바탕화면에 영어 이름 폴더<br><span class="muted">예: my-quiz</span></div></li>
+        <li><span class="e">📁</span><div><b>먼저 폴더 만들기</b><br>바탕화면에 영어 이름 폴더<br><span class="muted">예: myquiz</span></div></li>
         <li><span class="e">⬇️</span><div><b>내려받기</b><br>미리보기 위쪽의 내려받기(Download) 단추</div></li>
         <li><span class="e">✏️</span><div><b>이름 바꾸기</b><br>파일 이름을 꼭 <b>index.html</b>로</div></li>
         <li><span class="e">🌐</span><div><b>두 번 클릭해 열기</b><br>크롬에 내 웹앱이 떠요</div></li>
@@ -1198,12 +1239,12 @@ const SLIDES = [
       <details class="more pop pt"><summary><span class="pe">🗂️</span>파일이 여러 개로 나뉘었어요</summary><div class="pop-panel">${promptBox("index.html 파일 하나로 다시 줘. CSS와 JavaScript도 모두 이 파일 안에 넣어 줘.", "sm")}</div></details>
       <details class="more pop pt"><summary><span class="pe">🧩</span>코드가 중간에 끊겼어요</summary><div class="pop-panel"><span class="subl">"index.html 전체를 처음부터 끝까지 다시 줘"라고 말해요</span></div></details>
       <details class="more pop pt"><summary><span class="pe">⬜</span>화면이 하얗게 나와요</summary><div class="pop-panel"><span class="subl"><kbd>F12</kbd> → Console의 빨간 글씨를 캡쳐해 AI에게 보여 줘요</span></div></details>
-      <details class="more pop pt"><summary><span class="pe">💨</span>새로고침하면 기록이 사라져요</summary><div class="pop-panel"><span class="subl">지금은 정상이에요. 오늘은 화면과 기능을 먼저 완성해요</span></div></details>
+      <details class="more pop pt"><summary><span class="pe">💨</span>새로고침하면 기록이 사라져요</summary><div class="pop-panel"><span class="subl">지금은 정상이에요. <b>4번</b>에서 파이어스토어로 남기는 법을 배워요</span></div></details>
       <details class="more pop pt"><summary><span class="pe">🌀</span>AI가 자꾸 다른 걸 만들어요</summary><div class="pop-panel"><span class="subl">새 채팅을 열고 첫 프롬프트부터 다시 보내요</span></div></details>` }
   ]
 },
 {
-  tab: "깃허브 · 베셀", sub: "올리고 내 주소 만들기", color: C.sky, time: 20, kind: "github",
+  tab: "깃허브 · 베셀", sub: "올리고 내 주소 만들기", color: C.sky, time: 15, kind: "github",
   title: "깃허브에 올리고 베셀로 배포하기", lead: "화면 그림을 한 단계씩 넘기며 똑같이 따라 해요",
   cols: [
     { t: "깃허브에 index.html 넣기", c: C.sky, html: `<div id="ghBox" data-live></div>
@@ -1212,18 +1253,64 @@ const SLIDES = [
       ${ghFileView()}` },
     { t: "베셀로 배포하기", c: C.green, html: `<div id="vcBox" data-live></div>
       <div class="links"><a class="chip" href="https://vercel.com/new" target="_blank" rel="noopener"><img class="ico" src="${ICON.vercel}" alt="">베셀 새 프로젝트</a></div>
-      <p class="chk-h">🆘 막혔을 때</p>
+      <p class="chk-h">🆘 막혔을 때 이렇게 해요</p>
+      <div class="sos-box">
       <details class="more pop pt"><summary><span class="pe">🙈</span>베셀에 내 저장소가 안 보여요</summary><div class="pop-panel"><span class="subl"><b>Adjust GitHub App Permissions</b>를 눌러 저장소 접근을 허용해요</span></div></details>
       <details class="more pop pt"><summary><span class="pe">🚫</span>404: NOT_FOUND가 떠요</summary><div class="pop-panel"><span class="subl">파일 이름이 <b>index.html</b>인지 확인해요</span><span class="subl">폴더 안이 아니라 <b>저장소 맨 위</b>에 있어야 해요</span></div></details>
       <details class="more pop pt"><summary><span class="pe">🔁</span>고쳤는데 그대로예요</summary><div class="pop-panel"><span class="subl">1~2분 기다린 뒤 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd></span></div></details>
       <details class="more pop pt"><summary><span class="pe">📛</span>저장소 이름이 이미 있대요</summary><div class="pop-panel"><span class="subl">내 계정에 같은 이름이 있어요. 다른 이름으로 만들어요</span></div></details>
       <details class="more pop pt"><summary><span class="pe">📂</span>폴더째 올라갔어요</summary><div class="pop-panel"><span class="subl">폴더가 아니라 <b>index.html 파일만</b> 끌어다 놓아요</span></div></details>
-      <details class="more pop pt"><summary><span class="pe">🔤</span>주소 뒤에 낯선 글자가 붙었어요</summary><div class="pop-panel"><span class="subl">같은 이름을 다른 사람이 이미 써서 그래요. 그대로 써도 괜찮아요</span><span class="subl">다음엔 <b>kim-quiz-2026</b>처럼 나만의 이름으로 지어요</span></div></details>
-      <details class="more pop pt"><summary><span class="pe">📸</span>그래도 모르겠어요</summary><div class="pop-panel"><span class="subl">화면을 캡처해 AI에게 "이 화면에서 무엇을 눌러야 해?"</span></div></details>` }
+      <details class="more pop pt"><summary><span class="pe">🔤</span>주소 뒤에 낯선 글자가 붙었어요</summary><div class="pop-panel"><span class="subl">같은 이름을 다른 사람이 이미 써서 그래요. 그대로 써도 괜찮아요</span><span class="subl">다음엔 <b>kim-myquiz-2026</b>처럼 나만의 이름으로 지어요</span></div></details>
+      <details class="more pop pt"><summary><span class="pe">📸</span>그래도 모르겠어요</summary><div class="pop-panel"><span class="subl">화면을 캡처해 AI에게 "이 화면에서 무엇을 눌러야 해?"</span></div></details>
+      </div>` }
   ]
 },
 {
-  tab: "나 · AI · 친구 검증", sub: "점검하고 서로 써 보기", color: C.teal, time: 30, kind: "check",
+  tab: "파이어스토어 연결", sub: "기록이 사라지지 않게", color: C.mustard, time: 15,
+  title: "파이어스토어로 기록 남기기", lead: "새로고침해도, 다른 기기에서도 퀴즈 점수가 남도록 저장소를 연결해요",
+  cols: [
+    { t: "파이어베이스 준비", c: C.mustard, html: `
+      <div class="flow">
+        <div class="st"><b>① 프로젝트 만들기</b><br>콘솔 → 프로젝트 만들기 → 이름 <b>myquiz</b><br><span class="muted">애널리틱스는 꺼도 돼요</span></div><div class="ar">↓</div>
+        <div class="st"><b>② 웹 앱 등록</b><br>프로젝트 첫 화면의 <b>&lt;/&gt;</b> → 앱 이름 myquiz<br>→ <b>firebaseConfig</b> 복사</div><div class="ar">↓</div>
+        <div class="st"><b>③ Firestore 만들기</b><br>빌드 → Firestore Database → 데이터베이스 만들기<br>위치 <b>asia-northeast3 (서울)</b> → <b>테스트 모드</b></div>
+      </div>
+      <div class="links"><a class="chip" href="https://console.firebase.google.com/" target="_blank" rel="noopener">🔥 파이어베이스 콘솔</a></div>` },
+    { t: "AI에게 연결 부탁하기", c: C.pink, cls: "wide", html: `
+      <p class="muted" style="margin:0 0 .5rem">AI 새 채팅에 <b>index.html을 첨부</b>하고, 아래 문장의 괄호 부분을 내 것으로 바꿔 보내요.</p>
+      ${promptBox(FS_PROMPT, "sm")}
+      <div class="box"><h4>🔑 firebaseConfig는 코드에 넣어도 돼요</h4>apiKey는 비밀번호가 아니라 <b>내 저장소 주소</b> 같은 값이에요. 대신 <b>보안 규칙</b>으로 아무나 지우거나 고치지 못하게 지켜요.</div>` },
+    { t: "확인하고 지키기", c: C.green, html: `
+      <ul class="ic">
+        <li><span class="e">✍️</span><div><b>기록 남겨 보기</b><br>새 index.html로 퀴즈를 풀고 점수를 저장해요</div></li>
+        <li><span class="e">👀</span><div><b>콘솔에서 확인</b><br>Firestore → <b>데이터</b> 탭에 기록이 보이면 성공!</div></li>
+        <li><span class="e">🛡️</span><div><b>규칙 게시하기</b><br>AI가 써 준 규칙을 Firestore → <b>규칙</b>에 붙여 넣고 게시</div></li>
+        <li><span class="e">📤</span><div><b>깃허브에 다시 넣기</b><br>Add file → Upload files로 덮어쓰기</div></li>
+      </ul>
+      <p class="chk-h">🆘 막혔을 때</p>
+      <details class="more pop pt"><summary><span class="pe">⛔</span>Missing or insufficient permissions</summary><div class="pop-panel"><span class="subl">보안 규칙이 막고 있어요. 오류 문장과 규칙을 AI에게 보여 줘요</span></div></details>
+      <details class="more pop pt"><summary><span class="pe">📅</span>한 달 뒤 갑자기 안 돼요</summary><div class="pop-panel"><span class="subl">테스트 모드는 30일 뒤 닫혀요. AI가 써 준 규칙을 꼭 게시해요</span></div></details>
+      <details class="more pop pt"><summary><span class="pe">🫥</span>저장 단추를 눌러도 아무 일이 없어요</summary><div class="pop-panel"><span class="subl"><kbd>F12</kbd> → Console의 빨간 글씨를 캡쳐해 AI에게 보여 줘요</span></div></details>` }
+  ]
+},
+{
+  tab: "꿀팁", sub: "웹앱을 더 멋지게", color: C.rose, time: 10,
+  title: "웹앱을 더 멋지게 만드는 꿀팁", lead: "하나만 골라 문장을 복사하고, index.html을 첨부해 AI에게 부탁해요",
+  cols: [
+    { t: "꿀팁 쓰는 법", c: C.rose, cls: "narrow", html: `
+      <ol class="steps-mini">
+        <li>마음에 드는 꿀팁을 <b>하나만</b> 골라요</li>
+        <li>문장을 복사하고 AI 새 채팅에 <b>index.html 첨부</b></li>
+        <li>받은 파일을 내 컴퓨터에서 먼저 열어 확인</li>
+        <li>잘 되면 깃허브에 다시 넣어요</li>
+      </ol>
+      <div class="box"><h4>💾 잘 되는 버전은 따로</h4>고치기 전에 index.html을 복사해 두면 망가져도 돌아갈 수 있어요.</div>` },
+    { t: "선생님 꿀팁 6", c: C.sky, html: TIPS.slice(0, 6).map(tipHTML).join("") },
+    { t: "더 해 보기 10", c: C.lav, html: TIPS.slice(6).map(tipHTML).join("") }
+  ]
+},
+{
+  tab: "나 · AI · 친구 검증", sub: "점검하고 서로 써 보기", color: C.teal, time: 20, kind: "check",
   title: "나, AI, 친구가 검증하기", lead: "내 주소를 올리고, 우리 반 웹앱마다 써 본 뒤 피드백을 자유롭게 달아요",
   cols: [
     { t: "나 · AI 검증", c: C.green, cls: "narrow", html: `
@@ -1249,7 +1336,7 @@ const SLIDES = [
   ]
 },
 {
-  tab: "마무리", sub: "문장 담벼락·성찰", color: C.coral, time: 15, kind: "finish",
+  tab: "마무리", sub: "문장 담벼락·성찰", color: C.coral, time: 10, kind: "finish",
   title: "마무리: 문장 담벼락", lead: "오늘 생각을 담벼락에 나누고, 공감한 문장으로 나만의 성찰을 써요",
   cols: [
     { t: "오늘을 돌아봐요", c: C.coral, cls: "narrow", html: `
@@ -1339,6 +1426,14 @@ function fitSlide() {
   let size = parseFloat(getComputedStyle(root).fontSize);
   for (let i = 0; i < 40 && size > 11 && over(); i++) { size -= 0.5; root.style.fontSize = size + "px"; }
   stageEl.classList.remove("fitting");
+  eqBottom();
+}
+// 3번: 왼쪽 "올리면 이렇게 보여요"와 오른쪽 "막혔을 때" 높이를 같게
+function eqBottom() {
+  const fv = stageEl.querySelector(".gh-fv"), sos = stageEl.querySelector(".sos-box");
+  if (!fv || !sos) return;
+  sos.style.height = "";
+  if (!SCROLL_MODE.matches) sos.style.height = fv.offsetHeight + "px";
 }
 let fitTimer;
 window.addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitSlide, 150); });
@@ -1425,21 +1520,21 @@ const GH_STEPS = [
 let ghStep = 0;
 function ghScreen(i) {
   const hl = on => on ? " hl" : "";
-  const top = `<div class="gh-top"><img class="gh-logo" src="${ICON.github}" alt=""><span class="gh-path">${i >= 2 ? "anstjsdud / <b>my-quiz</b>" : "Dashboard"}</span><span class="gh-sp"></span><span class="gh-plus${hl(i === 0)}">＋ ▾</span><span class="gh-av"></span></div>`;
+  const top = `<div class="gh-top"><img class="gh-logo" src="${ICON.github}" alt=""><span class="gh-path">${i >= 2 ? "anstjsdud / <b>myquiz</b>" : "Dashboard"}</span><span class="gh-sp"></span><span class="gh-plus${hl(i === 0)}">＋ ▾</span><span class="gh-av"></span></div>`;
   const lines = n => `<div class="gh-sk">${Array.from({ length: n }, (_, k) => `<i style="width:${90 - k * 13}%"></i>`).join("")}</div>`;
   // 왼쪽 파일 목록 (파일을 올린 뒤에는 index.html이 보여요)
   const tree = (withFile, fileOn) => `<div class="gh-tree"><div class="gh-th">📂 Files</div>${withFile ? `<div class="gh-ti${hl(fileOn)}">📄 index.html</div>` : `<div class="gh-ti" style="color:#59636e">(아직 비어 있어요)</div>`}</div>`;
-  const crumb = () => `<div class="gh-crumb"><b>my-quiz</b> /</div>`;
+  const crumb = () => `<div class="gh-crumb"><b>myquiz</b> /</div>`;
   const split = (side, main) => `<div class="gh-split">${side}<div class="gh-main">${main}</div></div>`;
   let body = "";
   if (i === 0) body = `<div class="gh-menu right top"><div class="hl">New repository</div><div>Import repository</div><div>New codespace</div><div>New gist</div></div>${lines(4)}`;
   if (i === 1) body = `<h5>Create a new repository</h5>
-    <div class="gh-row"><label>Owner<span class="gh-in">anstjsdud ▾</span></label><span class="gh-slash">/</span><label>Repository name *<span class="gh-in${hl(true)}">my-quiz</span></label></div>
+    <div class="gh-row"><label>Owner<span class="gh-in">anstjsdud ▾</span></label><span class="gh-slash">/</span><label>Repository name *<span class="gh-in${hl(true)}">myquiz</span></label></div>
     <label>Description (optional)<span class="gh-in wide"></span></label>
     <div class="gh-radio${hl(true)}"><div>◉ <b>Public</b> <small>Anyone on the internet can see this repository</small></div><div>○ Private</div></div>
     <div class="gh-end"><span class="gh-btn green gh-lg${hl(true)}">Create repository</span></div>`;
   if (i === 2) body = `<div class="gh-quick"><b>Quick setup</b> — if you've done this kind of thing before
-    <div class="gh-in wide">https://github.com/anstjsdud/my-quiz.git</div>
+    <div class="gh-in wide">https://github.com/anstjsdud/myquiz.git</div>
     <p>Get started by <u>creating a new file</u> or <u class="${hl(true).trim()}">uploading an existing file</u>. We recommend every repository include a README.</p></div>${lines(3)}`;
   if (i === 3 || i === 4) body = split(tree(false), `${crumb()}
     <div class="gh-drop${hl(i === 3)}">${i === 3 ? `<span class="gh-file">📄 index.html</span>` : `<span class="gh-file done">📄 index.html ✓</span>`}<b>Drag files here to add them to your repository</b><small>Or choose your files</small></div>
@@ -1467,7 +1562,7 @@ function ghFileView() {
     "  <script>", "    function check() { alert(\"사과\"); }", "  <\/script>", "</body>", "</html>"
   ];
   const paint = l => esc(l).replace(/(&lt;\/?)([a-zA-Z!][\w-]*)/g, "$1<span class=\"t\">$2</span>").replace(/([\w-]+)=(&quot;.*?&quot;)/g, "<span class=\"a\">$1</span>=<span class=\"s\">$2</span>");
-  return `<div class="gh-win gh-fv"><div class="gh-fv-path"><u>moontr</u> / <b>index.html</b> <span>⧉</span></div>
+  return `<div class="gh-win gh-fv"><div class="gh-fv-path"><u>myquiz</u> / <b>index.html</b> <span>⧉</span></div>
     <div class="gh-fv-commit"><span class="gh-av sm"></span><b>anstjsdud</b> Add files via upload <span class="ok">✓</span><span class="gh-sp"></span><small>now</small></div>
     <div class="gh-fv-bar"><span class="gh-fv-tab on">Code</span><span class="gh-fv-tab">Blame</span><small>${code.length} lines · 1 KB</small><span class="gh-sp"></span><span class="gh-btn">Raw</span><span class="gh-btn">✎</span></div>
     <div class="gh-code">${code.map((l, i) => `<div><i>${i + 1}</i><code>${paint(l) || " "}</code></div>`).join("")}</div></div>`;
@@ -1477,11 +1572,11 @@ function ghFileView() {
 const VC_STEPS = [
   ["Continue with GitHub로 로그인", "깃허브 계정으로 베셀에 들어가요"],
   ["Add New… → Project", "오른쪽 위 단추로 새 프로젝트를 만들어요"],
-  ["my-quiz 저장소 옆 Import", "안 보이면 아래 Adjust GitHub App Permissions를 눌러요"],
+  ["myquiz 저장소 옆 Import", "안 보이면 아래 Adjust GitHub App Permissions를 눌러요"],
   ["다른 칸은 그대로, Deploy 누르기", "Framework Preset은 Other, Root Directory는 ./ 그대로 둬요"],
   ["축하 화면 → Continue to Dashboard", "1분쯤 기다리면 🎉 화면이 나와요"],
-  ["Domains 아래 내 주소 확인", "my-quiz.vercel.app 이 내 웹앱 주소예요"],
-  ["주소를 눌러 내 웹앱 열기", "휴대폰에서도 열어 보고, 이 주소를 4번에서 나눠요"]
+  ["Domains 아래 내 주소 확인", "myquiz.vercel.app 이 내 웹앱 주소예요"],
+  ["주소를 눌러 내 웹앱 열기", "휴대폰에서도 열어 보고, 이 주소를 6번에서 나눠요"]
 ];
 let vcStep = 0;
 function vcScreen(i) {
@@ -1493,17 +1588,17 @@ function vcScreen(i) {
   if (i === 1) body = `<div class="gh-menu right top"><div class="hl">Project</div><div>Domain</div><div>Store</div><div>Team</div></div>${lines(4)}`;
   if (i === 2) body = `<h5>Import Git Repository</h5>
     <div class="gh-files"><div class="gh-fh">🔍 Search…</div>
-      <div class="gh-fr"><span>📁 <b>my-quiz</b> · 1m ago</span><span class="gh-btn vc hl">Import</span></div>
+      <div class="gh-fr"><span>📁 <b>myquiz</b> · 1m ago</span><span class="gh-btn vc hl">Import</span></div>
       <div class="gh-fr"><span>📁 other-repo · 3d ago</span><span class="gh-btn vc">Import</span></div></div>
     <p class="vc-link">Adjust GitHub App Permissions →</p>`;
   if (i === 3) body = `<h5>New Project</h5>
-    <label>Project Name<span class="gh-in wide">my-quiz</span></label>
+    <label>Project Name<span class="gh-in wide">myquiz</span></label>
     <label>Framework Preset<span class="gh-in wide">Other ▾</span></label>
     <label>Root Directory<span class="gh-in wide">./</span></label>
     <span class="gh-btn vc gh-lg vc-full hl">Deploy</span>`;
   if (i === 4) body = `<div class="vc-congrats"><h5>🎉 Congratulations!</h5><p>You just deployed a new Project to Vercel.</p><div class="vc-shot">${lines(3)}</div><span class="gh-btn vc gh-lg hl">Continue to Dashboard</span></div>`;
-  if (i === 5) body = `<h5>my-quiz</h5><div class="vc-proj"><div class="vc-shot">${lines(3)}</div><div><small>Deployment</small><div>my-quiz-a1b2c3.vercel.app</div><small>Domains</small><div class="vc-dom hl">my-quiz.vercel.app</div><small>Status</small><div>● Ready</div></div></div>`;
-  if (i === 6) body = `<div class="vc-url">🔒 <b class="hl">my-quiz.vercel.app</b></div><div class="vc-app"><b>📱 내 웹앱</b>${lines(3)}</div>`;
+  if (i === 5) body = `<h5>myquiz</h5><div class="vc-proj"><div class="vc-shot">${lines(3)}</div><div><small>Deployment</small><div>myquiz-a1b2c3.vercel.app</div><small>Domains</small><div class="vc-dom hl">myquiz.vercel.app</div><small>Status</small><div>● Ready</div></div></div>`;
+  if (i === 6) body = `<div class="vc-url">🔒 <b class="hl">myquiz.vercel.app</b></div><div class="vc-app"><b>📱 오늘의 영단어 퀴즈</b>${lines(3)}</div>`;
   return `<div class="gh-win">${top}<div class="gh-body">${body}</div></div>`;
 }
 function renderVc() {
@@ -1515,14 +1610,14 @@ function renderVc() {
     ${vcScreen(vcStep)}`;
 }
 
-/* ----- 4번: 웹앱 올리기 · 친구 검증 ----- */
+/* ----- 6번: 웹앱 올리기 · 친구 검증 ----- */
 function renderAppForm() {
   const box = $("appFormBox"); if (!box) return;
   if (!getMe()) { box.innerHTML = needMe(); return; }
   const a = myApp(), p = myPlan();
   box.innerHTML = `<form class="form" id="appForm" autocomplete="off">
-      <label>웹앱 이름<input name="appName" maxlength="30" required value="${esc(a ? a.appName : p ? p.appName : "")}"></label>
-      <label>내 주소<span class="h">베셀 주소를 그대로 붙여 넣어요</span><input name="url" inputmode="url" maxlength="200" required placeholder="https://my-quiz.vercel.app" value="${esc(a ? a.url : "")}"></label>
+      <label>웹앱 이름<input name="appName" maxlength="30" required placeholder="예: 오늘의 영단어 퀴즈" value="${esc(a ? a.appName : p ? p.appName : "")}"></label>
+      <label>내 주소<span class="h">베셀 주소를 그대로 붙여 넣어요</span><input name="url" inputmode="url" maxlength="200" required placeholder="https://myquiz.vercel.app" value="${esc(a ? a.url : "")}"></label>
       <label>한 줄 소개<input name="intro" maxlength="60" placeholder="예: 3분 만에 영단어 10개 외우기" value="${esc(a ? a.intro : "")}"></label>
       <label>친구에게 부탁할 점<input name="ask" maxlength="60" placeholder="예: 점수가 잘 올라가는지 봐 줘" value="${esc(a ? a.ask : "")}"></label>
       <div class="plan-act"><button class="btn sm" type="submit">${a ? "🔁 고친 내용 올리기" : "📤 올리기"}</button><span class="draft-st" id="appSt"></span></div>
@@ -1587,7 +1682,7 @@ function renderGot() {
     ${got.length ? `<button type="button" class="edit-plan-btn wide ai-full" data-ai="gotsum" style="margin-top:.625rem">🤖 받은 피드백 정리 (복사)</button>` : ""}`;
 }
 
-/* ----- 5번: 갤러리 · 문장 담벼락 · 성찰 ----- */
+/* ----- 7번: 갤러리 · 문장 담벼락 · 성찰 ----- */
 function renderGallery() {
   const box = $("galleryBox"); if (!box) return;
   const list = appsOfBan();
@@ -1596,7 +1691,7 @@ function renderGallery() {
       <span class="g-name">${a.id === myAppId ? "🙋 " : ""}${esc(a.appName)}</span>
       ${a.intro ? `<span class="g-intro">${esc(a.intro)}</span>` : ""}
       <span class="g-url">${esc(String(a.url || "").replace(/^https:\/\//, ""))}</span></a>`).join("")}</div>`
-      : `<div class="empty">아직 올라온 웹앱이 없어요. 4번에서 주소를 올려요.</div>`}`;
+      : `<div class="empty">아직 올라온 웹앱이 없어요. 6번에서 주소를 올려요.</div>`}`;
 }
 // 문장 담벼락 + 나의 성찰 (이론편 9번과 같은 방식)
 const WALL_KINDS = [["learned", "📚 배운 점", "오늘 새로 알게 된 것"], ["felt", "💗 느낀 점", "활동하며 든 생각"], ["wonder", "🔍 알고 싶은 점", "더 알아보고 싶은 것"]];
@@ -1690,7 +1785,7 @@ ${planText(p)}
 각 항목마다 ✅(괜찮음) 또는 ⚠️(고칠 점)로 표시하고, ⚠️에는 어떻게 고치면 좋을지 한 줄로 알려 줘.
 
 1. 실명, 전화번호, 주소, 사진 같은 개인정보를 받지 않는지
-2. 비밀번호나 API 키가 코드 안에 그대로 적혀 있지 않은지
+2. 비밀번호나 API 키가 코드 안에 그대로 적혀 있지 않은지 (파이어베이스 웹 설정 firebaseConfig는 괜찮아요)
 3. 남의 그림, 캐릭터, 로고를 쓰지 않는지
 4. 놀리기, 몰래 평가하기처럼 누군가 상처받을 기능이 없는지
 5. 맨 아래에 개인정보처리방침과 이용약관이 있는지` };
@@ -2040,7 +2135,7 @@ stageEl.addEventListener("submit", async e => {
     let url = f.url.value.trim().replace(/\s/g, "");
     if (url && !/^https?:\/\//i.test(url)) url = "https://" + url;
     url = url.replace(/^http:\/\//i, "https://");
-    if (!/^https:\/\/[^\s/]+\.[^\s]+$/i.test(url)) { toast("주소를 확인해 주세요. 예: https://my-quiz.vercel.app"); f.url.focus(); return; }
+    if (!/^https:\/\/[^\s/]+\.[^\s]+$/i.test(url)) { toast("주소를 확인해 주세요. 예: https://myquiz.vercel.app"); f.url.focus(); return; }
     f.url.value = url;
     btn.disabled = true;
     try {
