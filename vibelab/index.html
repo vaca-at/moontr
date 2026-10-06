@@ -716,6 +716,15 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
 }
 @media (max-width:420px){ .seg button small{display:none} }
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+/* 🤖 AI 도우미 창: 질문을 보여 주고, 대답을 붙여 넣으면 정리해 보여 줘요 */
+.ai-step{font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;margin:.25rem 0 .375rem}
+.ai-step small{font-family:var(--body);font-weight:400;font-size:.8125rem;color:var(--ink2);margin-left:.5rem}
+.ai-q{max-height:14rem;overflow-y:auto;font-size:.875rem;white-space:normal}
+.ai-go{display:flex;gap:.375rem;flex-wrap:wrap;align-items:center;margin:.5rem 0 .75rem}
+#aiAnswer{width:100%;border:1.5px solid var(--line);border-radius:.75rem;padding:.5rem .625rem;font-family:var(--body);font-size:max(16px,.9375rem);resize:vertical;background:#fff}
+.ai-ans{display:flex;flex-direction:column;gap:.25rem;margin-top:.5rem}
+.ai-ans .ar{border-radius:.625rem;padding:.3125rem .625rem;font-size:.9rem;line-height:1.55;background:color-mix(in srgb,var(--lav) 8%,#fff)}
+.ai-ans .ar.ok{background:#EBFBEE}.ai-ans .ar.warn{background:#FFF4E6}.ai-ans .ar.top{background:#FFF0F6;font-weight:700}.ai-ans .ar.h{background:none;font-weight:700;padding-left:.125rem}
 </style>
 </head>
 <body>
@@ -851,6 +860,19 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
   </div>
 </dialog>
 
+<dialog class="doc" id="dlgAI" aria-labelledby="dlgAIT" style="--c:var(--lav)">
+  <div class="doc-head"><h3 id="dlgAIT">🤖 AI 도우미</h3><button type="button" data-close>닫기</button></div>
+  <div class="doc-body">
+    <p class="ai-step">① 이 질문을 Claude나 Gemini에 붙여 넣어요<small id="aiNote"></small></p>
+    <div class="prompt sm ai-q" id="aiPromptBox" data-raw=""><span data-out></span></div>
+    <div class="ai-go"><button type="button" class="btn sm" id="aiCopyAgain">📋 질문 복사</button><a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener">Claude 열기</a><a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini 열기</a></div>
+    <p class="ai-step">② AI의 대답을 여기에 붙여 넣어요</p>
+    <textarea id="aiAnswer" rows="4" placeholder="AI가 준 대답을 그대로 붙여 넣으면 아래에 보기 좋게 정리돼요"></textarea>
+    <div id="aiAnsView" class="ai-ans"></div>
+    <p class="muted" style="margin:.5rem 0 0">무료로 쓰는 방법이에요. 붙여 넣은 대답은 이 기기에만 하루 동안 남아요.</p>
+  </div>
+</dialog>
+
 <dialog class="doc" id="dlgPrivacy" aria-labelledby="dlgPrivacyT">
   <div class="doc-head"><h3 id="dlgPrivacyT">개인정보처리방침</h3><button type="button" data-close>닫기</button></div>
   <div class="doc-body">
@@ -899,7 +921,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
     <p>수업에 참여하는 학생과 담당 선생님이 수업 시간에 쓰는 학습용 웹앱이에요. 따로 가입하지 않아요.</p>
     <h4>제3조 (이용자의 약속)</h4>
     <ol>
-      <li><b>내 반, 내 학번, 내 이름</b>으로만 올려요.</li>
+      <li><b>내 학번(숫자 5자리), 내 이름(2글자)</b>만 올려요.</li>
       <li>내가 만든 웹앱 주소만 올리고, 다른 사이트 주소를 올리지 않아요.</li>
       <li>개인정보, 욕설, 놀림, 다른 사람을 불쾌하게 하는 글을 쓰지 않아요.</li>
       <li>친구 웹앱을 검증할 때는 고칠 수 있게 구체적이고 부드럽게 말해요.</li>
@@ -1160,7 +1182,15 @@ const safeUrl = u => /^https:\/\/[^\s"'<>]+$/i.test(String(u || "").trim()) ? St
 const getMe = () => { try { return JSON.parse(localStorage.getItem("vt_me") || "null"); } catch (e) { return null; } };
 const setMe = m => { try { localStorage.setItem("vt_me", JSON.stringify(m)); } catch (e) {} };
 const meKey = () => { const m = getMe(); return m ? m.ban + m.sid + m.name : "guest"; };
-const getDraft = () => { try { return JSON.parse(localStorage.getItem("vt_draft") || "null"); } catch (e) { return null; } };
+// 임시 저장은 하루 동안만 남겨요 (인터넷이 끊기거나 창이 닫혀도 이어 쓰기용)
+const DRAFT_TTL = 24 * 60 * 60 * 1000;
+const draftRead = k => {
+  try { const o = JSON.parse(localStorage.getItem(k) || "null"); if (o && o._at && Date.now() - o._at < DRAFT_TTL) return o; localStorage.removeItem(k); }
+  catch (e) { try { localStorage.removeItem(k); } catch (x) {} }
+  return null;
+};
+const draftWrite = (k, o) => { try { o ? localStorage.setItem(k, JSON.stringify({ ...o, _at: Date.now() })) : localStorage.removeItem(k); } catch (e) {} };
+const getDraft = () => draftRead("vt_draft");
 const validMe = (sid, name) => /^\d{5}$/.test(sid) ? ([...name].length === 2 && !/\s/.test(name) ? "" : "이름은 두 글자로 적어 주세요") : "학번은 숫자 5자리로 적어 주세요";
 const myPlan = () => plans.find(p => p.id === myPlanId) || null;
 const myApp = () => apps.find(a => a.id === myAppId) || null;
@@ -1561,9 +1591,11 @@ function fbLine(f) {
   const t = f.fromPlan === "teacher";
   return `<div class="fbline ${t ? "t" : ""}"><b>${t ? "👩‍🏫 선생님" : "👤 모둠 친구"} · ${fmtTime(f.createdAt)}</b>${nl(f.good)}${f.question ? `<br>❓ ${nl(f.question)}` : ""}${f.idea ? `<br>💡 ${nl(f.idea)}` : ""}</div>`;
 }
+// 학번 · 이름을 알려 주기 전에는 이 예시로 화면을 미리 보여 줘요
+const EXAMPLE_PLAN = { appName: "오늘의 영단어 퀴즈", problem: "영단어 시험을 앞둔 우리 반 친구들이 쉬는 시간에 짧게 외우고 싶어요", features: "1. 영단어 10개 퀴즈\n2. 점수 보기\n3. 틀린 단어 다시 풀기", look: "밝은 하늘색, 큰 단추, 휴대폰에서도 잘 보이게", prompt: "영단어 10개를 하나씩 보여 주고 뜻을 고르면 점수가 올라가는 퀴즈를 만들어 줘" };
 function renderLabPlan() {
   const box = $("labPlanBox"); if (!box) return;
-  const m = getMe(); if (!m) { box.innerHTML = needMe(); return; }
+  const m = getMe(); if (!m) { box.innerHTML = `<p class="muted" style="margin:0 0 .5rem">예시 계획서예요. 학번 · 이름을 알려 주면 내 계획서가 보여요.</p>${planView(EXAMPLE_PLAN)}`; return; }
   const p = myPlan();
   if (!p) {
     box.innerHTML = `<div class="empty">${esc(m.ban)}반 ${esc(m.sid)} ${esc(m.name)}의 계획서를 찾지 못했어요.<br>이론편에서 쓴 <b>반 · 학번 · 이름</b>과 같은지 확인해 주세요.
@@ -1600,7 +1632,7 @@ ${p.prompt || ""}
 }
 function renderPromptBox() {
   const box = $("promptBox"); if (!box) return;
-  if (!getMe()) { box.innerHTML = needMe(); return; }
+  if (!getMe()) { box.innerHTML = `<p class="muted" style="margin:0 0 .5rem">예시 계획서로 만든 첫 프롬프트예요.</p>${promptBox(firstPrompt(EXAMPLE_PLAN), "sm")}${AI_CHIPS}`; return; }
   const p = myPlan();
   if (!p) { box.innerHTML = `<div class="empty">계획서를 불러오면 첫 프롬프트가 여기에 만들어져요.</div>`; return; }
   box.innerHTML = `<p class="muted" style="margin:0 0 .5rem">계획서로 만든 첫 프롬프트예요. <b>복사</b>해서 AI에게 그대로 보내요.</p>
@@ -1759,7 +1791,6 @@ function renderFb() {
 /* ----- 6번: 웹앱 올리기 · 친구 검증 ----- */
 function renderAppForm() {
   const box = $("appFormBox"); if (!box) return;
-  if (!getMe()) { box.innerHTML = needMe(); return; }
   const a = myApp(), p = myPlan();
   box.innerHTML = `<form class="form" id="appForm" autocomplete="off">
       <label>웹앱 이름<input name="appName" maxlength="30" required placeholder="예: 오늘의 영단어 퀴즈" value="${esc(a ? a.appName : p ? p.appName : "")}"></label>
@@ -1829,7 +1860,7 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 const selfKey = () => "vl_self_" + meKey(), aiqKey = () => "vl_aiq_" + meKey(), aiResKey = () => "vl_aires_" + meKey();
 const SC = [["ok", "됨"], ["screen", "화면만"], ["no", "안 됨"]];
 function selfItems() {
-  const p = myPlan() || {};
+  const p = myPlan() || (getMe() ? {} : EXAMPLE_PLAN);
   return [
     { id: "name", t: "웹앱 이름대로 동작하나요?", r: p.appName },
     { id: "first", t: "처음 보는 사람이 첫 화면에서 할 일을 아나요?", r: p.problem },
@@ -1884,20 +1915,19 @@ function renderCheck() {
   if (chkTab === "ai") renderAiRes();
 }
 function selfPane() {
-  if (!getMe()) return needMe();
   const s = lsGet(selfKey(), {}), items = selfItems();
   const cnt = v => items.filter(it => s[it.id] === v).length;
   return `<p class="muted ck-lead">2번 계획서에 적은 내용과 <b>실제 화면</b>을 비교해요. 기억이 아니라 기록과 화면으로!</p>
-    ${myPlan() ? "" : `<p class="notice">계획서를 찾지 못해 기본 항목만 보여요. 2번에서 계획서를 불러오면 내 기록이 함께 보여요.</p>`}
+    ${myPlan() || !getMe() ? "" : `<p class="notice">계획서를 찾지 못해 기본 항목만 보여요. 2번에서 계획서를 불러오면 내 기록이 함께 보여요.</p>`}
     ${items.map(it => `<div class="sc-item"><b>${it.t}</b>${it.r ? `<small>내 기록: ${esc(it.r)}</small>` : ""}
       <div class="sc-btns">${SC.map(([v, n]) => `<button type="button" class="sc-b ${v} ${s[it.id] === v ? "on" : ""}" data-self="${it.id}" data-v="${v}" aria-pressed="${s[it.id] === v}">${n}</button>`).join("")}</div></div>`).join("")}
     <p class="sc-sum">됨 <b>${cnt("ok")}</b> · 화면만 <b>${cnt("screen")}</b> · 안 됨 <b>${cnt("no")}</b> / ${items.length}개</p>
     <label class="sc-memo">🔧 1차 점검 뒤 고친 것<textarea id="selfMemo" rows="3" maxlength="500" placeholder="예: 시작 단추를 크게 바꿨어요. 점수가 안 올라가는 오류를 AI에게 부탁해 고쳤어요."></textarea></label>`;
 }
 function aiPane() {
-  if (!getMe()) return needMe();
-  const st = lsGet(aiqKey(), { qs: [], ans: {}, no: {} }), p = myPlan() || {};
-  const qs = st.qs.map(id => QB.find(q => q.id === id)).filter(Boolean);
+  const st = lsGet(aiqKey(), { qs: [], ans: {}, no: {} }), p = myPlan() || (getMe() ? {} : EXAMPLE_PLAN);
+  let qs = st.qs.map(id => QB.find(q => q.id === id)).filter(Boolean);
+  if (!getMe() && !qs.length) qs = QB.slice(0, 5);   // 미리 보기
   const answered = qs.filter(q => (st.ans[q.id] || "").trim()).length, no = qs.filter(q => st.no[q.id]).length;
   return `<div class="ai-sec"><div class="ai-head"><p class="muted ck-lead">내 계획서와 1차 점검을 보고 고른 질문이에요. <b>답하지 못한 질문이 곧 고칠 곳</b>이에요.</p>
       <button type="button" class="edit-plan-btn" data-aiq>✨ ${qs.length ? "새 질문 받기" : "질문 받기"}</button></div>
@@ -1948,7 +1978,7 @@ function peerPane() {
     const gs = groupsOfBan();
     return lead + (gs.length ? gs.map((g, i) => `<p class="pf-h">${i + 1}조 · ${g.length}명</p><div class="pf-grid">${g.map(a => peerCard(a)).join("")}</div>`).join("") : `<div class="empty">아직 올라온 웹앱이 없어요.</div>`) + foot;
   }
-  if (!getMe()) return needMe();
+  if (!getMe()) { const g0 = groupsOfBan()[0] || []; return lead + (g0.length ? `<p class="pf-h">예시 · 1조 (${g0.length}명)</p><div class="pf-grid">${g0.map(a => peerCard(a)).join("")}</div>` : `<div class="empty">친구들이 웹앱 주소를 올리면 조가 정해지고, 여기에 조원 카드가 보여요.</div>`) + foot; }
   if (!myAppId) return lead + `<p class="notice">왼쪽에서 내 웹앱 주소를 먼저 올리면 우리 조가 정해져요.</p>`;
   const g = myGroup(), others = g.filter(a => a.id !== myAppId), idx = groupsOfBan().findIndex(gr => gr.some(a => a.id === myAppId)) + 1;
   const got = checksOf(myAppId);
@@ -2006,7 +2036,7 @@ function renderWall() {
 
 function renderMyReflect() {
   const box = $("reflectBox"); if (!box) return;
-  const m = getMe(); if (!m) { box.innerHTML = needMe(); return; }
+  const m = getMe();
   const picks = getPicks().map(id => wall.find(w => w.id === id)).filter(Boolean);
   const old = $("rfForm"), typed = old ? old.final.value : null, st = old ? $("rfSt").textContent : "";
   box.innerHTML = `
@@ -2020,14 +2050,14 @@ function renderMyReflect() {
   const f = $("rfForm"), ta = f.final, dkey = "vl_rf_" + meKey();
   if (typed !== null) ta.value = typed;
   else {
-    let d = ""; try { d = localStorage.getItem(dkey) || ""; } catch (e) {}
-    if (d && d[0] !== "{") { ta.value = d; $("rfSt").textContent = "📝 임시 저장된 글을 불러왔어요"; }
-    else loadReflect(m).then(r => { if (r && r.final && $("rfForm") === f && !ta.value) { ta.value = r.final; $("rfSt").textContent = "📂 저장된 성찰을 불러왔어요"; } }).catch(e => console.error(e));
+    const o = draftRead(dkey), d = o ? o.v : "";
+    if (d) { ta.value = d; $("rfSt").textContent = "📝 임시 저장된 글을 불러왔어요"; }
+    else if (m) loadReflect(m).then(r => { if (r && r.final && $("rfForm") === f && !ta.value) { ta.value = r.final; $("rfSt").textContent = "📂 저장된 성찰을 불러왔어요"; } }).catch(e => console.error(e));
   }
   let t;
   ta.addEventListener("input", () => {
     clearTimeout(t);
-    t = setTimeout(() => { try { localStorage.setItem(dkey, ta.value); } catch (e) {} $("rfSt").textContent = "✓ 임시 저장 " + hhmm(); }, 400);
+    t = setTimeout(() => { draftWrite(dkey, { v: ta.value }); $("rfSt").textContent = "✓ 임시 저장 " + hhmm(); }, 400);
   });
 }
 function togglePick(id) {
@@ -2123,12 +2153,29 @@ ${p || a ? `
 ${a ? `${a.appName}${a.intro ? " · " + a.intro : ""}\n` : ""}${p ? planText(p) : ""}` : ""}`, note: `공감한 문장 ${picks.length}개를 담았어요.` };
   }
 }
+// 🤖 AI 도우미: 질문을 창에 보여 주고 복사해요. AI의 대답을 붙여 넣으면 창 안에서 정리해 보여 줘요 (무료)
+let aiKind = "";
+const aiAnsKey = k => "vt_aians_" + k + "_" + (meKey());
+function aiAnsView(text) {
+  const lines = String(text || "").split(/\n/).map(s => s.trim()).filter(Boolean);
+  const kind = s => /^✅/.test(s) ? "ok" : /^(⚠️|⚠|❌)/.test(s) ? "warn" : /^👉/.test(s) ? "top" : /^(#+\s|\*\*.+\*\*$|\[.+\]$)/.test(s) ? "h" : "";
+  return lines.map(s => `<div class="ar ${kind(s)}">${esc(s.replace(/^#+\s*/, "").replace(/^\*\*(.+)\*\*$/, "$1"))}</div>`).join("");
+}
+function renderAiAns() { const v = document.getElementById("aiAnswer").value; document.getElementById("aiAnsView").innerHTML = aiAnsView(v); }
 async function aiCopy(kind) {
   const r = aiPrompt(kind); if (!r) return;
   if (r.err) { toast(r.err); return; }
+  aiKind = kind;
+  const box = document.getElementById("aiPromptBox");
+  box.dataset.raw = r.text; box.querySelector("[data-out]").innerHTML = nl(r.text);
+  document.getElementById("aiNote").textContent = r.note || "";
+  const o = draftRead(aiAnsKey(kind)); document.getElementById("aiAnswer").value = o ? o.v : ""; renderAiAns();
+  openDlg("dlgAI");
   const ok = await copyText(r.text);
-  toast(ok ? `${r.note ? r.note + " " : ""}복사했어요! AI 창에 붙여 넣어요` : "복사하지 못했어요");
+  toast(ok ? "질문을 복사했어요! AI 창에 붙여 넣고, 대답은 이 창에 붙여 넣어요" : "질문 복사 단추를 눌러 복사해요");
 }
+document.getElementById("aiAnswer").addEventListener("input", e => { draftWrite(aiAnsKey(aiKind), { v: e.target.value }); renderAiAns(); });
+document.getElementById("aiCopyAgain").addEventListener("click", async () => { const ok = await copyText(document.getElementById("aiPromptBox").dataset.raw); toast(ok ? "질문을 복사했어요" : "복사하지 못했어요"); });
 
 /* =========================================================
    6) 나 확인 · 계획서 고치기
@@ -2169,7 +2216,7 @@ $("planForm").addEventListener("submit", async e => {
   const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
   try {
     const again = await savePlan(d, m);
-    try { localStorage.setItem("vt_draft", JSON.stringify({ ...d, ban: m.ban, sid: m.sid, name: m.name })); } catch (x) {}
+    draftWrite("vt_draft", { ...d, ban: m.ban, sid: m.sid, name: m.name });
     $("dlgPlan").close();
     toast(again ? "고친 계획서를 저장했어요" : "계획서를 저장했어요");
     renderLive(false);
@@ -2386,6 +2433,7 @@ stageEl.addEventListener("click", e => {
     if (confirm("이 문장을 담벼락에서 지울까요?")) deleteWall(dw.dataset.delwall).then(() => toast("지웠어요"), err => { console.error(err); toast("지우지 못했어요. 관리자 로그인을 확인하세요"); });
     return;
   }
+  if (!getMe() && t.closest("[data-self], [data-aiq], [data-aqno], [data-pick]")) { e.preventDefault(); askMe(); return; }
   const pk = t.closest("[data-pick]"); if (pk) return togglePick(pk.dataset.pick);
   const fb = t.closest("[data-fb]"); if (fb) { fbStep = Math.max(0, Math.min(FB_STEPS.length - 1, +fb.dataset.fb)); renderFb(); return; }
   const vc = t.closest("[data-vc]"); if (vc) { vcStep = Math.max(0, Math.min(VC_STEPS.length - 1, +vc.dataset.vc)); renderVc(); return; }
@@ -2394,6 +2442,14 @@ stageEl.addEventListener("click", e => {
   const sb = t.closest("[data-self]"); if (sb) { const st = lsGet(selfKey(), {}); st[sb.dataset.self] = st[sb.dataset.self] === sb.dataset.v ? "" : sb.dataset.v; lsSet(selfKey(), st); renderCheck(); return; }
   if (t.closest("[data-aiq]")) { const st = lsGet(aiqKey(), { qs: [], ans: {}, no: {} }); st.qs = pickQuestions(); lsSet(aiqKey(), st); renderCheck(); toast("내 웹앱에 맞는 질문 5개를 골랐어요"); return; }
 
+});
+// 학번 · 이름을 알려 주기 전에 칸에 쓰거나 단추를 누르면 알려 주는 창을 열어요
+function askMe() { openMeDlg(); toast("먼저 반 · 학번 · 이름을 알려 주세요"); }
+stageEl.addEventListener("focusin", e => {
+  if (getMe() || teacher) return;
+  const el = e.target;
+  if (!el.matches || !el.matches("input:not([type=checkbox]):not([type=radio]), textarea, select")) return;
+  el.blur(); askMe();
 });
 // 점검 칸에 쓰는 글은 이 기기에 바로 저장해요
 stageEl.addEventListener("input", e => {

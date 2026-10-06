@@ -236,8 +236,8 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .t-form{display:flex;gap:.375rem;padding:.4375rem;border-top:2px solid var(--line);background:#fff}
 .t-form textarea{flex:1;border:2px solid var(--line);border-radius:.625rem;padding:.375rem .5rem;font:inherit;font-size:max(16px,.875rem);resize:none}
 /* 8번: 계획서 세 칸 + 아래 넓은 모둠 채팅방 */
-.cols.with-below{flex:1.3 1 0}   /* 위 계획서 칸 : 아래 채팅방 = 1.3 : 1, 큰 화면에서도 채팅방이 함께 커져요 */
-.below{flex:1 1 0;min-height:15rem;margin:.875rem 0 0 1.625rem}
+.cols.with-below{flex:2 1 0}   /* 위 계획서 칸 : 아래 채팅방 = 2 : 1, 계획서 칸이 잘리지 않게 위를 더 크게 */
+.below{flex:1 1 0;min-height:13rem;margin:.875rem 0 0 1.625rem}
 #pairBox,#wallBox{height:100%}
 .room{height:100%;display:flex;flex-direction:column;border:2px solid color-mix(in srgb,var(--c) 45%,#fff);border-radius:1.25rem;background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--c) 6%,#fff));overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04)}
 .room-head{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.4375rem .875rem;background:var(--c);color:#fff;font-family:var(--hand);font-weight:var(--hw);font-size:1.125rem}
@@ -669,6 +669,15 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
   .vs{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+/* 🤖 AI 도우미 창: 질문을 보여 주고, 대답을 붙여 넣으면 정리해 보여 줘요 */
+.ai-step{font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;margin:.25rem 0 .375rem}
+.ai-step small{font-family:var(--body);font-weight:400;font-size:.8125rem;color:var(--ink2);margin-left:.5rem}
+.ai-q{max-height:14rem;overflow-y:auto;font-size:.875rem;white-space:normal}
+.ai-go{display:flex;gap:.375rem;flex-wrap:wrap;align-items:center;margin:.5rem 0 .75rem}
+#aiAnswer{width:100%;border:1.5px solid var(--line);border-radius:.75rem;padding:.5rem .625rem;font-family:var(--body);font-size:max(16px,.9375rem);resize:vertical;background:#fff}
+.ai-ans{display:flex;flex-direction:column;gap:.25rem;margin-top:.5rem}
+.ai-ans .ar{border-radius:.625rem;padding:.3125rem .625rem;font-size:.9rem;line-height:1.55;background:color-mix(in srgb,var(--lav) 8%,#fff)}
+.ai-ans .ar.ok{background:#EBFBEE}.ai-ans .ar.warn{background:#FFF4E6}.ai-ans .ar.top{background:#FFF0F6;font-weight:700}.ai-ans .ar.h{background:none;font-weight:700;padding-left:.125rem}
 </style>
 </head>
 <body>
@@ -815,6 +824,19 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
 </dialog>
 
 <!-- 개인정보처리방침 -->
+<dialog class="doc" id="dlgAI" aria-labelledby="dlgAIT" style="--c:var(--lav)">
+  <div class="doc-head"><h3 id="dlgAIT">🤖 AI 도우미</h3><button type="button" data-close>닫기</button></div>
+  <div class="doc-body">
+    <p class="ai-step">① 이 질문을 Claude나 Gemini에 붙여 넣어요<small id="aiNote"></small></p>
+    <div class="prompt sm ai-q" id="aiPromptBox" data-raw=""><span data-out></span></div>
+    <div class="ai-go"><button type="button" class="btn sm" id="aiCopyAgain">📋 질문 복사</button><a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener">Claude 열기</a><a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini 열기</a></div>
+    <p class="ai-step">② AI의 대답을 여기에 붙여 넣어요</p>
+    <textarea id="aiAnswer" rows="4" placeholder="AI가 준 대답을 그대로 붙여 넣으면 아래에 보기 좋게 정리돼요"></textarea>
+    <div id="aiAnsView" class="ai-ans"></div>
+    <p class="muted" style="margin:.5rem 0 0">무료로 쓰는 방법이에요. 붙여 넣은 대답은 이 기기에만 하루 동안 남아요.</p>
+  </div>
+</dialog>
+
 <dialog class="doc" id="dlgPrivacy" aria-labelledby="dlgPrivacyT">
   <div class="doc-head"><h3 id="dlgPrivacyT">개인정보처리방침</h3><button type="button" data-close>닫기</button></div>
   <div class="doc-body">
@@ -886,7 +908,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
 
     <h4>제3조 (이용자의 약속)</h4>
     <ol>
-      <li>계획서는 <b>내 반, 내 학번, 내 이름</b>으로만 제출해요.</li>
+      <li>계획서는 <b>내 학번(숫자 5자리), 내 이름(2글자)</b>으로만 제출해요.</li>
       <li>나와 다른 사람의 전화번호, 주소, 사진 같은 개인정보를 적지 않아요.</li>
       <li>욕설, 놀림, 비방, 다른 사람을 불쾌하게 하는 글을 쓰지 않아요.</li>
       <li>다른 친구의 학번으로 계획서를 바꾸거나, 웹앱이 제대로 돌아가지 않게 방해하지 않아요.</li>
@@ -1652,8 +1674,16 @@ function go(n) {
 const plansOfBan = (b = ban) => plans.filter(p => p.ban === b).sort(byTime);
 const validMe = (sid, name) => /^\d{5}$/.test(sid) ? ([...name].length === 2 && !/\s/.test(name) ? "" : "이름은 두 글자로 적어 주세요") : "학번은 숫자 5자리로 적어 주세요";
 const PLAN_KEYS = ["ban", "sid", "name", "appName", "problem", "features", "look", "prompt"];
-const getDraft = () => { try { return JSON.parse(localStorage.getItem("vt_draft") || "null"); } catch (e) { return null; } };
-const setDraft = d => { try { localStorage.setItem("vt_draft", JSON.stringify(d)); } catch (e) {} };
+// 임시 저장은 하루 동안만 남겨요 (인터넷이 끊기거나 창이 닫혀도 이어 쓰기용)
+const DRAFT_TTL = 24 * 60 * 60 * 1000;
+const draftRead = k => {
+  try { const o = JSON.parse(localStorage.getItem(k) || "null"); if (o && o._at && Date.now() - o._at < DRAFT_TTL) return o; localStorage.removeItem(k); }
+  catch (e) { try { localStorage.removeItem(k); } catch (x) {} }
+  return null;
+};
+const draftWrite = (k, o) => { try { o ? localStorage.setItem(k, JSON.stringify({ ...o, _at: Date.now() })) : localStorage.removeItem(k); } catch (e) {} };
+const getDraft = () => draftRead("vt_draft");
+const setDraft = d => draftWrite("vt_draft", d);
 // 나 = 이 기기에서 계획서를 저장한 학생 (반 · 학번 · 이름은 이 기기에만 기억해요)
 let myPlanId = "";
 const getMe = () => { try { return JSON.parse(localStorage.getItem("vt_me") || "null"); } catch (e) { return null; } };
@@ -2042,10 +2072,10 @@ function renderMyReflect(keepText) {
   const f = document.getElementById("rfForm"), ta = f.final;
   const dkey = "vt_rf_" + (m ? m.sid + m.name : "");
   if (typed !== null) ta.value = typed;
-  else { let d = ""; try { d = localStorage.getItem(dkey) || ""; } catch (e) {}
+  else { const o = draftRead(dkey), d = o ? o.v : "";
     if (d) { ta.value = d; draftStamp(f, "📝 임시 저장된 글을 불러왔어요"); }
     else if (m) loadReflect(m).then(r => { if (r && r.final && !ta.value) { ta.value = r.final; draftStamp(f, "📂 저장된 성찰을 불러왔어요"); } }).catch(e => console.error(e)); }
-  let t; ta.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { try { localStorage.setItem(dkey, ta.value); } catch (e) {} draftStamp(f, "✓ 임시 저장 " + hhmm()); }, 400); });
+  let t; ta.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { draftWrite(dkey, { v: ta.value }); draftStamp(f, "✓ 임시 저장 " + hhmm()); }, 400); });
   f.addEventListener("submit", async e => {
     e.preventDefault();
     const me2 = getMe(); if (!me2) { toast("먼저 나를 알려 주세요"); openMeDlg(); return; }
@@ -2187,14 +2217,31 @@ async function copyText(text) {
     document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (x) {} ta.remove(); return ok;
   }
 }
+// 🤖 AI 도우미: 질문을 창에 보여 주고 복사해요. AI의 대답을 붙여 넣으면 창 안에서 정리해 보여 줘요 (무료)
+let aiKind = "";
+const aiAnsKey = k => "vt_aians_" + k + "_" + ((getMe() ? getMe().sid + getMe().name : "guest"));
+function aiAnsView(text) {
+  const lines = String(text || "").split(/\n/).map(s => s.trim()).filter(Boolean);
+  const kind = s => /^✅/.test(s) ? "ok" : /^(⚠️|⚠|❌)/.test(s) ? "warn" : /^👉/.test(s) ? "top" : /^(#+\s|\*\*.+\*\*$|\[.+\]$)/.test(s) ? "h" : "";
+  return lines.map(s => `<div class="ar ${kind(s)}">${esc(s.replace(/^#+\s*/, "").replace(/^\*\*(.+)\*\*$/, "$1"))}</div>`).join("");
+}
+function renderAiAns() { const v = document.getElementById("aiAnswer").value; document.getElementById("aiAnsView").innerHTML = aiAnsView(v); }
 async function aiCopy(kind) {
   const r = aiPrompt(kind); if (!r) return;
   if (r.err) { toast(r.err); return; }
+  aiKind = kind;
+  const box = document.getElementById("aiPromptBox");
+  box.dataset.raw = r.text; box.querySelector("[data-out]").innerHTML = nl(r.text);
+  document.getElementById("aiNote").textContent = r.note || "";
+  const o = draftRead(aiAnsKey(kind)); document.getElementById("aiAnswer").value = o ? o.v : ""; renderAiAns();
+  openDlg("dlgAI");
   const ok = await copyText(r.text);
-  toast(ok ? (r.note ? r.note + " · " : "") + "복사했어요! Claude나 Gemini 창에 붙여 넣어요" : "복사하지 못했어요");
+  toast(ok ? "질문을 복사했어요! AI 창에 붙여 넣고, 대답은 이 창에 붙여 넣어요" : "질문 복사 단추를 눌러 복사해요");
 }
+document.getElementById("aiAnswer").addEventListener("input", e => { draftWrite(aiAnsKey(aiKind), { v: e.target.value }); renderAiAns(); });
+document.getElementById("aiCopyAgain").addEventListener("click", async () => { const ok = await copyText(document.getElementById("aiPromptBox").dataset.raw); toast(ok ? "질문을 복사했어요" : "복사하지 못했어요"); });
 const AI_HELP = `<div class="ai-help">
-    <div class="ai-head">🤖 AI 도우미 <small>누르면 질문이 복사돼요 → AI 창에 붙여 넣기</small></div>
+    <div class="ai-head">🤖 AI 도우미 <small>누르면 질문 창이 열려요 → AI에게 묻고 대답을 붙여 넣기</small></div>
     <div class="ai-btns">
       <button type="button" data-ai="sum">📥 받은 피드백 정리하기</button>
       <button type="button" data-ai="check">✅ 체크리스트로 점검하기</button>
