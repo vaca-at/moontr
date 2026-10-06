@@ -607,6 +607,20 @@ dialog.doc::backdrop{background:rgba(40,40,50,.45)}
 .tbl a{color:inherit}
 .miss{display:flex;flex-wrap:wrap;gap:.375rem;margin:0 0 .5rem}
 .miss span{background:var(--soft);border:1.5px solid var(--line);border-radius:999px;padding:0 .625rem;font-size:.875rem}
+.att-bans{display:inline-flex;gap:.25rem}
+.att-bans button{border:2px solid var(--line);background:#fff;border-radius:999px;padding:.125rem .875rem;font-weight:700}
+.att-bans button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.att-day select{border:1.5px solid var(--line);border-radius:.5rem;padding:.125rem .375rem;font-size:max(16px,.9375rem)}
+.att-edit{background:var(--soft);border:1.5px dashed var(--line);border-radius:.875rem;padding:.75rem;margin:0 0 .75rem}
+.att-edit textarea{width:100%;border:1.5px solid var(--line);border-radius:.625rem;padding:.5rem;font-family:ui-monospace,Consolas,monospace;font-size:max(16px,.875rem);background:#fff}
+.att-st{display:inline-flex;gap:.1875rem;flex-wrap:wrap}
+.att-st button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:0 .5rem;font-size:.8125rem;color:var(--ink2)}
+.att-st button.on{font-weight:700;color:var(--ink)}
+.att-st button.on[data-v="출석"],.vis-badge.att-출석{background:#EBFBEE;border-color:#51CF66}
+.att-st button.on[data-v="지각"],.vis-badge.att-지각{background:#FFF4E6;border-color:#FFA94D}
+.att-st button.on[data-v="조퇴"],.vis-badge.att-조퇴{background:#E7F5FF;border-color:#4DABF7}
+.att-st button.on[data-v="결석"],.vis-badge.att-결석{background:#FFF0F6;border-color:#F783AC}
+.att-tbl tr.att-off td{background:#FFF8FA}
 .dash-top{display:flex;align-items:center;gap:.875rem;flex-wrap:wrap;margin-bottom:.5rem}
 .vis-badge{background:var(--soft);border:1.5px solid var(--line);border-radius:999px;padding:.0625rem .75rem;font-size:.875rem;font-weight:700}
 .vis-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.625rem;margin-bottom:.625rem}
@@ -977,6 +991,8 @@ const COL_REFLECT = "vibelab_reflect";     // 성찰 (문서 이름 = 해시, �
 const COL_WALL = "vibelab_wall";           // 문장 담벼락 (누구나 보기, 이름 없이)
 const COL_WALL_WHO = "vibelab_wall_who";   // 담벼락 문장 쓴 사람 (관리자만)
 const COL_VISITS = "vibelab_visits";       // 익명 접속 기록
+const COL_ATTEND = "vibelab_attend";       // 출석: 학번·이름을 알려 주면 그날 한 번 (관리자만 보기)
+const COL_ROSTER = "vibelab_roster";       // 출석부 명단 · 선생님이 고친 출결 (문서 이름 = A, B · 관리자만)
 
 /* =========================================================
    2) 저장소
@@ -1154,6 +1170,24 @@ function deviceInfo() {
   return { dev: tablet ? "태블릿" : mobile ? "휴대폰" : "컴퓨터", os, br,
     w: w < 400 ? "~399" : w < 600 ? "400~599" : w < 900 ? "600~899" : w < 1280 ? "900~1279" : "1280~" };
 }
+// 출석: 학번·이름을 알려 주면 그날 한 번만 자동으로 남겨요
+async function checkIn() {
+  const m = getMe(); if (!m || teacher) return;
+  const day = fmtDay(new Date()), flag = "vl_att_" + day + "_" + meKey();
+  try { if (localStorage.getItem(flag)) return; } catch (e) {}
+  const id = day + "_" + await keyOf(m.ban, m.sid, m.name), data = { ban: m.ban, sid: m.sid, name: m.name, day, at: Date.now() };
+  try {
+    if (LIVE) await db.collection(COL_ATTEND).doc(id).set(data);
+    else { const arr = localGet(COL_ATTEND); if (!arr.some(x => x.id === id)) { arr.push({ ...data, id }); localSet(COL_ATTEND, arr); localEmit(COL_ATTEND); } }
+  } catch (e) { console.error(e); }   // 다른 기기에서 이미 출석했으면 그대로 둬요
+  try { localStorage.setItem(flag, "1"); } catch (e) {}
+}
+async function saveRoster(b, d) {
+  const data = { text: d.text || "", marks: d.marks || {}, updatedAt: Date.now() };
+  if (LIVE) return db.collection(COL_ROSTER).doc(b).set(data);
+  const arr = localGet(COL_ROSTER).filter(x => x.id !== b); arr.push({ ...data, id: b });
+  localSet(COL_ROSTER, arr); localEmit(COL_ROSTER);
+}
 async function logVisit() {
   let inHub = false; try { inHub = window.top !== window; } catch (e) { inHub = true; }
   if (inHub || /[?&]admin/.test(location.search) || /^#(admin|teacher)/.test(location.hash)) return;
@@ -1177,7 +1211,7 @@ let teacher = false;
 let plans = [], feedbacks = [], apps = [], checks = [], wall = [];
 let myPlanId = "", myAppId = "";
 // 관리자만
-let appWho = {}, checkWho = {}, wallWho = {}, planPeople = [], reflects = [], visits = [], stopAdmin = [];
+let appWho = {}, checkWho = {}, wallWho = {}, planPeople = [], reflects = [], visits = [], attends = [], rosters = [], stopAdmin = [];
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -2080,27 +2114,29 @@ function renderMyReflect() {
   const box = $("reflectBox"); if (!box) return;
   const m = getMe();
   const picks = getPicks().map(id => wall.find(w => w.id === id)).filter(Boolean);
-  const old = $("rfForm"), typed = old ? old.final.value : null, st = old ? $("rfSt").textContent : "";
+  const old = $("rfForm"), typed = old ? old.final.value : null, typedA = old ? old.aiDraft.value : null, st = old ? $("rfSt").textContent : "";
   box.innerHTML = `
     <div class="pick-list">${picks.length ? picks.map(w => `<div class="rpick ${w.kind}"><span>${kindName(w.kind)}</span>${nl(w.text)}<button type="button" class="link" data-pick="${w.id}">빼기</button></div>`).join("") : `<div class="empty">아래 담벼락에서 공감되는 문장을 <b>${PICK_MAX}개</b> 눌러 주세요.</div>`}</div>
     <div class="plan-act" style="margin:.5rem 0"><button type="button" class="edit-plan-btn ai-full" data-ai="reflect">🤖 AI 초안 받기 (복사)</button><span class="muted">${picks.length}/${PICK_MAX} 골랐어요</span></div>
     <form class="form" id="rfForm" autocomplete="off">
+      <label>🤖 AI가 써 준 초안<span class="h">AI 초안 받기로 받은 글을 고치지 말고 그대로 붙여 넣어요</span><textarea name="aiDraft" rows="4" maxlength="3000" placeholder="AI의 대답을 그대로 붙여 넣어요"></textarea></label>
       <label>✍️ 내 목소리로 다듬은 성찰<textarea name="final" rows="6" maxlength="2000" placeholder="AI 초안을 붙여 넣고, 내 말투와 내 경험으로 고쳐 써요"></textarea></label>
       <div class="plan-act"><button class="btn sm" type="submit">💾 성찰 저장하기</button><span class="draft-st" id="rfSt">${esc(st)}</span></div>
       <p class="muted" style="margin:0">저장한 성찰은 <b>선생님만</b> 보고, 진로탐구수업 활동 기록에 참고해요. 다시 저장하면 새 내용으로 바뀌어요.</p>
     </form>`;
-  const f = $("rfForm"), ta = f.final, dkey = "vl_rf_" + meKey();
-  if (typed !== null) ta.value = typed;
+  const f = $("rfForm"), ta = f.final, tb = f.aiDraft, dkey = "vl_rf_" + meKey();
+  if (typed !== null) { ta.value = typed; tb.value = typedA; }
   else {
-    const o = draftRead(dkey), d = o ? o.v : "";
-    if (d) { ta.value = d; $("rfSt").textContent = "📝 임시 저장된 글을 불러왔어요"; }
-    else if (m) loadReflect(m).then(r => { if (r && r.final && $("rfForm") === f && !ta.value) { ta.value = r.final; $("rfSt").textContent = "📂 저장된 성찰을 불러왔어요"; } }).catch(e => console.error(e));
+    const o = draftRead(dkey);
+    if (o && (o.v || o.a)) { ta.value = o.v || ""; tb.value = o.a || ""; $("rfSt").textContent = "📝 임시 저장된 글을 불러왔어요"; }
+    else if (m) loadReflect(m).then(r => { if (r && $("rfForm") === f && !ta.value && !tb.value) { ta.value = r.final || ""; tb.value = r.aiDraft || ""; if (r.final || r.aiDraft) $("rfSt").textContent = "📂 저장된 성찰을 불러왔어요"; } }).catch(e => console.error(e));
   }
   let t;
-  ta.addEventListener("input", () => {
+  const keep = () => {
     clearTimeout(t);
-    t = setTimeout(() => { draftWrite(dkey, { v: ta.value }); $("rfSt").textContent = "✓ 임시 저장 " + hhmm(); }, 400);
-  });
+    t = setTimeout(() => { draftWrite(dkey, { v: ta.value, a: tb.value }); $("rfSt").textContent = "✓ 임시 저장 " + hhmm(); }, 400);
+  };
+  ta.addEventListener("input", keep); tb.addEventListener("input", keep);
 }
 function togglePick(id) {
   let a = getPicks();
@@ -2239,6 +2275,7 @@ $("meForm").addEventListener("submit", async e => {
   const bad = validMe(d.sid, d.name); if (bad) { toast(bad); (/학번/.test(bad) ? f.sid : f.name).focus(); return; }
   setMe(d); $("dlgMe").close();
   if (d.ban !== ban) { ban = d.ban; try { localStorage.setItem("vt_ban", ban); } catch (x) {} paintBan(); }
+  checkIn();
   await resolveMine(); paintMe(); renderSlide();
   toast(myPlanId ? `${d.name}, 계획서를 찾았어요!` : `${d.name}, 반가워요!`);
 });
@@ -2277,7 +2314,7 @@ function setTeacher(on) {
   b.textContent = on ? "🔓 로그아웃" : "🔒 관리자 로그인";
   $("dashBtn").hidden = !on;
   stopAdmin.forEach(f => f()); stopAdmin = [];
-  appWho = {}; checkWho = {}; wallWho = {}; planPeople = []; reflects = []; visits = [];
+  appWho = {}; checkWho = {}; wallWho = {}; planPeople = []; reflects = []; visits = []; attends = []; rosters = [];
   if (SLIDES[cur - 1].kind === "finish") renderWall();   // 담벼락 삭제 단추
   if (SLIDES[cur - 1].kind === "check") renderCheck();   // 선생님으로 피드백 달기
   if (on) {
@@ -2287,6 +2324,8 @@ function setTeacher(on) {
     stopAdmin.push(listen(COL_KEYS, l => { planPeople = l; renderDash(); }));
     stopAdmin.push(listen(COL_REFLECT, l => { reflects = l; renderDash(); }));
     stopAdmin.push(listen(COL_VISITS, l => { visits = l; renderDash(); }));
+    stopAdmin.push(listen(COL_ATTEND, l => { attends = l; renderDash(); }));
+    stopAdmin.push(listen(COL_ROSTER, l => { rosters = l; renderDash(); }));
   } else $("dlgAdmin").close();
 }
 
@@ -2311,16 +2350,89 @@ async function clearVisits() {
   } catch (e) { console.error(e); toast("지우지 못했어요"); }
 }
 
-let dashTab = "A";
+/* ✅ 출석부: 엑셀에서 학년 · 반 · 번호 · 이름 4열을 복사해 붙여 넣으면 학번 5자리 + 이름 두 글자로 만들어요
+   예) 1  1  1  홍길동 → 10101 길동 · 이미 "10101 홍길동"처럼 학번이 있어도 돼요 */
+const ATT_ST = ["출석", "지각", "조퇴", "결석"];
+let attBan = "A", attDay = "", rosterDraft = null, rosterOpen = false;
+const short2 = n => { n = String(n || "").replace(/\s/g, ""); return n.length > 2 ? n.slice(-2) : n; };
+function parseRoster(text) {
+  const out = [], seen = new Set();
+  String(text || "").split(/\r?\n/).forEach(line => {
+    const tk = line.split(/[\t,]+|\s{1,}/).map(x => x.trim()).filter(Boolean);
+    const nums = [], words = [];
+    tk.forEach(x => { const d = x.replace(/(학년|반|번)$/, ""); if (/^\d+$/.test(d)) nums.push(d); else words.push(x); });
+    const full = words.find(w => /^[가-힣a-zA-Z]{2,}$/.test(w)); if (!full) return;
+    let sid = nums.find(n => n.length === 5);
+    if (!sid && nums.length >= 3) { const [g, c, n] = nums.slice(-3); if (g.length === 1 && c.length <= 2 && n.length <= 2) sid = g + c.padStart(2, "0") + n.padStart(2, "0"); }
+    if (!sid || seen.has(sid)) return;
+    seen.add(sid); out.push({ sid, name: short2(full), full });
+  });
+  return out.sort((a, b) => a.sid.localeCompare(b.sid));
+}
+function attRows() {
+  const r = rosters.find(x => x.id === attBan) || {}, list = parseRoster(r.text), marks = (r.marks || {})[attDay] || {};
+  const first = {}; attends.filter(a => a.day === attDay).sort((a, b) => a.at - b.at).forEach(a => { if (!first[a.sid]) first[a.sid] = a; });
+  const has = arr => sid => arr.some(x => x.sid === sid), cnt = obj => sid => Object.values(obj).filter(x => x.sid === sid).length;
+  const plan = has(planPeople), app = has(Object.values(appWho)), rf = has(reflects), ck = cnt(checkWho), wl = cnt(wallWho);
+  return { r, list, marks, first, rows: list.map((p, i) => {
+    const a = first[p.sid], auto = a ? "출석" : "결석";
+    return { ...p, no: i + 1, a, st: marks[p.sid] || auto, manual: !!marks[p.sid], plan: plan(p.sid), app: app(p.sid), ck: ck(p.sid), wl: wl(p.sid), rf: rf(p.sid) };
+  }) };
+}
+function attHTML() {
+  const today = fmtDay(new Date()); if (!attDay) attDay = today;
+  const days = [...new Set([today, attDay, ...attends.map(a => a.day)])].sort().reverse();
+  const { r, list, first, rows } = attRows();
+  const n = k => rows.filter(x => x.st === k).length;
+  const inList = new Set(list.map(p => p.sid));
+  const extra = Object.values(first).filter(a => a.ban === attBan && !inList.has(a.sid));
+  const yn = v => v ? "✔" : "<span class=\"muted\">-</span>";
+  const editor = (rosterOpen || !list.length) ? `<div class="att-edit">
+      <p class="muted" style="margin:0 0 .375rem">엑셀에서 <b>학년 · 반 · 번호 · 이름</b> 4열을 드래그해 복사한 뒤 붙여 넣어요. 학번 5자리와 이름 두 글자(성 빼고)로 바뀌어요.</p>
+      <textarea id="rosterText" rows="8" placeholder="1&#9;1&#9;1&#9;홍길동&#10;1&#9;1&#9;2&#9;김철수">${esc(rosterDraft ?? r.text ?? "")}</textarea>
+      <p class="muted" id="rosterPrev" style="margin:.25rem 0">${rosterPreview(rosterDraft ?? r.text ?? "")}</p>
+      <button type="button" class="btn sm" data-roster-save>💾 ${attBan}반 명단 저장</button>
+      ${list.length ? `<button type="button" class="btn sm" data-roster-toggle>닫기</button>` : ""}
+    </div>` : "";
+  return `<div class="dash-top">
+      <span class="att-bans">${["A", "B"].map(b => `<button type="button" class="${attBan === b ? "on" : ""}" data-attban="${b}">${b}반</button>`).join("")}</span>
+      <label class="att-day">날짜 <select id="attDay">${days.map(d => `<option ${d === attDay ? "selected" : ""}>${d}</option>`).join("")}</select></label>
+      ${list.length ? `<button type="button" class="btn sm" data-roster-toggle>📝 명단 고치기 (${list.length}명)</button><button type="button" class="btn sm" data-csv="att">엑셀 저장</button>` : ""}
+    </div>
+    ${editor}
+    ${list.length ? `<div class="dash-top">${ATT_ST.map(k => `<span class="vis-badge att-${k}">${k} ${n(k)}</span>`).join("")}<span class="muted" style="font-size:.875rem">학생이 학번 · 이름을 알려 주면 자동으로 출석돼요. 단추를 누르면 바꿀 수 있어요.</span></div>
+    <div class="tbl"><table class="att-tbl">
+      <tr><th>번호</th><th>학번</th><th>이름</th><th>출결</th><th>접속 시각</th><th>계획서</th><th>웹앱</th><th>검증</th><th>담벼락</th><th>성찰</th></tr>
+      ${rows.map(x => `<tr class="${x.st === "결석" ? "att-off" : ""}"><td>${x.no}</td><td>${esc(x.sid)}</td><td>${esc(x.name)}<br><span class="muted">${esc(x.full)}</span></td>
+        <td><span class="att-st">${ATT_ST.map(k => `<button type="button" class="${x.st === k ? "on" : ""}" data-v="${k}" data-mark="${esc(x.sid)}">${k}</button>`).join("")}</span>${x.manual ? `<br><small class="muted">선생님이 바꿈 · <button type="button" class="link" data-mark="${esc(x.sid)}" data-v="">자동으로</button></small>` : ""}</td>
+        <td>${x.a ? fmtTime(x.a.at) + (x.a.name !== x.name ? `<br><small class="muted">입력: ${esc(x.a.name)}</small>` : "") + (x.a.ban !== attBan ? `<br><small class="muted">${esc(x.a.ban)}반으로 들어옴</small>` : "") : "-"}</td>
+        <td>${yn(x.plan)}</td><td>${yn(x.app)}</td><td>${x.ck || "-"}</td><td>${x.wl || "-"}</td><td>${yn(x.rf)}</td></tr>`).join("")}
+    </table></div>
+    ${extra.length ? `<h4>❓ 명단에 없는데 들어온 학생 ${extra.length}명</h4><p class="muted" style="margin:0 0 .375rem">학번을 잘못 썼거나 다른 반 학생일 수 있어요.</p><div class="miss">${extra.map(a => `<span>${esc(a.sid)} ${esc(a.name)} · ${fmtTime(a.at)}</span>`).join("")}</div>` : ""}` : ""}`;
+}
+function rosterPreview(text) {
+  const l = parseRoster(text);
+  return l.length ? `인식한 학생 <b>${l.length}명</b> · ${l.slice(0, 3).map(p => `${p.sid} ${esc(p.name)}`).join(", ")}${l.length > 3 ? " …" : ""}` : "아직 인식한 학생이 없어요.";
+}
+async function setMark(sid, v) {
+  const r = rosters.find(x => x.id === attBan) || {}, marks = JSON.parse(JSON.stringify(r.marks || {}));
+  const d = marks[attDay] = marks[attDay] || {};
+  if (v) d[sid] = v; else delete d[sid];
+  try { await saveRoster(attBan, { text: r.text, marks }); } catch (e) { console.error(e); toast("저장하지 못했어요. 관리자 로그인을 확인하세요"); }
+}
+
+let dashTab = "att";
 const bySid = (a, b) => String(a.sid || "").localeCompare(String(b.sid || ""));
 const rfThoughts = r => WALL_KINDS.filter(([k]) => r[k]).map(([k]) => `${kindName(k)} ${nl(r[k])}`).join("<br>") || "-";
 function renderDash() {
   const box = $("dashBox");
   if (!teacher || !$("dlgAdmin").open) return;
+  if (document.activeElement && document.activeElement.id === "rosterText") return;   // 명단을 쓰는 중에는 다시 그리지 않아요
   const top = box.scrollTop;
-  const TABS = [["visit", "📱 기기 접속 현황"], ["A", "🧪 A반 실습"], ["B", "🧪 B반 실습"]];
+  const TABS = [["att", "✅ 출석부"], ["A", "🧪 A반 실습"], ["B", "🧪 B반 실습"], ["visit", "📱 기기 접속 현황"]];
   const bar = `<div class="dash-tabs" role="tablist">${TABS.map(([k, n]) => `<button type="button" role="tab" class="${dashTab === k ? "on" : ""}" data-dtab="${k}">${n}</button>`).join("")}</div>`;
   if (dashTab === "visit") { box.innerHTML = bar + visitStatsHTML(); box.scrollTop = top; return; }
+  if (dashTab === "att") { box.innerHTML = bar + attHTML(); box.scrollTop = top; return; }
   const b = dashTab, as = appsOfBan(b), cs = checks.filter(c => c.ban === b).sort(byTime), rs = reflects.filter(r => r.ban === b).sort(bySid), ws = wall.filter(w => w.ban === b).sort(byTime);
   const done = new Set(Object.values(appWho).filter(w => w.ban === b).map(w => w.sid + w.name));
   const missing = planPeople.filter(x => x.ban === b && !done.has(x.sid + x.name)).sort(bySid);
@@ -2344,8 +2456,8 @@ function renderDash() {
     </table></div>` : `<div class="empty">아직 검증이 없어요.</div>`}
     <h4>📓 ${b}반 성찰 ${rs.length}개 <button type="button" class="btn sm" data-csv="rf">엑셀 저장</button><span class="muted" style="font-size:.875rem">생기부 작성 참고용</span></h4>
     ${rs.length ? `<div class="tbl"><table>
-      <tr><th>학번 · 이름</th><th>웹앱</th><th>✍️ 나의 성찰</th><th>담벼락에 쓴 생각</th><th>공감한 문장</th><th>시각</th></tr>
-      ${rs.map(r => `<tr><td>${esc(r.sid)} ${esc(r.name)}</td><td>${esc(r.appName || "-")}</td><td>${nl(r.final)}</td><td>${rfThoughts(r)}</td><td>${nl(r.picks)}</td><td>${fmtTime(r.updatedAt)}</td></tr>`).join("")}
+      <tr><th>학번 · 이름</th><th>웹앱</th><th>① 담벼락에 쓴 문장</th><th>② 공감한 문장</th><th>③ AI 초안</th><th>④ 다듬은 성찰</th><th>시각</th></tr>
+      ${rs.map(r => `<tr><td>${esc(r.sid)} ${esc(r.name)}</td><td>${esc(r.appName || "-")}</td><td>${rfThoughts(r)}</td><td>${nl(r.picks) || "-"}</td><td>${nl(r.aiDraft) || "-"}</td><td>${nl(r.final) || "-"}</td><td>${fmtTime(r.updatedAt)}</td></tr>`).join("")}
     </table></div>` : `<div class="empty">아직 저장한 성찰이 없어요.</div>`}
     <h4>🧱 ${b}반 문장 담벼락 ${ws.length}장 <button type="button" class="btn sm" data-csv="wall">엑셀 저장</button></h4>
     ${ws.length ? `<div class="tbl"><table>
@@ -2362,6 +2474,11 @@ function saveCSV(rows, fileName) {
 }
 function dashCSV(kind) {
   const b = dashTab, w = x => x || {};
+  if (kind === "att") {
+    const rows = [["반", "날짜", "번호", "학번", "이름", "전체 이름", "출결", "접속 시각", "계획서", "웹앱", "검증 쓴 수", "담벼락", "성찰"]];
+    attRows().rows.forEach(x => rows.push([attBan, attDay, x.no, x.sid, x.name, x.full, x.st, x.a ? fmtTime(x.a.at) : "", x.plan ? "O" : "", x.app ? "O" : "", x.ck, x.wl, x.rf ? "O" : ""]));
+    return saveCSV(rows, `실습_출석부_${attBan}반_${attDay}.csv`);
+  }
   if (kind === "apps") {
     const rows = [["반", "학번", "이름", "웹앱 이름", "주소", "한 줄 소개", "부탁할 점", "받은 검증", "쓴 검증", "올린 시각"]];
     appsOfBan(b).forEach(a => { const p = w(appWho[a.id]); rows.push([b, p.sid, p.name, a.appName, a.url, a.intro, a.ask, checks.filter(c => c.appId === a.id).length, checks.filter(c => c.fromApp === a.id).length, fmtTime(a.updatedAt)]); });
@@ -2373,8 +2490,8 @@ function dashCSV(kind) {
     saveCSV(rows, `실습_친구검증_${b}반.csv`);
   }
   if (kind === "rf") {
-    const rows = [["반", "학번", "이름", "웹앱 이름", "주소", "나의 성찰", "배운 점", "느낀 점", "알고 싶은 점", "공감한 문장", "저장 시각"]];
-    reflects.filter(r => r.ban === b).sort(bySid).forEach(r => rows.push([r.ban, r.sid, r.name, r.appName, r.url, r.final, r.learned, r.felt, r.wonder, r.picks, fmtTime(r.updatedAt)]));
+    const rows = [["반", "학번", "이름", "웹앱 이름", "주소", "① 배운 점", "① 느낀 점", "① 알고 싶은 점", "② 공감한 문장", "③ AI 초안", "④ 다듬은 성찰", "저장 시각"]];
+    reflects.filter(r => r.ban === b).sort(bySid).forEach(r => rows.push([r.ban, r.sid, r.name, r.appName, r.url, r.learned, r.felt, r.wonder, r.picks, r.aiDraft, r.final, fmtTime(r.updatedAt)]));
     saveCSV(rows, `실습_성찰_${b}반.csv`);
   }
   if (kind === "wall") {
@@ -2420,11 +2537,27 @@ $("loginForm").addEventListener("submit", async e => {
   btn.disabled = false;
 });
 $("dashBtn").addEventListener("click", () => { openDlg("dlgAdmin"); renderDash(); });
+$("dashBox").addEventListener("input", e => {
+  if (e.target.id === "rosterText") { rosterDraft = e.target.value; $("rosterPrev").innerHTML = rosterPreview(rosterDraft); }
+});
+$("dashBox").addEventListener("change", e => { if (e.target.id === "attDay") { attDay = e.target.value; renderDash(); } });
+$("dashBox").addEventListener("focusout", e => { if (e.target.id === "rosterText") setTimeout(renderDash, 200); });
 $("dashBox").addEventListener("click", async e => {
   const t = e.target;
   const dt = t.closest("[data-dtab]"); if (dt) { dashTab = dt.dataset.dtab; return renderDash(); }
   if (t.dataset.csv) return dashCSV(t.dataset.csv);
   if (t.closest("[data-visit-clear]")) return clearVisits();
+  const ab = t.closest("[data-attban]"); if (ab) { attBan = ab.dataset.attban; rosterDraft = null; rosterOpen = false; return renderDash(); }
+  if (t.closest("[data-roster-toggle]")) { rosterOpen = !rosterOpen; rosterDraft = null; return renderDash(); }
+  if (t.closest("[data-roster-save]")) {
+    const text = $("rosterText").value, l = parseRoster(text);
+    if (!l.length) { toast("학년 · 반 · 번호 · 이름을 붙여 넣어 주세요"); return; }
+    const r = rosters.find(x => x.id === attBan) || {};
+    try { await saveRoster(attBan, { text: l.map(p => `${p.sid}\t${p.full}`).join("\n"), marks: r.marks }); rosterDraft = null; rosterOpen = false; toast(`${attBan}반 명단 ${l.length}명을 저장했어요`); renderDash(); }
+    catch (err) { console.error(err); toast("저장하지 못했어요. 관리자 로그인을 확인하세요"); }
+    return;
+  }
+  const mk = t.closest("[data-mark]"); if (mk) return setMark(mk.dataset.mark, mk.dataset.v);
   try {
     if (t.dataset.delapp && confirm("이 웹앱을 삭제할까요? 받은 검증도 함께 지워져요.")) { await deleteApp(t.dataset.delapp); toast("삭제했어요"); }
     if (t.dataset.delcheck && confirm("이 검증을 삭제할까요?")) { await deleteCheck(t.dataset.delcheck); toast("삭제했어요"); }
@@ -2555,13 +2688,14 @@ stageEl.addEventListener("submit", async e => {
     btn.disabled = false; return;
   }
   if (f.id === "rfForm") {
-    const final = f.final.value.trim(); if (!final) { toast("성찰을 써 주세요"); f.final.focus(); return; }
+    const final = f.final.value.trim(), aiDraft = f.aiDraft.value.trim();
+    if (!final && !aiDraft) { toast("AI 초안이나 다듬은 성찰을 써 주세요"); f.aiDraft.focus(); return; }
     const a = myApp(), mineW = myWallOfBan(), pick = k => mineW.filter(w => w.kind === k).map(w => w.text).join(" / ");
     const d = { ban: m.ban, sid: m.sid, name: m.name, appName: a ? a.appName : (myPlan() || {}).appName || "", url: a ? a.url : "",
       learned: pick("learned"), felt: pick("felt"), wonder: pick("wonder"),
-      picks: getPicks().map(id => (wall.find(w => w.id === id) || {}).text).filter(Boolean).join(" / "), final };
+      picks: getPicks().map(id => (wall.find(w => w.id === id) || {}).text).filter(Boolean).join(" / "), aiDraft, final };
     btn.disabled = true;
-    try { const again = await saveReflect(d); $("rfSt").textContent = "☁️ 저장했어요 " + hhmm(); toast(again ? "고친 성찰을 저장했어요" : "성찰을 저장했어요. 수고했어요!"); }
+    try { const again = await saveReflect(d); $("rfSt").textContent = "☁️ 저장했어요 " + hhmm(); toast(!final ? "AI 초안을 저장했어요. 이제 내 목소리로 다듬어요" : again ? "고친 성찰을 저장했어요" : "성찰을 저장했어요. 수고했어요!"); }
     catch (err) { console.error(err); toast("저장하지 못했어요. 인터넷 연결을 확인하세요"); }
     btn.disabled = false;
   }
@@ -2612,6 +2746,7 @@ listen(COL_WALL, l => {
   renderDash();
 });
 logVisit();
+checkIn();
 
 // 방문 수 표시(visit.js)를 아래 띠 안으로 옮겨요
 new MutationObserver((_, ob) => {
