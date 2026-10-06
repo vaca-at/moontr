@@ -496,6 +496,20 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/vibelab_wall_who/$(id));
       allow delete: if isTeacher();
     }
+    // 자기 점검 · AI 점검 뒤 고친 점: 문서 이름 = 반·학번·이름의 해시(64자리). 쓰기만, 보기는 관리자만
+    match /vibelab_fix/{key} {
+      allow create, update: if key.size() == 64
+        && request.resource.data.keys().hasOnly(['ban','sid','name','appName','selfSum','selfResult','selfFix','aiFix','updatedAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && vibeStudent(request.resource.data)
+        && vibeText(request.resource.data, 'appName', 0, 100)
+        && vibeText(request.resource.data, 'selfSum', 0, 100)
+        && vibeText(request.resource.data, 'selfResult', 0, 4000)
+        && vibeText(request.resource.data, 'selfFix', 0, 1000)
+        && vibeText(request.resource.data, 'aiFix', 0, 1000)
+        && request.resource.data.updatedAt is int;
+      allow read, delete: if isTeacher();
+    }
     // 출석: 학번·이름을 알려 주면 그날 한 번 (문서 이름 = 날짜_해시). 관리자만 보기·지우기
     match /vibelab_attend/{id} {
       allow create: if request.resource.data.keys().hasOnly(['ban','sid','name','day','at'])
