@@ -337,6 +337,16 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .gh-drop small{color:#0969da}
 .gh-file{border:1px solid #d0d7de;background:#fff;border-radius:.375rem;padding:.125rem .5rem;box-shadow:0 3px 8px rgba(0,0,0,.12);transform:rotate(-3deg)}
 .gh-file.done{transform:none;box-shadow:none;background:#dafbe1;border-color:#4ac26b}
+.gh-split{display:flex;gap:.625rem;align-items:flex-start}
+.gh-tree{flex:none;width:8.5rem;border:1px solid #d0d7de;border-radius:.375rem;padding:.25rem;font-size:.75rem}
+.gh-th{font-weight:600;padding:.1875rem .375rem;border-bottom:1px solid #d0d7de;margin-bottom:.25rem}
+.gh-ti{padding:.1875rem .375rem;border-radius:.375rem;white-space:nowrap}
+.gh-ti.on{background:#eef1f4;font-weight:600}
+.gh-ti.sub{padding-left:1.25rem}
+.gh-main{flex:1;min-width:0}
+.gh-crumb{font-size:.875rem;margin-bottom:.5rem}
+.gh-crumb u{color:#0969da;text-decoration:none}
+.gh-bar .gh-crumb{margin:0}
 .gh-commit{border:1px solid #d0d7de;border-radius:.375rem;padding:.5rem .625rem}
 .gh-commit .gh-in{margin-top:.25rem}
 .gh-bar{position:relative;display:flex;align-items:center;gap:.375rem;margin-bottom:.5rem}
@@ -1399,35 +1409,38 @@ function renderPromptBox() {
 /* ----- 3번: 깃허브 화면 그림 (실제 화면을 단순하게 그린 것) ----- */
 const GH_STEPS = [
   ["오른쪽 위 ＋ → New repository", "깃허브에 로그인한 첫 화면이에요"],
-  ["이름 적고 Public → Create repository", "이름은 영어 소문자·숫자·- 만 써요 (예: my-quiz)"],
+  ["이름 적고 Public → Create repository", "이름은 영어 소문자·숫자·- 만 써요 (예: moontr)"],
   ["uploading an existing file 누르기", "빈 저장소 첫 화면 가운데의 파란 글씨예요"],
-  ["index.html 끌어다 놓기", "폴더째가 아니라 index.html 파일 하나만 놓아요"],
+  ["index.html 끌어다 놓기", "올릴 폴더(vibelab) 안에서 index.html을 놓아요"],
   ["Commit changes 누르기", "초록 단추를 누르면 저장소에 저장돼요"],
-  ["index.html이 보이면 성공!", "파일이 저장소 맨 위에 있어야 베셀이 찾아요"],
+  ["index.html이 보이면 성공!", "왼쪽 폴더 목록에서 vibelab 안에 index.html이 보여요"],
   ["고칠 때: Add file → Upload files", "같은 이름으로 올리면 새 파일로 바뀌어요"]
 ];
 let ghStep = 0;
 function ghScreen(i) {
   const hl = on => on ? " hl" : "";
-  const top = `<div class="gh-top"><img class="gh-logo" src="${ICON.github}" alt=""><span class="gh-path">${i >= 2 ? "myname / <b>my-quiz</b>" : "Dashboard"}</span><span class="gh-sp"></span><span class="gh-plus${hl(i === 0)}">＋ ▾</span><span class="gh-av"></span></div>`;
+  const top = `<div class="gh-top"><img class="gh-logo" src="${ICON.github}" alt=""><span class="gh-path">${i >= 2 ? "anstjsdud / <b>moontr</b>" : "Dashboard"}</span><span class="gh-sp"></span><span class="gh-plus${hl(i === 0)}">＋ ▾</span><span class="gh-av"></span></div>`;
   const lines = n => `<div class="gh-sk">${Array.from({ length: n }, (_, k) => `<i style="width:${90 - k * 13}%"></i>`).join("")}</div>`;
-  const files = (newFile, menu) => `<div class="gh-bar"><span class="gh-btn">main ▾</span><span class="gh-sp"></span><span class="gh-btn${hl(menu)}">Add file ▾</span><span class="gh-btn green">&lt;&gt; Code ▾</span>
-      ${menu ? `<div class="gh-menu right"><div>Create new file</div><div class="hl">Upload files</div></div>` : ""}</div>
-    <div class="gh-files"><div class="gh-fh"><span class="gh-av sm"></span><b>myname</b> Add files via upload</div><div class="gh-fr${hl(newFile)}">📄 index.html<span>now</span></div></div>`;
+  // 왼쪽 폴더 목록 (파일을 올린 뒤에는 index.html이 보여요)
+  const tree = (withFile, fileOn) => `<div class="gh-tree"><div class="gh-th">📂 Files</div><div class="gh-ti on">📁 vibelab</div>${withFile ? `<div class="gh-ti sub${hl(fileOn)}">📄 index.html</div>` : ""}</div>`;
+  const crumb = tail => `<div class="gh-crumb"><u>moontr</u> / <b>vibelab</b> /${tail || ""}</div>`;
+  const split = (side, main) => `<div class="gh-split">${side}<div class="gh-main">${main}</div></div>`;
   let body = "";
   if (i === 0) body = `<div class="gh-menu right top"><div class="hl">New repository</div><div>Import repository</div><div>New codespace</div><div>New gist</div></div>${lines(4)}`;
   if (i === 1) body = `<h5>Create a new repository</h5>
-    <div class="gh-row"><label>Owner<span class="gh-in">myname ▾</span></label><span class="gh-slash">/</span><label>Repository name *<span class="gh-in${hl(true)}">my-quiz</span></label></div>
+    <div class="gh-row"><label>Owner<span class="gh-in">anstjsdud ▾</span></label><span class="gh-slash">/</span><label>Repository name *<span class="gh-in${hl(true)}">moontr</span></label></div>
     <label>Description (optional)<span class="gh-in wide"></span></label>
     <div class="gh-radio${hl(true)}"><div>◉ <b>Public</b> <small>Anyone on the internet can see this repository</small></div><div>○ Private</div></div>
     <div class="gh-end"><span class="gh-btn green gh-lg${hl(true)}">Create repository</span></div>`;
   if (i === 2) body = `<div class="gh-quick"><b>Quick setup</b> — if you've done this kind of thing before
-    <div class="gh-in wide">https://github.com/myname/my-quiz.git</div>
+    <div class="gh-in wide">https://github.com/anstjsdud/moontr.git</div>
     <p>Get started by <u>creating a new file</u> or <u class="${hl(true).trim()}">uploading an existing file</u>. We recommend every repository include a README.</p></div>${lines(3)}`;
-  if (i === 3 || i === 4) body = `<div class="gh-drop${hl(i === 3)}">${i === 3 ? `<span class="gh-file">📄 index.html</span>` : `<span class="gh-file done">📄 index.html ✓</span>`}<b>Drag files here to add them to your repository</b><small>Or choose your files</small></div>
-    <div class="gh-commit"><b>Commit changes</b><span class="gh-in wide">Add files via upload</span><div class="gh-end"><span class="gh-btn green gh-lg${hl(i === 4)}">Commit changes</span></div></div>`;
-  if (i === 5) body = files(true, false);
-  if (i === 6) body = files(false, true);
+  if (i === 3 || i === 4) body = split(tree(false), `${crumb()}
+    <div class="gh-drop${hl(i === 3)}">${i === 3 ? `<span class="gh-file">📄 index.html</span>` : `<span class="gh-file done">📄 index.html ✓</span>`}<b>Drag files here to add them to your repository</b><small>Or choose your files</small></div>
+    <div class="gh-commit"><b>Commit changes</b><span class="gh-in wide">Add files via upload</span><div class="gh-end"><span class="gh-btn green gh-lg${hl(i === 4)}">Commit changes</span></div></div>`);
+  if (i === 5 || i === 6) body = split(tree(true, i === 5), `<div class="gh-bar">${crumb()}<span class="gh-sp"></span><span class="gh-btn${hl(i === 6)}">Add file ▾</span>
+      ${i === 6 ? `<div class="gh-menu right"><div>Create new file</div><div class="hl">Upload files</div></div>` : ""}</div>
+    <div class="gh-files"><div class="gh-fh"><span class="gh-av sm"></span><b>anstjsdud</b> Add files via upload</div><div class="gh-fr${hl(i === 5)}">📄 index.html<span>now</span></div></div>`);
   return `<div class="gh-win">${top}<div class="gh-body">${body}</div></div>`;
 }
 function renderGh() {
