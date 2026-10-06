@@ -56,6 +56,18 @@ svg{width:16px;height:16px;flex:none}
 .dot{flex:none;display:inline-block;width:8px;height:8px;border-radius:50%}
 .dot.fb{background:var(--fb)}.dot.pw{background:var(--pw)}.dot.gs{background:var(--gs)}.dot.gg{background:var(--gg)}
 .menu .note{margin:.3rem .7rem .2rem;font-size:.75rem;color:var(--muted)}
+.menu .mrow{display:flex;align-items:center;gap:2px}
+.menu .mrow > button{flex:1}
+/* 🏠 홈페이지 · 🔒 관리자 모드 바로가기 (새 창으로) */
+.go2{flex:none;display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;font-size:1rem;line-height:1;text-decoration:none}
+.go2:hover{background:var(--accent-soft)}
+.card-h .go2s{display:flex;gap:2px}
+.card-h .grp{margin-left:auto}
+.alinks{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.2rem .8rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.4rem .6rem;margin-bottom:1.4rem}
+.alink{display:flex;align-items:center;gap:.5rem;min-height:38px;padding:0 .4rem;border-radius:8px;font-size:.9rem}
+.alink:hover{background:var(--accent-soft)}
+.alink .nm{flex:1;min-width:0;border:0;background:none;padding:0;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alink .grp{color:var(--muted);font-size:.75rem}
 
 /* 본문: 고른 앱의 관리자 화면 */
 #frame{display:block;width:100%;height:calc(100dvh - var(--top-h, 110px));border:0;background:var(--surface)}
@@ -261,6 +273,7 @@ body.editing .del{display:inline-block}
     <div class="sum" id="homeSum"></div>
     <div class="rank" id="homeRank" hidden></div>
     <div class="cards" id="homeCards"></div>
+    <div class="nostat" id="homeLinks"></div>
     <div class="nostat" id="homeNo"></div>
   </section>
 
@@ -435,6 +448,8 @@ const ICONS = {
 const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[k] || ''}</svg>`;
 const CARET = '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 const ALL_APPS = ADMIN_GROUPS.flatMap(g => g.items);
+/* 🏠 = 그 웹앱 홈페이지, 🔒 = 그 웹앱 관리자 모드 (둘 다 새 창으로 바로) */
+const goLinks = a => `<span class="go2s"><a class="go2" href="${esc(a.student || a.admin)}" target="_blank" rel="noopener" title="${esc(a.name)} 홈페이지" aria-label="${esc(a.name)} 홈페이지">🏠</a><a class="go2" href="${esc(a.admin)}" target="_blank" rel="noopener" title="${esc(a.name)} 관리자 모드" aria-label="${esc(a.name)} 관리자 모드">🔒</a></span>`;
 const LOGIN_NOTE = {
   pw:'다른 주소(jinseon50th.com)라 이 창 안에서 처음 한 번은 같은 비밀번호를 입력합니다. 안 되면 [새 창으로]를 누르세요.',
   gs:'구글 앱스 스크립트 화면입니다. 구글 계정 확인이 필요하면 [새 창으로]를 누르세요.',
@@ -487,8 +502,8 @@ let menuFor = null;
 function openMenu(btn, gi){
   const g = ADMIN_GROUPS[gi], r = btn.getBoundingClientRect();
   const m = $('#menu');
-  m.innerHTML = g.items.map((a, i) => `<button type="button" role="menuitem" data-i="${i}" ${a === cur ? 'aria-current="true"' : ''}>
-      <span class="dot ${a.login}"></span>${esc(a.name)}</button>`).join('');
+  m.innerHTML = g.items.map((a, i) => `<div class="mrow"><button type="button" role="menuitem" data-i="${i}" ${a === cur ? 'aria-current="true"' : ''}>
+      <span class="dot ${a.login}"></span>${esc(a.name)}</button>${goLinks(a)}</div>`).join('');
   m.hidden = false;
   m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
   m.style.top = (r.bottom + 4) + 'px';
@@ -506,6 +521,7 @@ $('#tabs').addEventListener('click', e => {
   openMenu(b, gi);
 });
 $('#menu').addEventListener('click', e => {
+  if (e.target.closest('a')) return closeMenu();   // 🏠 · 🔒 는 새 창으로 열고 목록은 닫기
   const b = e.target.closest('button[data-i]'); if (!b) return;
   show(ADMIN_GROUPS[menuFor].items[+b.dataset.i]);
 });
@@ -638,9 +654,13 @@ async function renderHome(force){
       ? `<p class="msg">기록을 읽지 못했습니다 (${esc(d.error)})</p>`
       : `<div class="nums"><span><b>${d.today}</b><small>오늘 ${unit}</small></span><span class="tot"><b>${d.total.toLocaleString()}</b><small>누적</small></span></div>
          ${grass(d.days)}${d.devices ? `<p class="msg">기기 ${d.devices}대 · 잔디는 날짜별 들어온 기기 수</p>` : ''}`;
-    return `<button type="button" class="card" data-open="${esc(a.admin)}">
-      <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}<span class="grp">${esc(g.title)}</span></span>${body}</button>`;
+    return `<div class="card" role="button" tabindex="0" data-open="${esc(a.admin)}">
+      <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}<span class="grp">${esc(g.title)}</span>${goLinks(a)}</span>${body}</div>`;
   }).join('');
+  /* 방문 기록이 없는 관리자 화면 (심인당 · 실습편 · 교사용 화면 등): 이름 + 🏠 · 🔒 */
+  const noStat = apps.filter(({ a }) => !STATS[a.admin]);
+  $('#homeLinks').innerHTML = noStat.length ? `<h2 class="others-h">그 밖의 관리자 화면 <small>방문 기록은 없고 바로가기만 · 🏠 홈페이지 · 🔒 관리자 모드</small></h2>
+    <div class="alinks">${noStat.map(({ a, g }) => `<div class="alink"><span class="dot ${a.login}"></span><button type="button" class="nm" data-open="${esc(a.admin)}">${esc(a.name)}</button><span class="grp">${esc(g.title)}</span>${goLinks(a)}</div>`).join('')}</div>` : '';
   renderOthers();
 }
 
@@ -750,7 +770,15 @@ $('#homeRank').addEventListener('click', e => {
   show(ALL_APPS.find(a => a.admin === c.dataset.open));
 });
 $('#homeCards').addEventListener('click', e => {
+  if (e.target.closest('a')) return;   // 🏠 · 🔒 는 새 창으로 (카드는 열지 않음)
   const c = e.target.closest('[data-open]'); if (!c) return;
+  show(ALL_APPS.find(a => a.admin === c.dataset.open));
+});
+$('#homeCards').addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.card[data-open]')){ e.preventDefault(); show(ALL_APPS.find(a => a.admin === e.target.dataset.open)); }
+});
+$('#homeLinks').addEventListener('click', e => {
+  const c = e.target.closest('button[data-open]'); if (!c) return;
   show(ALL_APPS.find(a => a.admin === c.dataset.open));
 });
 $('#homeReload').addEventListener('click', () => renderHome(true));
