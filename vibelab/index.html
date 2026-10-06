@@ -276,6 +276,12 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .rec-chip.mine{border-color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff)}
 .rec-chip.mine .rc-l{background:var(--c);color:#fff}
 .rec-chip.grp{border-color:var(--mustard);background:color-mix(in srgb,var(--mustard) 12%,#fff)}
+.rec-demo{position:relative;opacity:.75;border:1.5px dashed var(--line);border-radius:1rem;padding:.625rem}
+.demo-tag{position:absolute;top:-.625rem;right:.625rem;background:var(--c);color:#fff;font-size:.6875rem;border-radius:999px;padding:0 .5rem}
+.demo-box{position:relative;border:1.5px dashed var(--line);border-radius:1rem;padding:.75rem;opacity:.8;pointer-events:none}
+.demo-box > .demo-tag{top:-.625rem}
+.pf-fake{border:1.5px solid var(--line);border-radius:.75rem;padding:.4375rem .625rem;background:var(--soft);color:var(--ink2);font-size:.875rem;min-height:2.75rem}
+.pf-fake-btn{align-self:flex-start}
 .rec-key{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;font-size:.75rem;margin:.5rem 0 0}
 .rc-dot{width:.75rem;height:.75rem;border-radius:50%;display:inline-block}
 .rc-dot.mine{background:var(--c)}.rc-dot.grp{background:var(--mustard)}
@@ -1851,7 +1857,9 @@ function renderChips() {
   const list = appsOfBan(), grp = myGroup().map(a => a.id);
   box.innerHTML = list.length ? `<div class="rec-chips">${list.map(a => `<a class="rec-chip ${a.id === myAppId ? "mine" : grp.includes(a.id) ? "grp" : ""}" href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener" title="${esc(a.intro || a.appName)}"><span class="rc-l">${appLabel(a.id)}</span>${esc(a.appName)}</a>`).join("")}</div>
     <p class="muted rec-key"><span class="rc-dot mine"></span>내 웹앱 <span class="rc-dot grp"></span>우리 조 · 누르면 새 창으로 열려요</p>`
-    : `<div class="empty">아직 올라온 웹앱이 없어요.</div>`;
+    : `<p class="muted rec-key" style="margin:0 0 .5rem">아직 올라온 웹앱이 없어요. 친구들이 주소를 올리면 <b>이렇게 칩으로</b> 모여요.</p>
+      <div class="rec-chips rec-demo" aria-hidden="true">${[["A","오늘의 영단어 퀴즈",""],["B","급식 투표",""],["C","오늘의 감정 일기",""],["D","독서 기록장",""],["E","수학 타이머","grp"],["F","분리수거 퀴즈","mine"],["G","시간표 알리미","grp"],["H","칭찬 스티커판","grp"]].map(([l, n, c]) => `<span class="rec-chip ${c}"><span class="rc-l">${l}</span>${n}</span>`).join("")}<span class="demo-tag">예시</span></div>
+      <p class="muted rec-key"><span class="rc-dot mine"></span>내 웹앱 <span class="rc-dot grp"></span>우리 조 · 누르면 새 창으로 열려요</p>`;
 }
 
 // 저장(이 기기): 자기 점검 · AI 점검
@@ -1971,15 +1979,39 @@ function peerCard(a, mineToo) {
     </form>
   </div>`;
 }
+// 친구 웹앱이 아직 없을 때 보여 주는 3차 친구 점검 예시 (눌러도 아무 일이 없어요)
+function peerDemo() {
+  const fb = (who, cls, d) => `<div class="cmt ${cls}"><div class="cmt-h"><b>${who}</b><span>방금</span></div>${CK_KINDS.filter(([k]) => d[k]).map(([k, n]) => `<div><span class="cmt-k">${n}</span> ${d[k]}</div>`).join("")}</div>`;
+  const peers = [
+    ["E", "수학 타이머", "1분 안에 계산 문제 풀기", { idea: "시간이 줄어드는 게 보일 것 같았어요", bug: "시작을 누르니 숫자가 1초씩 줄어요. 다 끝나도 소리는 안 나요", good: "숫자가 커서 보기 좋아요" }],
+    ["G", "시간표 알리미", "오늘 시간표를 한눈에"],
+    ["H", "칭찬 스티커판", "칭찬 스티커 모으기"]
+  ];
+  const card = ([l, n, intro, sent]) => `<div class="pf-card">
+    <div class="pf-top"><span class="g-lb">${l}</span><div><b>${n}</b><small>학생 ${l}</small></div>${sent ? '<span class="g-done">✔ 전달됨</span>' : ""}</div>
+    <div class="g-btns"><span class="chip">🔗 열어 보기</span><span class="chip">📒 기록 보기 ▾</span></div>
+    <p class="pf-h">01 내가 남기는 피드백</p>
+    ${sent ? `<div class="pick-list">${fb("🙋 나", "me", sent)}</div>` : ""}
+    ${CK_KINDS.map(([k, nm, ph]) => `<div class="pf-fake">${nm} · ${ph}</div>`).join("")}
+    <span class="btn sm pf-fake-btn">💬 ${sent ? "더 보내기" : "보내기"}</span>
+  </div>`;
+  return `<div class="demo-box" aria-hidden="true"><span class="demo-tag">예시</span>
+    <p class="pf-h">🙋 나는 <b>학생 F</b> · 2조 (4명)</p>
+    <div class="pf-grid">${peers.map(card).join("")}</div>
+    <p class="pf-h">02 내가 받은 피드백 1개</p>
+    <div class="pick-list">${fb("학생 G", "", { idea: "분리수거 방법이 그림으로 나올 것 같았어요", bug: "그림을 누르면 정답이 바로 보여요. 틀려도 점수가 올라가요", good: "그림이 귀여워서 하고 싶어져요" })}</div>
+  </div>
+  <p class="muted" style="margin:.5rem 0 0">친구들이 주소를 올리면 이 자리에 우리 조 카드가 생겨요.</p>`;
+}
 function peerPane() {
   const lead = `<p class="muted ck-lead">조는 웹앱을 올린 순서대로 4명씩 정해지고, <b>한 번 정해지면 바뀌지 않아요.</b> 마주 앉아 설명하지 않고, <b>링크만 열어</b> 직접 써 봐요.</p>`;
   const foot = `<p class="muted ck-foot">판단이 아니라 관찰을 건네요. 무엇을 고칠지는 만든 사람이 정해요.</p>`;
   if (teacher) {
     const gs = groupsOfBan();
-    return lead + (gs.length ? gs.map((g, i) => `<p class="pf-h">${i + 1}조 · ${g.length}명</p><div class="pf-grid">${g.map(a => peerCard(a)).join("")}</div>`).join("") : `<div class="empty">아직 올라온 웹앱이 없어요.</div>`) + foot;
+    return lead + (gs.length ? gs.map((g, i) => `<p class="pf-h">${i + 1}조 · ${g.length}명</p><div class="pf-grid">${g.map(a => peerCard(a)).join("")}</div>`).join("") : peerDemo()) + foot;
   }
-  if (!getMe()) { const g0 = groupsOfBan()[0] || []; return lead + (g0.length ? `<p class="pf-h">예시 · 1조 (${g0.length}명)</p><div class="pf-grid">${g0.map(a => peerCard(a)).join("")}</div>` : `<div class="empty">친구들이 웹앱 주소를 올리면 조가 정해지고, 여기에 조원 카드가 보여요.</div>`) + foot; }
-  if (!myAppId) return lead + `<p class="notice">왼쪽에서 내 웹앱 주소를 먼저 올리면 우리 조가 정해져요.</p>`;
+  if (!getMe()) { const g0 = groupsOfBan()[0] || []; return lead + (g0.length ? `<p class="pf-h">예시 · 1조 (${g0.length}명)</p><div class="pf-grid">${g0.map(a => peerCard(a)).join("")}</div>` : peerDemo()) + foot; }
+  if (!myAppId) return lead + `<p class="notice">왼쪽에서 내 웹앱 주소를 먼저 올리면 우리 조가 정해져요.</p>` + peerDemo() + foot;
   const g = myGroup(), others = g.filter(a => a.id !== myAppId), idx = groupsOfBan().findIndex(gr => gr.some(a => a.id === myAppId)) + 1;
   const got = checksOf(myAppId);
   return lead + `<p class="pf-h">🙋 나는 <b>학생 ${appLabel(myAppId)}</b> · ${idx}조 (${g.length}명)</p>
