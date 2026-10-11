@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>영상 보고 생각 쓰기</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#FFF6F1; --ink:#4E3B33; --main:#EE8F6A; --line:#F5DCCF; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:24px 16px 60px}
+  .wrap{width:100%;max-width:760px}
+  .std{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 14px;font-size:14px}
+  h1{font-size:clamp(26px,4.5vw,38px);margin:10px 0 14px}
+  .video{background:#fff;border:2px solid var(--line);border-radius:22px;padding:14px;margin-bottom:18px}
+  .video iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:14px;display:block}
+  .find{text-align:center;padding:20px 10px}
+  .find a{display:inline-block;margin-top:8px;background:#FF0000;color:#fff;text-decoration:none;border-radius:999px;padding:10px 22px;font-size:18px}
+  .find small{display:block;margin-top:10px;opacity:.6}
+  .card{background:#fff;border:2px solid var(--line);border-radius:22px;padding:20px}
+  label{display:block;font-size:20px;margin:14px 0 4px}
+  label:first-child{margin-top:0}
+  .hint{font-size:14px;opacity:.65;margin:0 0 6px}
+  textarea{width:100%;font:inherit;font-size:17px;border:2px solid var(--line);border-radius:14px;padding:10px 12px;min-height:84px;resize:vertical}
+  textarea:focus{outline:none;border-color:var(--main)}
+  .send{display:block;width:100%;margin-top:18px;font:inherit;font-size:21px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:13px;cursor:pointer}
+  .err{color:#D9534F;text-align:center;min-height:22px;margin:8px 0 0}
+  h2{font-size:22px;margin:28px 0 10px}
+  .mine{background:#fff;border-left:6px solid var(--main);border-radius:14px;padding:12px 16px;margin:10px 0;line-height:1.6}
+  .mine small{opacity:.55}
+  .mine button{font:inherit;font-size:14px;border:2px solid var(--line);background:#fff;border-radius:999px;padding:2px 12px;cursor:pointer;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="std" id="std"></span>
+  <h1 id="title">🎬 영상 보고 생각 쓰기</h1>
+
+  <div class="video" id="video"></div>
+
+  <div class="card">
+    <label for="learn">💡 알게 된 점</label>
+    <p class="hint">영상에서 새로 알게 된 사실이나 생각을 써요.</p>
+    <textarea id="learn" maxlength="300"></textarea>
+    <label for="feel">💗 느낀 점</label>
+    <p class="hint">영상 속 장면 하나를 떠올리며, 그때 든 마음을 써요.</p>
+    <textarea id="feel" maxlength="300"></textarea>
+    <label for="ask">❓ 더 궁금한 점</label>
+    <p class="hint">친구들과 이야기 나누고 싶은 질문을 하나 써요. (없으면 비워도 돼요)</p>
+    <textarea id="ask" maxlength="200"></textarea>
+    <button class="send" id="send">제출하기</button>
+    <p class="err" id="err"></p>
+  </div>
+
+  <h2>📒 내가 쓴 생각</h2>
+  <div id="list"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 영상 주소는 VIDEO_URL에 넣어요 (유튜브 주소 그대로) ===== */
+  const VIDEO_URL = "";
+  const DATA = /*DATA*/{"code":"9도01-03","t":"행복한 삶","text":"행복에 관한 심리적, 사회적, 윤리적 접근 등을 통해 행복의 의미를 종합적으로 파악하고, 삶의 목적과 행복의 관계를 정립할 수 있다.","video":"행복이란 무엇인가 청소년"}/*END*/;
+
+  const $ = id => document.getElementById(id);
+  const KEY = "video." + DATA.code;
+  const safe = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  document.title = "영상 보고 생각 쓰기 · " + DATA.t;
+  $("std").textContent = `🎬 [${DATA.code}] ${DATA.t}`;
+  $("std").title = DATA.text;
+  $("title").textContent = `🎬 '${DATA.t}' 영상 보고 생각 쓰기`;
+
+  // 유튜브 주소에서 영상 번호만 뽑아요
+  function ytId(u) {
+    const m = String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);
+    return m ? m[1] : "";
+  }
+  const id = ytId(VIDEO_URL);
+  $("video").innerHTML = id
+    ? `<iframe src="https://www.youtube.com/embed/${id}" title="수업 영상" allowfullscreen></iframe>`
+    : `<div class="find">아직 영상이 정해지지 않았어요.<br>
+        <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(DATA.video)}" target="_blank" rel="noopener">▶ '${safe(DATA.video)}' 영상 찾기</a>
+        <small>선생님: 고른 영상 주소를 코드의 VIDEO_URL에 넣으면 여기에 바로 나와요.</small></div>`;
+
+  const load = () => JSON.parse(localStorage.getItem(KEY) || "[]");
+  function render() {
+    const list = load();
+    $("list").innerHTML = list.length ? list.slice().reverse().map((x, i) => `
+      <div class="mine"><small>${new Date(x.at).toLocaleString("ko-KR")}</small><br>
+        💡 ${safe(x.learn)}<br>💗 ${safe(x.feel)}${x.ask ? `<br>❓ ${safe(x.ask)}` : ""}<br>
+        <button data-copy="${list.length - 1 - i}">📋 복사</button></div>`).join("")
+      : `<p style="opacity:.6">아직 쓴 생각이 없어요.</p>`;
+  }
+  $("send").onclick = () => {
+    const learn = $("learn").value.trim(), feel = $("feel").value.trim();
+    if (!learn || !feel) return $("err").textContent = "알게 된 점과 느낀 점을 모두 써 주세요.";
+    $("err").textContent = "";
+    const list = load();
+    list.push({ learn, feel, ask: $("ask").value.trim(), at: Date.now() });
+    localStorage.setItem(KEY, JSON.stringify(list));
+    ["learn", "feel", "ask"].forEach(k => $(k).value = "");
+    render();
+    $("list").scrollIntoView({ behavior: "smooth" });
+  };
+  $("list").onclick = async e => {
+    const b = e.target.closest("[data-copy]"); if (!b) return;
+    const x = load()[b.dataset.copy];
+    try { await navigator.clipboard.writeText(`[${DATA.code}] ${DATA.t}\n알게 된 점: ${x.learn}\n느낀 점: ${x.feel}\n궁금한 점: ${x.ask || "-"}`); b.textContent = "✓ 복사됨"; }
+    catch (err) { alert("복사하지 못했어요."); }
+  };
+  render();
+</script>
+</body>
+</html>

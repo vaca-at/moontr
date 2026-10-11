@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개념 짝 맞추기</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#F6F3FC; --ink:#3F3752; --main:#9A83D6; --ok:#5DB98A; --line:#E3DCF3; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:22px 16px 50px}
+  .wrap{width:100%;max-width:880px;text-align:center}
+  .std{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 14px;font-size:14px}
+  h1{font-size:clamp(26px,4.5vw,40px);margin:10px 0 4px}
+  .sub{opacity:.7;margin:0 0 14px}
+  .stats{display:flex;gap:10px;justify-content:center;margin-bottom:16px}
+  .stats span{background:#fff;border:2px solid var(--line);border-radius:999px;padding:4px 16px;font-size:18px}
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .cell{perspective:800px;aspect-ratio:4/3;cursor:pointer}
+  .in{position:relative;width:100%;height:100%;transition:transform .45s;transform-style:preserve-3d}
+  .cell.open .in,.cell.done .in{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;display:grid;place-items:center;padding:8px;word-break:keep-all;line-height:1.35}
+  .back{background:var(--main);color:#fff;font-size:40px;box-shadow:0 6px 14px rgba(154,131,214,.35)}
+  .front{background:#fff;border:3px solid var(--line);transform:rotateY(180deg);font-size:clamp(13px,1.9vw,17px)}
+  .front.term{font-size:clamp(17px,2.6vw,26px);font-weight:700;color:var(--main)}
+  .cell.done .front{border-color:var(--ok);background:#EAF7F0;animation:shine .6s}
+  @keyframes shine{50%{box-shadow:0 0 0 8px rgba(93,185,138,.35)}}
+  .result{display:none;background:#fff;border:3px solid var(--main);border-radius:24px;padding:20px;margin-top:20px}
+  .result.show{display:block}
+  .stars{font-size:52px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;text-align:left}
+  td{border-bottom:1px solid var(--line);padding:8px}
+  td:first-child{font-weight:700;color:var(--main);width:32%}
+  button.again{font:inherit;font-size:20px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:12px 36px;cursor:pointer;margin-top:14px}
+  @media (max-width:560px){ .board{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="std" id="std"></span>
+  <h1 id="title">🎮 개념 짝 맞추기</h1>
+  <p class="sub">카드 두 장을 뒤집어 <b>개념</b>과 <b>뜻</b>을 짝지어요!</p>
+  <div class="stats"><span>⏱ <b id="time">0</b>초</span><span>🔄 <b id="moves">0</b>번</span><span>✅ <b id="got">0</b> / <b id="all">0</b></span></div>
+  <div class="board" id="board"></div>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 개념과 뜻은 pairs 에서 바꿔요 ([개념, 뜻]) ===== */
+  const DATA = /*DATA*/{"code":"9도01-03","t":"행복한 삶","text":"행복에 관한 심리적, 사회적, 윤리적 접근 등을 통해 행복의 의미를 종합적으로 파악하고, 삶의 목적과 행복의 관계를 정립할 수 있다.","pairs":[["행복","삶에서 만족과 기쁨을 느끼는 상태"],["쾌락","감각적인 즐거움이나 고통이 없는 상태"],["삶의 목적","삶에서 이루고자 하는 궁극적인 방향"],["덕","옳은 일을 꾸준히 실천하여 몸에 밴 좋은 품성"]]}/*END*/;
+
+  const $ = id => document.getElementById(id);
+  const safe = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  document.title = "개념 짝 맞추기 · " + DATA.t;
+  $("std").textContent = `🎮 [${DATA.code}] ${DATA.t}`;
+  $("std").title = DATA.text;
+  $("title").textContent = `🎮 '${DATA.t}' 개념 짝 맞추기`;
+
+  let open = [], got = 0, moves = 0, sec = 0, timer = null, lock = false;
+
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  function start() {
+    clearInterval(timer); timer = null;
+    open = []; got = 0; moves = 0; sec = 0; lock = false;
+    $("time").textContent = 0; $("moves").textContent = 0; $("got").textContent = 0; $("all").textContent = DATA.pairs.length;
+    $("result").className = "result";
+    const cards = shuffle(DATA.pairs.flatMap((p, i) => [{ i, kind: "term", txt: p[0] }, { i, kind: "mean", txt: p[1] }]));
+    $("board").innerHTML = cards.map(c => `<div class="cell" data-i="${c.i}" tabindex="0" role="button" aria-label="카드 뒤집기">
+      <div class="in"><div class="face back">?</div><div class="face front ${c.kind}">${safe(c.txt)}</div></div></div>`).join("");
+  }
+
+  function flip(cell) {
+    if (lock || cell.classList.contains("open") || cell.classList.contains("done")) return;
+    if (!timer) timer = setInterval(() => $("time").textContent = ++sec, 1000);
+    cell.classList.add("open"); open.push(cell);
+    if (open.length < 2) return;
+    moves++; $("moves").textContent = moves;
+    const [a, b] = open;
+    if (a.dataset.i === b.dataset.i) {
+      a.classList.replace("open", "done"); b.classList.replace("open", "done"); open = [];
+      got++; $("got").textContent = got;
+      if (got === DATA.pairs.length) finish();
+    } else {
+      lock = true;
+      setTimeout(() => { a.classList.remove("open"); b.classList.remove("open"); open = []; lock = false; }, 1000);
+    }
+  }
+
+  function finish() {
+    clearInterval(timer);
+    const n = DATA.pairs.length, stars = moves <= n + 1 ? 3 : moves <= n * 2 ? 2 : 1;
+    $("result").innerHTML = `<div class="stars">${"⭐".repeat(stars)}${"☆".repeat(3 - stars)}</div>
+      <p style="font-size:20px;margin:4px 0">${sec}초, ${moves}번 만에 모두 맞췄어요!</p>
+      <table>${DATA.pairs.map(p => `<tr><td>${safe(p[0])}</td><td>${safe(p[1])}</td></tr>`).join("")}</table>
+      <button class="again" id="again">다시 하기</button>`;
+    $("result").className = "result show";
+    $("again").onclick = start;
+    $("result").scrollIntoView({ behavior: "smooth" });
+  }
+
+  $("board").onclick = e => { const c = e.target.closest(".cell"); if (c) flip(c); };
+  $("board").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { const c = e.target.closest(".cell"); if (c) { e.preventDefault(); flip(c); } } };
+  start();
+</script>
+</body>
+</html>

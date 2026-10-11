@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관련 기사 찾기</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#FFF9EE; --ink:#4D4231; --main:#D9A548; --line:#F1E2C2; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:24px 16px 60px}
+  .wrap{width:100%;max-width:780px}
+  .std{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 14px;font-size:14px}
+  h1{font-size:clamp(26px,4.5vw,38px);margin:10px 0 6px}
+  .stdtext{font-size:15px;opacity:.75;margin:0 0 16px;line-height:1.6}
+  .search{background:#fff;border:2px solid var(--line);border-radius:20px;padding:14px 18px;margin-bottom:16px}
+  .search b{font-size:18px}
+  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .links a{text-decoration:none;color:#fff;border-radius:999px;padding:8px 18px;font-size:16px}
+  .card{background:#fff;border:2px solid var(--line);border-radius:22px;padding:20px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  label{display:block;font-size:17px;margin:12px 0 4px}
+  input,textarea{width:100%;font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:9px 12px}
+  textarea{min-height:76px;resize:vertical}
+  input:focus,textarea:focus{outline:none;border-color:var(--main)}
+  .checks{display:grid;gap:6px;margin-top:6px}
+  .checks label{display:flex;gap:8px;align-items:center;margin:0;font-size:16px;background:#FFFBF2;border:2px solid var(--line);border-radius:12px;padding:6px 10px;cursor:pointer}
+  .checks input{width:18px;height:18px}
+  .send{display:block;width:100%;margin-top:18px;font:inherit;font-size:21px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:13px;cursor:pointer}
+  .err{color:#D9534F;text-align:center;min-height:22px;margin:8px 0 0}
+  .result{margin-top:20px}
+  .news{background:#fff;border:3px solid var(--main);border-radius:22px;padding:20px 22px}
+  .news h2{margin:0 0 4px;font-size:22px}
+  .news .meta{opacity:.65;font-size:14px;margin-bottom:10px;word-break:break-all}
+  .news h3{font-size:17px;margin:12px 0 2px;color:var(--main)}
+  .news p{margin:0;line-height:1.6;white-space:pre-wrap}
+  .acts{display:flex;gap:10px;margin-top:14px}
+  .acts button{flex:1;font:inherit;font-size:17px;border:2px solid var(--main);background:#fff;color:var(--main);border-radius:999px;padding:9px;cursor:pointer}
+  @media (max-width:560px){ .row{grid-template-columns:1fr} }
+  @media print{ body{background:#fff} .search,.card,.acts,h1,.stdtext,.std{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="std" id="std"></span>
+  <h1 id="title">📰 관련 기사 찾기</h1>
+  <p class="stdtext" id="stdtext"></p>
+
+  <div class="search">
+    <b>🔎 추천 검색어: <span id="kw"></span></b>
+    <div class="links" id="links"></div>
+  </div>
+
+  <div class="card">
+    <label for="title2">기사 제목</label><input id="title2" maxlength="120">
+    <div class="row">
+      <div><label for="press">언론사</label><input id="press" maxlength="30"></div>
+      <div><label for="date">날짜</label><input id="date" type="date"></div>
+    </div>
+    <label for="url">기사 주소</label><input id="url" placeholder="https://">
+    <label for="sum">📌 핵심 내용 세 줄</label><textarea id="sum" maxlength="400" placeholder="1.&#10;2.&#10;3."></textarea>
+    <label for="link">🔗 성취기준과 어떻게 이어지나요?</label><textarea id="link" maxlength="300"></textarea>
+    <label for="mine">💭 내 생각</label><textarea id="mine" maxlength="300"></textarea>
+    <label>✅ 믿을 만한 기사인가요?</label>
+    <div class="checks">
+      <label><input type="checkbox" class="ck"> 언론사와 기자 이름이 분명해요</label>
+      <label><input type="checkbox" class="ck"> 날짜가 있고 너무 오래되지 않았어요</label>
+      <label><input type="checkbox" class="ck"> 통계 · 전문가 말 같은 근거가 있어요</label>
+      <label><input type="checkbox" class="ck"> 광고나 홍보 글이 아니에요</label>
+    </div>
+    <button class="send" id="send">기사 정리 카드 만들기</button>
+    <p class="err" id="err"></p>
+  </div>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 성취기준과 검색어는 여기서 바꿔요 ===== */
+  const DATA = /*DATA*/{"code":"9도01-03","t":"행복한 삶","text":"행복에 관한 심리적, 사회적, 윤리적 접근 등을 통해 행복의 의미를 종합적으로 파악하고, 삶의 목적과 행복의 관계를 정립할 수 있다.","news":"청소년 행복지수"}/*END*/;
+
+  const $ = id => document.getElementById(id);
+  const safe = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const KEY = "news." + DATA.code;
+  document.title = "관련 기사 찾기 · " + DATA.t;
+  $("std").textContent = `📰 [${DATA.code}] ${DATA.t}`;
+  $("title").textContent = `📰 '${DATA.t}' 관련 기사 찾기`;
+  $("stdtext").textContent = `성취기준: ${DATA.text}`;
+  $("kw").textContent = DATA.news;
+  const q = encodeURIComponent(DATA.news);
+  $("links").innerHTML = `
+    <a style="background:#03C75A" href="https://search.naver.com/search.naver?where=news&query=${q}" target="_blank" rel="noopener">네이버 뉴스</a>
+    <a style="background:#1E5AA8" href="https://www.bigkinds.or.kr/" target="_blank" rel="noopener">빅카인즈</a>
+    <a style="background:#4285F4" href="https://news.google.com/search?q=${q}&hl=ko&gl=KR&ceid=KR:ko" target="_blank" rel="noopener">구글 뉴스</a>`;
+
+  // 쓰던 내용은 이 기기에 저절로 남아요
+  const F = ["title2", "press", "date", "url", "sum", "link", "mine"];
+  const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+  F.forEach(k => { if (saved[k]) $(k).value = saved[k]; $(k).addEventListener("input", keep); });
+  function keep() { const o = {}; F.forEach(k => o[k] = $(k).value); localStorage.setItem(KEY, JSON.stringify(o)); }
+
+  function text() {
+    const v = k => $(k).value.trim();
+    return `[${DATA.code}] ${DATA.t} 관련 기사\n제목: ${v("title2")}\n언론사: ${v("press")} (${v("date")})\n주소: ${v("url")}\n\n핵심 내용\n${v("sum")}\n\n성취기준과의 관련\n${v("link")}\n\n내 생각\n${v("mine")}`;
+  }
+  $("send").onclick = () => {
+    const v = k => $(k).value.trim();
+    if (!v("title2") || !v("sum") || !v("mine")) return $("err").textContent = "기사 제목, 핵심 내용, 내 생각은 꼭 써 주세요.";
+    $("err").textContent = "";
+    const ok = [...document.querySelectorAll(".ck")].filter(c => c.checked).length;
+    const url = /^https?:\/\//.test(v("url")) ? v("url") : "";
+    $("result").innerHTML = `<div class="news">
+      <h2>${safe(v("title2"))}</h2>
+      <div class="meta">${safe(v("press") || "언론사 미상")} · ${safe(v("date") || "날짜 미상")}${url ? ` · <a href="${safe(url)}" target="_blank" rel="noopener">${safe(url)}</a>` : ""}</div>
+      <div>믿을 만한 정도: ${"🟩".repeat(ok)}${"⬜".repeat(4 - ok)} (${ok}/4)</div>
+      <h3>📌 핵심 내용</h3><p>${safe(v("sum"))}</p>
+      <h3>🔗 [${safe(DATA.code)}] ${safe(DATA.t)}와의 관련</h3><p>${safe(v("link") || "-")}</p>
+      <h3>💭 내 생각</h3><p>${safe(v("mine"))}</p>
+      <div class="acts"><button id="copy">📋 복사</button><button onclick="print()">🖨 인쇄</button></div></div>`;
+    $("copy").onclick = async () => { try { await navigator.clipboard.writeText(text()); $("copy").textContent = "✓ 복사됨"; } catch (e) { alert("복사하지 못했어요."); } };
+    $("result").scrollIntoView({ behavior: "smooth" });
+  };
+</script>
+</body>
+</html>
