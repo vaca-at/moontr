@@ -66,6 +66,8 @@
 <script>
   /* ===== ✏️ 영상 주소는 VIDEO_URL에 넣어요 (유튜브 주소 그대로) ===== */
   const VIDEO_URL = "";
+  // ✏️ 영상을 몇 분 몇 초부터 보여 줄지 (예: "3:20"). 처음부터면 "0:00"
+  const VIDEO_START = "3:20";
   const DATA = /*DATA*/{"code":"9도01-03","t":"행복한 삶","text":"행복에 관한 심리적, 사회적, 윤리적 접근 등을 통해 행복의 의미를 종합적으로 파악하고, 삶의 목적과 행복의 관계를 정립할 수 있다.","video":"행복이란 무엇인가 청소년"}/*END*/;
 
   const $ = id => document.getElementById(id);
@@ -81,12 +83,19 @@
     const m = String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);
     return m ? m[1] : "";
   }
-  const id = ytId(VIDEO_URL);
+  // "3:20" → 200초 (주소에 t=200 이 붙어 있으면 그것도 알아들어요)
+  function startSec() {
+    const t = String(VIDEO_URL).match(/[?&](?:t|start)=(\d+)/);
+    if (t) return +t[1];
+    return String(VIDEO_START).split(":").reduce((s, n) => s * 60 + (+n || 0), 0);
+  }
+  const id = ytId(VIDEO_URL), start = startSec();
   $("video").innerHTML = id
-    ? `<iframe src="https://www.youtube.com/embed/${id}" title="수업 영상" allowfullscreen></iframe>`
+    ? `<iframe src="https://www.youtube.com/embed/${id}?start=${start}" title="수업 영상" allowfullscreen></iframe>
+       ${start ? `<p style="margin:8px 4px 0;font-size:14px;opacity:.65">▶ ${Math.floor(start / 60)}분 ${start % 60}초부터 시작해요</p>` : ""}`
     : `<div class="find">아직 영상이 정해지지 않았어요.<br>
         <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(DATA.video)}" target="_blank" rel="noopener">▶ '${safe(DATA.video)}' 영상 찾기</a>
-        <small>선생님: 고른 영상 주소를 코드의 VIDEO_URL에 넣으면 여기에 바로 나와요.</small></div>`;
+        <small>선생님: 고른 영상 주소를 코드의 VIDEO_URL에, 시작 시간을 VIDEO_START에 넣으면 여기에 바로 나와요.</small></div>`;
 
   const load = () => JSON.parse(localStorage.getItem(KEY) || "[]");
   function render() {
