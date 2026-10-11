@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>마음 온도 밸런스 게임</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#FFF5F0; --ink:#4A3B36; --main:#F08A5D; --warm:#F26B4E; --cold:#5DA9E9; --line:#F6DCCF; }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  /* 예쁜 스크롤 막대 */
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-button{display:none;width:0;height:0}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--main) 45%,#fff);border:3px solid transparent;border-radius:99px;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--main) 75%,#fff)}
+  @supports not selector(::-webkit-scrollbar){ *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--main) 45%,#fff) transparent} }
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:24px 16px 60px}
+  .wrap{width:100%;max-width:820px}
+  .std{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 14px;font-size:14px}
+  h1{font-size:clamp(26px,4.5vw,40px);margin:10px 0 2px}
+  .sub{margin:0 0 16px;opacity:.7}
+
+  /* 🌡️ 마음 온도계 */
+  .thermo{display:flex;align-items:center;gap:14px;background:#fff;border:2px solid var(--line);border-radius:22px;padding:14px 18px;margin-bottom:16px}
+  .temp{font-size:clamp(30px,6vw,46px);min-width:4.2em;text-align:center;color:var(--warm);transition:color .4s}
+  .temp.cool{color:var(--cold)}
+  .tube{position:relative;flex:1;height:26px;background:#EEF4FA;border-radius:999px;overflow:visible}
+  .mercury{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#7CC4F5,#F9B36B 60%,#F26B4E);transition:width .7s cubic-bezier(.3,1.4,.5,1)}
+  .goal{position:absolute;top:-8px;bottom:-8px;width:3px;background:var(--ink);border-radius:3px}
+  .goal span{position:absolute;top:-24px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:13px;background:var(--ink);color:#fff;border-radius:999px;padding:1px 8px}
+  .bump{position:absolute;right:-6px;top:-34px;font-size:18px;font-weight:700;opacity:0}
+  .bump.show{animation:bump 1.2s ease-out}
+  @keyframes bump{0%{opacity:0;transform:translateY(8px)}20%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
+
+  /* 상황 카드 + VS */
+  .card{background:#fff;border:2px solid var(--line);border-radius:24px;padding:22px}
+  .num{color:var(--main);font-size:15px}
+  .sit{font-size:clamp(21px,3.4vw,28px);line-height:1.45;margin:6px 0 18px}
+  .vs{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:stretch}
+  .pick{font:inherit;font-size:clamp(17px,2.4vw,21px);line-height:1.45;text-align:center;background:#FFFAF6;border:3px solid var(--line);border-radius:20px;padding:22px 14px;cursor:pointer;transition:.15s;word-break:keep-all}
+  .pick:hover:not(:disabled){border-color:var(--main);transform:translateY(-2px);box-shadow:0 6px 16px rgba(240,138,93,.18)}
+  .pick:disabled{cursor:default;color:var(--ink)}
+  .pick.warm{border-color:var(--warm);background:#FFEDE7}
+  .pick.cold{border-color:var(--cold);background:#EAF4FD}
+  .pick.dim{opacity:.55}
+  .pick .tag{display:block;font-size:14px;margin-top:8px}
+  .vsmark{align-self:center;width:52px;height:52px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:18px;font-weight:700}
+  .fb{margin-top:16px;padding:14px 18px;border-radius:16px;font-size:18px;line-height:1.5}
+  .fb.up{background:#FFEDE7}
+  .fb.down{background:#EAF4FD}
+  .next{display:block;margin:16px auto 0;font:inherit;font-size:20px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:12px 40px;cursor:pointer}
+
+  /* 끝 화면 */
+  .end{text-align:center}
+  .big{font-size:72px;margin:6px 0;color:var(--warm)}
+  .big.cool{color:var(--cold)}
+  .review{text-align:left;margin-top:14px}
+  .review div{background:#FFFAF6;border-radius:14px;padding:10px 14px;margin:8px 0;line-height:1.5}
+  .review b{font-weight:400;font-size:14px;border-radius:999px;padding:1px 8px;color:#fff;margin-right:4px}
+  .review .w b{background:var(--warm)} .review .c b{background:var(--cold)}
+  @media (max-width:600px){ .vs{grid-template-columns:1fr} .vsmark{justify-self:center;width:44px;height:44px;margin:-4px 0} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="std" id="std"></span>
+  <h1 id="title">🌡️ 마음 온도 밸런스 게임</h1>
+  <p class="sub">둘 중에 더 따뜻한 말을 골라 마음 온도를 <b>36.5℃</b>까지 올려 봐요!</p>
+
+  <div class="thermo">
+    <div class="temp" id="temp">31.7℃</div>
+    <div class="tube"><div class="mercury" id="mercury"></div><div class="goal" id="goal"><span>목표 36.5℃</span></div><span class="bump" id="bump"></span></div>
+  </div>
+
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 상황 카드는 bal 에서 바꿔요 =====
+     [상황, 따뜻한 말, 차가운 말, 왜 더 따뜻한 말인지 한 줄] */
+  const DATA = /*DATA*/{"code":"9도02-02","t":"우정","text":"친구의 의미와 가치를 삶의 맥락 속에서 탐구하고, 서로를 인격적으로 존중하는 친구 관 계를 상상하며 이를 실현하는 의지를 기른다.","bal":[["친구가 시험을 망쳐서 울고 있어요","많이 속상하겠다. 옆에 있어 줄게","괜찮아, 다음에 잘 보면 되지","해결책보다 먼저 감정을 알아주는 말이 더 큰 위로가 돼요."],["친구가 새 머리 모양이 어색하다고 걱정해요","잘 어울려! 너만의 느낌이 있어","음… 좀 지나면 괜찮아질 거야","친구의 걱정을 덜어 주는 말이 우정을 키워요."],["친구가 내 비밀을 다른 친구에게 말한 걸 알았어요","그 이야기는 나한테 소중했어. 왜 그랬는지 듣고 싶어","너랑 이제 말 안 해","관계를 끊기 전에 마음을 전하고 이유를 들어 보면 믿음을 되찾을 수 있어요."],["친구가 발표를 열심히 준비했는데 실수했어요","준비 많이 한 거 다 봤어. 멋있었어","아까 그 부분 틀렸더라","결과보다 노력을 알아봐 주는 말이 친구에게 힘이 돼요."]]}/*END*/;
+  // ✏️ 온도 정하기: 시작 온도, 따뜻한 말이면 오르는 만큼, 차가운 말이면 내려가는 만큼, 목표 온도
+  const START = 31.7, UP = 1.2, DOWN = 0.8, GOAL = 36.5;
+  const MIN = 29, MAX = 38;   // 온도계 눈금 끝
+
+  const $ = id => document.getElementById(id);
+  const safe = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  document.title = "마음 온도 밸런스 게임 · " + DATA.t;
+  $("std").textContent = `🌡️ [${DATA.code}] ${DATA.t}`;
+  $("std").title = DATA.text;
+  $("title").textContent = `🌡️ '${DATA.t}' 마음 온도 밸런스 게임`;
+  const pct = t => Math.max(0, Math.min(100, (t - MIN) / (MAX - MIN) * 100));
+  $("goal").style.left = pct(GOAL) + "%";
+
+  const card = $("card");
+  let i = 0, temp = START, picks = [], order = [];
+
+  function setTemp(delta) {
+    temp = Math.round((temp + delta) * 10) / 10;
+    $("temp").textContent = temp.toFixed(1) + "℃";
+    $("temp").classList.toggle("cool", temp < 34);
+    $("mercury").style.width = pct(temp) + "%";
+    if (delta) {
+      const b = $("bump");
+      b.textContent = (delta > 0 ? "+" : "") + delta.toFixed(1) + "℃";
+      b.style.color = delta > 0 ? "var(--warm)" : "var(--cold)";
+      b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
+    }
+  }
+
+  function show() {
+    const [sit, warm, cold] = DATA.bal[i];
+    order = Math.random() < .5 ? ["warm", "cold"] : ["cold", "warm"];   // 좌우 순서 섞기
+    const txt = { warm, cold };
+    card.innerHTML = `<div class="num">상황 ${i + 1} / ${DATA.bal.length}</div>
+      <p class="sit">${safe(sit)}</p>
+      <div class="vs">
+        <button class="pick" data-k="${order[0]}">"${safe(txt[order[0]])}"</button>
+        <span class="vsmark">VS</span>
+        <button class="pick" data-k="${order[1]}">"${safe(txt[order[1]])}"</button>
+      </div><div id="fb"></div>`;
+    card.querySelectorAll(".pick").forEach(b => b.onclick = () => choose(b.dataset.k));
+  }
+
+  function choose(k) {
+    const [, , , tip] = DATA.bal[i], up = k === "warm";
+    picks[i] = k;
+    card.querySelectorAll(".pick").forEach(b => {
+      b.disabled = true;
+      b.classList.add(b.dataset.k);
+      if (b.dataset.k !== k) b.classList.add("dim");
+      b.insertAdjacentHTML("beforeend", `<span class="tag">${b.dataset.k === "warm" ? "🔥 따뜻한 말" : "🧊 차가운 말"}</span>`);
+    });
+    setTemp(up ? UP : -DOWN);
+    $("fb").className = "fb " + (up ? "up" : "down");
+    $("fb").innerHTML = `<b>${up ? `🔥 마음 온도 +${UP}℃!` : `🧊 마음 온도 −${DOWN}℃`}</b><br>${safe(tip || "")}`;
+    const btn = document.createElement("button");
+    btn.className = "next"; btn.textContent = i < DATA.bal.length - 1 ? "다음 상황 →" : "결과 보기";
+    btn.onclick = () => { i++; i < DATA.bal.length ? show() : finish(); };
+    card.appendChild(btn); btn.focus();
+  }
+
+  function finish() {
+    const warmN = picks.filter(p => p === "warm").length, ok = temp >= GOAL;
+    // 결과를 이 기기에 남겨요 (🔐 관리자 대시보드에서 봐요)
+    try {
+      const list = JSON.parse(localStorage.getItem(ADMIN.key) || "[]");
+      list.push({ temp: temp.toFixed(1) + "℃", warm: `${warmN} / ${DATA.bal.length}`, at: Date.now() });
+      localStorage.setItem(ADMIN.key, JSON.stringify(list));
+    } catch (e) {}
+    card.innerHTML = `<div class="end">
+      <p style="margin:0">나의 마음 온도</p>
+      <div class="big ${ok ? "" : "cool"}">${temp.toFixed(1)}℃</div>
+      <p style="font-size:20px;margin:0">${ok ? "🎉 따뜻한 36.5℃ 달성! 주변을 따뜻하게 하는 말을 골랐어요." : "조금만 더! 친구의 마음을 먼저 떠올려 보면 온도가 올라가요."}</p>
+      <div class="review">${DATA.bal.map((b, n) => `<div class="${picks[n] === "warm" ? "w" : "c"}">${n + 1}. ${safe(b[0])}<br>
+        <b>${picks[n] === "warm" ? "🔥 따뜻한 말" : "🧊 차가운 말"}</b> "${safe(picks[n] === "warm" ? b[1] : b[2])}"</div>`).join("")}</div>
+      <button class="next" id="again">다시 하기</button></div>`;
+    $("again").onclick = begin;
+  }
+
+  function begin() { i = 0; picks = []; temp = START; setTemp(0); show(); }
+  // 키보드: 1 · 2 로 고르기
+  document.addEventListener("keydown", e => {
+    const b = card.querySelectorAll(".pick:not(:disabled)");
+    if (e.key === "1" && b[0]) b[0].click();
+    if (e.key === "2" && b[1]) b[1].click();
+  });
+
+  // 🔐 관리자 대시보드에 보일 기록
+  const ADMIN = { key: "balance.results." + DATA.code, title: "마음 온도 밸런스 게임",
+    cols: [["temp", "최종 온도"], ["warm", "따뜻한 말 고른 수"], ["at", "끝낸 시각"]] };
+  begin();
+</script>
+<!-- ===== 🔐 관리자 대시보드 (처음 비밀번호 1234 · 대시보드에서 바꿀 수 있어요) =====
+     지금은 이 기기에 저장된 기록만 보여요. 4단계에서 파이어스토어를 연결하면 모든 학생 기록이 모여요. -->
+<style>
+  .adm-btn{position:fixed;top:12px;right:12px;z-index:50;font:inherit;font-size:14px;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:999px;padding:5px 14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .adm-btn:hover{border-color:var(--main)}
+  .adm{position:fixed;inset:0;z-index:60;background:rgba(40,30,30,.35);display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto}
+  .adm[hidden]{display:none}
+  .adm-in{background:#fff;color:var(--ink);border-radius:22px;width:100%;max-width:900px;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+  .adm-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .adm-h h2{margin:0;font-size:22px;flex:1}
+  .adm-b{white-space:nowrap;font:inherit;font-size:14px;color:var(--ink);border:2px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;cursor:pointer}
+  .adm-b.main{background:var(--main);border-color:var(--main);color:#fff}
+  .adm-b.warn:hover{border-color:#D9534F;color:#D9534F}
+  .adm-in input{font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:8px 12px;width:auto;flex:1 1 150px;min-width:0}
+  .adm-in input:focus{outline:none;border-color:var(--main)}
+  .adm-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .adm-err{color:#D9534F;font-size:14px;min-height:20px;margin:6px 0 0}
+  .adm-ok{color:#3FAE6F}
+  .adm-stat{display:inline-block;background:color-mix(in srgb,var(--main) 12%,#fff);border-radius:14px;padding:6px 14px;margin-right:6px}
+  .adm-stat b{font-size:20px}
+  .adm-wrap{overflow-x:auto;border:2px solid var(--line);border-radius:14px;margin:12px 0}
+  .adm-in table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+  .adm-in th,.adm-in td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;word-break:keep-all;overflow-wrap:anywhere}
+  .adm-in th{background:color-mix(in srgb,var(--main) 8%,#fff);white-space:nowrap}
+  .adm-in tr:last-child td{border-bottom:0}
+  .adm-del{white-space:nowrap;font:inherit;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:1px 8px;cursor:pointer}
+  .adm-pw{background:color-mix(in srgb,var(--main) 6%,#fff);border-radius:14px;padding:10px 14px;margin-top:14px}
+  .adm-pw h3{margin:0 0 4px;font-size:16px}
+  @media print{.adm-btn,.adm{display:none !important}}
+</style>
+<button class="adm-btn" id="admBtn" type="button">🔐 관리자</button>
+<div class="adm" id="adm" hidden><div class="adm-in" id="admIn" role="dialog" aria-label="관리자 대시보드"></div></div>
+<script>
+(() => {
+  // ADMIN = { key: 기록이 저장된 이름, title: 제목, cols: [[칸 이름, 보이는 이름], …], onChange: 기록을 지운 뒤 할 일 }
+  const PW_KEY = "admin.pw." + DATA.code, DEFAULT_PW = "1234";
+  const $a = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const getPw = () => { try { return localStorage.getItem(PW_KEY) || DEFAULT_PW; } catch (e) { return DEFAULT_PW; } };
+  const rows = () => { try { return JSON.parse(localStorage.getItem(ADMIN.key) || "[]"); } catch (e) { return []; } };
+  const save = list => { try { localStorage.setItem(ADMIN.key, JSON.stringify(list)); } catch (e) {} ADMIN.onChange && ADMIN.onChange(); };
+  const cell = (r, k) => k === "at" ? (r.at ? new Date(r.at).toLocaleString("ko-KR") : "") : Array.isArray(r[k]) ? r[k].join(", ") : (r[k] ?? "");
+  let open = false;
+
+  function show(html) { $a("admIn").innerHTML = html; $a("adm").hidden = false; open = true; }
+  function close() { $a("adm").hidden = true; open = false; }
+  const head = t => `<div class="adm-h"><h2>${t}</h2><button class="adm-b" id="admX" type="button">✕ 닫기</button></div>`;
+
+  function login() {
+    show(head("🔐 관리자 로그인") + `
+      <p style="margin:0 0 6px">관리자 비밀번호를 넣어 주세요.</p>
+      <div class="adm-row"><input type="password" id="admPw" placeholder="비밀번호" autocomplete="off"><button class="adm-b main" id="admGo" type="button">들어가기</button></div>
+      <p class="adm-err" id="admErr"></p>`);
+    $a("admPw").focus();
+    const go = () => $a("admPw").value === getPw() ? dash() : ($a("admErr").textContent = "비밀번호가 맞지 않아요.");
+    $a("admGo").onclick = go;
+    $a("admPw").onkeydown = e => { if (e.key === "Enter") go(); };
+  }
+
+  function dash() {
+    const list = rows(), view = list.map((r, i) => ({ r, i })).reverse();
+    show(head("📊 관리자 대시보드 · " + esc(ADMIN.title)) + `
+      <div><span class="adm-stat">기록 <b>${list.length}</b>개</span><span style="font-size:13px;opacity:.65">지금은 이 기기에 저장된 기록만 보여요</span></div>
+      ${list.length ? `<div class="adm-wrap"><table><thead><tr><th>#</th>${ADMIN.cols.map(c => `<th>${esc(c[1])}</th>`).join("")}<th></th></tr></thead><tbody>
+        ${view.map((v, n) => `<tr><td>${list.length - n}</td>${ADMIN.cols.map(c => `<td>${esc(cell(v.r, c[0]))}</td>`).join("")}<td><button class="adm-del" data-i="${v.i}" type="button">지우기</button></td></tr>`).join("")}
+      </tbody></table></div>` : `<p style="opacity:.6;margin:14px 0">아직 기록이 없어요.</p>`}
+      <div class="adm-row">
+        <button class="adm-b main" id="admCsv" type="button" ${list.length ? "" : "disabled"}>⬇️ 엑셀(CSV)로 받기</button>
+        <button class="adm-b warn" id="admClear" type="button" ${list.length ? "" : "disabled"}>🗑 모두 지우기</button>
+        <button class="adm-b" id="admLock" type="button">🔒 잠그기</button>
+      </div>
+      <div class="adm-pw"><h3>🔑 비밀번호 바꾸기</h3>
+        <div class="adm-row"><input type="password" id="admOld" placeholder="지금 비밀번호" autocomplete="off"><input type="password" id="admNew" placeholder="새 비밀번호 (4자 이상)" autocomplete="off"><input type="password" id="admNew2" placeholder="새 비밀번호 한 번 더" autocomplete="off"><button class="adm-b main" id="admChange" type="button">바꾸기</button></div>
+        <p class="adm-err" id="admPwMsg"></p></div>`);
+    $a("admLock").onclick = close;
+    $a("admIn").querySelectorAll(".adm-del").forEach(b => b.onclick = () => {
+      if (!confirm("이 기록을 지울까요?")) return;
+      const l = rows(); l.splice(+b.dataset.i, 1); save(l); dash();
+    });
+    $a("admClear").onclick = () => { if (confirm("기록을 모두 지울까요? 되돌릴 수 없어요.")) { save([]); dash(); } };
+    $a("admCsv").onclick = () => {
+      const q = v => `"${String(v).replace(/"/g, '""')}"`;
+      const csv = [ADMIN.cols.map(c => q(c[1])).join(",")].concat(rows().map(r => ADMIN.cols.map(c => q(cell(r, c[0]))).join(","))).join("\r\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+      a.download = `${ADMIN.title}_${DATA.code}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    };
+    $a("admChange").onclick = () => {
+      const m = $a("admPwMsg"), o = $a("admOld").value, n = $a("admNew").value, n2 = $a("admNew2").value;
+      m.className = "adm-err";
+      if (o !== getPw()) return m.textContent = "지금 비밀번호가 맞지 않아요.";
+      if (n.length < 4) return m.textContent = "새 비밀번호는 4자 이상으로 해 주세요.";
+      if (n !== n2) return m.textContent = "새 비밀번호 두 칸이 서로 달라요.";
+      try { localStorage.setItem(PW_KEY, n); } catch (e) {}
+      m.className = "adm-err adm-ok"; m.textContent = "✓ 비밀번호를 바꿨어요. 다음부터 새 비밀번호로 들어와요.";
+      ["admOld", "admNew", "admNew2"].forEach(k => $a(k).value = "");
+    };
+  }
+
+  $a("admBtn").onclick = login;
+  $a("adm").onclick = e => { if (e.target.id === "adm" || e.target.id === "admX") close(); };
+  document.addEventListener("keydown", e => { if (open && e.key === "Escape") close(); });
+})();
+</script>
+</body>
+</html>
