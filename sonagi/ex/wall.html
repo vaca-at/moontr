@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>생각 담벼락</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#F0F7FC; --ink:#334553; --main:#5FA8D9; --line:#D6E7F3; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;padding:20px 16px 60px}
+  .top{max-width:1100px;margin:0 auto}
+  h1{margin:0;font-size:18px;opacity:.7}
+  .question{font-size:clamp(24px,4vw,40px);margin:4px 0 14px;line-height:1.35}
+  .note{background:#E1EFFA;border-radius:12px;padding:6px 12px;font-size:14px;display:inline-block;margin-bottom:14px}
+  .write{display:grid;grid-template-columns:150px 1fr auto;gap:8px;background:#fff;border:2px solid var(--line);border-radius:20px;padding:12px}
+  .write input,.write textarea{font:inherit;font-size:17px;border:2px solid var(--line);border-radius:12px;padding:10px 12px;width:100%}
+  .write textarea{resize:none;height:48px}
+  .write button{font:inherit;font-size:18px;border:0;border-radius:14px;background:var(--main);color:#fff;padding:0 22px;cursor:pointer}
+  .colors{grid-column:1/-1;display:flex;gap:6px;align-items:center;font-size:14px}
+  .colors button{width:26px;height:26px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--line);cursor:pointer;padding:0}
+  .colors button.on{box-shadow:0 0 0 3px var(--ink)}
+  .tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0 10px}
+  .tools button{font:inherit;border:2px solid var(--line);background:#fff;border-radius:999px;padding:6px 16px;cursor:pointer}
+  .tools button.on{background:var(--main);border-color:var(--main);color:#fff}
+  .tools .sp{flex:1}
+  .wall{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .note-card{position:relative;border-radius:6px 6px 18px 6px;padding:16px 16px 44px;min-height:150px;box-shadow:0 6px 14px rgba(0,0,0,.08);font-size:18px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
+  .note-card:nth-child(3n){transform:rotate(-1deg)} .note-card:nth-child(4n){transform:rotate(1deg)}
+  .note-card .who{display:block;font-size:14px;opacity:.65;margin-top:8px}
+  .heart{position:absolute;right:10px;bottom:8px;font:inherit;border:0;background:rgba(255,255,255,.7);border-radius:999px;padding:3px 12px;cursor:pointer}
+  .empty{grid-column:1/-1;text-align:center;opacity:.6;padding:40px}
+  /* 크게 보기 (칠판 TV) */
+  body.big .write,body.big .note{display:none}
+  body.big .wall{max-width:none;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  body.big .note-card{font-size:24px}
+  body.big .top{max-width:none}
+  @media (max-width:600px){ .write{grid-template-columns:1fr} .write button{padding:12px} }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>💬 생각 담벼락</h1>
+  <!-- ✏️ 오늘의 질문은 여기서 바꿔요 -->
+  <p class="question" id="question">우리 학교에서 가장 바꾸고 싶은 한 가지는?</p>
+  <span class="note">💡 지금은 <b>이 기기에만</b> 붙어요. 파이어스토어를 연결하면 모두의 글이 실시간으로 모여요.</span>
+
+  <div class="write">
+    <input id="nick" maxlength="10" placeholder="별명">
+    <textarea id="text" maxlength="200" placeholder="내 생각을 적어요 (200자까지)"></textarea>
+    <button id="post">붙이기</button>
+    <div class="colors" id="colors">색깔:</div>
+  </div>
+
+  <div class="tools">
+    <button data-sort="new" class="on">최신순</button>
+    <button data-sort="love">공감 많은 순</button>
+    <span class="sp"></span>
+    <button id="big">📺 크게 보기</button>
+  </div>
+</div>
+<div class="wall" id="wall"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const KEY = "wall.notes";
+  const COLORS = ["#FFF3A3", "#FFD6E3", "#CFEFFF", "#D6F5D6", "#E8DDFF"];
+  let color = COLORS[0], sort = "new";
+  let notes = JSON.parse(localStorage.getItem(KEY) || "[]");
+  const save = () => localStorage.setItem(KEY, JSON.stringify(notes));
+  // 학생 글을 그대로 화면에 넣지 않도록 (안전)
+  const safe = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  COLORS.forEach((c, i) => {
+    const b = document.createElement("button");
+    b.style.background = c; b.title = "색 " + (i + 1);
+    if (i === 0) b.classList.add("on");
+    b.onclick = () => { color = c; document.querySelectorAll(".colors button").forEach(x => x.classList.toggle("on", x === b)); };
+    $("colors").appendChild(b);
+  });
+
+  function render() {
+    const list = notes.slice().sort((a, b) => sort === "love" ? b.love - a.love || b.at - a.at : b.at - a.at);
+    $("wall").innerHTML = list.length ? list.map(n => `
+      <div class="note-card" style="background:${n.color}">${safe(n.text)}
+        <span class="who">— ${safe(n.nick)}</span>
+        <button class="heart" data-id="${n.id}">♥ ${n.love}</button></div>`).join("")
+      : `<p class="empty">첫 번째 생각을 붙여 주세요 ✨</p>`;
+  }
+
+  $("post").onclick = () => {
+    const text = $("text").value.trim();
+    if (!text) return $("text").focus();
+    notes.push({ id: Date.now() + "" + Math.random().toString(36).slice(2, 6), nick: $("nick").value.trim() || "익명", text, color, love: 0, at: Date.now() });
+    save(); $("text").value = ""; render();
+  };
+  $("text").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("post").click(); } });
+
+  $("wall").onclick = e => {
+    const b = e.target.closest(".heart"); if (!b) return;
+    const n = notes.find(x => x.id === b.dataset.id); n.love++; save(); render();
+  };
+  document.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => {
+    sort = b.dataset.sort;
+    document.querySelectorAll("[data-sort]").forEach(x => x.classList.toggle("on", x === b));
+    render();
+  });
+  $("big").onclick = () => {
+    document.body.classList.toggle("big");
+    $("big").textContent = document.body.classList.contains("big") ? "✍️ 쓰기 화면" : "📺 크게 보기";
+  };
+  render();
+</script>
+</body>
+</html>

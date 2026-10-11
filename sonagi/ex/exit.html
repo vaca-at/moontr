@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>출구 카드</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#FFF9EE; --ink:#4D4231; --main:#E0A93E; --line:#F1E2C2; --g:#4CB57A; --y:#F2C230; --r:#E4685F; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:24px 16px 60px}
+  .wrap{width:100%;max-width:680px}
+  h1{text-align:center;font-size:clamp(28px,5vw,42px);margin:8px 0 2px}
+  .sub{text-align:center;opacity:.7;margin:0 0 18px}
+  .note{background:#FFF1CC;border-radius:14px;padding:8px 14px;font-size:14px;text-align:center;margin-bottom:16px}
+  .card{background:#fff;border:2px solid var(--line);border-radius:24px;padding:22px}
+  h2{font-size:20px;margin:0 0 10px}
+  .lights{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+  .light{font:inherit;border:3px solid var(--line);background:#fff;border-radius:18px;padding:14px 6px;cursor:pointer;font-size:16px;line-height:1.3}
+  .light b{display:block;font-size:44px}
+  .light.on[data-v="g"]{border-color:var(--g);background:#E7F6ED}
+  .light.on[data-v="y"]{border-color:var(--y);background:#FFF6D6}
+  .light.on[data-v="r"]{border-color:var(--r);background:#FDECEA}
+  label{display:block;font-size:18px;margin:14px 0 6px}
+  input,select{width:100%;font:inherit;font-size:18px;padding:12px 14px;border:2px solid var(--line);border-radius:14px}
+  input:focus{outline:none;border-color:var(--main)}
+  .count{text-align:right;font-size:13px;opacity:.6}
+  .send{display:block;width:100%;margin-top:20px;font:inherit;font-size:22px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:14px;cursor:pointer}
+  .err{color:var(--r);text-align:center;min-height:24px;margin:8px 0 0}
+  .thanks{text-align:center;padding:30px 10px}
+  .thanks b{font-size:70px;display:block}
+  .teacher-btn{display:block;margin:28px auto 0;font:inherit;background:none;border:0;opacity:.55;cursor:pointer;text-decoration:underline}
+  .teacher{margin-top:18px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+  .stat{background:#fff;border:2px solid var(--line);border-radius:16px;padding:10px;text-align:center;font-size:15px}
+  .stat b{display:block;font-size:34px}
+  .item{background:#fff;border:2px solid var(--line);border-radius:14px;padding:10px 14px;margin:8px 0;font-size:16px}
+  .item small{opacity:.6}
+  .clear{font:inherit;border:2px solid var(--line);background:#fff;border-radius:999px;padding:6px 16px;cursor:pointer;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🚦 출구 카드</h1>
+  <p class="sub">오늘 수업, 어땠나요? 1분이면 돼요.</p>
+  <p class="note">💡 지금은 <b>이 기기에만</b> 저장돼요. 파이어스토어를 연결하면 모든 학생 카드가 한곳에 모여요.</p>
+
+  <div class="card" id="form">
+    <h2>오늘 내용을 얼마나 이해했나요?</h2>
+    <div class="lights">
+      <button class="light" data-v="g"><b>🟢</b>잘 알겠어요</button>
+      <button class="light" data-v="y"><b>🟡</b>조금 헷갈려요</button>
+      <button class="light" data-v="r"><b>🔴</b>도움이 필요해요</button>
+    </div>
+    <label for="cls">반</label>
+    <select id="cls"><option>1반</option><option>2반</option><option>3반</option><option>4반</option><option>5반</option></select>
+    <label for="learned">✏️ 오늘 배운 한 가지</label>
+    <input id="learned" maxlength="100" placeholder="예: 광합성에는 빛이 필요하다">
+    <div class="count" id="c1">0 / 100</div>
+    <label for="question">❓ 아직 궁금한 점 (없으면 비워도 돼요)</label>
+    <input id="question" maxlength="100" placeholder="예: 밤에는 식물이 무엇을 하나요?">
+    <button class="send" id="send">제출하기</button>
+    <p class="err" id="err"></p>
+  </div>
+
+  <button class="teacher-btn" id="tBtn">👩‍🏫 선생님 보기</button>
+  <div class="teacher" id="teacher" hidden></div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const KEY = "exit.cards";
+  const LABEL = { g: "🟢 잘 알겠어요", y: "🟡 조금 헷갈려요", r: "🔴 도움이 필요해요" };
+  let level = "";
+
+  document.querySelectorAll(".light").forEach(b => b.onclick = () => {
+    level = b.dataset.v;
+    document.querySelectorAll(".light").forEach(x => x.classList.toggle("on", x === b));
+  });
+  $("learned").oninput = () => $("c1").textContent = $("learned").value.length + " / 100";
+
+  // 학생이 쓴 글을 화면에 그대로 넣지 않도록 바꿔 주는 함수 (안전)
+  const safe = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const load = () => JSON.parse(localStorage.getItem(KEY) || "[]");
+
+  $("send").onclick = () => {
+    const learned = $("learned").value.trim();
+    if (!level) return $("err").textContent = "신호등 하나를 골라 주세요.";
+    if (!learned) return $("err").textContent = "오늘 배운 한 가지를 적어 주세요.";
+    const list = load();
+    list.push({ cls: $("cls").value, level, learned, question: $("question").value.trim(), at: new Date().toISOString() });
+    localStorage.setItem(KEY, JSON.stringify(list));
+    $("form").innerHTML = `<div class="thanks"><b>🙌</b><h2>고마워요!</h2><p>다음 시간에 궁금한 점을 함께 풀어 봐요.</p></div>`;
+    if (!$("teacher").hidden) renderTeacher();
+  };
+
+  function renderTeacher() {
+    const list = load();
+    const n = v => list.filter(x => x.level === v).length;
+    $("teacher").innerHTML = `
+      <div class="stats">
+        <div class="stat"><b>${n("g")}</b>🟢 잘 알겠어요</div>
+        <div class="stat"><b>${n("y")}</b>🟡 헷갈려요</div>
+        <div class="stat"><b>${n("r")}</b>🔴 도움 필요</div>
+      </div>
+      ${list.length ? list.slice().reverse().map(x => `<div class="item">${LABEL[x.level]} <small>${safe(x.cls)} · ${new Date(x.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</small><br>✏️ ${safe(x.learned)}${x.question ? `<br>❓ ${safe(x.question)}` : ""}</div>`).join("") : "<p>아직 낸 카드가 없어요.</p>"}
+      <button class="clear" id="clear">이 기기의 카드 모두 지우기</button>`;
+    $("clear").onclick = () => { if (confirm("모두 지울까요?")) { localStorage.removeItem(KEY); renderTeacher(); } };
+  }
+  $("tBtn").onclick = () => { $("teacher").hidden = !$("teacher").hidden; if (!$("teacher").hidden) renderTeacher(); };
+</script>
+</body>
+</html>

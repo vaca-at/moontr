@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>수행평가 자기평가</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#EFF8F7; --ink:#2F4846; --main:#45AFA2; --line:#D2EAE6; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:24px 16px 60px}
+  .wrap{width:100%;max-width:760px}
+  h1{text-align:center;font-size:clamp(26px,4.5vw,40px);margin:6px 0 2px}
+  .sub{text-align:center;opacity:.7;margin:0 0 20px}
+  .item{background:#fff;border:2px solid var(--line);border-radius:22px;padding:18px 20px;margin-bottom:14px}
+  .item h2{margin:0 0 4px;font-size:21px}
+  .item p.desc{margin:0 0 12px;opacity:.7;font-size:15px}
+  .lv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .lv button{font:inherit;font-size:16px;border:2px solid var(--line);background:#fff;border-radius:14px;padding:10px 6px;cursor:pointer;line-height:1.35}
+  .lv button b{display:block;font-size:26px}
+  .lv button.on{border-color:var(--main);background:#E2F4F1}
+  .why{width:100%;margin-top:10px;font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:10px 12px}
+  .why:focus,.goal:focus{outline:none;border-color:var(--main)}
+  .goal{width:100%;font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:10px 12px}
+  .done{display:block;width:100%;font:inherit;font-size:21px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:14px;margin-top:6px;cursor:pointer}
+  .err{color:#D9534F;text-align:center;min-height:22px}
+  .summary{background:#fff;border:3px solid var(--main);border-radius:24px;padding:20px 22px;margin-top:20px}
+  .summary h2{margin:0 0 10px}
+  .summary table{width:100%;border-collapse:collapse;font-size:16px}
+  .summary td{border-bottom:1px solid var(--line);padding:8px 4px;vertical-align:top}
+  .summary td:first-child{width:32%;font-weight:700}
+  .acts{display:flex;gap:10px;margin-top:14px}
+  .acts button{flex:1;font:inherit;font-size:18px;border:2px solid var(--main);background:#fff;color:var(--main);border-radius:999px;padding:10px;cursor:pointer}
+  @media print{ body{background:#fff} .item,.done,.acts,.err,.sub{display:none} .summary{border-color:#999} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📋 수행평가 자기평가</h1>
+  <p class="sub">솔직하게 고를수록 다음이 더 좋아져요.</p>
+  <div id="items"></div>
+  <div class="item">
+    <h2>🌱 다음에 더 잘하고 싶은 점</h2>
+    <input class="goal" id="goal" maxlength="100" placeholder="예: 근거를 두 가지 이상 들어 보기">
+  </div>
+  <button class="done" id="done">요약 보기</button>
+  <p class="err" id="err"></p>
+  <div id="summary"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 평가 요소와 단계 설명은 여기서 바꿔요 ===== */
+  const TITLE = "📋 수행평가 자기평가";
+  const LEVELS = [
+    { e: "🌟", t: "잘함" },
+    { e: "🙂", t: "보통" },
+    { e: "💪", t: "노력 필요" }
+  ];
+  const CRITERIA = [
+    { t: "내용의 정확성", d: "배운 개념을 바르게 이해하고 썼나요?" },
+    { t: "근거 제시", d: "내 주장에 알맞은 근거나 자료를 들었나요?" },
+    { t: "표현과 전달", d: "듣는 사람이 이해하기 쉽게 정리했나요?" }
+  ];
+
+  const $ = id => document.getElementById(id);
+  document.querySelector("h1").textContent = TITLE;
+  const pick = {};
+
+  $("items").innerHTML = CRITERIA.map((c, i) => `
+    <div class="item">
+      <h2>${i + 1}. ${c.t}</h2>
+      <p class="desc">${c.d}</p>
+      <div class="lv">${LEVELS.map((l, k) => `<button data-i="${i}" data-k="${k}"><b>${l.e}</b>${l.t}</button>`).join("")}</div>
+      <input class="why" id="why${i}" maxlength="100" placeholder="그렇게 고른 까닭을 한 줄로">
+    </div>`).join("");
+
+  $("items").onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    pick[b.dataset.i] = +b.dataset.k;
+    b.parentNode.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  };
+
+  const safe = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function text() {
+    return CRITERIA.map((c, i) => `${c.t}: ${LEVELS[pick[i]].t} - ${$("why" + i).value.trim()}`).join("\n") + `\n다음 목표: ${$("goal").value.trim()}`;
+  }
+
+  $("done").onclick = () => {
+    const miss = CRITERIA.findIndex((c, i) => pick[i] == null);
+    if (miss >= 0) return $("err").textContent = `${miss + 1}번 '${CRITERIA[miss].t}' 단계를 골라 주세요.`;
+    $("err").textContent = "";
+    $("summary").innerHTML = `<div class="summary">
+      <h2>✨ 나의 자기평가 요약</h2>
+      <table>${CRITERIA.map((c, i) => `<tr><td>${c.t}</td><td>${LEVELS[pick[i]].e} ${LEVELS[pick[i]].t}<br><small>${safe($("why" + i).value.trim() || "-")}</small></td></tr>`).join("")}
+      <tr><td>🌱 다음 목표</td><td>${safe($("goal").value.trim() || "-")}</td></tr></table>
+      <div class="acts"><button id="copy">📋 복사</button><button onclick="print()">🖨 인쇄</button></div></div>`;
+    $("copy").onclick = async () => {
+      try { await navigator.clipboard.writeText(text()); $("copy").textContent = "✓ 복사됨"; } catch (e) { alert("복사하지 못했어요."); }
+    };
+    $("summary").scrollIntoView({ behavior: "smooth" });
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>모둠 활동 타이머</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#F6F3FC; --ink:#3F3752; --main:#9A83D6; --warn:#EE8A6A; --line:#E3DCF3; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px;transition:background .4s}
+  body.hurry{--main:var(--warn);background:#FFF2EC}
+  .steps{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+  .chip{background:#fff;border:2px solid var(--line);border-radius:999px;padding:6px 16px;font-size:17px}
+  .chip.now{background:var(--main);border-color:var(--main);color:#fff}
+  .chip.done{opacity:.45;text-decoration:line-through}
+  .name{font-size:clamp(30px,6vw,60px);margin:10px 0 0;text-align:center}
+  .ring{position:relative;width:min(80vw,440px);aspect-ratio:1;margin:16px 0}
+  .ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .ring circle{fill:none;stroke-width:14}
+  .ring .bg{stroke:var(--line)}
+  .ring .fg{stroke:var(--main);stroke-linecap:round;transition:stroke-dashoffset 1s linear, stroke .4s}
+  .time{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(70px,16vw,150px);font-variant-numeric:tabular-nums}
+  .btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  button{font:inherit;font-size:22px;border:0;border-radius:999px;padding:12px 30px;cursor:pointer}
+  .main{background:var(--main);color:#fff}
+  .sub{background:#fff;border:2px solid var(--line)}
+  details{margin-top:26px;width:100%;max-width:560px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:10px 16px}
+  summary{cursor:pointer;font-size:18px}
+  .edit-row{display:grid;grid-template-columns:1fr 90px 40px;gap:8px;margin:8px 0}
+  .edit-row input{font:inherit;font-size:16px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;width:100%}
+  .edit-row button,.add{font-size:16px;padding:6px 10px;background:#fff;border:2px solid var(--line);border-radius:10px}
+</style>
+</head>
+<body>
+  <div class="steps" id="steps"></div>
+  <h1 class="name" id="name"></h1>
+  <div class="ring">
+    <svg viewBox="0 0 200 200"><circle class="bg" cx="100" cy="100" r="90"/><circle class="fg" id="arc" cx="100" cy="100" r="90"/></svg>
+    <div class="time" id="time">0:00</div>
+  </div>
+  <div class="btns">
+    <button class="main" id="play">▶ 시작</button>
+    <button class="sub" id="next">다음 단계 ⏭</button>
+    <button class="sub" id="reset">↺ 처음으로</button>
+  </div>
+
+  <details>
+    <summary>✏️ 단계와 시간 고치기</summary>
+    <div id="edit"></div>
+    <button class="add" id="add">+ 단계 더하기</button>
+  </details>
+
+<script>
+  const $ = id => document.getElementById(id);
+  // ✏️ 처음 단계 (화면 아래에서도 고칠 수 있어요. 고친 것은 이 기기에 기억해요)
+  let STEPS = JSON.parse(localStorage.getItem("timer.steps") || "null") || [
+    { name: "혼자 생각하기", min: 3 },
+    { name: "모둠에서 나누기", min: 5 },
+    { name: "정리 · 발표 준비", min: 2 }
+  ];
+  let idx = 0, left = STEPS[0].min * 60, running = false, tick = null;
+  const R = 2 * Math.PI * 90;
+  $("arc").style.strokeDasharray = R;
+
+  // 부드러운 알림 소리 (파일 없이 브라우저가 직접 만들어요)
+  function ding() {
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      [660, 880, 990].forEach((f, i) => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.value = f; o.type = "sine";
+        g.gain.setValueAtTime(0.0001, ac.currentTime + i * 0.25);
+        g.gain.exponentialRampToValueAtTime(0.3, ac.currentTime + i * 0.25 + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + i * 0.25 + 0.6);
+        o.connect(g).connect(ac.destination); o.start(ac.currentTime + i * 0.25); o.stop(ac.currentTime + i * 0.25 + 0.7);
+      });
+    } catch (e) {}
+  }
+
+  function draw() {
+    const total = STEPS[idx].min * 60;
+    $("steps").innerHTML = STEPS.map((s, i) => `<span class="chip ${i === idx ? "now" : i < idx ? "done" : ""}">${i + 1}. ${s.name} ${s.min}분</span>`).join("");
+    $("name").textContent = STEPS[idx].name;
+    $("time").textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+    $("arc").style.strokeDashoffset = R * (1 - left / total);
+    document.body.classList.toggle("hurry", left <= 60 && left > 0);
+    $("play").textContent = running ? "⏸ 잠깐 멈춤" : "▶ 시작";
+  }
+  function stop() { running = false; clearInterval(tick); }
+  function goStep(i) { stop(); idx = Math.min(i, STEPS.length - 1); left = STEPS[idx].min * 60; draw(); }
+
+  $("play").onclick = () => {
+    if (running) { stop(); draw(); return; }
+    running = true;
+    tick = setInterval(() => {
+      left--;
+      if (left <= 0) {
+        ding();
+        if (idx < STEPS.length - 1) { idx++; left = STEPS[idx].min * 60; }
+        else { left = 0; stop(); draw(); $("name").textContent = "🎉 활동 끝!"; return; }
+      }
+      draw();
+    }, 1000);
+    draw();
+  };
+  $("next").onclick = () => goStep(idx + 1);
+  $("reset").onclick = () => goStep(0);
+  document.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); $("play").click(); } });
+
+  // 단계 고치기
+  function renderEdit() {
+    $("edit").innerHTML = STEPS.map((s, i) => `<div class="edit-row">
+      <input value="${s.name.replace(/"/g, "&quot;")}" data-i="${i}" data-k="name">
+      <input type="number" min="1" max="60" value="${s.min}" data-i="${i}" data-k="min">
+      <button data-del="${i}" title="빼기">✕</button></div>`).join("");
+  }
+  function saveSteps() { localStorage.setItem("timer.steps", JSON.stringify(STEPS)); goStep(0); }
+  $("edit").addEventListener("change", e => {
+    const t = e.target; if (!t.dataset.k) return;
+    STEPS[t.dataset.i][t.dataset.k] = t.dataset.k === "min" ? Math.max(1, +t.value || 1) : t.value || "활동";
+    saveSteps();
+  });
+  $("edit").addEventListener("click", e => {
+    const d = e.target.dataset.del; if (d == null || STEPS.length < 2) return;
+    STEPS.splice(+d, 1); saveSteps(); renderEdit();
+  });
+  $("add").onclick = () => { STEPS.push({ name: "새 활동", min: 3 }); saveSteps(); renderEdit(); };
+
+  renderEdit(); draw();
+</script>
+</body>
+</html>
