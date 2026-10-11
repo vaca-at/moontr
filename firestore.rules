@@ -532,30 +532,42 @@ service cloud.firestore {
     }
 
     // ===== 소나기 연수 실습 (/sonagi) 동료 검증 담벼락 =====
-    // 선생님 웹앱: 닉네임 · 웹앱 이름 · 주소 (누구나 보기 · 올리기, 고치기 없음, 지우기는 관리자만)
+    // '내 것'은 익명 로그인 uid(owner)로 알아봐요. Authentication에서 '익명' 로그인을 켜야 해요.
+    function sonagiApp(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 20
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 40
+        && d.url is string && d.url.size() <= 200 && d.url.matches('^https?://.+');
+    }
+    // 선생님 웹앱: 닉네임 · 웹앱 이름 · 주소 (누구나 보기, 올린 사람만 고치기 · 지우기, 관리자도 지우기)
     match /sonagi_apps/{id} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['name', 'title', 'url', 'at'])
-        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
-        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 40
-        && request.resource.data.url is string && request.resource.data.url.size() <= 200
-        && request.resource.data.url.matches('^https?://.+')
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['name', 'title', 'url', 'owner', 'at'])
+        && request.resource.data.owner == request.auth.uid
+        && sonagiApp(request.resource.data)
         && request.resource.data.at == request.time;
-      allow update: if false;
-      allow delete: if isTeacher();
+      allow update: if request.auth != null && resource.data.owner == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'title', 'url', 'owner', 'at'])
+        && request.resource.data.owner == resource.data.owner
+        && request.resource.data.at == resource.data.at
+        && sonagiApp(request.resource.data);
+      allow delete: if (request.auth != null && resource.data.owner == request.auth.uid) || isTeacher();
     }
-    // 동료 의견: 칭찬 한 가지(good) · 제안 한 가지(idea)
+    // 동료 의견: 칭찬 한 가지(good) · 제안 한 가지(idea) — 웹앱을 올린 선생님(owner)만 읽기
     match /sonagi_notes/{id} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['app', 'good', 'idea', 'by', 'at'])
+      allow read: if (request.auth != null && resource.data.owner == request.auth.uid) || isTeacher();
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['app', 'owner', 'good', 'idea', 'by', 'at'])
         && request.resource.data.app is string && request.resource.data.app.size() <= 40
+        && exists(/databases/$(database)/documents/sonagi_apps/$(request.resource.data.app))
+        && get(/databases/$(database)/documents/sonagi_apps/$(request.resource.data.app)).data.owner == request.resource.data.owner
         && request.resource.data.good is string && request.resource.data.good.size() <= 100
         && request.resource.data.idea is string && request.resource.data.idea.size() <= 100
         && (request.resource.data.good.size() > 0 || request.resource.data.idea.size() > 0)
         && request.resource.data.by is string && request.resource.data.by.size() <= 20
         && request.resource.data.at == request.time;
       allow update: if false;
-      allow delete: if isTeacher();
+      allow delete: if (request.auth != null && resource.data.owner == request.auth.uid) || isTeacher();
     }
 
     match /{document=**} { allow read, write: if false; }
