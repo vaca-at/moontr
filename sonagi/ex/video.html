@@ -21,14 +21,28 @@
   h1{font-size:clamp(26px,4.5vw,38px);margin:10px 0 14px}
   .video{background:#fff;border:2px solid var(--line);border-radius:22px;padding:14px;margin-bottom:18px}
   .video iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:14px;display:block}
-  .find{text-align:center;padding:20px 10px}
-  .find p{margin:0;font-size:18px}
-  /* 유튜브 마크 + 영상 보기 칩 */
-  .yt-chip{display:inline-flex;align-items:center;gap:8px;margin-top:12px;background:#fff;color:var(--ink);text-decoration:none;border:2px solid var(--line);border-radius:999px;padding:6px 16px 6px 12px;font-size:16px;transition:.15s}
+  /* 선생님 영상 넣기 상자 */
+  .setup{padding:6px 6px 4px}
+  .setup h3{margin:0 0 4px;font-size:20px}
+  .setup .sub{margin:0 0 12px;font-size:15px;opacity:.7}
+  .steps{display:grid;gap:10px}
+  .step{display:grid;grid-template-columns:32px 1fr;gap:10px;align-items:center}
+  .step .n{width:32px;height:32px;border-radius:50%;background:var(--main);color:#fff;display:grid;place-items:center;font-size:16px}
+  .step input{width:100%;font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:10px 12px}
+  .step input:focus{outline:none;border-color:var(--main)}
+  .row2{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row2 input{flex:1 1 140px}
+  .put{font:inherit;font-size:17px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:10px 22px;cursor:pointer;white-space:nowrap}
+  .setup .err{text-align:left;margin:6px 0 0 42px;min-height:0}
+  /* 유튜브 마크 + 칩 */
+  .yt-chip{display:inline-flex;align-items:center;gap:8px;background:#fff;color:var(--ink);text-decoration:none;border:2px solid var(--line);border-radius:999px;padding:6px 16px 6px 12px;font:inherit;font-size:16px;cursor:pointer;transition:.15s}
   .yt-chip:hover{border-color:#FF0000;box-shadow:0 4px 12px rgba(255,0,0,.12)}
   .yt-chip svg{width:26px;height:18px;flex:none}
-  .find small{display:block;margin-top:10px;opacity:.6}
-  .find code{background:#FFF1EA;border-radius:6px;padding:1px 6px}
+  /* 영상 아래 줄 */
+  .vbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 2px 0;font-size:14px}
+  .vbar .when{opacity:.65;margin-right:auto}
+  .mini{font:inherit;font-size:14px;border:2px solid var(--line);background:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}
+  .mini.main{background:var(--main);border-color:var(--main);color:#fff}
   .card{background:#fff;border:2px solid var(--line);border-radius:22px;padding:20px}
   label{display:block;font-size:20px;margin:14px 0 4px}
   label:first-child{margin-top:0}
@@ -69,10 +83,10 @@
 </div>
 
 <script>
-  /* ===== ✏️ 영상 주소는 VIDEO_URL에 넣어요 (유튜브 주소 그대로) ===== */
-  const VIDEO_URL = "";
-  // ✏️ 영상을 몇 분 몇 초부터 보여 줄지 (예: "3:20"). 처음부터면 "0:00"
-  const VIDEO_START = "3:20";
+  /* 영상은 화면에서 바로 넣을 수 있어요. (코드를 고치지 않아도 돼요)
+     늘 같은 영상을 쓰고 싶으면 아래 두 줄에 적어 둬도 돼요. */
+  const VIDEO_URL = "";        // 예: "https://youtu.be/xxxxxxxxxxx"
+  const VIDEO_START = "";      // 예: "3:20" (비워 두면 처음부터)
   const DATA = /*DATA*/{"code":"9도01-03","t":"행복한 삶","text":"행복에 관한 심리적, 사회적, 윤리적 접근 등을 통해 행복의 의미를 종합적으로 파악하고, 삶의 목적과 행복의 관계를 정립할 수 있다.","video":"행복이란 무엇인가 청소년"}/*END*/;
 
   const $ = id => document.getElementById(id);
@@ -83,25 +97,78 @@
   $("std").title = DATA.text;
   $("title").textContent = `🎬 '${DATA.t}' 영상 보고 생각 쓰기`;
 
-  // 유튜브 주소에서 영상 번호만 뽑아요
+  /* ===== 영상 넣기 =====
+     어디서 영상을 가져오나요? (앞에 있는 것이 먼저)
+     ① 주소 뒤 ?v=영상번호&t=초  ← '학생용 주소 복사'로 만든 주소. 학생은 이걸로 들어와요
+     ② 위의 VIDEO_URL
+     ③ 선생님이 이 화면에서 넣은 영상 (이 기기에 기억) */
+  const YT = `<svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#FF0000"/><path d="M11 5.5v9l8-4.5z" fill="#fff"/></svg>`;
+  const VKEY = "video.src." + DATA.code;
+  // 유튜브 주소에서 영상 번호(11글자)만 뽑아요
   function ytId(u) {
-    const m = String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);
+    const m = String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([\w-]{11})/);
     return m ? m[1] : "";
   }
-  // "3:20" → 200초 (주소에 t=200 이 붙어 있으면 그것도 알아들어요)
-  function startSec() {
-    const t = String(VIDEO_URL).match(/[?&](?:t|start)=(\d+)/);
-    if (t) return +t[1];
-    return String(VIDEO_START).split(":").reduce((s, n) => s * 60 + (+n || 0), 0);
+  // "3:20", "1:02:30", "200" → 초 / 주소에 t=200 · t=3m20s 가 있으면 그것도 알아들어요
+  function toSec(s) {
+    s = String(s || "").trim(); if (!s) return 0;
+    const hms = s.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/);
+    if (/[hms]/.test(s) && hms) return (+hms[1] || 0) * 3600 + (+hms[2] || 0) * 60 + (+hms[3] || 0);
+    return s.split(":").reduce((a, n) => a * 60 + (+n || 0), 0);
   }
-  const id = ytId(VIDEO_URL), start = startSec();
-  $("video").innerHTML = id
-    ? `<iframe src="https://www.youtube.com/embed/${id}?start=${start}" title="수업 영상" allowfullscreen></iframe>
-       ${start ? `<p style="margin:8px 4px 0;font-size:14px;opacity:.65">▶ ${Math.floor(start / 60)}분 ${start % 60}초부터 시작해요</p>` : ""}`
-    : `<div class="find"><p>index.html 파일에 유튜브 링크를 입력해주세요</p>
-        <a class="yt-chip" href="https://www.youtube.com/results?search_query=${encodeURIComponent(DATA.video)}" target="_blank" rel="noopener">
-          <svg viewBox="0 0 28 20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#FF0000"/><path d="M11 5.5v9l8-4.5z" fill="#fff"/></svg>영상 보기</a>
-        <small>코드 맨 위 <code>VIDEO_URL</code>에 링크, <code>VIDEO_START</code>에 시작 시간을 넣어요</small></div>`;
+  const urlStart = u => { const m = String(u).match(/[?&](?:t|start)=([\dhms]+)/); return m ? toSec(m[1]) : 0; };
+  const mmss = n => `${Math.floor(n / 60)}분 ${n % 60}초`;
+
+  const qs = new URLSearchParams(location.search);
+  const fromLink = /^[\w-]{11}$/.test(qs.get("v") || "") ? { id: qs.get("v"), start: Math.max(0, parseInt(qs.get("t")) || 0) } : null;
+  function source() {
+    if (fromLink) return fromLink;
+    if (ytId(VIDEO_URL)) return { id: ytId(VIDEO_URL), start: toSec(VIDEO_START) || urlStart(VIDEO_URL) };
+    try { return JSON.parse(localStorage.getItem(VKEY) || "null"); } catch (e) { return null; }
+  }
+
+  function showVideo(src) {
+    $("video").innerHTML = `<iframe src="https://www.youtube.com/embed/${src.id}?start=${src.start}&rel=0" title="수업 영상" allowfullscreen></iframe>
+      <div class="vbar">
+        <span class="when">${src.start ? `▶ ${mmss(src.start)}부터 시작해요` : "▶ 처음부터 재생해요"}</span>
+        ${fromLink ? "" : `<button class="mini main" id="share">🔗 학생용 주소 복사</button><button class="mini" id="change">🔄 영상 바꾸기</button>`}
+      </div>`;
+    if (fromLink) return;
+    $("share").onclick = async () => {
+      if (!/^https?:$/.test(location.protocol)) return alert("학생용 주소는 웹앱을 배포한 뒤(3단계) 그 주소에서 만들 수 있어요.\n지금처럼 내 컴퓨터 파일로 열었을 때는 영상만 미리 볼 수 있어요.");
+      const u = location.origin + location.pathname + `?v=${src.id}${src.start ? "&t=" + src.start : ""}`;
+      try { await navigator.clipboard.writeText(u); $("share").textContent = "✓ 복사됨! 학생들에게 보내요"; }
+      catch (e) { prompt("이 주소를 복사해 학생들에게 보내요", u); }
+    };
+    $("change").onclick = () => showSetup(src);
+  }
+
+  function showSetup(prev) {
+    $("video").innerHTML = `<div class="setup">
+      <h3>🎬 선생님, 오늘 볼 영상을 넣어 주세요</h3>
+      <p class="sub">코드를 고치지 않아도 돼요. 아래 순서대로 하면 바로 영상이 나와요.</p>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><div class="row2">
+          <a class="yt-chip" href="https://www.youtube.com/results?search_query=${encodeURIComponent(DATA.video)}" target="_blank" rel="noopener">${YT}영상 보기</a>
+          <span style="font-size:14px;opacity:.7">유튜브에서 영상을 고르고 주소를 복사해요</span></div></div>
+        <div class="step"><span class="n">2</span><input id="vUrl" placeholder="유튜브 링크 붙여 넣기 (예: https://youtu.be/…)" value="${prev ? "https://youtu.be/" + prev.id : ""}"></div>
+        <div class="step"><span class="n">3</span><div class="row2">
+          <input id="vStart" placeholder="시작 시간 (예: 3:20) · 비우면 처음부터" value="${prev && prev.start ? Math.floor(prev.start / 60) + ":" + String(prev.start % 60).padStart(2, "0") : ""}">
+          <button class="put" id="put">영상 넣기</button></div></div>
+      </div>
+      <p class="err" id="vErr"></p></div>`;
+    $("put").onclick = () => {
+      const u = $("vUrl").value.trim(), id = ytId(u);
+      if (!id) return $("vErr").textContent = "유튜브 링크를 확인해 주세요. (youtube.com 또는 youtu.be 주소)";
+      const src = { id, start: toSec($("vStart").value) || urlStart(u) };
+      try { localStorage.setItem(VKEY, JSON.stringify(src)); } catch (e) {}
+      showVideo(src);
+    };
+    $("vStart").onkeydown = $("vUrl").onkeydown = e => { if (e.key === "Enter") $("put").click(); };
+  }
+
+  const first = source();
+  first ? showVideo(first) : showSetup(null);
 
   const load = () => JSON.parse(localStorage.getItem(KEY) || "[]");
   function render() {
