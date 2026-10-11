@@ -22,11 +22,16 @@
   .stdtext{font-size:15px;opacity:.75;margin:0 0 16px;line-height:1.6}
   .search{background:#fff;border:2px solid var(--line);border-radius:20px;padding:14px 18px;margin-bottom:16px}
   .search b{font-size:18px}
-  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-  .links a{text-decoration:none;color:#fff;border-radius:999px;padding:8px 18px;font-size:16px}
+  .search small{display:block;font-size:14px;opacity:.65;margin-top:2px}
+  /* 추천 검색어 칩: 누르면 네이버 뉴스에서 검색 */
+  .kws{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .kw{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:999px;padding:6px 14px 6px 10px;font-size:16px;transition:.15s}
+  .kw:hover{border-color:#03C75A;box-shadow:0 4px 10px rgba(3,199,90,.15)}
+  .kw i{font-style:normal;font-weight:700;color:#fff;background:#03C75A;border-radius:5px;width:20px;height:20px;display:grid;place-items:center;font-size:13px}
   .card{background:#fff;border:2px solid var(--line);border-radius:22px;padding:20px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   label{display:block;font-size:17px;margin:12px 0 4px}
+  .card > label:first-child{margin-top:0}
   input,textarea{width:100%;font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:9px 12px}
   textarea{min-height:76px;resize:vertical}
   input:focus,textarea:focus{outline:none;border-color:var(--main)}
@@ -54,8 +59,9 @@
   <p class="stdtext" id="stdtext"></p>
 
   <div class="search">
-    <b>🔎 추천 검색어: <span id="kw"></span></b>
-    <div class="links" id="links"></div>
+    <b>🔎 추천 검색어</b>
+    <small>누르면 네이버 뉴스에서 바로 검색돼요</small>
+    <div class="kws" id="kws"></div>
   </div>
 
   <div class="card">
@@ -66,7 +72,6 @@
     </div>
     <label for="url">기사 주소</label><input id="url" placeholder="https://">
     <label for="sum">📌 핵심 내용 세 줄</label><textarea id="sum" maxlength="400" placeholder="1.&#10;2.&#10;3."></textarea>
-    <label for="link">🔗 성취기준과 어떻게 이어지나요?</label><textarea id="link" maxlength="300"></textarea>
     <label for="mine">💭 내 생각</label><textarea id="mine" maxlength="300"></textarea>
     <label>✅ 믿을 만한 기사인가요?</label>
     <div class="checks">
@@ -83,7 +88,7 @@
 
 <script>
   /* ===== ✏️ 성취기준과 검색어는 여기서 바꿔요 ===== */
-  const DATA = /*DATA*/{"code":"9도01-03","t":"행복한 삶","text":"행복에 관한 심리적, 사회적, 윤리적 접근 등을 통해 행복의 의미를 종합적으로 파악하고, 삶의 목적과 행복의 관계를 정립할 수 있다.","news":"청소년 행복지수"}/*END*/;
+  const DATA = /*DATA*/{"code":"9도01-03","t":"행복한 삶","text":"행복에 관한 심리적, 사회적, 윤리적 접근 등을 통해 행복의 의미를 종합적으로 파악하고, 삶의 목적과 행복의 관계를 정립할 수 있다.","news":["청소년 행복지수","행복 조건","소확행","행복 연구"]}/*END*/;
 
   const $ = id => document.getElementById(id);
   const safe = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -92,22 +97,19 @@
   $("std").textContent = `📰 [${DATA.code}] ${DATA.t}`;
   $("title").textContent = `📰 '${DATA.t}' 관련 기사 찾기`;
   $("stdtext").textContent = `성취기준: ${DATA.text}`;
-  $("kw").textContent = DATA.news;
-  const q = encodeURIComponent(DATA.news);
-  $("links").innerHTML = `
-    <a style="background:#03C75A" href="https://search.naver.com/search.naver?where=news&query=${q}" target="_blank" rel="noopener">네이버 뉴스</a>
-    <a style="background:#1E5AA8" href="https://www.bigkinds.or.kr/" target="_blank" rel="noopener">빅카인즈</a>
-    <a style="background:#4285F4" href="https://news.google.com/search?q=${q}&hl=ko&gl=KR&ceid=KR:ko" target="_blank" rel="noopener">구글 뉴스</a>`;
+  // ✏️ 추천 검색어는 DATA 의 news 목록에서 바꿔요 (누르면 네이버 뉴스 검색)
+  const KWS = [].concat(DATA.news || []);
+  $("kws").innerHTML = KWS.map(w => `<a class="kw" href="https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(w)}" target="_blank" rel="noopener"><i>N</i>${safe(w)}</a>`).join("");
 
   // 쓰던 내용은 이 기기에 저절로 남아요
-  const F = ["title2", "press", "date", "url", "sum", "link", "mine"];
+  const F = ["title2", "press", "date", "url", "sum", "mine"];
   const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
   F.forEach(k => { if (saved[k]) $(k).value = saved[k]; $(k).addEventListener("input", keep); });
   function keep() { const o = {}; F.forEach(k => o[k] = $(k).value); localStorage.setItem(KEY, JSON.stringify(o)); }
 
   function text() {
     const v = k => $(k).value.trim();
-    return `[${DATA.code}] ${DATA.t} 관련 기사\n제목: ${v("title2")}\n언론사: ${v("press")} (${v("date")})\n주소: ${v("url")}\n\n핵심 내용\n${v("sum")}\n\n성취기준과의 관련\n${v("link")}\n\n내 생각\n${v("mine")}`;
+    return `[${DATA.code}] ${DATA.t} 관련 기사\n제목: ${v("title2")}\n언론사: ${v("press")} (${v("date")})\n주소: ${v("url")}\n\n핵심 내용\n${v("sum")}\n\n내 생각\n${v("mine")}`;
   }
   $("send").onclick = () => {
     const v = k => $(k).value.trim();
@@ -118,7 +120,7 @@
     // 정리한 기사를 이 기기에 남겨요 (🔐 관리자 대시보드에서 봐요)
     try {
       const list = JSON.parse(localStorage.getItem(ADMIN.key) || "[]");
-      list.push({ title: v("title2"), press: v("press"), date: v("date"), url, sum: v("sum"), link: v("link"), mine: v("mine"), trust: ok + "/4", at: Date.now() });
+      list.push({ title: v("title2"), press: v("press"), date: v("date"), url, sum: v("sum"), mine: v("mine"), trust: ok + "/4", at: Date.now() });
       localStorage.setItem(ADMIN.key, JSON.stringify(list));
     } catch (e) {}
     $("result").innerHTML = `<div class="news">
@@ -126,7 +128,6 @@
       <div class="meta">${safe(v("press") || "언론사 미상")} · ${safe(v("date") || "날짜 미상")}${url ? ` · <a href="${safe(url)}" target="_blank" rel="noopener">${safe(url)}</a>` : ""}</div>
       <div>믿을 만한 정도: ${"🟩".repeat(ok)}${"⬜".repeat(4 - ok)} (${ok}/4)</div>
       <h3>📌 핵심 내용</h3><p>${safe(v("sum"))}</p>
-      <h3>🔗 [${safe(DATA.code)}] ${safe(DATA.t)}와의 관련</h3><p>${safe(v("link") || "-")}</p>
       <h3>💭 내 생각</h3><p>${safe(v("mine"))}</p>
       <div class="acts"><button id="copy">📋 복사</button><button onclick="print()">🖨 인쇄</button></div></div>`;
     $("copy").onclick = async () => { try { await navigator.clipboard.writeText(text()); $("copy").textContent = "✓ 복사됨"; } catch (e) { alert("복사하지 못했어요."); } };
@@ -134,7 +135,7 @@
   };
   // 🔐 관리자 대시보드에 보일 기록
   const ADMIN = { key: "news.cards." + DATA.code, title: "관련 기사 찾기",
-    cols: [["title", "기사 제목"], ["press", "언론사"], ["date", "날짜"], ["url", "주소"], ["sum", "핵심 내용"], ["link", "성취기준과의 관련성"], ["mine", "내 생각"], ["trust", "믿을 만한 정도"], ["at", "제출 시각"]] };
+    cols: [["title", "기사 제목"], ["press", "언론사"], ["date", "날짜"], ["url", "주소"], ["sum", "핵심 내용"], ["mine", "내 생각"], ["trust", "믿을 만한 정도"], ["at", "제출 시각"]] };
 </script>
 <!-- ===== 🔐 관리자 대시보드 (처음 비밀번호 1234 · 대시보드에서 바꿀 수 있어요) =====
      지금은 이 기기에 저장된 기록만 보여요. 4단계에서 파이어스토어를 연결하면 모든 학생 기록이 모여요. -->
