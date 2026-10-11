@@ -542,15 +542,23 @@ service cloud.firestore {
     match /sonagi_apps/{id} {
       allow read: if true;
       allow create: if request.auth != null
-        && request.resource.data.keys().hasOnly(['name', 'title', 'url', 'owner', 'at'])
+        && request.resource.data.keys().hasOnly(['name', 'title', 'url', 'owner', 'at', 'noteCount'])
         && request.resource.data.owner == request.auth.uid
         && sonagiApp(request.resource.data)
+        && request.resource.data.get('noteCount', 0) == 0
         && request.resource.data.at == request.time;
-      allow update: if request.auth != null && resource.data.owner == request.auth.uid
-        && request.resource.data.keys().hasOnly(['name', 'title', 'url', 'owner', 'at'])
-        && request.resource.data.owner == resource.data.owner
-        && request.resource.data.at == resource.data.at
-        && sonagiApp(request.resource.data);
+      // 올린 사람: 닉네임 · 이름 · 주소 고치기 (의견 수는 그대로)
+      // 다른 선생님: 의견을 남길 때 의견 수(noteCount)만 1 올리기
+      allow update: if request.auth != null && (
+        (resource.data.owner == request.auth.uid
+          && request.resource.data.keys().hasOnly(['name', 'title', 'url', 'owner', 'at', 'noteCount'])
+          && request.resource.data.owner == resource.data.owner
+          && request.resource.data.at == resource.data.at
+          && request.resource.data.get('noteCount', 0) == resource.data.get('noteCount', 0)
+          && sonagiApp(request.resource.data))
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['noteCount'])
+          && request.resource.data.noteCount == resource.data.get('noteCount', 0) + 1)
+      );
       allow delete: if (request.auth != null && resource.data.owner == request.auth.uid) || isTeacher();
     }
     // 동료 의견: 칭찬 한 가지(good) · 제안 한 가지(idea) — 웹앱을 올린 선생님(owner)만 읽기

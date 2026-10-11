@@ -260,6 +260,16 @@ mark.fill{background:linear-gradient(transparent 12%,#FFE58A 12%,#FFE58A 92%,tra
 .pw-form input{width:100%;border:2px solid var(--line);border-radius:.75rem;padding:.375rem .625rem;font-size:.9375rem}
 .pw-form input:focus{outline:none;border-color:var(--c)}
 .pw-form button{justify-self:end;border:0;border-radius:999px;background:var(--c);color:#fff;padding:.25rem 1rem;font-family:var(--hand);font-size:1rem;cursor:pointer}
+/* 의견 0개 웹앱 먼저 */
+.pw-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:0 0 .75rem;font-size:.9375rem}
+.pw-bar:empty{display:none}
+.pw-bar span{flex:1;min-width:12rem}
+.pw-filter{border:2px solid var(--green);background:#fff;color:var(--ink);border-radius:999px;padding:.125rem .875rem;font-size:.875rem;cursor:pointer}
+.pw-filter.on{background:var(--green);color:#fff}
+.pw-filter.zero{border-color:var(--coral)}
+.pw-filter.zero.on{background:var(--coral)}
+.pw-card.need{--c:var(--coral);border-color:var(--coral);box-shadow:0 0 0 3px color-mix(in srgb,var(--coral) 22%,transparent)}
+.pw-need{background:color-mix(in srgb,var(--coral) 16%,#fff);color:color-mix(in srgb,var(--coral) 60%,var(--ink));border-radius:.625rem;padding:.25rem .625rem;font-size:.875rem}
 /* 담벼락 미리보기 (누르면 새 창) */
 .pw-thumb{position:relative;display:block;height:11rem;border:2px solid var(--line);border-radius:.875rem;overflow:hidden;background:#fff}
 .pw-thumb iframe{position:absolute;top:0;left:0;width:250%;height:250%;transform:scale(.4);transform-origin:0 0;border:0;pointer-events:none}
@@ -1200,6 +1210,7 @@ function renderVerify() {
       <div class="ch"><span class="ce">${v.e}</span><h3 class="ct">${v.t}</h3></div><p class="key" style="font-size:1rem">${v.key}</p>${v.html}</article>`).join("")}</div>
     <h3 class="sec" id="pwSec">🧱 동료 검증 담벼락</h3>
     <p class="muted" style="margin:-.25rem 0 .75rem">선생님들 웹앱을 열어 학생처럼 써 보고, <b>👍 칭찬 한 가지</b>와 <b>💡 제안 한 가지</b>를 남겨 주세요. 남긴 의견은 <b>웹앱을 올린 선생님만</b> 볼 수 있어요.</p>
+    <div class="pw-bar" id="pwBar"></div>
     <div class="peer-wall" id="peerWall"><p class="pw-empty">담벼락을 불러오는 중이에요…</p></div>
     <h3 class="sec">📬 내가 받은 의견 <small class="muted" style="font-family:var(--body);font-size:.875rem">나만 볼 수 있어요</small></h3>
     <div id="pwInbox"><p class="pw-empty">내 웹앱을 담벼락에 올리면, 다른 선생님들이 남긴 칭찬 · 제안이 여기에 모여요.</p></div>`;
@@ -1246,9 +1257,24 @@ function drawPeerWall() {
   const box = $("#peerWall"); if (!box || !PW.db) return;
   const typing = {}; box.querySelectorAll("input[data-app]").forEach(i => typing[i.dataset.app + i.dataset.k] = i.value);
   const ae = document.activeElement, focus = ae && ae.dataset && ae.dataset.app ? ae.dataset.app + ae.dataset.k : "";
-  if (!PW.apps.length) { box.innerHTML = pwErr("아직 올라온 웹앱이 없어요. 위 ④ <b>동료 검증</b> 칸에서 첫 번째로 올려 보세요! 🌱"); return; }
-  box.innerHTML = PW.apps.map(a => `<article class="pw-card ${isMine(a) ? "mine" : ""}">
-      <div class="pw-h"><h4>${esc(a.title)}<small>${esc(a.name)} 선생님${isMine(a) ? " · 내 웹앱" : ""}</small></h4>
+  const bar = $("#pwBar");
+  if (!PW.apps.length) { if (bar) bar.innerHTML = ""; box.innerHTML = pwErr("아직 올라온 웹앱이 없어요. 위 ④ <b>동료 검증</b> 칸에서 첫 번째로 올려 보세요! 🌱"); return; }
+  // 의견이 적은 웹앱부터 (같으면 먼저 올린 순) → 아무도 빠지지 않게
+  const cnt = a => a.noteCount || 0;
+  const zero = PW.apps.filter(a => !cnt(a) && !isMine(a)).length;
+  const SORTS = [["comment", "💬 댓글순"], ["old", "🕐 등록순"], ["new", "🆕 최근순"]];
+  const sort = PW.sort || "comment";
+  if (bar) bar.innerHTML = `<span>${zero ? `🙋 아직 의견을 못 받은 웹앱 <b>${zero}개</b> — 먼저 찾아가 주세요!` : "🎉 모든 웹앱이 의견을 받았어요!"}</span>
+    ${SORTS.map(([k, t]) => `<button type="button" class="pw-filter ${sort === k ? "on" : ""}" data-pw-sort="${k}">${t}</button>`).join("")}
+    <button type="button" class="pw-filter zero ${PW.only0 ? "on" : ""}" id="pwOnly0">${PW.only0 ? "전체 보기" : "🙋 0개만 보기"}</button>`;
+  // 댓글순: 의견이 적은 웹앱부터 · 등록순: 먼저 올린 순 · 최근순: 나중에 올린 순
+  const t = a => a.at?.seconds || 9e9;
+  const list = PW.apps.filter(a => !PW.only0 || !cnt(a)).sort((x, y) =>
+    sort === "old" ? t(x) - t(y) : sort === "new" ? t(y) - t(x) : cnt(x) - cnt(y) || t(x) - t(y));
+  if (!list.length) { box.innerHTML = pwErr("의견이 0개인 웹앱이 없어요. 👏"); return; }
+  box.innerHTML = list.map(a => `<article class="pw-card ${isMine(a) ? "mine" : ""} ${!cnt(a) && !isMine(a) ? "need" : ""}">
+      ${!cnt(a) && !isMine(a) ? `<div class="pw-need">🙋 아직 의견이 없어요! 첫 의견을 남겨 주세요</div>` : ""}
+      <div class="pw-h"><h4>${esc(a.title)}<small>${esc(a.name)} 선생님${isMine(a) ? " · 내 웹앱" : ""} · 💬 의견 ${cnt(a)}개</small></h4>
         ${isMine(a) ? `<button type="button" class="pw-del" data-edit-app="${a.id}" title="고치기">✏️</button>` : ""}
         ${isMine(a) || PW.admin ? `<button type="button" class="pw-del" data-del-app="${a.id}" title="지우기">🗑</button>` : ""}</div>
       <a class="pw-thumb" href="${esc(a.url)}" target="_blank" rel="noopener" title="새 창에서 열기">
@@ -1327,7 +1353,11 @@ async function sendNote(app) {
   if (!good && !idea) return toast("칭찬이나 제안을 한 가지 이상 적어 주세요");
   const by = ($("#pwName") && $("#pwName").value.trim()) || store.get("peerName", "") || "익명";
   try {
-    await PW.db.collection("sonagi_notes").add({ app, owner: a.owner, good, idea, by: by.slice(0, 20), at: firebase.firestore.FieldValue.serverTimestamp() });
+    // 의견 저장 + 그 웹앱의 의견 수 1 올리기 (한 번에)
+    const batch = PW.db.batch();
+    batch.set(PW.db.collection("sonagi_notes").doc(), { app, owner: a.owner, good, idea, by: by.slice(0, 20), at: firebase.firestore.FieldValue.serverTimestamp() });
+    batch.update(PW.db.collection("sonagi_apps").doc(app), { noteCount: firebase.firestore.FieldValue.increment(1) });
+    await batch.commit();
     document.querySelectorAll(`input[data-app="${app}"]`).forEach(i => i.value = "");
     toast("의견을 남겼어요. 고마워요!");
   } catch (e) { toast("남기지 못했어요. 잠시 뒤 다시 해 주세요"); }
@@ -1429,6 +1459,8 @@ document.addEventListener("click", async e => {
   // 5단계 동료 검증 담벼락
   if (t.closest("#pwPost")) { postApp(); return; }
   if (t.closest("#pwCancel")) { endEdit(); return; }
+  if (t.closest("#pwOnly0")) { PW.only0 = !PW.only0; drawPeerWall(); return; }
+  const ps = t.closest("[data-pw-sort]"); if (ps) { PW.sort = ps.dataset.pwSort; drawPeerWall(); return; }
   const sn = t.closest("[data-send]"); if (sn) { sendNote(sn.dataset.send); return; }
   const ea = t.closest("[data-edit-app]"); if (ea) { startEdit(ea.dataset.editApp); return; }
   const da = t.closest("[data-del-app]"); if (da) { deleteApp(da.dataset.delApp); return; }
