@@ -531,6 +531,33 @@ service cloud.firestore {
       allow read, delete: if isTeacher();
     }
 
+    // ===== 소나기 연수 실습 (/sonagi) 동료 검증 담벼락 =====
+    // 선생님 웹앱: 닉네임 · 웹앱 이름 · 주소 (누구나 보기 · 올리기, 고치기 없음, 지우기는 관리자만)
+    match /sonagi_apps/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['name', 'title', 'url', 'at'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 40
+        && request.resource.data.url is string && request.resource.data.url.size() <= 200
+        && request.resource.data.url.matches('^https?://.+')
+        && request.resource.data.at == request.time;
+      allow update: if false;
+      allow delete: if isTeacher();
+    }
+    // 동료 의견: 칭찬 한 가지(good) · 제안 한 가지(idea)
+    match /sonagi_notes/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['app', 'good', 'idea', 'by', 'at'])
+        && request.resource.data.app is string && request.resource.data.app.size() <= 40
+        && request.resource.data.good is string && request.resource.data.good.size() <= 100
+        && request.resource.data.idea is string && request.resource.data.idea.size() <= 100
+        && (request.resource.data.good.size() > 0 || request.resource.data.idea.size() > 0)
+        && request.resource.data.by is string && request.resource.data.by.size() <= 20
+        && request.resource.data.at == request.time;
+      allow update: if false;
+      allow delete: if isTeacher();
+    }
+
     match /{document=**} { allow read, write: if false; }
   }
 }
