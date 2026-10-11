@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>만약 내가 시뮬레이션</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#F5F3FB; --ink:#3D3550; --main:#8B74D1; --line:#E2DCF3; --soft:#FBFAFE; }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  /* 예쁜 스크롤 막대 */
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-button{display:none;width:0;height:0}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--main) 45%,#fff);border:3px solid transparent;border-radius:99px;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--main) 75%,#fff)}
+  @supports not selector(::-webkit-scrollbar){ *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--main) 45%,#fff) transparent} }
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:24px 16px 60px}
+  .wrap{width:100%;max-width:800px}
+  .std{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 14px;font-size:14px}
+  h1{font-size:clamp(26px,4.5vw,40px);margin:10px 0 14px}
+  /* 진행 표시 */
+  .path{display:flex;gap:8px;align-items:center;margin:0 0 14px;flex-wrap:wrap;font-size:14px}
+  .path span{background:#fff;border:2px solid var(--line);border-radius:999px;padding:2px 12px}
+  .path span.now{background:var(--main);border-color:var(--main);color:#fff}
+  .path span.done{background:color-mix(in srgb,var(--main) 15%,#fff);border-color:color-mix(in srgb,var(--main) 40%,#fff)}
+  .card{background:#fff;border:2px solid var(--line);border-radius:24px;padding:24px}
+  .role{display:inline-block;background:var(--main);color:#fff;border-radius:999px;padding:4px 14px;font-size:15px;margin-bottom:10px}
+  .scene{font-size:clamp(20px,3.2vw,26px);line-height:1.55;margin:4px 0 18px}
+  .opts{display:grid;gap:10px}
+  .opt{font:inherit;font-size:18px;line-height:1.5;text-align:left;background:var(--soft);color:var(--ink);border:2px solid var(--line);border-radius:16px;padding:14px 18px;cursor:pointer;transition:.15s;word-break:keep-all}
+  .opt:hover:not(:disabled){border-color:var(--main);transform:translateY(-1px)}
+  .opt:disabled{cursor:default}
+  .opt.on{border-color:var(--main);background:color-mix(in srgb,var(--main) 12%,#fff)}
+  .opt.off{opacity:.45}
+  .result{margin-top:16px;padding:14px 18px;border-radius:16px;background:color-mix(in srgb,var(--main) 10%,#fff);font-size:18px;line-height:1.55}
+  .why{margin-top:14px}
+  .why label{display:block;font-size:17px;margin-bottom:6px}
+  .why small{opacity:.6}
+  input,textarea{width:100%;font:inherit;font-size:17px;border:2px solid var(--line);border-radius:14px;padding:10px 14px;color:var(--ink)}
+  textarea{min-height:110px;resize:vertical;line-height:1.6}
+  input:focus,textarea:focus{outline:none;border-color:var(--main)}
+  .btn{display:block;margin:18px auto 0;font:inherit;font-size:20px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:12px 40px;cursor:pointer}
+  /* 엔딩 */
+  .end-h{text-align:center}
+  .end-h .big{font-size:56px;line-height:1.1}
+  .end-h h2{margin:6px 0 4px;font-size:clamp(22px,3.6vw,30px)}
+  .end-h p{margin:0 auto;max-width:560px;line-height:1.6}
+  .who{margin:18px 0 6px;display:grid;gap:8px}
+  .who div{display:grid;grid-template-columns:150px 1fr 40px;gap:10px;align-items:center;font-size:15px}
+  .who .bar{height:12px;background:var(--line);border-radius:99px;overflow:hidden}
+  .who .bar i{display:block;height:100%;background:var(--main);border-radius:99px}
+  .who details{grid-column:1 / -1;font-size:14px;opacity:.85;margin:-2px 0 4px}
+  .reflect{margin-top:20px;background:var(--soft);border:2px dashed var(--line);border-radius:18px;padding:16px}
+  .reflect h3{margin:0 0 8px;font-size:19px;line-height:1.5}
+  .err{color:#D9534F;text-align:center;min-height:20px;margin:6px 0 0;font-size:15px}
+  .thanks{text-align:center;padding:20px 6px}
+  .thanks b{display:block;font-size:60px}
+  @media (max-width:560px){ .who div{grid-template-columns:110px 1fr 30px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="std" id="std"></span>
+  <h1 id="title">🎭 만약 내가 시뮬레이션</h1>
+  <div class="path" id="path"></div>
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 시나리오는 sim 에서 바꿔요 =====
+     role 내 역할, intro 시작 장면, tags 입장(이름 · 이모지 · 설명),
+     scenes [장면, [[선택지, 입장 키, 결과], …]] 3개, why 한 줄 쓰기 장면(0부터), reflect 성찰 질문, starter 성찰 시작 문장 */
+  const DATA = /*DATA*/{"code":"9도03-04","t":"정의로운 사회","text":"정의로운 사회를 상상해보고, 이를 실현할 수 있는 정의의 원칙과 제도에 대한 다양한 의견들을 민주적인 방식으로 종합할 수 있다.","sim":{"role":"무지의 베일을 쓴 섬의 당사자","intro":"눈을 떠 보니 새로 생긴 섬에 도착했어요. 무지의 베일을 써서, 이 섬에서 내가 부자로 태어날지 가난하게 태어날지, 건강할지 아플지 아무것도 몰라요. 사람들과 함께 섬의 규칙을 정해야 해요.","tags":{"R":["롤스","⚖️","내가 어떤 사람으로 태어나도 받아들일 수 있는 규칙을 골랐어요. 기본적 자유는 모두에게 똑같이, 기회는 공정하게, 불평등은 가장 불리한 사람에게 이익이 될 때만!"],"N":["노직","🗽","개인의 자유와 정당하게 얻은 소유를 가장 중요하게 여겼어요. 국가는 최소한의 역할만 해야 한다고 봤어요."],"U":["공리주의","📈","섬 전체 행복의 합이 가장 커지는 선택을 했어요. 최대 다수의 최대 행복!"]},"scenes":[["첫 번째 회의: 섬 사람들의 자유를 어떻게 정할까요?",[["말하기, 종교, 투표의 자유는 누구에게나 똑같이 보장해요","R","어떤 사람으로 태어나도 내 생각을 말하고 투표할 수 있어요."],["섬 전체의 행복이 커진다면 소수의 자유는 조금 줄여도 돼요","U","다수는 편해졌지만, 내가 소수로 태어났다면 목소리를 잃을 수도 있어요."],["국가는 생명과 재산만 지키고, 나머지는 각자 자유롭게 해요","N","간섭이 적어 자유롭지만, 도움이 필요한 사람을 챙기는 규칙은 따로 없어요."]]],["두 번째 회의: 좋은 일자리는 누가 갖게 할까요?",[["누구나 같은 교육을 받은 뒤 공정하게 경쟁해요","R","가난한 집에서 태어나도 같은 출발선에서 도전할 수 있어요."],["각자 가진 돈으로 자녀를 가르치는 것도 자유예요","N","부모의 재산에 따라 출발선이 달라질 수 있지만, 그것도 각자의 자유라고 봐요."],["섬 전체 생산이 가장 커지도록 재능 있는 사람을 골라 몰아줘요","U","섬은 빨리 부유해졌지만, 뽑히지 못한 사람은 기회를 얻기 어려워요."]]],["마지막 회의: 섬에서 거둔 식량과 돈을 어떻게 나눌까요?",[["차이는 허용하되, 가장 불리한 사람에게 가장 큰 이익이 돌아가게 해요","R","열심히 일한 사람은 더 받지만, 가장 어려운 사람의 삶도 함께 나아져요."],["정당하게 번 것은 모두 그 사람 것이고, 세금은 최소로 해요","N","번 만큼 가질 수 있지만, 일할 수 없는 사람은 다른 사람의 자선에 기대야 해요."],["섬 사람들 행복의 합이 가장 커지는 쪽으로 나눠요","U","전체 행복은 커졌지만, 몇몇은 희생될 수도 있어요."]]]],"why":2,"reflect":"베일을 벗었더니 내가 섬에서 가장 어려운 사람이었다면, 내가 정한 규칙을 받아들일 수 있나요?","starter":"베일을 벗고 보니"}}/*END*/;
+
+  const $ = id => document.getElementById(id);
+  const safe = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const SIM = DATA.sim, N = SIM.scenes.length;
+  document.title = "만약 내가 시뮬레이션 · " + DATA.t;
+  $("std").textContent = `🎭 [${DATA.code}] ${DATA.t}`;
+  $("std").title = DATA.text;
+  $("title").textContent = `🎭 '${DATA.t}' 만약 내가 시뮬레이션`;
+  const card = $("card");
+  let i = -1, picks = [], why = "";
+
+  function shuffle(a) { for (let k = a.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [a[k], a[j]] = [a[j], a[k]]; } return a; }
+  function drawPath() {
+    $("path").innerHTML = ["시작", ...SIM.scenes.map((_, n) => `장면 ${n + 1}`), "엔딩"].map((t, n) => {
+      const step = n - 1;   // -1 = 시작, N = 엔딩
+      return `<span class="${step === i ? "now" : step < i ? "done" : ""}">${t}</span>`;
+    }).join("");
+  }
+
+  // 시작: 역할 카드
+  function intro() {
+    i = -1; picks = []; why = ""; drawPath();
+    card.innerHTML = `<span class="role">🎭 내 역할: ${safe(SIM.role)}</span>
+      <p class="scene">${safe(SIM.intro)}</p>
+      <p style="margin:0;opacity:.7">정답은 없어요. 그 사람의 자리에 서서 내가 할 선택을 골라 보세요.</p>
+      <button class="btn" id="go">시작하기</button>`;
+    $("go").onclick = () => scene(0);
+  }
+
+  // 장면: 선택지 3개 (순서는 섞어서)
+  function scene(n) {
+    i = n; drawPath();
+    const [text, opts] = SIM.scenes[n];
+    const order = shuffle(opts.map((_, k) => k));
+    card.innerHTML = `<span class="role">장면 ${n + 1} / ${N}</span>
+      <p class="scene">${safe(text)}</p>
+      <div class="opts">${order.map((k, j) => `<button class="opt" data-k="${k}">${"①②③④"[j]} ${safe(opts[k][0])}</button>`).join("")}</div>
+      <div id="after"></div>`;
+    card.querySelectorAll(".opt").forEach(b => b.onclick = () => choose(n, +b.dataset.k));
+  }
+
+  function choose(n, k) {
+    picks[n] = k;
+    card.querySelectorAll(".opt").forEach(b => { b.disabled = true; b.classList.add(+b.dataset.k === k ? "on" : "off"); });
+    const last = n === N - 1;
+    $("after").innerHTML = `<div class="result">➡️ ${safe(SIM.scenes[n][1][k][2])}</div>
+      ${n === SIM.why ? `<div class="why"><label for="whyIn">✏️ 왜 그렇게 골랐나요? <small>(한 줄)</small></label><input id="whyIn" maxlength="80" placeholder="내가 이 선택을 한 까닭은…"><p class="err" id="whyErr"></p></div>` : ""}
+      <button class="btn" id="next">${last ? "엔딩 보기 🎬" : "다음 장면 →"}</button>`;
+    if (n === SIM.why) $("whyIn").focus(); else $("next").focus();
+    $("next").onclick = () => {
+      if (n === SIM.why) {
+        why = $("whyIn").value.trim();
+        if (!why) return $("whyErr").textContent = "한 줄만 써 주세요!";
+      }
+      last ? ending() : scene(n + 1);
+    };
+  }
+
+  // 엔딩: 누구와 가장 닮았나요? (정답이 아니라 비교)
+  function ending() {
+    i = N; drawPath();
+    const keys = Object.keys(SIM.tags);
+    const cnt = Object.fromEntries(keys.map(t => [t, 0]));
+    picks.forEach((k, n) => cnt[SIM.scenes[n][1][k][1]]++);
+    const max = Math.max(...Object.values(cnt));
+    const tops = keys.filter(t => cnt[t] === max);
+    const head = tops.map(t => SIM.tags[t]);
+    card.innerHTML = `<div class="end-h">
+        <div class="big">${head.map(h => h[1]).join(" ")}</div>
+        <h2>내 선택은 '${head.map(h => safe(h[0])).join("' · '")}'와 가장 닮았어요</h2>
+        <p>${head.map(h => safe(h[2])).join("<br>")}</p></div>
+      <div class="who">${keys.map(t => `<div><span>${SIM.tags[t][1]} ${safe(SIM.tags[t][0])}</span><span class="bar"><i style="width:${cnt[t] / N * 100}%"></i></span><b>${cnt[t]}</b>
+        <details><summary>설명 보기</summary>${safe(SIM.tags[t][2])}</details></div>`).join("")}</div>
+      <div class="reflect">
+        <h3>💭 ${safe(SIM.reflect)}</h3>
+        <textarea id="ref" maxlength="300">${safe(SIM.starter ? SIM.starter + " " : "")}</textarea>
+        <p class="err" id="refErr"></p>
+        <button class="btn" id="send" style="margin-top:8px">제출하기</button>
+      </div>`;
+    const ta = $("ref"); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+    $("send").onclick = () => {
+      const r = ta.value.trim();
+      if (r.length < (SIM.starter || "").length + 10) return $("refErr").textContent = "두세 줄로 내 생각을 조금 더 써 주세요.";
+      // 이 기기에 남겨요 (🔐 관리자 대시보드에서 봐요)
+      try {
+        const list = JSON.parse(localStorage.getItem(ADMIN.key) || "[]");
+        list.push({ path: picks.map((k, n) => `장면${n + 1}: ${SIM.scenes[n][1][k][0]}`), who: head.map(h => h[0]).join(" · "), why, reflect: r, at: Date.now() });
+        localStorage.setItem(ADMIN.key, JSON.stringify(list));
+      } catch (e) {}
+      card.innerHTML = `<div class="thanks"><b>🙌</b><h2>제출했어요! 고마워요</h2>
+        <p>다른 친구는 어떤 길을 골랐을까요? 서로의 선택을 이야기해 봐요.</p>
+        <button class="btn" id="again">다시 하기</button></div>`;
+      $("again").onclick = intro;
+    };
+  }
+
+  // 🔐 관리자 대시보드에 보일 기록
+  const ADMIN = { key: "sim.results." + DATA.code, title: "만약 내가 시뮬레이션",
+    cols: [["path", "고른 길"], ["who", "닮은 입장"], ["why", "한 줄 이유"], ["reflect", "성찰"], ["at", "제출 시각"]] };
+  intro();
+</script>
+<!-- ===== 🔐 관리자 대시보드 (처음 비밀번호 1234 · 대시보드에서 바꿀 수 있어요) =====
+     지금은 이 기기에 저장된 기록만 보여요. 4단계에서 파이어스토어를 연결하면 모든 학생 기록이 모여요. -->
+<style>
+  .adm-btn{position:fixed;top:12px;right:12px;z-index:50;font:inherit;font-size:14px;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:999px;padding:5px 14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .adm-btn:hover{border-color:var(--main)}
+  .adm{position:fixed;inset:0;z-index:60;background:rgba(40,30,30,.35);display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto}
+  .adm[hidden]{display:none}
+  .adm-in{background:#fff;color:var(--ink);border-radius:22px;width:100%;max-width:900px;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+  .adm-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .adm-h h2{margin:0;font-size:22px;flex:1}
+  .adm-b{white-space:nowrap;font:inherit;font-size:14px;color:var(--ink);border:2px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;cursor:pointer}
+  .adm-b.main{background:var(--main);border-color:var(--main);color:#fff}
+  .adm-b.warn:hover{border-color:#D9534F;color:#D9534F}
+  .adm-in input{font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:8px 12px;width:auto;flex:1 1 150px;min-width:0}
+  .adm-in input:focus{outline:none;border-color:var(--main)}
+  .adm-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .adm-err{color:#D9534F;font-size:14px;min-height:20px;margin:6px 0 0}
+  .adm-ok{color:#3FAE6F}
+  .adm-stat{display:inline-block;background:color-mix(in srgb,var(--main) 12%,#fff);border-radius:14px;padding:6px 14px;margin-right:6px}
+  .adm-stat b{font-size:20px}
+  .adm-wrap{overflow-x:auto;border:2px solid var(--line);border-radius:14px;margin:12px 0}
+  .adm-in table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+  .adm-in th,.adm-in td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;word-break:keep-all;overflow-wrap:anywhere}
+  .adm-in th{background:color-mix(in srgb,var(--main) 8%,#fff);white-space:nowrap}
+  .adm-in tr:last-child td{border-bottom:0}
+  .adm-del{white-space:nowrap;font:inherit;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:1px 8px;cursor:pointer}
+  .adm-pw{background:color-mix(in srgb,var(--main) 6%,#fff);border-radius:14px;padding:10px 14px;margin-top:14px}
+  .adm-pw h3{margin:0 0 4px;font-size:16px}
+  @media print{.adm-btn,.adm{display:none !important}}
+</style>
+<button class="adm-btn" id="admBtn" type="button">🔐 관리자</button>
+<div class="adm" id="adm" hidden><div class="adm-in" id="admIn" role="dialog" aria-label="관리자 대시보드"></div></div>
+<script>
+(() => {
+  // ADMIN = { key: 기록이 저장된 이름, title: 제목, cols: [[칸 이름, 보이는 이름], …], onChange: 기록을 지운 뒤 할 일 }
+  const PW_KEY = "admin.pw." + DATA.code, DEFAULT_PW = "1234";
+  const $a = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const getPw = () => { try { return localStorage.getItem(PW_KEY) || DEFAULT_PW; } catch (e) { return DEFAULT_PW; } };
+  const rows = () => { try { return JSON.parse(localStorage.getItem(ADMIN.key) || "[]"); } catch (e) { return []; } };
+  const save = list => { try { localStorage.setItem(ADMIN.key, JSON.stringify(list)); } catch (e) {} ADMIN.onChange && ADMIN.onChange(); };
+  const cell = (r, k) => k === "at" ? (r.at ? new Date(r.at).toLocaleString("ko-KR") : "") : Array.isArray(r[k]) ? r[k].join(", ") : (r[k] ?? "");
+  let open = false;
+
+  function show(html) { $a("admIn").innerHTML = html; $a("adm").hidden = false; open = true; }
+  function close() { $a("adm").hidden = true; open = false; }
+  const head = t => `<div class="adm-h"><h2>${t}</h2><button class="adm-b" id="admX" type="button">✕ 닫기</button></div>`;
+
+  function login() {
+    show(head("🔐 관리자 로그인") + `
+      <p style="margin:0 0 6px">관리자 비밀번호를 넣어 주세요.</p>
+      <div class="adm-row"><input type="password" id="admPw" placeholder="비밀번호" autocomplete="off"><button class="adm-b main" id="admGo" type="button">들어가기</button></div>
+      <p class="adm-err" id="admErr"></p>`);
+    $a("admPw").focus();
+    const go = () => $a("admPw").value === getPw() ? dash() : ($a("admErr").textContent = "비밀번호가 맞지 않아요.");
+    $a("admGo").onclick = go;
+    $a("admPw").onkeydown = e => { if (e.key === "Enter") go(); };
+  }
+
+  function dash() {
+    const list = rows(), view = list.map((r, i) => ({ r, i })).reverse();
+    show(head("📊 관리자 대시보드 · " + esc(ADMIN.title)) + `
+      <div><span class="adm-stat">기록 <b>${list.length}</b>개</span><span style="font-size:13px;opacity:.65">지금은 이 기기에 저장된 기록만 보여요</span></div>
+      ${list.length ? `<div class="adm-wrap"><table><thead><tr><th>#</th>${ADMIN.cols.map(c => `<th>${esc(c[1])}</th>`).join("")}<th></th></tr></thead><tbody>
+        ${view.map((v, n) => `<tr><td>${list.length - n}</td>${ADMIN.cols.map(c => `<td>${esc(cell(v.r, c[0]))}</td>`).join("")}<td><button class="adm-del" data-i="${v.i}" type="button">지우기</button></td></tr>`).join("")}
+      </tbody></table></div>` : `<p style="opacity:.6;margin:14px 0">아직 기록이 없어요.</p>`}
+      <div class="adm-row">
+        <button class="adm-b main" id="admCsv" type="button" ${list.length ? "" : "disabled"}>⬇️ 엑셀(CSV)로 받기</button>
+        <button class="adm-b warn" id="admClear" type="button" ${list.length ? "" : "disabled"}>🗑 모두 지우기</button>
+        <button class="adm-b" id="admLock" type="button">🔒 잠그기</button>
+      </div>
+      <div class="adm-pw"><h3>🔑 비밀번호 바꾸기</h3>
+        <div class="adm-row"><input type="password" id="admOld" placeholder="지금 비밀번호" autocomplete="off"><input type="password" id="admNew" placeholder="새 비밀번호 (4자 이상)" autocomplete="off"><input type="password" id="admNew2" placeholder="새 비밀번호 한 번 더" autocomplete="off"><button class="adm-b main" id="admChange" type="button">바꾸기</button></div>
+        <p class="adm-err" id="admPwMsg"></p></div>`);
+    $a("admLock").onclick = close;
+    $a("admIn").querySelectorAll(".adm-del").forEach(b => b.onclick = () => {
+      if (!confirm("이 기록을 지울까요?")) return;
+      const l = rows(); l.splice(+b.dataset.i, 1); save(l); dash();
+    });
+    $a("admClear").onclick = () => { if (confirm("기록을 모두 지울까요? 되돌릴 수 없어요.")) { save([]); dash(); } };
+    $a("admCsv").onclick = () => {
+      const q = v => `"${String(v).replace(/"/g, '""')}"`;
+      const csv = [ADMIN.cols.map(c => q(c[1])).join(",")].concat(rows().map(r => ADMIN.cols.map(c => q(cell(r, c[0]))).join(","))).join("\r\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+      a.download = `${ADMIN.title}_${DATA.code}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    };
+    $a("admChange").onclick = () => {
+      const m = $a("admPwMsg"), o = $a("admOld").value, n = $a("admNew").value, n2 = $a("admNew2").value;
+      m.className = "adm-err";
+      if (o !== getPw()) return m.textContent = "지금 비밀번호가 맞지 않아요.";
+      if (n.length < 4) return m.textContent = "새 비밀번호는 4자 이상으로 해 주세요.";
+      if (n !== n2) return m.textContent = "새 비밀번호 두 칸이 서로 달라요.";
+      try { localStorage.setItem(PW_KEY, n); } catch (e) {}
+      m.className = "adm-err adm-ok"; m.textContent = "✓ 비밀번호를 바꿨어요. 다음부터 새 비밀번호로 들어와요.";
+      ["admOld", "admNew", "admNew2"].forEach(k => $a(k).value = "");
+    };
+  }
+
+  $a("admBtn").onclick = login;
+  $a("adm").onclick = e => { if (e.target.id === "adm" || e.target.id === "admX") close(); };
+  document.addEventListener("keydown", e => { if (open && e.key === "Escape") close(); });
+})();
+</script>
+</body>
+</html>
