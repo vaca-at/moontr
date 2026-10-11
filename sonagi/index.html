@@ -754,8 +754,9 @@ function renderTheory() {
 
 /* 2. 성취기준으로 만들기 */
 let areaSel = store.get("area", "01"), stdSel = store.get("std", "9도01-03"), actSel = store.get("act", "wall");
-function who() { return { g: store.get("grade", "중학교 2학년") }; }
-function fill(text) { return text.replaceAll("{학년}", who().g || "[학년]"); }
+// 프롬프트 안의 {학년} 자리 (성취기준이 모두 중학교라 '중학교'로 넣어요)
+function who() { return { g: "중학교" }; }
+function fill(text) { return text.replaceAll("{학년}", who().g); }
 const curStd = () => STDS.find(s => s.code === stdSel) || STDS.find(s => s.code.startsWith("9도" + areaSel)) || STDS[0];
 const curAct = () => ACTS.find(a => a.id === actSel) || ACTS[0];
 
@@ -781,11 +782,7 @@ function giftFile(mode) {
 
 function renderCases() {
   return `
-    <div class="who-bar">
-      <label class="field"><span>🏫 학년</span><input id="inGrade" value="${esc(who().g)}" placeholder="예: 중학교 2학년"></label>
-      <p class="muted"><b>영역 → 성취기준 → 활동</b>을 차례로 고르면, 맨 아래에 <b>기본 프롬프트 · index.html 내려받기 · 미리보기</b>가 선물로 나와요. <b>[대괄호]</b> 부분은 AI에게 보내기 전에 내 것으로 고쳐요.</p>
-    </div>
-    <h3 class="sec">① 영역 고르기</h3>
+    <h3 class="sec" style="margin-top:0">① 영역 고르기</h3>
     <div class="bento" id="areaGrid"></div>
     <h3 class="sec">② 성취기준 고르기</h3>
     <div class="std-list" id="stdList"></div>
@@ -1151,7 +1148,6 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("input", e => {
   const t = e.target;
-  if (t.id === "inGrade") { store.set("grade", t.value.trim()); renderCaseDetail(); }
   if (t.id === "inUrl") { let v = t.value.trim(); store.set("myurl", v); if (v && !/^https?:\/\//.test(v)) v = "https://" + v; $("#openUrl").href = v || "#"; }
   if (t.dataset.peer) { const p = store.get("peer", {}); p[t.dataset.peer] = t.value; store.set("peer", p); }
   if (t.id === "fbCfg" || t.id === "fbWhat" || t.id === "fbMail") updateFb();
