@@ -71,7 +71,7 @@
 <script>
   /* ===== ✏️ 시나리오는 sim 에서 바꿔요 =====
      role 내 역할, intro 시작 장면, tags 입장(이름 · 이모지 · 설명),
-     scenes [장면, [[선택지, 입장 키, 결과], …]] 3개, why 한 줄 쓰기 장면(0부터), reflect 성찰 질문, starter 성찰 시작 문장 */
+     scenes [장면, [[선택지, 입장 키, 결과], …]] 3개 (장면마다 "왜?" 한 줄), reflect 성찰 질문, starter 성찰 시작 문장 */
   const DATA = /*DATA*/{"code":"9도03-04","t":"정의로운 사회","text":"정의로운 사회를 상상해보고, 이를 실현할 수 있는 정의의 원칙과 제도에 대한 다양한 의견들을 민주적인 방식으로 종합할 수 있다.","sim":{"role":"원초적 입장에서 정의의 원칙을 합의하러 온 당사자","intro":"눈을 떠 보니 원초적 입장에 서 있어요. 새로 생길 섬의 정의의 원칙을 합의하러 모인 당사자예요. 무지의 베일을 써서, 이 섬에서 내가 부자로 태어날지 가난하게 태어날지, 건강할지 아플지 아무것도 몰라요.","tags":{"R":["롤스","⚖️","내가 어떤 사람으로 태어나도 받아들일 수 있는 규칙을 골랐어요. 기본적 자유는 모두에게 똑같이, 기회는 공정하게, 불평등은 가장 불리한 사람에게 이익이 될 때만!"],"N":["노직","🗽","개인의 자유와 정당하게 얻은 소유를 가장 중요하게 여겼어요. 국가는 최소한의 역할만 해야 한다고 봤어요."],"U":["공리주의","📈","섬 전체 행복의 합이 가장 커지는 선택을 했어요. 최대 다수의 최대 행복!"]},"scenes":[["첫 번째 회의: 섬 사람들의 자유를 어떻게 정할까요?",[["말하기, 종교, 투표의 자유는 누구에게나 똑같이 보장해요","R","어떤 사람으로 태어나도 내 생각을 말하고 투표할 수 있어요."],["섬 전체의 행복이 커진다면 소수의 자유는 조금 줄여도 돼요","U","다수는 편해졌지만, 내가 소수로 태어났다면 목소리를 잃을 수도 있어요."],["국가는 생명과 재산만 지키고, 나머지는 각자 자유롭게 해요","N","간섭이 적어 자유롭지만, 도움이 필요한 사람을 챙기는 규칙은 따로 없어요."]]],["두 번째 회의: 좋은 일자리는 누가 갖게 할까요?",[["누구나 같은 교육을 받은 뒤 공정하게 경쟁해요","R","가난한 집에서 태어나도 같은 출발선에서 도전할 수 있어요."],["각자 가진 돈으로 자녀를 가르치는 것도 자유예요","N","부모의 재산에 따라 출발선이 달라질 수 있지만, 그것도 각자의 자유라고 봐요."],["섬 전체 생산이 가장 커지도록 재능 있는 사람을 골라 몰아줘요","U","섬은 빨리 부유해졌지만, 뽑히지 못한 사람은 기회를 얻기 어려워요."]]],["마지막 회의: 섬에서 거둔 식량과 돈을 어떻게 나눌까요?",[["차이는 허용하되, 가장 불리한 사람에게 가장 큰 이익이 돌아가게 해요","R","열심히 일한 사람은 더 받지만, 가장 어려운 사람의 삶도 함께 나아져요."],["정당하게 번 것은 모두 그 사람 것이고, 세금은 최소로 해요","N","번 만큼 가질 수 있지만, 일할 수 없는 사람은 다른 사람의 자선에 기대야 해요."],["섬 사람들 행복의 합이 가장 커지는 쪽으로 나눠요","U","전체 행복은 커졌지만, 몇몇은 희생될 수도 있어요."]]]],"why":2,"reflect":"베일을 벗었더니 내가 섬에서 가장 어려운 사람이었다면, 내가 정한 규칙을 받아들일 수 있나요?","starter":"베일을 벗고 보니"}}/*END*/;
 
   const $ = id => document.getElementById(id);
@@ -82,7 +82,7 @@
   $("std").title = DATA.text;
   $("title").textContent = `🎭 '${DATA.t}' 만약 내가 시뮬레이션`;
   const card = $("card");
-  let i = -1, picks = [], why = "";
+  let i = -1, picks = [], whys = [];
 
   function shuffle(a) { for (let k = a.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [a[k], a[j]] = [a[j], a[k]]; } return a; }
   function drawPath() {
@@ -94,7 +94,7 @@
 
   // 시작: 역할 카드
   function intro() {
-    i = -1; picks = []; why = ""; drawPath();
+    i = -1; picks = []; whys = []; drawPath();
     card.innerHTML = `<span class="role">🎭 내 역할: ${safe(SIM.role)}</span>
       <p class="scene">${safe(SIM.intro)}</p>
       <p style="margin:0;opacity:.7">정답은 없어요. 그 사람의 자리에 서서 내가 할 선택을 골라 보세요.</p>
@@ -119,14 +119,13 @@
     card.querySelectorAll(".opt").forEach(b => { b.disabled = true; b.classList.add(+b.dataset.k === k ? "on" : "off"); });
     const last = n === N - 1;
     $("after").innerHTML = `<div class="result">➡️ ${safe(SIM.scenes[n][1][k][2])}</div>
-      ${n === SIM.why ? `<div class="why"><label for="whyIn">✏️ 왜 그렇게 골랐나요? <small>(한 줄)</small></label><input id="whyIn" maxlength="80" placeholder="내가 이 선택을 한 까닭은…"><p class="err" id="whyErr"></p></div>` : ""}
+      <div class="why"><label for="whyIn">✏️ 왜 그렇게 골랐나요? <small>(한 줄 · '단, …'처럼 조건을 붙여도 좋아요)</small></label><input id="whyIn" maxlength="120" placeholder="내가 이 선택을 한 까닭은…"><p class="err" id="whyErr"></p></div>
       <button class="btn" id="next">${last ? "엔딩 보기 🎬" : "다음 장면 →"}</button>`;
-    if (n === SIM.why) $("whyIn").focus(); else $("next").focus();
+    $("whyIn").focus();
+    $("whyIn").onkeydown = e => { if (e.key === "Enter") $("next").click(); };
     $("next").onclick = () => {
-      if (n === SIM.why) {
-        why = $("whyIn").value.trim();
-        if (!why) return $("whyErr").textContent = "한 줄만 써 주세요!";
-      }
+      whys[n] = $("whyIn").value.trim();
+      if (!whys[n]) return $("whyErr").textContent = "한 줄만 써 주세요!";
       last ? ending() : scene(n + 1);
     };
   }
@@ -159,7 +158,7 @@
       // 이 기기에 남겨요 (🔐 관리자 대시보드에서 봐요)
       try {
         const list = JSON.parse(localStorage.getItem(ADMIN.key) || "[]");
-        list.push({ path: picks.map((k, n) => `장면${n + 1}: ${SIM.scenes[n][1][k][0]}`), who: head.map(h => h[0]).join(" · "), why, reflect: r, at: Date.now() });
+        list.push({ path: picks.map((k, n) => `장면${n + 1}: ${SIM.scenes[n][1][k][0]} → 이유: ${whys[n]}`), who: head.map(h => h[0]).join(" · "), reflect: r, at: Date.now() });
         localStorage.setItem(ADMIN.key, JSON.stringify(list));
       } catch (e) {}
       card.innerHTML = `<div class="thanks"><b>🙌</b><h2>제출했어요! 고마워요</h2>
@@ -171,7 +170,7 @@
 
   // 🔐 관리자 대시보드에 보일 기록
   const ADMIN = { key: "sim.results." + DATA.code, title: "만약 내가 시뮬레이션",
-    cols: [["path", "고른 길"], ["who", "닮은 입장"], ["why", "한 줄 이유"], ["reflect", "성찰"], ["at", "제출 시각"]] };
+    cols: [["path", "고른 길과 이유"], ["who", "닮은 입장"], ["reflect", "성찰"], ["at", "제출 시각"]] };
   intro();
 </script>
 <!-- ===== 🔐 관리자 대시보드 (처음 비밀번호 1234 · 대시보드에서 바꿀 수 있어요) =====
