@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>탄소 발자국 줄이기</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#EFF8F6; --ink:#284440; --main:#2FA38F; --line:#D2EAE5; --hot:#E8735A; --mid:#E9B44C; }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  /* 예쁜 스크롤 막대 */
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-button{display:none;width:0;height:0}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--main) 45%,#fff);border:3px solid transparent;border-radius:99px;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--main) 75%,#fff)}
+  @supports not selector(::-webkit-scrollbar){ *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--main) 45%,#fff) transparent} }
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:24px 16px 60px}
+  .wrap{width:100%;max-width:800px}
+  .std{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 14px;font-size:14px}
+  h1{font-size:clamp(26px,4.5vw,40px);margin:10px 0 2px}
+  .sub{margin:0 0 16px;opacity:.7}
+  /* 👣 오늘의 탄소 발자국 막대 */
+  .meter{background:#fff;border:2px solid var(--line);border-radius:22px;padding:14px 18px;margin-bottom:16px}
+  .meter-h{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .meter-h b{font-size:clamp(28px,5vw,40px);color:var(--main);transition:color .4s}
+  .meter-h b.mid{color:var(--mid)} .meter-h b.hot{color:var(--hot)}
+  .meter-h small{opacity:.6;margin-left:auto;font-size:13px}
+  .bar{position:relative;height:22px;background:#EEF5F3;border-radius:999px}
+  .fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#5CC3A6,#E9B44C 60%,#E8735A);transition:width .6s cubic-bezier(.3,1.3,.5,1)}
+  .goal{position:absolute;top:-6px;bottom:-6px;width:3px;background:var(--ink);border-radius:3px}
+  .goal span{position:absolute;bottom:-24px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;background:var(--ink);color:#fff;border-radius:999px;padding:1px 8px}
+  .steps{display:flex;gap:4px;margin-top:38px}
+  .steps i{flex:1;height:6px;border-radius:9px;background:var(--line)}
+  .steps i.done{background:var(--main)}
+  /* 장면 */
+  .card{background:#fff;border:2px solid var(--line);border-radius:24px;padding:22px}
+  .num{color:var(--main);font-size:15px}
+  .scene{font-size:clamp(22px,3.6vw,30px);margin:4px 0 16px}
+  .opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .opt{font:inherit;font-size:17px;line-height:1.45;background:#F8FCFB;color:var(--ink);border:2px solid var(--line);border-radius:16px;padding:16px 10px;cursor:pointer;transition:.15s}
+  .opt:hover:not(:disabled){border-color:var(--main);transform:translateY(-2px)}
+  .opt:disabled{cursor:default}
+  .opt .kg{display:block;margin-top:8px;font-size:15px;font-weight:700}
+  .opt.on{border-color:var(--main);background:color-mix(in srgb,var(--main) 12%,#fff)}
+  .opt.off{opacity:.5}
+  .fb{margin-top:14px;padding:12px 16px;border-radius:14px;font-size:17px;line-height:1.5}
+  .fb.low{background:#E5F6F1} .fb.high{background:#FDEDE8}
+  .btn{display:block;margin:16px auto 0;font:inherit;font-size:19px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:11px 36px;cursor:pointer}
+  .btn.line{background:#fff;color:var(--main);border:2px solid var(--main)}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  /* 결과 */
+  .end-h{text-align:center}
+  .end-h .big{font-size:56px;line-height:1.1}
+  .end-h h2{margin:6px 0 4px;font-size:clamp(22px,3.6vw,30px)}
+  .list{margin:14px 0}
+  .list div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:8px 2px;font-size:16px}
+  .list div.top{color:var(--hot);font-weight:700}
+  .tip{background:#FFF7E6;border-radius:14px;padding:12px 16px;margin:10px 0;line-height:1.5}
+  .note{font-size:13px;opacity:.6;text-align:center;margin:6px 0 0}
+  .reflect{margin-top:14px;background:#F6FBFA;border:2px dashed var(--line);border-radius:18px;padding:16px}
+  .reflect h3{margin:0 0 8px;font-size:19px}
+  textarea{width:100%;font:inherit;font-size:17px;border:2px solid var(--line);border-radius:14px;padding:10px 14px;min-height:100px;resize:vertical;color:var(--ink)}
+  textarea:focus{outline:none;border-color:var(--main)}
+  .err{color:#D9534F;text-align:center;min-height:20px;margin:6px 0 0;font-size:15px}
+  .thanks{text-align:center;padding:20px 6px}
+  .thanks b{display:block;font-size:60px}
+  @media (max-width:600px){ .opts{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="std" id="std"></span>
+  <h1 id="title">👣 탄소 발자국 줄이기</h1>
+  <p class="sub">나의 하루를 따라가며 행동을 골라 보세요. 오늘의 탄소 발자국은 얼마일까요?</p>
+  <div class="meter">
+    <div class="meter-h">오늘의 탄소 발자국 <b id="total">0.0kg</b><small>숫자는 어림값이에요</small></div>
+    <div class="bar"><div class="fill" id="fill"></div><div class="goal" id="goal"><span id="goalT"></span></div></div>
+    <div class="steps" id="steps"></div>
+  </div>
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 장면 · 선택지 · 탄소 어림값(kg) · 줄이는 방법은 carbon 에서 바꿔요 ===== */
+  const DATA = /*DATA*/{"code":"9도04-02","t":"자연과 환경 윤리","text":"자연에 대한 동양과 서양의 주요 입장들을 토대로 인간과 자연의 바람직한 관계를 도출하고, 환경 위기에 대한 윤리적 책임을 구체화하여 실천할 수 있다.","carbon":{"scenes":[["🚌 학교 가기",[["엄마 차 타고 가기",2.4,"가까운 거리는 걷거나 자전거, 먼 거리는 버스를 타요."],["버스 타기",0.6,""],["걷기 · 자전거",0,""]]],["🍔 점심 먹기",[["소고기 햄버거",3,"소고기 대신 닭고기나 채소 메뉴를 골라요."],["닭고기 샌드위치",1,""],["채소 비빔밥",0.4,""]]],["🥤 음료 마시기",[["일회용 컵 음료",0.3,"텀블러를 들고 다녀요."],["페트병 생수",0.2,""],["텀블러에 물 담기",0,""]]],["🛍️ 준비물 챙기기",[["새 물건 택배 주문",1,"꼭 필요한지 생각하고, 빌려 쓰거나 다시 써요."],["문구점에서 새로 사기",0.5,""],["친구와 빌려 쓰기",0,""]]],["💡 더운 저녁 보내기",[["에어컨 켜고 창문 열어 두기",1.5,"에어컨은 26℃로, 문을 닫고 켜거나 선풍기를 써요."],["에어컨 26℃ · 문 닫기",0.6,""],["선풍기 켜기",0.1,""]]]],"goal":2,"reflect":"나의 탄소 줄이기 실천 약속","starter":"나는 오늘부터"}}/*END*/;
+
+  const $ = id => document.getElementById(id);
+  const safe = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const CB = DATA.carbon, N = CB.scenes.length, GOAL = CB.goal || 2;
+  const MAX = CB.scenes.reduce((s, sc) => s + Math.max(...sc[1].map(o => o[1])), 0) || 1;
+  document.title = "탄소 발자국 줄이기 · " + DATA.t;
+  $("std").textContent = `👣 [${DATA.code}] ${DATA.t}`;
+  $("std").title = DATA.text;
+  $("title").textContent = `👣 '${DATA.t}' 탄소 발자국 줄이기`;
+  $("goal").style.left = (GOAL / MAX * 100) + "%";
+  $("goalT").textContent = `목표 ${GOAL}kg`;
+  const card = $("card");
+  let i = 0, picks = [];
+
+  const total = () => picks.reduce((s, k, n) => s + CB.scenes[n][1][k][1], 0);
+  function drawMeter() {
+    const t = total();
+    $("total").textContent = t.toFixed(1) + "kg";
+    $("total").className = t <= GOAL ? "" : t <= GOAL * 2 ? "mid" : "hot";
+    $("fill").style.width = Math.min(100, t / MAX * 100) + "%";
+    $("steps").innerHTML = CB.scenes.map((_, n) => `<i class="${n < picks.length ? "done" : ""}"></i>`).join("");
+  }
+
+  function show() {
+    drawMeter();
+    const [sc, opts] = CB.scenes[i];
+    card.innerHTML = `<div class="num">장면 ${i + 1} / ${N}</div><p class="scene">${safe(sc)}</p>
+      <div class="opts">${opts.map((o, k) => `<button class="opt" data-k="${k}">${safe(o[0])}</button>`).join("")}</div><div id="after"></div>`;
+    card.querySelectorAll(".opt").forEach(b => b.onclick = () => choose(+b.dataset.k));
+  }
+
+  function choose(k) {
+    picks[i] = k;
+    const opts = CB.scenes[i][1], kg = opts[k][1], min = Math.min(...opts.map(o => o[1]));
+    // 고른 뒤에 세 행동의 탄소 어림값을 모두 보여 줘요
+    card.querySelectorAll(".opt").forEach(b => {
+      const o = opts[+b.dataset.k];
+      b.disabled = true; b.classList.add(+b.dataset.k === k ? "on" : "off");
+      b.insertAdjacentHTML("beforeend", `<span class="kg">${o[1] ? "+" + o[1] + "kg" : "0kg 🌱"}</span>`);
+    });
+    drawMeter();
+    const tip = opts.map(o => o[2]).find(Boolean) || "";
+    $("after").innerHTML = `<div class="fb ${kg <= min ? "low" : "high"}">${kg <= min ? "🌱 가장 지구를 아끼는 선택이에요!" : `👣 탄소 +${kg}kg. ${safe(tip)}`}</div>
+      <button class="btn" id="next">${i < N - 1 ? "다음 장면 →" : "오늘의 결과 보기"}</button>`;
+    $("next").focus();
+    $("next").onclick = () => { i++; i < N ? show() : ending(); };
+  }
+
+  function ending() {
+    drawMeter();
+    const t = total();
+    const g = t <= GOAL ? ["🌏", "지구 친구", "오늘 하루, 지구를 아끼는 선택을 많이 했어요!"]
+            : t <= GOAL * 2 ? ["🌿", "조금만 더", "몇 가지만 바꾸면 지구 친구가 될 수 있어요."]
+            : ["🔥", "지구가 더워요", "오늘은 탄소가 많이 나왔어요. 가장 큰 장면부터 바꿔 봐요."];
+    const each = picks.map((k, n) => CB.scenes[n][1][k][1]);
+    const topN = each.indexOf(Math.max(...each));
+    const topTip = CB.scenes[topN][1].map(o => o[2]).find(Boolean) || "";
+    card.innerHTML = `<div class="end-h"><div class="big">${g[0]}</div><h2>${t.toFixed(1)}kg · ${g[1]}</h2><p style="margin:0">${g[2]}</p></div>
+      <div class="list">${picks.map((k, n) => `<div class="${n === topN && each[n] > 0 ? "top" : ""}"><span>${safe(CB.scenes[n][0])} · ${safe(CB.scenes[n][1][k][0])}</span><b>${each[n]}kg</b></div>`).join("")}</div>
+      ${each[topN] > 0 ? `<div class="tip">💡 가장 많이 나온 장면: <b>${safe(CB.scenes[topN][0])}</b><br>${safe(topTip)}</div>` : ""}
+      <p class="note">※ 탄소 배출량은 수업용 어림값이에요. 실제 값은 거리 · 양 · 조건에 따라 달라져요.</p>
+      <div class="reflect"><h3>✍️ ${safe(CB.reflect)}</h3>
+        <textarea id="ref" maxlength="300">${safe(CB.starter ? CB.starter + " " : "")}</textarea>
+        <p class="err" id="refErr"></p>
+        <div class="row"><button class="btn line" id="again">🔄 다시 하기</button><button class="btn" id="send">제출하기</button></div></div>`;
+    $("again").onclick = restart;
+    $("send").onclick = () => {
+      const r = $("ref").value.trim();
+      if (r.length < (CB.starter || "").length + 8) return $("refErr").textContent = "실천 약속을 조금 더 써 주세요.";
+      // 이 기기에 남겨요 (🔐 관리자 대시보드에서 봐요)
+      try {
+        const list = JSON.parse(localStorage.getItem(ADMIN.key) || "[]");
+        list.push({ total: t.toFixed(1) + "kg", grade: g[1], picks: picks.map((k, n) => CB.scenes[n][1][k][0]), promise: r, at: Date.now() });
+        localStorage.setItem(ADMIN.key, JSON.stringify(list));
+      } catch (e) {}
+      card.innerHTML = `<div class="thanks"><b>🙌</b><h2>제출했어요! 고마워요</h2><p>오늘 쓴 약속, 일주일 동안 지켜 볼까요?</p><button class="btn" id="again2">🔄 다시 하기</button></div>`;
+      $("again2").onclick = restart;
+    };
+  }
+  function restart() { i = 0; picks = []; show(); }
+
+  // 🔐 관리자 대시보드에 보일 기록
+  const ADMIN = { key: "carbon.results." + DATA.code, title: "탄소 발자국 줄이기",
+    cols: [["total", "하루 탄소"], ["grade", "등급"], ["picks", "고른 행동"], ["promise", "실천 약속"], ["at", "제출 시각"]] };
+  show();
+</script>
+<!-- ===== 🔐 관리자 대시보드 (처음 비밀번호 1234 · 대시보드에서 바꿀 수 있어요) =====
+     지금은 이 기기에 저장된 기록만 보여요. 4단계에서 파이어스토어를 연결하면 모든 학생 기록이 모여요. -->
+<style>
+  .adm-btn{position:fixed;top:12px;right:12px;z-index:50;font:inherit;font-size:14px;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:999px;padding:5px 14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .adm-btn:hover{border-color:var(--main)}
+  .adm{position:fixed;inset:0;z-index:60;background:rgba(40,30,30,.35);display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto}
+  .adm[hidden]{display:none}
+  .adm-in{background:#fff;color:var(--ink);border-radius:22px;width:100%;max-width:900px;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+  .adm-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .adm-h h2{margin:0;font-size:22px;flex:1}
+  .adm-b{white-space:nowrap;font:inherit;font-size:14px;color:var(--ink);border:2px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;cursor:pointer}
+  .adm-b.main{background:var(--main);border-color:var(--main);color:#fff}
+  .adm-b.warn:hover{border-color:#D9534F;color:#D9534F}
+  .adm-in input{font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:8px 12px;width:auto;flex:1 1 150px;min-width:0}
+  .adm-in input:focus{outline:none;border-color:var(--main)}
+  .adm-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .adm-err{color:#D9534F;font-size:14px;min-height:20px;margin:6px 0 0}
+  .adm-ok{color:#3FAE6F}
+  .adm-stat{display:inline-block;background:color-mix(in srgb,var(--main) 12%,#fff);border-radius:14px;padding:6px 14px;margin-right:6px}
+  .adm-stat b{font-size:20px}
+  .adm-wrap{overflow-x:auto;border:2px solid var(--line);border-radius:14px;margin:12px 0}
+  .adm-in table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+  .adm-in th,.adm-in td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;word-break:keep-all;overflow-wrap:anywhere}
+  .adm-in th{background:color-mix(in srgb,var(--main) 8%,#fff);white-space:nowrap}
+  .adm-in tr:last-child td{border-bottom:0}
+  .adm-del{white-space:nowrap;font:inherit;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:1px 8px;cursor:pointer}
+  .adm-pw{background:color-mix(in srgb,var(--main) 6%,#fff);border-radius:14px;padding:10px 14px;margin-top:14px}
+  .adm-pw h3{margin:0 0 4px;font-size:16px}
+  @media print{.adm-btn,.adm{display:none !important}}
+</style>
+<button class="adm-btn" id="admBtn" type="button">🔐 관리자</button>
+<div class="adm" id="adm" hidden><div class="adm-in" id="admIn" role="dialog" aria-label="관리자 대시보드"></div></div>
+<script>
+(() => {
+  // ADMIN = { key: 기록이 저장된 이름, title: 제목, cols: [[칸 이름, 보이는 이름], …], onChange: 기록을 지운 뒤 할 일 }
+  const PW_KEY = "admin.pw." + DATA.code, DEFAULT_PW = "1234";
+  const $a = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const getPw = () => { try { return localStorage.getItem(PW_KEY) || DEFAULT_PW; } catch (e) { return DEFAULT_PW; } };
+  const rows = () => { try { return JSON.parse(localStorage.getItem(ADMIN.key) || "[]"); } catch (e) { return []; } };
+  const save = list => { try { localStorage.setItem(ADMIN.key, JSON.stringify(list)); } catch (e) {} ADMIN.onChange && ADMIN.onChange(); };
+  const cell = (r, k) => k === "at" ? (r.at ? new Date(r.at).toLocaleString("ko-KR") : "") : Array.isArray(r[k]) ? r[k].join(", ") : (r[k] ?? "");
+  let open = false;
+
+  function show(html) { $a("admIn").innerHTML = html; $a("adm").hidden = false; open = true; }
+  function close() { $a("adm").hidden = true; open = false; }
+  const head = t => `<div class="adm-h"><h2>${t}</h2><button class="adm-b" id="admX" type="button">✕ 닫기</button></div>`;
+
+  function login() {
+    show(head("🔐 관리자 로그인") + `
+      <p style="margin:0 0 6px">관리자 비밀번호를 넣어 주세요.</p>
+      <div class="adm-row"><input type="password" id="admPw" placeholder="비밀번호" autocomplete="off"><button class="adm-b main" id="admGo" type="button">들어가기</button></div>
+      <p class="adm-err" id="admErr"></p>`);
+    $a("admPw").focus();
+    const go = () => $a("admPw").value === getPw() ? dash() : ($a("admErr").textContent = "비밀번호가 맞지 않아요.");
+    $a("admGo").onclick = go;
+    $a("admPw").onkeydown = e => { if (e.key === "Enter") go(); };
+  }
+
+  function dash() {
+    const list = rows(), view = list.map((r, i) => ({ r, i })).reverse();
+    show(head("📊 관리자 대시보드 · " + esc(ADMIN.title)) + `
+      <div><span class="adm-stat">기록 <b>${list.length}</b>개</span><span style="font-size:13px;opacity:.65">지금은 이 기기에 저장된 기록만 보여요</span></div>
+      ${list.length ? `<div class="adm-wrap"><table><thead><tr><th>#</th>${ADMIN.cols.map(c => `<th>${esc(c[1])}</th>`).join("")}<th></th></tr></thead><tbody>
+        ${view.map((v, n) => `<tr><td>${list.length - n}</td>${ADMIN.cols.map(c => `<td>${esc(cell(v.r, c[0]))}</td>`).join("")}<td><button class="adm-del" data-i="${v.i}" type="button">지우기</button></td></tr>`).join("")}
+      </tbody></table></div>` : `<p style="opacity:.6;margin:14px 0">아직 기록이 없어요.</p>`}
+      <div class="adm-row">
+        <button class="adm-b main" id="admCsv" type="button" ${list.length ? "" : "disabled"}>⬇️ 엑셀(CSV)로 받기</button>
+        <button class="adm-b warn" id="admClear" type="button" ${list.length ? "" : "disabled"}>🗑 모두 지우기</button>
+        <button class="adm-b" id="admLock" type="button">🔒 잠그기</button>
+      </div>
+      <div class="adm-pw"><h3>🔑 비밀번호 바꾸기</h3>
+        <div class="adm-row"><input type="password" id="admOld" placeholder="지금 비밀번호" autocomplete="off"><input type="password" id="admNew" placeholder="새 비밀번호 (4자 이상)" autocomplete="off"><input type="password" id="admNew2" placeholder="새 비밀번호 한 번 더" autocomplete="off"><button class="adm-b main" id="admChange" type="button">바꾸기</button></div>
+        <p class="adm-err" id="admPwMsg"></p></div>`);
+    $a("admLock").onclick = close;
+    $a("admIn").querySelectorAll(".adm-del").forEach(b => b.onclick = () => {
+      if (!confirm("이 기록을 지울까요?")) return;
+      const l = rows(); l.splice(+b.dataset.i, 1); save(l); dash();
+    });
+    $a("admClear").onclick = () => { if (confirm("기록을 모두 지울까요? 되돌릴 수 없어요.")) { save([]); dash(); } };
+    $a("admCsv").onclick = () => {
+      const q = v => `"${String(v).replace(/"/g, '""')}"`;
+      const csv = [ADMIN.cols.map(c => q(c[1])).join(",")].concat(rows().map(r => ADMIN.cols.map(c => q(cell(r, c[0]))).join(","))).join("\r\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+      a.download = `${ADMIN.title}_${DATA.code}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    };
+    $a("admChange").onclick = () => {
+      const m = $a("admPwMsg"), o = $a("admOld").value, n = $a("admNew").value, n2 = $a("admNew2").value;
+      m.className = "adm-err";
+      if (o !== getPw()) return m.textContent = "지금 비밀번호가 맞지 않아요.";
+      if (n.length < 4) return m.textContent = "새 비밀번호는 4자 이상으로 해 주세요.";
+      if (n !== n2) return m.textContent = "새 비밀번호 두 칸이 서로 달라요.";
+      try { localStorage.setItem(PW_KEY, n); } catch (e) {}
+      m.className = "adm-err adm-ok"; m.textContent = "✓ 비밀번호를 바꿨어요. 다음부터 새 비밀번호로 들어와요.";
+      ["admOld", "admNew", "admNew2"].forEach(k => $a(k).value = "");
+    };
+  }
+
+  $a("admBtn").onclick = login;
+  $a("adm").onclick = e => { if (e.target.id === "adm" || e.target.id === "admX") close(); };
+  document.addEventListener("keydown", e => { if (open && e.key === "Escape") close(); });
+})();
+</script>
+</body>
+</html>
