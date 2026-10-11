@@ -89,6 +89,17 @@ h3.sec::after{content:"";flex:1;height:2px;background:var(--line)}
 .card .foot{margin-top:auto;padding-top:.375rem;display:flex;gap:.375rem;flex-wrap:wrap}
 .more-btn{border:2px solid color-mix(in srgb,var(--c) 45%,#fff);background:color-mix(in srgb,var(--c) 10%,#fff);color:color-mix(in srgb,var(--c) 65%,var(--ink));border-radius:999px;padding:.125rem .875rem;font-family:var(--hand);font-size:1rem}
 .more-btn:hover{background:var(--c);color:#fff}
+/* 1. 이론: 한 화면에 4×3 — 스크롤 없이 보이도록 조금 촘촘하게 */
+.bento.flat{gap:.75rem;grid-auto-rows:1fr}
+.bento.flat .card{padding:.75rem 1rem}
+.bento.flat .card .ch{margin-bottom:.375rem}
+.bento.flat .card .key{font-size:1.0625rem;line-height:1.5;margin:0}
+.bento.flat .card .ch{padding-right:2rem}
+.bento.flat .card .foot{position:absolute;top:.75rem;right:.75rem;padding:0;margin:0}
+.bento.flat .more-btn{width:1.875rem;height:1.875rem;padding:0;display:grid;place-items:center;font-size:0}
+.bento.flat .more-btn::after{content:"＋";font-size:1rem}
+#p1 .page-head{margin-bottom:.75rem}
+#p1 .pager{margin-top:1rem}
 .card.click{cursor:pointer;transition:transform .12s, box-shadow .12s}
 .card.click:hover{transform:translateY(-2px);box-shadow:0 6px 16px color-mix(in srgb,var(--c) 25%,transparent)}
 
@@ -656,8 +667,15 @@ const STEPS = [
 /* =========================================================
    그리기 — 1. 이론
    ========================================================= */
+// 꿀팁(6)처럼 같은 크기 카드: 앞면엔 핵심 한 줄만, 점 목록·그림은 [더 보기] 창으로
+let THEORY_VIEW = [];
 function renderTheory() {
-  return `<div class="bento">${THEORY.map((o, i) => card(o, i, "theory")).join("")}</div>`;
+  const chips = `<div class="chips">${STEPS.map((s, i) => `<button type="button" class="chip" data-go="${i + 1}" style="cursor:pointer">${i + 1}. ${s.t} <span class="muted">${s.min}분</span></button>`).join("")}</div>`;
+  THEORY_VIEW = THEORY.map(o => ({ e: o.e, t: o.t, c: o.c, key: o.key,
+    more: (o.pts ? `<ul>${o.pts.map(p => `<li>${p}</li>`).join("")}</ul>` : "")
+      + (o.html || "").replace(`<div class="chips" id="flowChips"></div>`, chips)
+      + (o.more || "") }));
+  return `<div class="bento flat">${THEORY_VIEW.map((o, i) => card(o, i, "theory")).join("")}</div>`;
 }
 
 /* 2. 사례 */
@@ -961,13 +979,13 @@ function build() {
     ${s.render()}
     <div class="pager">${i > 0 ? `<button type="button" class="btn line" data-go="${i}" style="--c:${STEPS[i - 1].c}">← ${STEPS[i - 1].t}</button>` : "<span></span>"}${i < STEPS.length - 1 ? `<button type="button" class="btn" data-go="${i + 2}" style="--c:${STEPS[i + 1].c}">${STEPS[i + 1].t} →</button>` : ""}</div>
   </section>`).join("");
-  $("#flowChips").innerHTML = STEPS.map((s, i) => `<button type="button" class="chip" data-go="${i + 1}" style="cursor:pointer">${i + 1}. ${s.t} <span class="muted">${s.min}분</span></button>`).join("");
   renderCaseDetail();
   updateFb();
 }
 function go(n, push = true) {
   n = Math.min(Math.max(1, +n || 1), STEPS.length);
   cur = n;
+  if ($("#pop").open) $("#pop").close();
   document.querySelectorAll(".page").forEach((p, i) => p.hidden = i + 1 !== n);
   document.querySelectorAll(".st-tab").forEach((t, i) => { t.classList.toggle("on", i + 1 === n); t.setAttribute("aria-current", i + 1 === n ? "step" : "false"); });
   const on = $(".st-tab.on"); on && on.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
@@ -978,7 +996,7 @@ window.addEventListener("popstate", () => go(location.hash.slice(1), false));
 
 /* 작은 창 열기 */
 const POPS = {
-  theory: i => THEORY[i], tips: i => TIPS[i],
+  theory: i => THEORY_VIEW[i], tips: i => TIPS[i],
   dl: i => DL_MORE[i], deploy: i => DEPLOY_MORE[i], fb: i => FB_MORE[i], ai: i => AI_MORE[i]
 };
 function openPop(key) {
