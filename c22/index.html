@@ -69,6 +69,7 @@ nav.steps::-webkit-scrollbar{display:none}
 .rv{border:2px solid #E8C437;background:var(--yellow);color:#5B3A00;border-radius:999px;padding:.375rem 1rem;font-family:var(--hand);font-size:1.125rem;white-space:nowrap}
 .rv:hover{filter:brightness(1.04)}
 .rv.off{background:#fff}
+a.rv{text-decoration:none;display:inline-block}
 .rv.line{background:#fff;border-color:var(--line);color:var(--ink)}
 
 /* ===== 페이지 ===== */
@@ -195,6 +196,7 @@ table.cmp th{background:var(--soft);font-weight:400;font-family:var(--hand);font
     <span class="sp"></span>
     <button type="button" class="rv" id="rvPage">👀 이 쪽 정답 보기</button>
     <button type="button" class="rv line" id="rvAll">📚 전체 보기</button>
+    <a class="rv line" id="pdfDl" href="worksheet.pdf" download="통합사회2 윤리파트 학습지.pdf">📥 PDF 내려받기</a>
   </div>
 </header>
 
@@ -389,7 +391,7 @@ ${ul(["인간의 가치와 존엄성을 존중하고 인간의 품격이 보장�
 ];
 
 function renderSheets() {
-  return `<p class="intro" style="--c:var(--pink)">🟨 <b>노란 칸을 누르면 정답</b>이 보이고, <b>다시 누르면 가려져요.</b> 위쪽 <b>쪽 번호</b>를 누르면 그 쪽으로 바로 가요. <span id="pdfWrap" hidden>· <a id="pdfLink" href="worksheet.pdf" target="_blank" rel="noopener">📄 PDF 원본 열기</a></span></p>
+  return `<p class="intro" style="--c:var(--pink)">🟨 <b>노란 칸을 누르면 정답</b>이 보이고, <b>다시 누르면 가려져요.</b> 위쪽 <b>쪽 번호</b>를 누르면 그 쪽으로 바로 가요. 오른쪽 위 <b>📥 PDF 내려받기</b>로 학습지 파일을 받을 수 있어요.</p>
   ${WS.map((html, i) => `<article class="sheet" id="ws${i + 1}" data-i="${i}">
     <div class="sheet-h"><span class="pno">${i + 1}쪽</span><span class="cnt"></span><button type="button" class="rv off" data-rv="${i}">👀 이 쪽 정답 보기</button></div>
     ${html}
@@ -604,7 +606,7 @@ const CAPITAL = [
    3) 탭 목록
    ========================================================= */
 const STEPS = [
-  { t: "학습지", sub: "1~10쪽 · 빈칸 정답", c: C.pink, title: "학습지", lead: "사회계약설 · 교정적 정의 · 자본주의 (10쪽)", render: renderSheets },
+  { t: "학습지", sub: "1~10쪽 · 빈칸 정답", c: C.pink, title: "학습지", lead: "사회계약설 · 교정적 정의 · 자본주의 (1~10페이지)", render: renderSheets },
   { t: "사회계약설", sub: `활동 사례 ${CONTRACT.length}개`, c: C.lav, title: "사회계약설 활동", lead: "홉스 · 로크 · 루소 — 카드를 눌러 사례와 활동을 보세요", data: CONTRACT, g: "contract" },
   { t: "교정적 정의", sub: `활동 사례 ${JUSTICE.length}개`, c: C.coral, title: "교정적 정의 활동", lead: "응보주의 · 공리주의 · 사형 제도 — 카드를 눌러 사례와 활동을 보세요", data: JUSTICE, g: "justice" },
   { t: "자본주의", sub: `활동 사례 ${CAPITAL.length}개`, c: C.green, title: "자본주의 활동", lead: "스미스 · 케인스 · 하이에크 · 마르크스 — 카드를 눌러 사례와 활동을 보세요", data: CAPITAL, g: "capital" }
@@ -630,9 +632,9 @@ const caseBody = o => `<p style="font-size:1.125rem;margin-top:0">${o.key}</p>
 /* =========================================================
    4) 페이지 만들기 · 넘기기
    ========================================================= */
-let cur = 1;
+let cur = 1, pdfOk = false;
 function build() {
-  $("#steps").innerHTML = STEPS.map((s, i) => `<button type="button" class="st-tab" style="--c:${s.c}" data-go="${i + 1}"><span class="no">${i + 1}</span><span class="lab">${s.t}<small>${s.sub}</small></span></button>`).join("");
+  $("#steps").innerHTML = STEPS.map((s, i) => `<button type="button" class="st-tab" style="--c:${s.c}" data-go="${i + 1}"><span class="no">${i + 1}</span><span class="lab">${s.t}</span></button>`).join("");
   $("#main").innerHTML = STEPS.map((s, i) => `<section class="page" id="p${i + 1}" style="--c:${s.c}" hidden>
     <div class="page-head"><span class="page-no">${i + 1}</span><div class="page-title"><h2>${s.title}</h2><p>${s.lead}</p></div>${i === 0 ? `<span class="tag-time">🟨 빈칸 <span id="blTotal"></span>개</span>` : `<span class="tag-time">🧩 ${s.data.length}개</span>`}</div>
     ${s.render ? s.render() : renderCards(s)}
@@ -640,8 +642,8 @@ function build() {
   $("#pgs").innerHTML = WS.map((_, i) => `<button type="button" class="pg" data-pg="${i}" aria-label="${i + 1}쪽으로">${i + 1}</button>`).join("");
   $("#blTotal").textContent = $$(".sheet .bl").length;
   $$(".sheet").forEach(s => { const n = s.querySelectorAll(".bl").length; s.querySelector(".cnt").textContent = n ? `빈칸 ${n}개` : "빈칸 없음"; if (!n) s.querySelector("[data-rv]").hidden = true; });
-  // PDF 원본(worksheet.pdf)을 이 폴더에 올려 두면 링크가 저절로 보여요
-  fetch("worksheet.pdf", { method: "HEAD" }).then(r => { if (r.ok && /pdf/.test(r.headers.get("content-type") || "")) $("#pdfWrap").hidden = false; }).catch(() => {});
+  // PDF 원본은 이 폴더의 worksheet.pdf 파일이에요 (파일을 바꾸면 내려받는 학습지도 바뀌어요)
+  fetch("worksheet.pdf", { method: "HEAD" }).then(r => { pdfOk = r.ok && /pdf/.test(r.headers.get("content-type") || ""); }).catch(() => {});
 }
 function go(n, push = true) {
   n = Math.min(Math.max(1, +n || 1), STEPS.length);
@@ -718,6 +720,7 @@ function openPop(key) {
    ========================================================= */
 document.addEventListener("click", e => {
   const t = e.target;
+  if (t.closest("#pdfDl") && !pdfOk) { e.preventDefault(); alert("PDF 파일을 준비하고 있어요. 조금만 기다려 주세요!"); return; }
   const bl = t.closest(".bl"); if (bl) { bl.classList.toggle("on"); syncRv(); return; }
   const g = t.closest("[data-go]"); if (g) { go(g.dataset.go); return; }
   const pg = t.closest("[data-pg]"); if (pg) { const i = +pg.dataset.pg; $("#ws" + (i + 1)).scrollIntoView({ behavior: "smooth", block: "start" }); setPg(i); return; }
