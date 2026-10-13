@@ -150,7 +150,7 @@
   #view-home .link-list a:hover{ color:var(--dawn-deep); }
   #view-home .link-emoji{ font-size:17px; width:22px; text-align:center; }
   #view-home .link-empty{ color:var(--muted); font-size:13px; padding:6px 4px; }
-  #view-home footer{ text-align:center; font-size:12px; color:var(--muted); padding:26px 18px 34px; }
+  #view-home footer{ white-space:pre-line; line-height:1.7; text-align:center; font-size:12px; color:var(--muted); padding:26px 18px 34px; }
 
   /* ============ 교실 모니터 ============ */
   /* display 는 넣지 않는다 — ID 선택자라 .view{display:none} 를 이겨서 늘 보이게 된다.
@@ -229,6 +229,12 @@
   #view-admin .list .date{ flex:none; color:var(--dawn-deep); font-weight:700; }
   #view-admin .empty{ font-size:13px; color:var(--muted); padding:8px 0; }
   #view-admin .log li{ align-items:flex-start; }
+  #view-admin .past{ margin-top:10px; padding:12px; border-radius:12px; background:var(--paper-2); }
+  #view-admin .past .list{ max-height:420px; overflow:auto; }
+  #view-admin .past .list li{ align-items:flex-start; }
+  #view-admin .past .list input[type=date]{ flex:none; width:150px; font-size:14px; padding:6px 8px; }
+  #view-admin .past .list input.guess{ border-color:var(--gold); }
+  #view-admin .past .list .txt{ font-size:12.5px; white-space:pre-wrap; max-height:3.2em; overflow:hidden; line-height:1.6; }
   #view-admin .log .txt{ white-space:pre-wrap; font-size:13.5px; line-height:1.6; max-height:4.8em; overflow:hidden; }
   #view-admin .log li.open .txt{ max-height:none; }
   #view-admin .drop{ border:2px dashed var(--line); border-radius:14px; background:var(--paper); padding:18px 12px; text-align:center; font-size:13.5px; color:var(--muted); line-height:1.6; cursor:pointer; outline:none; }
@@ -430,6 +436,23 @@
         <div class="card">
           <h2>🗂️ 메모 기록</h2>
           <p class="sub">저장할 때마다 언제 · 누가 썼는지 남아요. 누르면 펼쳐지고, '다시 쓰기'로 왼쪽 칸에 불러와요.</p>
+          <div class="row" style="margin-top:0; flex-wrap:wrap;">
+            <button class="ghost" id="adPastOne">＋ 지난 기록 하나 넣기</button>
+            <button class="ghost" data-bulk="adPastBulk">📋 시트에서 한꺼번에 넣기</button>
+          </div>
+          <div class="past" id="adPastOneBox" hidden>
+            <input type="date" id="adPastDate">
+            <textarea id="adPastText" placeholder="그날 메모 내용" style="min-height:110px; margin-top:8px;"></textarea>
+            <div class="row"><button class="btn" id="adPastOneSave" style="flex:1">기록에 넣기</button></div>
+          </div>
+          <div class="past" id="adPastBulkBox" hidden>
+            <p class="sub">구글 시트에서 <b>날짜(1열)와 메모 내용(2열)</b>을 함께 골라 복사한 뒤 붙여 넣어요. 내용이 빈 줄은 건너뛰고, 날짜가 빈 줄은 바로 위 날짜로 채워요. 넣기 전에 날짜를 고칠 수 있어요.</p>
+            <textarea id="adPastBulkPaste" placeholder="여기에 Ctrl+V" style="min-height:110px;"></textarea>
+            <div class="row"><span class="muted" style="font-size:12.5px; flex:none;">연도가 없는 날짜는</span><input type="text" inputmode="numeric" id="adPastBulkYear" maxlength="4" style="flex:none; width:84px;"><span class="muted" style="font-size:12.5px; flex:none;">년</span><button class="ghost" id="adPastBulkParse">미리 보기</button></div>
+            <ul class="list" id="adPastBulkPrev"></ul>
+            <div class="row"><button class="btn" id="adPastBulkSave" style="flex:1;" hidden>모두 넣기</button></div>
+          </div>
+          <div class="msg" id="adPastBulkMsg"></div>
           <ul class="list log" id="adMemoLog"><li class="empty">불러오는 중…</li></ul>
         </div>
       </section>
@@ -440,6 +463,7 @@
           <h2>🗓️ 시간표 사진</h2>
           <p class="sub">캡처한 시간표를 <b>Ctrl+V로 붙여 넣거나</b>, 사진을 끌어다 놓거나, 눌러서 골라요. 올리면 바로 바뀌어요.</p>
           <div class="drop" id="adTtDrop" tabindex="0">📋 여기를 누르고 <b>Ctrl+V</b><br>또는 사진을 끌어다 놓기 · 눌러서 고르기</div>
+          <div class="row"><input type="url" id="adTtUrl" placeholder="또는 이미지 주소(https://…) 붙여 넣기"><button class="btn" id="adTtUrlAdd">넣기</button></div>
           <div class="msg" id="adTtMsg"></div>
         </div>
         <div class="card">
@@ -459,6 +483,15 @@
         </div>
         <div class="card">
           <h2>앞으로 남은 일정</h2>
+          <div class="row" style="margin-top:0;"><button class="ghost" data-bulk="adSchBulk">📋 시트에서 한꺼번에 넣기</button></div>
+          <div class="past" id="adSchBulkBox" hidden>
+            <p class="sub">구글 시트에서 <b>날짜(1열)와 일정 내용(2열)</b>을 함께 골라 복사한 뒤 붙여 넣어요. 내용이 빈 줄은 건너뛰고, 날짜가 빈 줄은 바로 위 날짜로 채워요. 넣기 전에 날짜를 고칠 수 있어요.</p>
+            <textarea id="adSchBulkPaste" placeholder="여기에 Ctrl+V" style="min-height:110px;"></textarea>
+            <div class="row"><span class="muted" style="font-size:12.5px; flex:none;">연도가 없는 날짜는</span><input type="text" inputmode="numeric" id="adSchBulkYear" maxlength="4" style="flex:none; width:84px;"><span class="muted" style="font-size:12.5px; flex:none;">년</span><button class="ghost" id="adSchBulkParse">미리 보기</button></div>
+            <ul class="list" id="adSchBulkPrev"></ul>
+            <div class="row"><button class="btn" id="adSchBulkSave" style="flex:1;" hidden>모두 넣기</button></div>
+          </div>
+          <div class="msg" id="adSchBulkMsg"></div>
           <ul class="list" id="adSchList"><li class="empty">불러오는 중…</li></ul>
         </div>
       </section>
@@ -479,10 +512,10 @@
           <div class="dd-cap" id="adDdCap">디데이</div>
         </div>
         <div class="card">
-          <h2>🏷️ 홈 제목 · 아래 글</h2>
-          <p class="sub">머리 사진 위의 큰 제목과, 홈 맨 아래 한 줄이에요.</p>
-          <input type="text" id="adTitle" placeholder="1학년 10반" maxlength="30">
-          <div class="row"><input type="text" id="adFooter" placeholder="맨 아래 한 줄 (비워도 돼요)" maxlength="80"></div>
+          <h2>🏷️ 홈 제목 · 맨 아래 글</h2>
+          <p class="sub">머리 사진 위의 큰 제목과, 홈 맨 아래 글이에요.</p>
+          <input type="text" id="adTitle" placeholder="1학년 10반" maxlength="40">
+          <textarea id="adFooter" placeholder="홈 맨 아래 글 (비워도 돼요 · 여러 줄 가능)" maxlength="300" style="min-height:90px; margin-top:8px;"></textarea>
           <div class="row"><button class="btn" id="adTitleSave" style="flex:1">저장하기</button></div>
           <div class="msg" id="adTitleMsg"></div>
         </div>
@@ -499,6 +532,14 @@
         </div>
         <div class="card">
           <h2>재생 목록</h2>
+          <div class="row" style="margin-top:0;"><button class="ghost" data-tbl="adMuBulk">📋 시트에서 한꺼번에 넣기</button></div>
+          <div class="past" id="adMuBulkBox" hidden>
+            <p class="sub">구글 시트에서 <b>유튜브 ID(또는 주소) · 제목</b> 두 칸을 함께 복사해 붙여 넣어요. 지금 목록 뒤에 차례로 붙어요.</p>
+            <textarea id="adMuBulkPaste" placeholder="여기에 Ctrl+V" style="min-height:110px;"></textarea>
+            <ul class="list" id="adMuBulkPrev"></ul>
+            <div class="row"><button class="btn" id="adMuBulkSave" style="flex:1;" hidden>모두 넣기</button></div>
+          </div>
+          <div class="msg" id="adMuBulkMsg"></div>
           <ul class="list" id="adMuList"><li class="empty">불러오는 중…</li></ul>
         </div>
       </section>
@@ -509,6 +550,7 @@
           <h2>🖼️ 머리 사진</h2>
           <p class="sub">홈 맨 위 큰 사진이에요. 여러 장 올리면 들어올 때마다 한 장씩 골라 보여 줘요. 가로로 긴 사진이 잘 어울려요.</p>
           <div class="drop" id="adHdDrop" tabindex="0">📋 여기를 누르고 <b>Ctrl+V</b><br>또는 사진을 끌어다 놓기 · 눌러서 고르기</div>
+          <div class="row"><input type="url" id="adHdUrl" placeholder="또는 이미지 주소(https://…) 붙여 넣기"><button class="btn" id="adHdUrlAdd">넣기</button></div>
           <div class="msg" id="adHdMsg"></div>
           <div class="thumbs" id="adHdList"></div>
         </div>
@@ -525,6 +567,14 @@
         </div>
         <div class="card">
           <h2>즐겨찾기 목록</h2>
+          <div class="row" style="margin-top:0;"><button class="ghost" data-tbl="adLkBulk">📋 시트에서 한꺼번에 넣기</button></div>
+          <div class="past" id="adLkBulkBox" hidden>
+            <p class="sub">구글 시트에서 <b>이모지 · 이름 · 링크</b> 세 칸을 함께 복사해 붙여 넣어요. 지금 목록 뒤에 차례로 붙어요.</p>
+            <textarea id="adLkBulkPaste" placeholder="여기에 Ctrl+V" style="min-height:110px;"></textarea>
+            <ul class="list" id="adLkBulkPrev"></ul>
+            <div class="row"><button class="btn" id="adLkBulkSave" style="flex:1;" hidden>모두 넣기</button></div>
+          </div>
+          <div class="msg" id="adLkBulkMsg"></div>
           <ul class="list" id="adLkList"><li class="empty">불러오는 중…</li></ul>
         </div>
       </section>
@@ -541,7 +591,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot,
-  query, where, orderBy, limit, writeBatch, serverTimestamp
+  query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -942,6 +992,7 @@ if(PAGE === 'admin'){
     return d ? `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${pad(d.getHours())}:${pad(d.getMinutes())}` : '방금';
   };
   const me = ()=> (auth.currentUser && auth.currentUser.email) || '';
+  const dayLabel = (day)=>{ const d = new Date(day + 'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`; };
   let started = false;
 
   // ----- 로그인 -----
@@ -1002,19 +1053,128 @@ if(PAGE === 'admin'){
   const imgErr = (err)=> err.message === 'TOO_BIG' ? '사진이 너무 커요. 조금 작게 캡처해 주세요.'
     : err.message === 'NOT_IMAGE' ? '사진 파일이 아니에요.' : '올리지 못했어요. 다시 해 주세요.';
 
+
+  // ----- 시트에서 한꺼번에 넣기 (예전 구글 시트 메모 · 일정 옮기기) -----
+  // 구글 시트에서 복사한 글: 칸은 탭, 줄 바꿈이 있는 칸은 "…" 로 감싸지고 칸 안의 " 는 "" 가 돼요
+  function parseTSV(t){
+    const rows = []; let row = [], f = '', q = false;
+    t = t.replace(/\r\n?/g, '\n');
+    for(let i = 0; i < t.length; i++){
+      const c = t[i];
+      if(q){
+        if(c === '"' && t[i+1] === '"'){ f += '"'; i++; }
+        else if(c === '"') q = false;
+        else f += c;
+      }
+      else if(c === '"' && f === '') q = true;
+      else if(c === '\t'){ row.push(f); f = ''; }
+      else if(c === '\n'){ row.push(f); rows.push(row); row = []; f = ''; }
+      else f += c;
+    }
+    if(f !== '' || row.length){ row.push(f); rows.push(row); }
+    return rows;
+  }
+  // '2026. 8. 21 오전 8:42' · '2026-08-21' · '8/21' · '9/4(금)' · '8월 21일' → 'YYYY-MM-DD'
+  function sheetDay(d, year){
+    let m = d.match(/^(\d{4})\s*[.\-\/년]\s*(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})/);
+    if(m) return m[1] + '-' + pad(+m[2]) + '-' + pad(+m[3]);
+    m = d.match(/^(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})/);
+    return m ? year + '-' + pad(+m[1]) + '-' + pad(+m[2]) : '';
+  }
+  // 칸 하나 + 미리 보기 + 모두 넣기. save(rows) 는 [{day, text}] 를 받아 넣은 개수를 돌려줘요
+  function bulkPaste(p, save){
+    let rows = [];
+    $(p + 'Year').value = new Date().getFullYear();
+    document.querySelector('[data-bulk="' + p + '"]').addEventListener('click', ()=>{ $(p + 'Box').hidden = !$(p + 'Box').hidden; });
+    $(p + 'Parse').addEventListener('click', ()=>{
+      const year = +$(p + 'Year').value || new Date().getFullYear();
+      let last = '';
+      rows = [];
+      parseTSV($(p + 'Paste').value).forEach(r=>{
+        const d = (r[0] || '').trim(), text = r.slice(1).join(' ').trim();
+        const day = sheetDay(d, year);
+        if(d && !day) return;              // '1열' · '날짜' 같은 머리 줄은 건너뛰어요
+        if(day) last = day;
+        if(!text) return;                  // 내용이 빈 날은 건너뛰어요
+        rows.push({ day: last || todayStr(), text, guess: !day });
+      });
+      $(p + 'Prev').innerHTML = rows.length
+        ? rows.map((x, i)=> '<li><input type="date" data-pi="' + i + '" value="' + x.day + '"' + (x.guess ? ' class="guess" title="날짜 칸이 비어 있어 위 날짜로 채웠어요"' : '') + '><div class="grow txt">' + esc(x.text) + '</div></li>').join('')
+        : '<li class="empty">넣을 줄을 찾지 못했어요. 날짜 칸과 내용 칸을 함께 복사했는지 확인해 주세요.</li>';
+      $(p + 'Save').hidden = !rows.length;
+      $(p + 'Save').textContent = rows.length + '개 모두 넣기';
+      msg(p + 'Msg', rows.some(x=> x.guess) ? '주황 테두리는 날짜 칸이 비어 있던 줄이에요. 날짜를 맞게 고쳐 주세요.' : '', '');
+    });
+    $(p + 'Prev').addEventListener('input', (e)=>{
+      const i = e.target.dataset.pi;
+      if(i != null && e.target.value){ rows[i].day = e.target.value; e.target.classList.remove('guess'); }
+    });
+    $(p + 'Save').addEventListener('click', async ()=>{
+      const btn = $(p + 'Save'); btn.disabled = true;
+      msg(p + 'Msg', '넣는 중…', '');
+      try{
+        const n = await save(rows);
+        msg(p + 'Msg', n === rows.length ? n + '개를 넣었어요.' : n + '개를 넣었어요. (이미 있던 ' + (rows.length - n) + '개는 건너뜀)', 'ok');
+        rows = []; $(p + 'Prev').innerHTML = ''; $(p + 'Paste').value = ''; btn.hidden = true;
+      }catch(e){ console.error(e); msg(p + 'Msg', '넣지 못했어요. 다시 해 주세요.', 'err'); }
+      btn.disabled = false;
+    });
+  }
+  async function commitAll(items, put){
+    for(let k = 0; k < items.length; k += 400){
+      const b = writeBatch(db);
+      items.slice(k, k + 400).forEach(x=> put(b, x));
+      await b.commit();
+    }
+  }
+
+  // 날짜 없는 표(음악 · 즐겨찾기) 붙여 넣기. pick(칸들) 이 넣을 것을 돌려주거나, 머리 줄 · 잘못된 줄이면 null
+  function tablePaste(p, pick, show, save){
+    let rows = [];
+    document.querySelector('[data-tbl="' + p + '"]').addEventListener('click', ()=>{ $(p + 'Box').hidden = !$(p + 'Box').hidden; });
+    $(p + 'Paste').addEventListener('input', ()=>{
+      rows = parseTSV($(p + 'Paste').value).map(r=> pick(r.map(x=> (x || '').trim()))).filter(Boolean);
+      $(p + 'Prev').innerHTML = rows.length ? rows.map(x=> '<li><span class="grow">' + show(x) + '</span></li>').join('')
+        : ($(p + 'Paste').value.trim() ? '<li class="empty">넣을 줄을 찾지 못했어요. 칸 순서를 확인해 주세요.</li>' : '');
+      $(p + 'Save').hidden = !rows.length;
+      $(p + 'Save').textContent = rows.length + '개 모두 넣기';
+    });
+    $(p + 'Save').addEventListener('click', async ()=>{
+      const btn = $(p + 'Save'); btn.disabled = true;
+      msg(p + 'Msg', '넣는 중…', '');
+      try{
+        const n = await save(rows);
+        msg(p + 'Msg', n === rows.length ? n + '개를 넣었어요.' : n + '개를 넣었어요. (이미 있던 ' + (rows.length - n) + '개는 건너뜀)', 'ok');
+        rows = []; $(p + 'Prev').innerHTML = ''; $(p + 'Paste').value = ''; btn.hidden = true;
+      }catch(e){ console.error(e); msg(p + 'Msg', '넣지 못했어요. 다시 해 주세요.', 'err'); }
+      btn.disabled = false;
+    });
+  }
+  const ytId = (s)=>{
+    s = String(s || '').trim();
+    if(/^[\w-]{11}$/.test(s)) return s;
+    const m = s.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/);
+    return m ? m[1] : '';
+  };
+  const isImgUrl = (u)=> /^https:\/\/\S+$/i.test(u);
+
   function startAdmin(){
     // ----- 메모 + 기록 -----
     readMemo().then(t=>{ if(!$('adMemo').value) $('adMemo').value = t; });
-    (onSnapshot(query(collection(db, COL.memoLog), orderBy('at', 'desc'), limit(50)), (s)=>{
+    (onSnapshot(query(collection(db, COL.memoLog), orderBy('at', 'desc'), limit(300)), (s)=>{
       const ul = $('adMemoLog');
       ul.innerHTML = s.empty ? '<li class="empty">아직 기록이 없어요. 메모를 저장하면 여기에 쌓여요.</li>'
         : s.docs.map(d=>{ const x = d.data(); return `<li data-id="${esc(d.id)}">
-            <div class="grow"><div class="muted">${esc(fmt(x.at))} · ${esc(String(x.by || '').split('@')[0] || '선생님')}</div><div class="txt">${esc(x.text || '(빈 메모)')}</div></div>
-            <button class="ghost" data-reuse>다시 쓰기</button></li>`; }).join('');
+            <div class="grow"><div class="muted">${esc(x.day ? dayLabel(x.day) : fmt(x.at))} · ${esc(String(x.by || '').split('@')[0] || '선생님')}</div><div class="txt">${esc(x.text || '(빈 메모)')}</div></div>
+            <button class="ghost" data-reuse>다시 쓰기</button><button class="ghost del" data-logdel title="이 기록 지우기">✕</button></li>`; }).join('');
       ul._docs = Object.fromEntries(s.docs.map(d=> [d.id, d.data()]));
     }, (e)=>{ console.error(e); $('adMemoLog').innerHTML = '<li class="empty">기록을 불러오지 못했어요.</li>'; }));
     $('adMemoLog').addEventListener('click', (e)=>{
       const li = e.target.closest('li[data-id]'); if(!li) return;
+      if(e.target.closest('[data-logdel]')){
+        if(confirm('이 기록을 지울까요?')) deleteDoc(doc(db, COL.memoLog, li.dataset.id)).catch(err=>{ console.error(err); msg('adPastBulkMsg', '지우지 못했어요.', 'err'); });
+        return;
+      }
       if(e.target.closest('[data-reuse]')){
         $('adMemo').value = ($('adMemoLog')._docs[li.dataset.id] || {}).text || '';
         $('adMemo').focus(); msg('adMemoMsg', '기록을 불러왔어요. 고친 뒤 저장해 주세요.', '');
@@ -1022,6 +1182,38 @@ if(PAGE === 'admin'){
       }
       li.classList.toggle('open');
     });
+
+    // ----- 지난 메모 기록 넣기 -----
+    // 날짜만 있는 기록은 그날 아침 7시로 두고, 같은 날 여러 개면 1분씩 늦춰 순서를 지켜요
+    const pastAt = (day, k)=> Timestamp.fromDate(new Date(day + 'T07:' + pad(Math.min(k, 59)) + ':00'));
+    const dayCount = ()=>{ const c = {}; Object.values($('adMemoLog')._docs || {}).forEach(x=>{ if(x.day) c[x.day] = (c[x.day] || 0) + 1; }); return c; };
+    $('adPastDate').value = todayStr();
+    $('adPastOne').addEventListener('click', ()=>{ $('adPastOneBox').hidden = !$('adPastOneBox').hidden; });
+    $('adPastOneSave').addEventListener('click', async ()=>{
+      const day = $('adPastDate').value, text = $('adPastText').value.trim();
+      if(!day || !text){ msg('adPastBulkMsg', '날짜와 내용을 적어 주세요.', 'err'); return; }
+      try{
+        await addDoc(collection(db, COL.memoLog), { text, day, past:true, at: pastAt(day, dayCount()[day] || 0), by: me() });
+        $('adPastText').value = ''; msg('adPastBulkMsg', dayLabel(day) + ' 기록을 넣었어요.', 'ok');
+      }catch(e){ console.error(e); msg('adPastBulkMsg', '넣지 못했어요.', 'err'); }
+    });
+    bulkPaste('adPastBulk', async (rows)=>{
+      const c = dayCount();
+      await commitAll(rows, (b, x)=>{
+        const k = c[x.day] = (c[x.day] || 0) + 1;
+        b.set(doc(collection(db, COL.memoLog)), { text: x.text, day: x.day, past:true, at: pastAt(x.day, k - 1), by: '구글 시트' });
+      });
+      return rows.length;
+    });
+
+    // ----- 일정 한꺼번에 넣기 (같은 날짜 · 같은 내용이 이미 있으면 건너뛰어요) -----
+    bulkPaste('adSchBulk', async (rows)=>{
+      const have = new Set((await getDocs(collection(db, COL.schedule))).docs.map(d=> d.data().date + '|' + d.data().content));
+      const fresh = rows.filter(x=> !have.has(x.day + '|' + x.text));
+      await commitAll(fresh, (b, x)=> b.set(doc(collection(db, COL.schedule)), { date: x.day, content: x.text, at: serverTimestamp() }));
+      return fresh.length;
+    });
+
     $('adMemoSave').addEventListener('click', async ()=>{
       const btn = $('adMemoSave'), text = $('adMemo').value;
       btn.disabled = true; msg('adMemoMsg', '저장 중…', '');
@@ -1112,12 +1304,6 @@ if(PAGE === 'admin'){
     const nextMusic = orderedList(COL.music, 'adMuList',
       x=> `<span class="grow">🎵 ${esc(x.title || x.ytId)} <a class="muted" href="https://youtu.be/${esc(x.ytId)}" target="_blank" rel="noopener">열기</a></span>`,
       '아직 등록된 노래가 없어요.');
-    const ytId = (s)=>{
-      s = String(s || '').trim();
-      if(/^[\w-]{11}$/.test(s)) return s;
-      const m = s.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/);
-      return m ? m[1] : '';
-    };
     $('adMuAdd').addEventListener('click', async ()=>{
       const id = ytId($('adMuUrl').value);
       if(!id){ msg('adMuMsg', '유튜브 주소를 확인해 주세요.', 'err'); return; }
@@ -1140,6 +1326,49 @@ if(PAGE === 'admin'){
         await addDoc(collection(db, COL.links), { emoji: $('adLkEmoji').value.trim() || '🔗', name, url, order: nextLink(), at: serverTimestamp() });
         $('adLkEmoji').value = ''; $('adLkName').value = ''; $('adLkUrl').value = ''; msg('adLkMsg', '추가했어요.', 'ok');
       }catch(e){ console.error(e); msg('adLkMsg', '추가하지 못했어요.', 'err'); }
+    });
+
+
+    // ----- 음악 · 즐겨찾기 한꺼번에 (이미 있는 것은 건너뛰어요) -----
+    tablePaste('adMuBulk',
+      (c)=>{ const id = ytId(c[0]); return id ? { ytId:id, title: c[1] || '' } : null; },
+      (x)=> '🎵 ' + esc(x.title || x.ytId) + ' <span class="muted">' + esc(x.ytId) + '</span>',
+      async (rows)=>{
+        const have = new Set((await getDocs(collection(db, COL.music))).docs.map(d=> d.data().ytId));
+        const fresh = rows.filter(x=> !have.has(x.ytId));
+        let o = nextMusic();
+        await commitAll(fresh, (b, x)=> b.set(doc(collection(db, COL.music)), { ...x, order: o++, at: serverTimestamp() }));
+        return fresh.length;
+      });
+    tablePaste('adLkBulk',
+      (c)=>{
+        const url = c.find(x=> /^https?:\/\/\S+\.\S+/i.test(x));
+        if(!url) return null;
+        const rest = c.filter(x=> x && x !== url);
+        const emoji = rest.length > 1 ? rest[0] : '🔗', name = rest.length > 1 ? rest[1] : (rest[0] || url);
+        return { emoji: emoji.slice(0, 4), name: name.slice(0, 30), url };
+      },
+      (x)=> esc(x.emoji) + ' ' + esc(x.name) + '<br><span class="muted">' + esc(x.url) + '</span>',
+      async (rows)=>{
+        const have = new Set((await getDocs(collection(db, COL.links))).docs.map(d=> d.data().url));
+        const fresh = rows.filter(x=> !have.has(x.url));
+        let o = nextLink();
+        await commitAll(fresh, (b, x)=> b.set(doc(collection(db, COL.links)), { ...x, order: o++, at: serverTimestamp() }));
+        return fresh.length;
+      });
+
+    // ----- 이미지 주소로 머리 사진 · 시간표 넣기 -----
+    $('adHdUrlAdd').addEventListener('click', async ()=>{
+      const url = $('adHdUrl').value.trim();
+      if(!isImgUrl(url)){ msg('adHdMsg', 'https:// 로 시작하는 이미지 주소를 넣어 주세요.', 'err'); return; }
+      try{ await addDoc(collection(db, COL.header), { url, at: serverTimestamp(), by: me() }); $('adHdUrl').value = ''; msg('adHdMsg', '머리 사진을 넣었어요. 미리 보기가 안 보이면 주소가 막힌 사진이에요.', 'ok'); }
+      catch(e){ console.error(e); msg('adHdMsg', '넣지 못했어요.', 'err'); }
+    });
+    $('adTtUrlAdd').addEventListener('click', async ()=>{
+      const url = $('adTtUrl').value.trim();
+      if(!isImgUrl(url)){ msg('adTtMsg', 'https:// 로 시작하는 이미지 주소를 넣어 주세요.', 'err'); return; }
+      try{ await setDoc(doc(db, COL.config, 'main'), { timetableImage: url }, { merge:true }); $('adTtUrl').value = ''; msg('adTtMsg', '시간표를 바꿨어요. 오른쪽에 안 보이면 공개되지 않은 사진이에요.', 'ok'); }
+      catch(e){ console.error(e); msg('adTtMsg', '넣지 못했어요.', 'err'); }
     });
 
     // ----- 머리 사진 -----
