@@ -1691,6 +1691,15 @@ function normalizeQuestion(d){
     explanation: d.explanation || ''
   };
 }
+// 시각 도우미 — 학습 문서 안에 남기는 기록은 서버 시간 대신 숫자(Date.now())를 쓴다.
+// 그래서 숫자든 Firestore 시각이든 둘 다 받아 읽기 좋은 글로 바꾼다.
+function msOf(v){ return typeof v === 'number' ? v : (v && v.seconds ? v.seconds * 1000 : 0); }
+function fmtMs(v){
+  const ms = msOf(v);
+  if(!ms) return '';
+  const d = new Date(ms);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
 function qLabel(q){ return `${q.src}${q.num ? ' ' + q.num + '번' : ''}`; }
 
 // ================= 사상가별 선지 정리 (관리자・학생 공용) =================
@@ -2229,23 +2238,35 @@ function initStudent(){
     catch(e){ /* 저장 공간이 모자라면 그냥 캐시 없이 쓴다 */ }
   }
 
+  // 네트워크가 막히면 답이 영영 안 올 수 있어 정해진 시간까지만 기다린다
+  function waitUpTo(p, ms){
+    return Promise.race([p, new Promise((_, no)=> setTimeout(()=> no(new Error('TIMEOUT')), ms))]);
+  }
   async function loadQuestions(){
     if(!db){ loadState = 'nocfg'; renderAllPanels(); return; }
     loadState = 'loading'; renderAllPanels();
     try{
-      const v = await questionsVersion();                       // 읽기 1건
+      // 버전 확인이 늦어지면 기다리지 않는다 (아래에서 캐시로 넘어간다)
+      const v = await waitUpTo(questionsVersion(), 8000).catch(()=> null);   // 읽기 1건
       const cache = readQCache();
       const fresh = cache && (v ? cache.v === v : (Date.now() - cache.at < QCACHE_TTL));
       let raw;
       if(fresh){
         raw = cache.list;                                       // 읽기 0건
       }else{
-        const snap = await getDocs(collection(db, COL.questions));
-        raw = snap.docs.map(d=>{
-          const { updatedAt, ...rest } = d.data();              // 시각 값은 캐시에 담지 않는다
-          return { id:d.id, ...rest };
-        });
-        writeQCache(v, raw);
+        try{
+          const snap = await waitUpTo(getDocs(collection(db, COL.questions)), 20000);
+          raw = snap.docs.map(d=>{
+            const { updatedAt, ...rest } = d.data();            // 시각 값은 캐시에 담지 않는다
+            return { id:d.id, ...rest };
+          });
+          writeQCache(v, raw);
+        }catch(err){
+          // 학교망에서 막히는 일이 있다. 지난번에 받아 둔 것이라도 보여 준다.
+          console.error('문항을 새로 받지 못했어요', err);
+          if(!cache) throw err;
+          raw = cache.list;
+        }
       }
       ALL_QUESTIONS = raw
         .map(normalizeQuestion)
@@ -2274,13 +2295,19 @@ function initStudent(){
   function stateMessageHTML(){
     if(loadState === 'nocfg') return `<div class="state-msg">Firebase 설정 후 이용할 수 있어요.</div>`;
     if(loadState === 'idle' || loadState === 'loading') return skeletonHTML();
-    if(loadState === 'error') return `<div class="state-msg">문항을 불러오지 못했습니다.<br><button data-action="reload">다시 시도</button></div>`;
+    if(loadState === 'error') return `<div class="state-msg">문항을 불러오지 못했습니다.<br>인터넷이 느리거나 학교망에서 막혀 있을 수 있어요.<br><button data-action="reload">다시 시도</button></div>`;
     if(ALL_QUESTIONS.length === 0) return `<div class="state-msg">등록된 문항이 없습니다.</div>`;
     return null;
   }
 
   const ALL_PANELS = ['p1','p2','p4','p13','p12','p8','p9','p10','p14','p15','p16','p17','p18','p11','p19','p20'];
-  function renderAllPanels(){ ALL_PANELS.forEach(renderPanelById); }
+  // 화면 하나에서 잘못되더라도 나머지 화면까지 멈추지 않게 따로따로 감싼다
+  function renderAllPanels(){
+    ALL_PANELS.forEach(id=>{
+      try{ renderPanelById(id); }
+      catch(e){ console.error('화면을 그리지 못했어요: ' + id, e); }
+    });
+  }
 
   function renderPanelById(id){
     if(['p5','p6','p7'].includes(id)){
@@ -3480,9 +3507,7 @@ function initStudent(){
     };
     if(!queue.length){
       const el = document.getElementById('p8');
-      el.innerHTML = headerHTML() + `<div class="state-msg">${wf === 'all'
-        ? '오답노트가 비어 있어요. 틀린 문제가 없거나 모두 맞혔어요!'
-        : '이 조건에 맞는 오답이 없어요.<br>문제를 풀기 전에 "확실해요 / 헷갈려요"를 눌러두면 여기서 골라 볼 수 있어요.'}</div>`;
+      el.innerHTML = headerHTML() + `<div class="state-msg">오답노트가 비어 있어요. 틀린 문제가 없거나 모두 맞혔어요!</div>`;
       bindHeader(el);
       return;
     }
