@@ -204,6 +204,27 @@
 
   .admin-fab{ position:fixed; right:12px; bottom:12px; z-index:10; padding:4px 11px; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.85); color:#667; font:11px/1.4 sans-serif; text-decoration:none; opacity:.45; }
   .admin-fab:hover{ opacity:1; }
+  /* ============ 핸드폰용 글쓰기 화면 ============ */
+  #view-write{ max-width:640px; margin:0 auto; padding:18px 14px 60px; }
+  #view-write h1{ font-size:21px; margin:6px 0 4px; }
+  #view-write .sub{ font-size:12.5px; color:var(--muted); margin-bottom:18px; }
+  #view-write .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px; }
+  #view-write .card h2{ font-size:15px; margin:0 0 10px; }
+  #view-write textarea, #view-write input{ width:100%; font-family:var(--title-font),'Pretendard',sans-serif; font-size:16px; padding:11px 13px; border:1.5px solid var(--line); border-radius:12px; background:var(--paper-2); color:var(--ink); }
+  #view-write textarea{ line-height:1.65; resize:vertical; min-height:150px; }
+  #view-write .row{ display:flex; gap:8px; margin-top:8px; }
+  #view-write .row input{ flex:1; min-width:0; width:auto; }
+  #view-write button{ background:var(--btn-bg); color:var(--btn-text); border:none; border-radius:12px; padding:12px 20px; font-size:15px; cursor:pointer; font-family:var(--title-font),sans-serif; white-space:nowrap; }
+  #view-write button.sm{ padding:8px 12px; font-size:13px; }
+  #view-write button.del{ background:none; color:#C0473A; border:1.5px solid var(--line); padding:6px 10px; font-size:12px; }
+  #view-write .msg{ font-size:12.5px; margin-top:8px; min-height:17px; color:var(--muted); }
+  #view-write .msg.ok{ color:#2FAE9C; } #view-write .msg.err{ color:#C0473A; }
+  #view-write .sch-item{ display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px dashed var(--line); font-size:14px; }
+  #view-write .sch-item:last-child{ border-bottom:none; }
+  #view-write .sch-item b{ flex:none; color:var(--dawn-deep); }
+  #view-write .sch-item span{ flex:1; word-break:break-word; }
+  #view-write .hint{ font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.6; }
+
   #cornerLinks{ position:fixed; right:12px; bottom:12px; z-index:10; display:flex; gap:6px; }
   #cornerLinks .admin-fab{ position:static; }
 
@@ -388,6 +409,51 @@
 </div>
 
 <!-- ============ 교사용 현황 화면 ============ -->
+
+<!-- ============ 핸드폰용 글쓰기 화면 (?page=write) ============ -->
+<div class="view" id="view-write">
+  <h1 class="display">✏️ 조종례 메모 올리기</h1>
+  <div class="sub">여기서 올리면 교실 전자칠판에 <b>새로고침 없이 바로</b> 바뀝니다.</div>
+
+  <div class="card" id="wPassCard">
+    <h2>🔑 교사 비밀번호</h2>
+    <div class="row">
+      <input type="password" id="wPass" placeholder="비밀번호" autocomplete="current-password">
+      <button id="wPassBtn">확인</button>
+    </div>
+    <div class="msg" id="wPassMsg"></div>
+    <div class="hint">한 번 넣으면 이 휴대폰에 기억해 둬서 다음부터 바로 쓸 수 있어요.</div>
+  </div>
+
+  <div id="wBody" style="display:none;">
+    <div class="card">
+      <h2>📝 조종례 메모</h2>
+      <textarea id="wMemo" placeholder="오늘 전달할 내용을 적어주세요."></textarea>
+      <div class="row"><button id="wMemoSave" style="flex:1;">저장하기</button></div>
+      <div class="msg" id="wMemoMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>📌 일정 추가</h2>
+      <div class="row">
+        <input type="date" id="wSchDate">
+      </div>
+      <div class="row">
+        <input type="text" id="wSchText" placeholder="일정 내용">
+        <button class="sm" id="wSchAdd">추가</button>
+      </div>
+      <div class="msg" id="wSchMsg"></div>
+      <div id="wSchList" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>🔁 비밀번호 지우기</h2>
+      <div class="hint">다른 사람 휴대폰에서 썼다면 눌러서 기억을 지워주세요.</div>
+      <div class="row"><button class="sm del" id="wForget">이 휴대폰에서 지우기</button></div>
+    </div>
+  </div>
+</div>
+
 <div class="view" id="view-teacher">
   <header><h1 class="display">📊 자습 습관 현황 (교사용)</h1></header>
   <main>
@@ -421,7 +487,7 @@
 // ================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc,
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot,
   query, where, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -607,6 +673,14 @@ function calcDday(cfg){
   return { label, text: diff === 0 ? 'D-DAY' : (diff > 0 ? 'D-' + diff : 'D+' + Math.abs(diff)) };
 }
 
+// 메모가 바뀌는지 계속 듣는다 (바뀔 때만 1건 읽음)
+function watchMemo(cb){
+  try{
+    onSnapshot(doc(db, COL.memo, 'main'), (s)=> cb(s.exists() ? (s.data().text || '') : ''),
+      (e)=> console.error('메모를 계속 듣지 못했어요', e));
+  }catch(e){ console.error('메모 듣기 실패', e); }
+}
+
 // ================================================================
 // 오늘의 식단 그리기
 // ================================================================
@@ -654,7 +728,8 @@ $('view-' + PAGE).style.display = (PAGE === 'monitor' ? 'flex' : 'block');
   if(!box) return;
   const link = (href, text, title) => `<a class="admin-fab" href="${href}" title="${title}">${text}</a>`;
   box.innerHTML = PAGE === 'home'
-    ? link('?page=monitor', '교실 화면', '교실 모니터에 띄우는 명예의 전당')
+    ? link('?page=write', '메모 올리기', '휴대폰에서 조종례 메모 올리기')
+      + link('?page=monitor', '교실 화면', '교실 모니터에 띄우는 명예의 전당')
       + link('?page=teacher', '교사용', '우리 반 자습 현황 (교사용)')
     : link('./', '우리반 홈', '1학년 10반 홈으로')
       + link('/admin/', '관리자 허브', 'moontr.site 전체 관리자');
@@ -714,6 +789,11 @@ if(PAGE === 'home'){
     }
     $('memoBox').textContent = memo || '아직 등록된 메모가 없어요.';
     $('memoInput').value = memo || '';
+    // 선생님이 휴대폰에서 메모를 바꾸면 교실 화면이 저절로 바뀐다 (새로고침 안 해도 됨)
+    watchMemo((t)=>{
+      $('memoBox').textContent = t || '아직 등록된 메모가 없어요.';
+      $('memoInput').value = t || '';
+    });
 
     if(cfg.timetableImage) $('timetableFrame').innerHTML = `<img src="${esc(cfg.timetableImage)}" alt="시간표">`;
     $('footerMemo').textContent = cfg.footerMemo || '';
@@ -943,6 +1023,84 @@ if(PAGE === 'home'){
   });
 }
 
+
+// ================================================================
+// 핸드폰용 글쓰기 화면 (?page=write)
+// ================================================================
+if(PAGE === 'write'){
+  const KEEP = 'c110-teacher-ok';
+  const msg = (id, text, kind)=>{ const el = $(id); el.textContent = text; el.className = 'msg' + (kind ? ' ' + kind : ''); };
+
+  function openBody(){
+    $('wPassCard').style.display = 'none';
+    $('wBody').style.display = 'block';
+    loadMemo();
+    loadSchedule();
+  }
+  // 한 번 맞히면 이 휴대폰에 기억해 둔다 (매번 치지 않도록)
+  try{ if(localStorage.getItem(KEEP) === '1') openBody(); }catch(e){}
+
+  $('wPassBtn').addEventListener('click', ()=>{
+    if($('wPass').value !== TEACHER_PASSWORD){ msg('wPassMsg', '비밀번호가 올바르지 않아요.', 'err'); return; }
+    try{ localStorage.setItem(KEEP, '1'); }catch(e){}
+    openBody();
+  });
+  $('wPass').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') $('wPassBtn').click(); });
+  $('wForget').addEventListener('click', ()=>{
+    try{ localStorage.removeItem(KEEP); }catch(e){}
+    location.reload();
+  });
+
+  async function loadMemo(){
+    $('wMemo').value = await readMemo();
+  }
+  $('wMemoSave').addEventListener('click', async ()=>{
+    const btn = $('wMemoSave');
+    btn.disabled = true;
+    msg('wMemoMsg', '저장 중...', '');
+    try{
+      await setDoc(doc(db, COL.memo, 'main'), { text: $('wMemo').value, at: serverTimestamp() });
+      msg('wMemoMsg', '올렸어요. 교실 화면이 바로 바뀝니다.', 'ok');
+    }catch(e){ console.error(e); msg('wMemoMsg', '저장하지 못했어요.', 'err'); }
+    btn.disabled = false;
+  });
+
+  async function loadSchedule(){
+    const el = $('wSchList');
+    let list = [];
+    try{
+      const s = await getDocs(collection(db, COL.schedule));
+      list = s.docs.map(d=>({ id:d.id, ...d.data() }))
+        .filter(x=> x.date && x.content && x.date >= todayStr())
+        .sort((a,b)=> String(a.date).localeCompare(String(b.date)));
+    }catch(e){ console.error('일정을 불러오지 못했어요', e); }
+    el.innerHTML = list.length
+      ? list.map(s=>{
+          const d = new Date(s.date + 'T00:00:00');
+          return `<div class="sch-item"><b>${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})</b><span>${esc(s.content)}</span><button class="del" data-del="${esc(s.id)}">지움</button></div>`;
+        }).join('')
+      : '<div class="hint">앞으로 남은 일정이 없어요.</div>';
+    el.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', async ()=>{
+      if(!confirm('이 일정을 지울까요?')) return;
+      try{ await deleteDoc(doc(db, COL.schedule, b.dataset.del)); loadSchedule(); }
+      catch(e){ console.error(e); msg('wSchMsg', '지우지 못했어요.', 'err'); }
+    }));
+  }
+  $('wSchDate').value = todayStr();
+  $('wSchAdd').addEventListener('click', async ()=>{
+    const date = $('wSchDate').value;
+    const content = $('wSchText').value.trim();
+    if(!date || !content){ msg('wSchMsg', '날짜와 내용을 적어주세요.', 'err'); return; }
+    msg('wSchMsg', '추가하는 중...', '');
+    try{
+      await addDoc(collection(db, COL.schedule), { date, content, at: serverTimestamp() });
+      $('wSchText').value = '';
+      msg('wSchMsg', '추가했어요.', 'ok');
+      loadSchedule();
+    }catch(e){ console.error(e); msg('wSchMsg', '추가하지 못했어요. 일정은 선생님 계정만 쓸 수 있게 되어 있을 수 있어요.', 'err'); }
+  });
+}
+
 // ================================================================
 // 교실 모니터 화면
 // ================================================================
@@ -964,6 +1122,8 @@ if(PAGE === 'monitor'){
     $('monMeal').innerHTML = m ? half('🍚 오늘의 중식', m.l) + half('🌙 오늘의 석식', m.d) : '';
   }
   monMeal();
+  // 선생님이 메모를 바꾸면 교실 화면도 바로 따라간다
+  watchMemo(()=>{});
 
   async function monRender(){
     const month = todayStr().slice(0, 7);
