@@ -84,6 +84,28 @@ service cloud.firestore {
       allow list, delete: if isTeacher();
     }
 
+    // 💬 질문・상담: 학생 1명당 문서 1개 (문서 이름 = 학습 이력과 같은 열쇠). 학생은 자기 열쇠 문서만 알아서 읽고 써요.
+    match /yunsa_chats/{key} {
+      allow get: if true;
+      allow create, update: if isTeacher() || (
+        key.size() == 64
+        && exists(/databases/$(database)/documents/yunsa_learners/$(key))
+        && request.resource.data.keys().hasOnly(['studentId', 'nickname', 'msgs', 'lastAt', 'needTeacher', 'studentUnread'])
+        && request.resource.data.studentId == get(/databases/$(database)/documents/yunsa_learners/$(key)).data.studentId
+        && request.resource.data.msgs is list && request.resource.data.msgs.size() <= 200
+      );
+      allow list, delete: if isTeacher();
+    }
+    // 📷 질문・상담 · 오류 신고에 붙인 사진 (문서 1개에 사진 1장, 줄인 JPEG dataURL)
+    match /yunsa_files/{id} {
+      allow get: if true;
+      allow create: if request.resource.data.keys().hasOnly(['d', 'at', 'by'])
+        && request.resource.data.d is string && request.resource.data.d.size() <= 900000
+        && request.resource.data.by is string && request.resource.data.by.size() <= 20
+        && request.resource.data.at == request.time;
+      allow list, delete: if isTeacher();
+    }
+
     // ----- 생윤 만점 다이어리 (윤사와 같은 구조, 컬렉션만 분리) -----
     match /saengyun_questions/{id} { allow read: if true; allow write: if isTeacher(); }
     match /saengyun_rates/{id} { allow read: if true; allow write: if isTeacher(); }
@@ -127,6 +149,28 @@ service cloud.firestore {
       );
       allow update: if request.resource.data.studentId == resource.data.studentId
         && request.resource.data.nickname == resource.data.nickname;
+      allow list, delete: if isTeacher();
+    }
+
+    // 💬 질문・상담: 학생 1명당 문서 1개 (문서 이름 = 학습 이력과 같은 열쇠). 학생은 자기 열쇠 문서만 알아서 읽고 써요.
+    match /saengyun_chats/{key} {
+      allow get: if true;
+      allow create, update: if isTeacher() || (
+        key.size() == 64
+        && exists(/databases/$(database)/documents/saengyun_learners/$(key))
+        && request.resource.data.keys().hasOnly(['studentId', 'nickname', 'msgs', 'lastAt', 'needTeacher', 'studentUnread'])
+        && request.resource.data.studentId == get(/databases/$(database)/documents/saengyun_learners/$(key)).data.studentId
+        && request.resource.data.msgs is list && request.resource.data.msgs.size() <= 200
+      );
+      allow list, delete: if isTeacher();
+    }
+    // 📷 질문・상담 · 오류 신고에 붙인 사진 (문서 1개에 사진 1장, 줄인 JPEG dataURL)
+    match /saengyun_files/{id} {
+      allow get: if true;
+      allow create: if request.resource.data.keys().hasOnly(['d', 'at', 'by'])
+        && request.resource.data.d is string && request.resource.data.d.size() <= 900000
+        && request.resource.data.by is string && request.resource.data.by.size() <= 20
+        && request.resource.data.at == request.time;
       allow list, delete: if isTeacher();
     }
 
