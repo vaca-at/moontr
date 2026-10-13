@@ -1358,7 +1358,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
+  getFirestore, initializeFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
   query, where, getCountFromServer,
   serverTimestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -1539,7 +1539,9 @@ const CONFIGURED = !String(firebaseConfig.apiKey).includes('여기에');
 let db = null, auth = null;
 if (CONFIGURED) {
   const app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
+  // 학교망에서 기본 연결이 멈추는 일이 있어, 막히면 스스로 다른 방식으로 바꾸게 한다
+  try{ db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true }); }
+  catch(e){ db = getFirestore(app); }
   auth = getAuth(app);
 } else {
   const notice = `<div class="setup-notice"><b>⚙️ Firebase 설정이 아직 안 되어 있어요.</b><br>index.html 안의 <b>firebaseConfig</b>와 <b>ADMIN_EMAIL</b> 부분에 Firebase 콘솔에서 복사한 값을 넣어주세요.</div>`;
@@ -3049,15 +3051,19 @@ function initStudent(){
   // 학생이 보낸 것은 모두 선생님 화면 [질문・상담]에 "답할 것"으로 올라간다.
 
   // ----- 대화 불러오기・보내기 -----
-  // 대화는 saengyun_chats 에 학생 1명당 문서 1개로 둔다 (문서 이름 = 로그인 열쇠 = 학번+닉네임 해시).
-  // 사진은 문서가 무거워지지 않게 saengyun_files 에 따로 올리고, 대화에는 사진 문서 이름만 적는다.
+  // 대화는 yunsa_chats 에 학생 1명당 문서 1개로 둔다 (문서 이름 = 로그인 열쇠 = 학번+닉네임 해시).
+  // 사진은 문서가 무거워지지 않게 yunsa_files 에 따로 올리고, 대화에는 사진 문서 이름만 적는다.
   let chat = null;            // { msgs:[], ... }
   let chatPending = null;     // 보내기 전 붙여 둔 사진 (dataURL)
 
+  // 네트워크가 막히면 답이 영영 안 올 수 있어 15초까지만 기다린다
+  function withTimeout(p, ms){
+    return Promise.race([p, new Promise((_, no)=> setTimeout(()=> no(new Error('TIMEOUT')), ms))]);
+  }
   async function loadChat(force){
     if(!db || !loginInfo) return null;
     if(chat && !force) return chat;
-    const snap = await getDoc(doc(db, COL.chats, loginInfo.key));
+    const snap = await withTimeout(getDoc(doc(db, COL.chats, loginInfo.key)), 15000);
     chat = snap.exists() ? snap.data() : { msgs:[] };
     if(!Array.isArray(chat.msgs)) chat.msgs = [];
     return chat;
@@ -3182,7 +3188,14 @@ function initStudent(){
       try{ await loadChat(); }
       catch(e){
         console.error(e);
-        el.innerHTML = `<div class="state-msg">대화를 불러오지 못했어요.<br>보안 규칙에 saengyun_chats 규칙이 들어갔는지 확인해주세요.</div>`;
+        const why = e && e.message === 'TIMEOUT'
+          ? '인터넷이 느리거나 학교망에서 막혀 있는 것 같아요.'
+          : (e && e.code === 'permission-denied'
+              ? '권한이 없어요. 보안 규칙에 yunsa_chats 규칙이 들어갔는지 확인해주세요.'
+              : '잠시 문제가 생겼어요.');
+        el.innerHTML = `<div class="state-msg">대화를 불러오지 못했어요.<br>${why}<br><button type="button" id="chat-retry" style="margin-top:10px;">다시 시도</button><br><span style="font-size:11px;color:var(--muted);">${escapeHtml(String(e && (e.code || e.message) || e))}</span></div>`;
+        const rb = document.getElementById('chat-retry');
+        if(rb) rb.addEventListener('click', ()=>{ chat = null; renderChatPanel(); });
         return;
       }
     }
@@ -3499,7 +3512,7 @@ function initStudent(){
 
   // ----- 내 오류 신고 -----
   // 내가 낸 신고가 지금 어떻게 되고 있는지(확인 중 / 처리 완료)와 선생님 코멘트를 보여준다.
-  // 신고 모음(saengyun_reports)에는 다른 학생의 학번・닉네임도 들어 있어 학생이 통째로 읽으면 안 된다.
+  // 신고 모음(yunsa_reports)에는 다른 학생의 학번・닉네임도 들어 있어 학생이 통째로 읽으면 안 된다.
   // 그래서 신고를 보낼 때 내 학습 문서에 사본을 남겨 두고, 이 화면은 그 사본만 본다.
   // (선생님이 코멘트를 달거나 처리하면 그 사본도 같이 고쳐진다 — 관리자 화면의 mirrorToLearner 참고)
   function renderMyReports(){
@@ -5581,7 +5594,7 @@ function initAdmin(){
   }
 
   // ================= 💬 질문・상담 (선생님) =================
-  // 학생 1명당 문서 1개(saengyun_chats). 답장을 쓰면 학생 화면에 바로 보인다.
+  // 학생 1명당 문서 1개(yunsa_chats). 답장을 쓰면 학생 화면에 바로 보인다.
   let chatList = [];
   let chatOpen = null;     // 지금 열어 둔 학생 문서 이름(열쇠)
   async function renderChats(){
@@ -5593,7 +5606,7 @@ function initAdmin(){
         .sort((a,b)=> (a.needTeacher ? 0 : 1) - (b.needTeacher ? 0 : 1) || ((b.lastAt?.seconds||0) - (a.lastAt?.seconds||0)));
     }catch(e){
       console.error(e);
-      el.innerHTML = `<div class="state-msg">불러오지 못했어요. 보안 규칙에 saengyun_chats 규칙이 들어갔는지 확인해주세요.</div>`;
+      el.innerHTML = `<div class="state-msg">불러오지 못했어요. 보안 규칙에 yunsa_chats 규칙이 들어갔는지 확인해주세요.</div>`;
       return;
     }
     refreshAdminDots();
@@ -5750,7 +5763,7 @@ function initAdmin(){
       }));
     }catch(e){
       console.error(e);
-      el.innerHTML = `<div class="state-msg">불러오지 못했어요. 보안 규칙에 saengyun_reports 규칙이 들어갔는지 확인해주세요.</div>`;
+      el.innerHTML = `<div class="state-msg">불러오지 못했어요. 보안 규칙에 yunsa_reports 규칙이 들어갔는지 확인해주세요.</div>`;
     }
   }
 
