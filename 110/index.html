@@ -210,7 +210,7 @@
   #view-admin .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; min-width:0; }
   #view-admin .card h2{ font-family:var(--title-font),sans-serif; font-weight:400; font-size:17px; margin:0 0 4px; }
   #view-admin .card .sub{ font-size:12.5px; color:var(--muted); margin:0 0 12px; line-height:1.55; }
-  #view-admin textarea, #view-admin input[type=text], #view-admin input[type=url], #view-admin input[type=date], #view-admin input[type=password], #view-admin input[type=email]{ width:100%; font:inherit; font-size:16px; padding:10px 12px; border:1.5px solid var(--line); border-radius:12px; background:var(--paper); color:var(--ink); }
+  #view-admin textarea, #view-admin input[type=text], #view-admin input[type=url], #view-admin input[type=date], #view-admin input[type=month], #view-admin input[type=password], #view-admin input[type=email]{ width:100%; font:inherit; font-size:16px; padding:10px 12px; border:1.5px solid var(--line); border-radius:12px; background:var(--paper); color:var(--ink); }
   #view-admin textarea{ line-height:1.65; resize:vertical; min-height:180px; }
   #view-admin .row{ display:flex; gap:8px; margin-top:8px; align-items:center; }
   #view-admin .row > input{ flex:1; min-width:0; }
@@ -253,6 +253,23 @@
   #view-admin .peek{ display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
   #view-admin .peek a{ font-size:12.5px; color:var(--muted); }
   [hidden]{ display:none !important; }
+  /* 자습왕 (관리자 · 교실 화면) */
+  #view-admin .kg-table{ width:100%; border-collapse:collapse; font-size:13.5px; margin-top:6px; }
+  #view-admin .kg-table th, #view-admin .kg-table td{ padding:7px 4px; border-bottom:1px solid var(--line); text-align:center; font-variant-numeric:tabular-nums; }
+  #view-admin .kg-table th{ color:var(--muted); font-weight:400; font-size:12px; }
+  #view-admin .kg-table td.bar{ width:42%; text-align:left; }
+  #view-admin .kg-bar{ display:flex; height:12px; border-radius:6px; overflow:hidden; background:var(--paper-2); }
+  #view-admin .kg-bar i{ display:block; height:100%; }
+  #view-admin .kg-legend{ display:flex; gap:12px; font-size:12px; color:var(--muted); margin-top:8px; }
+  #view-admin .kg-legend i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px; }
+  .kg-m{ background:#5FD9C7; } .kg-e{ background:#2B6E77; } .kg-w{ background:#FF8B6B; }
+  #view-admin .kg-scroll{ max-height:520px; overflow:auto; }
+  .lightbox{ position:fixed; inset:0; z-index:500; background:rgba(15,25,25,.8); display:flex; align-items:center; justify-content:center; padding:20px; cursor:zoom-out; }
+  .lightbox img{ max-width:100%; max-height:90vh; border-radius:12px; background:#fff; }
+  .lightbox p{ position:absolute; left:0; right:0; bottom:18px; text-align:center; color:#fff; font:14px 'Pretendard',sans-serif; margin:0; }
+  #view-monitor .mon-king{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:16px 22px; margin-top:22px; }
+  #view-monitor .mon-king h4{ margin:0 0 12px; font-size:16px; color:#F0C24B; }
+  #view-monitor .mon-king .rest-grid{ grid-template-columns:repeat(5,1fr); }
   #cornerLinks{ position:fixed; right:12px; bottom:12px; z-index:10; display:flex; gap:6px; }
   #cornerLinks .admin-fab{ position:static; }
 
@@ -341,8 +358,39 @@
 
     </div>
 
-    <!-- 2단: 가운데 (시간표) -->
+    <!-- 2단: 가운데 (자습왕 · 시간표) -->
     <div>
+      <div class="panel center-panel">
+        <h2 class="display">🌤️ 자습왕 뽑기</h2>
+        <div class="center-sub" id="todayLabel"></div>
+        <div class="id-row">
+          <input id="studentId" type="tel" inputmode="numeric" maxlength="5" placeholder="학번 5자리 입력">
+          <button class="primary" id="loadBtn">확인</button>
+        </div>
+        <div class="orbit-wrap" id="orbitWrap">
+          <div id="weekdayCheck">
+            <div class="orbit-label"><span>🌅 아침</span><span>오늘의 궤도</span><span>저녁 🌙</span></div>
+            <div class="orbit">
+              <div class="sun" id="sunIcon">☀️</div>
+              <div class="moon" id="moonIcon">🌙</div>
+            </div>
+            <div class="check-grid">
+              <button class="check-btn morning" id="morningBtn"><span class="icon">🌅</span><span class="label">아침 자습 체크</span><span class="sub">사진 인증 필수</span></button>
+              <button class="check-btn evening" id="eveningBtn"><span class="icon">🌙</span><span class="label">저녁 자습 체크</span><span class="sub">사진 인증 필수</span></button>
+            </div>
+          </div>
+          <div id="weekendCheck" style="display:none;">
+            <button class="check-btn weekend" id="weekendBtn" style="width:100%;"><span class="icon">🏫</span><span class="label">주말 자습 체크</span><span class="sub">사진 인증 필수 · 학교에 나와 자습한 날</span></button>
+          </div>
+          <div class="status-msg" id="statusMsg"></div>
+        </div>
+        <div class="board">
+          <h3><span class="dot"></span> 이번 달 자습왕 TOP 5</h3>
+          <ul class="board-list" id="boardList"><li style="color:var(--muted)">불러오는 중...</li></ul>
+        </div>
+        <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
+      </div>
+
       <div class="panel">
         <h2>🗓️ 시간표</h2>
         <div class="timetable-frame" id="timetableFrame">
@@ -384,6 +432,7 @@
   <div class="mon-memo" id="monMemo"></div>
   <div class="mon-meal" id="monMeal"></div>
   <div class="mon-sch" id="monSch"></div>
+  <div class="mon-king" id="monKing" hidden></div>
   <footer>메모를 바꾸면 이 화면도 저절로 바뀝니다</footer>
 </div>
 
@@ -421,6 +470,7 @@
         <button data-tab="music">🎵 음악</button>
         <button data-tab="head">🖼️ 머리 사진</button>
         <button data-tab="links">⭐ 즐겨찾기</button>
+        <button data-tab="king">🌤️ 자습왕</button>
       </nav>
     </div>
     <main>
@@ -578,6 +628,30 @@
           <ul class="list" id="adLkList"><li class="empty">불러오는 중…</li></ul>
         </div>
       </section>
+
+      <!-- 자습왕 -->
+      <section class="ad-pane" data-pane="king">
+        <div class="card">
+          <h2>🌤️ 이번 달 자습 현황</h2>
+          <p class="sub">학생이 홈에서 학번을 넣고 사진으로 인증한 아침 · 저녁 · 주말 자습이에요. 합계가 많은 순서예요.</p>
+          <div class="row" style="margin-top:0;"><input type="month" id="kgMonth" style="flex:none; width:190px;"></div>
+          <div class="kg-legend"><span><i class="kg-m"></i>아침</span><span><i class="kg-e"></i>저녁</span><span><i class="kg-w"></i>주말</span></div>
+          <div class="kg-scroll"><table class="kg-table" id="kgTable"></table></div>
+        </div>
+        <div class="card">
+          <h2>📷 인증 기록</h2>
+          <p class="sub">고른 달의 기록이에요. 📷 을 누르면 인증 사진을 크게 봐요. 잘못 올린 기록은 지울 수 있어요.</p>
+          <div class="row" style="margin-top:0;"><button class="ghost" data-tbl="kgBulk">📋 시트에서 한꺼번에 넣기</button></div>
+          <div class="past" id="kgBulkBox" hidden>
+            <p class="sub">예전 구글 시트(타임스탬프 · 학번 · 날짜 · 구분 · 체크시각 · 사진 · 사진원본링크)를 머리 줄째 그대로 복사해 붙여 넣어요. 같은 학번 · 날짜 · 구분이 이미 있으면 건너뛰어요.</p>
+            <textarea id="kgBulkPaste" placeholder="여기에 Ctrl+V" style="min-height:110px;"></textarea>
+            <ul class="list" id="kgBulkPrev"></ul>
+            <div class="row"><button class="btn" id="kgBulkSave" style="flex:1;" hidden>모두 넣기</button></div>
+          </div>
+          <div class="msg" id="kgBulkMsg"></div>
+          <div class="kg-scroll"><ul class="list" id="kgList"><li class="empty">불러오는 중…</li></ul></div>
+        </div>
+      </section>
     </main>
   </div>
 </div>
@@ -618,9 +692,13 @@ const COL = {
   schedule: "c110_schedule",   // 일정 (문서 이름 = YYYY-MM-DD_순번)
   files:    "c110_files",      // 인증 사진 (문서 1개에 사진 1장)
   music:    "c110_music",      // 배경 음악 유튜브
-  header:   "c110_header"      // 머리 사진
+  header:   "c110_header",     // 머리 사진
+  checks:   "c110_checks"      // 자습 체크 (문서 이름 = 학번_날짜_구분)
 };
 
+
+// 학번 11001 ~ 11027
+const STUDENT_IDS = Array.from({length:27}, (_,i)=> '110' + String(i+1).padStart(2,'0'));
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -759,6 +837,34 @@ async function readHeaderImages(){
   }catch(e){ return []; }
 }
 
+async function readChecks(){
+  try{
+    const s = await getDocs(collection(db, COL.checks));
+    return s.docs.map(d=>({ id:d.id, ...d.data() }));
+  }catch(e){ console.error('자습 기록을 불러오지 못했어요', e); return []; }
+}
+// 이번 달(또는 ym) 학번별 횟수, 많은 순
+function kingRank(all, ym){
+  const counts = {};
+  all.forEach(c=>{
+    if(c.date && String(c.date).indexOf(ym) === 0 && STUDENT_IDS.includes(c.studentId)) counts[c.studentId] = (counts[c.studentId] || 0) + 1;
+  });
+  return Object.keys(counts).map(id=>({ id, count:counts[id] })).sort((a,b)=> b.count - a.count || a.id.localeCompare(b.id));
+}
+// 인증 사진 크게 보기 (img = c110_files 문서 번호, photoUrl = 예전 구글 드라이브 주소)
+async function showPhoto(c){
+  let src = '';
+  if(c.img){ try{ const s = await getDoc(doc(db, COL.files, c.img)); src = s.exists() ? s.data().d : ''; }catch(e){ console.error(e); } }
+  if(!src && c.photoUrl){ window.open(c.photoUrl, '_blank', 'noopener'); return; }
+  if(!src){ alert('사진을 찾지 못했어요.'); return; }
+  const box = document.createElement('div');
+  box.className = 'lightbox';
+  box.innerHTML = '<img alt="인증 사진"><p>' + esc(c.studentId + ' · ' + c.date + ' ' + c.type + ' ' + (c.time || '')) + ' · 누르면 닫혀요</p>';
+  box.querySelector('img').src = src;
+  box.addEventListener('click', ()=> box.remove());
+  document.body.appendChild(box);
+}
+
 // 디데이 계산
 function calcDday(cfg){
   const label = cfg.ddayLabel || '디데이';
@@ -876,6 +982,81 @@ if(PAGE === 'home'){
   })();
 
   renderMeal();
+  $('todayLabel').textContent = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+  // ----- 자습왕 뽑기: 학번 → 아침 · 저녁 · 주말 사진 인증 (하루에 구분마다 한 번) -----
+  let currentId = '', pendingType = '';
+  function setStatus(msg, kind){ const el = $('statusMsg'); el.textContent = msg; el.className = 'status-msg' + (kind ? ' ' + kind : ''); }
+  $('loadBtn').addEventListener('click', loadStudent);
+  $('studentId').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') loadStudent(); });
+  async function loadStudent(){
+    const id = $('studentId').value.trim();
+    if(!/^\d{5}$/.test(id)){ setStatus('학번 5자리를 정확히 입력해주세요.', 'err'); return; }
+    if(!STUDENT_IDS.includes(id)){ setStatus('등록되지 않은 학번이에요.', 'err'); return; }
+    currentId = id;
+    $('orbitWrap').classList.add('show');
+    const weekend = [0,6].includes(new Date().getDay());
+    $('weekdayCheck').style.display = weekend ? 'none' : 'block';
+    $('weekendCheck').style.display = weekend ? 'block' : 'none';
+    setStatus('상태 확인 중...', '');
+    applyStatus(await getTodayStatus(id));
+    setStatus('', '');
+  }
+  async function getTodayStatus(id){
+    const day = todayStr(), st = {};
+    for(const t of ['아침','저녁','주말']){
+      try{ st[t] = (await getDoc(doc(db, COL.checks, id + '_' + day + '_' + t))).exists(); }
+      catch(e){ console.error('오늘 기록 확인 실패', e); }
+    }
+    return st;
+  }
+  function applyStatus(st){
+    $('sunIcon').classList.toggle('done', !!st['아침']);
+    $('moonIcon').classList.toggle('done', !!st['저녁']);
+    $('morningBtn').disabled = !!st['아침'];
+    $('eveningBtn').disabled = !!st['저녁'];
+    $('weekendBtn').disabled = !!st['주말'];
+  }
+  $('morningBtn').addEventListener('click', ()=> askPhoto('아침'));
+  $('eveningBtn').addEventListener('click', ()=> askPhoto('저녁'));
+  $('weekendBtn').addEventListener('click', ()=> askPhoto('주말'));
+  function askPhoto(type){
+    if(!currentId){ setStatus('학번을 먼저 입력해주세요.', 'err'); return; }
+    pendingType = type;
+    $('camInput').value = '';
+    $('camInput').click();
+  }
+  $('camInput').addEventListener('change', async (e)=>{
+    const f = e.target.files[0];
+    if(!f || !pendingType) return;
+    setStatus('사진 줄이는 중...', '');
+    let dataURL;
+    try{ dataURL = await shrinkImage(f); }
+    catch(err){ setStatus(err.message === 'TOO_BIG' ? '사진이 너무 커요.' : '사진을 읽지 못했어요.', 'err'); return; }
+    setStatus('올리는 중...', '');
+    const day = todayStr(), key = currentId + '_' + day + '_' + pendingType;
+    try{
+      if((await getDoc(doc(db, COL.checks, key))).exists()){ setStatus('오늘 ' + pendingType + ' 자습은 이미 체크했어요.', 'err'); return; }
+      const imgId = await putImage(dataURL, currentId);
+      const now = new Date();
+      await setDoc(doc(db, COL.checks, key), {
+        studentId: currentId, date: day, type: pendingType,
+        time: pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds()),
+        img: imgId, at: serverTimestamp()
+      });
+      setStatus(pendingType + ' 자습 체크 완료! 오늘도 파이팅 🙌', 'ok');
+      applyStatus(await getTodayStatus(currentId));
+      renderBoard();
+    }catch(err){ console.error(err); setStatus('체크하지 못했어요. 잠시 후 다시 시도해주세요.', 'err'); }
+    pendingType = '';
+  });
+  async function renderBoard(){
+    const arr = kingRank(await readChecks(), todayStr().slice(0, 7)).slice(0, 5);
+    $('boardList').innerHTML = arr.length
+      ? arr.map((x,i)=> '<li><span class="rank ' + (i < 3 ? 'top' + (i+1) : '') + '">' + (i+1) + '</span><span class="sid">' + esc(x.id) + '</span><span class="cnt">' + x.count + '회</span></li>').join('')
+      : '<li style="color:var(--muted)">이번 달 기록이 아직 없어요.</li>';
+  }
+  renderBoard();
 
   // ----- 한 번에 불러오기 -----
   (async function load(){
@@ -1371,6 +1552,66 @@ if(PAGE === 'admin'){
       catch(e){ console.error(e); msg('adTtMsg', '넣지 못했어요.', 'err'); }
     });
 
+    // ----- 자습왕 -----
+    let checks = [];
+    $('kgMonth').value = todayStr().slice(0, 7);
+    function drawKing(){
+      const ym = $('kgMonth').value || todayStr().slice(0, 7);
+      const mine = checks.filter(c=> String(c.date || '').indexOf(ym) === 0);
+      const by = {};
+      STUDENT_IDS.forEach(id=> by[id] = { '아침':0, '저녁':0, '주말':0 });
+      mine.forEach(c=>{ if(by[c.studentId] && by[c.studentId][c.type] != null) by[c.studentId][c.type]++; });
+      const rows = STUDENT_IDS.map(id=>({ id, m:by[id]['아침'], e:by[id]['저녁'], w:by[id]['주말'] }))
+        .map(r=>({ ...r, t:r.m + r.e + r.w })).sort((a,b)=> b.t - a.t || a.id.localeCompare(b.id));
+      const max = Math.max(1, ...rows.map(r=> r.t));
+      const bar = (r)=> '<div class="kg-bar">' + [['m','kg-m'],['e','kg-e'],['w','kg-w']].map(([k,c])=> r[k] ? '<i class="' + c + '" style="width:' + (r[k] / max * 100) + '%"></i>' : '').join('') + '</div>';
+      $('kgTable').innerHTML = '<thead><tr><th>학번</th><th>아침</th><th>저녁</th><th>주말</th><th>합계</th><th></th></tr></thead><tbody>' +
+        rows.map(r=> '<tr><td>' + r.id + '</td><td>' + r.m + '</td><td>' + r.e + '</td><td>' + r.w + '</td><td><b>' + r.t + '</b></td><td class="bar">' + bar(r) + '</td></tr>').join('') + '</tbody>';
+      const list = mine.slice().sort((a,b)=> String(b.date + b.time).localeCompare(String(a.date + a.time)));
+      $('kgList').innerHTML = list.length ? list.map(c=>{
+          const d = new Date(c.date + 'T00:00:00');
+          return '<li><span class="date">' + (d.getMonth()+1) + '/' + d.getDate() + '(' + WD[d.getDay()] + ')</span><span class="grow">' + esc(c.studentId) + ' · ' + esc(c.type) + ' <span class="muted">' + esc(c.time || '') + '</span></span>' +
+            ((c.img || c.photoUrl) ? '<button class="ghost" data-photo="' + esc(c.id) + '" title="인증 사진">📷</button>' : '') +
+            '<button class="ghost del" data-kdel="' + esc(c.id) + '">지우기</button></li>';
+        }).join('') : '<li class="empty">이 달의 기록이 없어요.</li>';
+    }
+    onSnapshot(collection(db, COL.checks), (s)=>{ checks = s.docs.map(d=>({ id:d.id, ...d.data() })); drawKing(); },
+      (e)=>{ console.error(e); $('kgList').innerHTML = '<li class="empty">기록을 불러오지 못했어요.</li>'; });
+    $('kgMonth').addEventListener('change', drawKing);
+    $('kgList').addEventListener('click', async (e)=>{
+      const p = e.target.closest('[data-photo]');
+      if(p){ const c = checks.find(x=> x.id === p.dataset.photo); if(c) showPhoto(c); return; }
+      const d = e.target.closest('[data-kdel]'); if(!d) return;
+      const c = checks.find(x=> x.id === d.dataset.kdel);
+      if(!c || !confirm(c.studentId + ' ' + c.date + ' ' + c.type + ' 기록을 지울까요?')) return;
+      try{
+        const b = writeBatch(db);
+        b.delete(doc(db, COL.checks, c.id));
+        if(c.img) b.delete(doc(db, COL.files, c.img));
+        await b.commit();
+      }catch(err){ console.error(err); msg('kgBulkMsg', '지우지 못했어요.', 'err'); }
+    });
+    // 예전 시트: 칸 순서가 달라도 학번(110xx) · 날짜 · 구분 · 시각 · 드라이브 주소를 알아봐요
+    tablePaste('kgBulk',
+      (c)=>{
+        const sid = c.find(x=> /^110\d{2}$/.test(x));
+        const date = c.find(x=> /^\d{4}-\d{2}-\d{2}$/.test(x));
+        const type = c.find(x=> ['아침','저녁','주말'].includes(x));
+        if(!sid || !date || !type || !STUDENT_IDS.includes(sid)) return null;
+        const t = c.find(x=> /^\d{1,2}:\d{2}(:\d{2})?$/.test(x)) || '';
+        const time = t ? t.split(':').map(v=> pad(+v)).join(':') : '';
+        const photoUrl = c.find(x=> /^https:\/\/\S+$/.test(x)) || '';
+        return { studentId:sid, date, type, time, photoUrl };
+      },
+      (x)=> esc(x.studentId) + ' · ' + esc(x.date) + ' ' + esc(x.type) + ' <span class="muted">' + esc(x.time) + (x.photoUrl ? ' · 📷' : '') + '</span>',
+      async (rows)=>{
+        const have = new Set(checks.map(c=> c.id));
+        const fresh = []; const seen = new Set();
+        rows.forEach(x=>{ const id = x.studentId + '_' + x.date + '_' + x.type; if(!have.has(id) && !seen.has(id)){ seen.add(id); fresh.push({ id, ...x }); } });
+        await commitAll(fresh, (b, x)=>{ const { id, ...data } = x; b.set(doc(db, COL.checks, id), { ...data, at: serverTimestamp(), from: 'sheet' }); });
+        return fresh.length;
+      });
+
     // ----- 머리 사진 -----
     (onSnapshot(collection(db, COL.header), (s)=>{
       $('adHdList').innerHTML = s.empty ? '<div class="empty">아직 머리 사진이 없어요. 없으면 초록 바탕으로 보여요.</div>'
@@ -1446,6 +1687,17 @@ if(PAGE === 'monitor'){
         }).join('') + '</ul>'
       : '';
   })();
+
+  // 이번 달 자습왕 (1분마다 새로)
+  async function monKing(){
+    const arr = kingRank(await readChecks(), todayStr().slice(0, 7)).slice(0, 10);
+    const el = $('monKing');
+    el.hidden = !arr.length;
+    const medal = ['🥇','🥈','🥉'];
+    el.innerHTML = '<h4>🌤️ ' + (new Date().getMonth()+1) + '월 자습왕</h4><div class="rest-grid">' +
+      arr.map((x,i)=> '<div class="rest-item"><span><span class="r">' + (medal[i] || (i+1)) + '</span>' + esc(x.id) + '</span><span class="c">' + x.count + '</span></div>').join('') + '</div>';
+  }
+  monKing(); setInterval(monKing, 60000);
 
   // 날짜가 바뀌면(자정) 식단·일정이 저절로 넘어가게 새로 연다
   setInterval(()=>{ if(todayStr() !== todayStr(d0)) location.reload(); }, 60000);
