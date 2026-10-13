@@ -219,6 +219,11 @@
   #view-admin button.btn:disabled{ opacity:.5; cursor:default; }
   #view-admin button.ghost{ background:none; color:var(--ink); border:1.5px solid var(--line); border-radius:10px; padding:6px 10px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap; }
   #view-admin button.ghost.del{ color:#C0473A; }
+  #view-admin .emo{ margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+  #view-admin .emo-row{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+  #view-admin .emo-row span{ font-size:11.5px; color:var(--muted); width:34px; flex:none; }
+  #view-admin .emo button{ border:1px solid var(--line); background:var(--paper); border-radius:10px; width:38px; height:36px; font-size:19px; line-height:1; cursor:pointer; padding:0; }
+  #view-admin .emo button:hover{ background:var(--paper-2); border-color:var(--dawn-deep); }
   #view-admin .msg{ font-size:12.5px; margin-top:8px; min-height:17px; color:var(--muted); }
   #view-admin .msg.ok{ color:#2FAE9C; } #view-admin .msg.err{ color:#C0473A; }
   #view-admin .list{ list-style:none; margin:10px 0 0; padding:0; }
@@ -480,6 +485,7 @@
           <h2>📝 조종례 메모</h2>
           <p class="sub">저장하면 우리반 홈과 교실 화면에 <b>새로고침 없이 바로</b> 바뀌고, 오른쪽 기록에도 남아요.</p>
           <textarea id="adMemo" placeholder="오늘 전달할 내용을 적어 주세요."></textarea>
+          <div class="emo" id="adEmo"></div>
           <div class="row"><button class="btn" id="adMemoSave" style="flex:1">저장하기</button></div>
           <div class="msg" id="adMemoMsg"></div>
         </div>
@@ -543,6 +549,11 @@
           </div>
           <div class="msg" id="adSchBulkMsg"></div>
           <ul class="list" id="adSchList"><li class="empty">불러오는 중…</li></ul>
+        </div>
+        <div class="card">
+          <h2>🗂️ 지난 일정</h2>
+          <p class="sub">오늘보다 앞의 일정이에요. 최근 것부터 보여요. 홈과 교실 화면에는 나오지 않아요.</p>
+          <div class="kg-scroll"><ul class="list" id="adSchPast"><li class="empty">불러오는 중…</li></ul></div>
         </div>
       </section>
 
@@ -1398,6 +1409,35 @@ if(PAGE === 'admin'){
       return fresh.length;
     });
 
+
+    // ----- 이모티콘 줄: 자주 쓰는 것(고정) + 최근 쓴 것(관리자 설정에 저장 → 휴대폰 · 컴퓨터 같이) -----
+    const EMO_FAV = ['✅','☑️','❤️','🧡','💛','💚','🩵','💙','💜','🩷','🤍','🖤','😍','🥰'];
+    const EMO_RE = /\p{Extended_Pictographic}(?:\uFE0F|\u20E3|[\u{1F3FB}-\u{1F3FF}]|\u200D\p{Extended_Pictographic}\uFE0F?)*/gu;
+    let emoRecent = [];
+    function drawEmo(list){
+      if(list) emoRecent = list.filter(x=> typeof x === 'string').slice(0, 12);
+      const btns = (arr)=> arr.map(e=> '<button type="button" data-emo="' + esc(e) + '" title="넣기">' + esc(e) + '</button>').join('');
+      $('adEmo').innerHTML = '<div class="emo-row"><span>자주</span>' + btns(EMO_FAV) + '</div>' +
+        (emoRecent.length ? '<div class="emo-row"><span>최근</span>' + btns(emoRecent) + '</div>' : '');
+    }
+    drawEmo([]);
+    // 쓴 이모티콘을 최근 목록 맨 앞으로 (12개까지)
+    function useEmo(list){
+      const next = [...list, ...emoRecent].filter((e, i, a)=> a.indexOf(e) === i).slice(0, 12);
+      if(next.join() === emoRecent.join()) return;
+      drawEmo(next);
+      setDoc(doc(db, COL.config, 'main'), { emojiRecent: next }, { merge:true }).catch(console.error);
+    }
+    $('adEmo').addEventListener('mousedown', (e)=>{ if(e.target.closest('[data-emo]')) e.preventDefault(); });   // 글쓰기 칸 커서를 잃지 않게
+    $('adEmo').addEventListener('click', (e)=>{
+      const b = e.target.closest('[data-emo]'); if(!b) return;
+      const t = $('adMemo'), v = t.value, emo = b.dataset.emo;
+      const a = t.selectionStart ?? v.length, z = t.selectionEnd ?? v.length;
+      t.value = v.slice(0, a) + emo + v.slice(z);
+      t.focus(); t.selectionStart = t.selectionEnd = a + emo.length;
+      useEmo([emo]);
+    });
+
     $('adMemoSave').addEventListener('click', async ()=>{
       const btn = $('adMemoSave'), text = $('adMemo').value;
       btn.disabled = true; msg('adMemoMsg', '저장 중…', '');
@@ -1407,6 +1447,7 @@ if(PAGE === 'admin'){
         b.set(doc(collection(db, COL.memoLog)), { text, at: serverTimestamp(), by: me() });
         await b.commit();
         msg('adMemoMsg', '올렸어요. 홈과 교실 화면이 바로 바뀌어요.', 'ok');
+        const used = text.match(EMO_RE); if(used) useEmo([...new Set(used)].reverse());
       }catch(e){ console.error(e); msg('adMemoMsg', '저장하지 못했어요.', 'err'); }
       btn.disabled = false;
     });
@@ -1414,6 +1455,7 @@ if(PAGE === 'admin'){
     // ----- 설정(시간표 · 디데이 · 제목) -----
     (onSnapshot(doc(db, COL.config, 'main'), (s)=>{
       const cfg = s.exists() ? s.data() : {};
+      if(Array.isArray(cfg.emojiRecent)) drawEmo(cfg.emojiRecent);
       $('adTtNow').innerHTML = cfg.timetableImage ? `<img src="${esc(cfg.timetableImage)}" alt="지금 시간표">` : '<div class="empty" style="padding:14px">아직 등록된 시간표가 없어요.</div>';
       if(document.activeElement !== $('adDdLabel')) $('adDdLabel').value = cfg.ddayLabel || '';
       if(document.activeElement !== $('adDdDate')) $('adDdDate').value = cfg.ddayDate || '';
@@ -1437,19 +1479,26 @@ if(PAGE === 'admin'){
 
     // ----- 일정 -----
     $('adSchDate').value = todayStr();
+    // 앞으로 남은 일정(날짜순) · 지난 일정(최근 것부터)
     (onSnapshot(collection(db, COL.schedule), (s)=>{
-      const list = s.docs.map(d=>({ id:d.id, ...d.data() }))
-        .filter(x=> x.date && x.content && x.date >= todayStr())
-        .sort((a,b)=> String(a.date).localeCompare(String(b.date)));
-      $('adSchList').innerHTML = list.length ? list.map(x=>{
-          const d = new Date(x.date + 'T00:00:00');
-          return `<li><span class="date">${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})</span><span class="grow">${esc(x.content)}</span><button class="ghost del" data-del="${esc(x.id)}">지우기</button></li>`;
-        }).join('') : '<li class="empty">앞으로 남은 일정이 없어요.</li>';
+      const all = s.docs.map(d=>({ id:d.id, ...d.data() })).filter(x=> x.date && x.content);
+      const today = todayStr();
+      const row = (x, withYear)=>{
+        const d = new Date(x.date + 'T00:00:00');
+        const ds = (withYear && d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '. ' : '') + (d.getMonth()+1) + '/' + d.getDate() + '(' + WD[d.getDay()] + ')';
+        return `<li><span class="date">${ds}</span><span class="grow" style="white-space:pre-wrap">${esc(x.content)}</span><button class="ghost del" data-del="${esc(x.id)}">지우기</button></li>`;
+      };
+      const next = all.filter(x=> x.date >= today).sort((a,b)=> String(a.date).localeCompare(String(b.date)));
+      const past = all.filter(x=> x.date < today).sort((a,b)=> String(b.date).localeCompare(String(a.date)));
+      $('adSchList').innerHTML = next.length ? next.map(x=> row(x)).join('') : '<li class="empty">앞으로 남은 일정이 없어요.</li>';
+      $('adSchPast').innerHTML = past.length ? past.map(x=> row(x, true)).join('') : '<li class="empty">지난 일정이 없어요.</li>';
     }));
-    $('adSchList').addEventListener('click', async (e)=>{
+    const schDel = async (e)=>{
       const b = e.target.closest('[data-del]'); if(!b || !confirm('이 일정을 지울까요?')) return;
       try{ await deleteDoc(doc(db, COL.schedule, b.dataset.del)); }catch(err){ console.error(err); msg('adSchMsg', '지우지 못했어요.', 'err'); }
-    });
+    };
+    $('adSchList').addEventListener('click', schDel);
+    $('adSchPast').addEventListener('click', schDel);
     $('adSchAdd').addEventListener('click', async ()=>{
       const date = $('adSchDate').value, content = $('adSchText').value.trim();
       if(!date || !content){ msg('adSchMsg', '날짜와 내용을 적어 주세요.', 'err'); return; }
