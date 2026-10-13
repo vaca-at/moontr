@@ -264,8 +264,6 @@ mark.fill{background:linear-gradient(transparent 12%,#FFE58A 12%,#FFE58A 92%,tra
 .pw-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:0 0 .75rem;font-size:.9375rem}
 .pw-bar:empty{display:none}
 .pw-admin{margin:1.5rem 0 0;text-align:right;font-size:.8125rem;color:var(--muted,#888)}
-.pw-admin form{display:inline-flex;gap:.375rem;flex-wrap:wrap;justify-content:flex-end}
-.pw-admin input{font:inherit;padding:.25rem .5rem;border:1px solid #ccc;border-radius:.5rem;width:12rem;max-width:100%}
 .pw-admin-btn{border:1px solid #ccc;background:#fff;color:inherit;border-radius:999px;padding:.125rem .75rem;font-size:.8125rem;cursor:pointer}
 .pw-bar span{flex:1;min-width:12rem}
 .pw-filter{border:2px solid var(--green);background:#fff;color:var(--ink);border-radius:999px;padding:.125rem .875rem;font-size:.875rem;cursor:pointer}
@@ -1287,18 +1285,21 @@ async function pwLogin() {
 function pwLogout() { PW.me = null; store.set("peerMe", null); endEdit(); drawWho(); drawPeerWall(); drawMine(); drawInbox(); }
 
 // 담벼락: 웹앱 이름 · 닉네임 · 미리보기 · 의견 남기기
-// 관리자 로그인 (연수용 프로젝트의 Authentication 이메일/비밀번호 계정)
-function drawAdmin(open) {
+// 관리자 로그인 (연수용 프로젝트의 Authentication 구글 로그인)
+function drawAdmin() {
   const box = $("#pwAdmin"); if (!box) return;
   if (PW.admin) { box.innerHTML = `<span>🔐 관리자로 들어와 있어요 · 모든 웹앱을 지울 수 있어요</span> <button type="button" class="pw-admin-btn" id="pwAdminOut">로그아웃</button>`; return; }
-  box.innerHTML = open
-    ? `<form id="pwAdminForm"><input type="email" id="pwAdminId" value="${ADMIN_EMAIL}" autocomplete="username" aria-label="관리자 이메일"><input type="password" id="pwAdminPw" placeholder="비밀번호" autocomplete="current-password" aria-label="관리자 비밀번호"><button type="submit" class="pw-admin-btn">로그인</button></form>`
-    : `<button type="button" class="pw-admin-btn" id="pwAdminOpen">🔐 관리자</button>`;
-  if (open) $("#pwAdminPw").focus();
+  box.innerHTML = `<button type="button" class="pw-admin-btn" id="pwAdminOpen">🔐 관리자</button>`;
 }
+// 구글 계정(관리자 sen 메일)으로 로그인
 async function adminLogin() {
-  try { await firebase.auth().signInWithEmailAndPassword($("#pwAdminId").value.trim(), $("#pwAdminPw").value); toast("관리자로 들어왔어요"); }
-  catch (e) { toast("로그인하지 못했어요. 이메일 · 비밀번호를 확인해 주세요"); }
+  const p = new firebase.auth.GoogleAuthProvider();
+  p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAIL });
+  try {
+    const r = await firebase.auth().signInWithPopup(p);
+    if (r.user.email !== ADMIN_EMAIL) { await firebase.auth().signOut(); toast("관리자 계정(sen 메일)으로 로그인해 주세요"); return; }
+    toast("관리자로 들어왔어요");
+  } catch (e) { toast(e.code === "auth/popup-blocked" ? "팝업이 막혔어요. 팝업을 허용해 주세요" : "로그인하지 못했어요"); }
 }
 function drawPeerWall() {
   const box = $("#peerWall"); if (!box || !PW.db) return;
@@ -1510,7 +1511,7 @@ document.addEventListener("click", async e => {
   if (t.closest("#pwCancel")) { endEdit(); return; }
   if (t.closest("#pwOpen")) { pwLogin().then(ok => { if (ok) toast(PW.apps.some(isMine) ? "내 웹앱을 불러왔어요" : "아직 이 닉네임 · 네 자리로 올린 웹앱이 없어요"); }); return; }
   if (t.closest("#pwOut")) { pwLogout(); return; }
-  if (t.closest("#pwAdminOpen")) { drawAdmin(true); return; }
+  if (t.closest("#pwAdminOpen")) { adminLogin(); return; }
   if (t.closest("#pwAdminOut")) { firebase.auth().signOut(); return; }
   if (t.closest("#pwOnly0")) { PW.only0 = !PW.only0; drawPeerWall(); return; }
   const ps = t.closest("[data-pw-sort]"); if (ps) { PW.sort = ps.dataset.pwSort; drawPeerWall(); return; }
@@ -1518,7 +1519,6 @@ document.addEventListener("click", async e => {
   const ea = t.closest("[data-edit-app]"); if (ea) { startEdit(ea.dataset.editApp); return; }
   const da = t.closest("[data-del-app]"); if (da) { deleteApp(da.dataset.delApp); return; }
 });
-document.addEventListener("submit", e => { if (e.target.id === "pwAdminForm") { e.preventDefault(); adminLogin(); } });
 document.addEventListener("keydown", e => {
   if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-pop]:not(button),[data-area],[data-act]")) { e.preventDefault(); e.target.click(); }
   if (e.key === "Enter" && e.target.matches("input[data-app]")) sendNote(e.target.dataset.app);
