@@ -154,7 +154,9 @@
   #view-home footer{ text-align:center; font-size:12px; color:var(--muted); padding:26px 18px 34px; }
 
   /* ============ 교실 모니터 ============ */
-  #view-monitor{ background:radial-gradient(1200px 700px at 50% -10%,#1E2545,#151A2E); color:#EFEFF5; display:flex; flex-direction:column; min-height:100vh; padding:36px 48px; overflow:hidden; font-family:'Pretendard',sans-serif; }
+  /* display 는 넣지 않는다 — ID 선택자라 .view{display:none} 를 이겨서 늘 보이게 된다.
+     화면을 고르는 일은 아래 자바스크립트가 한다. */
+  #view-monitor{ background:radial-gradient(1200px 700px at 50% -10%,#1E2545,#151A2E); color:#EFEFF5; flex-direction:column; min-height:100vh; padding:36px 48px; overflow:hidden; font-family:'Pretendard',sans-serif; }
   #view-monitor .mon-title{ font-family:'Jua',sans-serif; font-size:38px; margin:0; letter-spacing:-.5px; }
   #view-monitor header{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:28px; }
   #view-monitor .live{ display:flex; align-items:center; gap:8px; font-size:16px; color:#8B92B5; }
@@ -202,6 +204,9 @@
 
   .admin-fab{ position:fixed; right:12px; bottom:12px; z-index:10; padding:4px 11px; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.85); color:#667; font:11px/1.4 sans-serif; text-decoration:none; opacity:.45; }
   .admin-fab:hover{ opacity:1; }
+  #cornerLinks{ position:fixed; right:12px; bottom:12px; z-index:10; display:flex; gap:6px; }
+  #cornerLinks .admin-fab{ position:static; }
+
 </style>
 </head>
 <body>
@@ -408,7 +413,7 @@
   </main>
 </div>
 
-<a class="admin-fab" href="/admin/">관리자</a>
+<div id="cornerLinks"></div>
 
 <script type="module">
 // ================================================================
@@ -640,7 +645,20 @@ function renderMeal(){
 // ================================================================
 let PAGE = new URLSearchParams(location.search).get('page') || 'home';
 if(!$('view-' + PAGE)) PAGE = 'home';
-$('view-' + PAGE).style.display = 'block';
+$('view-' + PAGE).style.display = (PAGE === 'monitor' ? 'flex' : 'block');
+
+// ----- 오른쪽 아래 작은 단추 (화면마다 다르게) -----
+// 110 의 '관리자'는 이 반의 교사용 현황이지, 대문 관리자 허브가 아니다.
+(function(){
+  const box = $('cornerLinks');
+  if(!box) return;
+  const link = (href, text, title) => `<a class="admin-fab" href="${href}" title="${title}">${text}</a>`;
+  box.innerHTML = PAGE === 'home'
+    ? link('?page=monitor', '교실 화면', '교실 모니터에 띄우는 명예의 전당')
+      + link('?page=teacher', '교사용', '우리 반 자습 현황 (교사용)')
+    : link('./', '우리반 홈', '1학년 10반 홈으로')
+      + link('/admin/', '관리자 허브', 'moontr.site 전체 관리자');
+})();
 
 // ================================================================
 // 홈 화면
