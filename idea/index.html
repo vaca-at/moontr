@@ -335,9 +335,17 @@
 
   /* ===== 학생 화면 ===== */
   .header-top{ max-width:960px; margin:0 auto; padding:12px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%; flex-wrap:wrap; }
-  .school-badge{ font-size:13px; color:var(--muted); }
-  .school-badge b{color:var(--ink);}
+  /* 앱 이름을 맨 윗줄에 함께 둔다 (제목 줄 하나를 없애 세로를 번다) */
+  .brand-inline{ display:flex; align-items:center; gap:9px; min-width:0; }
+  .brand-inline .logo-bubble{ width:30px; height:30px; font-size:13px; border-width:2px; }
+  .brand-inline b{ font-size:17px; font-weight:800; color:var(--ink); white-space:nowrap; }
+  .brand-inline span{ font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  @media (max-width:1100px){ .brand-inline span{ display:none; } }
+  @media (max-width:560px){ .brand-inline b{ font-size:15px; } }
   .dday{ font-size:13px; color:#fff; font-weight:700; background:var(--green); border-radius:4px; padding:6px 12px; }
+  /* 공용 새로고침 단추(/refresh.js)가 수능 디데이를 가리지 않게 한 칸 내린다.
+     refresh.js 는 단추・링크만 피하는데 디데이는 그냥 글상자라 못 피한다. */
+  @media (min-width:900px){ #moontr-refresh{ top:56px !important; } }
   .header-main{ max-width:960px; margin:0 auto; padding:14px 20px 18px; display:flex; align-items:center; gap:16px; width:100%; }
   .header-main .logo-bubble{ width:52px;height:52px; font-size:19px; }
   .header-main .title-block h1{font-size:24px;}
@@ -591,6 +599,8 @@
     padding:8px 14px; min-width:220px; max-width:100%; cursor:pointer;
   }
   .pick-sel:focus{ outline:2px solid var(--green-light); }
+  /* 펼친 목록은 운영체제가 그려서 글씨체가 안 먹는 기기도 있어요 (닫힌 칸은 바뀝니다) */
+  .pick-sel option, .pick-sel optgroup{ font-family:var(--font-ui); font-size:14px; }
   .pick-hint{ font-size:12px; color:var(--muted); }
   .pick-hidden{ display:none !important; }
   @media (max-width:560px){ .pick-sel{ min-width:0; flex:1; font-size:14px; } .pick-hint{ display:none; } }
@@ -981,6 +991,8 @@
      가로는 넓은데 세로가 짧으면 머리글・탭・로그인 줄만으로 한 화면이 차서
      정작 문제가 안 보인다. 세로 900px 이하에서는 위쪽을 바짝 줄이고,
      사상가 고르는 알약 줄은 두 줄까지만 보이고 넘치면 그 안에서 넘긴다. */
+  /* ëì íë©´ììë ë¨¸ë¦¬ê¸ ë ë¥¼ ëí í ì¤ì ë´ëë¤ */
+  @media (min-width:1100px){ .header-top{ max-width:1500px; } }
   @media (min-width:900px) and (max-height:960px){
     .header-top{ padding:6px 20px 0; }
     .tool-group button, .tool-group a, .theme-toggle{ height:28px; min-width:34px; padding:0 9px; font-size:11.5px; }
@@ -1114,7 +1126,11 @@
 <div class="view" id="student-view">
   <header>
     <div class="header-top">
-      <div class="school-badge"><b>진선여고 3학년</b> 화이팅</div>
+      <div class="brand-inline">
+        <div class="logo-bubble" id="s-logo">ì¤</div>
+        <b id="s-title">만점 다이어리</b>
+        <span id="s-subtitle"></span>
+      </div>
       <div class="top-right">
         <div class="tool-group app-switch" role="group" aria-label="과목 전환">
           <span class="tool-label">과목</span>
@@ -1142,13 +1158,6 @@
         </div>
         <button type="button" class="theme-toggle" title="다크모드 전환">🌙</button>
         <div class="dday" id="dday">D-계산중</div>
-      </div>
-    </div>
-    <div class="header-main">
-      <div class="logo-bubble" id="s-logo">윤</div>
-      <div class="title-block">
-        <h1 id="s-title">윤사 만점 다이어리</h1>
-        <p id="s-subtitle">최근 3개년 고난도 기출 · EBSi 오답률 연계</p>
       </div>
     </div>
     <nav class="tabs" id="student-tabs"></nav>
@@ -1591,7 +1600,8 @@ function orgRank(name){ const i = ORGS.indexOf(name); return i < 0 ? 99 : i; }
 
 ['s-logo','a-logo'].forEach(id => document.getElementById(id).textContent = CONFIG.logo);
 document.getElementById('s-title').textContent = CONFIG.appName;
-document.getElementById('s-subtitle').textContent = `${CONFIG.subject} · 최근 ${CONFIG.recentYears}개년(${MIN_YY}~${CUR_YY}학년도 시행) 고난도 기출 · EBSi 오답률 연계`;
+// 맨 윗줄에 함께 두므로 짧게 (긴 설명은 아래 바닥글에 그대로 있음)
+document.getElementById('s-subtitle').textContent = `${CONFIG.subject} · 최근 ${CONFIG.recentYears}개년 기출`;
 const MADE_BY = `<span class="made-by"><a href="/info/">이용 안내</a> · <a href="/info/#privacy">개인정보 처리방침</a> · 문의 <a href="mailto:anstjsdud@sen.go.kr">anstjsdud@sen.go.kr</a> · 안내문 2026.9.18. 기준</span>`;
 document.getElementById('s-footer').innerHTML = `진선여고 3학년 · ${CONFIG.appName} · 문항 데이터 출처: EBSi 오답률 통계<br>${MADE_BY}`;
 document.getElementById('a-subtitle').textContent = `${CONFIG.appName} · Firebase 저장`;
