@@ -43,6 +43,13 @@
   #view-home .hero h1{ font-size:34px; margin:0; letter-spacing:-.3px; text-shadow:0 2px 12px rgba(0,0,0,.35); }
   @media (max-width:480px){ #view-home .hero{ min-height:200px; padding:22px 18px; } #view-home .hero h1{ font-size:26px; } }
 
+  /* 메모와 3단(중식·석식·일정)을 본문 위에 가로로 펼친다 */
+  #view-home .top-memo, #view-home .top-cols{ max-width:1240px; margin:0 auto; padding:0 18px; width:100%; }
+  #view-home .top-memo{ padding-top:18px; }
+  #view-home .top-cols{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; align-items:start; margin-top:14px; }
+  @media (max-width:980px){ #view-home .top-cols{ grid-template-columns:1fr; } }
+  @media (max-width:480px){ #view-home .top-memo, #view-home .top-cols{ padding:0 12px; } #view-home .top-memo{ padding-top:14px; } #view-home .top-cols{ gap:14px; margin-top:14px; } }
+  #view-home .top-cols .meal-box{ min-height:0; }
   #view-home main{ max-width:1240px; margin:0 auto; padding:22px 18px 10px; display:grid; grid-template-columns:1.25fr 1.55fr 1fr; gap:18px; align-items:start; width:100%; }
   @media (max-width:980px){ #view-home main{ grid-template-columns:1fr; } }
   @media (max-width:480px){ #view-home main{ padding:16px 12px 6px; gap:14px; } #view-home .panel{ padding:14px; } }
@@ -308,6 +315,31 @@
     </div>
   </div>
 
+  <!-- 📝 조종례 메모 — 들어오면 맨 먼저 보이게 -->
+  <div class="top-memo">
+    <div class="panel">
+      <h2>📝 메모</h2>
+      <div class="memo-box" id="memoBox">불러오는 중...</div>
+      <div class="memo-note">선생님이 올리면 모두에게 바로 보여요.</div>
+    </div>
+  </div>
+
+  <!-- 그 아래 3단: 1단 중식 · 2단 석식 · 3단 이달 일정 -->
+  <div class="top-cols">
+    <div class="panel">
+      <h2>🍚 오늘의 중식</h2>
+      <div class="memo-box meal-box" id="lunchBox">불러오는 중...</div>
+    </div>
+    <div class="panel">
+      <h2>🌙 오늘의 석식</h2>
+      <div class="memo-box meal-box" id="dinnerBox">불러오는 중...</div>
+    </div>
+    <div class="panel">
+      <h2 id="scheduleTitle">📌 일정</h2>
+      <ul class="schedule-list" id="scheduleList"><li class="schedule-empty">불러오는 중...</li></ul>
+    </div>
+  </div>
+
   <main>
     <!-- 1단: 왼쪽 -->
     <div>
@@ -355,18 +387,6 @@
         </div>
       </div>
 
-      <div class="panel">
-        <h2>📝 메모</h2>
-        <div class="memo-box" id="memoBox">불러오는 중...</div>
-        <div class="memo-note">선생님이 올리면 모두에게 바로 보여요.</div>
-      </div>
-
-      <!-- 🍽️ 오늘의 식단 — 메모와 같은 모양 -->
-      <div class="panel">
-        <h2>🍽️ 오늘의 식단</h2>
-        <div class="memo-box meal-box" id="mealBox">불러오는 중...</div>
-        <div class="memo-note" id="mealNote"></div>
-      </div>
 
     </div>
 
@@ -413,10 +433,6 @@
 
     <!-- 3단: 오른쪽 -->
     <div>
-      <div class="panel">
-        <h2 id="scheduleTitle">📌 일정</h2>
-        <ul class="schedule-list" id="scheduleList"><li class="schedule-empty">불러오는 중...</li></ul>
-      </div>
       <div class="panel">
         <h2>⭐ 즐겨찾기</h2>
         <ul class="link-list" id="linkList"><li class="link-empty">불러오는 중...</li></ul>
@@ -923,20 +939,29 @@ function mealHalfHTML(when, tag, val){
       ${why ? `<div class="meal-off">${esc(why)}</div>` : `<div class="meal-none">급식이 없어요.</div>`}
     </div>`;
 }
+// 중식 · 석식을 각각 자기 칸에 그린다 (홈 3단)
 function renderMeal(){
-  const box = $('mealBox');
-  if(!box) return;
+  const lunch = $('lunchBox'), dinner = $('dinnerBox');
+  if(!lunch || !dinner) return;
   const now = new Date();
-  const key = todayStr(now);
-  const m = MEALS[key];
+  const m = MEALS[todayStr(now)];
   const dateLabel = `${now.getMonth()+1}월 ${now.getDate()}일 (${WD[now.getDay()]})`;
+  function one(val){
+    if(Array.isArray(val) && val.length){
+      return `<div class="meal-when"><span class="tag">${dateLabel}</span></div>`
+           + `<ul class="meal-list">${val.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+    }
+    const why = typeof val === 'string' ? val.trim() : '';
+    return `<div class="meal-when"><span class="tag">${dateLabel}</span></div>`
+         + (why ? `<div class="meal-off">${esc(why)}</div>` : `<div class="meal-none">급식이 없어요.</div>`);
+  }
   if(!m){
-    box.innerHTML = `<div class="meal-none">${dateLabel} 식단이 아직 없어요.<br>주말이거나 식단표에 없는 날이에요.</div>`;
-    $('mealNote').textContent = '';
+    const none = `<div class="meal-none">${dateLabel} 식단이 아직 없어요.<br>주말이거나 식단표에 없는 날이에요.</div>`;
+    lunch.innerHTML = none; dinner.innerHTML = none;
     return;
   }
-  box.innerHTML = mealHalfHTML('🍚 중식', dateLabel, m.l) + mealHalfHTML('🌙 석식', dateLabel, m.d);
-  $('mealNote').textContent = '학교 식단표 기준이에요. 사정에 따라 바뀔 수 있어요.';
+  lunch.innerHTML  = one(m.l);
+  dinner.innerHTML = one(m.d);
 }
 
 // ================================================================
