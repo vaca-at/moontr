@@ -178,6 +178,13 @@
   #view-monitor .rest-item .c{ color:#F0C24B; font-weight:700; }
   #view-monitor .mon-empty{ text-align:center; color:#8B92B5; font-size:18px; margin-top:60px; }
   #view-monitor footer{ text-align:center; color:#8B92B5; font-size:13px; margin-top:24px; }
+  /* 교실 화면: 메모 아래 3단 (중식 · 석식 · 일정) */
+  #view-monitor .mon-cols{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; align-items:start; flex:1; min-height:0; }
+  #view-monitor .mon-col{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:16px 18px; max-height:100%; overflow-y:auto; }
+  #view-monitor .mon-col h4{ margin:0 0 10px; font-size:17px; color:#F0C24B; }
+  #view-monitor .mon-col ul{ list-style:none; margin:0; padding:0; font-size:18px; line-height:1.95; color:#D9DCEC; }
+  #view-monitor .mon-col .dim{ color:#8B92B5; font-size:16px; }
+  @media (max-width:1100px){ #view-monitor .mon-cols{ grid-template-columns:1fr; } }
   #view-monitor .mon-meal{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:26px; }
   #view-monitor .mon-meal .mm{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:16px 18px; }
   #view-monitor .mon-meal h4{ margin:0 0 8px; font-size:15px; color:#F0C24B; }
@@ -435,8 +442,12 @@
     </div>
   </header>
   <div class="mon-memo" id="monMemo"></div>
-  <div class="mon-meal" id="monMeal"></div>
-  <div class="mon-sch" id="monSch"></div>
+  <!-- 메모 아래 3단: 1단 중식 · 2단 석식 · 3단 이달 일정 -->
+  <div class="mon-cols">
+    <div class="mon-col" id="monLunch"></div>
+    <div class="mon-col" id="monDinner"></div>
+    <div class="mon-col" id="monSch"></div>
+  </div>
   <div class="mon-king" id="monKing" hidden></div>
   <footer>메모를 바꾸면 이 화면도 저절로 바뀝니다</footer>
 </div>
@@ -1717,9 +1728,10 @@ if(PAGE === 'monitor'){
       const body = Array.isArray(val) && val.length
         ? `<ul>${val.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`
         : `<ul><li>${esc(typeof val === 'string' && val.trim() ? val : '급식 없음')}</li></ul>`;
-      return `<div class="mm"><h4>${title}</h4>${body}</div>`;
+      return `<h4>${title}</h4>${body}`;
     };
-    $('monMeal').innerHTML = m ? half('🍚 오늘의 중식', m.l) + half('🌙 오늘의 석식', m.d) : '';
+    $('monLunch').innerHTML  = half('🍚 오늘의 중식', m ? m.l : '');
+    $('monDinner').innerHTML = half('🌙 오늘의 석식', m ? m.d : '');
   })();
 
   // 조종례 메모 — 휴대폰에서 올리면 새로고침 없이 바뀐다
@@ -1732,12 +1744,12 @@ if(PAGE === 'monitor'){
   // 앞으로 남은 일정
   (async function(){
     const sch = await readMonthSchedule();
-    $('monSch').innerHTML = sch.items.length
-      ? `<h4>📌 ${sch.month}월 남은 일정</h4><ul>` + sch.items.slice(0, 6).map(s=>{
+    $('monSch').innerHTML = `<h4>📌 ${sch.month}월 일정</h4>` + (sch.items.length
+      ? `<ul>` + sch.items.slice(0, 12).map(s=>{
           const d = new Date(s.date + 'T00:00:00');
           return `<li><b>${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})</b> ${esc(s.content)}</li>`;
-        }).join('') + '</ul>'
-      : '';
+        }).join('') + `</ul>`
+      : `<div class="dim">이달 남은 일정이 없어요.</div>`);;
   })();
 
   // 이번 달 자습왕 (1분마다 새로)
