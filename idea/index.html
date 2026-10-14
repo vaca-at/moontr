@@ -583,6 +583,18 @@
   }
   .read-card .read-text{ font-size:calc(var(--q) * .95); line-height:1.85; white-space:pre-line; word-break:keep-all; font-family:var(--font-read); }
   .unit-pill b{ color:var(--green-dark); }
+  /* 사상가 고르는 창 (알약 대신) */
+  .pick-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; }
+  .pick-sel{
+    font-family:var(--font-ui); font-weight:800; font-size:15px; color:var(--ink);
+    background:var(--card); border:1.5px solid var(--green); border-radius:12px;
+    padding:8px 14px; min-width:220px; max-width:100%; cursor:pointer;
+  }
+  .pick-sel:focus{ outline:2px solid var(--green-light); }
+  .pick-hint{ font-size:12px; color:var(--muted); }
+  .pick-hidden{ display:none !important; }
+  @media (max-width:560px){ .pick-sel{ min-width:0; flex:1; font-size:14px; } .pick-hint{ display:none; } }
+
 
   /* ===== 👤 갑・을 칸을 눌러 사상가 이름 보기 =====
      이름이 나와도 본문이 밀리지 않게 칸 너비를 처음부터 고정하고, 이름은 두 줄까지 내려 쓴다 */
@@ -1976,6 +1988,9 @@ function groupOfThinker(items){
   return keys.sort((a,b)=> tally[b] - tally[a])[0];
 }
 // info: { 사상가이름: { n: 개수, items: [{q}] } }
+// 사상가 고르기 — 전자칠판처럼 세로가 모자란 화면을 위해 알약 대신 '고르는 창' 하나로.
+// 묶음(동양・한국・서양…)은 optgroup 으로 묶어 한눈에 보이게 한다.
+// 고르는 동작은 예전 그대로 쓰려고, 눈에 안 보이는 단추를 같이 두고 창이 바뀌면 그 단추를 누른다.
 function thinkerPillsHTML(names, info, active, attr){
   const groups = {};
   names.forEach(n=>{
@@ -1985,19 +2000,33 @@ function thinkerPillsHTML(names, info, active, attr){
     groups[g].names.push(n);
   });
   const GROUP_ORDER = ['동양', '한국', '서양', '사상', '그 밖에'];
-  return Object.keys(groups)
-    .sort((a,b)=>{
-      const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
-    })
-    .map(g=>{
-      const list = groups[g].names.slice().sort((a,b)=>
-        (info[b] ? info[b].n : 0) - (info[a] ? info[a].n : 0) || a.localeCompare(b));
-      return `<div class="pill-row"><span class="pill-row-name">${escapeHtml(g)} <i>${groups[g].total}</i></span>` +
-        list.map(n=>`<button type="button" class="unit-pill ${n === active ? 'active' : ''}" ${attr}="${escapeHtml(n)}">${escapeHtml(n)} <b>${info[n] ? info[n].n : 0}</b></button>`).join('') +
-        `</div>`;
-    }).join('');
+  const keys = Object.keys(groups).sort((a,b)=>{
+    const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+  const opts = keys.map(g=>{
+    const list = groups[g].names.slice().sort((a,b)=>
+      (info[b] ? info[b].n : 0) - (info[a] ? info[a].n : 0) || a.localeCompare(b));
+    return `<optgroup label="${escapeHtml(g)} ${groups[g].total}">`
+      + list.map(n=>`<option value="${escapeHtml(n)}" ${n === active ? 'selected' : ''}>${escapeHtml(n)} (${info[n] ? info[n].n : 0})</option>`).join('')
+      + `</optgroup>`;
+  }).join('');
+  const hidden = names.map(n=>`<button type="button" ${attr}="${escapeHtml(n)}"></button>`).join('');
+  const total = names.length;
+  return `<select class="pick-sel" data-pick-attr="${attr}" aria-label="사상가 고르기">${opts}</select>`
+       + `<span class="pick-hint">사상가 ${total}명 중에서 골라요</span>`
+       + `<span class="pick-hidden" hidden>${hidden}</span>`;
 }
+// 고르는 창이 바뀌면, 짝이 되는 숨은 단추를 눌러 준다 (예전 동작을 그대로 쓴다)
+document.addEventListener('change', (e)=>{
+  const sel = e.target.closest('.pick-sel');
+  if(!sel) return;
+  const attr = sel.dataset.pickAttr;
+  if(!attr) return;
+  const box = sel.parentElement;
+  const btn = box && box.querySelector(`.pick-hidden [${attr}="${CSS.escape(sel.value)}"]`);
+  if(btn) btn.click();
+});
 
 // { 사상가이름: { o:[옳은 선지], x:[옳지 않은 선지] } }
 function thinkerSays(questions){
@@ -2986,7 +3015,7 @@ function initStudent(){
     const lines = says[sayPick].o;
     el.innerHTML = `
       <div class="dash-note">기출 선지 가운데 <b>맞는 설명만</b> 사상가별로 모았어요. 갑・을을 견주는 비교형 선지는 [OX 맞추기 > 갑・을 OX]에 있습니다.</div>
-      <div class="unit-pills grouped">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length, items:says[n].o }])), sayPick, 'data-t')}</div>
+      <div class="pick-bar">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length, items:says[n].o }])), sayPick, 'data-t')}</div>
       <div class="read-head">✅ ${escapeHtml(sayPick)}에 대해 맞는 설명 ${lines.length}개</div>
       <div class="say-box">${lines.map(s=>`
         <div class="say-line">
@@ -3410,7 +3439,7 @@ function initStudent(){
     const pack = says[tox.name];
     const head = `
       <div class="dash-note">기출 선지를 사상가별로 모아 O/X로 물어봐요. 갑・을을 견주는 비교형 선지는 빼고, 한 사람에 대한 설명만 나옵니다.</div>
-      <div class="unit-pills grouped">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length + says[n].x.length, items:says[n].o.concat(says[n].x) }])), tox.name, 'data-t')}</div>`;
+      <div class="pick-bar">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length + says[n].x.length, items:says[n].o.concat(says[n].x) }])), tox.name, 'data-t')}</div>`;
 
     // 들어오면 바로 다섯 문제를 펼쳐 준다 (사상가를 바꿔도 마찬가지)
     if(!tox.started){
@@ -3497,7 +3526,7 @@ function initStudent(){
     const items = map[thinkerPick].slice().sort((a, b)=> compareId(a.q, b.q));
     el.innerHTML = `
       <div class="dash-note">문제를 푸는 곳이 아니라, 사상가가 한 말(기출 제시문)과 그 사상가에 대해 <b>맞는 설명</b>만 모아 읽는 곳이에요. 형광펜으로 칠해둔 곳도 그대로 보여요.</div>
-      <div class="unit-pills grouped">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:map[n].length, items:map[n] }])), thinkerPick, 'data-t')}</div>
+      <div class="pick-bar">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:map[n].length, items:map[n] }])), thinkerPick, 'data-t')}</div>
       <div class="read-head">📖 ${escapeHtml(thinkerPick)}의 제시문 ${items.length}개</div>
       ${items.map(({ q, t, idx })=>{
         const text = t.passage || '';
