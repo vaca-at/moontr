@@ -313,7 +313,8 @@ function normalize(s) {
   const o = Object.assign({
     id: uid(), emoji: '🐰', nick: '', career: '', careerDetail: '', worry: '', study: '',
     mocks: [], grades: [], counsels: [], acts: [], episodes: [], sentences: [],
-    final: { 자율: '', 진로: '', 행특: '' }, aiEval: '', aiEvalDate: '', created: today()
+    final: { 자율: '', 진로: '', 행특: '' }, aiEval: '', aiEvalDate: '', created: today(),
+    ev: {}, comp: null, story: null, links: null, prep: null   // 공통 행사 칸 · AI 분석 결과 (역량 지도 · 성장 서사 · 책·탐구 연결 · 상담 준비)
   }, s, { final: Object.assign({ 자율: '', 진로: '', 행특: '' }, s?.final || {}) });
   // 바구니가 자율·자치 · 진로 · 행발 셋이 되면서, 예전 동아리 문구는 자율·자치로 옮겨요 (예전 동아리 단락 final.동아리 는 지우지 않고 둬요)
   o.sentences.forEach(x => { if (x.area === '동아리') x.area = '자율'; });
@@ -388,7 +389,7 @@ function login() {
 function logout() {
   if (!window.firebase || !firebase.apps.length) return;
   firebase.auth().signOut().then(() => {
-    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; V.sid = null;
+    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; CE = { events: [], due: '' }; V.sid = null;
     closeModal(); toast('🔑 로그아웃했어요');
   });
 }
@@ -416,6 +417,7 @@ async function connectCloud() {
       if (d.id.startsWith('scores_')) SC[d.id] = d.data();
       if (d.id.startsWith('rec_')) RC[d.id] = d.data();
       if (d.id === 'club') CL = Object.assign({ name: '', members: [] }, d.data());
+      if (d.id === 'classev') CE = Object.assign({ events: [], due: '' }, d.data());
     });
     setSync('cloud');
   } catch (e) { db = null; setSync('error'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
@@ -539,6 +541,9 @@ async function genSentences(st, text, source, btn) {
 }
 function parseJSONArray(t) {
   try { const a = t.indexOf('['), b = t.lastIndexOf(']'); return JSON.parse(t.slice(a, b + 1)) || []; } catch (e) { return []; }
+}
+function parseJSONObj(t) {
+  try { const a = t.indexOf('{'), b = t.lastIndexOf('}'); return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; }
 }
 
 /* ---------------- 바이트 (나이스 기준: 한글 3, 영문·숫자·공백 1, 줄바꿈 2) ---------------- */
@@ -664,11 +669,11 @@ function quickCounsel() {
 
 /* ===== 2. 우리반 — 상담 현황 · 성적 · 출결 · 생기부 진행 ===== */
 function lastCounsel(st) { return st.counsels.map(c => c.date).sort().pop() || ''; }
-const CLASS_TABS = [['cs', '💬 상담 현황'], ['score', '📊 성적'], ['att', '📋 출결'], ['rec', '✍️ 생기부 진행']];
+const CLASS_TABS = [['cs', '💬 상담 현황'], ['ev', '🗓️ 공통 행사'], ['score', '📊 성적'], ['att', '📋 출결'], ['rec', '✍️ 생기부 진행']];
 function viewClass() {
   const t = V.csub || 'cs';
   return `<div class="row" style="margin-bottom:14px">${CLASS_TABS.map(([k, l]) => `<button class="pill ${t === k ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.csub='${k}';render()">${l}</button>`).join('')}</div>
-  ${t === 'score' ? viewClassScore() : t === 'att' ? viewClassAtt() : t === 'rec' ? viewClassRec() : viewClassCs()}`;
+  ${t === 'ev' ? viewClassEv() : t === 'score' ? viewClassScore() : t === 'att' ? viewClassAtt() : t === 'rec' ? viewClassRec() : viewClassCs()}`;
 }
 // 반 번호로 동물 친구 찾기 (친구가 없으면 '7번'처럼 — 선생님만 보는 화면)
 const byNum = no => D.students.find(s => s.num === no);
@@ -821,15 +826,19 @@ function upcoming() {
 /* ===== 3. 학생 노트 ===== */
 const SECS = [
   [1, '한눈에', 'pink'], [2, '상담 기록', 'green'], [3, '성장 그래프', 'blue'], [4, '활동 누적', 'mustard'],
-  [5, '일화 → 문구', 'purple'], [6, '문장 담벼락', 'pink'], [7, '생기부 정리', 'green']
+  [5, '일화 → 문구', 'purple'], [6, '문장 담벼락', 'pink'], [7, '생기부 정리', 'green'],
+  [8, '공통 행사 채우기', 'mustard'], [9, '상담 준비 카드', 'blue'],
+  [10, '역량 지도', 'green'], [11, '성장 서사', 'purple'], [12, '책·탐구 연결', 'pink']
 ];
-// 학생 노트 네 갈래: 상담 · 성적 · 기록 쌓기 · 생기부
+// 학생 노트 다섯 갈래: 상담 · 성적 · 기록 쌓기 · 분석 · 생기부
 const NOTE_GROUPS = [
-  { t: '💬 상담', secs: [1, 2] },
+  { t: '💬 상담', secs: [1, 9, 2, 8] },
   { t: '📈 성적', secs: [3] },
   { t: '🌱 기록 쌓기', secs: [4, 5, 6] },
+  { t: '🧭 분석', secs: [10, 11, 12] },
   { t: '✍️ 생기부', secs: [7] },
 ];
+const SEC_VIEW = () => ({ 1: secOverview, 2: secCounsel, 3: secGrowth, 4: secActs, 5: secEpisode, 6: secWall, 7: secFinal, 8: secEvents, 9: secPrep, 10: secComp, 11: secStory, 12: secLinks });
 function openStudent(id, sec) { V.sid = id; V.sec = sec || 1; V.tab = 'note'; render(); window.scrollTo(0, 0); }
 function viewNote() {
   const side = `<aside class="side">
@@ -847,7 +856,7 @@ function viewNote() {
   if (!st) return `<div class="note">${side}<div class="empty" style="padding:60px">왼쪽에서 친구를 골라 주세요 🐾</div></div>`;
   const sec = SECS.find(s => s[0] === V.sec);
   const grp = NOTE_GROUPS.find(g => g.secs.includes(V.sec));
-  const body = [null, secOverview, secCounsel, secGrowth, secActs, secEpisode, secWall, secFinal][V.sec](st);
+  const body = SEC_VIEW()[V.sec](st);
   return `<div class="note">${side}<div>
     <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2><span class="mini">${esc(st.career || '진로 미정')}</span></div>
     <div class="row" style="margin-bottom:10px">${NOTE_GROUPS.map(g => `<button class="pill ${g === grp ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.sec=${g.secs[0]};render()">${g.t}</button>`).join('')}</div>
@@ -1171,6 +1180,291 @@ function liveBytes(el, k, lim) { const b = nbytes(el.value); const m = $('#m_' +
 function setFinal(k, v) { const st = cur(); if (!piiOk(v)) return; st.final[k] = v; saveStudent(st); }
 function copyAll() { const st = cur(); copyText(AREAS.map(a => `[${a.label}]\n${st.final[a.k] || ''}`).join('\n\n')); }
 function copyText(t) { navigator.clipboard.writeText(t || '').then(() => toast('📋 복사했어요')).catch(() => toast('복사가 막혔어요. 직접 선택해 복사해 주세요')); }
+
+/* ================= 🗓️ 공통 행사 — 반 전체 행사 칸을 12월 전까지 상담하며 채워요 =================
+   행사 목록: 클라우드 meta/classev { due, events: [{ id, title, date, area, ask }] }
+   학생 칸:   학생 기록 st.ev[행사 id] = { text, at } */
+let CE = { events: [], due: '' }, ceTimer = null;
+function saveCE() {
+  if (!db) return;
+  clearTimeout(ceTimer);
+  ceTimer = setTimeout(() => roomRef().collection('meta').doc('classev').set(clone(CE)).catch(e => toast('☁️ 저장 실패: ' + e.message)), 400);
+}
+const ceDue = () => CE.due || `${new Date().getFullYear()}-12-01`;
+const ceDday = () => Math.ceil((new Date(ceDue()) - new Date(today())) / 86400000);
+const ceFilled = (st, ev) => !!(st.ev[ev.id] && st.ev[ev.id].text);
+function ceAdd() {
+  const title = $('#ceTitle').value.trim(); if (!title) return toast('행사 이름을 적어 주세요');
+  CE.events.push({ id: uid(), title, date: $('#ceDate').value || '', area: $('#ceArea').value, ask: $('#ceAsk').value.trim() });
+  CE.events.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); saveCE(); render();
+}
+function ceSet(id, k, v) { const e = CE.events.find(x => x.id === id); if (!e) return; e[k] = v; if (k === 'date') CE.events.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); saveCE(); render(); }
+function ceDel(id) {
+  const e = CE.events.find(x => x.id === id), n = D.students.filter(s => ceFilled(s, e)).length;
+  if (!confirm(`'${e.title}' 행사를 지울까요?${n ? `\n${n}명이 채운 칸은 학생 기록에 남아 있지만 화면에서는 안 보여요.` : ''}`)) return;
+  CE.events = CE.events.filter(x => x.id !== id); saveCE(); render();
+}
+// 달력 일정에서 고르기
+function ceFromCal() {
+  const have = new Set(CE.events.map(e => e.date + '|' + e.title));
+  const list = [...D.events].filter(e => !have.has(e.date + '|' + e.title)).sort((a, b) => a.date.localeCompare(b.date));
+  openModal('📅 달력 일정에서 행사 고르기', list.length ? `<p class="mini">공통 행사로 넣을 일정을 골라요. 여러 날 일정은 하루만 고르면 돼요.</p>
+    <div style="max-height:55vh;overflow:auto">${list.map(e => `<label class="item" style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-bottom:6px"><input type="checkbox" value="${e.id}" class="ceChk"><span class="mini">${e.date}</span><b>${esc(e.title)}</b></label>`).join('')}</div>
+    <div class="row" style="margin-top:10px"><select id="ceCalArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.short}</option>`).join('')}</select><button class="btn" onclick="ceFromCalAdd()">고른 일정 넣기</button></div>`
+    : '<div class="empty">달력에 새로 넣을 일정이 없어요</div>');
+}
+function ceFromCalAdd() {
+  const ids = [...document.querySelectorAll('.ceChk:checked')].map(x => x.value), area = $('#ceCalArea').value;
+  ids.forEach(id => { const e = D.events.find(x => x.id === id); if (e) CE.events.push({ id: uid(), title: e.title.replace(/^\d{1,2}:\d{2}\s*/, ''), date: e.date, area, ask: '' }); });
+  CE.events.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); saveCE(); closeModal(); render(); toast(`🗓️ 행사 ${ids.length}개를 넣었어요`);
+}
+// 표의 칸을 눌러 바로 적기
+function ceCell(sid, eid) {
+  const st = D.students.find(s => s.id === sid), e = CE.events.find(x => x.id === eid);
+  openModal(`${sname(st)} · ${e.title}`, `<p class="mini">${e.date ? e.date + ' · ' : ''}${AN(e.area)}${e.ask ? ' · 💡 ' + esc(e.ask) : ''}</p>
+    <textarea id="ceText" style="min-height:140px" placeholder="이 행사에서 맡은 일, 한 행동, 느낀 점, 선생님이 본 모습">${esc(st.ev[eid]?.text || '')}</textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="ceSave('${sid}','${eid}',false)">💾 저장</button><button class="btn ai" onclick="ceSave('${sid}','${eid}',true,this)">✨ 저장하고 문구로</button></div>`);
+}
+async function ceSave(sid, eid, gen, btn) {
+  const st = D.students.find(s => s.id === sid), e = CE.events.find(x => x.id === eid), text = ($('#ceText') || $('#ceT_' + eid)).value.trim();
+  if (text && !piiOk(text)) return;
+  st.ev[eid] = { text, at: Date.now() }; saveStudent(st);
+  if (gen && text) await genSentences(st, text, `공통 행사(${e.title})`, btn);
+  if ($('#ceText')) closeModal();
+  render(); if (!gen) toast('💾 저장했어요');
+}
+function viewClassEv() {
+  const L = D.students, E = CE.events, dd = ceDday();
+  const total = L.length * E.length, done = L.reduce((n, s) => n + E.filter(e => ceFilled(s, e)).length, 0);
+  return `<div class="box" style="margin-bottom:14px"><div class="hd mustard"><span class="n">1</span>행사 목록 <span class="sp" style="font-size:15px">마감 <input type="date" value="${ceDue()}" onchange="CE.due=this.value;saveCE();render()" style="width:auto;padding:2px 6px;font-size:13px;color:var(--ink);font-family:var(--body)"> ${dd >= 0 ? `D-${dd}` : `${-dd}일 지남`}</span></div><div class="bd">
+    <p class="mini">학급 · 학교 공통 행사를 넣어 두면 모든 친구에게 같은 칸이 생겨요. 상담할 때 학생 노트 → 💬 상담 → 공통 행사 채우기에서 채우거나, 아래 표의 칸을 눌러 바로 적어요.</p>
+    <div class="row" style="margin:8px 0"><input type="text" id="ceTitle" placeholder="행사 이름 (예: 환경미화, 정부회장 선거)" style="flex:2;min-width:180px"><input type="date" id="ceDate" style="width:auto">
+      <select id="ceArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.short}</option>`).join('')}</select>
+      <input type="text" id="ceAsk" placeholder="상담 때 물어볼 것 (예: 맡은 역할은?)" style="flex:2;min-width:180px"><button class="btn sm" onclick="ceAdd()">＋ 넣기</button><button class="btn sm ghost" onclick="ceFromCal()">📅 달력에서</button></div>
+    ${E.length ? `<table class="dtable"><tr><th>날짜</th><th>행사</th><th>영역</th><th>상담 때 물어볼 것</th><th style="text-align:center">채움</th><th></th></tr>
+      ${E.map(e => { const n = L.filter(s => ceFilled(s, e)).length; return `<tr><td style="width:140px"><input type="date" value="${e.date}" onchange="ceSet('${e.id}','date',this.value)"></td>
+        <td><input type="text" value="${esc(e.title)}" onchange="ceSet('${e.id}','title',this.value)"></td>
+        <td style="width:110px"><select onchange="ceSet('${e.id}','area',this.value)">${AREAS.map(a => `<option value="${a.k}" ${a.k === e.area ? 'selected' : ''}>${a.short}</option>`).join('')}</select></td>
+        <td><input type="text" value="${esc(e.ask || '')}" onchange="ceSet('${e.id}','ask',this.value)"></td>
+        <td style="text-align:center;white-space:nowrap"><b>${n}</b>/${L.length}</td><td><button class="x" onclick="ceDel('${e.id}')">🗑</button></td></tr>`; }).join('')}</table>` : '<div class="empty">아직 행사가 없어요. 위에서 넣거나 📅 달력에서 골라요</div>'}
+  </div></div>
+  ${E.length && L.length ? `<div class="box"><div class="hd green"><span class="n">2</span>채우기 표 <span class="sp" style="font-size:15px">${done} / ${total}칸 (${Math.round(done / total * 100)}%)</span></div><div class="bd" style="overflow:auto">
+    <div class="meter" style="height:10px;margin-bottom:10px"><i style="width:${done / total * 100}%"></i></div>
+    <table class="dtable"><tr><th>친구</th>${E.map(e => `<th style="text-align:center;min-width:72px">${esc(e.title)}<div class="mini">${e.date ? e.date.slice(5) : ''}</div></th>`).join('')}<th style="text-align:center">남은 칸</th></tr>
+    ${[...L].sort((a, b) => E.filter(e => ceFilled(a, e)).length - E.filter(e => ceFilled(b, e)).length).map(s => { const left = E.filter(e => !ceFilled(s, e)).length;
+      return `<tr><td><a href="#" onclick="openStudent('${s.id}',8);return false" style="white-space:nowrap">${esc(sname(s))}</a></td>
+      ${E.map(e => ceFilled(s, e) ? `<td style="text-align:center;cursor:pointer;background:var(--greenL);color:#3d8a5a" title="${esc(s.ev[e.id].text)}" onclick="ceCell('${s.id}','${e.id}')">✓</td>` : `<td style="text-align:center;cursor:pointer;color:var(--line)" onclick="ceCell('${s.id}','${e.id}')">○</td>`).join('')}
+      <td style="text-align:center;${left ? 'color:var(--red);font-weight:700' : 'color:#3d8a5a'}">${left || '다 채움'}</td></tr>`; }).join('')}</table>
+    <p class="mini">남은 칸이 많은 친구부터 보여요. 칸을 누르면 바로 적을 수 있어요 (✓ 위에 올리면 내용이 보여요).</p>
+  </div></div>` : ''}`;
+}
+/* 학생 노트 — 공통 행사 채우기 (상담하면서) */
+function secEvents(st) {
+  const E = CE.events, n = E.filter(e => ceFilled(st, e)).length, dd = ceDday();
+  if (!E.length) return `<div class="empty">아직 공통 행사가 없어요.<br><button class="btn sm" style="margin-top:10px" onclick="go('class');V.csub='ev';render()">🏡 우리반 → 공통 행사에서 넣기</button></div>`;
+  return `<p class="lead">행사마다 <mark>이 친구의 칸</mark>을 채워요. <span class="mini">${n} / ${E.length} 채움 · 마감 ${dd >= 0 ? `D-${dd}` : `${-dd}일 지남`}</span></p>
+  <div class="meter" style="height:10px;margin-bottom:14px"><i style="width:${n / E.length * 100}%"></i></div>
+  <div class="cols c2">${E.map(e => `<div class="box"><div class="hd ${AREAS.find(a => a.k === e.area)?.color || 'pink'}"><span class="n">${ceFilled(st, e) ? '✓' : '○'}</span>${esc(e.title)} <span class="sp mini" style="color:#fff">${e.date || ''} · ${AN(e.area)}</span></div><div class="bd">
+    ${e.ask ? `<p class="mini" style="margin:0 0 6px">💡 ${esc(e.ask)}</p>` : ''}
+    <textarea id="ceT_${e.id}" style="min-height:90px" placeholder="맡은 일, 한 행동, 느낀 점, 선생님이 본 모습" onchange="ceSaveInline('${e.id}',this.value)">${esc(st.ev[e.id]?.text || '')}</textarea>
+    <button class="btn ai sm" style="margin-top:6px" onclick="ceSave('${st.id}','${e.id}',true,this)">✨ 문구로 담벼락에</button>
+  </div></div>`).join('')}</div>`;
+}
+function ceSaveInline(eid, v) { const st = cur(); v = v.trim(); if (v && !piiOk(v)) return; st.ev[eid] = { text: v, at: Date.now() }; saveStudent(st); }
+
+/* ================= 🧭 분석 (AI) — 이 친구 기록 전체를 읽고 근거를 붙여 정리해요 ================= */
+// AI에 보낼 이 친구 기록 모음 (별칭 · 번호 · 이름 없이, 날짜 순)
+function corpus(st, max = 14000) {
+  const L = [];
+  st.episodes.forEach(e => L.push([e.date, '일화', e.text]));
+  st.counsels.forEach(c => L.push([c.date, '상담·' + c.type, c.text]));
+  st.acts.forEach(a => L.push([a.date, '활동·' + a.area, (a.title ? a.title + ' — ' : '') + a.text]));
+  CE.events.forEach(e => { if (ceFilled(st, e)) L.push([e.date || '', '공통 행사·' + e.title, st.ev[e.id].text]); });
+  if (st.num) {
+    changYears().forEach(y => {
+      changRows(st.num, y).forEach(r => { if (r.text || r.hope) L.push([y + '', '나이스 ' + r.label, (r.hope ? '희망분야 ' + r.hope + ' / ' : '') + r.text]); });
+      const h = haengText(st.num, y); if (h) L.push([y + '', '나이스 행발', h]);
+    });
+    Object.values(RC).filter(d => d.kind === 'setuk').forEach(d => { const r = d.rows.find(x => x.no === st.num); if (r && r.text) L.push([`${d.year}-${d.sem}학기`, '세특 ' + d.subj, r.text]); });
+  }
+  L.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const s = L.map(([d, k, t]) => `[${d || '날짜 없음'}] (${k}) ${t}`).join('\n');
+  return { text: s.length > max ? s.slice(-max) : s, n: L.length };
+}
+function gradeBrief(st) {
+  const f = k => growthRows(st, k).rows.map(r => r.label + ': ' + Object.entries(r).filter(([x]) => x !== 'label').map(([x, v]) => x + ' ' + v).join(', ')).join(' / ');
+  return `모의고사(9등급) ${f('mock') || '없음'}\n내신(5등급제) ${f('school') || '없음'}`;
+}
+const aiHead = st => `[이 학생] 희망 진로: ${st.career || '미정'} ${st.careerDetail || ''}`;
+function needRecords(st, n = 2) { const c = corpus(st); if (c.n < n) { toast(`기록이 ${c.n}개뿐이에요. 일화 · 상담 · 공통 행사를 조금 더 쌓아 주세요`); return null; } return c; }
+const ago = at => at ? `${new Date(at).toLocaleDateString()} 기준` : '';
+
+/* 역량 지도 — 대학 공통 평가요소(학업 · 진로 · 공동체)마다 근거를 모으고 빈 곳을 알려 줘요 */
+const COMP = [
+  { g: '학업역량', c: 'blue', items: ['학업성취도', '학업태도', '탐구력'] },
+  { g: '진로역량', c: 'green', items: ['교과 이수 노력', '진로 탐색 활동과 경험'] },
+  { g: '공동체역량', c: 'pink', items: ['협업과 소통', '나눔과 배려', '성실성과 규칙준수', '리더십'] },
+];
+async function compRun(btn) {
+  const st = cur(), c = needRecords(st); if (!c) return;
+  await withBusy(btn, async () => {
+    const out = await callAI(`너는 고등학교 담임교사가 학생 관찰 기록을 역량별로 정리하도록 돕는다. 기록에 있는 사실만 근거로 쓰고, 없는 것은 지어내지 않는다. 반드시 JSON 객체만 출력한다.`,
+      `${aiHead(st)}\n[성적]\n${gradeBrief(st)}\n\n[기록]\n${c.text}\n\n아래 9개 평가요소마다 근거를 모아 줘.
+${COMP.flatMap(g => g.items).join(', ')}
+출력: {"items":[{"name":"평가요소 이름 그대로","level":0~3,"evidence":[{"src":"기록 앞 괄호 속 출처 그대로","when":"날짜","quote":"근거 구절 40자 이내"}],"next":"근거가 부족하면 다음에 관찰하거나 상담에서 물어볼 장면 한 문장, 충분하면 빈 문자열"}],"strong":"가장 잘 드러난 역량 한 문장","gap":"가장 비어 있는 역량 한 문장"}
+- level: 0 근거 없음, 1 한 번 언급, 2 여러 번 · 구체적, 3 꾸준하고 성장까지 보임.
+- evidence는 평가요소마다 최대 4개.`, 3500);
+    const o = parseJSONObj(out);
+    if (!o || !Array.isArray(o.items)) throw new Error('결과를 읽지 못했어요. 다시 눌러 주세요');
+    st.comp = { at: Date.now(), items: o.items, strong: o.strong || '', gap: o.gap || '' }; saveStudent(st); render();
+  });
+}
+function secComp(st) {
+  const r = st.comp, find = n => (r?.items || []).find(x => x.name === n) || { level: 0, evidence: [], next: '' };
+  return `<div class="row" style="margin-bottom:12px"><p class="lead" style="margin:0">쌓인 기록이 <mark>어느 역량을 보여 주는지</mark>, 어디가 비었는지 봐요.</p>
+    <button class="btn ai" style="margin-left:auto" onclick="compRun(this)">🧭 ${r ? '다시 그리기' : '역량 지도 그리기'}</button></div>
+  ${r ? `<div class="row" style="margin-bottom:12px;gap:12px"><div class="item" style="flex:1;margin:0">💪 <b>${esc(r.strong)}</b></div><div class="item" style="flex:1;margin:0;border-color:#f6c6d6">🔦 <b>${esc(r.gap)}</b></div></div>
+  <div class="cols c3">${COMP.map(g => `<div class="box"><div class="hd ${g.c}"><span class="n">✿</span>${g.g}</div><div class="bd">
+    ${g.items.map(n => { const x = find(n), lv = Math.max(0, Math.min(3, +x.level || 0));
+      return `<div class="item"><div class="top"><b class="hand" style="font-size:17px">${n}</b><span style="margin-left:auto;letter-spacing:2px;color:var(--main)">${'●'.repeat(lv)}${'○'.repeat(3 - lv)}</span></div>
+        ${(x.evidence || []).length ? `<details><summary class="mini" style="cursor:pointer">근거 ${x.evidence.length}개</summary>${x.evidence.map(e => `<div class="mini" style="margin:4px 0;padding-left:8px;border-left:3px solid var(--line)"><span class="chip">${esc(e.src || '')}</span> ${esc(e.when || '')}<br>“${esc(e.quote || '')}”</div>`).join('')}</details>` : '<div class="mini" style="color:var(--red)">근거 없음</div>'}
+        ${x.next ? `<div class="mini" style="margin-top:4px;color:#b0577a">🔦 ${esc(x.next)}</div>` : ''}</div>`; }).join('')}
+  </div></div>`).join('')}</div>
+  <p class="mini">${ago(r.at)} · ●●● 꾸준하고 성장까지 / ●●○ 여러 번 / ●○○ 한 번 / ○○○ 근거 없음 · 🔦 다음에 관찰하거나 상담에서 물어볼 것</p>`
+  : `<div class="empty">일화 · 상담 · 활동 · 공통 행사 · 나이스 자료(창체 · 행발 · 세특)를 모두 읽고<br>학업 · 진로 · 공동체 역량 9개 평가요소마다 근거를 모아 줘요 🧭</div>`}`;
+}
+
+/* 성장 서사 — 예전 모습과 지금 모습을 이어 '변화'를 찾아요 */
+async function storyRun(btn) {
+  const st = cur(), c = needRecords(st, 3); if (!c) return;
+  await withBusy(btn, async () => {
+    const out = await callAI(SYS_RULES + '\n반드시 JSON 배열만 출력한다.', `${aiHead(st)}\n\n[기록 — 날짜 순]\n${c.text}\n
+기록에서 시간이 지나며 달라진 모습(성장 · 변화)을 최대 3개 찾아 줘. 실제로 앞뒤 기록이 있어 변화가 드러나는 것만. 없으면 [].
+[{"theme":"변화 주제 6~12자","area":"자율|진로|행특","before":{"when":"날짜","what":"예전 모습 40자 이내"},"after":{"when":"날짜","what":"달라진 모습 40자 이내"},"text":"이 변화를 담은 생기부 문장 1~2문장 (명사형 종결)"}]`, 2500);
+    st.story = { at: Date.now(), list: parseJSONArray(out) }; saveStudent(st); render();
+    if (!st.story.list.length) toast('아직 뚜렷한 변화가 보이지 않아요. 같은 장면을 시간을 두고 다시 관찰해 보세요');
+  });
+}
+function storyToWall(i) {
+  const st = cur(), s = st.story.list[i]; if (!s) return;
+  st.sentences.push({ id: uid(), text: s.text, area: AREAS.some(a => a.k === s.area) ? s.area : '행특', trait: s.theme.slice(0, 10), source: '성장 서사', picked: false, pickedAt: 0, date: today() });
+  s.added = true; saveStudent(st); render(); toast('🧺 담벼락에 붙였어요');
+}
+function secStory(st) {
+  const r = st.story;
+  return `<div class="row" style="margin-bottom:12px"><p class="lead" style="margin:0">예전 모습과 지금 모습을 이어 <mark>성장의 흐름</mark>을 찾아요.</p>
+    <button class="btn ai" style="margin-left:auto" onclick="storyRun(this)">📈 ${r ? '다시 찾기' : '성장 서사 찾기'}</button></div>
+  ${r && r.list.length ? r.list.map((s, i) => `<div class="box" style="margin-bottom:12px"><div class="hd purple"><span class="n">${i + 1}</span>${esc(s.theme)} <span class="sp mini" style="color:#fff">${AN(s.area)}</span></div><div class="bd">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center">
+      <div class="item" style="margin:0"><div class="mini">${esc(s.before?.when || '예전')}</div>${esc(s.before?.what || '')}</div>
+      <div style="font-size:26px;color:var(--main)">➜</div>
+      <div class="item" style="margin:0;border-color:var(--main)"><div class="mini">${esc(s.after?.when || '지금')}</div><b>${esc(s.after?.what || '')}</b></div>
+    </div>
+    <div class="ai-out" style="margin-top:10px">${esc(s.text)}</div>
+    <div class="row" style="margin-top:8px"><button class="btn sm ${s.added ? 'ghost' : ''}" onclick="storyToWall(${i})">${s.added ? '✓ 담벼락에 붙임' : '🧺 담벼락에 붙이기'}</button><span class="mini">${nbytes(s.text)}B</span></div>
+  </div></div>`).join('') + `<p class="mini">${ago(r.at)}</p>`
+  : `<div class="empty">${r ? '아직 뚜렷한 변화가 보이지 않았어요.<br>같은 장면(발표, 모둠 활동, 공부 습관 등)을 학기 초 · 학기 말에 다시 관찰해 적어 보세요' : '날짜가 다른 기록들을 비교해 "학기 초엔 ~ → 지금은 ~" 흐름을 찾아 줘요 📈'}</div>`}`;
+}
+
+/* 책·탐구 연결 — 세특 · 창체 · 활동에 녹아 있는 책과 탐구가 서로, 그리고 진로와 어떻게 이어지는지 */
+async function linksRun(btn) {
+  const st = cur(), c = needRecords(st); if (!c) return;
+  await withBusy(btn, async () => {
+    const out = await callAI(`너는 고등학교 담임교사가 학생 생기부 속 독서와 탐구의 흐름을 파악하도록 돕는다. 기록에 있는 것만 쓰고 지어내지 않는다. 반드시 JSON 객체만 출력한다.`,
+      `${aiHead(st)}\n\n[기록]\n${c.text}\n
+기록에 나오는 책(독서)과 탐구 주제(보고서 · 발표 · 실험 · 프로젝트)를 모두 찾고, 서로 · 진로와 어떻게 이어지는지 정리해 줘.
+{"career":"이 학생 진로 관심 한 줄","items":[{"id":"i1","type":"책|탐구","title":"『책 이름』 또는 탐구 주제 25자 이내","src":"출처 (세특 과목명 · 창체 영역 · 일화 등)","when":"날짜","note":"무엇을 했는지 30자 이내"}],
+"links":[{"from":"i1","to":"i2 또는 career","why":"어떻게 이어지는지 30자 이내"}],
+"summary":"독서 · 탐구 흐름 전체를 2문장으로","next":["진로와 더 이어 볼 책이나 탐구 제안 1~2개 (학생이 고를 수 있게 질문 형태)"]}`, 3500);
+    const o = parseJSONObj(out);
+    if (!o || !Array.isArray(o.items)) throw new Error('결과를 읽지 못했어요. 다시 눌러 주세요');
+    st.links = { at: Date.now(), ...o }; saveStudent(st); render();
+  });
+}
+// 책 · 탐구 · 진로를 세 줄로 놓고 이어진 것끼리 선으로
+function linksSvg(o) {
+  const books = o.items.filter(x => x.type === '책'), inq = o.items.filter(x => x.type !== '책');
+  const W = 860, rowH = 54, top = 34, colX = [20, 330], bw = 260, bh = 40;
+  const rows = Math.max(books.length, inq.length, 1), H = top + rows * rowH + 10;
+  const pos = {};
+  books.forEach((x, i) => pos[x.id] = { x: colX[0], y: top + i * rowH });
+  inq.forEach((x, i) => pos[x.id] = { x: colX[1], y: top + i * rowH });
+  pos.career = { x: 640, y: top + (rows - 1) * rowH / 2 };
+  const cut = (t, n) => { t = String(t || ''); return t.length > n ? t.slice(0, n) + '…' : t; };
+  const node = (p, fill, stroke, t1, t2, w = bw) => `<g><rect x="${p.x}" y="${p.y}" width="${w}" height="${bh}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
+    <text x="${p.x + 10}" y="${p.y + 17}" font-size="13" font-weight="700" fill="#4b3a3a">${esc(cut(t1, 18))}</text><text x="${p.x + 10}" y="${p.y + 33}" font-size="11" fill="#9b8782">${esc(cut(t2, 26))}</text></g>`;
+  const lines = (o.links || []).filter(l => pos[l.from] && pos[l.to]).map(l => {
+    const a = pos[l.from], b = pos[l.to];
+    const [p, q] = a.x <= b.x ? [a, b] : [b, a], pw = p === pos.career ? 200 : bw;
+    const x1 = p.x + pw, y1 = p.y + bh / 2, x2 = q.x, y2 = q.y + bh / 2;
+    // 같은 줄(책↔책, 탐구↔탐구)끼리는 왼쪽으로 둥글게, 다른 줄은 S자로
+    const d = p.x === q.x ? `M${p.x} ${y1} C${p.x - 36} ${y1},${p.x - 36} ${y2},${p.x} ${y2}` : `M${x1} ${y1} C${(x1 + x2) / 2} ${y1},${(x1 + x2) / 2} ${y2},${x2} ${y2}`;
+    return `<path d="${d}" fill="none" stroke="#ee8fad" stroke-width="2" opacity=".7"><title>${esc(l.why || '')}</title></path>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:Pretendard,sans-serif">
+    <text x="${colX[0]}" y="20" font-size="13" fill="#9b8782">📚 책</text><text x="${colX[1]}" y="20" font-size="13" fill="#9b8782">🔬 탐구</text><text x="640" y="20" font-size="13" fill="#9b8782">🎯 진로</text>
+    ${lines}${books.map(x => node(pos[x.id], '#fff8e8', '#d9a74c', x.title, x.src)).join('')}${inq.map(x => node(pos[x.id], '#eef5fc', '#7aaedb', x.title, x.src)).join('')}
+    ${node(pos.career, '#fde8ef', '#ee8fad', o.career || '진로', '희망 진로', 200)}</svg>`;
+}
+function secLinks(st) {
+  const o = st.links, label = id => id === 'career' ? '🎯 진로' : (o.items.find(x => x.id === id)?.title || id);
+  return `<div class="row" style="margin-bottom:12px"><p class="lead" style="margin:0">생기부에 녹아 있는 <mark>책과 탐구</mark>가 서로, 그리고 진로와 어떻게 이어지는지 봐요.</p>
+    <button class="btn ai" style="margin-left:auto" onclick="linksRun(this)">🔗 ${o ? '다시 찾기' : '연결 찾기'}</button></div>
+  ${o ? `<div class="box" style="margin-bottom:14px"><div class="hd pink"><span class="n">✿</span>연결 지도 <span class="sp mini" style="color:#fff">선에 마우스를 올리면 이유가 보여요</span></div><div class="bd">${o.items.length ? linksSvg(o) : '<div class="empty">아직 책이나 탐구가 보이지 않아요</div>'}
+    <div class="ai-out" style="margin-top:10px">${esc(o.summary || '')}</div></div></div>
+  <div class="cols c2">
+    <div class="box"><div class="hd mustard"><span class="n">1</span>찾은 책 · 탐구 <span class="sp">${o.items.length}개</span></div><div class="bd">
+      ${o.items.map(x => `<div class="item"><div class="top"><span class="chip">${x.type === '책' ? '📚 책' : '🔬 탐구'}</span><b>${esc(x.title)}</b><span class="mini" style="margin-left:auto">${esc(x.when || '')}</span></div>
+        <div class="mini"><span class="chip">${esc(x.src || '')}</span> ${esc(x.note || '')}</div></div>`).join('') || '<div class="empty">없어요</div>'}</div></div>
+    <div class="box"><div class="hd green"><span class="n">2</span>이어지는 고리 <span class="sp">${(o.links || []).length}개</span></div><div class="bd">
+      ${(o.links || []).map(l => `<div class="item"><b>${esc(label(l.from))}</b> <span style="color:var(--main)">➜</span> <b>${esc(label(l.to))}</b><div class="mini">${esc(l.why || '')}</div></div>`).join('') || '<div class="empty">아직 이어지는 고리가 없어요</div>'}
+      ${(o.next || []).length ? `<h4 style="font-size:17px;margin:12px 0 6px">🌱 상담 때 제안해 볼 것</h4>${o.next.map(n => `<div class="item" style="background:var(--soft)">${esc(n)}</div>`).join('')}` : ''}</div></div>
+  </div><p class="mini">${ago(o.at)}</p>`
+  : `<div class="empty">과목 세특 · 창체 · 활동 누적 · 일화에 나온 책과 탐구 주제를 찾아<br>📚 책 → 🔬 탐구 → 🎯 진로 연결 지도로 보여 줘요 🔗<br><span class="mini">🛠 관리 → 생기부 자료에서 과목 세특을 넣어 두면 더 잘 찾아요</span></div>`}`;
+}
+
+/* 💬 상담 준비 카드 — 상담 직전에 한 장으로 */
+function prepFacts(st) {
+  const cs = [...st.counsels].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 2);
+  const leftEv = CE.events.filter(e => !ceFilled(st, e));
+  const gr = k => { const r = growthRows(st, k).rows; if (r.length < 2) return ''; const a = r[r.length - 2], b = r[r.length - 1];
+    return Object.keys(b).filter(x => x !== 'label' && a[x] !== undefined && a[x] !== b[x]).map(x => `${x} ${a[x]}→${b[x]}${b[x] < a[x] ? '⬆' : '⬇'}`).join(' · '); };
+  const weak = (st.comp?.items || []).filter(x => (+x.level || 0) <= 1).map(x => x.name);
+  return { cs, leftEv, mock: gr('mock'), school: gr('school'), weak };
+}
+async function prepRun(btn) {
+  const st = cur(), f = prepFacts(st), c = corpus(st, 6000);
+  await withBusy(btn, async () => {
+    st.prep = { at: Date.now(), text: await callAI(SYS_RULES + '\n지금은 생기부 문구가 아니라 담임이 상담 직전에 보는 준비 메모를 쓴다. 따뜻하고 간결한 존댓말 메모체.',
+      `${aiHead(st)}\n[성적 변화] 모의고사: ${f.mock || '없음'} / 내신: ${f.school || '없음'}\n[아직 안 채운 공통 행사] ${f.leftEv.map(e => e.title).join(', ') || '없음'}\n[역량 지도에서 근거가 약한 것] ${f.weak.join(', ') || '없음'}\n\n[최근 기록]\n${c.text}\n
+상담 직전에 볼 메모를 아래 순서로. 각 소제목은 ### 로 시작, 항목은 - 로.
+### 지난 상담에서 이어 볼 것 (지난 약속 · 고민이 어떻게 됐는지)
+### 최근에 달라진 점
+### 오늘 물어볼 질문 3개 (근거가 약한 역량 · 안 채운 공통 행사를 자연스럽게 묻는 질문 포함)
+### 칭찬해 줄 것 한 가지`, 1800) };
+    saveStudent(st); render();
+  });
+}
+function secPrep(st) {
+  const f = prepFacts(st), dd = ceDday();
+  return `<div class="row" style="margin-bottom:12px"><p class="lead" style="margin:0">상담 들어가기 전에 <mark>한 장으로</mark> 훑어봐요.</p>
+    <button class="btn ai" style="margin-left:auto" onclick="prepRun(this)">💬 ${st.prep ? '카드 다시 만들기' : '상담 준비 카드 만들기'}</button></div>
+  <div class="cols c2">
+    <div class="box"><div class="hd blue"><span class="n">1</span>기록에서 바로 보이는 것</div><div class="bd">
+      <div class="item"><b class="hand" style="font-size:17px">💬 지난 상담</b>${f.cs.length ? f.cs.map(c => `<div class="mini" style="margin-top:4px"><b>${c.date}</b> [${esc(c.type)}] ${esc(c.text.slice(0, 90))}${c.text.length > 90 ? '…' : ''}${c.next ? ` → 다음 약속 ${c.next}` : ''}</div>`).join('') : '<div class="mini">아직 상담 전이에요</div>'}</div>
+      <div class="item"><b class="hand" style="font-size:17px">🗓️ 아직 안 채운 공통 행사 <span class="mini">${f.leftEv.length}개 · 마감 ${dd >= 0 ? 'D-' + dd : -dd + '일 지남'}</span></b>
+        <div class="mini" style="margin-top:4px">${f.leftEv.map(e => `<span class="chip" style="margin:2px">${esc(e.title)}${e.ask ? ' — ' + esc(e.ask) : ''}</span>`).join('') || '다 채웠어요 🎉'}</div>
+        ${f.leftEv.length ? `<button class="btn ghost sm" style="margin-top:6px" onclick="V.sec=8;render()">공통 행사 채우러 →</button>` : ''}</div>
+      <div class="item"><b class="hand" style="font-size:17px">📈 성적 변화 <span class="mini">(⬆ 좋아짐)</span></b><div class="mini" style="margin-top:4px">모의고사: ${f.mock || '비교할 자료 없음'}<br>내신: ${f.school || '비교할 자료 없음'}</div></div>
+      ${recItems(st)}
+      <div class="item"><b class="hand" style="font-size:17px">🧭 근거가 약한 역량</b><div class="mini" style="margin-top:4px">${st.comp ? (f.weak.map(w => `<span class="chip" style="margin:2px">${esc(w)}</span>`).join('') || '고르게 쌓였어요') : '🧭 분석 → 역량 지도를 먼저 그려 주세요'}</div></div>
+    </div></div>
+    <div class="box"><div class="hd green"><span class="n">2</span>AI 상담 준비 메모</div><div class="bd">
+      ${st.prep ? `<div class="mini">${ago(st.prep.at)}</div><div class="ai-out">${md(st.prep.text)}</div>` : '<div class="empty">왼쪽 내용과 최근 기록을 읽고<br>이어 볼 것 · 달라진 점 · 오늘 물어볼 질문 3개를 정리해 줘요 💬</div>'}
+      <button class="btn ghost sm" style="margin-top:10px" onclick="V.sec=2;render()">상담 기록하러 가기 →</button>
+    </div></div>
+  </div>`;
+}
 
 /* ---------------- 학생 추가·수정 ---------------- */
 let pickEmoji = '🐰';
