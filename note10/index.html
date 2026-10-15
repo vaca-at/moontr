@@ -244,12 +244,13 @@ const daysAgo = s => Math.floor((new Date(today()) - new Date(s)) / 86400000);
 const load = (k, d) => { try { return Object.assign(Array.isArray(d) ? [] : {}, d, JSON.parse(localStorage.getItem(k) || 'null') || {}); } catch (e) { return d; } };
 const clone = o => JSON.parse(JSON.stringify(o));
 
+// 담임이 쓰는 세 영역 (바구니 · 생기부 정리). k는 저장용 이름이라 그대로 두고 화면에는 short로 보여요
 const AREAS = [
-  { k: '자율', label: '자율·자치활동', color: 'pink', limit: 1500 },
-  { k: '진로', label: '진로활동', color: 'green', limit: 2100 },
-  { k: '동아리', label: '동아리활동', color: 'mustard', limit: 1500 },
-  { k: '행특', label: '행동특성 및 종합의견', color: 'purple', limit: 1500 },
+  { k: '자율', short: '자율·자치', label: '자율·자치활동', color: 'pink', limit: 1500 },
+  { k: '진로', short: '진로', label: '진로활동', color: 'green', limit: 2100 },
+  { k: '행특', short: '행발', label: '행동특성 및 종합의견', color: 'purple', limit: 1500 },
 ];
+const AN = k => (AREAS.find(a => a.k === k) || {}).short || k;
 const ACT_AREAS = ['자율', '진로', '동아리', '독서', '심화탐구', '기타'];
 const CS_TYPES = ['정기 상담', '진로', '학업', '교우관계', '생활', '마음', '학부모'];
 const MOCK_SUBJ = ['국어', '수학', '영어', '한국사', '통합사회', '통합과학'];
@@ -308,11 +309,14 @@ let charts = [];
 let db = null;
 
 function normalize(s) {
-  return Object.assign({
+  const o = Object.assign({
     id: uid(), emoji: '🐰', nick: '', career: '', careerDetail: '', worry: '', study: '',
     mocks: [], grades: [], counsels: [], acts: [], episodes: [], sentences: [],
-    final: { 자율: '', 진로: '', 동아리: '', 행특: '' }, aiEval: '', aiEvalDate: '', created: today()
-  }, s, { final: Object.assign({ 자율: '', 진로: '', 동아리: '', 행특: '' }, s?.final || {}) });
+    final: { 자율: '', 진로: '', 행특: '' }, aiEval: '', aiEvalDate: '', created: today()
+  }, s, { final: Object.assign({ 자율: '', 진로: '', 행특: '' }, s?.final || {}) });
+  // 바구니가 자율·자치 · 진로 · 행발 셋이 되면서, 예전 동아리 문구는 자율·자치로 옮겨요 (예전 동아리 단락 final.동아리 는 지우지 않고 둬요)
+  o.sentences.forEach(x => { if (x.area === '동아리') x.area = '자율'; });
+  return o;
 }
 const cur = () => D.students.find(s => s.id === V.sid);
 // 상담 화면 이름: 동물 별칭 + 별칭 숫자 (예: 🐰 토끼7) — 별칭 숫자(tag)는 반 번호(num)와 상관없어요
@@ -514,10 +518,10 @@ async function genSentences(st, text, source, btn) {
   await withBusy(btn, async () => {
     const out = await callAI(SYS_RULES + `
 출력 형식: 반드시 JSON 배열만 출력한다. 다른 말은 쓰지 않는다.
-[{"area":"자율|진로|동아리|행특 중 하나","trait":"드러나는 특성 2~6글자","text":"생기부 문구"}]
+[{"area":"자율|진로|행특 중 하나","trait":"드러나는 특성 2~6글자","text":"생기부 문구"}]
 - 관찰 내용에서 드러나는 특성마다 하나씩, 3~5개를 만든다.
 - 각 text는 1~2문장, 한글 80~170자.
-- area는 내용에 가장 잘 맞는 영역: 학급·학교 공동체 활동은 자율, 진로 탐색·심화 탐구·진로 독서는 진로, 동아리 맥락은 동아리, 인성·태도·관계·성장은 행특.`,
+- area는 내용에 가장 잘 맞는 영역: 학급·학교 공동체 · 자치 활동은 자율(자율·자치활동), 진로 탐색·심화 탐구·진로 독서는 진로, 인성·태도·관계·성장(동아리 속 모습 포함)은 행특(행동특성 및 종합의견).`,
       `[학생 맥락]\n${studentContext(st)}\n\n[관찰 내용 - ${source}]\n${text}`);
     const arr = parseJSONArray(out);
     if (!arr.length) throw new Error('문구를 읽지 못했어요. 다시 눌러 주세요');
@@ -764,7 +768,7 @@ function viewClassRec() {
   <div class="box"><div class="hd purple"><span class="n">✿</span>${y}학년도 친구별 진행 <span class="sp mini" style="color:#fff">- = 아직 안 넣은 자료 · 빈칸 = 나이스에 비어 있음</span></div><div class="bd" style="overflow:auto">
     ${L.length ? `<table class="dtable"><tr><th>친구</th>${AR.map(l => `<th style="text-align:center">${l.replace('활동', '')}</th>`).join('')}<th style="text-align:center">행발</th><th style="text-align:center">과목 세특</th><th style="text-align:center">앱에서 정리한 단락</th><th style="text-align:center">담벼락 문구</th></tr>
     ${rows.map(r => `<tr><td><a href="#" onclick="openStudent('${r.s.id}',7);return false" style="white-space:nowrap">${esc(sname(r.s))}</a></td>${r.a.map(cell).join('')}${cell(r.h)}
-      <td style="text-align:center">${r.sf[1] ? `${r.sf[0]}/${r.sf[1]}` : '-'}</td><td style="text-align:center">${r.fin}/4</td><td style="text-align:center">${r.sent}</td></tr>`).join('')}</table>`
+      <td style="text-align:center">${r.sf[1] ? `${r.sf[0]}/${r.sf[1]}` : '-'}</td><td style="text-align:center">${r.fin}/${AREAS.length}</td><td style="text-align:center">${r.sent}</td></tr>`).join('')}</table>`
       : '<div class="empty">반 번호가 있는 동물 친구가 없어요. 학생 노트 ✏️에서 반 번호를 넣어 주세요</div>'}
     ${ys.length ? '' : emptyGo('아직 넣은 생기부 자료가 없어요 ✍️', 'rec', 'jayul')}
   </div></div>`;
@@ -795,7 +799,7 @@ function viewClassCs() {
         <div class="row"><div class="face">${s.emoji}</div><div><h4>${esc(nname(s))}</h4><span class="chip">${esc(s.career || '진로 미정')}</span></div></div>
         <div class="mini" style="margin-top:8px">💬 ${l ? `마지막 상담 <b style="color:${dA > 30 ? 'var(--red)' : 'var(--ink)'}">${dA}일 전</b>` : '<b style="color:var(--red)">아직 상담 전</b>'} · 상담 ${s.counsels.length}회</div>
         <div class="mini">🌱 활동 ${s.acts.length} · 일화 ${s.episodes.length} · 문구 ${s.sentences.length}</div>
-        <div class="adots">${AREAS.map(a => `<span class="${s.final[a.k] ? 'ok' : ''}">${a.k}</span>`).join('')}</div>
+        <div class="adots">${AREAS.map(a => `<span class="${s.final[a.k] ? 'ok' : ''}">${a.short}</span>`).join('')}</div>
       </div>`; }).join('')}</div>` : '<div class="empty">학생 노트에서 동물 친구를 추가하면 여기에 모여요 🐰🐻🐱</div>'}</div>
     <div class="box"><div class="hd green"><span class="n">✿</span>희망 진로 분야</div><div class="bd">
       ${Object.keys(cnt).length ? Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="bar"><span class="t">${esc(k)}</span><span class="g"><i style="width:${v / max * 100}%"></i></span><b>${v}</b></div>`).join('') : '<div class="empty">아직 없어요</div>'}
@@ -1053,10 +1057,10 @@ function secEpisode(st) {
       <div class="field"><label>날짜</label><input type="date" id="eDate" value="${today()}"></div>
       <div class="field"><label>일화</label><textarea id="eText" style="min-height:170px" placeholder="예: 체육대회 끝나고 아무도 안 시켰는데 남아서 운동장 쓰레기를 주웠다. 옆 친구가 같이 하자고 하니 웃으며 봉투를 나눠줬다."></textarea></div>
       <div class="row"><button class="btn" onclick="addEpisode(false)">💾 일화만 저장</button><button class="btn ai" onclick="addEpisode(true,this)">✨ 저장하고 문구로 바꾸기</button></div>
-      <p class="mini" style="margin-top:10px">AI가 일화 속 특징마다 생기부 문구를 하나씩 만들어 담벼락에 붙여요. 영역(자율·진로·동아리·행특)도 알아서 골라 줘요.</p>
+      <p class="mini" style="margin-top:10px">AI가 일화 속 특징마다 생기부 문구를 하나씩 만들어 담벼락에 붙여요. 영역(자율·자치 · 진로 · 행발)도 알아서 골라 줘요.</p>
     </div></div>
     <div class="box"><div class="hd pink"><span class="n">2</span>일화 모음 <span class="sp">${st.episodes.length}개</span></div><div class="bd">
-      ${recent.length ? `<div class="mini" style="margin-bottom:6px">방금 붙은 문구</div>${recent.map(s => `<div class="item" style="background:var(--soft)"><span class="chip ${s.area}">${s.area}</span> <span class="mini">${esc(s.trait)}</span><div style="font-size:13.5px">${esc(s.text)}</div></div>`).join('')}<button class="btn ghost sm" onclick="V.sec=6;render()">담벼락에서 보기 →</button><hr style="border:none;border-top:1.5px dashed var(--line);margin:12px 0">` : ''}
+      ${recent.length ? `<div class="mini" style="margin-bottom:6px">방금 붙은 문구</div>${recent.map(s => `<div class="item" style="background:var(--soft)"><span class="chip ${s.area}">${AN(s.area)}</span> <span class="mini">${esc(s.trait)}</span><div style="font-size:13.5px">${esc(s.text)}</div></div>`).join('')}<button class="btn ghost sm" onclick="V.sec=6;render()">담벼락에서 보기 →</button><hr style="border:none;border-top:1.5px dashed var(--line);margin:12px 0">` : ''}
       ${[...st.episodes].sort((a, b) => b.date.localeCompare(a.date)).map(e => `<div class="item"><div class="top"><b>${e.date}</b><button class="x" style="margin-left:auto" onclick="delIn('episodes','${e.id}')">✕</button></div>
         <div style="white-space:pre-wrap;font-size:13.5px">${esc(e.text)}</div>
         <button class="btn ai sm" style="margin-top:6px" onclick="genFrom('episodes','${e.id}',this)">✨ 문구 (다시) 만들기</button></div>`).join('') || '<div class="empty">아직 일화가 없어요 ✍️</div>'}
@@ -1079,13 +1083,13 @@ function secWall(st) {
   return `<div class="cols" style="grid-template-columns:minmax(0,1.9fr) minmax(280px,1fr)">
     <div>
       <div class="row" style="margin-bottom:12px">
-        ${['전체', ...AREAS.map(a => a.k), '고른 것'].map(k => `<button class="pill ${f === k ? 'on' : ''}" onclick="V.wallFilter='${k}';render()">${k} ${k === '전체' ? st.sentences.length : k === '고른 것' ? st.sentences.filter(s => s.picked).length : st.sentences.filter(s => s.area === k).length}</button>`).join('')}
+        ${['전체', ...AREAS.map(a => a.k), '고른 것'].map(k => `<button class="pill ${f === k ? 'on' : ''}" onclick="V.wallFilter='${k}';render()">${AN(k)} ${k === '전체' ? st.sentences.length : k === '고른 것' ? st.sentences.filter(s => s.picked).length : st.sentences.filter(s => s.area === k).length}</button>`).join('')}
       </div>
       <div class="row" style="margin-bottom:14px"><input type="text" id="wNew" placeholder="직접 문구 붙이기 (예: 학급 회의에서 소수 의견을 정리해 전달함.)" style="flex:1">
-        <select id="wArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.k}</option>`).join('')}</select><button class="btn sm" onclick="addManual()">📌 붙이기</button></div>
+        <select id="wArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.short}</option>`).join('')}</select><button class="btn sm" onclick="addManual()">📌 붙이기</button></div>
       ${list.length ? `<div class="wallgrid">${list.map((s, i) => `<div class="post ${s.area} ${s.picked ? 'picked' : ''}" style="transform:rotate(${(i % 3 - 1) * .7}deg)">
         <span class="pin">📌</span>
-        <div class="meta"><select onchange="setSent('${s.id}','area',this.value)">${AREAS.map(a => `<option ${a.k === s.area ? 'selected' : ''}>${a.k}</option>`).join('')}</select>${s.trait ? `<span class="chip">#${esc(s.trait)}</span>` : ''}</div>
+        <div class="meta"><select onchange="setSent('${s.id}','area',this.value)">${AREAS.map(a => `<option value="${a.k}" ${a.k === s.area ? 'selected' : ''}>${a.short}</option>`).join('')}</select>${s.trait ? `<span class="chip">#${esc(s.trait)}</span>` : ''}</div>
         ${V.editSent === s.id ? `<textarea id="ed_${s.id}">${esc(s.text)}</textarea>` : `<div>${esc(s.text)}</div>`}
         <div class="mini">${esc(s.source)} · ${nbytes(s.text)}B</div>
         <div class="acts">
@@ -1100,7 +1104,7 @@ function secWall(st) {
 function basket(st, a) {
   const items = st.sentences.filter(s => s.picked && s.area === a.k).sort((x, y) => x.pickedAt - y.pickedAt);
   const b = nbytes(items.map(s => s.text).join(' '));
-  return `<div class="basket"><h4><span class="chip ${a.k}">${a.k}</span>${a.label}</h4>
+  return `<div class="basket"><h4><span class="chip ${a.k}">${a.short}</span>${a.label}</h4>
     ${items.map((s, i) => `<div class="bitem"><div>${esc(s.text)}</div><div style="flex:none;display:flex;flex-direction:column">
       <button class="x" onclick="movePick('${s.id}',-1)" ${i === 0 ? 'disabled' : ''}>▲</button><button class="x" onclick="movePick('${s.id}',1)" ${i === items.length - 1 ? 'disabled' : ''}>▼</button></div></div>`).join('') || '<div class="mini">담벼락에서 ➕ 넣기를 눌러요</div>'}
     <div class="meter"><i class="${b > a.limit ? 'over' : ''}" style="width:${Math.min(100, b / a.limit * 100)}%"></i></div>
@@ -1149,7 +1153,7 @@ function secFinal(st) {
   const setuk = sy.length ? `<div class="box" style="margin-bottom:16px"><div class="hd purple"><span class="n">✿</span>과목별 세부능력 및 특기사항 <span class="sp mini" style="color:#fff">📋 누르면 복사</span></div><div class="bd">
     ${sy.map(y => `${sy.length > 1 ? `<b class="mini">${y}학년도</b>` : ''}${setukList(st.num, y)}`).join('')}</div></div>` : '';
   return `${nice}${setuk}<p class="lead">담벼락에서 고른 문구가 <mark>영역별 단락</mark>이 돼요. 고쳐 쓰고 복사해서 나이스에 붙여요.</p>
-  <div class="cols c2">${AREAS.map((a, i) => {
+  <div class="cols c3">${AREAS.map((a, i) => {
     const b = nbytes(st.final[a.k]);
     return `<div class="box"><div class="hd ${a.color}"><span class="n">${i + 1}</span>${a.label}<span class="sp" style="font-size:15px">${b} / ${a.limit}B</span></div><div class="bd">
       <textarea style="min-height:190px;font-size:13.5px" oninput="liveBytes(this,'${a.k}',${a.limit})" onchange="setFinal('${a.k}',this.value)" placeholder="담벼락 바구니에서 ✨ 한 단락으로 다듬기를 누르거나 직접 써요">${esc(st.final[a.k])}</textarea>
@@ -1158,7 +1162,7 @@ function secFinal(st) {
         <button class="btn ghost sm" style="margin-left:auto" onclick="V.sec=6;V.wallFilter='${a.k}';render()">담벼락</button>
         <button class="btn sm" onclick="copyText(cur().final['${a.k}'])">📋 복사</button></div>
     </div></div>`; }).join('')}</div>
-  <div class="row" style="margin-top:14px"><button class="btn" onclick="copyAll()">📋 네 영역 한꺼번에 복사</button><span class="mini">복사한 뒤 나이스 각 영역에 붙여 넣어요.</span></div>`;
+  <div class="row" style="margin-top:14px"><button class="btn" onclick="copyAll()">📋 세 영역 한꺼번에 복사</button><span class="mini">복사한 뒤 나이스 각 영역에 붙여 넣어요.</span></div>`;
 }
 function liveBytes(el, k, lim) { const b = nbytes(el.value); const m = $('#m_' + k); m.style.width = Math.min(100, b / lim * 100) + '%'; m.className = b > lim ? 'over' : ''; $('#b_' + k).textContent = `${b} / ${lim} 바이트`; }
 function setFinal(k, v) { const st = cur(); if (!piiOk(v)) return; st.final[k] = v; saveStudent(st); }
