@@ -186,8 +186,8 @@ textarea{resize:vertical;min-height:80px}
 .rep th{background:var(--soft);font-weight:600}
 .rep .hope{border-bottom:1px dashed #9b8782;padding-bottom:4px;margin-bottom:4px}
 .repwrap{border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;background:#fffdfb}
-.sheet .hd{background:var(--main);color:#fff;padding:12px 18px;font-family:var(--hand);font-size:22px;display:flex}
-.sheet .bd{padding:18px}
+.sheet>.hd{background:var(--main);color:#fff;padding:12px 18px;font-family:var(--hand);font-size:22px;display:flex}
+.sheet>.bd{padding:18px}
 .sheet section{border:1.5px dashed var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
 .sheet section h4{font-size:19px;margin-bottom:8px}
 .emojis{display:flex;flex-wrap:wrap;gap:6px}
@@ -212,6 +212,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
   <div class="right">
     <span class="badge" id="syncBadge">🔒 로그인 전</span>
     <button class="pill dash" id="adminBtn" style="display:none" onclick="openDash()">🛠 관리</button>
+    <button class="pill dash" id="clubBtn" style="display:none" onclick="openClub()">🎨 동아리 업무</button>
     <span class="badge">🔒 이름 없음</span>
     <button class="pill" onclick="cycleTheme()">🎨 꾸미기</button>
     <button class="pill" onclick="cycleFont()">🔤 글꼴</button>
@@ -387,7 +388,7 @@ function login() {
 function logout() {
   if (!window.firebase || !firebase.apps.length) return;
   firebase.auth().signOut().then(() => {
-    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; V.sid = null;
+    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; V.sid = null;
     closeModal(); toast('🔑 로그아웃했어요');
   });
 }
@@ -414,6 +415,7 @@ async function connectCloud() {
     (await roomRef().collection('meta').get()).docs.forEach(d => {
       if (d.id.startsWith('scores_')) SC[d.id] = d.data();
       if (d.id.startsWith('rec_')) RC[d.id] = d.data();
+      if (d.id === 'club') CL = Object.assign({ name: '', members: [] }, d.data());
     });
     setSync('cloud');
   } catch (e) { db = null; setSync('error'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
@@ -425,6 +427,7 @@ function setSync(st) {
   syncState = st;
   $('#syncBadge').textContent = st === 'cloud' ? '☁️ 클라우드 저장 중' : '🔒 로그인 전';
   $('#adminBtn').style.display = st === 'cloud' ? '' : 'none';
+  $('#clubBtn').style.display = st === 'cloud' ? '' : 'none';
   render();
 }
 function viewGate() {
@@ -1830,6 +1833,144 @@ function recItems(st) {
     const parts = d.cols.map((c, i) => r.v[i] && r.v[i] !== '0' ? `${esc(c)} <b>${esc(r.v[i])}</b>` : '').filter(Boolean);
     return `<div class="item"><b class="hand" style="font-size:17px">📋 ${d.year} ${esc(recOf(d).label)}</b><div class="mini">${parts.join(' · ')}</div></div>`;
   }).join('');
+}
+
+/* ---------------- 🎨 동아리 업무 — 맡은 동아리 부원 (우리반 친구와 따로) ----------------
+   흐름: 활동 일화 → ✨ AI 문구 → ➕ 담기 → ✨ 동아리활동 특기사항 한 단락 → 📋 복사
+   저장: 클라우드 meta/club 한 문서 { name, members: [{ id, emoji, nick, tag, eps, sents, final }] } — 이름 · 학번 없음 */
+let CL = { name: '', members: [] }, clubSel = null, clubTimer = null;
+const CLUB_LIMIT = 1500;   // 동아리활동 특기사항 (나이스 바이트)
+function saveClub() {
+  if (!db) return;
+  clearTimeout(clubTimer);
+  clubTimer = setTimeout(() => roomRef().collection('meta').doc('club').set(clone(CL)).catch(e => toast('☁️ 저장 실패: ' + e.message)), 500);
+}
+const clubCur = () => CL.members.find(m => m.id === clubSel);
+const clubName = m => `${m.emoji} ${m.nick || '부원'}${m.tag || ''}`;
+function openClub() {
+  if (syncState !== 'cloud') return toast('🔑 로그인한 뒤에 쓸 수 있어요');
+  if (!clubCur()) clubSel = clubSorted()[0]?.id || null;
+  openModal('🎨 동아리 업무', viewClub(), true);
+}
+function clubRefresh() { $('#mBody').innerHTML = viewClub(); }
+function clubSorted() {
+  const tn = m => { const n = parseInt(m.tag, 10); return isNaN(n) ? 1e9 : n; };
+  return [...CL.members].sort((a, b) => (a.nick || '').localeCompare(b.nick || '', 'ko') || tn(a) - tn(b));
+}
+// 부원 n명 만들기 (동물 · 숫자는 아무거나, 겹치지 않게)
+function clubAdd(n) {
+  const pool = Object.keys(ANIMAL_NAMES);
+  for (let i = 0; i < n; i++) {
+    const used = new Set(CL.members.map(m => m.emoji)), free = pool.filter(e => !used.has(e));
+    const e = (free.length ? free : pool)[Math.floor(Math.random() * (free.length || pool.length))], nick = ANIMAL_NAMES[e];
+    const tags = new Set(CL.members.filter(m => m.nick === nick).map(m => m.tag));
+    let tag = ''; for (let k = 0; k < 50 && (!tag || tags.has(tag)); k++) tag = String(1 + Math.floor(Math.random() * 9999));
+    const m = { id: uid(), emoji: e, nick, tag, eps: [], sents: [], final: '' };
+    CL.members.push(m); clubSel = m.id;
+  }
+  saveClub(); clubRefresh();
+}
+function clubSet(k, v) {
+  const m = clubCur(); if (!m) return;
+  if (k === 'tag') v = String(v).replace(/\D/g, '').slice(0, 4);
+  if (k === 'nick' && piiCheck(v).length) return toast('별칭에 숫자·연락처는 빼 주세요');
+  m[k] = k === 'nick' ? v.trim() : v; saveClub(); clubRefresh();
+}
+function clubDel() {
+  const m = clubCur(); if (!m || !confirm(`${clubName(m)}의 기록을 모두 지울까요?`)) return;
+  CL.members = CL.members.filter(x => x !== m); clubSel = clubSorted()[0]?.id || null; saveClub(); clubRefresh();
+}
+function viewClub() {
+  const m = clubCur(), L = clubSorted();
+  return `<div class="row" style="margin-bottom:12px"><b class="hand" style="font-size:18px">동아리 이름</b>
+    <input type="text" value="${esc(CL.name)}" placeholder="예: 과학탐구반" style="width:220px" onchange="CL.name=this.value.trim();saveClub()">
+    <span class="mini">🔒 부원도 이름 · 학번 대신 동물 별칭+숫자로만 적어요. 우리반 친구와 따로 저장돼요.</span></div>
+  <div style="display:grid;grid-template-columns:210px minmax(0,1fr);gap:14px;align-items:start">
+    <div>
+      <div class="row" style="margin-bottom:8px"><b class="hand" style="font-size:17px">🐾 부원 ${L.length}명</b>
+        <button class="btn sm" style="margin-left:auto" onclick="clubAdd(1)">＋ 1</button><button class="btn sm ghost" onclick="clubAdd(10)">＋ 10</button></div>
+      <div style="max-height:60vh;overflow:auto">${L.map(x => `<div class="sitem ${x === m ? 'on' : ''}" onclick="clubSel='${x.id}';clubRefresh()">
+        <span class="num">${x.emoji}</span><div><b>${esc((x.nick || '부원') + (x.tag || ''))}</b><span>일화 ${x.eps.length} · ${x.final ? '단락 ✓' : '단락 전'}</span></div></div>`).join('') || '<div class="empty">＋ 를 눌러 부원을 만들어요</div>'}</div>
+    </div>
+    <div>${m ? clubMember(m) : '<div class="empty" style="padding:50px">왼쪽에서 부원을 골라 주세요 🎨</div>'}</div>
+  </div>`;
+}
+function clubMember(m) {
+  const picked = m.sents.filter(s => s.picked).sort((a, b) => a.pickedAt - b.pickedAt);
+  const pb = nbytes(picked.map(s => s.text).join(' ')), fb = nbytes(m.final);
+  return `<div class="row" style="margin-bottom:10px"><span style="font-size:30px">${m.emoji}</span>
+      <input type="text" value="${esc(m.nick)}" maxlength="12" style="width:150px" onchange="clubSet('nick',this.value)">
+      <input type="text" value="${esc(m.tag)}" inputmode="numeric" maxlength="4" placeholder="숫자" style="width:90px" onchange="clubSet('tag',this.value)">
+      <button class="btn ghost sm" style="margin-left:auto;color:var(--red)" onclick="clubDel()">🗑 부원 지우기</button></div>
+    <div class="cols c2">
+      <div class="box"><div class="hd purple"><span class="n">1</span>활동 일화</div><div class="bd">
+        <div class="row"><input type="date" id="clDate" value="${today()}" style="width:auto"></div>
+        <textarea id="clEp" style="margin-top:6px;min-height:110px" placeholder="예: 실험 결과가 예상과 다르자 변인을 다시 정리해 재실험을 제안함. 후배들에게 장비 쓰는 법을 차근차근 알려 줌."></textarea>
+        <div class="row" style="margin-top:6px"><button class="btn sm" onclick="clubEp(false)">💾 일화만 저장</button><button class="btn ai sm" onclick="clubEp(true,this)">✨ 저장하고 문구로</button></div>
+        ${[...m.eps].sort((a, b) => b.date.localeCompare(a.date)).map(e => `<div class="item" style="margin-top:8px"><div class="top"><b class="mini">${e.date}</b>
+          <button class="x" style="margin-left:auto" onclick="clubDelEp('${e.id}')">✕</button></div><div style="white-space:pre-wrap;font-size:13px">${esc(e.text)}</div>
+          <button class="btn ai sm" style="margin-top:4px" onclick="clubGen(clubCur().eps.find(x=>x.id==='${e.id}').text,this)">✨ 문구 (다시) 만들기</button></div>`).join('')}
+      </div></div>
+      <div class="box"><div class="hd pink"><span class="n">2</span>문구 → 담기 <span class="sp mini" style="color:#fff">${m.sents.length}개</span></div><div class="bd">
+        <div class="row" style="margin-bottom:8px"><input type="text" id="clNew" placeholder="직접 문구 붙이기" style="flex:1"><button class="btn sm" onclick="clubManual()">📌</button></div>
+        ${m.sents.map(s => `<div class="item" style="${s.picked ? 'border-color:var(--main);background:var(--mainL)' : ''}">
+          ${s.trait ? `<span class="chip">#${esc(s.trait)}</span> ` : ''}<span style="font-size:13.5px">${esc(s.text)}</span>
+          <div class="row" style="margin-top:4px"><button class="btn sm ${s.picked ? 'ghost' : ''}" onclick="clubPick('${s.id}')">${s.picked ? '➖ 빼기' : '➕ 담기'}</button>
+            <span class="mini">${nbytes(s.text)}B</span><button class="x" style="margin-left:auto" onclick="clubDelSent('${s.id}')">🗑</button></div></div>`).join('') || '<div class="empty">일화에서 ✨ 문구로 바꾸기를 누르면 여기에 붙어요</div>'}
+      </div></div>
+    </div>
+    <div class="box" style="margin-top:14px"><div class="hd green"><span class="n">3</span>동아리활동 특기사항 <span class="sp" style="font-size:15px" id="clB">${fb} / ${CLUB_LIMIT}B</span></div><div class="bd">
+      <div class="basket"><h4>🧺 담은 문구 <span class="mini">${pb}B</span></h4>
+        ${picked.map((s, i) => `<div class="bitem"><div>${esc(s.text)}</div><div style="flex:none;display:flex;flex-direction:column">
+          <button class="x" onclick="clubMove('${s.id}',-1)" ${i === 0 ? 'disabled' : ''}>▲</button><button class="x" onclick="clubMove('${s.id}',1)" ${i === picked.length - 1 ? 'disabled' : ''}>▼</button></div></div>`).join('') || '<div class="mini">위에서 ➕ 담기를 눌러요</div>'}
+        ${picked.length ? `<button class="btn ai sm" style="margin-top:6px" onclick="clubPolish(this)">✨ 한 단락으로 다듬기</button>` : ''}</div>
+      <textarea style="min-height:140px;font-size:13.5px" oninput="$('#clB').textContent=nbytes(this.value)+' / ${CLUB_LIMIT}B'" onchange="clubFinal(this.value)" placeholder="✨ 한 단락으로 다듬기를 누르거나 직접 써요">${esc(m.final)}</textarea>
+      <div class="row" style="margin-top:6px"><span class="mini">${fb > CLUB_LIMIT ? '⚠️ 바이트를 넘었어요' : '나이스 바이트 기준'}</span><button class="btn sm" style="margin-left:auto" onclick="copyText(clubCur().final)">📋 복사</button></div>
+    </div></div>`;
+}
+function clubEp(gen, btn) {
+  const m = clubCur(), text = $('#clEp').value.trim();
+  if (!text) return toast('일화를 적어 주세요');
+  if (!piiOk(text)) return;
+  m.eps.push({ id: uid(), date: $('#clDate').value || today(), text }); saveClub();
+  if (gen) clubGen(text, btn); else { clubRefresh(); toast('💾 저장했어요'); }
+}
+function clubDelEp(id) { const m = clubCur(); if (!confirm('지울까요?')) return; m.eps = m.eps.filter(e => e.id !== id); saveClub(); clubRefresh(); }
+async function clubGen(text, btn) {
+  const m = clubCur();
+  await withBusy(btn, async () => {
+    const out = await callAI(SYS_RULES + `
+지금은 담임이 아니라 동아리 담당 교사로서 '동아리활동 특기사항' 문구를 쓴다.
+출력 형식: 반드시 JSON 배열만 출력한다. [{"trait":"드러나는 특성 2~6글자","text":"생기부 문구"}]
+- 관찰 내용에서 드러나는 특성마다 하나씩, 2~4개를 만든다.
+- 각 text는 1~2문장, 한글 70~160자. 동아리 활동 속 구체적 행동과 거기서 드러나는 역량 · 성장을 함께 담는다.`,
+      `[동아리] ${CL.name || '(이름 없음)'}\n\n[관찰 내용]\n${text}`);
+    const arr = parseJSONArray(out);
+    if (!arr.length) throw new Error('문구를 읽지 못했어요. 다시 눌러 주세요');
+    arr.forEach(a => m.sents.push({ id: uid(), text: String(a.text || '').trim(), trait: String(a.trait || '').slice(0, 10), picked: false, pickedAt: 0 }));
+    saveClub(); clubRefresh(); toast(`✨ 문구 ${arr.length}개를 붙였어요`);
+  });
+}
+function clubManual() { const m = clubCur(), t = $('#clNew').value.trim(); if (!t || !piiOk(t)) return; m.sents.push({ id: uid(), text: t, trait: '', picked: false, pickedAt: 0 }); saveClub(); clubRefresh(); }
+function clubPick(id) { const s = clubCur().sents.find(x => x.id === id); s.picked = !s.picked; s.pickedAt = Date.now(); saveClub(); clubRefresh(); }
+function clubDelSent(id) { const m = clubCur(); m.sents = m.sents.filter(x => x.id !== id); saveClub(); clubRefresh(); }
+function clubMove(id, dir) {
+  const items = clubCur().sents.filter(x => x.picked).sort((a, b) => a.pickedAt - b.pickedAt);
+  const i = items.findIndex(x => x.id === id), j = i + dir; if (j < 0 || j >= items.length) return;
+  [items[i].pickedAt, items[j].pickedAt] = [items[j].pickedAt, items[i].pickedAt]; saveClub(); clubRefresh();
+}
+function clubFinal(v) { if (!piiOk(v)) return; clubCur().final = v; saveClub(); }
+async function clubPolish(btn) {
+  const m = clubCur(), items = m.sents.filter(s => s.picked).sort((a, b) => a.pickedAt - b.pickedAt);
+  await withBusy(btn, async () => {
+    const out = await callAI(SYS_RULES, `아래 문구들을 고등학교 생기부 '동아리활동' 특기사항 한 단락으로 자연스럽게 엮어 줘.
+- 동아리: ${CL.name || '(이름 없음)'} — 동아리 이름은 맨 앞에 '(${CL.name || '동아리명'})' 처럼 괄호로 한 번만 써.
+- 새 사실을 더하지 말고, 겹치는 내용은 합쳐 줘. 명사형 종결.
+- 나이스 기준 ${CLUB_LIMIT}바이트(한글 1자=3바이트, 대략 ${Math.floor(CLUB_LIMIT / 3)}자) 이내.
+- 단락 본문만 출력해. 제목 · 따옴표 · 설명 없이.
+문구:\n${items.map((s, i) => `${i + 1}. ${s.text}`).join('\n')}`, 1500);
+    m.final = out.trim(); saveClub(); clubRefresh(); toast('✨ 특기사항 칸에 넣었어요');
+  });
 }
 
 /* ---------------- 설정 ---------------- */
