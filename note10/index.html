@@ -219,7 +219,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 /* =========================================================
    우리반 생기부노트 - index.html 한 파일
    · 학생은 동물 친구(이모지+별칭)로만 구분 → 이름·학번 저장 안 함
-   · 저장: 기본은 이 기기(localStorage), 설정에서 파이어스토어 연결 시 클라우드
+   · 저장: 기본은 이 기기(localStorage), 선생님 구글 계정으로 로그인하면 클라우드(공부방 파이어베이스)
    · AI: Claude 또는 Gemini API 키 (키는 이 기기에만 저장, 클라우드로 안 올라감)
    ========================================================= */
 
@@ -292,21 +292,23 @@ function saveEvents() {
   if (db) roomRef().collection('meta').doc('events').set({ list: clone(D.events) }).catch(e => toast('☁️ 저장 실패: ' + e.message));
 }
 function saveSettings() { localStorage.setItem('mn_settings', JSON.stringify(S)); }
-const roomRef = () => db.collection('maumnote').doc(S.room || 'main');
+const roomRef = () => db.collection('maumnote').doc('main'); // 어느 기기에서든 같은 자리
 
-function parseFbConfig(t) {
-  const keys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
-  const o = {};
-  keys.forEach(k => { const m = String(t).match(new RegExp(k + '\\s*["\']?\\s*:\\s*["\']([^"\']+)["\']')); if (m) o[k] = m[1]; });
-  return o.apiKey && o.projectId ? o : null;
-}
 function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
-// 클라우드는 관리자 구글 계정으로 로그인했을 때만 열려요 (파이어스토어 규칙의 isMom 과 같은 계정)
+// 클라우드는 공부방 파이어베이스(moon-15f88)를 같이 써요.
+// 관리자 구글 계정으로 로그인했을 때만 열려요 (파이어스토어 규칙의 isMom 과 같은 계정)
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBHMmNT-TxBAJqarHqLAYtM3VhaUhynzEw",
+  authDomain: "moon-15f88.firebaseapp.com",
+  projectId: "moon-15f88",
+  storageBucket: "moon-15f88.firebasestorage.app",
+  messagingSenderId: "124372121061",
+  appId: "1:124372121061:web:b1596628daae0bb08eab0c"
+};
 const ADMIN_EMAIL = 'bellachord@gmail.com';
 let fbUser = null, authHooked = false;
 async function initFirebase() {
-  const cfg = parseFbConfig(S.fbConfig);
-  if (!cfg) { db = null; setSync('local'); return; }
+  const cfg = FIREBASE_CONFIG;
   try {
     if (!window.firebase) {
       await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
@@ -320,7 +322,7 @@ async function initFirebase() {
   } catch (e) { db = null; setSync('local'); toast('☁️ 파이어베이스 연결 실패: ' + e.message); }
 }
 function login() {
-  if (!window.firebase || !firebase.apps.length) { openSettings(); return toast('⚙️ 설정에서 firebaseConfig를 먼저 넣어 주세요'); }
+  if (!window.firebase || !firebase.apps.length) return toast('☁️ 아직 파이어베이스를 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요');
   const p = new firebase.auth.GoogleAuthProvider();
   p.setCustomParameters({ prompt: 'select_account' }); // 계정 고르는 창이 늘 뜨게
   firebase.auth().signInWithPopup(p).catch(e => toast('🔑 로그인 실패: ' + e.message));
@@ -934,11 +936,6 @@ function removeStudent() {
 }
 
 /* ---------------- 설정 ---------------- */
-// 공부방(moon-15f88) 규칙 파일 맨 아래에 이미 넣은 부분 — 규칙 파일 전체가 아니라 이 부분만이에요
-const RULES = `    // ===== ★ 우리반 생기부노트 (moontr.site/note10) =====
-    match /maumnote/{room}/{col}/{id} {
-      allow read, write: if isMom() && col in ['students', 'meta'];
-    }`;
 function openSettings() {
   openModal('⚙️ 설정', `
   <section><h4>🔒 개인정보 약속</h4><div class="mini">· 학생은 동물 친구로만 구분해요. 이름·학번·연락처는 어디에도 저장하지 않아요.<br>· 글에 학번처럼 보이는 숫자, 전화번호, 이메일이 있으면 저장 전에 알려 줘요.<br>· AI에는 동물 별칭도 보내지 않고, 적은 내용만 보내요.<br>· AI 키는 이 기기 브라우저에만 저장되고 클라우드에는 올라가지 않아요.</div></section>
@@ -952,14 +949,8 @@ function openSettings() {
   <section><h4>☁️ 클라우드 저장 (어느 기기에서나 이어 쓰기)</h4>
     <div class="row" style="margin-bottom:8px">${fbUser
       ? `<span class="mini">🔑 ${esc(fbUser.email)} ${fbUser.email === ADMIN_EMAIL ? '로그인됨' : '(이 계정은 클라우드를 못 써요)'}</span><button class="btn sm ghost" style="margin-left:auto" onclick="logout()">로그아웃</button>`
-      : `<span class="mini">클라우드는 ${ADMIN_EMAIL} 구글 계정으로 로그인했을 때만 열려요</span><button class="btn sm" style="margin-left:auto" onclick="login()">🔑 구글 로그인</button>`}</div>
-    <textarea id="stFb" placeholder="파이어베이스 콘솔(공부방 moon-15f88) → 프로젝트 설정 → 웹 앱의 firebaseConfig를 통째로 붙여 넣어요">${esc(S.fbConfig)}</textarea>
-    <input type="text" id="stRoom" value="${esc(S.room)}" placeholder="방 이름 (비우면 main · 해마다 반이 바뀌면 예: 2026-110)" style="margin-top:6px">
-    <p class="mini">다른 기기에서도 같은 firebaseConfig와 방 이름을 넣고 로그인하면 같은 기록이 보여요.</p>
-    <details><summary class="mini" style="cursor:pointer">📜 파이어스토어 규칙 (이미 공부방 규칙에 넣었으면 할 일 없음)</summary>
-      <p class="mini">⚠️ 규칙 탭의 내용을 지우고 붙이면 안 돼요. 공부방 규칙 맨 아래, 닫는 <b>}</b> 두 개 바로 위에 이 부분만 더해요.</p>
-      <div class="copybox">${esc(RULES)}</div><button class="btn sm ghost" style="margin-top:6px" onclick="copyText(RULES)">📋 이 부분만 복사</button>
-    </details>
+      : `<span class="mini">클라우드는 선생님 구글 계정으로 로그인했을 때만 열려요</span><button class="btn sm" style="margin-left:auto" onclick="login()">🔑 구글 로그인</button>`}</div>
+    <p class="mini">어느 기기에서든 로그인하면 같은 기록이 보여요. 로그인하지 않으면 이 기기 브라우저에만 저장돼요.</p>
   </section>
   <section><h4>💾 백업</h4><div class="row"><button class="btn sm ghost" onclick="exportData()">⬇️ 백업 파일 받기</button><label class="btn sm ghost">⬆️ 백업 불러오기<input type="file" accept=".json" hidden onchange="importData(this)"></label></div></section>
   <button class="btn" onclick="applySettings()">저장하고 닫기</button>`);
@@ -968,16 +959,10 @@ function readSettingsForm() {
   S.className = $('#stClass').value.trim();
   S.provider = document.querySelector('input[name=prov]:checked').value;
   S.apiKey = $('#stKey').value.trim(); S.model = $('#stModel').value.trim();
-  S.fbConfig = $('#stFb').value.trim(); S.room = $('#stRoom').value.trim();
 }
 async function applySettings() {
   readSettingsForm();
-  const oldPid = window.firebase && firebase.apps.length ? firebase.app().options.projectId : '';
   saveSettings(); closeModal(); render();
-  const cfg = parseFbConfig(S.fbConfig);
-  // 다른 프로젝트로 바꾸면 새로고침해야 새 설정으로 연결돼요
-  if (oldPid && (!cfg || cfg.projectId !== oldPid)) { location.reload(); return; }
-  db = null; await initFirebase();
 }
 async function testAI(btn) { readSettingsForm(); saveSettings(); await withBusy(btn, async () => { const r = await callAI('짧게 답해.', '연결됐으면 "연결 완료 🌷"라고만 답해.', 50); toast('🤖 ' + r.trim()); }); }
 function exportData() {
