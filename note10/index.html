@@ -391,7 +391,7 @@ function login() {
 function logout() {
   if (!window.firebase || !firebase.apps.length) return;
   firebase.auth().signOut().then(() => {
-    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; CE = { events: [], due: '' }; V.sid = null;
+    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; CE = { events: [], due: '' }; SM = { weeks: {} }; V.sid = null;
     closeModal(); toast('🔑 로그아웃했어요');
   });
 }
@@ -420,6 +420,7 @@ async function connectCloud() {
       if (d.id.startsWith('rec_')) RC[d.id] = d.data();
       if (d.id === 'club') CL = Object.assign({ name: '', members: [] }, d.data());
       if (d.id === 'classev') CE = Object.assign({ events: [], due: '' }, d.data());
+      if (d.id === 'summary') SM = Object.assign({ weeks: {} }, d.data());
     });
     setSync('cloud');
   } catch (e) { db = null; setSync('error'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
@@ -795,6 +796,7 @@ function viewClassCs() {
   const max = Math.max(1, ...Object.values(cnt));
   const sorted = [...L].sort((a, b) => (lastCounsel(a) || '0000').localeCompare(lastCounsel(b) || '0000'));
   return `
+  ${viewWeekly()}
   <div class="stitle"><span class="big">✿</span><h2>상담 현황</h2><span class="mini">상담이 오래된 친구부터 보여요</span></div>
   <div class="stats">
     <div class="stat"><b>${L.length}</b>동물 친구</div>
@@ -1561,6 +1563,68 @@ function secCheck(st) {
   <div class="row" style="margin-bottom:12px;gap:6px">${Object.entries(FLAG).map(([k, f]) => `<span class="chip" style="background:${f.bg};border-color:transparent;color:${f.c};font-weight:700" title="${f.d}">${k}</span><span class="mini" style="margin-right:8px">${f.d}</span>`).join('')}</div>
   <p class="mini" style="margin-top:-4px">⚡ 의심 단어는 AI 없이 바로 보여요. 🔍 AI 점검은 담임이 남긴 관찰 기록(일화 · 상담 · 활동 · 공통 행사)과 문장을 맞춰 봐요. 다른 선생님이 쓴 과목 세특은 근거없음은 빼고 표현만 봐요.</p>
   ${T.length ? T.map(t => checkCard(st, t)).join('') : '<div class="empty">점검할 글이 아직 없어요.<br>✍️ 생기부 정리에서 단락을 쓰거나, 🛠 관리 → 생기부 자료에서 나이스 글을 넣어 주세요 🔍</div>'}`;
+}
+
+/* ================= 🗞️ 우리반 주간 총평 — 한 주 기록을 모아 한 장으로 (주마다 한 번만 AI) =================
+   저장: 클라우드 meta/summary { weeks: { 월요일날짜: { at, text, n } } }
+   AI에는 동물 별칭 대신 A · B · C 기호만 보내고, 돌아온 글에서 다시 동물 이름으로 바꿔 보여 줘요 */
+let SM = { weeks: {} };
+function saveSM() { if (db) roomRef().collection('meta').doc('summary').set(clone(SM)).catch(e => toast('☁️ 저장 실패: ' + e.message)); }
+function monday(ds) { const d = new Date(ds + 'T00:00'); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return ymd(d); }
+const addDays = (ds, n) => { const d = new Date(ds + 'T00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+const code = i => (i >= 26 ? String.fromCharCode(65 + Math.floor(i / 26) - 1) : '') + String.fromCharCode(65 + i % 26);
+// 한 주(월~일) 동안의 기록: 친구마다 일화 · 상담 · 활동 · 공통 행사 칸
+function weekRecords(ws) {
+  const we = addDays(ws, 6), inW = d => d && d >= ws && d <= we;
+  const by = D.students.map(st => {
+    const items = [];
+    st.episodes.forEach(e => inW(e.date) && items.push([e.date, '일화', e.text]));
+    st.counsels.forEach(c => inW(c.date) && items.push([c.date, '상담·' + c.type, c.text]));
+    st.acts.forEach(a => inW(a.date) && items.push([a.date, '활동·' + a.area, (a.title ? a.title + ' — ' : '') + a.text]));
+    CE.events.forEach(e => { const n = st.ev[e.id]; if (n && n.text && n.at && inW(ymd(new Date(n.at)))) items.push([ymd(new Date(n.at)), '공통 행사·' + e.title, n.text]); });
+    return { st, items: items.sort((a, b) => a[0].localeCompare(b[0])) };
+  });
+  return { ws, we, by, cal: D.events.filter(e => inW(e.date)).sort((a, b) => a.date.localeCompare(b.date)) };
+}
+async function weeklyRun(btn) {
+  const W = weekRecords(V.week || monday(today())), seen = W.by.filter(x => x.items.length);
+  if (!seen.length) return toast('이 주에는 기록이 없어요');
+  const codes = {}; seen.forEach((x, i) => codes[code(i)] = x.st.id);
+  const txt = seen.map((x, i) => x.items.map(([d, k, t]) => `[${code(i)}] ${d} (${k}) ${t}`).join('\n')).join('\n');
+  await withBusy(btn, async () => {
+    const out = await callAI(SYS_RULES + '\n지금은 생기부 문구가 아니라 담임교사가 혼자 보는 주간 메모를 쓴다. 학생은 [A] [B] 같은 기호로만 가리키고 기호를 꼭 대괄호째 그대로 쓴다. 따뜻하고 간결한 존댓말.',
+      `${W.ws} ~ ${W.we} 한 주 동안 담임이 남긴 기록이야. 학교 일정: ${W.cal.map(e => e.date.slice(5) + ' ' + e.title).join(', ') || '없음'}\n\n${txt}\n
+아래 순서로 이번 주 총평을 써 줘. 소제목은 ### 로, 항목은 - 로.
+### 이번 주 우리반 한 줄
+### 눈에 띈 장면 (학생 기호와 함께, 생기부에 쓸 만한 장면이면 영역(자율·자치 / 진로 / 행발)도 괄호로)
+### 다음 주에 이어서 볼 것 (상담 약속 · 더 관찰할 장면)`, 2000);
+    SM.weeks[W.ws] = { at: Date.now(), text: out, n: seen.length, codes }; saveSM(); render();
+  });
+}
+// [A] → 🐰 토끼12 (지운 친구는 '(지운 친구)')
+function decode(text, codes) {
+  return md(text).replace(/\[([A-Z]{1,2})\]/g, (m, c) => { const s = D.students.find(x => x.id === (codes || {})[c]); return s ? `<b style="color:var(--main)">${esc(sname(s))}</b>` : m; });
+}
+function viewWeekly() {
+  if (!D.students.length) return '';
+  const ws = V.week || monday(today()), W = weekRecords(ws), seen = W.by.filter(x => x.items.length), none = W.by.filter(x => !x.items.length);
+  const r = SM.weeks[ws], n = seen.reduce((a, x) => a + x.items.length, 0);
+  const weeks = Array.from({ length: 8 }, (_, i) => addDays(monday(today()), -7 * i));
+  return `<div class="box" style="margin-bottom:18px"><div class="hd purple"><span class="n">🗞</span>우리반 주간 총평
+      <span class="sp"><select style="width:auto;padding:2px 6px;font-size:13px;color:var(--ink)" onchange="V.week=this.value;render()">${weeks.map(w => `<option value="${w}" ${w === ws ? 'selected' : ''}>${w.slice(5)} ~ ${addDays(w, 6).slice(5)}${w === monday(today()) ? ' (이번 주)' : ''}${SM.weeks[w] ? ' ✓' : ''}</option>`).join('')}</select></span></div><div class="bd">
+    <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)">
+      <div>
+        <div class="row" style="gap:16px;margin-bottom:8px"><div><b class="hand" style="font-size:28px;color:var(--main)">${n}</b> <span class="mini">개 기록</span></div><div><b class="hand" style="font-size:28px;color:var(--main)">${seen.length}</b><span class="mini">/${D.students.length}명 관찰</span></div></div>
+        <b class="hand" style="font-size:16px">🔦 이번 주 한 번도 기록되지 않은 친구 <span class="mini">${none.length}명</span></b>
+        <div style="margin-top:6px">${none.map(x => `<a href="#" class="chip" style="margin:2px;display:inline-block;text-decoration:none;color:inherit" onclick="openStudent('${x.st.id}',5);return false">${esc(sname(x.st))}</a>`).join('') || '<span class="mini">모두 한 번 이상 기록했어요 🎉</span>'}</div>
+        ${W.cal.length ? `<div class="mini" style="margin-top:8px">📅 이번 주 일정: ${W.cal.map(e => esc(e.title)).join(' · ')}</div>` : ''}
+      </div>
+      <div>${r ? `<div class="mini">${ago(r.at)} · 기록 ${r.n}명 읽음</div><div class="ai-out">${decode(r.text, r.codes)}</div>
+          <button class="btn ghost sm" style="margin-top:8px" onclick="weeklyRun(this)">🗞 다시 만들기</button>`
+        : seen.length ? `<div class="empty">이 주 기록 ${n}개를 읽고 눈에 띈 장면 · 다음 주에 볼 것을 한 장으로 정리해요<br><button class="btn ai" style="margin-top:10px" onclick="weeklyRun(this)">🗞 주간 총평 만들기</button><div class="mini" style="margin-top:6px">AI에는 동물 이름 대신 A · B · C 기호만 보내요</div></div>`
+        : `<div class="empty">이 주에는 아직 기록이 없어요.<br>일화 · 상담 · 공통 행사를 남기면 총평을 만들 수 있어요 🌱</div>`}</div>
+    </div>
+  </div></div>`;
 }
 
 /* ---------------- 학생 추가·수정 ---------------- */
