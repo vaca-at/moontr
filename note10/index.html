@@ -185,6 +185,15 @@ textarea{resize:vertical;min-height:80px}
 .rep th,.rep td{border:1px solid #6b5a5a;padding:7px 9px;vertical-align:middle}
 .rep th{background:var(--soft);font-weight:600}
 .rep .hope{border-bottom:1px dashed #9b8782;padding-bottom:4px;margin-bottom:4px}
+/* 📷 사진 갤러리: 가로로 넘겨 보기 */
+.gal{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px}
+.gal figure{flex:none;margin:0;width:220px;cursor:pointer;scroll-snap-align:start;background:#fff;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;transition:.12s}
+.gal figure:hover{transform:translateY(-2px);border-color:var(--main)}
+.gal img{width:220px;height:160px;object-fit:cover;display:block}
+.gal figcaption{padding:6px 10px;display:flex;gap:6px;align-items:baseline;font-size:13px}
+.gal figcaption b{flex:1;font-family:var(--hand);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gal figcaption span{color:var(--sub);font-size:12px}
+.gal .gal-add{display:grid;place-items:center;height:auto;min-height:190px;border-style:dashed;color:var(--main);font-size:28px;text-align:center;background:var(--soft)}
 .repwrap{border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;background:#fffdfb}
 .sheet>.hd{background:var(--main);color:#fff;padding:12px 18px;font-family:var(--hand);font-size:22px;display:flex}
 .sheet>.bd{padding:18px}
@@ -391,7 +400,7 @@ function login() {
 function logout() {
   if (!window.firebase || !firebase.apps.length) return;
   firebase.auth().signOut().then(() => {
-    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; CE = { events: [], due: '' }; SM = { weeks: {} }; V.sid = null;
+    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; CE = { events: [], due: '' }; SM = { weeks: {} }; PH = []; phLoaded = false; V.sid = null;
     closeModal(); toast('🔑 로그아웃했어요');
   });
 }
@@ -415,7 +424,11 @@ async function connectCloud() {
       if (!cur()) V.sid = D.students[0]?.id || null;
     }
     SC = {}; RC = {};
-    (await roomRef().collection('meta').get()).docs.forEach(d => {
+    // 사진(photo_…)은 무거워서 빼고 읽고, 아래에서 따로 천천히 불러와요
+    const meta = roomRef().collection('meta'), FP = firebase.firestore.FieldPath.documentId();
+    const metaDocs = [...(await meta.where(FP, '<', 'photo_').get()).docs, ...(await meta.where(FP, '>', 'photo_').get()).docs];
+    loadPhotos();
+    metaDocs.forEach(d => {
       if (d.id.startsWith('scores_')) SC[d.id] = d.data();
       if (d.id.startsWith('rec_')) RC[d.id] = d.data();
       if (d.id === 'club') CL = Object.assign({ name: '', members: [] }, d.data());
@@ -561,7 +574,7 @@ function render() {
   charts.forEach(c => c.destroy()); charts = [];
   const app = $('#app');
   if (syncState !== 'cloud') app.innerHTML = viewGate();
-  else if (V.tab === 'cal') app.innerHTML = viewCalendar();
+  else if (V.tab === 'cal') app.innerHTML = viewCalendar() + viewGallery();
   else if (V.tab === 'class') app.innerHTML = viewClass();
   else { app.innerHTML = viewNote(); if (V.sec === 3 && cur()) drawCharts(cur()); }
 }
@@ -1681,6 +1694,90 @@ function viewWeekly() {
   </div></div>`;
 }
 
+/* ================= 📷 우리반 사진 갤러리 — 달력 화면 맨 아래에 가로로 =================
+   저장: 클라우드 meta/photo_아이디 { at, date, cap, img(1280px JPEG base64) } — 사진은 한 장에 문서 하나
+   로그인할 때는 빼고 읽고, loadPhotos()로 따로 불러와요 */
+let PH = [], phLoaded = false;
+async function loadPhotos() {
+  if (!db) return;
+  try {
+    const FP = firebase.firestore.FieldPath.documentId();
+    const snap = await roomRef().collection('meta').where(FP, '>=', 'photo_').where(FP, '<', 'photo_').get();
+    PH = snap.docs.map(d => ({ id: d.id, ...d.data() })); phSort(); phLoaded = true; render();
+    if ($('#dashPhoto')) dashRefresh();
+  } catch (e) { toast('📷 사진을 불러오지 못했어요: ' + e.message); }
+}
+const phSort = () => PH.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.at - a.at);   // 최근 사진부터
+// 올리기 전 사진들 (관리 창)
+async function photoFiles(files) {
+  DASH.phNew = DASH.phNew || [];
+  for (const f of files) {
+    if (!f || !f.type.startsWith('image/')) continue;
+    let m = await imgToB64(f, 1280, 0.8);
+    if (m.data.length > 850000) m = await imgToB64(f, 960, 0.7);   // 문서 1MB 한도 안으로
+    DASH.phNew.push({ ...m, cap: '', date: today() });
+  }
+  dashRefresh();
+}
+async function photoSave() {
+  const L = (DASH.phNew || []); if (!L.length) return;
+  try {
+    for (const p of L) {
+      const id = 'photo_' + uid(), doc = { at: Date.now(), date: p.date || today(), cap: (p.cap || '').trim().slice(0, 40), img: p.data };
+      await roomRef().collection('meta').doc(id).set(doc); PH.push({ id, ...doc });
+    }
+  } catch (e) { return toast('☁️ 올리기 실패: ' + e.message); }
+  phSort(); DASH.phNew = []; dashRefresh(); render(); toast(`📷 사진 ${L.length}장을 올렸어요`);
+}
+async function photoDel(id) {
+  if (!confirm('이 사진을 지울까요?')) return;
+  try { await roomRef().collection('meta').doc(id).delete(); } catch (e) { return toast('☁️ 지우기 실패: ' + e.message); }
+  PH = PH.filter(p => p.id !== id); dashRefresh(); render();
+}
+function photoSet(id, k, v) {
+  const p = PH.find(x => x.id === id); if (!p) return;
+  p[k] = k === 'cap' ? v.trim().slice(0, 40) : v; phSort();
+  roomRef().collection('meta').doc(id).update({ [k]: p[k] }).catch(e => toast('☁️ 저장 실패: ' + e.message));
+  render();
+}
+function dashPhoto() {
+  const N = DASH.phNew || [];
+  return `<section id="dashPhoto"><h4>1. 사진 넣기</h4>
+    <p class="mini">사진을 복사하거나 캡처한 뒤 이 창에서 <b>Ctrl+V</b> 하면 들어와요. 여러 장도 돼요. 크기는 알아서 줄여서 올려요.<br>🔒 학생 얼굴이 나온 사진은 선생님 계정으로 로그인했을 때만 보여요.</p>
+    <label class="btn sm ghost" style="margin-top:6px">🖼 사진 파일 고르기<input type="file" accept="image/*" multiple hidden onchange="photoFiles(this.files)"></label>
+    ${N.length ? `<div class="row" style="margin-top:10px;align-items:flex-start">${N.map((p, i) => `<div style="width:170px">
+        <div style="position:relative"><img src="data:${p.mime};base64,${p.data}" style="width:170px;height:120px;object-fit:cover;border-radius:10px;display:block">
+          <button class="x" style="position:absolute;top:2px;right:4px;background:#fff;border-radius:50%" onclick="DASH.phNew.splice(${i},1);dashRefresh()">✕</button></div>
+        <input type="text" value="${esc(p.cap)}" placeholder="한 줄 설명 (예: 체육대회)" oninput="DASH.phNew[${i}].cap=this.value" style="margin-top:4px;padding:4px 8px;font-size:13px">
+        <input type="date" value="${p.date}" onchange="DASH.phNew[${i}].date=this.value" style="margin-top:4px;padding:4px 8px;font-size:13px"></div>`).join('')}</div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="photoSave()">📷 ${N.length}장 올리기</button><button class="btn ghost sm" onclick="DASH.phNew=[];dashRefresh()">비우기</button></div>` : ''}
+  </section>
+  <section><h4>2. 올린 사진 <span class="mini">${phLoaded ? PH.length + '장 · 최근 날짜부터 달력 아래에 보여요' : '불러오는 중…'}</span></h4>
+    ${PH.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">${PH.map(p => `<div>
+        <div style="position:relative"><img src="data:image/jpeg;base64,${p.img}" style="width:100%;height:110px;object-fit:cover;border-radius:10px;display:block">
+          <button class="x" title="지우기" style="position:absolute;top:2px;right:4px;background:#fff;border-radius:50%" onclick="photoDel('${p.id}')">🗑</button></div>
+        <input type="text" value="${esc(p.cap || '')}" placeholder="설명" onchange="photoSet('${p.id}','cap',this.value)" style="margin-top:4px;padding:3px 7px;font-size:12.5px">
+        <input type="date" value="${p.date || ''}" onchange="photoSet('${p.id}','date',this.value);dashRefresh()" style="margin-top:3px;padding:3px 7px;font-size:12.5px"></div>`).join('')}</div>`
+      : '<div class="empty">아직 올린 사진이 없어요 📷</div>'}
+  </section>`;
+}
+// 달력 화면 맨 아래: 가로로 넘겨 보는 사진 줄
+function viewGallery() {
+  if (!PH.length) return `<div class="box" style="margin-top:18px"><div class="hd pink"><span class="n">📷</span>우리반 사진 갤러리</div><div class="bd">
+    <div class="empty">${phLoaded ? '아직 사진이 없어요.' : '사진을 불러오는 중이에요…'}<br><button class="btn sm" style="margin-top:8px" onclick="openDash('photo')">🛠 관리에서 사진 넣기</button></div></div></div>`;
+  return `<div class="box" style="margin-top:18px"><div class="hd pink"><span class="n">📷</span>우리반 사진 갤러리 <span class="sp mini" style="color:#fff">${PH.length}장 · 옆으로 넘겨 봐요</span></div><div class="bd">
+    <div class="gal">${PH.map(p => `<figure onclick="photoView('${p.id}')"><img src="data:image/jpeg;base64,${p.img}" loading="lazy" alt="${esc(p.cap || '우리반 사진')}">
+      <figcaption><b>${esc(p.cap || '')}</b><span>${p.date ? p.date.slice(5).replace('-', '.') : ''}</span></figcaption></figure>`).join('')}
+      <figure class="gal-add" onclick="openDash('photo')"><div>＋<br><span class="mini">사진 넣기</span></div></figure></div>
+  </div></div>`;
+}
+function photoView(id) {
+  const i = PH.findIndex(p => p.id === id), p = PH[i]; if (!p) return;
+  openModal(`📷 ${p.cap || '우리반 사진'} ${p.date ? '· ' + p.date : ''}`, `<img src="data:image/jpeg;base64,${p.img}" style="width:100%;border-radius:10px;display:block">
+    <div class="row" style="margin-top:10px"><button class="btn ghost sm" ${i <= 0 ? 'disabled' : ''} onclick="photoView('${PH[i - 1]?.id}')">◀ 앞 사진</button>
+    <span class="mini" style="margin:auto">${i + 1} / ${PH.length}</span><button class="btn ghost sm" ${i >= PH.length - 1 ? 'disabled' : ''} onclick="photoView('${PH[i + 1]?.id}')">다음 사진 ▶</button></div>`, true);
+}
+
 /* ---------------- 학생 추가·수정 ---------------- */
 let pickEmoji = '🐰';
 function studentForm(st) {
@@ -1740,9 +1837,9 @@ function openDash(tab) {
 }
 function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
 function viewDash() {
-  const tabs = [['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['score', '📊 성적 파일'], ['rec', '📋 생기부 자료']];
+  const tabs = [['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['photo', '📷 사진'], ['score', '📊 성적 파일'], ['rec', '📋 생기부 자료']];
   return `<div class="row" style="margin-bottom:12px">${tabs.map(([k, t]) => `<button class="pill ${DASH.tab === k ? 'on' : ''}" onclick="DASH.tab='${k}';dashRefresh()">${t}</button>`).join('')}</div>
-  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'ev' ? dashEv() : DASH.tab === 'score' ? dashScore() : dashRec()}`;
+  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'ev' ? dashEv() : DASH.tab === 'photo' ? dashPhoto() : DASH.tab === 'score' ? dashScore() : dashRec()}`;
 }
 
 /* ① 달력 가져오기 */
@@ -1824,27 +1921,28 @@ async function dashIinote(btn) {
   }
   if (document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = old; }
 }
-// 사진을 1800px 안으로 줄여 base64(JPEG)로
-function imgToB64(file) {
+// 사진을 max px 안으로 줄여 base64(JPEG)로
+function imgToB64(file, max = 1800, q = 0.9) {
   return new Promise((ok, no) => {
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = () => {
-      const k = Math.min(1, 1800 / Math.max(img.width, img.height));
+      const k = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
       const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url); ok({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.9).split(',')[1] });
+      URL.revokeObjectURL(url); ok({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', q).split(',')[1] });
     };
     img.onerror = no; img.src = url;
   });
 }
 async function dashFiles(files) {
+  if ($('#dashPhoto')) return photoFiles(files);                                 // 사진 갤러리 탭
   const into = $('#dashEv') ? (DASH.evImgs = DASH.evImgs || []) : DASH.imgs;   // 공통 행사 탭이면 그쪽 사진으로
   for (const f of files) if (f && f.type.startsWith('image/')) into.push(await imgToB64(f));
   dashRefresh();
 }
-// 관리 창의 달력 가져오기가 열려 있을 때 Ctrl+V 한 사진을 받아요
+// 관리 창의 달력 가져오기 · 공통 행사 · 사진 탭이 열려 있을 때 Ctrl+V 한 사진을 받아요
 document.addEventListener('paste', e => {
-  if (!$('#modal').classList.contains('on') || !($('#dashCal') || $('#dashEv'))) return;
+  if (!$('#modal').classList.contains('on') || !($('#dashCal') || $('#dashEv') || $('#dashPhoto'))) return;
   const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile());
   if (!files.length) return;
   e.preventDefault(); dashFiles(files);
@@ -2503,7 +2601,8 @@ function openPrivacy() {
     · 동물 별칭과 숫자, 반 번호(자료를 잇는 데만 쓰고 화면에는 보이지 않음)<br>
     · 교사가 적은 관찰 일화 · 상담 내용 · 활동 기록 · 공통 행사 기록<br>
     · 교사가 올린 성적(학번 · 번호와 성적 칸), 출결, 창의적 체험활동 · 행동특성 및 종합의견 · 세부능력 및 특기사항 — 올릴 때 <b>성명 칸은 자동으로 버립니다</b><br>
-    · 교사가 맡은 동아리 부원의 별칭과 활동 기록(이름 · 학번 없음)`)}
+    · 교사가 맡은 동아리 부원의 별칭과 활동 기록(이름 · 학번 없음)<br>
+    · 교사가 올린 우리반 사진(학생 얼굴이 나올 수 있음)과 한 줄 설명 · 날짜 — 운영 교사 계정으로 로그인했을 때만 보이며, AI로 보내지 않습니다`)}
   ${pol('2. 보관 위치와 접근', '· 기록은 Google Firebase(Firestore) 클라우드에 저장되며, 운영 교사 구글 계정으로 로그인했을 때만 읽고 쓸 수 있도록 보안 규칙이 걸려 있습니다.<br>· AI 키와 화면 설정(테마 · 글꼴 · 정렬)은 이용자 기기의 브라우저에만 저장되고 클라우드로 올라가지 않습니다.<br>· 로그아웃하면 기기에 남아 있던 기록 사본도 지웁니다.')}
   ${pol('3. 외부로 보내는 정보 (AI 기능)', '· 교사가 AI 단추를 누를 때에만, 교사가 고른 AI 서비스(Google Gemini 또는 Anthropic Claude)로 <b>기록 내용과 희망 진로 · 등급</b>을 보냅니다. 이름 · 학번 · 반 번호 · 동물 별칭은 보내지 않습니다.<br>· 글을 저장하기 전에 학번 · 전화번호 · 이메일처럼 보이는 내용이 있으면 알려 줍니다.<br>· 무료 Gemini 키를 쓰면 보낸 내용이 Google의 서비스 개선에 쓰일 수 있습니다. 걱정되면 유료 키를 쓰거나 AI 기능을 쓰지 않을 수 있습니다.<br>· 다른 달력에서 일정을 가져올 때는 교사 계정으로 그 일정을 읽기만 하고, 그쪽으로 학생 정보를 보내지 않습니다.')}
   ${pol('4. 보관 기간과 삭제', '· 교사가 지울 때까지 보관합니다. 학년도가 끝나 생기부 마감이 끝나면 지우기를 권합니다.<br>· 학생 노트 ✏️ → 이 친구 기록 모두 지우기, 🛠 관리 → 성적 파일 · 생기부 자료의 🗑 지우기로 언제든 지울 수 있습니다.')}
