@@ -1198,30 +1198,92 @@ function saveCE() {
 const ceDue = () => CE.due || `${new Date().getFullYear()}-12-01`;
 const ceDday = () => Math.ceil((new Date(ceDue()) - new Date(today())) / 86400000);
 const ceFilled = (st, ev) => !!(st.ev[ev.id] && st.ev[ev.id].text);
+// 행사 목록이 바뀌면 관리 창(열려 있으면)과 뒤 화면을 같이 다시 그려요
+function ceRefresh() { CE.events.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); saveCE(); if ($('#dashEv')) dashRefresh(); render(); }
 function ceAdd() {
   const title = $('#ceTitle').value.trim(); if (!title) return toast('행사 이름을 적어 주세요');
-  CE.events.push({ id: uid(), title, date: $('#ceDate').value || '', area: $('#ceArea').value, ask: $('#ceAsk').value.trim() });
-  CE.events.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); saveCE(); render();
+  CE.events.push({ id: uid(), title, date: $('#ceDate').value || '', area: $('#ceArea').value, ask: $('#ceAsk').value.trim() }); ceRefresh();
 }
-function ceSet(id, k, v) { const e = CE.events.find(x => x.id === id); if (!e) return; e[k] = v; if (k === 'date') CE.events.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); saveCE(); render(); }
+function ceSet(id, k, v) { const e = CE.events.find(x => x.id === id); if (!e) return; e[k] = v; ceRefresh(); }
 function ceDel(id) {
   const e = CE.events.find(x => x.id === id), n = D.students.filter(s => ceFilled(s, e)).length;
   if (!confirm(`'${e.title}' 행사를 지울까요?${n ? `\n${n}명이 채운 칸은 학생 기록에 남아 있지만 화면에서는 안 보여요.` : ''}`)) return;
-  CE.events = CE.events.filter(x => x.id !== id); saveCE(); render();
+  CE.events = CE.events.filter(x => x.id !== id); ceRefresh();
 }
-// 달력 일정에서 고르기
+// 확인 목록(사진 · 글 · 달력에서 뽑은 것)에서 고른 것만 행사로 넣기
+function ceAddRows() {
+  const pick = (DASH.evRows || []).filter(r => r.on && r.title.trim());
+  if (!pick.length) return toast('넣을 행사를 골라 주세요');
+  pick.forEach(r => CE.events.push({ id: uid(), title: r.title.trim(), date: isYmd(r.date) ? r.date : '', area: r.area, ask: (r.ask || '').trim() }));
+  DASH.evRows = []; DASH.evImgs = []; DASH.evText = ''; ceRefresh(); toast(`🗓️ 행사 ${pick.length}개를 넣었어요`);
+}
+const ceHas = (date, title) => CE.events.some(e => e.title === title && (!date || e.date === date));
+// 달력 일정을 확인 목록으로
 function ceFromCal() {
-  const have = new Set(CE.events.map(e => e.date + '|' + e.title));
-  const list = [...D.events].filter(e => !have.has(e.date + '|' + e.title)).sort((a, b) => a.date.localeCompare(b.date));
-  openModal('📅 달력 일정에서 행사 고르기', list.length ? `<p class="mini">공통 행사로 넣을 일정을 골라요. 여러 날 일정은 하루만 고르면 돼요.</p>
-    <div style="max-height:55vh;overflow:auto">${list.map(e => `<label class="item" style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-bottom:6px"><input type="checkbox" value="${e.id}" class="ceChk"><span class="mini">${e.date}</span><b>${esc(e.title)}</b></label>`).join('')}</div>
-    <div class="row" style="margin-top:10px"><select id="ceCalArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.short}</option>`).join('')}</select><button class="btn" onclick="ceFromCalAdd()">고른 일정 넣기</button></div>`
-    : '<div class="empty">달력에 새로 넣을 일정이 없어요</div>');
+  DASH.evRows = [...D.events].sort((a, b) => a.date.localeCompare(b.date)).map(e => {
+    const title = e.title.replace(/^\d{1,2}:\d{2}\s*/, ''), dup = ceHas(e.date, title);
+    return { date: e.date, title, area: '자율', ask: '', on: false, dup };
+  });
+  if (!DASH.evRows.length) toast('달력에 일정이 없어요');
+  dashRefresh();
 }
-function ceFromCalAdd() {
-  const ids = [...document.querySelectorAll('.ceChk:checked')].map(x => x.value), area = $('#ceCalArea').value;
-  ids.forEach(id => { const e = D.events.find(x => x.id === id); if (e) CE.events.push({ id: uid(), title: e.title.replace(/^\d{1,2}:\d{2}\s*/, ''), date: e.date, area, ask: '' }); });
-  CE.events.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); saveCE(); closeModal(); render(); toast(`🗓️ 행사 ${ids.length}개를 넣었어요`);
+// 사진 · 글에서 행사 뽑기 (AI)
+async function ceExtract(btn) {
+  DASH.evText = $('#evText').value.trim();
+  if (!(DASH.evImgs || []).length && !DASH.evText) return toast('행사 목록 사진이나 글을 먼저 넣어 주세요');
+  await withBusy(btn, async () => {
+    const out = await callAI('너는 학교 · 학급 행사 계획표에서 행사를 빠짐없이 옮겨 적는 도우미다. 반드시 JSON 배열만 출력한다.', {
+      text: `사진과 글에 있는 학급 · 학교 행사를 모두 찾아 아래 모양으로만 출력해.
+[{"date":"YYYY-MM-DD 또는 빈 문자열","title":"행사 이름 20자 이내","area":"자율|진로|행특","ask":"담임이 상담 때 학생에게 물어볼 짧은 질문"}]
+- 오늘은 ${today()}. 연도가 안 보이면 이번 학년도(3월~다음 해 2월)로 정해.
+- area: 학급 · 학생 자치 · 학교 행사 · 봉사 · 안전교육은 자율, 진로 체험 · 진로 특강 · 학과 탐색은 진로, 그 밖에 학생 인성 · 태도가 드러나는 일은 행특.
+- ask 예: '맡은 역할은?', '가장 기억에 남는 장면은?', '어떤 진로 생각이 들었나요?'
+- 공휴일 · 방학 · 시험 기간처럼 학생이 무언가를 하지 않는 일정은 빼.
+${DASH.evText ? '\n[붙여 넣은 글]\n' + DASH.evText : ''}`,
+      images: DASH.evImgs || []
+    }, 3000);
+    const arr = parseJSONArray(out).filter(a => a.title);
+    if (!arr.length) throw new Error('행사를 찾지 못했어요. 표 부분만 크게 캡처해 보세요');
+    DASH.evRows = arr.map(a => {
+      const title = String(a.title).trim().slice(0, 30), date = isYmd(a.date) ? a.date : '', dup = ceHas(date, title);
+      return { date, title, area: AREAS.some(x => x.k === a.area) ? a.area : '자율', ask: String(a.ask || '').slice(0, 40), on: !dup, dup };
+    }).sort((x, y) => (x.date || '9').localeCompare(y.date || '9'));
+    dashRefresh();
+  });
+}
+/* 🛠 관리 → 🗓️ 공통 행사: 행사 넣기 (사진 · 글 · 달력 · 직접) + 목록 고치기 · 마감 */
+function dashEv() {
+  const L = D.students, E = CE.events, rows = DASH.evRows || [], dd = ceDday();
+  const areaSel = (v, on) => `<select style="width:auto" onchange="${on}">${AREAS.map(a => `<option value="${a.k}" ${a.k === v ? 'selected' : ''}>${a.short}</option>`).join('')}</select>`;
+  return `<section id="dashEv"><h4>1. 행사 목록 사진 · 글 붙여 넣기 <span class="mini">(AI 키 필요 · Gemini 무료 키 가능)</span></h4>
+    <p class="mini">학교 행사 계획표 · 학급 일정표를 캡처하거나 사진 파일을 이 창에서 <b>Ctrl+V</b> 하면 들어와요. 여러 장도 돼요. 글로 복사한 목록은 아래 칸에 붙여 넣어요.</p>
+    <div class="row" style="margin:8px 0">${(DASH.evImgs || []).map((m, i) => `<div style="position:relative"><img src="data:${m.mime};base64,${m.data}" style="height:90px;border-radius:8px;border:1.5px solid var(--line);display:block"><button class="x" style="position:absolute;top:0;right:2px;background:#fff;border-radius:50%" onclick="DASH.evImgs.splice(${i},1);dashRefresh()">✕</button></div>`).join('')}
+      <label class="btn sm ghost">🖼 사진 파일 고르기<input type="file" accept="image/*" multiple hidden onchange="dashFiles(this.files)"></label>
+      <button class="btn sm ghost" onclick="ceFromCal()">📅 달력 일정에서 고르기</button></div>
+    <textarea id="evText" oninput="DASH.evText=this.value" placeholder="(글로 붙여 넣기) 예: 3/15 환경미화, 3/25 정부회장 선거, 5/20 체육대회">${esc(DASH.evText || '')}</textarea>
+    <button class="btn ai" style="margin-top:8px" onclick="ceExtract(this)">✨ 행사 뽑기</button></section>
+  ${rows.length ? `<section><h4>2. 확인하고 넣기 <span class="mini">${rows.length}개 · 이미 있는 행사는 흐리게</span></h4>
+    <div class="row" style="margin-bottom:6px"><button class="btn ghost sm" onclick="DASH.evRows.forEach(r=>r.on=!r.dup);dashRefresh()">모두 체크</button><button class="btn ghost sm" onclick="DASH.evRows.forEach(r=>r.on=false);dashRefresh()">모두 빼기</button></div>
+    <table class="dtable"><tr><th></th><th>날짜</th><th>행사</th><th>영역</th><th>상담 때 물어볼 것</th><th></th></tr>
+    ${rows.map((r, i) => `<tr style="${r.dup ? 'opacity:.5' : ''}"><td><input type="checkbox" ${r.on ? 'checked' : ''} onchange="DASH.evRows[${i}].on=this.checked"></td>
+      <td style="width:150px"><input type="date" value="${r.date}" onchange="DASH.evRows[${i}].date=this.value"></td>
+      <td><input type="text" value="${esc(r.title)}" onchange="DASH.evRows[${i}].title=this.value"></td>
+      <td>${areaSel(r.area, `DASH.evRows[${i}].area=this.value`)}</td>
+      <td><input type="text" value="${esc(r.ask)}" onchange="DASH.evRows[${i}].ask=this.value"></td>
+      <td><button class="x" onclick="DASH.evRows.splice(${i},1);dashRefresh()">✕</button></td></tr>`).join('')}</table>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="ceAddRows()">🗓️ 공통 행사로 넣기</button><button class="btn ghost sm" style="margin-left:auto" onclick="DASH.evRows=[];dashRefresh()">목록 비우기</button></div></section>` : ''}
+  <section><h4>3. 지금 행사 목록 <span class="mini">${E.length}개</span>
+      <span style="margin-left:auto;font-family:var(--body);font-size:13px">마감 <input type="date" value="${ceDue()}" onchange="CE.due=this.value;saveCE();dashRefresh();render()" style="width:auto;padding:2px 6px"> ${dd >= 0 ? `D-${dd}` : `${-dd}일 지남`}</span></h4>
+    <div class="row" style="margin-bottom:8px"><input type="text" id="ceTitle" placeholder="직접 넣기: 행사 이름" style="flex:2;min-width:160px"><input type="date" id="ceDate" style="width:auto">
+      <select id="ceArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.short}</option>`).join('')}</select>
+      <input type="text" id="ceAsk" placeholder="상담 때 물어볼 것" style="flex:2;min-width:160px"><button class="btn sm" onclick="ceAdd()">＋ 넣기</button></div>
+    ${E.length ? `<table class="dtable"><tr><th>날짜</th><th>행사</th><th>영역</th><th>상담 때 물어볼 것</th><th style="text-align:center">채움</th><th></th></tr>
+      ${E.map(e => `<tr><td style="width:150px"><input type="date" value="${e.date}" onchange="ceSet('${e.id}','date',this.value)"></td>
+        <td><input type="text" value="${esc(e.title)}" onchange="ceSet('${e.id}','title',this.value)"></td>
+        <td>${areaSel(e.area, `ceSet('${e.id}','area',this.value)`)}</td>
+        <td><input type="text" value="${esc(e.ask || '')}" onchange="ceSet('${e.id}','ask',this.value)"></td>
+        <td style="text-align:center;white-space:nowrap"><b>${L.filter(s => ceFilled(s, e)).length}</b>/${L.length}</td><td><button class="x" onclick="ceDel('${e.id}')">🗑</button></td></tr>`).join('')}</table>` : '<div class="empty">아직 행사가 없어요</div>'}
+  </section>`;
 }
 // 표의 칸을 눌러 바로 적기
 function ceCell(sid, eid) {
@@ -1241,19 +1303,11 @@ async function ceSave(sid, eid, gen, btn) {
 function viewClassEv() {
   const L = D.students, E = CE.events, dd = ceDday();
   const total = L.length * E.length, done = L.reduce((n, s) => n + E.filter(e => ceFilled(s, e)).length, 0);
-  return `<div class="box" style="margin-bottom:14px"><div class="hd mustard"><span class="n">1</span>행사 목록 <span class="sp" style="font-size:15px">마감 <input type="date" value="${ceDue()}" onchange="CE.due=this.value;saveCE();render()" style="width:auto;padding:2px 6px;font-size:13px;color:var(--ink);font-family:var(--body)"> ${dd >= 0 ? `D-${dd}` : `${-dd}일 지남`}</span></div><div class="bd">
-    <p class="mini">학급 · 학교 공통 행사를 넣어 두면 모든 친구에게 같은 칸이 생겨요. 상담할 때 학생 노트 → 💬 상담 → 공통 행사 채우기에서 채우거나, 아래 표의 칸을 눌러 바로 적어요.</p>
-    <div class="row" style="margin:8px 0"><input type="text" id="ceTitle" placeholder="행사 이름 (예: 환경미화, 정부회장 선거)" style="flex:2;min-width:180px"><input type="date" id="ceDate" style="width:auto">
-      <select id="ceArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.short}</option>`).join('')}</select>
-      <input type="text" id="ceAsk" placeholder="상담 때 물어볼 것 (예: 맡은 역할은?)" style="flex:2;min-width:180px"><button class="btn sm" onclick="ceAdd()">＋ 넣기</button><button class="btn sm ghost" onclick="ceFromCal()">📅 달력에서</button></div>
-    ${E.length ? `<table class="dtable"><tr><th>날짜</th><th>행사</th><th>영역</th><th>상담 때 물어볼 것</th><th style="text-align:center">채움</th><th></th></tr>
-      ${E.map(e => { const n = L.filter(s => ceFilled(s, e)).length; return `<tr><td style="width:140px"><input type="date" value="${e.date}" onchange="ceSet('${e.id}','date',this.value)"></td>
-        <td><input type="text" value="${esc(e.title)}" onchange="ceSet('${e.id}','title',this.value)"></td>
-        <td style="width:110px"><select onchange="ceSet('${e.id}','area',this.value)">${AREAS.map(a => `<option value="${a.k}" ${a.k === e.area ? 'selected' : ''}>${a.short}</option>`).join('')}</select></td>
-        <td><input type="text" value="${esc(e.ask || '')}" onchange="ceSet('${e.id}','ask',this.value)"></td>
-        <td style="text-align:center;white-space:nowrap"><b>${n}</b>/${L.length}</td><td><button class="x" onclick="ceDel('${e.id}')">🗑</button></td></tr>`; }).join('')}</table>` : '<div class="empty">아직 행사가 없어요. 위에서 넣거나 📅 달력에서 골라요</div>'}
-  </div></div>
-  ${E.length && L.length ? `<div class="box"><div class="hd green"><span class="n">2</span>채우기 표 <span class="sp" style="font-size:15px">${done} / ${total}칸 (${Math.round(done / total * 100)}%)</span></div><div class="bd" style="overflow:auto">
+  return `<div class="row" style="margin-bottom:12px"><span class="chip" style="font-size:14px;padding:4px 12px">⏰ 마감 ${ceDue()} · ${dd >= 0 ? `D-${dd}` : `${-dd}일 지남`}</span>
+    <span class="mini">행사 ${E.length}개 · 상담할 때 학생 노트 → 💬 상담 → 공통 행사 채우기에서 채우거나, 아래 표의 칸을 눌러 바로 적어요.</span>
+    <button class="btn sm" style="margin-left:auto" onclick="openDash('ev')">🛠 관리에서 행사 넣기 · 고치기</button></div>
+  ${E.length ? '' : `<div class="empty">아직 행사가 없어요.<br>🛠 관리 → 🗓️ 공통 행사에서 행사 계획표 사진을 붙여 넣거나 직접 넣어 주세요.<br><button class="btn" style="margin-top:10px" onclick="openDash('ev')">🛠 관리에서 행사 넣기</button></div>`}
+  ${E.length && L.length ? `<div class="box"><div class="hd green"><span class="n">✿</span>채우기 표 <span class="sp" style="font-size:15px">${done} / ${total}칸 (${Math.round(done / total * 100)}%)</span></div><div class="bd" style="overflow:auto">
     <div class="meter" style="height:10px;margin-bottom:10px"><i style="width:${done / total * 100}%"></i></div>
     <table class="dtable"><tr><th>친구</th>${E.map(e => `<th style="text-align:center;min-width:72px">${esc(e.title)}<div class="mini">${e.date ? e.date.slice(5) : ''}</div></th>`).join('')}<th style="text-align:center">남은 칸</th></tr>
     ${[...L].sort((a, b) => E.filter(e => ceFilled(a, e)).length - E.filter(e => ceFilled(b, e)).length).map(s => { const left = E.filter(e => !ceFilled(s, e)).length;
@@ -1266,7 +1320,7 @@ function viewClassEv() {
 /* 학생 노트 — 공통 행사 채우기 (상담하면서) */
 function secEvents(st) {
   const E = CE.events, n = E.filter(e => ceFilled(st, e)).length, dd = ceDday();
-  if (!E.length) return `<div class="empty">아직 공통 행사가 없어요.<br><button class="btn sm" style="margin-top:10px" onclick="go('class');V.csub='ev';render()">🏡 우리반 → 공통 행사에서 넣기</button></div>`;
+  if (!E.length) return `<div class="empty">아직 공통 행사가 없어요.<br><button class="btn sm" style="margin-top:10px" onclick="openDash('ev')">🛠 관리 → 공통 행사에서 넣기</button></div>`;
   return `<p class="lead">행사마다 <mark>이 친구의 칸</mark>을 채워요. <span class="mini">${n} / ${E.length} 채움 · 마감 ${dd >= 0 ? `D-${dd}` : `${-dd}일 지남`}</span></p>
   <div class="meter" style="height:10px;margin-bottom:14px"><i style="width:${n / E.length * 100}%"></i></div>
   <div class="cols c2">${E.map(e => `<div class="box"><div class="hd ${AREAS.find(a => a.k === e.area)?.color || 'pink'}"><span class="n">${ceFilled(st, e) ? '✓' : '○'}</span>${esc(e.title)} <span class="sp mini" style="color:#fff">${e.date || ''} · ${AN(e.area)}</span></div><div class="bd">
@@ -1686,9 +1740,9 @@ function openDash(tab) {
 }
 function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
 function viewDash() {
-  const tabs = [['cal', '📅 달력 가져오기'], ['score', '📊 성적 파일'], ['rec', '📋 생기부 자료']];
+  const tabs = [['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['score', '📊 성적 파일'], ['rec', '📋 생기부 자료']];
   return `<div class="row" style="margin-bottom:12px">${tabs.map(([k, t]) => `<button class="pill ${DASH.tab === k ? 'on' : ''}" onclick="DASH.tab='${k}';dashRefresh()">${t}</button>`).join('')}</div>
-  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'score' ? dashScore() : dashRec()}`;
+  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'ev' ? dashEv() : DASH.tab === 'score' ? dashScore() : dashRec()}`;
 }
 
 /* ① 달력 가져오기 */
@@ -1784,12 +1838,13 @@ function imgToB64(file) {
   });
 }
 async function dashFiles(files) {
-  for (const f of files) if (f && f.type.startsWith('image/')) DASH.imgs.push(await imgToB64(f));
+  const into = $('#dashEv') ? (DASH.evImgs = DASH.evImgs || []) : DASH.imgs;   // 공통 행사 탭이면 그쪽 사진으로
+  for (const f of files) if (f && f.type.startsWith('image/')) into.push(await imgToB64(f));
   dashRefresh();
 }
 // 관리 창의 달력 가져오기가 열려 있을 때 Ctrl+V 한 사진을 받아요
 document.addEventListener('paste', e => {
-  if (!$('#modal').classList.contains('on') || !$('#dashCal')) return;
+  if (!$('#modal').classList.contains('on') || !($('#dashCal') || $('#dashEv'))) return;
   const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile());
   if (!files.length) return;
   e.preventDefault(); dashFiles(files);
