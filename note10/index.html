@@ -199,8 +199,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
   <div class="title">우리반 생기부노트 <small>상담 · 성장 · 생기부</small></div>
   <nav class="nav" id="nav"></nav>
   <div class="right">
-    <span class="badge" id="syncBadge">💾 이 기기에만 저장</span>
-    <button class="pill dash" id="loginBtn" style="display:none" onclick="login()">🔑 구글 로그인</button>
+    <span class="badge" id="syncBadge">🔒 로그인 전</span>
     <span class="badge">🔒 이름·학번 없음</span>
     <button class="pill" onclick="cycleTheme()">🎨 꾸미기</button>
     <button class="pill" onclick="cycleFont()">🔤 글꼴</button>
@@ -319,7 +318,7 @@ async function initFirebase() {
     // 로그인 상태가 바뀔 때마다 (처음 열 때 포함) 클라우드 연결을 다시 해요
     if (!authHooked) { authHooked = true; firebase.auth().onAuthStateChanged(u => { fbUser = u; connectCloud(); }); }
     else await connectCloud();
-  } catch (e) { db = null; setSync('local'); toast('☁️ 파이어베이스 연결 실패: ' + e.message); }
+  } catch (e) { db = null; setSync('error'); toast('☁️ 파이어베이스 연결 실패: ' + e.message); }
 }
 function login() {
   if (!window.firebase || !firebase.apps.length) return toast('☁️ 아직 파이어베이스를 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요');
@@ -327,11 +326,18 @@ function login() {
   p.setCustomParameters({ prompt: 'select_account' }); // 계정 고르는 창이 늘 뜨게
   firebase.auth().signInWithPopup(p).catch(e => toast('🔑 로그인 실패: ' + e.message));
 }
-function logout() { if (window.firebase && firebase.apps.length) firebase.auth().signOut().then(() => { closeModal(); toast('🔑 로그아웃했어요'); }); }
+// 로그아웃하면 이 기기에 남은 사본도 지워요 (기록은 클라우드에 그대로 있어요)
+function logout() {
+  if (!window.firebase || !firebase.apps.length) return;
+  firebase.auth().signOut().then(() => {
+    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; V.sid = null;
+    closeModal(); toast('🔑 로그아웃했어요');
+  });
+}
 async function connectCloud() {
   db = null;
   if (!fbUser) { setSync('login'); return; }
-  if (fbUser.email !== ADMIN_EMAIL) { setSync('other'); toast('🔒 ' + ADMIN_EMAIL + ' 계정으로만 클라우드를 쓸 수 있어요'); return; }
+  if (fbUser.email !== ADMIN_EMAIL) { setSync('other'); return; }
   try {
     db = firebase.firestore();
     const snap = await roomRef().collection('students').get();
@@ -348,15 +354,30 @@ async function connectCloud() {
       if (!cur()) V.sid = D.students[0]?.id || null;
     }
     setSync('cloud');
-    render();
-  } catch (e) { db = null; setSync('local'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
+  } catch (e) { db = null; setSync('error'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
 }
-// 상태: local(설정 없음) · login(로그인 필요) · other(다른 계정) · cloud(클라우드 저장 중)
+// 상태: loading(불러오는 중) · login(로그인 필요) · other(다른 계정) · error(연결 실패) · cloud(로그인됨)
+// cloud 일 때만 달력 · 노트가 보이고, 나머지는 로그인 안내만 보여요
+let syncState = 'loading';
 function setSync(st) {
-  $('#syncBadge').textContent = st === 'cloud' ? '☁️ 클라우드 저장 중' : '💾 이 기기에만 저장';
-  const b = $('#loginBtn');
-  b.style.display = st === 'login' || st === 'other' ? '' : 'none';
-  b.textContent = st === 'other' ? '🔑 다른 계정으로 로그인' : '🔑 구글 로그인';
+  syncState = st;
+  $('#syncBadge').textContent = st === 'cloud' ? '☁️ 클라우드 저장 중' : '🔒 로그인 전';
+  render();
+}
+function viewGate() {
+  const [icon, title, sub, btn] = {
+    loading: ['☁️', '불러오는 중이에요…', '잠시만 기다려 주세요.', ''],
+    login: ['🔑', '선생님 구글 계정으로 로그인해 주세요', '로그인하면 어느 기기에서든 같은 기록이 보여요.', '🔑 구글 로그인'],
+    other: ['🔒', `${esc(fbUser?.email || '')} 계정으로는 열 수 없어요`, '선생님 계정으로 다시 로그인해 주세요.', '🔑 다른 계정으로 로그인'],
+    error: ['⚠️', '연결하지 못했어요', '인터넷 연결을 확인하고 새로고침해 주세요.', '🔄 새로고침']
+  }[syncState];
+  return `<div class="box" style="max-width:460px;margin:60px auto;text-align:center"><div class="bd" style="padding:36px 24px">
+    <div style="font-size:52px">${icon}</div>
+    <h2 style="font-size:26px;margin:10px 0 6px">${title}</h2>
+    <p class="mini" style="margin:0 0 18px">${sub}</p>
+    ${btn ? `<button class="btn" onclick="${syncState === 'error' ? 'location.reload()' : 'login()'}">${btn}</button>` : ''}
+    <p class="mini" style="margin-top:18px">🔒 상담 · 생기부 기록이라 선생님 계정으로만 열려요</p>
+  </div></div>`;
 }
 
 /* ---------------- 개인정보 지킴이 ---------------- */
@@ -461,7 +482,8 @@ function render() {
   $('#nav').innerHTML = tabs.map(([k, t]) => `<button class="pill ${V.tab === k ? 'on' : ''}" onclick="go('${k}')">${t}</button>`).join('');
   charts.forEach(c => c.destroy()); charts = [];
   const app = $('#app');
-  if (V.tab === 'cal') app.innerHTML = viewCalendar();
+  if (syncState !== 'cloud') app.innerHTML = viewGate();
+  else if (V.tab === 'cal') app.innerHTML = viewCalendar();
   else if (V.tab === 'class') app.innerHTML = viewClass();
   else { app.innerHTML = viewNote(); if (V.sec === 3 && cur()) drawCharts(cur()); }
 }
@@ -950,7 +972,7 @@ function openSettings() {
     <div class="row" style="margin-bottom:8px">${fbUser
       ? `<span class="mini">🔑 ${esc(fbUser.email)} ${fbUser.email === ADMIN_EMAIL ? '로그인됨' : '(이 계정은 클라우드를 못 써요)'}</span><button class="btn sm ghost" style="margin-left:auto" onclick="logout()">로그아웃</button>`
       : `<span class="mini">클라우드는 선생님 구글 계정으로 로그인했을 때만 열려요</span><button class="btn sm" style="margin-left:auto" onclick="login()">🔑 구글 로그인</button>`}</div>
-    <p class="mini">어느 기기에서든 로그인하면 같은 기록이 보여요. 로그인하지 않으면 이 기기 브라우저에만 저장돼요.</p>
+    <p class="mini">어느 기기에서든 로그인하면 같은 기록이 보여요. 로그아웃하면 이 기기에 남은 사본도 지워져요.</p>
   </section>
   <section><h4>💾 백업</h4><div class="row"><button class="btn sm ghost" onclick="exportData()">⬇️ 백업 파일 받기</button><label class="btn sm ghost">⬆️ 백업 불러오기<input type="file" accept=".json" hidden onchange="importData(this)"></label></div></section>
   <button class="btn" onclick="applySettings()">저장하고 닫기</button>`);
