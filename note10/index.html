@@ -314,8 +314,8 @@ function normalize(s) {
   }, s, { final: Object.assign({ 자율: '', 진로: '', 동아리: '', 행특: '' }, s?.final || {}) });
 }
 const cur = () => D.students.find(s => s.id === V.sid);
-// 상담 화면 이름: 동물 별칭 + 번호 (예: 🐰 토끼7)
-const nname = s => (s.nick || '친구') + (s.num ? s.num : '');
+// 상담 화면 이름: 동물 별칭 + 별칭 숫자 (예: 🐰 토끼7) — 별칭 숫자(tag)는 반 번호(num)와 상관없어요
+const nname = s => (s.nick || '친구') + (s.tag || '');
 const sname = s => s.emoji + ' ' + nname(s);
 // 번호가 있는 친구는 번호 순서로
 function sortStudents() { D.students.sort((a, b) => (a.num || 999) - (b.num || 999) || (a.order ?? 0) - (b.order ?? 0) || a.created.localeCompare(b.created)); }
@@ -826,7 +826,7 @@ function secGrowth(st) {
   // 이 친구 줄만 성적표 원본 그대로 (원점수 · 백분위 등)
   const orig = F => F.files.length ? `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer">📄 올린 성적표에서 이 친구 줄 보기 (${F.files.length}개)</summary>
     ${F.files.map(({ d, r }) => `<div style="overflow:auto;margin-top:8px"><b class="mini">${d.year}년 ${esc(examOf(d).label)}</b><table class="dtable"><tr>${d.cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr><tr>${r.v.map(v => `<td>${esc(v)}</td>`).join('')}</tr></table></div>`).join('')}</details>` : '';
-  const noNum = !st.num ? '<div class="mini" style="color:var(--red);margin-bottom:8px">✏️ 이 친구 번호를 넣으면 관리에서 올린 성적이 자동으로 이어져요 (한눈에 → 프로필 ✏️)</div>' : '';
+  const noNum = !st.num ? '<div class="mini" style="color:var(--red);margin-bottom:8px">✏️ 이 친구 반 번호를 넣으면 관리에서 올린 성적이 자동으로 이어져요 (한눈에 → 프로필 ✏️)</div>' : '';
   const form = (kind, subj) => `<div class="row" style="margin-top:10px">
     <input type="text" id="${kind}Label" placeholder="${kind === 'mocks' ? '회차 (예: 3월)' : '학기 (예: 1-1)'}" style="width:120px">
     ${subj.map(s => `<input type="number" step="0.01" min="1" max="${kind === 'mocks' ? 9 : 5}" id="${kind}_${s}" placeholder="${s}" style="width:82px">`).join('')}
@@ -1027,11 +1027,20 @@ let pickEmoji = '🐰';
 function studentForm(st) {
   pickEmoji = st?.emoji || EMOJIS[D.students.length % EMOJIS.length];
   return `<section><h4>🐾 동물 친구 고르기</h4><div class="emojis" id="emoBox">${EMOJIS.map(e => `<button class="${e === pickEmoji ? 'on' : ''}" onclick="pickEmo(this,'${e}')">${e}</button>`).join('')}</div></section>
-  <section><h4>🏷️ 별칭 + 번호</h4><div class="row"><input type="text" id="sNick" value="${esc(st?.nick || '')}" placeholder="예: 토끼, 새벽토끼, 노랑곰 (실명·이니셜은 쓰지 않아요)" maxlength="12" style="flex:1">
-    <input type="number" id="sNum" value="${st?.num || ''}" min="1" max="60" placeholder="번호" style="width:90px"></div>
-  <p class="mini" style="margin-top:8px">🔒 화면에는 '🐰 토끼7'처럼 별칭과 번호만 보여요. 번호는 반 번호예요 — 관리에서 올린 성적 파일(학번 끝 두 자리)과 이 번호로 이어져요.</p></section>`;
+  <section><h4>🏷️ 별칭 + 숫자</h4><div class="row"><input type="text" id="sNick" value="${esc(st?.nick || '')}" placeholder="예: 토끼, 새벽토끼, 노랑곰 (실명·이니셜은 쓰지 않아요)" maxlength="12" style="flex:1">
+    <input type="text" id="sTag" value="${esc(st?.tag || '')}" inputmode="numeric" maxlength="4" placeholder="숫자 (0~9999)" style="width:120px"></div>
+  <p class="mini" style="margin-top:8px">🔒 화면에는 '🐰 토끼7'처럼 별칭과 숫자만 보여요. 숫자는 아무 숫자나 돼요 (반 번호와 달라도 돼요).</p></section>
+  <section><h4>🔗 반 번호 (화면에는 안 보여요)</h4><input type="number" id="sNum" value="${st?.num || ''}" min="1" max="60" placeholder="반 번호 (예: 7)" style="width:160px">
+  <p class="mini" style="margin-top:8px">관리에서 올린 성적 · 출결 · 생기부 자료(학번 끝 두 자리)와 이 번호로 이어져요. 학생 노트에는 보이지 않아요.</p></section>`;
 }
 function readNum() { const n = parseInt($('#sNum').value, 10); return n >= 1 && n <= 60 ? n : 0; }
+function readTag() { return ($('#sTag').value || '').replace(/\D/g, '').slice(0, 4); }
+// 같은 별칭끼리 겹치지 않는 숫자 하나 (1~9999)
+function freeTag(nick) {
+  const used = new Set(D.students.filter(s => s.nick === nick).map(s => s.tag));
+  for (let i = 0; i < 50; i++) { const t = String(1 + Math.floor(Math.random() * 9999)); if (!used.has(t)) return t; }
+  return '';
+}
 function numTaken(n, except) { return n && D.students.some(s => s.num === n && s.id !== except); }
 function pickEmo(btn, e) { pickEmoji = e; document.querySelectorAll('#emoBox button').forEach(b => b.classList.remove('on')); btn.classList.add('on'); }
 function openAddStudent() {
@@ -1040,8 +1049,8 @@ function openAddStudent() {
 function addStudent() {
   const nick = $('#sNick').value.trim() || ('친구' + (D.students.length + 1));
   if (piiCheck(nick).length) return toast('별칭에 숫자·연락처는 빼 주세요');
-  const num = readNum(); if (numTaken(num)) return toast(`${num}번은 이미 있어요`);
-  const st = normalize({ emoji: pickEmoji, nick, num, order: D.students.length });
+  const num = readNum(); if (numTaken(num)) return toast(`반 번호 ${num}번은 이미 있어요`);
+  const st = normalize({ emoji: pickEmoji, nick, tag: readTag(), num, order: D.students.length });
   D.students.push(st); sortStudents(); V.sid = st.id; V.sec = 1; saveStudent(st); closeModal(); V.tab = 'note'; render();
 }
 function openEditStudent() {
@@ -1050,8 +1059,8 @@ function openEditStudent() {
 }
 function editStudent() {
   const st = cur(), num = readNum();
-  if (numTaken(num, st.id)) return toast(`${num}번은 이미 다른 친구예요`);
-  st.emoji = pickEmoji; st.nick = $('#sNick').value.trim() || st.nick; st.num = num;
+  if (numTaken(num, st.id)) return toast(`반 번호 ${num}번은 이미 다른 친구예요`);
+  st.emoji = pickEmoji; st.nick = $('#sNick').value.trim() || st.nick; st.tag = readTag(); st.num = num;
   sortStudents(); saveStudent(st); closeModal(); render();
 }
 function removeStudent() {
@@ -1323,7 +1332,7 @@ function makeAnimals(key) {
   nums.forEach(n => {
     const free = pool.filter(e => !used.has(e)), e = free.length ? free[Math.floor(Math.random() * free.length)] : pool[n % pool.length];
     used.add(e);
-    const st = normalize({ emoji: e, nick: ANIMAL_NAMES[e], num: n, order: D.students.length });
+    const st = normalize({ emoji: e, nick: ANIMAL_NAMES[e], tag: freeTag(ANIMAL_NAMES[e]), num: n, order: D.students.length });   // 숫자는 아무거나 (반 번호와 따로)
     D.students.push(st); saveStudent(st);
   });
   sortStudents(); if (!cur()) V.sid = D.students[0]?.id || null;
@@ -1367,7 +1376,7 @@ function dashScore() {
   }
   return `<section>
     <div class="row" style="margin-bottom:8px">${yearSelect()}</div>
-    <p class="mini">우리반만 있는 엑셀 파일(.xlsx)을 칸마다 올려요. <b>학번(또는 번호)과 성적 칸만</b> 클라우드에 저장하고, 이름 · 연락처 칸은 버려요. 학번 끝 두 자리(번호)로 동물 친구와 이어져서 상담 화면에는 '🐰 토끼7'처럼만 보여요.</p>
+    <p class="mini">우리반만 있는 엑셀 파일(.xlsx)을 칸마다 올려요. <b>학번(또는 번호)과 성적 칸만</b> 클라우드에 저장하고, 이름 · 연락처 칸은 버려요. 학번 끝 두 자리(반 번호)로 동물 친구와 이어지고, 상담 화면에는 '🐰 토끼4821'처럼 별칭과 숫자만 보여요 (숫자는 반 번호와 달라요).</p>
     <div class="cols c2" style="gap:12px"><div><h4 style="font-size:18px;margin-bottom:6px">📘 모의고사</h4>${EXAMS.filter(e => e.kind === 'mock').map(slot).join('')}</div>
       <div><h4 style="font-size:18px;margin-bottom:6px">📗 내신</h4>${EXAMS.filter(e => e.kind === 'school').map(slot).join('')}</div></div>
   </section>${below}`;
