@@ -541,7 +541,7 @@ function nbytes(t) { let b = 0; for (const ch of String(t || '')) { if (ch === '
 function render() {
   document.body.dataset.theme = S.theme; document.body.dataset.font = S.font; document.body.dataset.big = S.big;
   $('#classTag').textContent = S.className || '우리반';
-  const tabs = [['cal', '📅 달력'], ['class', '🏡 우리반 한눈에'], ['note', '📒 학생 노트']];
+  const tabs = [['cal', '📅 달력'], ['class', '🏡 우리반'], ['note', '📒 학생 노트']];
   $('#nav').innerHTML = tabs.map(([k, t]) => `<button class="pill ${V.tab === k ? 'on' : ''}" onclick="go('${k}')">${t}</button>`).join('');
   charts.forEach(c => c.destroy()); charts = [];
   const app = $('#app');
@@ -610,7 +610,9 @@ function viewDayPanel() {
       <div class="field"><label>📌 일정 추가</label>
         <div class="row"><input type="text" id="evTitle" placeholder="예: 3월 모의고사, 학부모 상담주간" style="flex:1" onkeydown="if(event.key==='Enter')addEvent()"><button class="btn sm" onclick="addEvent()">추가</button></div>
       </div>
-      ${dd.ev.map(e => `<div class="item"><div class="top"><span class="chip" style="background:#fde9b8">일정</span><b class="hand" style="font-size:16px">${esc(e.title)}</b><button class="x" style="margin-left:auto" onclick="delEvent('${e.id}')">✕</button></div></div>`).join('')}
+      ${dd.ev.map((e, i, a) => `<div class="item"><div class="top"><span class="chip" style="background:#fde9b8">일정</span><b class="hand" style="font-size:16px">${esc(e.title)}</b>
+        <span style="margin-left:auto;display:flex;gap:2px">${a.length > 1 ? `<button class="x" title="위로" ${i === 0 ? 'disabled style="opacity:.25"' : ''} onclick="moveEvent('${e.id}',-1)">▲</button><button class="x" title="아래로" ${i === a.length - 1 ? 'disabled style="opacity:.25"' : ''} onclick="moveEvent('${e.id}',1)">▼</button>` : ''}
+        <button class="x" onclick="delEvent('${e.id}')">✕</button></span></div></div>`).join('')}
       ${dd.next.map(n => `<div class="item" style="cursor:pointer" onclick="openStudent('${n.st.id}',2)"><div class="top"><span class="chip 자율">상담 예정</span><b class="hand" style="font-size:16px">${esc(sname(n.st))}</b></div><div class="mini">지난 상담(${n.c.date}) 이어서</div></div>`).join('')}
       ${dd.cs.map(x => `<div class="item" style="cursor:pointer" onclick="openStudent('${x.st.id}',2)"><div class="top"><span class="chip 자율">${esc(x.c.type)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(x.c.text.slice(0, 70))}${x.c.text.length > 70 ? '…' : ''}</div></div>`).join('')}
       ${dd.act.map(x => `<div class="item"><div class="top"><span class="chip ${esc(x.t)}">${esc(x.t)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(String(x.x).slice(0, 60))}</div></div>`).join('')}
@@ -637,6 +639,14 @@ function addEvent() {
   D.events.push({ id: uid(), date: V.sel, title: t }); saveEvents(); render();
 }
 function delEvent(id) { D.events = D.events.filter(e => e.id !== id); saveEvents(); render(); }
+// 같은 날 일정끼리 위아래 바꾸기 (달력 칸에 보이는 순서도 같이 바뀌어요)
+function moveEvent(id, dir) {
+  const e = D.events.find(x => x.id === id); if (!e) return;
+  const same = D.events.filter(x => x.date === e.date), o = same[same.indexOf(e) + dir]; if (!o) return;
+  const a = D.events.indexOf(e), b = D.events.indexOf(o);
+  [D.events[a], D.events[b]] = [D.events[b], D.events[a]];
+  saveEvents(); render();
+}
 function quickCounsel() {
   const st = D.students.find(s => s.id === $('#qSt').value); const text = $('#qText').value.trim();
   if (!st || !text) return toast('내용을 적어 주세요');
@@ -645,9 +655,123 @@ function quickCounsel() {
   saveStudent(st); toast('💬 상담이 기록됐어요'); render();
 }
 
-/* ===== 2. 우리반 한눈에 ===== */
+/* ===== 2. 우리반 — 상담 현황 · 성적 · 출결 · 생기부 진행 ===== */
 function lastCounsel(st) { return st.counsels.map(c => c.date).sort().pop() || ''; }
+const CLASS_TABS = [['cs', '💬 상담 현황'], ['score', '📊 성적'], ['att', '📋 출결'], ['rec', '✍️ 생기부 진행']];
 function viewClass() {
+  const t = V.csub || 'cs';
+  return `<div class="row" style="margin-bottom:14px">${CLASS_TABS.map(([k, l]) => `<button class="pill ${t === k ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.csub='${k}';render()">${l}</button>`).join('')}</div>
+  ${t === 'score' ? viewClassScore() : t === 'att' ? viewClassAtt() : t === 'rec' ? viewClassRec() : viewClassCs()}`;
+}
+// 반 번호로 동물 친구 찾기 (친구가 없으면 '7번'처럼 — 선생님만 보는 화면)
+const byNum = no => D.students.find(s => s.num === no);
+const whoCell = (no, sec = 1) => { const s = byNum(no); return s ? `<a href="#" onclick="openStudent('${s.id}',${sec});return false" style="white-space:nowrap">${esc(sname(s))}</a>` : `<span class="mini">${no}번 (동물 없음)</span>`; };
+const emptyGo = (msg, tab, rec) => `<div class="empty">${msg}<br><button class="btn sm" style="margin-top:10px" onclick="${rec ? `DASH.rec='${rec}';` : ''}openDash('${tab}')">🛠 관리에서 넣기</button></div>`;
+// 등급 칸 색 (좋을수록 진하게)
+function gradeCell(v, max) {
+  if (v === undefined || v === null || v === '') return '<td class="mini">-</td>';
+  const k = 1 - (v - 1) / (max - 1);
+  return `<td style="text-align:center;font-weight:700;background:rgba(238,143,173,${(0.08 + k * 0.45).toFixed(2)})">${v}</td>`;
+}
+
+/* 📊 성적: 시험 하나를 골라 과목별 평균 · 등급 분포 · 친구별 표 */
+function classScoreSources() {
+  return [
+    ...scoreDocs().map(d => ({ key: 'sc:' + scoreKey(d.year, d.exam), label: `${d.year} ${examOf(d).label}`, d, kind: examOf(d).kind })),
+    ...gyogwaDocs().map(d => ({ key: 'gy:' + gyogwaKey(d.year, d.sem), label: `${d.year} ${d.sem}학기 교과 (나이스)`, d, kind: 'school' })),
+  ];
+}
+function classGrades(src) {
+  const max = src.kind === 'mock' ? 9 : 5, d = src.d, rows = {};
+  let subj = [];
+  if (src.key.startsWith('sc:')) {
+    const gc = gradeCols(d, max); subj = gc.map(c => c.subj);
+    d.rows.forEach(r => { const o = rows[r.no] = {}; gc.forEach(c => { const v = Number(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; }); });
+  } else {
+    const iS = d.cols.indexOf('과목'), iG = d.cols.findIndex(c => /석차/.test(c));
+    d.rows.forEach(r => { const v = Number(r.v[iG]); if (iG < 0 || r.v[iG] === '' || isNaN(v)) return; (rows[r.no] = rows[r.no] || {})[r.v[iS]] = v; if (!subj.includes(r.v[iS])) subj.push(r.v[iS]); });
+  }
+  return { max, subj, rows };
+}
+function viewClassScore() {
+  const srcs = classScoreSources();
+  if (!srcs.length) return emptyGo('아직 올린 성적이 없어요. 관리 > 성적 파일이나 생기부 자료 > 교과학습발달상황에서 넣어 주세요 📊', 'score');
+  const src = srcs.find(s => s.key === V.cScore) || srcs[srcs.length - 1];
+  const { max, subj, rows } = classGrades(src);
+  const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : null;
+  const nos = Object.keys(rows).map(Number).map(no => ({ no, a: avg(Object.values(rows[no])) })).sort((x, y) => (x.a ?? 99) - (y.a ?? 99));
+  const stat = subj.map(s => { const vs = nos.map(n => rows[n.no][s]).filter(v => v !== undefined); const c = Array(max + 1).fill(0); vs.forEach(v => c[Math.round(v)]++); return { s, a: avg(vs), n: vs.length, c }; });
+  const cmax = Math.max(1, ...stat.flatMap(x => x.c));
+  return `<div class="row" style="margin-bottom:12px">${srcs.map(s => `<button class="pill ${s.key === src.key ? 'on' : ''}" style="font-size:14px;padding:4px 12px" onclick="V.cScore='${s.key}';render()">${esc(s.label)}</button>`).join('')}</div>
+  <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,1.5fr)">
+    <div class="box"><div class="hd blue"><span class="n">1</span>과목별 평균 · 등급 분포 <span class="sp mini" style="color:#fff">${max}등급${max === 5 ? '제' : ''}</span></div><div class="bd" style="overflow:auto">
+      <table class="dtable"><tr><th>과목</th><th>평균</th>${Array.from({ length: max }, (_, i) => `<th style="text-align:center">${i + 1}</th>`).join('')}</tr>
+      ${stat.map(x => `<tr><td><b>${esc(x.s)}</b></td><td><b>${x.a ? x.a.toFixed(2) : '-'}</b></td>${x.c.slice(1).map(n => `<td style="text-align:center;background:rgba(122,174,219,${(n / cmax * 0.6).toFixed(2)})">${n || ''}</td>`).join('')}</tr>`).join('')}</table>
+      <p class="mini">칸 숫자 = 그 등급을 받은 친구 수</p>
+    </div></div>
+    <div class="box"><div class="hd pink"><span class="n">2</span>친구별 등급 <span class="sp mini" style="color:#fff">평균 좋은 순 · 이름을 누르면 학생 노트</span></div><div class="bd" style="overflow:auto">
+      <table class="dtable"><tr><th>친구</th>${subj.map(s => `<th style="text-align:center">${esc(s)}</th>`).join('')}<th style="text-align:center">평균</th></tr>
+      ${nos.map(n => `<tr><td>${whoCell(n.no, 3)}</td>${subj.map(s => gradeCell(rows[n.no][s], max)).join('')}<td style="text-align:center"><b>${n.a ? n.a.toFixed(2) : '-'}</b></td></tr>`).join('')}</table>
+    </div></div>
+  </div>`;
+}
+
+/* 📋 출결: 결석 · 지각 · 조퇴 · 결과 합계, 많은 친구부터 */
+function viewClassAtt() {
+  const docs = Object.values(RC).filter(d => d.kind === 'att').sort((a, b) => b.year - a.year);
+  if (!docs.length) return emptyGo('아직 넣은 출결이 없어요. 나이스 출결상황 표를 복사해 넣어 주세요 📋', 'rec', 'att');
+  const d = docs.find(x => x.year === V.cAttY) || docs[0];
+  const G = ['결석', '지각', '조퇴', '결과'];
+  const idx = g => d.cols.map((c, i) => c.replace(/\s/g, '').startsWith(g) ? i : -1).filter(i => i >= 0);
+  const iDays = d.cols.findIndex(c => /수업일수/.test(c)), iNote = d.cols.findIndex(c => /특기/.test(c));
+  const iUn = d.cols.map((c, i) => /미인정/.test(c) ? i : -1).filter(i => i >= 0);
+  const num = v => Number(v) || 0;
+  const rows = d.rows.map(r => {
+    const g = G.map(x => idx(x).reduce((n, i) => n + num(r.v[i]), 0));
+    return { no: r.no, g, un: iUn.reduce((n, i) => n + num(r.v[i]), 0), sum: g.reduce((a, b) => a + b, 0), days: iDays >= 0 ? r.v[iDays] : '', note: iNote >= 0 ? r.v[iNote] : '',
+      detail: d.cols.map((c, i) => i !== iDays && i !== iNote && num(r.v[i]) ? `${c} ${r.v[i]}` : '').filter(Boolean).join(' · ') };
+  }).sort((a, b) => b.sum - a.sum || a.no - b.no);
+  const perfect = rows.filter(r => !r.sum).length;
+  return `${docs.length > 1 ? `<div class="row" style="margin-bottom:12px">${docs.map(x => `<button class="pill ${x === d ? 'on' : ''}" onclick="V.cAttY=${x.year};render()">${x.year}학년도</button>`).join('')}</div>` : ''}
+  <div class="stats">
+    <div class="stat"><b>${perfect}</b>개근 (모두 0)</div>
+    <div class="stat"><b>${rows.filter(r => r.g[0]).length}</b>결석 있는 친구</div>
+    <div class="stat"><b>${rows.filter(r => r.g[1]).length}</b>지각 있는 친구</div>
+    <div class="stat"><b style="color:var(--red)">${rows.reduce((n, r) => n + r.un, 0)}</b>미인정 합계</div>
+  </div>
+  <div class="box"><div class="hd green"><span class="n">✿</span>${d.year}학년도 출결 <span class="sp mini" style="color:#fff">${new Date(d.at).toLocaleDateString()} 넣음 · 많은 친구부터</span></div><div class="bd" style="overflow:auto">
+    <table class="dtable"><tr><th>친구</th><th>수업일수</th>${G.map(g => `<th style="text-align:center">${g}</th>`).join('')}<th style="text-align:center">미인정</th><th>자세히</th><th>특기사항</th></tr>
+    ${rows.map(r => `<tr style="${r.sum ? '' : 'opacity:.55'}"><td>${whoCell(r.no)}</td><td>${esc(r.days)}</td>${r.g.map(n => `<td style="text-align:center;${n ? 'font-weight:700;color:var(--red)' : ''}">${n}</td>`).join('')}<td style="text-align:center;${r.un ? 'font-weight:700;color:var(--red)' : ''}">${r.un}</td><td class="mini">${esc(r.detail)}</td><td class="mini">${esc(r.note)}</td></tr>`).join('')}</table>
+  </div></div>`;
+}
+
+/* ✍️ 생기부 진행: 나이스에 들어간 창체 · 행발 · 세특 + 이 앱에서 정리한 단락 */
+function viewClassRec() {
+  const ys = [...new Set(Object.values(RC).filter(d => d.kind !== 'att').map(d => d.year))].sort((a, b) => b - a);
+  const y = ys.includes(V.cRecY) ? V.cRecY : ys[0] || new Date().getFullYear();
+  const sd = setukDocs(y);
+  const L = D.students.filter(s => s.num).sort((a, b) => a.num - b.num);
+  const AR = ['자율·자치활동', '동아리활동', '진로활동'];
+  const cell = t => t === null ? '<td class="mini" style="text-align:center">-</td>' : t ? `<td style="text-align:center;color:#3d8a5a">✓ <span class="mini">${nbytes(t)}B</span></td>` : '<td style="text-align:center;color:var(--red)">빈칸</td>';
+  const rows = L.map(s => {
+    const ch = changRows(s.num, y), get = l => { const r = ch.find(x => x.label === l); return r ? r.text : (RC[recKey(y, RECORDS.find(x => x.label === l).id)] ? '' : null); };
+    const sf = sd.map(d => d.rows.find(r => r.no === s.num)).filter(Boolean);
+    return { s, a: AR.map(get), h: haengText(s.num, y), sf: [sf.filter(r => r.text).length, sf.length], fin: AREAS.filter(a => s.final[a.k]).length, sent: s.sentences.length };
+  });
+  const filled = i => rows.filter(r => r.a[i]).length, hf = rows.filter(r => r.h).length;
+  return `${ys.length > 1 ? `<div class="row" style="margin-bottom:12px">${ys.map(x => `<button class="pill ${x === y ? 'on' : ''}" onclick="V.cRecY=${x};render()">${x}학년도</button>`).join('')}</div>` : ''}
+  <div class="stats">${AR.map((l, i) => `<div class="stat"><b>${filled(i)}<span class="mini">/${L.length}</span></b>${l} 나이스 입력</div>`).join('')}<div class="stat"><b>${hf}<span class="mini">/${L.length}</span></b>행발 나이스 입력</div></div>
+  <div class="box"><div class="hd purple"><span class="n">✿</span>${y}학년도 친구별 진행 <span class="sp mini" style="color:#fff">- = 아직 안 넣은 자료 · 빈칸 = 나이스에 비어 있음</span></div><div class="bd" style="overflow:auto">
+    ${L.length ? `<table class="dtable"><tr><th>친구</th>${AR.map(l => `<th style="text-align:center">${l.replace('활동', '')}</th>`).join('')}<th style="text-align:center">행발</th><th style="text-align:center">과목 세특</th><th style="text-align:center">앱에서 정리한 단락</th><th style="text-align:center">담벼락 문구</th></tr>
+    ${rows.map(r => `<tr><td><a href="#" onclick="openStudent('${r.s.id}',7);return false" style="white-space:nowrap">${esc(sname(r.s))}</a></td>${r.a.map(cell).join('')}${cell(r.h)}
+      <td style="text-align:center">${r.sf[1] ? `${r.sf[0]}/${r.sf[1]}` : '-'}</td><td style="text-align:center">${r.fin}/4</td><td style="text-align:center">${r.sent}</td></tr>`).join('')}</table>`
+      : '<div class="empty">반 번호가 있는 동물 친구가 없어요. 학생 노트 ✏️에서 반 번호를 넣어 주세요</div>'}
+    ${ys.length ? '' : emptyGo('아직 넣은 생기부 자료가 없어요 ✍️', 'rec', 'jayul')}
+  </div></div>`;
+}
+
+/* 💬 상담 현황 (예전 '우리반 한눈에') */
+function viewClassCs() {
   const L = D.students;
   const ym = today().slice(0, 7);
   const monthCs = L.reduce((n, s) => n + s.counsels.filter(c => c.date.startsWith(ym)).length, 0);
@@ -657,7 +781,7 @@ function viewClass() {
   const max = Math.max(1, ...Object.values(cnt));
   const sorted = [...L].sort((a, b) => (lastCounsel(a) || '0000').localeCompare(lastCounsel(b) || '0000'));
   return `
-  <div class="stitle"><span class="big">✿</span><h2>우리반 한눈에</h2><span class="mini">상담이 오래된 친구부터 보여요</span></div>
+  <div class="stitle"><span class="big">✿</span><h2>상담 현황</h2><span class="mini">상담이 오래된 친구부터 보여요</span></div>
   <div class="stats">
     <div class="stat"><b>${L.length}</b>동물 친구</div>
     <div class="stat"><b>${monthCs}</b>이번 달 상담</div>
@@ -692,6 +816,13 @@ const SECS = [
   [1, '한눈에', 'pink'], [2, '상담 기록', 'green'], [3, '성장 그래프', 'blue'], [4, '활동 누적', 'mustard'],
   [5, '일화 → 문구', 'purple'], [6, '문장 담벼락', 'pink'], [7, '생기부 정리', 'green']
 ];
+// 학생 노트 네 갈래: 상담 · 성적 · 기록 쌓기 · 생기부
+const NOTE_GROUPS = [
+  { t: '💬 상담', secs: [1, 2] },
+  { t: '📈 성적', secs: [3] },
+  { t: '🌱 기록 쌓기', secs: [4, 5, 6] },
+  { t: '✍️ 생기부', secs: [7] },
+];
 function openStudent(id, sec) { V.sid = id; V.sec = sec || 1; V.tab = 'note'; render(); window.scrollTo(0, 0); }
 function viewNote() {
   const side = `<aside class="side">
@@ -708,11 +839,12 @@ function viewNote() {
   const st = cur();
   if (!st) return `<div class="note">${side}<div class="empty" style="padding:60px">왼쪽에서 친구를 골라 주세요 🐾</div></div>`;
   const sec = SECS.find(s => s[0] === V.sec);
+  const grp = NOTE_GROUPS.find(g => g.secs.includes(V.sec));
   const body = [null, secOverview, secCounsel, secGrowth, secActs, secEpisode, secWall, secFinal][V.sec](st);
   return `<div class="note">${side}<div>
-    <div class="stitle"><span class="big">${V.sec}</span><h2>${st.emoji} ${esc(nname(st))} · ${sec[1]}</h2><span class="mini">${esc(st.career || '진로 미정')}</span></div>
-    <div class="secbar"><i style="width:${V.sec / 7 * 100}%"></i></div>
-    <div class="steps">${SECS.map(([n, t, c]) => `<div class="step ${n === V.sec ? 'on' : ''}" onclick="V.sec=${n};render()"><span class="c" style="background:var(--${c})">${n}</span><b>${t}</b></div>`).join('')}</div>
+    <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2><span class="mini">${esc(st.career || '진로 미정')}</span></div>
+    <div class="row" style="margin-bottom:10px">${NOTE_GROUPS.map(g => `<button class="pill ${g === grp ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.sec=${g.secs[0]};render()">${g.t}</button>`).join('')}</div>
+    ${grp.secs.length > 1 ? `<div class="steps">${grp.secs.map(n => SECS.find(s => s[0] === n)).map(([n, t, c]) => `<div class="step ${n === V.sec ? 'on' : ''}" onclick="V.sec=${n};render()"><span class="c" style="background:var(--${c})">${grp.secs.indexOf(n) + 1}</span><b>${t}</b></div>`).join('')}</div>` : ''}
     ${body}
   </div></div>`;
 }
