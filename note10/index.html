@@ -206,7 +206,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
   <div class="right">
     <span class="badge" id="syncBadge">🔒 로그인 전</span>
     <button class="pill dash" id="adminBtn" style="display:none" onclick="openDash()">🛠 관리</button>
-    <span class="badge">🔒 이름·학번 없음</span>
+    <span class="badge">🔒 이름 없음</span>
     <button class="pill" onclick="cycleTheme()">🎨 꾸미기</button>
     <button class="pill" onclick="cycleFont()">🔤 글꼴</button>
     <button class="pill" onclick="toggleBig()">🔍 크게</button>
@@ -215,7 +215,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </header>
 
 <main id="app"></main>
-<footer>우리반 생기부노트 ·학생 이름·학번·연락처는 저장하지 않아요 · 동물 친구 이름으로만 기록해요</footer>
+<footer>우리반 생기부노트 ·학생 이름·연락처는 저장하지 않아요 · 동물 친구 별칭과 번호로만 기록해요</footer>
 
 <div class="modal" id="modal"><div class="sheet"><div class="hd"><span id="mTitle"></span><button class="x" style="margin-left:auto;color:#fff;font-size:20px" onclick="closeModal()">✕</button></div><div class="bd" id="mBody"></div></div></div>
 <div id="toast"></div>
@@ -223,7 +223,8 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 <script>
 /* =========================================================
    우리반 생기부노트 - index.html 한 파일
-   · 학생은 동물 친구(이모지+별칭)로만 구분 → 이름·학번 저장 안 함
+   · 학생은 동물 친구(이모지+별칭+번호)로만 구분 → 이름 저장 안 함
+   · 성적 파일 · 출결은 학번(번호) + 칸만, 선생님 계정 클라우드에만 저장 (이 기기에는 안 남김)
    · 저장: 기본은 이 기기(localStorage), 선생님 구글 계정으로 로그인하면 클라우드(공부방 파이어베이스)
    · AI: Claude 또는 Gemini API 키 (키는 이 기기에만 저장, 클라우드로 안 올라감)
    ========================================================= */
@@ -249,7 +250,27 @@ const MOCK_SUBJ = ['국어', '수학', '영어', '한국사', '통합사회', '�
 const GRADE_SUBJ = ['평균', '국어', '수학', '영어', '통합사회', '통합과학'];
 const CAREERS = ['인문·어문', '사회·교육', '경영·경제', '법·행정', '자연과학', '공학·IT', '의약·보건', '예체능', '미정'];
 const EMOJIS = ['🐰','🐻','🐱','🐶','🦊','🐼','🐨','🐯','🦁','🐸','🐥','🐧','🦄','🐹','🐿️','🦔','🐳','🐬','🦋','🐞','🐢','🦦','🐑','🐮','🌻','🌷','🍀','🍓','🍑','🍋','🍒','⭐','🌙','☁️','🌈','🎈'];
-const SUBJ_COLORS = ['#ee8fad', '#7aaedb', '#7fc59a', '#d9a74c', '#a68fd8', '#f0a37a'];
+const SUBJ_COLORS = ['#ee8fad', '#7aaedb', '#7fc59a', '#d9a74c', '#a68fd8', '#f0a37a', '#5cc0c0', '#c97b9b', '#8a9a5b', '#e0556a', '#6b7fd7', '#b58b5a'];
+// 동물 이모지 → 기본 별칭 (번호로 한꺼번에 만들 때)
+const ANIMAL_NAMES = { '🐰':'토끼','🐻':'곰','🐱':'고양이','🐶':'강아지','🦊':'여우','🐼':'판다','🐨':'코알라','🐯':'호랑이','🦁':'사자','🐸':'개구리','🐥':'병아리','🐧':'펭귄','🦄':'유니콘','🐹':'햄스터','🐿️':'다람쥐','🦔':'고슴도치','🐳':'고래','🐬':'돌고래','🦋':'나비','🐞':'무당벌레','🐢':'거북','🦦':'수달','🐑':'양','🐮':'송아지','🌻':'해바라기','🌷':'튤립','🍀':'클로버','🍓':'딸기','🍑':'복숭아','🍋':'레몬','🍒':'체리','⭐':'별','🌙':'달','☁️':'구름','🌈':'무지개','🎈':'풍선' };
+// 성적 파일 칸: 모의고사 4번, 내신 6번 (해마다 따로 저장)
+const EXAMS = [
+  { id: 'm03', kind: 'mock', label: '3월 모의고사', short: '3월' },
+  { id: 'm06', kind: 'mock', label: '6월 모의고사', short: '6월' },
+  { id: 'm09', kind: 'mock', label: '9월 모의고사', short: '9월' },
+  { id: 'm10', kind: 'mock', label: '10월 모의고사', short: '10월' },
+  { id: 's1m', kind: 'school', label: '1학기 중간', short: '1학기 중간' },
+  { id: 's1f', kind: 'school', label: '1학기 기말', short: '1학기 기말' },
+  { id: 's1t', kind: 'school', label: '1학기말 (중간·기말·수행)', short: '1학기말' },
+  { id: 's2m', kind: 'school', label: '2학기 중간', short: '2학기 중간' },
+  { id: 's2f', kind: 'school', label: '2학기 기말', short: '2학기 기말' },
+  { id: 's2t', kind: 'school', label: '2학기말 (중간·기말·수행)', short: '2학기말' },
+];
+// 올린 성적 파일 (클라우드 maumnote/main/meta/scores_연도_칸) — 학번(번호) + 성적만, 이 기기에는 저장하지 않아요
+let SC = {};
+// 생기부 자료 (나이스에서 복사해 붙여 넣기) — meta/rec_연도_종류, 번호 + 칸만 (성명은 버려요). 다시 붙여 넣으면 새것으로 바뀌어요
+const RECORDS = [{ id: 'att', label: '출결상황' }];
+let RC = {};
 
 const HOLIDAYS = {
   '2026-01-01':'신정','2026-02-16':'설날','2026-02-17':'설날','2026-02-18':'설날','2026-03-01':'삼일절','2026-03-02':'대체휴일',
@@ -279,7 +300,11 @@ function normalize(s) {
   }, s, { final: Object.assign({ 자율: '', 진로: '', 동아리: '', 행특: '' }, s?.final || {}) });
 }
 const cur = () => D.students.find(s => s.id === V.sid);
-const sname = s => s.emoji + ' ' + (s.nick || '친구');
+// 상담 화면 이름: 동물 별칭 + 번호 (예: 🐰 토끼7)
+const nname = s => (s.nick || '친구') + (s.num ? s.num : '');
+const sname = s => s.emoji + ' ' + nname(s);
+// 번호가 있는 친구는 번호 순서로
+function sortStudents() { D.students.sort((a, b) => (a.num || 999) - (b.num || 999) || (a.order ?? 0) - (b.order ?? 0) || a.created.localeCompare(b.created)); }
 
 /* ---------------- 저장 ---------------- */
 let saveTimers = {};
@@ -336,7 +361,7 @@ function login() {
 function logout() {
   if (!window.firebase || !firebase.apps.length) return;
   firebase.auth().signOut().then(() => {
-    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; V.sid = null;
+    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; V.sid = null;
     closeModal(); toast('🔑 로그아웃했어요');
   });
 }
@@ -354,11 +379,16 @@ async function connectCloud() {
       await roomRef().collection('meta').doc('events').set({ list: clone(D.events) });
       toast('☁️ 이 기기 기록을 클라우드에 올렸어요');
     } else {
-      D.students = snap.docs.map(d => normalize(d.data())).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.created.localeCompare(b.created));
+      D.students = snap.docs.map(d => normalize(d.data()));
       D.events = ev.exists ? (ev.data().list || []) : [];
-      saveLocal();
+      sortStudents(); saveLocal();
       if (!cur()) V.sid = D.students[0]?.id || null;
     }
+    SC = {}; RC = {};
+    (await roomRef().collection('meta').get()).docs.forEach(d => {
+      if (d.id.startsWith('scores_')) SC[d.id] = d.data();
+      if (d.id.startsWith('rec_')) RC[d.id] = d.data();
+    });
     setSync('cloud');
   } catch (e) { db = null; setSync('error'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
 }
@@ -616,7 +646,7 @@ function viewClass() {
     <div>${L.length ? `<div class="cards">${sorted.map(s => {
       const l = lastCounsel(s), dA = l ? daysAgo(l) : null;
       return `<div class="scard" onclick="openStudent('${s.id}',1)">
-        <div class="row"><div class="face">${s.emoji}</div><div><h4>${esc(s.nick || '친구')}</h4><span class="chip">${esc(s.career || '진로 미정')}</span></div></div>
+        <div class="row"><div class="face">${s.emoji}</div><div><h4>${esc(nname(s))}</h4><span class="chip">${esc(s.career || '진로 미정')}</span></div></div>
         <div class="mini" style="margin-top:8px">💬 ${l ? `마지막 상담 <b style="color:${dA > 30 ? 'var(--red)' : 'var(--ink)'}">${dA}일 전</b>` : '<b style="color:var(--red)">아직 상담 전</b>'} · 상담 ${s.counsels.length}회</div>
         <div class="mini">🌱 활동 ${s.acts.length} · 일화 ${s.episodes.length} · 문구 ${s.sentences.length}</div>
         <div class="adots">${AREAS.map(a => `<span class="${s.final[a.k] ? 'ok' : ''}">${a.k}</span>`).join('')}</div>
@@ -647,15 +677,15 @@ function viewNote() {
     ${D.students.map((s, i) => {
       const l = lastCounsel(s), late = !l || daysAgo(l) > 30;
       return `<div class="sitem ${s.id === V.sid ? 'on' : ''}" onclick="openStudent('${s.id}',${V.sec})">
-        <span class="num">${s.emoji}</span><div><b>${i + 1}. ${esc(s.nick || '친구')}</b><span>${esc(s.career || '진로 미정')} · 문구 ${s.sentences.length}</span></div>
-        ${late ? '<span class="warn">상담</span>' : ''}</div>`; }).join('') || '<div class="empty">＋ 추가를 눌러 동물 친구를 만들어요.<br>이름·학번 대신 동물로만 기억해요.</div>'}
+        <span class="num">${s.emoji}</span><div><b>${esc(nname(s))}</b><span>${esc(s.career || '진로 미정')} · 문구 ${s.sentences.length}</span></div>
+        ${late ? '<span class="warn">상담</span>' : ''}</div>`; }).join('') || '<div class="empty">＋ 추가를 눌러 동물 친구를 만들어요.<br>이름 대신 동물 별칭과 번호로만 기억해요.</div>'}
   </aside>`;
   const st = cur();
   if (!st) return `<div class="note">${side}<div class="empty" style="padding:60px">왼쪽에서 친구를 골라 주세요 🐾</div></div>`;
   const sec = SECS.find(s => s[0] === V.sec);
   const body = [null, secOverview, secCounsel, secGrowth, secActs, secEpisode, secWall, secFinal][V.sec](st);
   return `<div class="note">${side}<div>
-    <div class="stitle"><span class="big">${V.sec}</span><h2>${st.emoji} ${esc(st.nick || '친구')} · ${sec[1]}</h2><span class="mini">${esc(st.career || '진로 미정')}</span></div>
+    <div class="stitle"><span class="big">${V.sec}</span><h2>${st.emoji} ${esc(nname(st))} · ${sec[1]}</h2><span class="mini">${esc(st.career || '진로 미정')}</span></div>
     <div class="secbar"><i style="width:${V.sec / 7 * 100}%"></i></div>
     <div class="steps">${SECS.map(([n, t, c]) => `<div class="step ${n === V.sec ? 'on' : ''}" onclick="V.sec=${n};render()"><span class="c" style="background:var(--${c})">${n}</span><b>${t}</b></div>`).join('')}</div>
     ${body}
@@ -685,6 +715,7 @@ function secOverview(st) {
       <p class="lead">상담이 <mark>끊기지 않게</mark> 이어가요.</p>
       <div class="item"><b class="hand" style="font-size:17px">💬 마지막 상담</b><div>${l ? `${l} (${daysAgo(l)}일 전)` : '<span style="color:var(--red)">아직 상담 전이에요</span>'}</div></div>
       <div class="item"><b class="hand" style="font-size:17px">📅 다음 약속</b><div>${nx || '<span class="mini">정해지지 않았어요</span>'}</div></div>
+      ${recItems(st)}
       <div class="item"><b class="hand" style="font-size:17px">📊 쌓인 기록</b><div class="mini">상담 ${st.counsels.length} · 모의고사 ${st.mocks.length} · 내신 ${st.grades.length} · 활동 ${st.acts.length} · 일화 ${st.episodes.length}</div></div>
       ${[...st.counsels].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3).map(c => `<div class="item"><div class="top"><span class="chip">${esc(c.type)}</span><span class="mini">${c.date}</span></div><div class="mini">${esc(c.text.slice(0, 80))}${c.text.length > 80 ? '…' : ''}</div></div>`).join('')}
       <button class="btn ghost sm" onclick="V.sec=2;render()">상담 기록하러 가기 →</button>
@@ -699,7 +730,7 @@ async function aiEval(btn) {
   const st = cur();
   const data = {
     진로: st.career + ' ' + st.careerDetail, 고민: st.worry, 공부패턴: st.study,
-    모의고사등급: st.mocks, 내신등급_5등급제: st.grades,
+    모의고사등급: growthRows(st, 'mock').rows, 내신등급_5등급제: growthRows(st, 'school').rows,
     상담: st.counsels.map(c => `${c.date} [${c.type}] ${c.text}`),
     활동: st.acts.map(a => `${a.date} [${a.area}] ${a.title} - ${a.text}`),
     일화: st.episodes.map(e => `${e.date} ${e.text}`)
@@ -752,7 +783,26 @@ function genFrom(key, id, btn) {
 }
 
 /* 3 성장 그래프 */
+// 그래프에 쓸 줄: 관리에서 올린 성적 파일(번호로 찾기) + 여기서 직접 넣은 등급
+function growthRows(st, kind) {
+  const max = kind === 'mock' ? 9 : 5, rows = [], files = [];
+  scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
+    const r = st.num ? d.rows.find(x => x.no === st.num) : null;
+    if (!r) return;
+    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}` };
+    gradeCols(d, max).forEach(c => { const v = Number(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; });
+    rows.push(o); files.push({ d, r });
+  });
+  st[kind === 'mock' ? 'mocks' : 'grades'].forEach(r => { const o = { label: r.label }; Object.keys(r).forEach(k => { if (k !== 'id' && k !== 'label') o[k] = r[k]; }); rows.push(o); });
+  const subj = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label')))];
+  return { rows, subj, files };
+}
 function secGrowth(st) {
+  const M = growthRows(st, 'mock'), G = growthRows(st, 'school');
+  // 이 친구 줄만 성적표 원본 그대로 (원점수 · 백분위 등)
+  const orig = F => F.files.length ? `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer">📄 올린 성적표에서 이 친구 줄 보기 (${F.files.length}개)</summary>
+    ${F.files.map(({ d, r }) => `<div style="overflow:auto;margin-top:8px"><b class="mini">${d.year}년 ${esc(examOf(d).label)}</b><table class="dtable"><tr>${d.cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr><tr>${r.v.map(v => `<td>${esc(v)}</td>`).join('')}</tr></table></div>`).join('')}</details>` : '';
+  const noNum = !st.num ? '<div class="mini" style="color:var(--red);margin-bottom:8px">✏️ 이 친구 번호를 넣으면 관리에서 올린 성적이 자동으로 이어져요 (한눈에 → 프로필 ✏️)</div>' : '';
   const form = (kind, subj) => `<div class="row" style="margin-top:10px">
     <input type="text" id="${kind}Label" placeholder="${kind === 'mocks' ? '회차 (예: 3월)' : '학기 (예: 1-1)'}" style="width:120px">
     ${subj.map(s => `<input type="number" step="0.01" min="1" max="${kind === 'mocks' ? 9 : 5}" id="${kind}_${s}" placeholder="${s}" style="width:82px">`).join('')}
@@ -762,15 +812,17 @@ function secGrowth(st) {
     ${st[kind].map(r => `<tr><td style="padding:4px"><b>${esc(r.label)}</b></td>${subj.map(s => `<td>${r[s] ?? '-'}</td>`).join('')}<td><button class="x" onclick="delIn('${kind}','${r.id}')">✕</button></td></tr>`).join('')}</table>` : '';
   return `<div class="cols c2">
     <div class="box"><div class="hd blue"><span class="n">1</span>모의고사 등급 <span class="sp mini" style="color:#fff">9등급 · 위로 갈수록 좋아요</span></div><div class="bd">
-      ${st.mocks.length ? '<canvas id="chMock" height="220"></canvas>' : '<div class="empty">모의고사 등급을 넣으면 그래프가 그려져요 📈</div>'}
-      ${form('mocks', MOCK_SUBJ)}${table('mocks', MOCK_SUBJ)}
+      ${noNum}${M.rows.length ? '<canvas id="chMock" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣으면 그래프가 그려져요 📈</div>'}
+      ${orig(M)}
+      <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('mocks', MOCK_SUBJ)}${table('mocks', MOCK_SUBJ)}</details>
     </div></div>
     <div class="box"><div class="hd pink"><span class="n">2</span>내신 등급 <span class="sp mini" style="color:#fff">5등급제 · 위로 갈수록 좋아요</span></div><div class="bd">
-      ${st.grades.length ? '<canvas id="chGrade" height="220"></canvas>' : '<div class="empty">학기별 내신 등급을 넣어 주세요 🌱</div>'}
-      ${form('grades', GRADE_SUBJ)}${table('grades', GRADE_SUBJ)}
+      ${noNum}${G.rows.length ? '<canvas id="chGrade" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣어 주세요 🌱</div>'}
+      ${orig(G)}
+      <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('grades', GRADE_SUBJ)}${table('grades', GRADE_SUBJ)}</details>
     </div></div>
   </div>
-  <div class="mini" style="margin-top:10px">💡 비어 있는 과목은 그냥 두면 돼요. 그래프는 AI 담임 메모에도 반영돼요.</div>`;
+  <div class="mini" style="margin-top:10px">💡 그래프는 성적표의 '등급' 칸으로 그려요. AI 담임 메모에도 등급만 보내요 (학번은 안 보내요).</div>`;
 }
 function addScore(kind) {
   const st = cur(), subj = kind === 'mocks' ? MOCK_SUBJ : GRADE_SUBJ;
@@ -785,12 +837,13 @@ function drawCharts(st) {
     const el = document.getElementById(id); if (!el) return;
     charts.push(new Chart(el, {
       type: 'line',
-      data: { labels: rows.map(r => r.label), datasets: subj.map((s, i) => ({ label: s, data: rows.map(r => r[s] ?? null), borderColor: SUBJ_COLORS[i], backgroundColor: SUBJ_COLORS[i], tension: .35, spanGaps: true, borderWidth: s === '평균' ? 4 : 2.5, pointRadius: 4 })).filter(d => d.data.some(v => v !== null)) },
+      data: { labels: rows.map(r => r.label), datasets: subj.map((s, i) => ({ label: s, data: rows.map(r => r[s] ?? null), borderColor: SUBJ_COLORS[i % SUBJ_COLORS.length], backgroundColor: SUBJ_COLORS[i % SUBJ_COLORS.length], tension: .35, spanGaps: true, borderWidth: s === '평균' ? 4 : 2.5, pointRadius: 4 })).filter(d => d.data.some(v => v !== null)) },
       options: { scales: { y: { reverse: true, min: 1, max, ticks: { stepSize: 1, callback: v => v + '등급' } } }, plugins: { legend: { labels: { boxWidth: 12, font: { family: 'Pretendard' } } } } }
     }));
   };
-  mk('chMock', st.mocks, MOCK_SUBJ, 9);
-  mk('chGrade', st.grades, GRADE_SUBJ, 5);
+  const M = growthRows(st, 'mock'), G = growthRows(st, 'school');
+  mk('chMock', M.rows, M.subj, 9);
+  mk('chGrade', G.rows, G.subj, 5);
 }
 
 /* 4 활동 누적 */
@@ -943,9 +996,12 @@ let pickEmoji = '🐰';
 function studentForm(st) {
   pickEmoji = st?.emoji || EMOJIS[D.students.length % EMOJIS.length];
   return `<section><h4>🐾 동물 친구 고르기</h4><div class="emojis" id="emoBox">${EMOJIS.map(e => `<button class="${e === pickEmoji ? 'on' : ''}" onclick="pickEmo(this,'${e}')">${e}</button>`).join('')}</div></section>
-  <section><h4>🏷️ 별칭</h4><input type="text" id="sNick" value="${esc(st?.nick || '')}" placeholder="예: 토끼1, 새벽토끼, 노랑곰 (실명·학번·이니셜은 쓰지 않아요)" maxlength="12">
-  <p class="mini" style="margin-top:8px">🔒 누가 어떤 동물인지는 선생님 수첩에만 적어 두세요. 웹앱에는 이름도 학번도 남지 않아요.</p></section>`;
+  <section><h4>🏷️ 별칭 + 번호</h4><div class="row"><input type="text" id="sNick" value="${esc(st?.nick || '')}" placeholder="예: 토끼, 새벽토끼, 노랑곰 (실명·이니셜은 쓰지 않아요)" maxlength="12" style="flex:1">
+    <input type="number" id="sNum" value="${st?.num || ''}" min="1" max="60" placeholder="번호" style="width:90px"></div>
+  <p class="mini" style="margin-top:8px">🔒 화면에는 '🐰 토끼7'처럼 별칭과 번호만 보여요. 번호는 반 번호예요 — 관리에서 올린 성적 파일(학번 끝 두 자리)과 이 번호로 이어져요.</p></section>`;
 }
+function readNum() { const n = parseInt($('#sNum').value, 10); return n >= 1 && n <= 60 ? n : 0; }
+function numTaken(n, except) { return n && D.students.some(s => s.num === n && s.id !== except); }
 function pickEmo(btn, e) { pickEmoji = e; document.querySelectorAll('#emoBox button').forEach(b => b.classList.remove('on')); btn.classList.add('on'); }
 function openAddStudent() {
   openModal('동물 친구 추가', studentForm() + `<button class="btn" onclick="addStudent()">＋ 추가하기</button>`);
@@ -953,14 +1009,20 @@ function openAddStudent() {
 function addStudent() {
   const nick = $('#sNick').value.trim() || ('친구' + (D.students.length + 1));
   if (piiCheck(nick).length) return toast('별칭에 숫자·연락처는 빼 주세요');
-  const st = normalize({ emoji: pickEmoji, nick, order: D.students.length });
-  D.students.push(st); V.sid = st.id; V.sec = 1; saveStudent(st); closeModal(); V.tab = 'note'; render();
+  const num = readNum(); if (numTaken(num)) return toast(`${num}번은 이미 있어요`);
+  const st = normalize({ emoji: pickEmoji, nick, num, order: D.students.length });
+  D.students.push(st); sortStudents(); V.sid = st.id; V.sec = 1; saveStudent(st); closeModal(); V.tab = 'note'; render();
 }
 function openEditStudent() {
   const st = cur();
   openModal('친구 정보 고치기', studentForm(st) + `<div class="row"><button class="btn" onclick="editStudent()">저장</button><button class="btn ghost" style="margin-left:auto;color:var(--red)" onclick="removeStudent()">🗑 이 친구 기록 모두 지우기</button></div>`);
 }
-function editStudent() { const st = cur(); st.emoji = pickEmoji; st.nick = $('#sNick').value.trim() || st.nick; saveStudent(st); closeModal(); render(); }
+function editStudent() {
+  const st = cur(), num = readNum();
+  if (numTaken(num, st.id)) return toast(`${num}번은 이미 다른 친구예요`);
+  st.emoji = pickEmoji; st.nick = $('#sNick').value.trim() || st.nick; st.num = num;
+  sortStudents(); saveStudent(st); closeModal(); render();
+}
 function removeStudent() {
   const st = cur(); if (!confirm(`${sname(st)}의 모든 기록을 지울까요? 되돌릴 수 없어요.`)) return;
   D.students = D.students.filter(s => s.id !== st.id);
@@ -971,7 +1033,7 @@ function removeStudent() {
 /* ---------------- 🛠 관리 (로그인한 선생님만) ----------------
    ① 달력 가져오기: 다른 달력 앱 화면을 캡처해 붙여 넣으면 AI가 일정을 뽑아 이 달력에 한꺼번에 넣어요
    ② 성적 한꺼번에: 모의고사 · 내신 등급을 표 하나에 넣어요 (엑셀에서 복사해 붙여 넣기 가능) */
-let DASH = { tab: 'cal', imgs: [], text: '', rows: [], kind: 'mocks', label: '' };
+let DASH = { tab: 'cal', imgs: [], text: '', rows: [], year: new Date().getFullYear(), view: null, pending: null, rec: 'att', recPending: null };
 function openDash(tab) {
   if (syncState !== 'cloud') return toast('🔑 로그인한 뒤에 쓸 수 있어요');
   if (tab) DASH.tab = tab;
@@ -979,9 +1041,9 @@ function openDash(tab) {
 }
 function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
 function viewDash() {
-  const tabs = [['cal', '📅 달력 가져오기'], ['score', '📊 성적 한꺼번에']];
+  const tabs = [['cal', '📅 달력 가져오기'], ['score', '📊 성적 파일'], ['rec', '📋 생기부 자료']];
   return `<div class="row" style="margin-bottom:12px">${tabs.map(([k, t]) => `<button class="pill ${DASH.tab === k ? 'on' : ''}" onclick="DASH.tab='${k}';dashRefresh()">${t}</button>`).join('')}</div>
-  ${DASH.tab === 'cal' ? dashCal() : dashScore()}`;
+  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'score' ? dashScore() : dashRec()}`;
 }
 
 /* ① 달력 가져오기 */
@@ -1132,74 +1194,216 @@ function dashAddEvents() {
   closeModal(); render(); toast(`📅 일정 ${n}개를 달력에 넣었어요`);
 }
 
-/* ② 성적 한꺼번에 */
-function dashScore() {
-  if (!D.students.length) return '<div class="empty">학생 노트에서 동물 친구를 먼저 추가해 주세요</div>';
-  const mock = DASH.kind === 'mocks', subj = mock ? MOCK_SUBJ : GRADE_SUBJ, max = mock ? 9 : 5;
-  const labels = [...new Set(D.students.flatMap(s => s[DASH.kind].map(r => r.label)))];
-  return `<section>
-    <div class="row" style="margin-bottom:8px">
-      <button class="pill ${mock ? 'on' : ''}" onclick="dashKind('mocks')">모의고사 (9등급)</button>
-      <button class="pill ${!mock ? 'on' : ''}" onclick="dashKind('grades')">내신 (5등급제)</button>
-      <input type="text" id="dashLabel" list="dashLabels" value="${esc(DASH.label)}" placeholder="${mock ? '회차 (예: 10월)' : '학기 (예: 1-2)'}" style="width:170px" onchange="dashLabel(this.value)">
-      <datalist id="dashLabels">${labels.map(l => `<option value="${esc(l)}">`).join('')}</datalist>
-    </div>
-    <p class="mini">엑셀에서 등급 칸을 여러 줄·여러 칸 복사해 시작할 칸에 붙여 넣으면 한꺼번에 채워져요 (줄 순서 = 아래 친구 순서). 이미 있는 회차를 고르면 넣어 둔 등급을 불러와 고칠 수 있어요. 빈칸은 비워 두면 돼요.</p>
-    <div style="overflow:auto"><table class="dtable" id="dashGrid">
-      <tr><th>친구</th>${subj.map(s => `<th>${s}</th>`).join('')}</tr>
-      ${D.students.map((st, i) => {
-        const r = st[DASH.kind].find(x => x.label === DASH.label) || {};
-        return `<tr><td style="white-space:nowrap">${esc(sname(st))}</td>${subj.map((s, j) => `<td><input type="number" step="0.01" min="1" max="${max}" data-r="${i}" data-c="${j}" value="${r[s] ?? ''}" style="min-width:64px" onpaste="gridPaste(event)"></td>`).join('')}</tr>`;
-      }).join('')}
-    </table></div>
-    <button class="btn" style="margin-top:10px" onclick="dashSaveScores()">💾 한꺼번에 저장</button>
-  </section>`;
+/* ② 성적 파일 — 우리반만 있는 엑셀 파일을 칸마다 올리고 조회해요
+   저장: 학번(번호) + 성적 칸만. 이름 · 연락처처럼 보이는 칸은 버려요. 학번 끝 두 자리 = 번호로 동물 친구와 이어져요 */
+const scoreKey = (y, id) => `scores_${y}_${id}`;
+const examOf = d => EXAMS.find(e => e.id === d.exam) || { kind: 'mock', label: d.exam, short: d.exam };
+function scoreDocs() { return Object.values(SC).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam)); }
+// 그래프에 쓸 등급 칸: 머리글에 '등급'이 있고 값이 1~max 숫자 (없으면 1~max 정수만 있는 칸)
+function gradeCols(d, max) {
+  const num = v => /^\d+(\.\d+)?$/.test(v) && +v >= 1 && +v <= max;
+  const ok = i => d.rows.some(r => r.v[i] !== '') && d.rows.every(r => r.v[i] === '' || num(r.v[i]));
+  const all = d.cols.map((h, i) => ({ h, i }));
+  let cs = all.filter(c => /등급/.test(c.h) && ok(c.i));
+  if (!cs.length) cs = all.filter(c => ok(c.i) && d.rows.every(r => r.v[c.i] === '' || Number.isInteger(+r.v[c.i])));
+  return cs.map(c => ({ i: c.i, subj: c.h.replace(/석차|등급/g, '').replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() || c.h }));
 }
-function dashKind(k) { DASH.kind = k; DASH.label = ''; dashRefresh(); }
-// 이미 있는 회차면 넣어 둔 등급을 불러와요 (새 회차면 적던 칸을 그대로 둬요)
-function dashLabel(v) {
-  DASH.label = v.trim();
-  if (D.students.some(s => s[DASH.kind].some(r => r.label === DASH.label))) dashRefresh();
-}
-// 엑셀에서 복사한 표(탭 · 줄바꿈)를 붙여 넣은 칸부터 오른쪽 · 아래로 채워요
-function gridPaste(e) {
-  const t = e.clipboardData.getData('text');
-  if (!/[\t\n]/.test(t)) return;
-  e.preventDefault();
-  const r0 = +e.target.dataset.r, c0 = +e.target.dataset.c;
-  t.replace(/\r/g, '').replace(/\n+$/, '').split('\n').forEach((line, i) => line.split('\t').forEach((v, j) => {
-    const el = document.querySelector(`#dashGrid input[data-r="${r0 + i}"][data-c="${c0 + j}"]`);
-    if (el) el.value = v.trim().replace(/등급$/, '');
-  }));
-}
-function dashSaveScores() {
-  const label = $('#dashLabel').value.trim();
-  if (!label) return toast('회차/학기를 적어 주세요');
-  const kind = DASH.kind, subj = kind === 'mocks' ? MOCK_SUBJ : GRADE_SUBJ, max = kind === 'mocks' ? 9 : 5;
-  let n = 0, bad = 0;
-  D.students.forEach((st, i) => {
-    const vals = {};
-    subj.forEach((s, j) => {
-      const v = document.querySelector(`#dashGrid input[data-r="${i}"][data-c="${j}"]`).value.trim();
-      if (v === '') return;
-      const x = Number(v);
-      if (isNaN(x) || x < 1 || x > max) bad++; else vals[s] = x;
-    });
-    const old = st[kind].find(x => x.label === label);
-    if (!old && !Object.keys(vals).length) return;
-    if (!Object.keys(vals).length) st[kind] = st[kind].filter(x => x !== old);      // 다 지우면 그 회차도 지워요
-    else if (old) { subj.forEach(s => delete old[s]); Object.assign(old, vals); }
-    else st[kind].push({ id: uid(), label, ...vals });
-    saveStudent(st); n++;
+const DROP_COL = /이름|성명|생년|주민|연락|전화|휴대|주소|보호자|학부모|이메일/;
+const ID_COL = /^(학년|반|번호|번|학번)$/;
+// 엑셀 한 시트(줄 배열) → { cols, rows: [{ sid, no, v: [...] }], dropped }
+function parseScoreSheet(aoa) {
+  const rows = aoa.map(r => r.map(v => String(v ?? '').replace(/\s+/g, ' ').trim()));
+  const flat = c => c.replace(/ /g, '');
+  let idKind = 'sid', h = rows.findIndex(r => r.some(c => flat(c) === '학번'));
+  if (h < 0) { idKind = 'no'; h = rows.findIndex(r => r.some(c => flat(c) === '번호')); }
+  if (h < 0) throw new Error("'학번' 또는 '번호' 머리글을 찾지 못했어요");
+  const idCol = rows[h].findIndex(c => flat(c) === (idKind === 'sid' ? '학번' : '번호'));
+  const isData = r => {
+    const x = r[idCol] || '';
+    return idKind === 'sid' ? /^[\d\- ]+$/.test(x) && x.replace(/\D/g, '').length >= 4 && x.replace(/\D/g, '').length <= 6 : /^\d{1,2}$/.test(x);
+  };
+  const first = rows.findIndex((r, i) => i > h && isData(r));
+  if (first < 0) throw new Error('학생 성적 줄을 찾지 못했어요');
+  const data = rows.slice(first).filter(isData);
+  const width = Math.max(...rows.slice(h).map(r => r.length));
+  // 머리글이 여러 줄이면 (예: 국어 / 원점수 · 등급) 이어 붙여요. 위쪽 합친 칸 글자는 오른쪽으로 이어 받아요
+  const names = [];
+  for (let c = 0; c < width; c++) names.push([]);
+  for (let i = h; i < first; i++) {
+    let carry = '';
+    for (let c = 0; c < width; c++) {
+      let v = rows[i][c] || '';
+      if (v) carry = v; else if (i < first - 1 && rows[first - 1][c]) v = carry;
+      if (v && names[c][names[c].length - 1] !== v) names[c].push(v);
+    }
+  }
+  const head = names.map(p => p.join(' '));
+  const noCol = idKind === 'no' ? idCol : head.findIndex(n => flat(n) === '번호');
+  const keep = [], dropped = [];
+  head.forEach((n, c) => {
+    if (c === idCol || c === noCol || ID_COL.test(flat(n))) return;
+    const vals = data.map(r => r[c] || '').filter(Boolean);
+    if (!vals.length) return;                                                     // 빈 칸
+    if (DROP_COL.test(flat(n))) { dropped.push(n); return; }                       // 이름 · 연락처 칸
+    if (vals.every(v => /^[가-힣]{2,4}$/.test(v)) && new Set(vals).size > vals.length / 2) { dropped.push((n || `칸${c + 1}`) + ' (이름처럼 보여서)'); return; }
+    keep.push(c);
   });
-  DASH.label = label; dashRefresh(); render();
-  toast(bad ? `⚠️ 1~${max} 밖의 숫자 ${bad}칸은 빼고 ${n}명 저장했어요` : `💾 ${n}명의 '${label}' 등급을 저장했어요`);
+  return {
+    cols: keep.map(c => head[c] || `칸${c + 1}`), dropped,
+    rows: data.map(r => {
+      const sid = idKind === 'sid' ? r[idCol].replace(/\D/g, '') : '';
+      return { sid, no: parseInt(idKind === 'sid' ? sid.slice(-2) : r[idCol], 10), v: keep.map(c => r[c] || '') };
+    })
+  };
+}
+async function scoreUpload(id, inp) {
+  const f = inp.files[0]; if (!f) return;
+  try {
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    let p = null, err = null;
+    for (const n of wb.SheetNames) {     // 첫 번째로 읽히는 시트를 써요
+      try { p = parseScoreSheet(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: false })); break; } catch (e) { err = e; }
+    }
+    if (!p) throw err || new Error('빈 파일이에요');
+    DASH.pending = { exam: id, year: DASH.year, file: f.name, ...p }; DASH.view = null; dashRefresh();
+  } catch (e) { toast('📊 파일을 읽지 못했어요: ' + e.message); }
+}
+async function scoreSave() {
+  const p = DASH.pending, key = scoreKey(p.year, p.exam);
+  if (SC[key] && !confirm('이미 올린 파일이 있어요. 새 파일로 바꿀까요?')) return;
+  const doc = { exam: p.exam, year: p.year, file: p.file, cols: p.cols, rows: p.rows, at: Date.now() };
+  try { await roomRef().collection('meta').doc(key).set(doc); } catch (e) { return toast('☁️ 저장 실패: ' + e.message); }
+  SC[key] = doc; DASH.pending = null; DASH.view = key; dashRefresh(); render();
+  toast(`📊 ${p.year}년 ${examOf(doc).label} — ${doc.rows.length}명 저장했어요`);
+}
+async function scoreDelete(key) {
+  if (!confirm('이 성적 파일을 지울까요?')) return;
+  try { await roomRef().collection('meta').doc(key).delete(); } catch (e) { return toast('☁️ 지우기 실패: ' + e.message); }
+  delete SC[key]; DASH.view = null; dashRefresh(); render();
+}
+const missingNums = d => [...new Set(d.rows.map(r => r.no))].filter(n => n && !D.students.some(s => s.num === n)).sort((a, b) => a - b);
+// 성적표에 있는데 동물 친구가 없는 번호를 한꺼번에 만들어요 (동물은 겹치지 않게 골라요)
+function makeAnimals(key) {
+  const nums = missingNums(SC[key]); if (!nums.length) return;
+  const used = new Set(D.students.map(s => s.emoji)), pool = Object.keys(ANIMAL_NAMES);
+  nums.forEach(n => {
+    const free = pool.filter(e => !used.has(e)), e = free.length ? free[Math.floor(Math.random() * free.length)] : pool[n % pool.length];
+    used.add(e);
+    const st = normalize({ emoji: e, nick: ANIMAL_NAMES[e], num: n, order: D.students.length });
+    D.students.push(st); saveStudent(st);
+  });
+  sortStudents(); if (!cur()) V.sid = D.students[0]?.id || null;
+  dashRefresh(); render(); toast(`🐾 동물 친구 ${nums.length}명을 만들었어요`);
+}
+function scoreTable(d) { return dataTable(d, new Set(gradeCols(d, examOf(d).kind === 'mock' ? 9 : 5).map(c => c.i))); }
+// 번호 · 학번 · 동물 친구 + 저장한 칸 표 (g = 굵게 보일 칸)
+function dataTable(d, g = new Set()) {
+  return `<div style="overflow:auto;max-height:55vh"><table class="dtable"><tr><th>번호</th><th>학번</th><th>동물 친구</th>${d.cols.map((c, i) => `<th style="${g.has(i) ? 'color:var(--main)' : ''}">${esc(c)}</th>`).join('')}</tr>
+    ${d.rows.map(r => { const s = D.students.find(x => x.num === r.no);
+      return `<tr><td>${r.no}</td><td>${esc(r.sid)}</td><td style="white-space:nowrap">${s ? `<a href="#" onclick="closeModal();openStudent('${s.id}',3);return false">${esc(sname(s))}</a>` : '<span class="mini">—</span>'}</td>${r.v.map((v, i) => `<td style="${g.has(i) ? 'font-weight:700' : ''}">${esc(v)}</td>`).join('')}</tr>`; }).join('')}
+  </table></div>`;
+}
+function yearSelect() {
+  const years = [...new Set([new Date().getFullYear(), new Date().getFullYear() - 1, ...Object.values(SC).map(d => d.year), ...Object.values(RC).map(d => d.year)])].sort((a, b) => b - a);
+  return `<select style="width:auto" onchange="DASH.year=+this.value;DASH.view=null;DASH.pending=null;DASH.recPending=null;dashRefresh()">${years.map(x => `<option value="${x}" ${x === DASH.year ? 'selected' : ''}>${x}학년도</option>`).join('')}</select>`;
+}
+function dashScore() {
+  const y = DASH.year;
+  const slot = e => {
+    const key = scoreKey(y, e.id), d = SC[key];
+    return `<div class="item" style="display:flex;align-items:center;gap:8px;${DASH.view === key ? 'border-color:var(--main)' : ''}"><b class="hand" style="font-size:16px;flex:1">${e.label}</b>
+      ${d ? `<span class="mini">${d.rows.length}명</span><button class="btn sm ghost" onclick="DASH.view='${key}';DASH.pending=null;dashRefresh()">👀 보기</button>` : '<span class="mini">아직 없음</span>'}
+      <label class="btn sm ${d ? 'ghost' : ''}">⬆️ ${d ? '바꾸기' : '올리기'}<input type="file" accept=".xlsx,.xls,.csv" hidden onchange="scoreUpload('${e.id}',this)"></label></div>`;
+  };
+  const p = DASH.pending, v = !p && DASH.view && SC[DASH.view];
+  let below = '';
+  if (p) {
+    const g = gradeCols(p, examOf(p).kind === 'mock' ? 9 : 5);
+    below = `<section><h4>👀 ${p.year}년 ${esc(examOf(p).label)} 미리 보기 <span class="mini">${esc(p.file)} · ${p.rows.length}명</span></h4>
+      ${p.dropped.length ? `<p class="mini">🔒 저장하지 않는 칸: ${p.dropped.map(esc).join(', ')}</p>` : ''}
+      <p class="mini">📈 그래프에 쓸 등급 칸: ${g.length ? g.map(c => `<span class="chip">${esc(c.subj)}</span>`).join(' ') : `<b style="color:var(--red)">못 찾았어요 (머리글에 '등급'이 들어간 칸이 있어야 해요)</b>`}</p>
+      ${scoreTable(p)}
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="scoreSave()">💾 이대로 저장</button><button class="btn ghost sm" onclick="DASH.pending=null;dashRefresh()">취소</button></div></section>`;
+  } else if (v) {
+    const miss = missingNums(v);
+    below = `<section><h4>📄 ${v.year}년 ${esc(examOf(v).label)} <span class="mini">${esc(v.file)} · ${v.rows.length}명 · ${new Date(v.at).toLocaleDateString()} 올림</span>
+        <button class="x" style="margin-left:auto" onclick="scoreDelete('${DASH.view}')">🗑 지우기</button></h4>
+      ${miss.length ? `<div class="row" style="margin-bottom:8px"><span class="mini">동물 친구가 없는 번호: ${miss.join(', ')}</span><button class="btn sm" onclick="makeAnimals('${DASH.view}')">🐾 ${miss.length}명 한꺼번에 만들기</button></div>` : ''}
+      ${scoreTable(v)}</section>`;
+  }
+  return `<section>
+    <div class="row" style="margin-bottom:8px">${yearSelect()}</div>
+    <p class="mini">우리반만 있는 엑셀 파일(.xlsx)을 칸마다 올려요. <b>학번(또는 번호)과 성적 칸만</b> 클라우드에 저장하고, 이름 · 연락처 칸은 버려요. 학번 끝 두 자리(번호)로 동물 친구와 이어져서 상담 화면에는 '🐰 토끼7'처럼만 보여요.</p>
+    <div class="cols c2" style="gap:12px"><div><h4 style="font-size:18px;margin-bottom:6px">📘 모의고사</h4>${EXAMS.filter(e => e.kind === 'mock').map(slot).join('')}</div>
+      <div><h4 style="font-size:18px;margin-bottom:6px">📗 내신</h4>${EXAMS.filter(e => e.kind === 'school').map(slot).join('')}</div></div>
+  </section>${below}`;
+}
+
+/* ③ 생기부 자료 — 나이스 표를 드래그해 복사(Ctrl+C)한 뒤 붙여 넣어요 (AI 안 씀, 무료)
+   번호 · 성명 머리글까지 같이 복사하면 성명 칸은 버리고 번호 + 나머지 칸만 저장해요 */
+const recKey = (y, id) => `rec_${y}_${id}`;
+const recOf = d => RECORDS.find(r => r.id === d.kind) || { label: d.kind };
+function recPreview(fromFile) {
+  try {
+    const aoa = $('#recText').value.replace(/\r/g, '').split('\n').filter(l => l.trim()).map(l => l.split('\t'));
+    if (!aoa.length) return toast('나이스 표를 복사해 붙여 넣어 주세요');
+    DASH.recPending = { kind: DASH.rec, year: DASH.year, file: '붙여 넣기', ...parseScoreSheet(aoa) };
+    dashRefresh();
+  } catch (e) { toast('📋 ' + e.message + ' — 번호 · 성명 머리글 줄까지 같이 복사해 주세요'); }
+}
+async function recFile(inp) {
+  const f = inp.files[0]; if (!f) return;
+  try {
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: false });
+    DASH.recPending = { kind: DASH.rec, year: DASH.year, file: f.name, ...parseScoreSheet(aoa) };
+    dashRefresh();
+  } catch (e) { toast('📋 파일을 읽지 못했어요: ' + e.message); }
+}
+async function recSave() {
+  const p = DASH.recPending, key = recKey(p.year, p.kind);
+  const doc = { kind: p.kind, year: p.year, file: p.file, cols: p.cols, rows: p.rows, at: Date.now() };
+  try { await roomRef().collection('meta').doc(key).set(doc); } catch (e) { return toast('☁️ 저장 실패: ' + e.message); }
+  RC[key] = doc; DASH.recPending = null; dashRefresh(); render();
+  toast(`📋 ${p.year}학년도 ${recOf(doc).label} ${doc.rows.length}명을 저장했어요`);
+}
+async function recDelete(key) {
+  if (!confirm('이 자료를 지울까요?')) return;
+  try { await roomRef().collection('meta').doc(key).delete(); } catch (e) { return toast('☁️ 지우기 실패: ' + e.message); }
+  delete RC[key]; dashRefresh(); render();
+}
+function dashRec() {
+  const r = RECORDS.find(x => x.id === DASH.rec) || RECORDS[0], key = recKey(DASH.year, r.id), d = RC[key], p = DASH.recPending;
+  return `<section>
+    <div class="row" style="margin-bottom:8px">${yearSelect()}${RECORDS.map(x => `<button class="pill ${x.id === r.id ? 'on' : ''}" onclick="DASH.rec='${x.id}';DASH.recPending=null;dashRefresh()">${x.label}</button>`).join('')}</div>
+    <p class="mini">나이스 ${r.label} 화면에서 표를 <b>번호 · 성명 머리글부터 마지막 학생까지</b> 드래그해 복사(Ctrl+C)하고 아래에 붙여 넣어요 (Ctrl+V). 엑셀로 내려받은 파일도 돼요.<br>🔒 성명 칸은 저장하지 않아요. AI도 쓰지 않아 무료예요. 다시 붙여 넣으면 전에 넣은 ${r.label}이 새것으로 바뀌어요.</p>
+    <textarea id="recText" style="min-height:110px;font-size:12.5px" placeholder="여기에 붙여 넣기 (Ctrl+V)"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="recPreview()">👀 미리 보기</button><label class="btn sm ghost">📂 엑셀 파일로<input type="file" accept=".xlsx,.xls,.csv" hidden onchange="recFile(this)"></label></div>
+  </section>
+  ${p ? `<section><h4>👀 ${p.year}학년도 ${esc(recOf(p).label)} 미리 보기 <span class="mini">${p.rows.length}명</span></h4>
+      ${p.dropped.length ? `<p class="mini">🔒 저장하지 않는 칸: ${p.dropped.map(esc).join(', ')}</p>` : ''}
+      ${dataTable(p)}
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="recSave()">💾 ${d ? '새것으로 바꿔 저장' : '저장'}</button><button class="btn ghost sm" onclick="DASH.recPending=null;dashRefresh()">취소</button></div></section>`
+    : d ? `<section><h4>📄 ${d.year}학년도 ${esc(recOf(d).label)} <span class="mini">${d.rows.length}명 · ${new Date(d.at).toLocaleString()} 넣음</span>
+        <button class="x" style="margin-left:auto" onclick="recDelete('${key}')">🗑 지우기</button></h4>${dataTable(d)}</section>`
+    : `<div class="empty">${DASH.year}학년도 ${r.label}은 아직 없어요</div>`}`;
+}
+// 학생 노트 '한눈에'에 보일 이 친구의 생기부 자료 (0인 칸은 빼고)
+function recItems(st) {
+  if (!st.num) return '';
+  return Object.values(RC).sort((a, b) => b.year - a.year).map(d => {
+    const r = d.rows.find(x => x.no === st.num); if (!r) return '';
+    const parts = d.cols.map((c, i) => r.v[i] && r.v[i] !== '0' ? `${esc(c)} <b>${esc(r.v[i])}</b>` : '').filter(Boolean);
+    return `<div class="item"><b class="hand" style="font-size:17px">📋 ${d.year} ${esc(recOf(d).label)}</b><div class="mini">${parts.join(' · ')}</div></div>`;
+  }).join('');
 }
 
 /* ---------------- 설정 ---------------- */
 function openSettings() {
   openModal('⚙️ 설정', `
-  <section><h4>🔒 개인정보 약속</h4><div class="mini">· 학생은 동물 친구로만 구분해요. 이름·학번·연락처는 어디에도 저장하지 않아요.<br>· 글에 학번처럼 보이는 숫자, 전화번호, 이메일이 있으면 저장 전에 알려 줘요.<br>· AI에는 동물 별칭도 보내지 않고, 적은 내용만 보내요.<br>· AI 키는 이 기기 브라우저에만 저장되고 클라우드에는 올라가지 않아요.</div></section>
+  <section><h4>🔒 개인정보 약속</h4><div class="mini">· 학생은 동물 친구(별칭+번호)로만 구분해요. 이름·연락처는 어디에도 저장하지 않아요.<br>· 성적 파일 · 출결은 학번(번호)과 칸만 선생님 계정 클라우드에 저장하고, 이 기기에는 남기지 않아요.<br>· 글에 학번처럼 보이는 숫자, 전화번호, 이메일이 있으면 저장 전에 알려 줘요.<br>· AI에는 동물 별칭도 보내지 않고, 적은 내용만 보내요.<br>· AI 키는 이 기기 브라우저에만 저장되고 클라우드에는 올라가지 않아요.</div></section>
   <section><h4>🏫 반 이름</h4><input type="text" id="stClass" value="${esc(S.className)}"></section>
   <section><h4>🤖 AI 연결 (유료 API)</h4>
     <div class="row" style="margin-bottom:8px"><label><input type="radio" name="prov" value="claude" ${S.provider === 'claude' ? 'checked' : ''}> Claude</label><label><input type="radio" name="prov" value="gemini" ${S.provider === 'gemini' ? 'checked' : ''}> Gemini</label></div>
