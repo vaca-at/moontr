@@ -315,7 +315,8 @@ function normalize(s) {
     id: uid(), emoji: '🐰', nick: '', career: '', careerDetail: '', worry: '', study: '',
     mocks: [], grades: [], counsels: [], acts: [], episodes: [], sentences: [],
     final: { 자율: '', 진로: '', 행특: '' }, aiEval: '', aiEvalDate: '', created: today(),
-    ev: {}, comp: null, story: null, links: null, prep: null   // 공통 행사 칸 · AI 분석 결과 (역량 지도 · 성장 서사 · 책·탐구 연결 · 상담 준비)
+    ev: {}, comp: null, story: null, links: null, prep: null,   // 공통 행사 칸 · AI 분석 결과 (역량 지도 · 성장 서사 · 책·탐구 연결 · 상담 준비)
+    check: {}   // 생기부 점검 결과 (글마다)
   }, s, { final: Object.assign({ 자율: '', 진로: '', 행특: '' }, s?.final || {}) });
   // 바구니가 자율·자치 · 진로 · 행발 셋이 되면서, 예전 동아리 문구는 자율·자치로 옮겨요 (예전 동아리 단락 final.동아리 는 지우지 않고 둬요)
   o.sentences.forEach(x => { if (x.area === '동아리') x.area = '자율'; });
@@ -829,7 +830,8 @@ const SECS = [
   [1, '한눈에', 'pink'], [2, '상담 기록', 'green'], [3, '성장 그래프', 'blue'], [4, '활동 누적', 'mustard'],
   [5, '일화 → 문구', 'purple'], [6, '문장 담벼락', 'pink'], [7, '생기부 정리', 'green'],
   [8, '공통 행사 채우기', 'mustard'], [9, '상담 준비 카드', 'blue'],
-  [10, '역량 지도', 'green'], [11, '성장 서사', 'purple'], [12, '책·탐구 연결', 'pink']
+  [10, '역량 지도', 'green'], [11, '성장 서사', 'purple'], [12, '책·탐구 연결', 'pink'],
+  [13, '생기부 점검', 'blue']
 ];
 // 학생 노트 다섯 갈래: 상담 · 성적 · 기록 쌓기 · 분석 · 생기부
 const NOTE_GROUPS = [
@@ -837,9 +839,9 @@ const NOTE_GROUPS = [
   { t: '📈 성적', secs: [3] },
   { t: '🌱 기록 쌓기', secs: [4, 5, 6] },
   { t: '🧭 분석', secs: [10, 11, 12] },
-  { t: '✍️ 생기부', secs: [7] },
+  { t: '✍️ 생기부', secs: [7, 13] },
 ];
-const SEC_VIEW = () => ({ 1: secOverview, 2: secCounsel, 3: secGrowth, 4: secActs, 5: secEpisode, 6: secWall, 7: secFinal, 8: secEvents, 9: secPrep, 10: secComp, 11: secStory, 12: secLinks });
+const SEC_VIEW = () => ({ 1: secOverview, 2: secCounsel, 3: secGrowth, 4: secActs, 5: secEpisode, 6: secWall, 7: secFinal, 8: secEvents, 9: secPrep, 10: secComp, 11: secStory, 12: secLinks, 13: secCheck });
 function openStudent(id, sec) { V.sid = id; V.sec = sec || 1; V.tab = 'note'; render(); window.scrollTo(0, 0); }
 function viewNote() {
   const side = `<aside class="side">
@@ -1274,14 +1276,14 @@ function secEvents(st) {
 function ceSaveInline(eid, v) { const st = cur(); v = v.trim(); if (v && !piiOk(v)) return; st.ev[eid] = { text: v, at: Date.now() }; saveStudent(st); }
 
 /* ================= 🧭 분석 (AI) — 이 친구 기록 전체를 읽고 근거를 붙여 정리해요 ================= */
-// AI에 보낼 이 친구 기록 모음 (별칭 · 번호 · 이름 없이, 날짜 순)
-function corpus(st, max = 14000) {
+// AI에 보낼 이 친구 기록 모음 (별칭 · 번호 · 이름 없이, 날짜 순). ownOnly = 담임이 직접 남긴 관찰만 (나이스 글 빼고)
+function corpus(st, max = 14000, ownOnly = false) {
   const L = [];
   st.episodes.forEach(e => L.push([e.date, '일화', e.text]));
   st.counsels.forEach(c => L.push([c.date, '상담·' + c.type, c.text]));
   st.acts.forEach(a => L.push([a.date, '활동·' + a.area, (a.title ? a.title + ' — ' : '') + a.text]));
   CE.events.forEach(e => { if (ceFilled(st, e)) L.push([e.date || '', '공통 행사·' + e.title, st.ev[e.id].text]); });
-  if (st.num) {
+  if (st.num && !ownOnly) {
     changYears().forEach(y => {
       changRows(st.num, y).forEach(r => { if (r.text || r.hope) L.push([y + '', '나이스 ' + r.label, (r.hope ? '희망분야 ' + r.hope + ' / ' : '') + r.text]); });
       const h = haengText(st.num, y); if (h) L.push([y + '', '나이스 행발', h]);
@@ -1465,6 +1467,100 @@ function secPrep(st) {
       <button class="btn ghost sm" style="margin-top:10px" onclick="V.sec=2;render()">상담 기록하러 가기 →</button>
     </div></div>
   </div>`;
+}
+
+/* ================= 🔍 생기부 점검 — 근거 없는 문장 · 과한 결론 · 지식 나열 · 추상 평가 · 기재 금지 =================
+   ① 규칙 검사(AI 없음, 바로): 의심 단어   ② AI 점검(문장마다): 담임 관찰 기록과 맞춰 보고 고친 문장 제안 */
+const FLAG = {
+  '근거없음': { c: '#e0556a', bg: '#fde3e7', d: '관찰 기록에서 이 장면을 찾을 수 없어요' },
+  '과한결론': { c: '#d97a1f', bg: '#fdeedd', d: '조사 · 독서 수준을 스스로 밝혀낸 것처럼 부풀렸어요' },
+  '지식나열': { c: '#8a63c9', bg: '#efe8fb', d: '학생 행동보다 조사한 지식 설명이 대부분이에요' },
+  '추상평가': { c: '#6b7f8f', bg: '#e9eef2', d: '구체적인 행동 없이 평가만 있어요' },
+  '기재금지': { c: '#2f3b5c', bg: '#e3e6ee', d: '기재요령상 쓰면 안 되는 내용이에요' },
+};
+const RULES_CHK = [
+  ['과한결론', /입증|증명하|규명|밝혀\s?(냄|내|낸)|발견(함|하여|해)|새로운\s?(결론|이론|사실)|도출해\s?냄|확립|최초로|전문가\s?수준|학자처럼|연구자로서/g],
+  ['추상평가', /탁월|뛰어난\s?(역량|능력|학생)|완벽|우수한\s?학생|모범적인\s?학생|훌륭(함|한)/g],
+  ['기재금지', /토익|토플|TOEIC|TOEFL|텝스|TEPS|HSK|JLPT|대학교|대학원|의과대학|교외\s?(대회|수상)|수상함|학원|과외|논문|특허|부모님?의?\s?직업|아버지|어머니|올림피아드/gi],
+];
+function ruleFlags(t) {
+  const out = [];
+  RULES_CHK.forEach(([type, re]) => { const m = String(t || '').match(re); if (m) [...new Set(m)].forEach(w => out.push({ type, w })); });
+  return out;
+}
+const hashT = t => { let h = 0; for (const ch of String(t || '')) h = (h * 31 + ch.charCodeAt(0)) | 0; return String(h); };
+// 점검할 글: 앱에서 정리한 단락 + 나이스에 들어가 있는 창체 · 행발 · 과목 세특
+function checkTargets(st) {
+  const T = AREAS.map(a => ({ key: 'final:' + a.k, label: `✍️ 앱 단락 · ${a.label}`, text: st.final[a.k], k: a.k, own: true }));
+  if (st.num) {
+    changYears().forEach(y => {
+      changRows(st.num, y).forEach(r => T.push({ key: `nice:${y}:${r.label}`, label: `📋 나이스 ${y} · ${r.label}`, text: r.text, own: true }));
+      const h = haengText(st.num, y); if (h !== null) T.push({ key: `nice:${y}:행발`, label: `📋 나이스 ${y} · 행동특성 및 종합의견`, text: h, own: true });
+    });
+    Object.values(RC).filter(d => d.kind === 'setuk').sort((a, b) => b.year - a.year || a.subj.localeCompare(b.subj)).forEach(d => {
+      const r = d.rows.find(x => x.no === st.num); if (r) T.push({ key: `setuk:${d.year}:${d.sem}:${d.subj}`, label: `📚 세특 ${d.year} ${d.sem}학기 · ${d.subj}`, text: r.text, own: false });
+    });
+  }
+  return T.filter(t => t.text && t.text.trim());
+}
+async function checkRun(key, btn) {
+  const st = cur(), t = checkTargets(st).find(x => x.key === key); if (!t) return;
+  const c = corpus(st, 12000, true);
+  await withBusy(btn, async () => {
+    const out = await callAI(`너는 학교생활기록부를 검토하는 경력 많은 교사다. 문장마다 문제를 찾아 근거와 함께 알려 주고, 기록에 있는 사실 범위 안에서만 고친다. 반드시 JSON 객체만 출력한다.`,
+      `[점검할 글 — ${t.label}]\n${t.text}\n\n[이 학생에 대해 담임이 직접 남긴 관찰 기록]\n${c.text || '(없음)'}\n
+글을 문장 단위로 나눠 문장마다 아래 문제가 있는지 봐 줘.
+- 근거없음: 관찰 기록에서 그 활동 · 행동 · 장면을 찾을 수 없음. ${t.own ? '' : '※ 이 글은 다른 교과 선생님이 쓴 세특이라 담임 기록에 없을 수 있으니 근거없음은 표시하지 마.'}
+- 과한결론: 학생이 자료를 찾아 읽거나 조사한 수준인데, 스스로 연구해 밝혀낸 것처럼 씀(입증함, 규명함, 발견함, 새로운 결론을 도출함 등) 또는 고등학생 수준을 넘는 성과 · 전문성으로 부풀림.
+- 지식나열: 학생이 한 행동보다 조사한 이론 · 지식 내용 설명이 문장의 대부분.
+- 추상평가: 구체적 행동 없이 '성실함, 뛰어남, 우수함' 같은 평가만 있음.
+- 기재금지: 교외 수상, 공인어학시험, 특정 대학명, 부모 직업 · 지위, 사교육, 논문 등 기재요령 위반.
+{"sentences":[{"s":"원래 문장 그대로","flags":[{"type":"근거없음|과한결론|지식나열|추상평가|기재금지","why":"이유 40자 이내"}],"evidence":"이 문장을 뒷받침하는 관찰 기록 (날짜 · 출처 · 짧게, 없으면 빈 문자열)","fix":"문제가 있을 때만: 사실 범위 안에서 담백하게 고친 문장 (근거가 전혀 없으면 '(빼기 권장)')"}],
+"summary":"전체 평가 한 문장"}
+- 문제 없는 문장은 flags를 [] 로, fix는 빈 문자열로.`, 4000);
+    const o = parseJSONObj(out);
+    if (!o || !Array.isArray(o.sentences)) throw new Error('점검 결과를 읽지 못했어요. 다시 눌러 주세요');
+    st.check[key] = { at: Date.now(), h: hashT(t.text), ...o }; saveStudent(st); render();
+  });
+}
+// 앱 단락이면 고친 문장으로 바로 바꾸기
+function checkApply(key, i) {
+  const st = cur(), r = st.check[key], s = r && r.sentences[i], k = key.split(':')[1];
+  if (!s || !key.startsWith('final:')) return;
+  const fix = s.fix === '(빼기 권장)' ? '' : s.fix;
+  if (!st.final[k].includes(s.s)) return toast('원래 문장을 찾지 못했어요. 직접 고쳐 주세요');
+  st.final[k] = st.final[k].replace(s.s, fix).replace(/\s{2,}/g, ' ').trim();
+  s.applied = true; r.h = hashT(st.final[k]); saveStudent(st); render(); toast('✍️ 바꿨어요');
+}
+function checkCard(st, t) {
+  const r = st.check[t.key], stale = r && r.h !== hashT(t.text), rf = ruleFlags(t.text);
+  const flagChip = f => `<span class="chip" style="background:${FLAG[f.type]?.bg || '#eee'};border-color:transparent;color:${FLAG[f.type]?.c || '#333'};font-weight:700" title="${esc(f.why || FLAG[f.type]?.d || '')}">${esc(f.type)}</span>`;
+  const bad = r ? r.sentences.filter(s => (s.flags || []).length).length : 0;
+  return `<div class="box" style="margin-bottom:14px"><div class="hd ${t.own ? 'blue' : 'purple'}"><span class="n">${r && !stale ? (bad ? '!' : '✓') : '?'}</span>${esc(t.label)}
+      <span class="sp mini" style="color:#fff">${nbytes(t.text)}B${r && !stale ? ` · 문제 문장 ${bad}개` : ''}</span></div><div class="bd">
+    ${rf.length ? `<div class="mini" style="margin-bottom:8px">⚡ 바로 보이는 의심 단어: ${rf.map(f => `<span class="chip" style="background:${FLAG[f.type].bg};border-color:transparent;color:${FLAG[f.type].c}">${esc(f.type)} · ${esc(f.w)}</span>`).join(' ')}</div>` : ''}
+    ${r && !stale ? `<div class="ai-out" style="margin-bottom:10px">${esc(r.summary || '')}</div>
+      ${r.sentences.map((s, i) => { const fl = s.flags || [], c = fl.length ? FLAG[fl[0].type]?.c || '#e0556a' : '#7fc59a';
+        return `<div style="border-left:4px solid ${c};padding:6px 10px;margin-bottom:8px;background:${fl.length ? FLAG[fl[0].type]?.bg || '#fff' : '#fff'};border-radius:0 8px 8px 0">
+          <div style="font-size:13.5px">${esc(s.s)}</div>
+          ${fl.length ? `<div style="margin-top:4px">${fl.map(f => `${flagChip(f)} <span class="mini">${esc(f.why || '')}</span>`).join('<br>')}</div>` : ''}
+          ${s.evidence ? `<div class="mini" style="margin-top:4px">📎 근거: ${esc(s.evidence)}</div>` : ''}
+          ${fl.length && s.fix ? `<div style="margin-top:6px;padding:6px 8px;background:#fff;border:1.5px dashed var(--line);border-radius:8px;font-size:13.5px">✏️ ${esc(s.fix)}
+            <div class="row" style="margin-top:4px">${t.key.startsWith('final:') ? `<button class="btn sm ${s.applied ? 'ghost' : ''}" onclick="checkApply('${t.key}',${i})">${s.applied ? '✓ 바꿈' : s.fix === '(빼기 권장)' ? '이 문장 빼기' : '이 문장으로 바꾸기'}</button>` : ''}
+            ${s.fix !== '(빼기 권장)' ? `<button class="btn ghost sm" onclick="copyText(${esc(JSON.stringify(s.fix))})">📋 복사</button>` : ''}</div></div>` : ''}
+        </div>`; }).join('')}
+      <div class="row"><span class="mini">${ago(r.at)}</span><button class="btn ai sm" style="margin-left:auto" onclick="checkRun('${t.key}',this)">🔍 다시 점검</button></div>`
+    : `${stale ? '<div class="mini" style="color:var(--red);margin-bottom:6px">글이 바뀌었어요. 다시 점검해 주세요</div>' : ''}
+      <div style="white-space:pre-wrap;font-size:13.5px;max-height:160px;overflow:auto;margin-bottom:8px">${esc(t.text)}</div>
+      <button class="btn ai sm" onclick="checkRun('${t.key}',this)">🔍 AI 문장별 점검</button>`}
+  </div></div>`;
+}
+function secCheck(st) {
+  const T = checkTargets(st);
+  return `<p class="lead">써 놓은 글에서 <mark>근거 없는 문장 · 부풀린 결론</mark>을 찾아요.</p>
+  <div class="row" style="margin-bottom:12px;gap:6px">${Object.entries(FLAG).map(([k, f]) => `<span class="chip" style="background:${f.bg};border-color:transparent;color:${f.c};font-weight:700" title="${f.d}">${k}</span><span class="mini" style="margin-right:8px">${f.d}</span>`).join('')}</div>
+  <p class="mini" style="margin-top:-4px">⚡ 의심 단어는 AI 없이 바로 보여요. 🔍 AI 점검은 담임이 남긴 관찰 기록(일화 · 상담 · 활동 · 공통 행사)과 문장을 맞춰 봐요. 다른 선생님이 쓴 과목 세특은 근거없음은 빼고 표현만 봐요.</p>
+  ${T.length ? T.map(t => checkCard(st, t)).join('') : '<div class="empty">점검할 글이 아직 없어요.<br>✍️ 생기부 정리에서 단락을 쓰거나, 🛠 관리 → 생기부 자료에서 나이스 글을 넣어 주세요 🔍</div>'}`;
 }
 
 /* ---------------- 학생 추가·수정 ---------------- */
