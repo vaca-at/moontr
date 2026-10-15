@@ -1,23 +1,1463 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>moontr.site/drs</title>
-<style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-  iframe { width: 100%; height: 100vh; border: none; display: block; }
-  /* 관리자 버튼: 오른쪽 아래에 작게 */
-  .admin-fab { position: fixed; right: 12px; bottom: 12px; z-index: 10; padding: 4px 11px; border-radius: 999px; border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.85); color: #667; font: 11px/1.4 sans-serif; text-decoration: none; opacity: .45; transition: opacity .15s; }
-  .admin-fab:hover, .admin-fab:focus-visible { opacity: 1; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2026 또래상담부</title>
+  <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Black+Han+Sans&family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+  <!-- Firebase (compat 버전: 일반 script 태그로 바로 사용) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquare/nanumsquare.css');
+    @font-face { font-family:'Paperlogy'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
+    @font-face { font-family:'Paperlogy'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-7Bold.woff2') format('woff2'); font-weight:700; font-display:swap; }
+    @font-face { font-family:'OwnglyphYuntaeng'; src:url('https://cdn.jsdelivr.net/gh/Project-Noonnu/2608211801@font-160/font-160/%EC%98%A8%EA%B8%80%EC%9E%8E%20%EC%9C%A4%ED%83%B1%EC%B2%B4.woff2') format('woff2'); font-weight:400; font-display:swap; }
+    :root {
+      --main:#00b894; --mint:#00b894; --main-light:#55efc4; --mint-light:#55efc4; --mint-pale:#e8fbf5;
+      --bg:#f4fbf9; --card:#ffffff; --text:#2d3436; --muted:#7a8a87;
+      --danger:#e74c3c; --ok:#27ae60; --border:#d3f3e8;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:'Segoe UI','Malgun Gothic',sans-serif; background:var(--bg); color:var(--text); }
+    .view { display:none; }
+    .view.active { display:block; }
+    #config-warning { display:none; background:#c0392b; color:white; padding:12px 16px; font-size:14px; text-align:center; }
+
+    /* ===================== 학생용 화면 ===================== */
+    #view-student header { background:linear-gradient(135deg,var(--mint),var(--mint-light)); color:white; padding:22px 16px 16px; text-align:center; position:relative; min-height:122px; display:flex; flex-direction:column; justify-content:center; }
+    #view-student header h1 { margin:0; font-size:22px; letter-spacing:0.5px; }
+    #view-student header p { margin:4px 0 0; font-size:13px; opacity:0.92; }
+    #view-student .admin-link { position:absolute; top:16px; right:14px; background:rgba(255,255,255,0.25); color:white; text-decoration:none; font-size:12px; padding:6px 10px; border-radius:20px; border:1px solid rgba(255,255,255,0.5); }
+    #view-student .mini-selector { position:absolute; top:50px; right:14px; display:flex; flex-direction:column; gap:5px; align-items:flex-end; }
+    #view-student .mini-selector .row { display:flex; gap:5px; }
+    #view-student .theme-icon-btn { width:32px; height:28px; border-radius:14px; border:none; background:rgba(0,0,0,0.25); font-size:14px; cursor:pointer; line-height:1; }
+    #view-student .theme-icon-btn.active { background:rgba(255,255,255,0.9); }
+
+    body.theme-d { background:#0a0e14; }
+    #view-student.theme-d { --mint:#37e6b0; --mint-light:#ffd166; --mint-pale:#101820; --bg:#0a0e14; --card:#182634; --text:#e8f4ff; --muted:#6f93a8; --border:#2c3e50; --danger:#ff6b6b; font-family:'Do Hyeon',sans-serif; }
+    body.theme-e { background:#fff9e0; }
+    #view-student.theme-e { --mint:#4dabf7; --mint-light:#ff8787; --mint-pale:#eaf6ff; --bg:#fff9e0; --card:#ffffff; --text:#2b3a55; --muted:#7a8a99; --border:#cfe8ff; --danger:#e74c3c; font-family:'Jua',sans-serif; }
+    #view-student.theme-e header h1, #view-student.theme-e .card h2 { font-family:'Black Han Sans',sans-serif; }
+    body.theme-f { background:#3d3220; }
+    #view-student.theme-f { --mint:#7a5a2e; --mint-light:#c0392b; --mint-pale:#e9dab8; --bg:#3d3220; --card:#f4e9cf; --text:#4a3a1e; --muted:#8a6a3e; --border:#b89a5e; --danger:#c0392b; font-family:'Gowun Dodum',sans-serif; }
+    #view-student.theme-f header h1, #view-student.theme-f .card h2 { font-family:'Black Han Sans',sans-serif; }
+
+    #view-student.font-nanum, #view-student.font-nanum * { font-family:'NanumSquare',sans-serif !important; }
+    #view-student.font-paper, #view-student.font-paper * { font-family:'Paperlogy',sans-serif !important; }
+    #view-student.font-yuntaeng, #view-student.font-yuntaeng * { font-family:'OwnglyphYuntaeng',sans-serif !important; }
+
+    #view-student .notice-bar { background:#fff9db; border-bottom:1px solid #ffe58f; padding:10px 16px; font-size:13px; color:#614700; display:flex; gap:8px; align-items:flex-start; white-space:pre-wrap; }
+    #view-student .user-bar { background:var(--card); padding:10px 16px; display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; align-items:center; border-bottom:1px solid var(--border); font-size:13px; }
+    #view-student .user-bar .btn-link { color:var(--mint); background:none; border:none; font-size:13px; cursor:pointer; text-decoration:underline; }
+    #view-student .login-inline { display:flex; gap:8px; margin-left:auto; align-items:center; }
+    #view-student .login-inline input { margin-bottom:0; flex:0 1 150px; text-align:center; letter-spacing:2px; padding:7px 8px; font-size:13px; }
+    #view-student .login-inline button { width:auto; white-space:nowrap; flex-shrink:0; }
+    #view-student #st-welcomeText { font-weight:600; color:var(--mint); }
+    #view-student nav.cat-row { display:flex; gap:6px; padding:8px 16px; justify-content:flex-end; overflow-x:auto; }
+    #view-student nav.cat-row button { padding:6px 12px; border-radius:16px; border:1px solid var(--border); background:var(--card); font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; font-family:inherit; }
+    #view-student nav.cat-row button.active { border-color:var(--mint); color:var(--mint); background:var(--mint-pale); }
+    #view-student main { padding:16px; max-width:640px; margin:0 auto; padding-bottom:50px; }
+    #view-student .panel { display:none; }
+    #view-student .panel.active { display:block; }
+    #view-student .card { background:var(--card); border-radius:14px; padding:18px; margin-bottom:14px; box-shadow:0 1px 6px rgba(0,0,0,0.05); border:1px solid var(--border); }
+    #view-student .card h2 { margin:0 0 12px; font-size:16px; color:var(--mint); }
+    #view-student input, #view-student select, #view-student textarea, #view-student button { font-family:inherit; }
+    #view-student input, #view-student select, #view-student textarea { width:100%; padding:10px; border:1px solid #cde9de; border-radius:10px; font-size:14px; margin-bottom:10px; background:#fbfffd; color:#2d3436; }
+    #view-student button.btn { background:var(--mint); color:white; border:none; border-radius:10px; padding:12px 16px; font-size:14px; font-weight:600; cursor:pointer; width:100%; }
+    #view-student button.btn.secondary { background:var(--mint-pale); color:var(--mint); }
+    #view-student button.btn.small { width:auto; padding:7px 12px; font-size:12px; }
+    #view-student button.btn:disabled { opacity:0.5; }
+    #view-student .session-toggle { display:flex; gap:8px; margin-bottom:12px; }
+    #view-student .session-toggle button { flex:1; }
+    #view-student .session-toggle button.active { background:var(--mint); color:white; }
+    #view-student .session-toggle button:not(.active) { background:var(--mint-pale); color:var(--mint); }
+    #view-student .status-msg { text-align:center; padding:10px; border-radius:10px; font-size:14px; margin-top:8px; }
+    #view-student .status-msg.ok { background:var(--mint-pale); color:var(--mint); }
+    #view-student .status-msg.no { background:#fdecea; color:var(--danger); }
+    #view-student .gift-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
+    #view-student .gift-card { position:relative; border:1px solid var(--border); border-radius:8px; padding:3px; text-align:center; background:var(--card); }
+    #view-student .gift-card img, #view-student .gift-card .noimg { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:5px; background:#eef7f3; display:block; }
+    #view-student .gift-card .num { position:absolute; top:5px; left:5px; background:var(--mint); color:white; font-size:9px; font-weight:bold; border-radius:8px; padding:1px 5px; line-height:1.4; }
+    #view-student .gift-card .name { font-size:10px; font-weight:bold; margin:3px 0 0; line-height:1.25; word-break:keep-all; }
+    #view-student .gift-card .name.expensive { font-size:12px; color:var(--danger); }
+    #view-student .gift-card .name.midprice { color:#2980b9; }
+    #view-student .sort-tabs { display:flex; gap:6px; margin-bottom:10px; }
+    #view-student .sort-tab { flex:1; padding:7px 4px; border-radius:8px; border:1px solid var(--border); background:var(--card); font-size:12px; color:var(--muted); cursor:pointer; }
+    #view-student .sort-tab.active { background:var(--mint); color:white; border-color:var(--mint); }
+    #view-student .locked { text-align:center; padding:40px 16px; color:var(--muted); }
+    #view-student .locked .emoji { font-size:40px; margin-bottom:8px; }
+    #view-student footer { text-align:center; padding:16px; font-size:12px; color:var(--muted); }
+    #view-student .loading { text-align:center; color:var(--muted); padding:20px; font-size:13px; }
+    @media (min-width:640px) { #view-student main { max-width:900px; } #view-student .gift-grid { grid-template-columns:repeat(6,1fr); gap:8px; } }
+    @media (min-width:1000px) { #view-student main { max-width:1300px; } #view-student .gift-grid { grid-template-columns:repeat(10,1fr); gap:8px; } }
+
+    /* ===================== 교사용 관리보드 ===================== */
+    #view-admin header { background:linear-gradient(135deg,var(--main),var(--main-light)); color:white; padding:20px 16px 14px; text-align:center; }
+    #view-admin header h1 { margin:0; font-size:22px; }
+    #view-admin header p { margin:4px 0 0; font-size:13px; opacity:0.9; }
+    #view-admin .notice-bar { background:#fff9db; border-bottom:1px solid #ffe58f; padding:10px 16px; font-size:13px; color:#614700; display:flex; gap:8px; align-items:flex-start; }
+    #view-admin #ad-noticeText { white-space:pre-wrap; }
+    #view-admin .notice-edit { display:none; margin-top:6px; }
+    #view-admin .notice-edit textarea { width:100%; min-height:60px; font-size:13px; padding:6px; border-radius:6px; border:1px solid #ddd; }
+    #view-admin nav.tabs { display:flex; overflow-x:auto; background:white; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
+    #view-admin nav.tabs button { flex:1; min-width:84px; padding:12px 6px; border:none; background:none; font-size:13px; color:var(--muted); cursor:pointer; white-space:nowrap; border-bottom:3px solid transparent; }
+    #view-admin nav.tabs button.active { color:var(--main); font-weight:bold; border-bottom-color:var(--main); }
+    #view-admin main { padding:16px; max-width:960px; margin:0 auto; padding-bottom:60px; }
+    #view-admin .tab-content { display:none; }
+    #view-admin .tab-content.active { display:block; }
+    #view-admin .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.05); }
+    #view-admin .card h2 { margin:0 0 12px; font-size:16px; color:var(--main); }
+    #view-admin .card .help { font-size:12px; color:var(--muted); margin:-6px 0 10px; line-height:1.5; }
+    #view-admin input, #view-admin select, #view-admin textarea { width:100%; padding:9px 10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:8px; font-family:inherit; }
+    #view-admin .row { display:flex; gap:8px; }
+    #view-admin .row > * { flex:1; }
+    #view-admin button.btn { background:var(--main); color:white; border:none; border-radius:8px; padding:10px 14px; font-size:14px; cursor:pointer; font-family:inherit; }
+    #view-admin button.btn.secondary { background:#eee; color:var(--text); }
+    #view-admin button.btn.danger { background:var(--danger); }
+    #view-admin button.btn.small { padding:5px 9px; font-size:12px; }
+    #view-admin button.btn:disabled { opacity:0.5; cursor:not-allowed; }
+    #view-admin .table-wrap { overflow-x:auto; }
+    #view-admin table { width:100%; border-collapse:collapse; font-size:13px; }
+    #view-admin th, #view-admin td { padding:8px 6px; border-bottom:1px solid #eee; text-align:left; white-space:nowrap; }
+    #view-admin th { color:var(--muted); font-weight:600; }
+    #view-admin .member-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:14px; }
+    #view-admin .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; }
+    #view-admin .badge.ok { background:#e6f9ee; color:var(--ok); }
+    #view-admin .badge.no { background:#fdecea; color:var(--danger); }
+    #view-admin .attend-toggle { width:22px; height:22px; cursor:pointer; margin:0; }
+    #view-admin .gift-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; }
+    #view-admin .gift-card { border:1px solid var(--border); border-radius:10px; padding:6px; text-align:center; position:relative; background:white; }
+    #view-admin .gift-card img, #view-admin .gift-card .noimg { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:6px; background:#eee; display:block; }
+    #view-admin .gift-card.drawn img { opacity:0.45; }
+    #view-admin .gift-card .num { position:absolute; top:9px; left:9px; background:var(--main); color:white; font-size:10px; font-weight:bold; border-radius:8px; padding:1px 6px; }
+    #view-admin .gift-card .name { font-size:13px; font-weight:bold; margin:5px 0 2px; word-break:keep-all; }
+    #view-admin .gift-card .price { font-size:12px; color:var(--muted); }
+    #view-admin .gift-card .btns { display:flex; gap:3px; justify-content:center; flex-wrap:wrap; margin-top:5px; }
+    #view-admin .gift-card .btns button { padding:4px 6px; font-size:11px; }
+    #view-admin .mode-select { display:flex; gap:8px; margin-bottom:12px; }
+    #view-admin .mode-select button { flex:1; }
+    #view-admin .mode-select button.active { background:var(--main); color:white; }
+    #view-admin .mode-select button:not(.active) { background:#eee; color:var(--text); }
+    #view-admin .balance { font-size:20px; font-weight:bold; color:var(--main); }
+    #view-admin .placeholder { text-align:center; padding:40px 10px; color:var(--muted); }
+    #view-admin footer { text-align:center; padding:16px; font-size:12px; color:var(--muted); }
+    #view-admin .loading { text-align:center; color:var(--muted); padding:20px; font-size:13px; }
+    #view-admin .result-msg { font-size:13px; margin-top:6px; color:var(--main); white-space:pre-wrap; }
+    #view-admin .result-msg.err { color:var(--danger); }
+    #view-admin .gift-summary { font-size:13px; color:var(--muted); margin-bottom:10px; }
+    #view-admin .reg-count { display:inline-block; background:var(--mint-pale); color:var(--main); border-radius:12px; padding:3px 10px; font-size:12px; margin-left:6px; }
+    /* 여러 장 한꺼번에 등록 */
+    #view-admin .bulk-item { display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+    #view-admin .bulk-item img { width:54px; height:72px; object-fit:cover; border-radius:6px; flex-shrink:0; }
+    #view-admin .bulk-item .fields { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
+    #view-admin .bulk-item .fields input { margin:0; flex:1 1 120px; }
+    #view-admin .bulk-item .fields input.price { flex:0 1 90px; }
+    #view-admin .bulk-item input.missing { border-color:var(--danger); background:#fff5f5; }
+
+    /* ===================== 뽑기 공개 화면 ===================== */
+    #view-draw header { background:linear-gradient(135deg,var(--main),var(--main-light)); color:white; padding:22px 16px; text-align:center; }
+    #view-draw header h1 { margin:0; font-size:22px; }
+    #view-draw header p { margin:6px 0 0; font-size:13px; opacity:0.9; }
+    #view-draw main { max-width:720px; margin:0 auto; padding:16px; }
+    #view-draw .draw-card { background:white; border-radius:14px; padding:20px; text-align:center; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+    #view-draw input { width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:10px; }
+    #view-draw button.draw-btn { background:var(--main); color:white; border:none; border-radius:10px; padding:16px; font-size:16px; font-weight:bold; width:100%; cursor:pointer; }
+    #view-draw button.draw-btn:disabled { opacity:0.5; }
+    #view-draw .result { display:none; margin-top:14px; padding:16px; border-radius:10px; background:#e8fbf5; }
+    #view-draw .result img { width:150px; aspect-ratio:3/4; object-fit:cover; border-radius:10px; margin-bottom:10px; }
+    #view-draw .result .name { font-size:18px; font-weight:bold; }
+    #view-draw .result .price { color:var(--muted); }
+    #view-draw .gift-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:8px; }
+    #view-draw .gift-card { background:white; border-radius:10px; padding:5px; text-align:center; font-size:12px; }
+    #view-draw .gift-card img, #view-draw .gift-card .noimg { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:6px; background:#eee; display:block; }
+    #view-draw .gift-card.drawn { opacity:0.4; }
+    #view-draw .gift-card .name { margin-top:4px; font-weight:bold; word-break:keep-all; }
+    #view-draw .gift-card .tag { font-size:10px; color:var(--ok); }
+    #view-draw .section-title { font-size:14px; color:var(--muted); margin:18px 0 8px; font-weight:bold; }
+    #view-draw .loading { text-align:center; color:var(--muted); padding:20px; font-size:13px; }
+  </style>
 </head>
 <body>
-  <iframe src="https://script.google.com/macros/s/AKfycbzgg875DX9WPwWJMuAztJmJJfdBdB9h-AGDbJBJwplsP3QM4hogbpnE8LXzDzNvA0nr/exec" title="moontr.site/drs"></iframe>
-  <a class="admin-fab" href="/admin/">관리자</a>
-<!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
-<script type="module" src="/visit.js?app=drs&policy=gas"></script>
-<!-- 🔄 위쪽 새로고침 단추 (모든 웹앱 공용, /refresh.js) -->
-<script src="/refresh.js"  defer></script>
+
+<div id="config-warning">⚠️ index.html 안의 <b>firebaseConfig</b>에 파이어베이스 프로젝트 정보를 넣어주세요.</div>
+
+<!-- ============================================================ -->
+<!-- 학생용 화면                                                     -->
+<!-- ============================================================ -->
+<div id="view-student" class="view">
+  <header>
+    <a class="admin-link" href="?page=admin">🔧 교사용 관리보드</a>
+    <div class="mini-selector">
+      <div class="row">
+        <button class="theme-icon-btn" data-theme="d" onclick="st_setTheme('d')">👾</button>
+        <button class="theme-icon-btn" data-theme="e" onclick="st_setTheme('e')">🧸</button>
+        <button class="theme-icon-btn" data-theme="f" onclick="st_setTheme('f')">⚔️</button>
+      </div>
+      <div class="row">
+        <button class="theme-icon-btn" data-font="nanum" onclick="st_setFont('nanum')">🅰️</button>
+        <button class="theme-icon-btn" data-font="paper" onclick="st_setFont('paper')">📄</button>
+        <button class="theme-icon-btn" data-font="yuntaeng" onclick="st_setFont('yuntaeng')">✍️</button>
+      </div>
+    </div>
+    <h1 id="st-titleText">2026 또래상담부</h1>
+    <p id="st-taglineText">동아리 활동 웹앱</p>
+  </header>
+
+  <div class="notice-bar" id="st-noticeBar" style="display:none;">
+    <span>📌</span><span id="st-noticeText"></span>
+  </div>
+
+  <div class="user-bar">
+    <div id="st-loginArea" class="login-inline">
+      <input type="text" id="st-loginId" placeholder="학번/폰뒷자리" inputmode="numeric" maxlength="5">
+      <button class="btn small" onclick="st_doLogin()">입장</button>
+    </div>
+    <div id="st-loggedArea" style="display:none; align-items:center; justify-content:space-between; width:100%;">
+      <span id="st-welcomeText"></span>
+      <button class="btn-link" onclick="st_logout()">로그아웃</button>
+    </div>
+    <div id="st-loginMsg" class="status-msg no" style="display:none; width:100%;"></div>
+  </div>
+
+  <nav class="cat-row">
+    <button class="cat-btn active" data-cat="gift"><span>🎁</span> 천원의 행복 뽑기 준비</button>
+    <button class="cat-btn" data-cat="attend"><span>✅</span> 출석체크</button>
+  </nav>
+
+  <main>
+    <div class="panel active" id="panel-gift">
+      <div class="card" id="st-giftCard"></div>
+    </div>
+    <div class="panel" id="panel-attend">
+      <div class="card" id="st-attendCard"></div>
+    </div>
+  </main>
+  <footer>또래상담부 동아리 웹앱</footer>
+</div>
+
+<!-- ============================================================ -->
+<!-- 교사용 관리보드                                                 -->
+<!-- ============================================================ -->
+<div id="view-admin" class="view">
+  <div id="ad-pwGate" style="min-height:100vh; display:flex; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:14px; padding:28px 24px; width:85%; max-width:300px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+      <div style="font-size:36px; margin-bottom:8px;">🔒</div>
+      <h2 style="margin:0 0 4px; color:var(--main);">관리자 확인</h2>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">비밀번호 4자리를 입력하세요</p>
+      <input type="password" id="ad-adminPw" maxlength="4" inputmode="numeric" style="text-align:center; font-size:20px; letter-spacing:8px;" placeholder="••••">
+      <button class="btn" style="width:100%" onclick="ad_checkAdminPw()">확인</button>
+      <div id="ad-pwMsg" style="color:var(--danger); font-size:13px; margin-top:8px; display:none;">비밀번호가 올바르지 않습니다.</div>
+      <p style="margin-top:14px;"><a href="?" style="font-size:12px;color:var(--muted);">← 학생용 화면</a></p>
+    </div>
+  </div>
+
+  <div id="ad-adminContent" style="display:none;">
+    <header>
+      <h1>🤝 또래상담부 <span style="font-size:14px;font-weight:normal;">교사용 관리보드</span></h1>
+      <p><a href="?" style="color:white;">← 학생용 화면으로 돌아가기</a></p>
+    </header>
+
+    <div class="notice-bar">
+      <div>📌</div>
+      <div style="flex:1">
+        <div id="ad-noticeText">공지사항을 불러오는 중...</div>
+        <div class="notice-edit" id="ad-noticeEdit">
+          <textarea id="ad-noticeInput"></textarea>
+          <button class="btn small" onclick="ad_saveNoticeText()">저장</button>
+          <button class="btn small secondary" onclick="ad_toggleNoticeEdit(false)">취소</button>
+        </div>
+      </div>
+      <button class="btn small secondary" onclick="ad_toggleNoticeEdit(true)" id="ad-noticeEditBtn">수정</button>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="members">명단</button>
+      <button class="tab-btn" data-tab="attendance">출석체크</button>
+      <button class="tab-btn" data-tab="ledger">가계부</button>
+      <button class="tab-btn" data-tab="gifts">뽑기관리</button>
+      <button class="tab-btn" data-tab="import">📥 자료 가져오기</button>
+      <button class="tab-btn" data-tab="willy">워리스톤</button>
+    </nav>
+
+    <main>
+      <!-- 명단 -->
+      <div class="tab-content active" id="tab-members">
+        <div class="card">
+          <h2>부원 추가</h2>
+          <div class="row">
+            <input type="text" id="ad-memberId" placeholder="학번 (예: 10203)" inputmode="numeric">
+            <input type="text" id="ad-memberName" placeholder="이름">
+          </div>
+          <button class="btn" onclick="ad_submitAddMember()">추가 / 수정</button>
+        </div>
+        <div class="card">
+          <h2>부원 명단 <span id="ad-memberCount" style="color:var(--muted); font-weight:normal; font-size:13px;"></span></h2>
+          <div id="ad-memberList" class="loading">불러오는 중...</div>
+        </div>
+      </div>
+
+      <!-- 출석체크 -->
+      <div class="tab-content" id="tab-attendance">
+        <div class="card">
+          <h2>출석체크</h2>
+          <input type="date" id="ad-attendDate" onchange="ad_loadAttendance()">
+          <div class="mode-select">
+            <button id="ad-sessMoim" class="btn active" onclick="ad_setSession('모임')">모일 때</button>
+            <button id="ad-sessEnd" class="btn" onclick="ad_setSession('헤어짐')">헤어질 때</button>
+          </div>
+          <div class="mode-select">
+            <button id="ad-modeTeacher" class="btn active" onclick="ad_setAttendMode('teacher')">교사 입력</button>
+            <button id="ad-modeStudent" class="btn" onclick="ad_setAttendMode('student')">학생 셀프체크 현황</button>
+          </div>
+          <div id="ad-attendArea"></div>
+        </div>
+      </div>
+
+      <!-- 가계부 -->
+      <div class="tab-content" id="tab-ledger">
+        <div class="card">
+          <h2>내역 추가</h2>
+          <div class="row">
+            <input type="date" id="ad-ledgerDate">
+            <select id="ad-ledgerType">
+              <option value="수입">수입 (회비 등)</option>
+              <option value="지출">지출</option>
+            </select>
+          </div>
+          <input type="text" id="ad-ledgerItem" placeholder="항목 (예: 동아리 회비)">
+          <div class="row">
+            <input type="number" id="ad-ledgerAmount" placeholder="금액">
+            <input type="text" id="ad-ledgerStudentId" placeholder="학번 (해당시)">
+          </div>
+          <input type="text" id="ad-ledgerNote" placeholder="비고">
+          <button class="btn" onclick="ad_submitLedger()">등록</button>
+        </div>
+        <div class="card">
+          <h2>현재 잔액</h2>
+          <div class="balance" id="ad-ledgerBalance">- 원</div>
+        </div>
+        <div class="card">
+          <h2>내역 (환급 배지를 누르면 바뀝니다)</h2>
+          <div id="ad-ledgerList" class="loading">불러오는 중...</div>
+        </div>
+      </div>
+
+      <!-- 뽑기관리 -->
+      <div class="tab-content" id="tab-gifts">
+        <div class="card">
+          <h2>📷 선물 한 개씩 등록 <span class="reg-count" id="ad-regCount" style="display:none;"></span></h2>
+          <p class="help">사진 찍기 → 이름·가격 입력 → 등록. 등록 후 바로 다음 선물을 찍을 수 있어요.</p>
+          <input type="file" id="ad-giftPhoto" accept="image/*" capture="environment" style="display:none;">
+          <button type="button" class="btn secondary" style="width:100%" id="ad-giftPhotoBtn" onclick="document.getElementById('ad-giftPhoto').click()">📷 사진 촬영</button>
+          <div id="ad-giftPhotoPreviewWrap" style="display:none; margin:10px 0;">
+            <img id="ad-giftPhotoPreview" style="max-width:100%; max-height:180px; border-radius:10px; display:block;">
+          </div>
+          <input type="text" id="ad-giftName" placeholder="선물 이름" style="margin-top:10px;">
+          <div class="row">
+            <input type="text" id="ad-giftPrice" placeholder="가격 (숫자만)" inputmode="numeric">
+            <select id="ad-giftMethod">
+              <option value="사전등록">사전등록</option>
+              <option value="현장등록">현장 즉석등록</option>
+            </select>
+          </div>
+          <input type="text" id="ad-giftNote" placeholder="비고 (선택)">
+          <button class="btn" style="width:100%" onclick="ad_submitGift()" id="ad-giftSubmitBtn">등록</button>
+        </div>
+
+        <div class="card">
+          <h2>🖼️ 사진 여러 장 한꺼번에 등록</h2>
+          <p class="help">미리 찍어 둔 사진을 여러 장 고르면 줄마다 이름·가격만 적고 한 번에 올릴 수 있어요. (선물 100개 올릴 때 편해요)</p>
+          <input type="file" id="ad-bulkPhotos" accept="image/*" multiple style="display:none;">
+          <button type="button" class="btn secondary" style="width:100%" onclick="document.getElementById('ad-bulkPhotos').click()">🖼️ 사진 여러 장 고르기</button>
+          <div id="ad-bulkList" style="margin-top:10px;"></div>
+          <div id="ad-bulkActions" style="display:none; margin-top:10px;">
+            <div class="row">
+              <select id="ad-bulkMethod">
+                <option value="사전등록">사전등록</option>
+                <option value="현장등록">현장 즉석등록</option>
+              </select>
+              <button class="btn secondary" onclick="ad_clearBulk()">모두 비우기</button>
+            </div>
+            <button class="btn" style="width:100%" id="ad-bulkSubmitBtn" onclick="ad_submitBulk()">모두 등록</button>
+          </div>
+          <div id="ad-bulkMsg" class="result-msg"></div>
+        </div>
+
+        <div class="card">
+          <h2>선물 리스트</h2>
+          <div class="gift-summary" id="ad-giftSummary"></div>
+          <div id="ad-giftGrid" class="loading">불러오는 중...</div>
+          <input type="file" id="ad-changePhoto" accept="image/*" style="display:none;">
+        </div>
+
+        <div class="card">
+          <h2>📱 뽑기 공개화면 링크</h2>
+          <p style="font-size:13px;color:var(--muted)">뽑기 당일 학생들에게 이 주소를 공유하세요.</p>
+          <p style="font-size:13px;word-break:break-all;"><a id="ad-drawLink" href="?page=draw" target="_blank"></a></p>
+        </div>
+      </div>
+
+      <!-- 자료 가져오기 -->
+      <div class="tab-content" id="tab-import">
+        <div class="card">
+          <h2>📥 구글 시트 자료 옮기기 안내</h2>
+          <p class="help" style="margin:0;">
+            기존 구글 시트에서 <b>제목 줄까지 포함해 범위를 드래그 → 복사(Ctrl+C)</b> 한 뒤, 아래 칸에 <b>붙여넣기(Ctrl+V)</b> 하세요.<br>
+            제목 줄(등록순번, 학번 등)은 자동으로 건너뜁니다. 사진URL(구글 드라이브 주소)도 그대로 가져와서 보여줍니다.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>1. 공지사항</h2>
+          <p class="help">설정 시트의 공지사항 칸(A2)을 복사해 붙여넣으세요.</p>
+          <textarea id="im-notice" rows="3" placeholder="공지사항 붙여넣기"></textarea>
+          <button class="btn" onclick="im_notice()">공지 올리기</button>
+          <div id="im-noticeMsg" class="result-msg"></div>
+        </div>
+
+        <div class="card">
+          <h2>2. 명단</h2>
+          <p class="help">열 순서: 학번 | 이름</p>
+          <textarea id="im-members" rows="4" placeholder="명단 시트 붙여넣기"></textarea>
+          <select id="im-membersMode">
+            <option value="append">기존 명단에 추가 (같은 학번은 이름 갱신)</option>
+            <option value="replace">기존 명단 모두 지우고 새로 올리기</option>
+          </select>
+          <button class="btn" onclick="im_members()">명단 올리기</button>
+          <div id="im-membersMsg" class="result-msg"></div>
+        </div>
+
+        <div class="card">
+          <h2>3. 가계부</h2>
+          <p class="help">열 순서: 등록순번 | 날짜 | 구분 | 항목 | 금액 | 학번 | 이름 | 환급여부 | 비고</p>
+          <textarea id="im-ledger" rows="5" placeholder="가계부 시트 붙여넣기"></textarea>
+          <select id="im-ledgerMode">
+            <option value="append">기존 내역에 추가</option>
+            <option value="replace">기존 내역 모두 지우고 새로 올리기</option>
+          </select>
+          <button class="btn" onclick="im_ledger()">가계부 올리기</button>
+          <div id="im-ledgerMsg" class="result-msg"></div>
+        </div>
+
+        <div class="card">
+          <h2>4. 선물 목록</h2>
+          <p class="help">열 순서: 등록순번 | 사진URL | 이름 | 가격 | 비고 | 등록방식 | 올린사람 | 뽑힘여부 | 뽑은학생 (미리보기 열은 무시)</p>
+          <textarea id="im-gifts" rows="5" placeholder="선물리스트 시트 붙여넣기"></textarea>
+          <select id="im-giftsMode">
+            <option value="append">기존 선물에 추가</option>
+            <option value="replace">기존 선물 모두 지우고 새로 올리기</option>
+          </select>
+          <button class="btn" onclick="im_gifts()">선물 목록 올리기</button>
+          <div id="im-giftsMsg" class="result-msg"></div>
+        </div>
+
+        <div class="card">
+          <h2>🔑 관리자 비밀번호 바꾸기</h2>
+          <p class="help">숫자 4자리 (처음 기본값은 0000)</p>
+          <div class="row">
+            <input type="password" id="im-newPw" maxlength="4" inputmode="numeric" placeholder="새 비밀번호 4자리">
+            <button class="btn" onclick="im_changePw()">변경</button>
+          </div>
+          <div id="im-pwMsg" class="result-msg"></div>
+        </div>
+      </div>
+
+      <!-- 워리스톤 -->
+      <div class="tab-content" id="tab-willy">
+        <div class="card">
+          <div class="placeholder">
+            <div style="font-size:40px;">🪨</div>
+            <h2 style="color:var(--muted)">워리스톤 활동</h2>
+            <p>준비중입니다.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer>또래상담부 동아리 웹앱</footer>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 뽑기 공개 화면                                                  -->
+<!-- ============================================================ -->
+<div id="view-draw" class="view">
+  <header>
+    <h1>🎁 천원의 행복 뽑기</h1>
+    <p>또래상담부</p>
+  </header>
+  <main>
+    <div class="draw-card">
+      <input type="text" id="dr-studentLabel" placeholder="이름 또는 학번 (기록용, 선택)">
+      <button class="draw-btn" id="dr-drawBtn" onclick="dr_doDraw()">🎲 뽑기</button>
+      <div class="result" id="dr-result">
+        <img id="dr-resultImg" src="" alt="">
+        <div class="name" id="dr-resultName"></div>
+        <div class="price" id="dr-resultPrice"></div>
+      </div>
+    </div>
+    <div class="section-title" id="dr-countTitle">전체 선물 리스트</div>
+    <div id="dr-giftGrid" class="loading">불러오는 중...</div>
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   🔥 파이어베이스 설정 - 여기만 내 프로젝트 정보로 바꾸세요
+   (Firebase 콘솔 > 프로젝트 설정 > 내 앱 > SDK 설정 및 구성)
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "여기에_apiKey",
+  authDomain: "여기에_authDomain",
+  projectId: "여기에_projectId",
+  storageBucket: "여기에_storageBucket",
+  messagingSenderId: "여기에_messagingSenderId",
+  appId: "여기에_appId"
+};
+
+// 다른 웹앱과 같은 파이어스토어 프로젝트를 써도 섞이지 않도록 컬렉션 이름 앞에 drs_ 를 붙였어요
+const COL = {
+  settings: 'drs_settings',
+  members: 'drs_members',
+  attendance: 'drs_attendance',
+  ledger: 'drs_ledger',
+  gifts: 'drs_gifts',
+  counters: 'drs_counters'
+};
+
+if (firebaseConfig.apiKey.indexOf('여기에') === 0) {
+  document.getElementById('config-warning').style.display = 'block';
+}
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const FV = firebase.firestore.FieldValue;
+
+/* ===================== 공통 도우미 ===================== */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function nowTime() { return new Date().toTimeString().slice(0, 8); }
+function ss(key, val) { // sessionStorage 안전하게 쓰기
+  try {
+    if (val === undefined) return sessionStorage.getItem(key);
+    if (val === null) sessionStorage.removeItem(key); else sessionStorage.setItem(key, val);
+  } catch (e) { return null; }
+}
+// 구글 드라이브 주소 → 작은 썸네일 주소
+function toThumbUrl(u) {
+  if (!u) return '';
+  u = String(u);
+  if (u.startsWith('data:')) return u;
+  const m = u.match(/[?&]id=([^&]+)/) || u.match(/\/d\/([^/?]+)/);
+  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w300' : u;
+}
+function giftImg(g) { return g.photo || toThumbUrl(g.photoUrl); }
+function imgTag(g) {
+  const src = giftImg(g);
+  return src ? `<img src="${esc(src)}" loading="lazy" alt="">` : `<div class="noimg"></div>`;
+}
+
+// 사진을 작게 줄여서(긴 변 360px) 글자 데이터로 바꿈 → 파이어스토어에 바로 저장 (Storage 필요 없음)
+function compressImage(file, maxSize = 360, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const r = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * r), h = Math.round(img.height * r);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('사진을 읽을 수 없어요.')); };
+    img.src = url;
+  });
+}
+
+// 등록순번 자동 증가 (여러 명이 동시에 등록해도 번호가 겹치지 않게)
+async function nextSerial(name, count = 1) {
+  const ref = db.collection(COL.counters).doc(name);
+  return db.runTransaction(async t => {
+    const d = await t.get(ref);
+    const cur = d.exists ? (d.data().value || 0) : 0;
+    t.set(ref, { value: cur + count });
+    return cur + 1;
+  });
+}
+async function bumpCounterTo(name, minValue) {
+  const ref = db.collection(COL.counters).doc(name);
+  await db.runTransaction(async t => {
+    const d = await t.get(ref);
+    const cur = d.exists ? (d.data().value || 0) : 0;
+    if (minValue > cur) t.set(ref, { value: minValue });
+  });
+}
+// 400개씩 나눠서 한꺼번에 쓰기
+async function batchWrite(ops) {
+  for (let i = 0; i < ops.length; i += 400) {
+    const b = db.batch();
+    ops.slice(i, i + 400).forEach(fn => fn(b));
+    await b.commit();
+  }
+}
+async function clearCollection(name) {
+  const snap = await db.collection(name).get();
+  await batchWrite(snap.docs.map(d => b => b.delete(d.ref)));
+}
+
+/* ===================== 설정 (공지 / 관리자 비밀번호) ===================== */
+const settingsRef = db.collection(COL.settings).doc('main');
+async function getSettings() {
+  const s = await settingsRef.get();
+  if (!s.exists) {
+    const def = { notice: '여기에 공지사항을 입력하세요.', adminPw: '0000' };
+    await settingsRef.set(def);
+    return def;
+  }
+  const d = s.data();
+  return { notice: d.notice || '', adminPw: String(d.adminPw || '0000') };
+}
+
+/* ===================== 명단 ===================== */
+async function getMembers() {
+  const snap = await db.collection(COL.members).get();
+  return snap.docs.map(d => ({ id: d.id, name: d.data().name || '' })).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/* ===================== 출석 ===================== */
+function attDocId(date, session, id) { return date + '_' + session + '_' + id; }
+async function setAttendance(date, session, id, checked, mode) {
+  const members = await getMembers();
+  const m = members.find(x => x.id === String(id));
+  await db.collection(COL.attendance).doc(attDocId(date, session, id)).set({
+    date, session, id: String(id), name: m ? m.name : '', checked: !!checked, mode: mode || '교사입력', time: nowTime()
+  });
+}
+async function getAttendanceForDate(date, session) {
+  const [members, snap] = await Promise.all([getMembers(), db.collection(COL.attendance).where('date', '==', date).get()]);
+  const checked = new Set();
+  snap.docs.forEach(d => { const a = d.data(); if (a.session === session && a.checked) checked.add(a.id); });
+  return members.map(m => ({ id: m.id, name: m.name, checked: checked.has(m.id) }));
+}
+
+/* ===================== 선물 (실시간 반영) ===================== */
+let ALL_GIFTS = [], giftsLoaded = false, giftWatchers = [], giftWatchStarted = false;
+function watchGifts(cb) {
+  giftWatchers.push(cb);
+  if (giftsLoaded) cb();
+  if (giftWatchStarted) return;
+  giftWatchStarted = true;
+  db.collection(COL.gifts).onSnapshot(snap => {
+    ALL_GIFTS = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
+      .sort((a, b) => Number(b.serial) - Number(a.serial));
+    giftsLoaded = true;
+    giftWatchers.forEach(f => f());
+  }, err => {
+    console.error(err);
+    alert('선물 목록을 불러오지 못했어요.\n' + err.message);
+  });
+}
+async function addGift(g, serial) {
+  if (!serial) serial = await nextSerial('gifts');
+  await db.collection(COL.gifts).add({
+    serial, name: g.name, price: Number(g.price) || 0, note: g.note || '',
+    method: g.method || '', uploader: g.uploader || '',
+    photo: g.photo || '', photoUrl: g.photoUrl || '',
+    drawn: false, drawnBy: '', createdAt: FV.serverTimestamp()
+  });
+}
+
+/* ============================================================ */
+/* 학생용 화면                                                     */
+/* ============================================================ */
+let st_me = null;
+let st_session = '모임';
+let st_giftSort = 'num';
+let st_giftPhoto = null;
+
+const st_titleMap = {
+  d: { emoji: '👾', title: '또래상담부', sub: '◆ 2026 ARCADE ◆' },
+  e: { emoji: '🧸', title: '2026 또래상담부', sub: '인형뽑기 한 판!' },
+  f: { emoji: '⚔️', title: '2026 또래상담부', sub: '동아리 퀘스트 보드' }
+};
+function st_setTheme(name) {
+  const view = document.getElementById('view-student');
+  ['d', 'e', 'f'].forEach(t => { view.classList.remove('theme-' + t); document.body.classList.remove('theme-' + t); });
+  view.classList.add('theme-' + name);
+  document.body.classList.add('theme-' + name);
+  document.querySelectorAll('.theme-icon-btn[data-theme]').forEach(b => b.classList.toggle('active', b.dataset.theme === name));
+  const info = st_titleMap[name];
+  document.getElementById('st-titleText').innerText = info.emoji + ' ' + info.title;
+  document.getElementById('st-taglineText').innerText = info.sub;
+  ss('pcClubTheme', name);
+}
+function st_setFont(name) {
+  const view = document.getElementById('view-student');
+  const btn = document.querySelector('.theme-icon-btn[data-font="' + name + '"]');
+  const wasActive = btn.classList.contains('active');
+  view.classList.remove('font-nanum', 'font-paper', 'font-yuntaeng');
+  document.querySelectorAll('.theme-icon-btn[data-font]').forEach(b => b.classList.remove('active'));
+  if (!wasActive) { view.classList.add('font-' + name); btn.classList.add('active'); ss('pcClubFont', name); }
+  else ss('pcClubFont', null);
+}
+
+document.querySelectorAll('.cat-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.cat).classList.add('active');
+  });
+});
+
+async function st_loadNotice() {
+  try {
+    const s = await getSettings();
+    if (s.notice) {
+      document.getElementById('st-noticeText').innerText = s.notice;
+      document.getElementById('st-noticeBar').style.display = 'flex';
+    }
+  } catch (e) { console.error(e); }
+}
+
+// 5자리: 학번 / 4자리: 관리자 비밀번호면 교사, 아니면 방문객
+async function loginStudent(input) {
+  input = String(input).trim();
+  if (!/^[0-9]+$/.test(input)) return { success: false, message: '학번(5자리) 또는 전화번호 뒷자리(4자리) 숫자만 입력해주세요.' };
+  if (input.length === 5) {
+    const doc = await db.collection(COL.members).doc(input).get();
+    if (doc.exists) {
+      const name = doc.data().name;
+      return { success: true, id: input, name, role: 'member', welcome: name + ' 학생 반가워요!' };
+    }
+    const g = input.charAt(0);
+    const label = (g === '1' || g === '2' || g === '3') ? '진선여고 ' + g + '학년' : '진선여고 학생';
+    return { success: true, id: input, name: label, role: 'nonmember', welcome: label + ' 반가워요!' };
+  }
+  if (input.length === 4) {
+    const s = await getSettings();
+    if (input === s.adminPw) return { success: true, id: 'teacher', name: '선생님', role: 'teacher', welcome: '선생님, 반가워요!' };
+    return { success: true, id: input, name: '방문객', role: 'guest', welcome: '진선여고 또래상담부를 찾아주셔서 감사합니다!' };
+  }
+  return { success: false, message: '학번(5자리) 또는 전화번호 뒷자리(4자리)를 입력해주세요.' };
+}
+
+async function st_doLogin() {
+  const id = document.getElementById('st-loginId').value.trim();
+  const msg = document.getElementById('st-loginMsg');
+  msg.style.display = 'none';
+  if (!id) return;
+  try {
+    const res = await loginStudent(id);
+    if (!res.success) { msg.style.display = 'block'; msg.innerText = res.message; return; }
+    st_me = { id: res.id, name: res.name, role: res.role };
+    ss('pcClubUser', JSON.stringify({ ...st_me, welcome: res.welcome }));
+    st_showLoggedInBar(res.welcome);
+    st_renderLoggedIn();
+  } catch (e) {
+    msg.style.display = 'block'; msg.innerText = '연결 오류: ' + e.message;
+  }
+}
+function st_showLoggedInBar(welcome) {
+  document.getElementById('st-loginArea').style.display = 'none';
+  document.getElementById('st-loggedArea').style.display = 'flex';
+  document.getElementById('st-welcomeText').innerText = welcome;
+}
+function st_logout() {
+  st_me = null;
+  ss('pcClubUser', null);
+  document.getElementById('st-loginArea').style.display = 'flex';
+  document.getElementById('st-loggedArea').style.display = 'none';
+  document.getElementById('st-loginId').value = '';
+  st_renderLocked();
+}
+function st_renderLoggedIn() { st_loadAttendPanel(); st_loadGiftPanel(); }
+function st_renderLocked() {
+  document.getElementById('st-attendCard').innerHTML = `<div class="locked"><div class="emoji">🔒</div><p>학번 또는 전화번호 뒷자리를 입력하고 입장해주세요.</p></div>`;
+  document.getElementById('st-giftCard').innerHTML = `<div class="locked"><div class="emoji">🔒</div><p>입장 후 선물을 등록하고 리스트를 볼 수 있어요.</p></div>`;
+}
+
+/* ----- 출석체크 ----- */
+function st_loadAttendPanel() {
+  document.getElementById('st-attendCard').innerHTML = `
+    <h2>✅ 출석체크</h2>
+    <input type="date" id="st-attendDate" value="${todayStr()}">
+    <div class="session-toggle">
+      <button id="st-sessMoim" class="${st_session === '모임' ? 'active' : ''}" onclick="st_setSession('모임')">모일 때</button>
+      <button id="st-sessEnd" class="${st_session === '헤어짐' ? 'active' : ''}" onclick="st_setSession('헤어짐')">헤어질 때</button>
+    </div>
+    <button class="btn" onclick="st_doAttendCheck()">출석체크 하기</button>
+    <div id="st-attendMsg" class="status-msg" style="display:none;"></div>`;
+  document.getElementById('st-attendDate').addEventListener('change', st_refreshAttendStatus);
+  st_refreshAttendStatus();
+}
+function st_setSession(s) {
+  st_session = s;
+  document.getElementById('st-sessMoim').classList.toggle('active', s === '모임');
+  document.getElementById('st-sessEnd').classList.toggle('active', s === '헤어짐');
+  st_refreshAttendStatus();
+}
+async function st_refreshAttendStatus() {
+  if (!st_me) return;
+  const date = document.getElementById('st-attendDate').value;
+  const msg = document.getElementById('st-attendMsg');
+  const d = await db.collection(COL.attendance).doc(attDocId(date, st_session, st_me.id)).get();
+  const checked = d.exists && d.data().checked;
+  msg.style.display = 'block';
+  msg.className = 'status-msg ' + (checked ? 'ok' : 'no');
+  msg.innerText = checked ? '(' + st_session + ') 출석 완료!' : '아직 출석체크 전입니다.';
+}
+async function st_doAttendCheck() {
+  const date = document.getElementById('st-attendDate').value;
+  const msg = document.getElementById('st-attendMsg');
+  msg.style.display = 'block';
+  const mem = await db.collection(COL.members).doc(st_me.id).get();
+  if (!mem.exists) {
+    msg.className = 'status-msg no';
+    msg.innerText = '명단에 없는 학번입니다. 담당 선생님께 확인해주세요.';
+    return;
+  }
+  const ref = db.collection(COL.attendance).doc(attDocId(date, st_session, st_me.id));
+  const cur = await ref.get();
+  const now = !(cur.exists && cur.data().checked);
+  await setAttendance(date, st_session, st_me.id, now, '학생셀프체크');
+  msg.className = 'status-msg ' + (now ? 'ok' : 'no');
+  msg.innerText = now ? (mem.data().name + '님, 출석 처리되었습니다.') : '출석이 취소되었습니다.';
+}
+
+/* ----- 천원의 행복 뽑기 준비 ----- */
+function st_loadGiftPanel() {
+  document.getElementById('st-giftCard').innerHTML = `
+    <h2>🎁 선물 등록하기</h2>
+    <input type="file" id="st-giftPhoto" accept="image/*" capture="environment" style="display:none;">
+    <button type="button" class="btn secondary" id="st-giftPhotoBtn" onclick="document.getElementById('st-giftPhoto').click()">📷 사진 촬영</button>
+    <div id="st-giftPhotoPreviewWrap" style="display:none; margin:10px 0;">
+      <img id="st-giftPhotoPreview" style="max-width:100%; max-height:180px; border-radius:10px; display:block;">
+    </div>
+    <input type="text" id="st-giftName" placeholder="선물 이름" style="margin-top:10px;">
+    <input type="text" id="st-giftPrice" placeholder="가격 (숫자만 입력)" inputmode="numeric">
+    <textarea id="st-giftDesc" placeholder="설명 (선택, 비워둬도 됩니다)" rows="2"></textarea>
+    <button class="btn" id="st-giftSubmitBtn" onclick="st_submitGift()">등록하기</button>
+    <div id="st-giftUploadMsg" class="status-msg" style="display:none;"></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+    <h2>전체 선물 리스트 <span id="st-giftCount" style="font-size:12px;color:var(--muted);font-weight:normal;"></span></h2>
+    <div class="sort-tabs">
+      <button class="sort-tab ${st_giftSort === 'num' ? 'active' : ''}" data-sort="num" onclick="st_setGiftSort('num')">번호순</button>
+      <button class="sort-tab ${st_giftSort === 'name' ? 'active' : ''}" data-sort="name" onclick="st_setGiftSort('name')">이름순</button>
+      <button class="sort-tab ${st_giftSort === 'price' ? 'active' : ''}" data-sort="price" onclick="st_setGiftSort('price')">가격순</button>
+    </div>
+    <div id="st-giftGrid" class="loading">불러오는 중...</div>`;
+  document.getElementById('st-giftPhoto').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      st_giftPhoto = await compressImage(file);
+      document.getElementById('st-giftPhotoPreview').src = st_giftPhoto;
+      document.getElementById('st-giftPhotoPreviewWrap').style.display = 'block';
+      document.getElementById('st-giftPhotoBtn').innerText = '📷 다시 촬영';
+    } catch (err) { alert(err.message); }
+  });
+  document.getElementById('st-giftPrice').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+  watchGifts(st_renderGiftGrid);
+}
+function st_setGiftSort(s) {
+  st_giftSort = s;
+  document.querySelectorAll('.sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === s));
+  st_renderGiftGrid();
+}
+function st_renderGiftGrid() {
+  const grid = document.getElementById('st-giftGrid');
+  if (!grid) return;
+  const cnt = document.getElementById('st-giftCount');
+  if (cnt) cnt.innerText = '(' + ALL_GIFTS.length + '개)';
+  if (ALL_GIFTS.length === 0) { grid.innerHTML = '<div class="loading">등록된 선물이 없습니다.</div>'; return; }
+  const gifts = ALL_GIFTS.slice();
+  if (st_giftSort === 'name') gifts.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
+  else if (st_giftSort === 'price') gifts.sort((a, b) => Number(a.price) - Number(b.price));
+  else gifts.sort((a, b) => Number(a.serial) - Number(b.serial));
+  grid.innerHTML = '<div class="gift-grid">' + gifts.map(g => {
+    const p = Number(g.price);
+    const cls = p > 5000 ? 'expensive' : (p >= 3000 ? 'midprice' : '');
+    return `<div class="gift-card"><span class="num">${esc(g.serial)}</span>${imgTag(g)}<div class="name ${cls}">${esc(g.name)}</div></div>`;
+  }).join('') + '</div>';
+}
+async function st_submitGift() {
+  const name = document.getElementById('st-giftName').value.trim();
+  const price = document.getElementById('st-giftPrice').value;
+  const desc = document.getElementById('st-giftDesc').value.trim();
+  if (!name) { alert('선물 이름을 입력해주세요.'); return; }
+  const btn = document.getElementById('st-giftSubmitBtn');
+  btn.disabled = true; btn.innerText = '등록 중...';
+  try {
+    await addGift({ name, price, note: desc, method: '학생등록', uploader: st_me.name + '(' + st_me.id + ')', photo: st_giftPhoto });
+    document.getElementById('st-giftName').value = '';
+    document.getElementById('st-giftPrice').value = '';
+    document.getElementById('st-giftDesc').value = '';
+    document.getElementById('st-giftPhoto').value = '';
+    st_giftPhoto = null;
+    document.getElementById('st-giftPhotoPreviewWrap').style.display = 'none';
+    document.getElementById('st-giftPhotoBtn').innerText = '📷 사진 촬영';
+    const msg = document.getElementById('st-giftUploadMsg');
+    msg.style.display = 'block'; msg.className = 'status-msg ok'; msg.innerText = '선물이 등록되었습니다!';
+    setTimeout(() => { msg.style.display = 'none'; }, 1200);
+  } catch (e) { alert('등록 실패: ' + e.message); }
+  btn.disabled = false; btn.innerText = '등록하기';
+}
+
+/* ============================================================ */
+/* 교사용 관리보드                                                 */
+/* ============================================================ */
+let ad_attendMode = 'teacher';
+let ad_attendSession = '모임';
+let ad_giftPhoto = null;
+let ad_regCount = 0;
+let ad_bulkItems = [];
+let ad_changeTarget = null;
+
+async function ad_checkAdminPw() {
+  const pw = document.getElementById('ad-adminPw').value.trim();
+  if (pw.length !== 4) return;
+  try {
+    const s = await getSettings();
+    if (pw === s.adminPw) {
+      ss('pcAdminAuthed', 'true');
+      ad_openAdmin();
+    } else {
+      document.getElementById('ad-pwMsg').style.display = 'block';
+      document.getElementById('ad-adminPw').value = '';
+      document.getElementById('ad-adminPw').focus();
+    }
+  } catch (e) { alert('연결 오류: ' + e.message); }
+}
+function ad_openAdmin() {
+  document.getElementById('ad-pwGate').style.display = 'none';
+  document.getElementById('ad-adminContent').style.display = 'block';
+  ad_initAdminApp();
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+function ad_initAdminApp() {
+  ad_loadNotice();
+  ad_loadMembers();
+  document.getElementById('ad-attendDate').value = todayStr();
+  document.getElementById('ad-ledgerDate').value = todayStr();
+  ad_loadAttendance();
+  ad_loadLedger();
+  watchGifts(ad_renderGifts);
+  const link = location.origin + location.pathname + '?page=draw';
+  const a = document.getElementById('ad-drawLink');
+  a.href = link; a.innerText = link;
+  ad_bindGiftInputs();
+}
+
+/* ----- 공지 ----- */
+async function ad_loadNotice() {
+  const s = await getSettings();
+  document.getElementById('ad-noticeText').innerText = s.notice || '(공지사항 없음)';
+  document.getElementById('ad-noticeInput').value = s.notice || '';
+}
+function ad_toggleNoticeEdit(show) {
+  document.getElementById('ad-noticeEdit').style.display = show ? 'block' : 'none';
+  document.getElementById('ad-noticeEditBtn').style.display = show ? 'none' : 'inline-block';
+}
+async function ad_saveNoticeText() {
+  await settingsRef.set({ notice: document.getElementById('ad-noticeInput').value }, { merge: true });
+  ad_loadNotice();
+  ad_toggleNoticeEdit(false);
+}
+
+/* ----- 명단 ----- */
+async function ad_loadMembers() {
+  const members = await getMembers();
+  const list = document.getElementById('ad-memberList');
+  document.getElementById('ad-memberCount').innerText = '(' + members.length + '명)';
+  if (members.length === 0) { list.className = ''; list.innerHTML = '<div class="placeholder">등록된 부원이 없습니다.</div>'; return; }
+  list.className = '';
+  list.innerHTML = members.map(m => `
+    <div class="member-item">
+      <span>${esc(m.id)} · ${esc(m.name)}</span>
+      <button class="btn small danger" onclick="ad_removeMember('${esc(m.id)}')">삭제</button>
+    </div>`).join('');
+}
+async function ad_submitAddMember() {
+  const id = document.getElementById('ad-memberId').value.trim();
+  const name = document.getElementById('ad-memberName').value.trim();
+  if (!id || !name) { alert('학번과 이름을 입력해주세요.'); return; }
+  await db.collection(COL.members).doc(id).set({ name });
+  document.getElementById('ad-memberId').value = '';
+  document.getElementById('ad-memberName').value = '';
+  ad_loadMembers();
+}
+async function ad_removeMember(id) {
+  if (!confirm('정말 삭제할까요?')) return;
+  await db.collection(COL.members).doc(id).delete();
+  ad_loadMembers();
+}
+
+/* ----- 출석 ----- */
+function ad_setSession(s) {
+  ad_attendSession = s;
+  document.getElementById('ad-sessMoim').classList.toggle('active', s === '모임');
+  document.getElementById('ad-sessEnd').classList.toggle('active', s === '헤어짐');
+  ad_loadAttendance();
+}
+function ad_setAttendMode(mode) {
+  ad_attendMode = mode;
+  document.getElementById('ad-modeTeacher').classList.toggle('active', mode === 'teacher');
+  document.getElementById('ad-modeStudent').classList.toggle('active', mode === 'student');
+  ad_loadAttendance();
+}
+async function ad_loadAttendance() {
+  const date = document.getElementById('ad-attendDate').value;
+  const area = document.getElementById('ad-attendArea');
+  area.innerHTML = '<div class="loading">불러오는 중...</div>';
+  const list = await getAttendanceForDate(date, ad_attendSession);
+  if (list.length === 0) { area.innerHTML = '<div class="placeholder">부원을 먼저 등록해주세요.</div>'; return; }
+  const n = list.filter(m => m.checked).length;
+  const head = `<p style="font-size:13px;color:var(--muted)">출석 ${n} / ${list.length}명</p>`;
+  if (ad_attendMode === 'teacher') {
+    area.innerHTML = head + list.map(m => `
+      <div class="member-item">
+        <span>${esc(m.id)} · ${esc(m.name)}</span>
+        <input type="checkbox" class="attend-toggle" ${m.checked ? 'checked' : ''} onchange="ad_toggleAttend('${esc(m.id)}', this.checked)">
+      </div>`).join('');
+  } else {
+    area.innerHTML = head + '<p style="font-size:12px;color:var(--muted)">학생들이 학생용 화면에서 직접 체크한 현황입니다.</p>' + list.map(m => `
+      <div class="member-item"><span>${esc(m.id)} · ${esc(m.name)}</span>
+      <span class="badge ${m.checked ? 'ok' : 'no'}">${m.checked ? '출석' : '미출석'}</span></div>`).join('');
+  }
+}
+async function ad_toggleAttend(id, checked) {
+  const date = document.getElementById('ad-attendDate').value;
+  await setAttendance(date, ad_attendSession, id, checked, '교사입력');
+}
+
+/* ----- 가계부 ----- */
+async function ad_loadLedger() {
+  const snap = await db.collection(COL.ledger).get();
+  const entries = snap.docs.map(d => ({ docId: d.id, ...d.data() })).sort((a, b) => Number(a.serial) - Number(b.serial));
+  let balance = 0;
+  entries.forEach(e => { balance += (e.type === '수입' ? 1 : -1) * (Number(e.amount) || 0); });
+  document.getElementById('ad-ledgerBalance').innerText = balance.toLocaleString() + ' 원';
+  const list = document.getElementById('ad-ledgerList');
+  list.className = '';
+  if (entries.length === 0) { list.innerHTML = '<div class="placeholder">내역이 없습니다.</div>'; return; }
+  list.innerHTML = `<div class="table-wrap"><table><tr><th>날짜</th><th>구분</th><th>항목</th><th>금액</th><th>학생</th><th>환급</th><th>비고</th><th></th></tr>` +
+    entries.reverse().map(e => `
+      <tr>
+        <td>${esc(e.date)}</td><td>${esc(e.type)}</td><td>${esc(e.item)}</td>
+        <td>${(Number(e.amount) || 0).toLocaleString()}</td>
+        <td>${esc(e.studentName || e.studentId || '-')}</td>
+        <td>${e.studentId ? `<span class="badge ${e.refunded ? 'ok' : 'no'}" style="cursor:pointer" onclick="ad_toggleRefund('${e.docId}', ${!e.refunded})">${e.refunded ? '환급완료' : '미환급'}</span>` : '-'}</td>
+        <td>${esc(e.note || '')}</td>
+        <td><button class="btn small danger" onclick="ad_removeLedger('${e.docId}')">삭제</button></td>
+      </tr>`).join('') + `</table></div>`;
+}
+async function ad_submitLedger() {
+  const date = document.getElementById('ad-ledgerDate').value;
+  const type = document.getElementById('ad-ledgerType').value;
+  const item = document.getElementById('ad-ledgerItem').value.trim();
+  const amount = document.getElementById('ad-ledgerAmount').value;
+  const studentId = document.getElementById('ad-ledgerStudentId').value.trim();
+  const note = document.getElementById('ad-ledgerNote').value.trim();
+  if (!item || !amount) { alert('항목과 금액을 입력해주세요.'); return; }
+  let studentName = '';
+  if (studentId) { const m = await db.collection(COL.members).doc(studentId).get(); if (m.exists) studentName = m.data().name; }
+  const serial = await nextSerial('ledger');
+  await db.collection(COL.ledger).add({ serial, date, type, item, amount: Number(amount) || 0, studentId, studentName, refunded: false, note });
+  ['ad-ledgerItem', 'ad-ledgerAmount', 'ad-ledgerStudentId', 'ad-ledgerNote'].forEach(id => document.getElementById(id).value = '');
+  ad_loadLedger();
+}
+async function ad_toggleRefund(docId, val) {
+  await db.collection(COL.ledger).doc(docId).update({ refunded: val });
+  ad_loadLedger();
+}
+async function ad_removeLedger(docId) {
+  if (!confirm('삭제할까요?')) return;
+  await db.collection(COL.ledger).doc(docId).delete();
+  ad_loadLedger();
+}
+
+/* ----- 뽑기관리: 선물 등록 ----- */
+function ad_bindGiftInputs() {
+  document.getElementById('ad-giftPhoto').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      ad_giftPhoto = await compressImage(file);
+      document.getElementById('ad-giftPhotoPreview').src = ad_giftPhoto;
+      document.getElementById('ad-giftPhotoPreviewWrap').style.display = 'block';
+      document.getElementById('ad-giftPhotoBtn').innerText = '📷 다시 촬영';
+      document.getElementById('ad-giftName').focus();
+    } catch (err) { alert(err.message); }
+  });
+  document.getElementById('ad-giftPrice').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+  document.getElementById('ad-giftPrice').addEventListener('keydown', e => { if (e.key === 'Enter') ad_submitGift(); });
+
+  // 여러 장 고르기
+  document.getElementById('ad-bulkPhotos').addEventListener('change', async e => {
+    const files = Array.from(e.target.files || []);
+    const msg = document.getElementById('ad-bulkMsg');
+    msg.className = 'result-msg'; msg.innerText = '사진 줄이는 중... (' + files.length + '장)';
+    for (const f of files) {
+      try { ad_bulkItems.push({ photo: await compressImage(f), name: '', price: '' }); }
+      catch (err) { console.error(err); }
+    }
+    e.target.value = '';
+    msg.innerText = '';
+    ad_renderBulk();
+  });
+
+  // 기존 선물 사진 바꾸기
+  document.getElementById('ad-changePhoto').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file || !ad_changeTarget) return;
+    try {
+      const photo = await compressImage(file);
+      await db.collection(COL.gifts).doc(ad_changeTarget).update({ photo });
+    } catch (err) { alert('사진 변경 실패: ' + err.message); }
+    e.target.value = '';
+    ad_changeTarget = null;
+  });
+}
+async function ad_submitGift() {
+  const name = document.getElementById('ad-giftName').value.trim();
+  const price = document.getElementById('ad-giftPrice').value;
+  const note = document.getElementById('ad-giftNote').value.trim();
+  const method = document.getElementById('ad-giftMethod').value;
+  if (!name) { alert('선물 이름을 입력해주세요.'); return; }
+  const btn = document.getElementById('ad-giftSubmitBtn');
+  btn.disabled = true; btn.innerText = '등록 중...';
+  try {
+    await addGift({ name, price, note, method, uploader: '교사', photo: ad_giftPhoto });
+    document.getElementById('ad-giftName').value = '';
+    document.getElementById('ad-giftPrice').value = '';
+    document.getElementById('ad-giftNote').value = '';
+    document.getElementById('ad-giftPhoto').value = '';
+    ad_giftPhoto = null;
+    document.getElementById('ad-giftPhotoPreviewWrap').style.display = 'none';
+    document.getElementById('ad-giftPhotoBtn').innerText = '📷 다음 선물 촬영';
+    ad_regCount++;
+    const rc = document.getElementById('ad-regCount');
+    rc.style.display = 'inline-block'; rc.innerText = '방금 ' + ad_regCount + '개 등록';
+  } catch (e) { alert('등록 실패: ' + e.message); }
+  btn.disabled = false; btn.innerText = '등록';
+}
+
+/* ----- 여러 장 한꺼번에 ----- */
+function ad_renderBulk() {
+  const box = document.getElementById('ad-bulkList');
+  document.getElementById('ad-bulkActions').style.display = ad_bulkItems.length ? 'block' : 'none';
+  document.getElementById('ad-bulkSubmitBtn').innerText = '모두 등록 (' + ad_bulkItems.length + '개)';
+  box.innerHTML = ad_bulkItems.map((it, i) => `
+    <div class="bulk-item">
+      <img src="${it.photo}" alt="">
+      <div class="fields">
+        <input type="text" placeholder="선물 이름" value="${esc(it.name)}" oninput="ad_bulkItems[${i}].name=this.value; this.classList.remove('missing')">
+        <input type="text" class="price" placeholder="가격" inputmode="numeric" value="${esc(it.price)}" oninput="this.value=this.value.replace(/[^0-9]/g,''); ad_bulkItems[${i}].price=this.value">
+      </div>
+      <button class="btn small secondary" onclick="ad_bulkItems.splice(${i},1); ad_renderBulk()">✕</button>
+    </div>`).join('');
+}
+function ad_clearBulk() {
+  if (ad_bulkItems.length && !confirm('고른 사진을 모두 비울까요?')) return;
+  ad_bulkItems = [];
+  ad_renderBulk();
+}
+async function ad_submitBulk() {
+  const missing = ad_bulkItems.map((it, i) => it.name.trim() ? -1 : i).filter(i => i >= 0);
+  if (missing.length) {
+    const inputs = document.querySelectorAll('#ad-bulkList .bulk-item');
+    missing.forEach(i => inputs[i].querySelector('input').classList.add('missing'));
+    alert('이름이 비어 있는 선물이 ' + missing.length + '개 있어요. 빨간 칸을 채워주세요.');
+    return;
+  }
+  const btn = document.getElementById('ad-bulkSubmitBtn');
+  const msg = document.getElementById('ad-bulkMsg');
+  btn.disabled = true;
+  const method = document.getElementById('ad-bulkMethod').value;
+  const total = ad_bulkItems.length;
+  try {
+    const start = await nextSerial('gifts', total);
+    for (let i = 0; i < total; i++) {
+      const it = ad_bulkItems[i];
+      msg.className = 'result-msg'; msg.innerText = '등록 중... ' + (i + 1) + ' / ' + total;
+      await addGift({ name: it.name.trim(), price: it.price, method, uploader: '교사', photo: it.photo }, start + i);
+    }
+    ad_bulkItems = [];
+    ad_renderBulk();
+    msg.innerText = '✅ ' + total + '개 등록 완료!';
+  } catch (e) {
+    msg.className = 'result-msg err'; msg.innerText = '등록 중 오류: ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+/* ----- 선물 리스트 (관리) ----- */
+function ad_renderGifts() {
+  const grid = document.getElementById('ad-giftGrid');
+  const drawnN = ALL_GIFTS.filter(g => g.drawn).length;
+  document.getElementById('ad-giftSummary').innerText = '총 ' + ALL_GIFTS.length + '개 · 뽑힘 ' + drawnN + '개 · 남은 선물 ' + (ALL_GIFTS.length - drawnN) + '개';
+  grid.className = '';
+  if (ALL_GIFTS.length === 0) { grid.innerHTML = '<div class="placeholder">등록된 선물이 없습니다.</div>'; return; }
+  grid.innerHTML = '<div class="gift-grid">' + ALL_GIFTS.map(g => `
+    <div class="gift-card ${g.drawn ? 'drawn' : ''}">
+      <span class="num">${esc(g.serial)}</span>
+      ${imgTag(g)}
+      <div class="name">${esc(g.name)}</div>
+      <div class="price">${(Number(g.price) || 0).toLocaleString()}원</div>
+      ${g.uploader ? `<div style="font-size:11px;color:var(--muted)">by ${esc(g.uploader)}</div>` : ''}
+      ${g.drawn ? `<div class="badge ok">뽑힘: ${esc(g.drawnBy || '')}</div>` : ''}
+      <div class="btns">
+        <button class="btn small secondary" onclick="ad_editGift('${g.docId}')">수정</button>
+        <button class="btn small secondary" onclick="ad_changeGiftPhoto('${g.docId}')">사진</button>
+        ${g.drawn ? `<button class="btn small secondary" onclick="ad_undoDrawn('${g.docId}')">뽑힘취소</button>` : ''}
+        <button class="btn small danger" onclick="ad_removeGift('${g.docId}')">삭제</button>
+      </div>
+    </div>`).join('') + '</div>';
+}
+async function ad_editGift(docId) {
+  const g = ALL_GIFTS.find(x => x.docId === docId);
+  if (!g) return;
+  const name = prompt('선물 이름', g.name);
+  if (name === null) return;
+  const price = prompt('가격 (숫자만)', g.price);
+  if (price === null) return;
+  await db.collection(COL.gifts).doc(docId).update({ name: name.trim() || g.name, price: Number(String(price).replace(/[^0-9]/g, '')) || 0 });
+}
+function ad_changeGiftPhoto(docId) {
+  ad_changeTarget = docId;
+  document.getElementById('ad-changePhoto').click();
+}
+async function ad_undoDrawn(docId) {
+  if (!confirm('뽑힘 표시를 취소할까요? (다시 뽑을 수 있는 상태가 됩니다)')) return;
+  await db.collection(COL.gifts).doc(docId).update({ drawn: false, drawnBy: '' });
+}
+async function ad_removeGift(docId) {
+  if (!confirm('삭제할까요?')) return;
+  await db.collection(COL.gifts).doc(docId).delete();
+}
+
+/* ============================================================ */
+/* 자료 가져오기 (구글 시트 복사 → 붙여넣기)                        */
+/* ============================================================ */
+// 시트에서 복사한 글(탭으로 구분)을 행/열로 나눔. 칸 안 줄바꿈("...")도 처리
+function parseTSV(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = String(text).replace(/\r\n?/g, '\n');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else {
+      if (c === '"' && cell === '') q = true;
+      else if (c === '\t') { row.push(cell); cell = ''; }
+      else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += c;
+    }
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(v => v.trim())).filter(r => r.some(v => v !== ''));
+}
+function dropHeader(rows, isHeader) { return rows.length && isHeader(rows[0]) ? rows.slice(1) : rows; }
+function isNumLike(s) { return /^[0-9]+$/.test(String(s).replace(/[,\s]/g, '')); }
+function normDate(s) {
+  s = String(s || '').trim();
+  const m = s.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m ? m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') : s;
+}
+function normNum(s) { return Number(String(s || '').replace(/[^0-9.-]/g, '')) || 0; }
+function normBool(s) { return ['true', 'o', 'y', 'yes', '예', '✔', '✓', 'v'].includes(String(s || '').trim().toLowerCase()); }
+function showMsg(id, text, isErr) { const el = document.getElementById(id); el.className = 'result-msg' + (isErr ? ' err' : ''); el.innerText = text; }
+
+async function im_notice() {
+  const text = document.getElementById('im-notice').value.trim();
+  if (!text) { showMsg('im-noticeMsg', '붙여넣은 내용이 없어요.', true); return; }
+  try {
+    await settingsRef.set({ notice: text }, { merge: true });
+    showMsg('im-noticeMsg', '✅ 공지가 바뀌었어요.');
+    ad_loadNotice();
+  } catch (e) { showMsg('im-noticeMsg', '오류: ' + e.message, true); }
+}
+
+async function im_members() {
+  let rows = dropHeader(parseTSV(document.getElementById('im-members').value), r => !isNumLike(r[0]));
+  rows = rows.filter(r => r[0] && r[1]);
+  if (!rows.length) { showMsg('im-membersMsg', '올릴 명단이 없어요. (학번 | 이름 순서인지 확인)', true); return; }
+  const replace = document.getElementById('im-membersMode').value === 'replace';
+  if (!confirm('명단 ' + rows.length + '명을 ' + (replace ? '기존 명단을 지우고 ' : '') + '올릴까요?\n예) ' + rows.slice(0, 3).map(r => r[0] + ' ' + r[1]).join(', '))) return;
+  try {
+    showMsg('im-membersMsg', '올리는 중...');
+    if (replace) await clearCollection(COL.members);
+    await batchWrite(rows.map(r => b => b.set(db.collection(COL.members).doc(String(r[0]).replace(/\s/g, '')), { name: r[1] })));
+    showMsg('im-membersMsg', '✅ 명단 ' + rows.length + '명 올리기 완료!');
+    document.getElementById('im-members').value = '';
+    ad_loadMembers();
+  } catch (e) { showMsg('im-membersMsg', '오류: ' + e.message, true); }
+}
+
+async function im_ledger() {
+  let rows = dropHeader(parseTSV(document.getElementById('im-ledger').value), r => !isNumLike(r[0]));
+  rows = rows.filter(r => r[3] || r[4]);
+  if (!rows.length) { showMsg('im-ledgerMsg', '올릴 내역이 없어요. 열 순서를 확인해주세요.', true); return; }
+  const replace = document.getElementById('im-ledgerMode').value === 'replace';
+  if (!confirm('가계부 ' + rows.length + '건을 ' + (replace ? '기존 내역을 지우고 ' : '') + '올릴까요?\n첫 줄: ' + rows[0].slice(1, 5).join(' / '))) return;
+  try {
+    showMsg('im-ledgerMsg', '올리는 중...');
+    if (replace) { await clearCollection(COL.ledger); await db.collection(COL.counters).doc('ledger').set({ value: 0 }); }
+    let start = null, maxSerial = 0;
+    const needNew = rows.filter(r => !isNumLike(r[0])).length;
+    if (needNew) start = await nextSerial('ledger', needNew);
+    let k = 0;
+    const docs = rows.map(r => {
+      const serial = isNumLike(r[0]) ? normNum(r[0]) : start + (k++);
+      maxSerial = Math.max(maxSerial, serial);
+      return {
+        serial, date: normDate(r[1]), type: (r[2] || '').indexOf('지출') >= 0 ? '지출' : '수입',
+        item: r[3] || '', amount: normNum(r[4]), studentId: r[5] || '', studentName: r[6] || '',
+        refunded: normBool(r[7]), note: r[8] || ''
+      };
+    });
+    await batchWrite(docs.map(d => b => b.set(db.collection(COL.ledger).doc(), d)));
+    await bumpCounterTo('ledger', maxSerial);
+    showMsg('im-ledgerMsg', '✅ 가계부 ' + docs.length + '건 올리기 완료!');
+    document.getElementById('im-ledger').value = '';
+    ad_loadLedger();
+  } catch (e) { showMsg('im-ledgerMsg', '오류: ' + e.message, true); }
+}
+
+async function im_gifts() {
+  let rows = dropHeader(parseTSV(document.getElementById('im-gifts').value), r => !isNumLike(r[0]));
+  rows = rows.filter(r => r[2]);
+  if (!rows.length) { showMsg('im-giftsMsg', '올릴 선물이 없어요. 열 순서를 확인해주세요.', true); return; }
+  const replace = document.getElementById('im-giftsMode').value === 'replace';
+  if (!confirm('선물 ' + rows.length + '개를 ' + (replace ? '기존 선물을 지우고 ' : '') + '올릴까요?\n예) ' + rows.slice(0, 3).map(r => r[2]).join(', '))) return;
+  try {
+    showMsg('im-giftsMsg', '올리는 중...');
+    if (replace) { await clearCollection(COL.gifts); await db.collection(COL.counters).doc('gifts').set({ value: 0 }); }
+    const needNew = rows.filter(r => !isNumLike(r[0])).length;
+    let start = needNew ? await nextSerial('gifts', needNew) : null, k = 0, maxSerial = 0;
+    const docs = rows.map(r => {
+      const serial = isNumLike(r[0]) ? normNum(r[0]) : start + (k++);
+      maxSerial = Math.max(maxSerial, serial);
+      const url = /^https?:\/\//.test(r[1] || '') ? r[1] : '';
+      return {
+        serial, photoUrl: url, photo: '', name: r[2], price: normNum(r[3]), note: r[4] || '',
+        method: r[5] || '', uploader: r[6] || '', drawn: normBool(r[7]), drawnBy: r[8] || '',
+        createdAt: FV.serverTimestamp()
+      };
+    });
+    await batchWrite(docs.map(d => b => b.set(db.collection(COL.gifts).doc(), d)));
+    await bumpCounterTo('gifts', maxSerial);
+    showMsg('im-giftsMsg', '✅ 선물 ' + docs.length + '개 올리기 완료! (뽑기관리 탭에서 확인하세요)');
+    document.getElementById('im-gifts').value = '';
+  } catch (e) { showMsg('im-giftsMsg', '오류: ' + e.message, true); }
+}
+
+async function im_changePw() {
+  const pw = document.getElementById('im-newPw').value.trim();
+  if (!/^[0-9]{4}$/.test(pw)) { showMsg('im-pwMsg', '숫자 4자리로 입력해주세요.', true); return; }
+  await settingsRef.set({ adminPw: pw }, { merge: true });
+  document.getElementById('im-newPw').value = '';
+  showMsg('im-pwMsg', '✅ 비밀번호가 바뀌었어요.');
+}
+
+/* ============================================================ */
+/* 뽑기 공개 화면                                                  */
+/* ============================================================ */
+function dr_render() {
+  const grid = document.getElementById('dr-giftGrid');
+  const left = ALL_GIFTS.filter(g => !g.drawn).length;
+  document.getElementById('dr-countTitle').innerText = '전체 선물 리스트 (남은 선물 ' + left + ' / ' + ALL_GIFTS.length + '개)';
+  grid.className = '';
+  if (ALL_GIFTS.length === 0) { grid.innerHTML = '<div class="loading">등록된 선물이 없습니다.</div>'; return; }
+  const gifts = ALL_GIFTS.slice().sort((a, b) => Number(a.serial) - Number(b.serial));
+  grid.innerHTML = '<div class="gift-grid">' + gifts.map(g => `
+    <div class="gift-card ${g.drawn ? 'drawn' : ''}">
+      ${imgTag(g)}
+      <div class="name">${esc(g.name)}</div>
+      ${g.drawn ? `<div class="tag">✔ 뽑힘</div>` : `<div class="tag" style="color:var(--muted)">${(Number(g.price) || 0).toLocaleString()}원</div>`}
+    </div>`).join('') + '</div>';
+}
+// 남은 선물 중 하나를 골라, 동시에 다른 학생이 가져가지 않았는지 확인하며 뽑음
+async function drawRandomGift(label) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const snap = await db.collection(COL.gifts).where('drawn', '==', false).get();
+    if (snap.empty) return { success: false, message: '모든 선물이 이미 뽑혔습니다!' };
+    const pick = snap.docs[Math.floor(Math.random() * snap.docs.length)];
+    const got = await db.runTransaction(async t => {
+      const d = await t.get(pick.ref);
+      if (!d.exists || d.data().drawn) return null;
+      t.update(pick.ref, { drawn: true, drawnBy: label, drawnAt: FV.serverTimestamp() });
+      return d.data();
+    });
+    if (got) return { success: true, gift: got };
+  }
+  return { success: false, message: '사람이 많아요! 잠시 후 다시 눌러주세요.' };
+}
+async function dr_doDraw() {
+  const btn = document.getElementById('dr-drawBtn');
+  const label = document.getElementById('dr-studentLabel').value.trim() || '익명';
+  btn.disabled = true; btn.innerText = '뽑는 중...';
+  try {
+    const res = await drawRandomGift(label);
+    if (!res.success) { alert(res.message); }
+    else {
+      const src = giftImg(res.gift);
+      const img = document.getElementById('dr-resultImg');
+      img.src = src; img.style.display = src ? 'inline-block' : 'none';
+      document.getElementById('dr-resultName').innerText = '🎉 ' + res.gift.name;
+      document.getElementById('dr-resultPrice').innerText = (Number(res.gift.price) || 0).toLocaleString() + '원';
+      document.getElementById('dr-result').style.display = 'block';
+    }
+  } catch (e) { alert('오류: ' + e.message); }
+  btn.disabled = false; btn.innerText = '🎲 뽑기';
+}
+
+/* ============================================================ */
+/* 화면 시작 (?page= 값에 따라)                                     */
+/* ============================================================ */
+const pageParam = new URLSearchParams(location.search).get('page');
+const CURRENT_PAGE = pageParam === 'admin' ? 'admin' : pageParam === 'draw' ? 'draw' : 'student';
+document.getElementById('view-' + CURRENT_PAGE).classList.add('active');
+
+if (CURRENT_PAGE === 'student') {
+  st_setTheme(ss('pcClubTheme') || ['d', 'e', 'f'][Math.floor(Math.random() * 3)]);
+  const savedFont = ss('pcClubFont');
+  if (savedFont) st_setFont(savedFont);
+  st_loadNotice();
+  st_renderLocked();
+  const saved = ss('pcClubUser');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      st_me = { id: data.id, name: data.name, role: data.role };
+      st_showLoggedInBar(data.welcome);
+      st_renderLoggedIn();
+    } catch (e) { ss('pcClubUser', null); }
+  }
+  document.getElementById('st-loginId').addEventListener('keydown', e => { if (e.key === 'Enter') st_doLogin(); });
+} else if (CURRENT_PAGE === 'admin') {
+  document.getElementById('ad-adminPw').addEventListener('keydown', e => { if (e.key === 'Enter') ad_checkAdminPw(); });
+  if (ss('pcAdminAuthed') === 'true') ad_openAdmin();
+} else {
+  watchGifts(dr_render);
+}
+</script>
 </body>
 </html>
