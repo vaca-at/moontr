@@ -175,6 +175,11 @@ textarea{resize:vertical;min-height:80px}
 .modal{position:fixed;inset:0;background:rgba(70,50,50,.28);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px;overflow:auto}
 .modal.on{display:flex}
 .sheet{background:#fff;border-radius:18px;max-width:720px;width:100%;border:1.5px solid var(--line);overflow:hidden}
+.sheet.wide{max-width:1040px}
+.dtable{width:100%;font-size:13.5px;border-collapse:collapse}
+.dtable th{text-align:left;font-weight:600;color:var(--sub);padding:4px;border-bottom:1.5px solid var(--line)}
+.dtable td{padding:3px 4px}
+.dtable input{padding:5px 7px}
 .sheet .hd{background:var(--main);color:#fff;padding:12px 18px;font-family:var(--hand);font-size:22px;display:flex}
 .sheet .bd{padding:18px}
 .sheet section{border:1.5px dashed var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
@@ -200,6 +205,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
   <nav class="nav" id="nav"></nav>
   <div class="right">
     <span class="badge" id="syncBadge">🔒 로그인 전</span>
+    <button class="pill dash" id="adminBtn" style="display:none" onclick="openDash()">🛠 관리</button>
     <span class="badge">🔒 이름·학번 없음</span>
     <button class="pill" onclick="cycleTheme()">🎨 꾸미기</button>
     <button class="pill" onclick="cycleFont()">🔤 글꼴</button>
@@ -362,6 +368,7 @@ let syncState = 'loading';
 function setSync(st) {
   syncState = st;
   $('#syncBadge').textContent = st === 'cloud' ? '☁️ 클라우드 저장 중' : '🔒 로그인 전';
+  $('#adminBtn').style.display = st === 'cloud' ? '' : 'none';
   render();
 }
 function viewGate() {
@@ -404,13 +411,17 @@ const SYS_RULES = `너는 대한민국 고등학교 담임교사의 학교생활
 - 생기부 문체: 명사형 종결(~함, ~임, ~보임, ~함을 보여 줌)로 쓰고, 구체적 행동(관찰 사실)과 거기서 드러나는 특성·성장을 함께 담는다.
 - 따뜻하지만 과장하지 않는 담백한 문장으로 쓴다.`;
 
+// user: 글만 보낼 때는 문자열, 사진도 보낼 때는 { text, images: [{ mime, data(base64) }] }
 async function callAI(system, user, maxTokens = 1800) {
   if (!S.apiKey) { openSettings(); throw new Error('설정에서 AI 키를 먼저 넣어 주세요'); }
+  const text = typeof user === 'string' ? user : user.text;
+  const imgs = typeof user === 'string' ? [] : (user.images || []);
   if (S.provider === 'claude') {
+    const content = imgs.length ? [...imgs.map(m => ({ type: 'image', source: { type: 'base64', media_type: m.mime, data: m.data } })), { type: 'text', text }] : text;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': S.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: S.model || 'claude-sonnet-5-5', max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] })
+      body: JSON.stringify({ model: S.model || 'claude-sonnet-5-5', max_tokens: maxTokens, system, messages: [{ role: 'user', content }] })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error?.message || ('오류 ' + r.status));
@@ -419,7 +430,7 @@ async function callAI(system, user, maxTokens = 1800) {
     const m = S.model || 'gemini-2.5-flash';
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(S.apiKey)}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { maxOutputTokens: maxTokens * 2 } })
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [...imgs.map(m => ({ inline_data: { mime_type: m.mime, data: m.data } })), { text }] }], generationConfig: { maxOutputTokens: maxTokens * 2 } })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error?.message || ('오류 ' + r.status));
@@ -957,6 +968,174 @@ function removeStudent() {
   saveLocal(); V.sid = D.students[0]?.id || null; closeModal(); render();
 }
 
+/* ---------------- 🛠 관리 (로그인한 선생님만) ----------------
+   ① 달력 가져오기: 다른 달력 앱 화면을 캡처해 붙여 넣으면 AI가 일정을 뽑아 이 달력에 한꺼번에 넣어요
+   ② 성적 한꺼번에: 모의고사 · 내신 등급을 표 하나에 넣어요 (엑셀에서 복사해 붙여 넣기 가능) */
+let DASH = { tab: 'cal', imgs: [], text: '', rows: [], kind: 'mocks', label: '' };
+function openDash(tab) {
+  if (syncState !== 'cloud') return toast('🔑 로그인한 뒤에 쓸 수 있어요');
+  if (tab) DASH.tab = tab;
+  openModal('🛠 관리', viewDash(), true);
+}
+function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
+function viewDash() {
+  const tabs = [['cal', '📅 달력 가져오기'], ['score', '📊 성적 한꺼번에']];
+  return `<div class="row" style="margin-bottom:12px">${tabs.map(([k, t]) => `<button class="pill ${DASH.tab === k ? 'on' : ''}" onclick="DASH.tab='${k}';dashRefresh()">${t}</button>`).join('')}</div>
+  ${DASH.tab === 'cal' ? dashCal() : dashScore()}`;
+}
+
+/* ① 달력 가져오기 */
+function dashCal() {
+  const rows = DASH.rows;
+  return `<section id="dashCal"><h4>1. 다른 달력 화면 붙여 넣기</h4>
+    <p class="mini">달력 앱 화면을 캡처한 뒤 이 창에서 <b>Ctrl+V</b> 하면 사진이 들어와요. 여러 장도 돼요. 글로 복사한 일정은 아래 칸에 붙여 넣어요.<br>⚠️ 사진과 글은 AI에 보내져요. 학생 이름이 보이면 가리고 올려 주세요.</p>
+    <div class="row" style="margin:8px 0">${DASH.imgs.map((m, i) => `<div style="position:relative"><img src="data:${m.mime};base64,${m.data}" style="height:90px;border-radius:8px;border:1.5px solid var(--line);display:block"><button class="x" style="position:absolute;top:0;right:2px;background:#fff;border-radius:50%" onclick="DASH.imgs.splice(${i},1);dashRefresh()">✕</button></div>`).join('')}
+      <label class="btn sm ghost">🖼 사진 고르기<input type="file" accept="image/*" multiple hidden onchange="dashFiles(this.files)"></label></div>
+    <textarea id="dashText" oninput="DASH.text=this.value" placeholder="(글로 붙여 넣기) 예: 10/20~10/22 2학년 수학여행, 10/28 학부모 상담주간">${esc(DASH.text)}</textarea>
+    <button class="btn ai" style="margin-top:8px" onclick="dashExtract(this)">✨ 일정 뽑기</button></section>
+  ${rows.length ? `<section><h4>2. 확인하고 고친 뒤 넣기</h4>
+    <p class="mini">체크한 것만 들어가요. 이미 이 달력에 있는 일정은 흐리게 보이고 체크가 빠져 있어요. '끝'을 적으면 그 사이 날마다 들어가요.</p>
+    <table class="dtable"><tr><th></th><th>시작</th><th>끝</th><th>일정</th><th></th></tr>
+    ${rows.map((r, i) => `<tr style="${r.dup ? 'opacity:.5' : ''}"><td><input type="checkbox" ${r.on ? 'checked' : ''} onchange="DASH.rows[${i}].on=this.checked"></td>
+      <td style="width:150px"><input type="date" value="${r.date}" onchange="DASH.rows[${i}].date=this.value"></td>
+      <td style="width:150px"><input type="date" value="${r.end}" onchange="DASH.rows[${i}].end=this.value"></td>
+      <td><input type="text" value="${esc(r.title)}" onchange="DASH.rows[${i}].title=this.value"></td>
+      <td><button class="x" onclick="DASH.rows.splice(${i},1);dashRefresh()">✕</button></td></tr>`).join('')}</table>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="dashAddEvents()">📅 달력에 한꺼번에 넣기</button><button class="btn ghost sm" style="margin-left:auto" onclick="DASH.rows=[];dashRefresh()">목록 비우기</button></div></section>` : ''}`;
+}
+// 사진을 1800px 안으로 줄여 base64(JPEG)로
+function imgToB64(file) {
+  return new Promise((ok, no) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 1800 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); ok({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.9).split(',')[1] });
+    };
+    img.onerror = no; img.src = url;
+  });
+}
+async function dashFiles(files) {
+  for (const f of files) if (f && f.type.startsWith('image/')) DASH.imgs.push(await imgToB64(f));
+  dashRefresh();
+}
+// 관리 창의 달력 가져오기가 열려 있을 때 Ctrl+V 한 사진을 받아요
+document.addEventListener('paste', e => {
+  if (!$('#modal').classList.contains('on') || !$('#dashCal')) return;
+  const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile());
+  if (!files.length) return;
+  e.preventDefault(); dashFiles(files);
+});
+const isYmd = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+async function dashExtract(btn) {
+  DASH.text = $('#dashText').value.trim();
+  if (!DASH.imgs.length && !DASH.text) return toast('캡처 사진이나 글을 먼저 넣어 주세요');
+  await withBusy(btn, async () => {
+    const out = await callAI('너는 달력 앱 화면이나 일정 글에서 일정을 빠짐없이 정확히 옮겨 적는 도우미다. 반드시 JSON 배열만 출력하고 다른 말은 쓰지 않는다.', {
+      text: `사진과 글에 있는 일정을 모두 찾아 아래 모양으로만 출력해.
+[{"date":"YYYY-MM-DD","end":"YYYY-MM-DD 또는 빈 문자열","title":"일정 이름"}]
+- 오늘은 ${today()}. 연도가 안 보이면 화면의 '○월' 표시와 오늘 날짜로 가장 알맞은 연도를 정해.
+- 여러 날 이어지는 일정(막대로 길게 그려진 것 포함)은 date=시작일, end=마지막 날. 하루짜리는 end를 빈 문자열로.
+- 시각이 보이면 title 앞에 "09:00 "처럼 붙여.
+- 달력에 원래 인쇄된 공휴일 이름(추석, 한글날, 대체공휴일 등)과 음력 날짜는 빼.
+- title은 화면 글자 그대로, 30자 이내. 잘려서 안 보이는 글자는 지어내지 마.
+${DASH.text ? '\n[붙여 넣은 글]\n' + DASH.text : ''}`,
+      images: DASH.imgs
+    }, 4000);
+    const arr = parseJSONArray(out).filter(a => isYmd(a.date) && a.title);
+    if (!arr.length) throw new Error('일정을 찾지 못했어요. 달력 부분만 크게 캡처해 보세요');
+    DASH.rows = arr.map(a => {
+      const title = String(a.title).trim().slice(0, 40), end = isYmd(a.end) && a.end > a.date ? a.end : '';
+      const dup = D.events.some(e => e.date === a.date && e.title === title);
+      return { date: a.date, end, title, on: !dup, dup };
+    }).sort((x, y) => x.date.localeCompare(y.date));
+    dashRefresh();
+  });
+}
+function dashAddEvents() {
+  const pick = DASH.rows.filter(r => r.on && isYmd(r.date) && r.title.trim());
+  if (!pick.length) return toast('넣을 일정을 골라 주세요');
+  if (!piiOk(pick.map(r => r.title).join('\n'))) return;
+  let n = 0;
+  pick.forEach(r => {
+    const title = r.title.trim(), last = isYmd(r.end) && r.end > r.date ? r.end : r.date;
+    // 여러 날 일정은 하루씩 (최대 31일)
+    for (let d = new Date(r.date + 'T00:00'), k = 0; ymd(d) <= last && k < 31; d.setDate(d.getDate() + 1), k++) {
+      const ds = ymd(d);
+      if (!D.events.some(x => x.date === ds && x.title === title)) { D.events.push({ id: uid(), date: ds, title }); n++; }
+    }
+  });
+  saveEvents();
+  const f = pick[0].date; V.y = +f.slice(0, 4); V.m = +f.slice(5, 7) - 1; V.sel = f; V.tab = 'cal';
+  DASH.rows = []; DASH.imgs = []; DASH.text = '';
+  closeModal(); render(); toast(`📅 일정 ${n}개를 달력에 넣었어요`);
+}
+
+/* ② 성적 한꺼번에 */
+function dashScore() {
+  if (!D.students.length) return '<div class="empty">학생 노트에서 동물 친구를 먼저 추가해 주세요</div>';
+  const mock = DASH.kind === 'mocks', subj = mock ? MOCK_SUBJ : GRADE_SUBJ, max = mock ? 9 : 5;
+  const labels = [...new Set(D.students.flatMap(s => s[DASH.kind].map(r => r.label)))];
+  return `<section>
+    <div class="row" style="margin-bottom:8px">
+      <button class="pill ${mock ? 'on' : ''}" onclick="dashKind('mocks')">모의고사 (9등급)</button>
+      <button class="pill ${!mock ? 'on' : ''}" onclick="dashKind('grades')">내신 (5등급제)</button>
+      <input type="text" id="dashLabel" list="dashLabels" value="${esc(DASH.label)}" placeholder="${mock ? '회차 (예: 10월)' : '학기 (예: 1-2)'}" style="width:170px" onchange="dashLabel(this.value)">
+      <datalist id="dashLabels">${labels.map(l => `<option value="${esc(l)}">`).join('')}</datalist>
+    </div>
+    <p class="mini">엑셀에서 등급 칸을 여러 줄·여러 칸 복사해 시작할 칸에 붙여 넣으면 한꺼번에 채워져요 (줄 순서 = 아래 친구 순서). 이미 있는 회차를 고르면 넣어 둔 등급을 불러와 고칠 수 있어요. 빈칸은 비워 두면 돼요.</p>
+    <div style="overflow:auto"><table class="dtable" id="dashGrid">
+      <tr><th>친구</th>${subj.map(s => `<th>${s}</th>`).join('')}</tr>
+      ${D.students.map((st, i) => {
+        const r = st[DASH.kind].find(x => x.label === DASH.label) || {};
+        return `<tr><td style="white-space:nowrap">${esc(sname(st))}</td>${subj.map((s, j) => `<td><input type="number" step="0.01" min="1" max="${max}" data-r="${i}" data-c="${j}" value="${r[s] ?? ''}" style="min-width:64px" onpaste="gridPaste(event)"></td>`).join('')}</tr>`;
+      }).join('')}
+    </table></div>
+    <button class="btn" style="margin-top:10px" onclick="dashSaveScores()">💾 한꺼번에 저장</button>
+  </section>`;
+}
+function dashKind(k) { DASH.kind = k; DASH.label = ''; dashRefresh(); }
+// 이미 있는 회차면 넣어 둔 등급을 불러와요 (새 회차면 적던 칸을 그대로 둬요)
+function dashLabel(v) {
+  DASH.label = v.trim();
+  if (D.students.some(s => s[DASH.kind].some(r => r.label === DASH.label))) dashRefresh();
+}
+// 엑셀에서 복사한 표(탭 · 줄바꿈)를 붙여 넣은 칸부터 오른쪽 · 아래로 채워요
+function gridPaste(e) {
+  const t = e.clipboardData.getData('text');
+  if (!/[\t\n]/.test(t)) return;
+  e.preventDefault();
+  const r0 = +e.target.dataset.r, c0 = +e.target.dataset.c;
+  t.replace(/\r/g, '').replace(/\n+$/, '').split('\n').forEach((line, i) => line.split('\t').forEach((v, j) => {
+    const el = document.querySelector(`#dashGrid input[data-r="${r0 + i}"][data-c="${c0 + j}"]`);
+    if (el) el.value = v.trim().replace(/등급$/, '');
+  }));
+}
+function dashSaveScores() {
+  const label = $('#dashLabel').value.trim();
+  if (!label) return toast('회차/학기를 적어 주세요');
+  const kind = DASH.kind, subj = kind === 'mocks' ? MOCK_SUBJ : GRADE_SUBJ, max = kind === 'mocks' ? 9 : 5;
+  let n = 0, bad = 0;
+  D.students.forEach((st, i) => {
+    const vals = {};
+    subj.forEach((s, j) => {
+      const v = document.querySelector(`#dashGrid input[data-r="${i}"][data-c="${j}"]`).value.trim();
+      if (v === '') return;
+      const x = Number(v);
+      if (isNaN(x) || x < 1 || x > max) bad++; else vals[s] = x;
+    });
+    const old = st[kind].find(x => x.label === label);
+    if (!old && !Object.keys(vals).length) return;
+    if (!Object.keys(vals).length) st[kind] = st[kind].filter(x => x !== old);      // 다 지우면 그 회차도 지워요
+    else if (old) { subj.forEach(s => delete old[s]); Object.assign(old, vals); }
+    else st[kind].push({ id: uid(), label, ...vals });
+    saveStudent(st); n++;
+  });
+  DASH.label = label; dashRefresh(); render();
+  toast(bad ? `⚠️ 1~${max} 밖의 숫자 ${bad}칸은 빼고 ${n}명 저장했어요` : `💾 ${n}명의 '${label}' 등급을 저장했어요`);
+}
+
 /* ---------------- 설정 ---------------- */
 function openSettings() {
   openModal('⚙️ 설정', `
@@ -1007,7 +1186,7 @@ function cycleFont() { const t = ['unz', 'gaegu', 'dodum']; S.font = t[(t.indexO
 function toggleBig() { S.big = S.big === 'on' ? 'off' : 'on'; saveSettings(); render(); }
 
 /* ---------------- 모달·토스트 ---------------- */
-function openModal(t, html) { $('#mTitle').textContent = t; $('#mBody').innerHTML = html; $('#modal').classList.add('on'); }
+function openModal(t, html, wide) { $('#mTitle').textContent = t; $('#mBody').innerHTML = html; $('#modal .sheet').classList.toggle('wide', !!wide); $('#modal').classList.add('on'); }
 function closeModal() { $('#modal').classList.remove('on'); }
 let tt; function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600); }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
