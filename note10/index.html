@@ -985,23 +985,83 @@ function viewDash() {
 }
 
 /* ① 달력 가져오기 */
+function monthStr(y, m) { const d = new Date(y, m, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
 function dashCal() {
-  const rows = DASH.rows;
-  return `<section id="dashCal"><h4>1. 다른 달력 화면 붙여 넣기</h4>
+  const rows = DASH.rows, who = rows.some(r => r.who);
+  const from = DASH.iiFrom || monthStr(V.y, V.m), to = DASH.iiTo || monthStr(V.y, V.m + 1);
+  return `<section><h4>📒 아이아이노트에서 바로 가져오기</h4>
+    <p class="mini">아이아이노트 가족방의 일정(가족 일정 + 내 일정)을 그대로 불러와요. 처음 한 번은 아이아이노트에 쓰는 구글 계정으로 로그인해요.</p>
+    <div class="row" style="margin-top:8px"><input type="month" id="iiFrom" value="${from}" style="width:auto"> ~ <input type="month" id="iiTo" value="${to}" style="width:auto">
+      <button class="btn" onclick="dashIinote(this)">📒 불러오기</button></div></section>
+  <section id="dashCal"><h4>📸 다른 달력 화면 붙여 넣기 (AI 키 필요)</h4>
     <p class="mini">달력 앱 화면을 캡처한 뒤 이 창에서 <b>Ctrl+V</b> 하면 사진이 들어와요. 여러 장도 돼요. 글로 복사한 일정은 아래 칸에 붙여 넣어요.<br>⚠️ 사진과 글은 AI에 보내져요. 학생 이름이 보이면 가리고 올려 주세요.</p>
     <div class="row" style="margin:8px 0">${DASH.imgs.map((m, i) => `<div style="position:relative"><img src="data:${m.mime};base64,${m.data}" style="height:90px;border-radius:8px;border:1.5px solid var(--line);display:block"><button class="x" style="position:absolute;top:0;right:2px;background:#fff;border-radius:50%" onclick="DASH.imgs.splice(${i},1);dashRefresh()">✕</button></div>`).join('')}
       <label class="btn sm ghost">🖼 사진 고르기<input type="file" accept="image/*" multiple hidden onchange="dashFiles(this.files)"></label></div>
     <textarea id="dashText" oninput="DASH.text=this.value" placeholder="(글로 붙여 넣기) 예: 10/20~10/22 2학년 수학여행, 10/28 학부모 상담주간">${esc(DASH.text)}</textarea>
     <button class="btn ai" style="margin-top:8px" onclick="dashExtract(this)">✨ 일정 뽑기</button></section>
-  ${rows.length ? `<section><h4>2. 확인하고 고친 뒤 넣기</h4>
-    <p class="mini">체크한 것만 들어가요. 이미 이 달력에 있는 일정은 흐리게 보이고 체크가 빠져 있어요. '끝'을 적으면 그 사이 날마다 들어가요.</p>
-    <table class="dtable"><tr><th></th><th>시작</th><th>끝</th><th>일정</th><th></th></tr>
+  ${rows.length ? `<section><h4>✅ 확인하고 고친 뒤 넣기 <span class="mini">${rows.length}개</span></h4>
+    <p class="mini">체크한 것만 들어가요. 넣지 않을 일정은 체크를 빼거나 ✕로 지우고, 이름은 바로 고칠 수 있어요. 이미 이 달력에 있는 일정은 흐리게 보이고 체크가 빠져 있어요. '끝'을 적으면 그 사이 날마다 들어가요.</p>
+    <div class="row" style="margin-bottom:6px"><button class="btn ghost sm" onclick="DASH.rows.forEach(r=>r.on=!r.dup);dashRefresh()">모두 체크</button><button class="btn ghost sm" onclick="DASH.rows.forEach(r=>r.on=false);dashRefresh()">모두 빼기</button></div>
+    <table class="dtable"><tr><th></th><th>시작</th><th>끝</th>${who ? '<th>누구</th>' : ''}<th>일정</th><th></th></tr>
     ${rows.map((r, i) => `<tr style="${r.dup ? 'opacity:.5' : ''}"><td><input type="checkbox" ${r.on ? 'checked' : ''} onchange="DASH.rows[${i}].on=this.checked"></td>
       <td style="width:150px"><input type="date" value="${r.date}" onchange="DASH.rows[${i}].date=this.value"></td>
       <td style="width:150px"><input type="date" value="${r.end}" onchange="DASH.rows[${i}].end=this.value"></td>
+      ${who ? `<td style="white-space:nowrap" class="mini">${esc(r.who || '')}</td>` : ''}
       <td><input type="text" value="${esc(r.title)}" onchange="DASH.rows[${i}].title=this.value"></td>
       <td><button class="x" onclick="DASH.rows.splice(${i},1);dashRefresh()">✕</button></td></tr>`).join('')}</table>
     <div class="row" style="margin-top:10px"><button class="btn" onclick="dashAddEvents()">📅 달력에 한꺼번에 넣기</button><button class="btn ghost sm" style="margin-left:auto" onclick="DASH.rows=[];dashRefresh()">목록 비우기</button></div></section>` : ''}`;
+}
+// 아이아이노트(iinote 파이어베이스) — 일정은 groups/가족방/schedules 에 { date, time, title, scope(family|personal), profileId }
+const IINOTE_CONFIG = {
+  apiKey: "AIzaSyDAA9awvX3nmdY41Tgvy0KJDkEfxt7dxpM",
+  authDomain: "iinote.firebaseapp.com",
+  projectId: "iinote",
+  storageBucket: "iinote.firebasestorage.app",
+  messagingSenderId: "412097553357",
+  appId: "1:412097553357:web:ca64a3b887316f79ba5a84"
+};
+// 생기부노트 로그인과 따로, 아이아이노트에만 쓰는 로그인 (한 번 하면 이 기기에서 기억해요)
+async function iinoteAuth() {
+  const app2 = firebase.apps.find(a => a.name === 'iinote') || firebase.initializeApp(IINOTE_CONFIG, 'iinote');
+  const a2 = app2.auth();
+  let u = await new Promise(ok => { const off = a2.onAuthStateChanged(x => { off(); ok(x); }); });
+  if (!u) {
+    const p = new firebase.auth.GoogleAuthProvider();
+    p.setCustomParameters({ prompt: 'select_account' });
+    u = (await a2.signInWithPopup(p)).user;
+  }
+  return { u, db2: app2.firestore() };
+}
+async function dashIinote(btn) {
+  const from = $('#iiFrom').value, to = $('#iiTo').value;
+  if (!from || !to || to < from) return toast('가져올 달을 골라 주세요');
+  DASH.iiFrom = from; DASH.iiTo = to;
+  const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spin">🌀</span> 불러오는 중…';
+  try {
+    const { u, db2 } = await iinoteAuth();
+    const ud = (await db2.collection('users').doc(u.uid).get()).data() || {};
+    const gid = ud.lastGroupId || (ud.groupIds || [])[0];
+    if (!gid) throw new Error(u.email + ' 계정에는 아이아이노트 가족방이 없어요');
+    const g = db2.collection('groups').doc(gid);
+    const profs = (await g.collection('profiles').get()).docs.map(d => ({ id: d.id, ...d.data() }));
+    const me = profs.find(p => p.uid === u.uid || (p.uids || []).includes(u.uid));
+    const who = id => profs.find(p => p.id === id)?.name || '';
+    const snap = await g.collection('schedules').where('date', '>=', from + '-01').where('date', '<=', to + '-31').get();
+    // 아이아이노트 화면과 같게: 가족 일정 + 내 일정 ('나만' 일정은 쓴 사람 것만)
+    const list = snap.docs.map(d => d.data()).filter(s => isYmd(s.date) && s.title && (s.scope === 'family' || s.profileId === me?.id));
+    if (!list.length) throw new Error('그 기간에는 아이아이노트 일정이 없어요');
+    DASH.rows = list.map(s => {
+      const title = ((s.time ? s.time + ' ' : '') + String(s.title).trim()).slice(0, 40);
+      const dup = D.events.some(e => e.date === s.date && e.title === title);
+      return { date: s.date, end: '', title, who: who(s.profileId), on: !dup, dup };
+    }).sort((a, b) => (a.date + a.title).localeCompare(b.date + b.title));
+    dashRefresh();
+    toast(`📒 아이아이노트 일정 ${list.length}개를 불러왔어요`);
+  } catch (e) {
+    toast(e.code === 'auth/unauthorized-domain' ? '🔑 아이아이노트 파이어베이스 > Authentication > 승인된 도메인에 moontr.site 를 넣어 주세요'
+      : e.code === 'auth/popup-closed-by-user' ? '로그인 창이 닫혔어요' : '📒 ' + e.message);
+  }
+  if (document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = old; }
 }
 // 사진을 1800px 안으로 줄여 base64(JPEG)로
 function imgToB64(file) {
@@ -1048,7 +1108,7 @@ ${DASH.text ? '\n[붙여 넣은 글]\n' + DASH.text : ''}`,
     DASH.rows = arr.map(a => {
       const title = String(a.title).trim().slice(0, 40), end = isYmd(a.end) && a.end > a.date ? a.end : '';
       const dup = D.events.some(e => e.date === a.date && e.title === title);
-      return { date: a.date, end, title, on: !dup, dup };
+      return { date: a.date, end, title, who: '', on: !dup, dup };
     }).sort((x, y) => x.date.localeCompare(y.date));
     dashRefresh();
   });
