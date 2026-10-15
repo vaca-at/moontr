@@ -180,6 +180,12 @@ textarea{resize:vertical;min-height:80px}
 .dtable th{text-align:left;font-weight:600;color:var(--sub);padding:4px;border-bottom:1.5px solid var(--line)}
 .dtable td{padding:3px 4px}
 .dtable input{padding:5px 7px}
+.dtable td{white-space:pre-wrap;vertical-align:top}
+.rep{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
+.rep th,.rep td{border:1px solid #6b5a5a;padding:7px 9px;vertical-align:middle}
+.rep th{background:var(--soft);font-weight:600}
+.rep .hope{border-bottom:1px dashed #9b8782;padding-bottom:4px;margin-bottom:4px}
+.repwrap{border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;background:#fffdfb}
 .sheet .hd{background:var(--main);color:#fff;padding:12px 18px;font-family:var(--hand);font-size:22px;display:flex}
 .sheet .bd{padding:18px}
 .sheet section{border:1.5px dashed var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
@@ -269,7 +275,15 @@ const EXAMS = [
 // 올린 성적 파일 (클라우드 maumnote/main/meta/scores_연도_칸) — 학번(번호) + 성적만, 이 기기에는 저장하지 않아요
 let SC = {};
 // 생기부 자료 (나이스에서 복사해 붙여 넣기) — meta/rec_연도_종류, 번호 + 칸만 (성명은 버려요). 다시 붙여 넣으면 새것으로 바뀌어요
-const RECORDS = [{ id: 'att', label: '출결상황' }];
+const RECORDS = [
+  { id: 'att', label: '출결상황' },
+  { id: 'jayul', label: '자율·자치활동', chang: /자율|자치/ },
+  { id: 'club', label: '동아리활동', chang: /동아리/ },
+  { id: 'career', label: '진로활동', chang: /진로/ },
+  { id: 'haeng', label: '행동특성 및 종합의견' },
+  { id: 'setuk', label: '📚 과목별 세특' },
+  { id: 'gyogwa', label: '📗 교과학습발달상황' },
+];
 let RC = {};
 
 const HOLIDAYS = {
@@ -789,11 +803,21 @@ function growthRows(st, kind) {
   scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
     const r = st.num ? d.rows.find(x => x.no === st.num) : null;
     if (!r) return;
-    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}` };
+    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}`, _k: d.year * 100 + EXAMS.findIndex(e => e.id === d.exam) };
     gradeCols(d, max).forEach(c => { const v = Number(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; });
     rows.push(o); files.push({ d, r });
   });
+  // 교과학습발달상황(나이스 학기 성적)의 석차등급 → 내신 그래프
+  if (kind === 'school' && st.num) gyogwaDocs().forEach(d => {
+    const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return;
+    const iS = d.cols.findIndex(c => c === '과목'), iG = d.cols.findIndex(c => /석차/.test(c));
+    const o = { label: `${String(d.year).slice(2)}년 ${d.sem}학기 (나이스)`, _k: d.year * 100 + (d.sem == 2 ? 9.5 : 6.5) };
+    rs.forEach(r => { const v = Number(r.v[iG]); if (iG >= 0 && r.v[iG] !== '' && !isNaN(v)) o[r.v[iS]] = v; });
+    rows.push(o);
+  });
+  rows.sort((a, b) => a._k - b._k);
   st[kind === 'mock' ? 'mocks' : 'grades'].forEach(r => { const o = { label: r.label }; Object.keys(r).forEach(k => { if (k !== 'id' && k !== 'label') o[k] = r[k]; }); rows.push(o); });
+  rows.forEach(r => delete r._k);
   const subj = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label')))];
   return { rows, subj, files };
 }
@@ -819,6 +843,7 @@ function secGrowth(st) {
     <div class="box"><div class="hd pink"><span class="n">2</span>내신 등급 <span class="sp mini" style="color:#fff">5등급제 · 위로 갈수록 좋아요</span></div><div class="bd">
       ${noNum}${G.rows.length ? '<canvas id="chGrade" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣어 주세요 🌱</div>'}
       ${orig(G)}
+      ${st.num ? gyogwaDocs().filter(d => d.rows.some(r => r.no === st.num)).map(d => `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer">📗 ${d.year}학년도 ${esc(d.sem)}학기 교과학습발달상황</summary>${gyogwaTable(d, st.num)}</details>`).join('') : ''}
       <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('grades', GRADE_SUBJ)}${table('grades', GRADE_SUBJ)}</details>
     </div></div>
   </div>
@@ -974,7 +999,13 @@ async function polish(area, btn) {
 
 /* 7 생기부 정리 */
 function secFinal(st) {
-  return `<p class="lead">담벼락에서 고른 문구가 <mark>영역별 단락</mark>이 돼요. 고쳐 쓰고 복사해서 나이스에 붙여요.</p>
+  const ys = st.num ? changYears().filter(y => changRows(st.num, y).length || haengText(st.num, y) !== null) : [];
+  const nice = ys.length ? `<div class="box" style="margin-bottom:16px"><div class="hd blue"><span class="n">✿</span>나이스에 지금 들어가 있는 창체 · 행발 <span class="sp mini" style="color:#fff">🛠 관리 > 생기부 자료에서 붙여 넣은 것</span></div><div class="bd">
+    ${ys.map(y => `${ys.length > 1 ? `<b class="mini">${y}학년도</b>` : ''}${changCard(st.num, y)}${haengCard(st.num, y)}`).join('')}</div></div>` : '';
+  const sy = st.num ? [...new Set(Object.values(RC).filter(d => d.kind === 'setuk').map(d => d.year))].sort((a, b) => b - a).filter(y => setukList(st.num, y)) : [];
+  const setuk = sy.length ? `<div class="box" style="margin-bottom:16px"><div class="hd purple"><span class="n">✿</span>과목별 세부능력 및 특기사항 <span class="sp mini" style="color:#fff">📋 누르면 복사</span></div><div class="bd">
+    ${sy.map(y => `${sy.length > 1 ? `<b class="mini">${y}학년도</b>` : ''}${setukList(st.num, y)}`).join('')}</div></div>` : '';
+  return `${nice}${setuk}<p class="lead">담벼락에서 고른 문구가 <mark>영역별 단락</mark>이 돼요. 고쳐 쓰고 복사해서 나이스에 붙여요.</p>
   <div class="cols c2">${AREAS.map((a, i) => {
     const b = nbytes(st.final[a.k]);
     return `<div class="box"><div class="hd ${a.color}"><span class="n">${i + 1}</span>${a.label}<span class="sp" style="font-size:15px">${b} / ${a.limit}B</span></div><div class="bd">
@@ -1212,8 +1243,9 @@ const DROP_COL = /이름|성명|생년|주민|연락|전화|휴대|주소|보호
 const ID_COL = /^(학년|반|번호|번|학번)$/;
 // 엑셀 한 시트(줄 배열) → { cols, rows: [{ sid, no, v: [...] }], dropped }
 function parseScoreSheet(aoa) {
-  const rows = aoa.map(r => r.map(v => String(v ?? '').replace(/\s+/g, ' ').trim()));
-  const flat = c => c.replace(/ /g, '');
+  // 칸 안 줄바꿈(특기사항 여러 줄)은 살리고 띄어쓰기만 정리해요
+  const rows = aoa.map(r => r.map(v => String(v ?? '').replace(/[ \t ]+/g, ' ').replace(/ *\n */g, '\n').trim()));
+  const flat = c => c.replace(/\s/g, '');
   let idKind = 'sid', h = rows.findIndex(r => r.some(c => flat(c) === '학번'));
   if (h < 0) { idKind = 'no'; h = rows.findIndex(r => r.some(c => flat(c) === '번호')); }
   if (h < 0) throw new Error("'학번' 또는 '번호' 머리글을 찾지 못했어요");
@@ -1237,7 +1269,8 @@ function parseScoreSheet(aoa) {
       if (v && names[c][names[c].length - 1] !== v) names[c].push(v);
     }
   }
-  const head = names.map(p => p.join(' '));
+  // 창체 표 위쪽 공통 머리글('창의적 체험활동상황')은 떼어요
+  const head = names.map(p => p.join(' ').replace(/\n/g, ' ').replace(/^창의적\s*체험\s*활동(상황)?\s*/, ''));
   const noCol = idKind === 'no' ? idCol : head.findIndex(n => flat(n) === '번호');
   const keep = [], dropped = [];
   head.forEach((n, c) => {
@@ -1344,12 +1377,43 @@ function dashScore() {
    번호 · 성명 머리글까지 같이 복사하면 성명 칸은 버리고 번호 + 나머지 칸만 저장해요 */
 const recKey = (y, id) => `rec_${y}_${id}`;
 const recOf = d => RECORDS.find(r => r.id === d.kind) || { label: d.kind };
-function recPreview(fromFile) {
+// 복사한 표 글 → 줄 배열. 엑셀처럼 "..." 로 감싼 여러 줄 칸도 한 칸으로 읽어요
+function parseTSV(t) {
+  const rows = [[]]; let cell = '', q = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (q) { if (ch === '"') { if (t[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && cell === '') q = true;
+    else if (ch === '\t') { rows[rows.length - 1].push(cell); cell = ''; }
+    else if (ch === '\n') { rows[rows.length - 1].push(cell); cell = ''; rows.push([]); }
+    else if (ch !== '\r') cell += ch;
+  }
+  rows[rows.length - 1].push(cell);
+  return rows.filter(r => r.some(c => c.trim()));
+}
+// 미리 보기를 만들고, 표의 '영역' 칸이 다른 창체 영역이면 그 영역으로 바꿔 줘요
+function recSetPending(p) {
+  const iArea = p.cols.findIndex(c => /영역/.test(c));
+  const area = iArea >= 0 ? (p.rows.find(r => r.v[iArea]) || { v: [] }).v[iArea] : '';
+  const hit = p.cols.some(c => /수업일수|결석|지각/.test(c)) ? RECORDS[0]
+    : p.cols.some(c => /종합의견/.test(c)) ? RECORDS.find(r => r.id === 'haeng')
+    : area && RECORDS.find(r => r.chang && r.chang.test(area));
+  if (hit && hit.id !== p.kind) { p.kind = hit.id; DASH.rec = hit.id; toast(`📋 표 모양을 보니 ${hit.label}(으)로 넣을게요`); }
+  DASH.recPending = p; dashRefresh();
+}
+// 행발처럼 긴 글 한 칸 표는 쪽이 넘어가며 이어진 글까지 합쳐 읽어요
+function parseAnyRec(aoa) {
+  if (/종합의견/.test(aoa.slice(0, 20).flat().join('').replace(/\s/g, ''))) {
+    const g = parseSetuk(aoa)[0];
+    return { cols: ['행동특성 및 종합의견'], dropped: ['성명'], rows: g.rows.map(r => ({ sid: '', no: r.no, v: [r.text] })) };
+  }
+  return parseScoreSheet(aoa);
+}
+function recPreview() {
   try {
-    const aoa = $('#recText').value.replace(/\r/g, '').split('\n').filter(l => l.trim()).map(l => l.split('\t'));
+    const aoa = parseTSV($('#recText').value);
     if (!aoa.length) return toast('나이스 표를 복사해 붙여 넣어 주세요');
-    DASH.recPending = { kind: DASH.rec, year: DASH.year, file: '붙여 넣기', ...parseScoreSheet(aoa) };
-    dashRefresh();
+    recSetPending({ kind: DASH.rec, year: DASH.year, file: '붙여 넣기', ...parseAnyRec(aoa) });
   } catch (e) { toast('📋 ' + e.message + ' — 번호 · 성명 머리글 줄까지 같이 복사해 주세요'); }
 }
 async function recFile(inp) {
@@ -1358,8 +1422,7 @@ async function recFile(inp) {
     if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
     const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: false });
-    DASH.recPending = { kind: DASH.rec, year: DASH.year, file: f.name, ...parseScoreSheet(aoa) };
-    dashRefresh();
+    recSetPending({ kind: DASH.rec, year: DASH.year, file: f.name, ...parseAnyRec(aoa) });
   } catch (e) { toast('📋 파일을 읽지 못했어요: ' + e.message); }
 }
 async function recSave() {
@@ -1375,9 +1438,14 @@ async function recDelete(key) {
   delete RC[key]; dashRefresh(); render();
 }
 function dashRec() {
+  const tabs = `<div class="row" style="margin-bottom:8px">${yearSelect()}${RECORDS.map(x => `<button class="pill ${x.id === DASH.rec ? 'on' : ''}" onclick="DASH.rec='${x.id}';DASH.recPending=null;dashRefresh()">${x.label}${RC[recKey(DASH.year, x.id)] ? ' ✓' : ''}</button>`).join('')}
+    <button class="pill ${DASH.rec === 'who' ? 'on' : 'dash'}" onclick="DASH.rec='who';DASH.recPending=null;dashRefresh()">👤 학생별로 보기</button></div>`;
+  if (DASH.rec === 'who') return `<section>${tabs}<p class="mini">넣은 창체 · 출결 · 과목 세특을 번호마다 모아 보여요.</p></section>${recByStudent()}`;
+  if (DASH.rec === 'setuk') return dashSetuk(tabs);
+  if (DASH.rec === 'gyogwa') return dashGyogwa(tabs);
   const r = RECORDS.find(x => x.id === DASH.rec) || RECORDS[0], key = recKey(DASH.year, r.id), d = RC[key], p = DASH.recPending;
   return `<section>
-    <div class="row" style="margin-bottom:8px">${yearSelect()}${RECORDS.map(x => `<button class="pill ${x.id === r.id ? 'on' : ''}" onclick="DASH.rec='${x.id}';DASH.recPending=null;dashRefresh()">${x.label}</button>`).join('')}</div>
+    ${tabs}
     <p class="mini">나이스 ${r.label} 화면에서 표를 <b>번호 · 성명 머리글부터 마지막 학생까지</b> 드래그해 복사(Ctrl+C)하고 아래에 붙여 넣어요 (Ctrl+V). 엑셀로 내려받은 파일도 돼요.<br>🔒 성명 칸은 저장하지 않아요. AI도 쓰지 않아 무료예요. 다시 붙여 넣으면 전에 넣은 ${r.label}이 새것으로 바뀌어요.</p>
     <textarea id="recText" style="min-height:110px;font-size:12.5px" placeholder="여기에 붙여 넣기 (Ctrl+V)"></textarea>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="recPreview()">👀 미리 보기</button><label class="btn sm ghost">📂 엑셀 파일로<input type="file" accept=".xlsx,.xls,.csv" hidden onchange="recFile(this)"></label></div>
@@ -1390,10 +1458,218 @@ function dashRec() {
         <button class="x" style="margin-left:auto" onclick="recDelete('${key}')">🗑 지우기</button></h4>${dataTable(d)}</section>`
     : `<div class="empty">${DASH.year}학년도 ${r.label}은 아직 없어요</div>`}`;
 }
-// 학생 노트 '한눈에'에 보일 이 친구의 생기부 자료 (0인 칸은 빼고)
+// 한 학생의 창체 (나이스 '창의적체험활동상황' 처럼 영역 · 시간 · 특기사항 한 표). no = 반 번호
+function changRows(no, year) {
+  return RECORDS.filter(x => x.chang).map(x => {
+    const d = RC[recKey(year, x.id)], r = d && d.rows.find(y => y.no === no);
+    if (!r) return null;
+    const ci = re => d.cols.findIndex(c => re.test(c.replace(/\s/g, '')));
+    const iArea = ci(/영역/), iTime = ci(/시간/), iHope = ci(/희망/);
+    let hope = iHope >= 0 ? r.v[iHope] : '', iHopeV = -1;
+    const k = r.v.findIndex(v => v.replace(/\s/g, '') === '희망분야');      // '희망분야' 글자 다음 칸이 값
+    if (k >= 0) { iHopeV = r.v.findIndex((v, i) => i > k && v); if (iHopeV >= 0) hope = r.v[iHopeV]; }
+    const skip = new Set([iArea, iTime, iHope, k, iHopeV]);
+    return { label: x.label, time: iTime >= 0 ? r.v[iTime] : '', hope, text: r.v.filter((v, i) => !skip.has(i) && v).join('\n') };
+  }).filter(Boolean);
+}
+function changCard(no, year) {
+  const rows = changRows(no, year);
+  if (!rows.length) return '';
+  return `<table class="rep"><tr><th style="width:120px">영역</th><th style="width:56px">시간</th><th>특기사항</th></tr>
+    ${rows.map(r => `<tr><td>${esc(r.label)}</td><td style="text-align:center">${esc(r.time)}</td>
+      <td>${r.label === '진로활동' ? `<div class="hope">희망분야 <b>${esc(r.hope)}</b></div>` : ''}<div style="white-space:pre-wrap">${r.text ? esc(r.text) : '<span class="mini">(아직 비어 있어요)</span>'}</div></td></tr>`).join('')}
+  </table>`;
+}
+// 나이스에 들어가 있는 행발 한 칸
+function haengText(no, year) {
+  const d = RC[recKey(year, 'haeng')], r = d && d.rows.find(x => x.no === no);
+  return r ? r.v[0] || '' : null;
+}
+function haengCard(no, year) {
+  const t = haengText(no, year);
+  if (t === null) return '';
+  return `<table class="rep" style="margin-top:8px"><tr><th>행동특성 및 종합의견 ${t ? `<span class="mini">${nbytes(t)}B</span>` : ''}</th></tr>
+    <tr><td style="white-space:pre-wrap">${t ? esc(t) : '<span class="mini">(아직 비어 있어요)</span>'}</td></tr></table>`;
+}
+const changYears = () => [...new Set(Object.values(RC).filter(d => RECORDS.find(x => x.id === d.kind)?.chang || d.kind === 'haeng').map(d => d.year))].sort((a, b) => b - a);
+// 관리 > 생기부 자료 > 학생별로 보기: 번호마다 창체 표 + 출결
+function recByStudent() {
+  const y = DASH.year, nos = [...new Set(Object.values(RC).filter(d => d.year === y).flatMap(d => d.rows.map(r => r.no)))].sort((a, b) => a - b);
+  if (!nos.length) return `<div class="empty">${y}학년도에 넣은 생기부 자료가 없어요</div>`;
+  const att = RC[recKey(y, 'att')];
+  return nos.map(no => {
+    const s = D.students.find(x => x.num === no), a = att && att.rows.find(r => r.no === no);
+    const attTxt = a ? att.cols.map((c, i) => a.v[i] && a.v[i] !== '0' ? `${esc(c)} <b>${esc(a.v[i])}</b>` : '').filter(Boolean).join(' · ') : '';
+    return `<div class="repwrap"><div class="row" style="margin-bottom:6px"><b class="hand" style="font-size:18px">${no}번 ${s ? esc(sname(s)) : '<span class="mini">(동물 친구 없음)</span>'}</b>
+      ${s ? `<button class="btn ghost sm" style="margin-left:auto" onclick="closeModal();openStudent('${s.id}',7)">학생 노트 →</button>` : ''}</div>
+      ${changCard(no, y)}${haengCard(no, y)}${attTxt ? `<div class="mini" style="margin-top:6px">📋 출결: ${attTxt}</div>` : ''}${setukList(no, y, true)}</div>`;
+  }).join('');
+}
+
+/* 과목별 세부능력 및 특기사항 — 나이스 출력물을 엑셀로 저장해 올리거나 표를 복사해 붙여 넣어요
+   과목 · 학기 · 번호 · 세특만 남기고 성명은 버려요. 과목 · 학기마다 문서 하나 (meta/rec_연도_setuk_학기_과목) */
+function parseSetuk(aoa) {
+  const rows = aoa.map(r => r.map(v => String(v ?? '').replace(/[ \t ]+/g, ' ').replace(/ *\n */g, '\n').trim()));
+  const flat = c => c.replace(/\s/g, '');
+  const h = rows.findIndex(r => r.some(c => flat(c) === '번호') && r.some(c => /세부능력|특기사항|종합의견/.test(flat(c))));
+  if (h < 0) throw new Error("'번호'와 '세부능력 및 특기사항' 머리글을 찾지 못했어요");
+  const col = re => rows[h].findIndex(c => re.test(flat(c)));
+  const iSubj = col(/^과목/), iYear = col(/^학년$/), iSem = col(/^학기$/), iNo = col(/^번호$/), iText = col(/세부능력|특기사항|종합의견/);
+  const out = []; let subj = '', yr = '', sem = '', cur = null;
+  for (const r of rows.slice(h + 1)) {
+    if (r.some(c => flat(c) === '번호') && r.some(c => flat(c) === '성명')) continue;   // 다음 쪽 머리글
+    if (iSubj >= 0 && r[iSubj] && !/^\d+$/.test(r[iSubj])) subj = r[iSubj];            // 합친 칸 → 아래로 이어 받기
+    if (iYear >= 0 && /^\d$/.test(r[iYear] || '')) yr = r[iYear];
+    if (iSem >= 0 && /^\d$/.test(r[iSem] || '')) sem = r[iSem];
+    const no = r[iNo] || '', t = r[iText] || '';
+    if (/^\d{1,2}$/.test(no)) { cur = { subj, yr, sem, no: +no, text: t }; out.push(cur); }
+    else if (t && cur && cur.subj === subj) cur.text += (/[.!?)」』'"]$/.test(cur.text) ? ' ' : '') + t;   // 쪽이 넘어가며 이어진 글
+  }
+  if (!out.length) throw new Error('학생 줄을 찾지 못했어요');
+  const g = {};
+  out.forEach(e => { const k = e.sem + '|' + e.subj; (g[k] = g[k] || { subj: e.subj || '(과목 없음)', sem: e.sem, grade: e.yr, rows: [] }).rows.push({ no: e.no, text: e.text }); });
+  return Object.values(g);
+}
+const setukKey = (y, g) => `rec_${y}_setuk_${g.sem || 0}_${g.subj.replace(/[\/\\.#\[\]\s]/g, '')}`;
+const setukDocs = y => Object.values(RC).filter(d => d.kind === 'setuk' && d.year === y).sort((a, b) => String(a.sem).localeCompare(String(b.sem)) || a.subj.localeCompare(b.subj));
+function setukPreview() {
+  try {
+    const aoa = parseTSV($('#recText').value);
+    if (!aoa.length) return toast('표를 복사해 붙여 넣어 주세요');
+    DASH.setukPending = { file: '붙여 넣기', groups: parseSetuk(aoa) }; dashRefresh();
+  } catch (e) { toast('📚 ' + e.message); }
+}
+async function setukFile(inp) {
+  const f = inp.files[0]; if (!f) return;
+  if (/\.pdf$/i.test(f.name)) return toast('📚 PDF는 칸이 합쳐져 있어 정확히 나누기 어려워요. 나이스 출력 화면에서 엑셀로 저장해 올려 주세요');
+  try {
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    // 시트가 여러 개면 (쪽마다 시트) 모두 이어 붙여요
+    const aoa = wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: false }));
+    DASH.setukPending = { file: f.name, groups: parseSetuk(aoa) }; dashRefresh();
+  } catch (e) { toast('📚 파일을 읽지 못했어요: ' + e.message); }
+}
+async function setukSave() {
+  const p = DASH.setukPending, y = DASH.year;
+  try {
+    for (const g of p.groups) {
+      const key = setukKey(y, g), doc = { kind: 'setuk', year: y, subj: g.subj, sem: g.sem, grade: g.grade, file: p.file, rows: g.rows, at: Date.now() };
+      await roomRef().collection('meta').doc(key).set(doc); RC[key] = doc;
+    }
+  } catch (e) { return toast('☁️ 저장 실패: ' + e.message); }
+  DASH.setukPending = null; dashRefresh(); render(); toast(`📚 ${p.groups.length}과목 세특을 저장했어요`);
+}
+async function setukDelete(key) {
+  if (!confirm('이 과목 세특을 지울까요?')) return;
+  try { await roomRef().collection('meta').doc(key).delete(); } catch (e) { return toast('☁️ 지우기 실패: ' + e.message); }
+  delete RC[key]; dashRefresh(); render();
+}
+function dashSetuk(tabs) {
+  const y = DASH.year, docs = setukDocs(y), p = DASH.setukPending;
+  const keyOf = d => setukKey(d.year, d);
+  return `<section>${tabs}
+    <p class="mini">나이스 '세부능력 및 특기사항' 출력 화면에서 <b>엑셀로 저장</b>한 파일을 올리거나, 표를 복사해 붙여 넣어요. 여러 과목이 한 파일에 있어도 돼요.<br>🔒 과목 · 학기 · 번호 · 세특 글만 저장하고 성명은 버려요. 같은 과목 · 학기를 다시 올리면 새것으로 바뀌어요.</p>
+    <textarea id="recText" style="min-height:90px;font-size:12.5px" placeholder="여기에 붙여 넣기 (Ctrl+V)"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="setukPreview()">👀 미리 보기</button><label class="btn sm ghost">📂 엑셀 파일로<input type="file" accept=".xlsx,.xls,.csv,.pdf" hidden onchange="setukFile(this)"></label></div></section>
+  ${p ? `<section><h4>👀 미리 보기 <span class="mini">${esc(p.file)} · ${p.groups.length}과목</span></h4>
+    <table class="dtable"><tr><th>과목</th><th>학기</th><th>학생</th><th>첫 학생 세특 (앞부분)</th><th></th></tr>
+    ${p.groups.map(g => `<tr><td><b>${esc(g.subj)}</b></td><td>${esc(g.sem)}</td><td>${g.rows.length}명</td><td class="mini">${esc((g.rows[0]?.text || '').slice(0, 70))}…</td><td class="mini">${RC[setukKey(y, g)] ? '바뀜' : '새로'}</td></tr>`).join('')}</table>
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="setukSave()">💾 ${y}학년도로 저장</button><button class="btn ghost sm" onclick="DASH.setukPending=null;dashRefresh()">취소</button></div></section>` : ''}
+  <section><h4>📚 ${y}학년도 저장된 과목 <span class="mini">${docs.length}개</span></h4>
+    ${docs.length ? `<table class="dtable"><tr><th>과목</th><th>학기</th><th>학생</th><th>넣은 날</th><th></th></tr>
+      ${docs.map(d => `<tr><td><b>${esc(d.subj)}</b></td><td>${esc(d.sem)}</td><td>${d.rows.length}명</td><td class="mini">${new Date(d.at).toLocaleDateString()}</td><td><button class="x" onclick="setukDelete('${keyOf(d)}')">🗑</button></td></tr>`).join('')}</table>` : '<div class="empty">아직 없어요</div>'}
+  </section>`;
+}
+/* 교과학습발달상황 — 학기마다 문서 하나 (meta/rec_연도_gyogwa_학기). 번호 + 교과 · 과목 · 학점 · 원점수 · 성취도 · 석차등급 …
+   번호 · 학기는 학생 첫 줄에만 있어서 아래로 이어 받고, '이수학점 합계' 줄은 건너뛰어요. 석차등급은 성장 그래프 내신에 써요 */
+function parseGyogwa(aoa) {
+  const rows = aoa.map(r => r.map(v => String(v ?? '').replace(/\s+/g, ' ').trim()));
+  const flat = c => c.replace(/\s/g, '');
+  const h = rows.findIndex(r => r.some(c => flat(c) === '번호') && r.some(c => flat(c) === '과목') && r.some(c => /석차|성취도/.test(flat(c))));
+  if (h < 0) throw new Error("'번호' · '과목' · '석차등급' 머리글을 찾지 못했어요");
+  const H = rows[h].map(flat), col = re => H.findIndex(c => re.test(c));
+  const iNo = col(/^번호$/), iSem = col(/^학기$/), iYr = col(/^학년$/), iSubj = col(/^과목$/);
+  const keep = H.map((c, i) => i).filter(i => H[i] && ![iNo, iSem, iYr].includes(i) && !/성명|이름/.test(H[i]));
+  const g = {}; let no = 0, sem = '', yr = '';
+  for (const r of rows.slice(h + 1)) {
+    if (r.some(c => flat(c) === '번호') && r.some(c => flat(c) === '과목')) continue;       // 다음 쪽 머리글
+    if (r.some(c => /이수학점/.test(flat(c)))) continue;                                     // 합계 줄
+    if (/^\d{1,2}$/.test(r[iNo] || '')) no = +r[iNo];
+    if (iSem >= 0 && /^\d$/.test(r[iSem] || '')) sem = r[iSem];
+    if (iYr >= 0 && /^\d$/.test(r[iYr] || '')) yr = r[iYr];
+    if (!no || !(r[iSubj] || '')) continue;
+    (g[sem] = g[sem] || { sem, grade: yr, rows: [] }).rows.push({ no, v: keep.map(i => r[i] || '') });
+  }
+  const groups = Object.values(g).map(x => ({ ...x, cols: keep.map(i => H[i]) }));
+  if (!groups.length) throw new Error('학생 줄을 찾지 못했어요');
+  return groups;
+}
+const gyogwaKey = (y, sem) => `rec_${y}_gyogwa_${sem || 0}`;
+const gyogwaDocs = () => Object.values(RC).filter(d => d.kind === 'gyogwa').sort((a, b) => a.year - b.year || String(a.sem).localeCompare(String(b.sem)));
+async function gyogwaRead(src) {
+  try {
+    let aoa;
+    if (src === 'text') aoa = parseTSV($('#recText').value);
+    else {
+      const f = src.files[0]; if (!f) return;
+      if (/\.pdf$/i.test(f.name)) return toast('📗 PDF는 칸이 합쳐져 있어 나누기 어려워요. 나이스 출력 화면에서 엑셀로 저장해 올려 주세요');
+      if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      aoa = wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: false }));
+    }
+    if (!aoa.length) return toast('표를 복사해 붙여 넣어 주세요');
+    DASH.gyPending = parseGyogwa(aoa); dashRefresh();
+  } catch (e) { toast('📗 ' + e.message); }
+}
+async function gyogwaSave() {
+  const y = DASH.year, gs = DASH.gyPending;
+  try {
+    for (const g of gs) {
+      const key = gyogwaKey(y, g.sem), doc = { kind: 'gyogwa', year: y, sem: g.sem, grade: g.grade, cols: g.cols, rows: g.rows, at: Date.now() };
+      await roomRef().collection('meta').doc(key).set(doc); RC[key] = doc;
+    }
+  } catch (e) { return toast('☁️ 저장 실패: ' + e.message); }
+  DASH.gyPending = null; dashRefresh(); render(); toast(`📗 교과학습발달상황 ${gs.map(g => g.sem + '학기').join(' · ')}를 저장했어요`);
+}
+async function gyogwaDelete(key) {
+  if (!confirm('이 학기 교과학습발달상황을 지울까요?')) return;
+  try { await roomRef().collection('meta').doc(key).delete(); } catch (e) { return toast('☁️ 지우기 실패: ' + e.message); }
+  delete RC[key]; dashRefresh(); render();
+}
+// 한 학생 · 한 학기 교과 표 (nos = 번호 → 표에 번호 · 동물 칸 없이)
+function gyogwaTable(d, no) {
+  const rs = no ? d.rows.filter(r => r.no === no) : d.rows;
+  const iG = d.cols.findIndex(c => /석차/.test(c));
+  return `<div style="overflow:auto"><table class="dtable"><tr>${no ? '' : '<th>번호</th><th>동물 친구</th>'}${d.cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr>
+    ${rs.map(r => { const s = !no && D.students.find(x => x.num === r.no);
+      return `<tr>${no ? '' : `<td>${r.no}</td><td style="white-space:nowrap">${s ? esc(sname(s)) : '—'}</td>`}${r.v.map((v, i) => `<td style="${i === iG ? 'font-weight:700;color:var(--main)' : ''}">${esc(v)}</td>`).join('')}</tr>`; }).join('')}</table></div>`;
+}
+function dashGyogwa(tabs) {
+  const y = DASH.year, docs = gyogwaDocs().filter(d => d.year === y), gs = DASH.gyPending;
+  return `<section>${tabs}
+    <p class="mini">나이스 '교과학습발달상황' 출력 화면에서 <b>엑셀로 저장</b>한 파일을 올리거나 표를 복사해 붙여 넣어요. 1 · 2학기가 한 파일에 있어도 학기마다 나눠 저장해요.<br>🔒 성명은 버리고 번호 + 교과 칸만 저장해요. 석차등급은 학생 노트 성장 그래프의 내신에 그려져요. 같은 학기를 다시 올리면 새것으로 바뀌어요.</p>
+    <textarea id="recText" style="min-height:90px;font-size:12.5px" placeholder="여기에 붙여 넣기 (Ctrl+V)"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="gyogwaRead('text')">👀 미리 보기</button><label class="btn sm ghost">📂 엑셀 파일로<input type="file" accept=".xlsx,.xls,.csv,.pdf" hidden onchange="gyogwaRead(this)"></label></div></section>
+  ${gs ? `<section><h4>👀 미리 보기 <span class="mini">${gs.map(g => `${g.sem}학기 ${new Set(g.rows.map(r => r.no)).size}명 · ${g.rows.length}줄`).join(' / ')}</span></h4>
+    ${gs.map(g => gyogwaTable(g)).join('')}
+    <div class="row" style="margin-top:10px"><button class="btn" onclick="gyogwaSave()">💾 ${y}학년도로 저장</button><button class="btn ghost sm" onclick="DASH.gyPending=null;dashRefresh()">취소</button></div></section>` : ''}
+  ${docs.map(d => `<section><h4>📄 ${y}학년도 ${esc(d.sem)}학기 <span class="mini">${new Set(d.rows.map(r => r.no)).size}명 · ${new Date(d.at).toLocaleDateString()} 넣음</span>
+      <button class="x" style="margin-left:auto" onclick="gyogwaDelete('${gyogwaKey(d.year, d.sem)}')">🗑 지우기</button></h4>
+    <details><summary class="mini" style="cursor:pointer">표 펼치기</summary>${gyogwaTable(d)}</details></section>`).join('') || (gs ? '' : `<div class="empty">${y}학년도 교과학습발달상황은 아직 없어요</div>`)}`;
+}
+// 한 학생의 과목 세특 목록 (fold = 접어서)
+function setukList(no, y, fold) {
+  const items = setukDocs(y).map(d => ({ d, r: d.rows.find(r => r.no === no) })).filter(x => x.r && x.r.text);
+  if (!items.length) return '';
+  const body = items.map(({ d, r }) => `<div class="item"><div class="top"><span class="chip">${esc(d.subj)}</span><span class="mini">${esc(d.sem)}학기 · ${nbytes(r.text)}B</span>
+    <button class="x" style="margin-left:auto" title="복사" onclick="copyText(${esc(JSON.stringify(r.text))})">📋</button></div><div style="white-space:pre-wrap;font-size:13.5px">${esc(r.text)}</div></div>`).join('');
+  return fold ? `<details style="margin-top:8px"><summary class="mini" style="cursor:pointer">📚 과목 세특 ${items.length}개</summary>${body}</details>` : body;
+}
+// 학생 노트 '한눈에'에 보일 이 친구의 출결 (0인 칸은 빼고)
 function recItems(st) {
   if (!st.num) return '';
-  return Object.values(RC).sort((a, b) => b.year - a.year).map(d => {
+  return Object.values(RC).filter(d => d.kind === 'att').sort((a, b) => b.year - a.year).map(d => {
     const r = d.rows.find(x => x.no === st.num); if (!r) return '';
     const parts = d.cols.map((c, i) => r.v[i] && r.v[i] !== '0' ? `${esc(c)} <b>${esc(r.v[i])}</b>` : '').filter(Boolean);
     return `<div class="item"><b class="hand" style="font-size:17px">📋 ${d.year} ${esc(recOf(d).label)}</b><div class="mini">${parts.join(' · ')}</div></div>`;
