@@ -2255,11 +2255,15 @@ function rosterSet(id, k, v) {
     if (!sp.nick) return dashRefresh(); if (piiCheck(sp.nick).length) return toast('별칭에 숫자·연락처는 빼 주세요'), dashRefresh();
     st.nick = sp.nick; if (sp.tag) { st.tag = nickTag(sp.tag, sp.nick, st.num); typed = true; }
   }
-  if (k === 'tag') { st.tag = v.replace(/\D/g, '').slice(0, 4); if (!isPencil(st) && st.tag && st.tag === String(st.num || '')) { st.tag = freeTag(st.nick, st.num); toast('🔒 반 번호와 같은 숫자는 쓰지 않아요 — 다른 숫자로 바꿨어요'); } }
+  if (k === 'tag') {
+    st.tag = v.replace(/\D/g, '').slice(0, 4);
+    if (st.tag && st.tag === String(st.num || '')) { st.tag = freeTag(st.nick, st.num); toast('🔒 반 번호와 같은 숫자는 쓰지 않아요 — 다른 숫자로 바꿨어요'); }
+    st.tagSet = !!st.tag;   // 선생님이 직접 넣은 숫자 → 별칭을 정할 때 지켜요
+  }
   if (k === 'emoji') { const old = st.emoji; st.emoji = v; if (st.nick === PENCIL_NICK && v !== PENCIL) st.nick = ANIMAL_NAMES[v] || st.nick; else if (st.nick === ANIMAL_NAMES[old] && ANIMAL_NAMES[v]) st.nick = ANIMAL_NAMES[v]; }
   // 연필 친구가 별칭을 받으면 연필 숫자(= 반 번호)를 버리고 반 번호와 상관없는 숫자로
-  if (wasPencil && !isPencil(st) && !typed && (k === 'nick' || k === 'emoji')) st.tag = freeTag(st.nick, st.num);
-  if (k === 'num' && !isPencil(st) && st.tag === String(st.num)) st.tag = freeTag(st.nick, st.num);
+  if (wasPencil && !isPencil(st) && !typed && !st.tagSet && (k === 'nick' || k === 'emoji')) st.tag = freeTag(st.nick, st.num);
+  if (k === 'num' && !isPencil(st) && st.tag === String(st.num)) { st.tag = freeTag(st.nick, st.num); toast('🔒 별칭 숫자가 반 번호와 같아져서 다른 숫자로 바꿨어요'); }
   sortStudents(); saveStudent(st); render(); dashRefresh();
 }
 
