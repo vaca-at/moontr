@@ -1040,6 +1040,32 @@ function growthRows(st, kind) {
   const subj = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label')))];
   return { rows, subj, files };
 }
+/* 🔍 자세히 보기 — 1등급이 몰려 있는 친구는 등급만으로는 변화가 안 보여요 → 백분위 · 표준점수 · 원점수 변화로 보기 */
+const METRICS = { grade: '등급', pct: '백분위', std: '표준점수', raw: '원점수' };
+const METRIC_RE = { pct: /백분위/, std: /표준\s*점수|표점/, raw: /원점수/ };
+// 성적표에서 그 값(백분위 등) 칸 찾기 → { i, subj }
+function metricCols(d, m) {
+  return d.cols.map((h, i) => ({ h, i })).filter(c => METRIC_RE[m].test(c.h) && d.rows.some(r => r.v[c.i] !== '' && !isNaN(parseFloat(r.v[c.i]))))
+    .map(c => ({ i: c.i, subj: subjName(c.h.replace(/원점수|표준\s*점수|표점|백분위|석차|등급/g, '')) || c.h }));
+}
+function growthMetric(st, kind, m) {
+  if (m === 'grade') return growthRows(st, kind);
+  const rows = [];
+  if (st.num) scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
+    const r = d.rows.find(x => x.no === st.num); if (!r) return;
+    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}` };
+    metricCols(d, m).forEach(c => { const v = parseFloat(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; });
+    rows.push(o);
+  });
+  return { rows, subj: [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label')))], files: [] };
+}
+// 그래프 위 단추: 등급 · 백분위 · 표준점수 · 원점수 (성적표에 있는 것만)
+function metricPills(st, kind) {
+  const has = Object.keys(METRICS).filter(m => m === 'grade' || growthMetric(st, kind, m).subj.length);
+  if (has.length < 2) return '';
+  const on = V.gm?.[kind] || 'grade';
+  return `<div class="row" style="margin-bottom:8px;gap:4px"><span class="mini">🔍 자세히 보기</span>${has.map(m => `<button class="pill ${m === on ? 'on' : ''}" style="font-size:13px;padding:2px 10px" onclick="V.gm=Object.assign(V.gm||{},{${kind}:'${m}'});render()">${METRICS[m]}</button>`).join('')}</div>`;
+}
 function secGrowth(st) {
   const M = growthRows(st, 'mock'), G = growthRows(st, 'school');
   // 이 친구 줄만 성적표 원본 그대로 (원점수 · 백분위 등)
@@ -1055,12 +1081,14 @@ function secGrowth(st) {
     ${st[kind].map(r => `<tr><td style="padding:4px"><b>${esc(r.label)}</b></td>${subj.map(s => `<td>${r[s] ?? '-'}</td>`).join('')}<td><button class="x" onclick="delIn('${kind}','${r.id}')">✕</button></td></tr>`).join('')}</table>` : '';
   return `<div class="cols c2">
     <div class="box"><div class="hd blue"><span class="n">1</span>모의고사 등급 <span class="sp mini" style="color:#fff">9등급 · 위로 갈수록 좋아요</span></div><div class="bd">
-      ${noNum}${M.rows.length ? '<canvas id="chMock" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣으면 그래프가 그려져요 📈</div>'}
+      ${noNum}${metricPills(st, 'mock')}${M.rows.length ? '<canvas id="chMock" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣으면 그래프가 그려져요 📈</div>'}
+      ${(V.gm?.mock || 'grade') === 'grade' ? noGrade(M) : ''}
       ${orig(M)}
       <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('mocks', MOCK_SUBJ)}${table('mocks', MOCK_SUBJ)}</details>
     </div></div>
     <div class="box"><div class="hd pink"><span class="n">2</span>내신 등급 <span class="sp mini" style="color:#fff">5등급제 · 위로 갈수록 좋아요</span></div><div class="bd">
-      ${noNum}${G.rows.length ? '<canvas id="chGrade" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣어 주세요 🌱</div>'}
+      ${noNum}${metricPills(st, 'school')}${G.rows.length ? '<canvas id="chGrade" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣어 주세요 🌱</div>'}
+      ${(V.gm?.school || 'grade') === 'grade' ? noGrade(G) : ''}
       ${orig(G)}
       ${st.num ? gyogwaDocs().filter(d => d.rows.some(r => r.no === st.num)).map(d => `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer">📗 ${d.year}학년도 ${esc(d.sem)}학기 교과학습발달상황</summary>${gyogwaTable(d, st.num)}</details>`).join('') : ''}
       <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('grades', GRADE_SUBJ)}${table('grades', GRADE_SUBJ)}</details>
@@ -1075,19 +1103,29 @@ function addScore(kind) {
   subj.forEach(s => { const v = $('#' + kind + '_' + s).value; if (v !== '') r[s] = Number(v); });
   st[kind].push(r); saveStudent(st); render();
 }
+// 올렸지만 이 친구 등급이 없어 그래프에 안 나오는 시험 알려 주기
+function noGrade(F) {
+  const miss = F.rows.filter(r => !F.subj.some(s => r[s] != null)).map(r => r.label);
+  return miss.length ? `<div class="mini" style="margin-top:6px;color:var(--red)">⚠️ ${miss.map(esc).join(', ')}: 등급 칸이 없어 그래프에 안 나와요 (중간고사처럼 원점수만 있는 성적표는 등급이 없어요). 아래 '올린 성적표에서 이 친구 줄 보기'에서 확인할 수 있어요.</div>` : '';
+}
 function drawCharts(st) {
   if (!window.Chart) return;
-  const mk = (id, rows, subj, max) => {
+  const mk = (id, rows, subj, max, m = 'grade') => {
     const el = document.getElementById(id); if (!el) return;
+    // 백분위 · 표준점수 · 원점수는 높을수록 좋아서 위로 (등급만 거꾸로)
+    const y = m === 'grade' ? { reverse: true, min: 1, max, ticks: { stepSize: 1, callback: v => v + '등급' } }
+      : { reverse: false, ...(m === 'pct' ? { max: 100 } : {}), grace: '5%', ticks: { callback: v => v + (m === 'pct' ? '' : '점') } };
+    rows = rows.filter(r => subj.some(s => r[s] != null));   // 등급이 하나도 없는 시험(예: 원점수만 있는 중간고사)은 빼요
     charts.push(new Chart(el, {
       type: 'line',
-      data: { labels: rows.map(r => r.label), datasets: subj.map((s, i) => ({ label: s, data: rows.map(r => r[s] ?? null), borderColor: SUBJ_COLORS[i % SUBJ_COLORS.length], backgroundColor: SUBJ_COLORS[i % SUBJ_COLORS.length], tension: .35, spanGaps: true, borderWidth: s === '평균' ? 4 : 2.5, pointRadius: 4 })).filter(d => d.data.some(v => v !== null)) },
-      options: { scales: { y: { reverse: true, min: 1, max, ticks: { stepSize: 1, callback: v => v + '등급' } } }, plugins: { legend: { labels: { boxWidth: 12, font: { family: 'Pretendard' } } } } }
+      data: { labels: rows.map(r => r.label), datasets: subj.map((s, i) => ({ label: s, data: rows.map(r => r[s] ?? null), borderColor: SUBJ_COLORS[i % SUBJ_COLORS.length], backgroundColor: SUBJ_COLORS[i % SUBJ_COLORS.length], tension: .35, spanGaps: true, borderWidth: s === '평균' ? 4 : 2.5, pointRadius: 5, clip: false })).filter(d => d.data.some(v => v !== null)) },
+      // 점이 그래프 가장자리에 붙어 잘리지 않게 양옆 · 위아래로 여유를 둬요
+      options: { layout: { padding: 10 }, scales: { x: { offset: true }, y }, plugins: { legend: { labels: { boxWidth: 12, font: { family: 'Pretendard' } } } } }
     }));
   };
-  const M = growthRows(st, 'mock'), G = growthRows(st, 'school');
-  mk('chMock', M.rows, M.subj, 9);
-  mk('chGrade', G.rows, G.subj, 5);
+  const gm = V.gm || {}, M = growthMetric(st, 'mock', gm.mock || 'grade'), G = growthMetric(st, 'school', gm.school || 'grade');
+  mk('chMock', M.rows, M.subj, 9, gm.mock || 'grade');
+  mk('chGrade', G.rows, G.subj, 5, gm.school || 'grade');
 }
 
 /* 4 활동 누적 */
@@ -2200,8 +2238,10 @@ function gradeCols(d, max) {
   const all = d.cols.map((h, i) => ({ h, i }));
   let cs = all.filter(c => /등급/.test(c.h) && ok(c.i));
   if (!cs.length) cs = all.filter(c => ok(c.i) && d.rows.every(r => r.v[c.i] === '' || Number.isInteger(+r.v[c.i])));
-  return cs.map(c => ({ i: c.i, subj: c.h.replace(/석차|등급/g, '').replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() || c.h }));
+  return cs.map(c => ({ i: c.i, subj: subjName(c.h.replace(/석차|등급/g, '')) || c.h }));
 }
+// 머리글 → 과목 이름. 끝에 붙은 학점 숫자('공통국어1 4'의 4)는 떼서 시험마다 같은 과목으로 이어지게 해요
+const subjName = h => h.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s+\d+(\.\d+)?$/, '');
 const DROP_COL = /이름|성명|생년|주민|연락|전화|휴대|주소|보호자|학부모|이메일/;
 const ID_COL = /^(학년|반|번호|번|학번)$/;
 // 엑셀 한 시트(줄 배열) → { cols, rows: [{ sid, no, v: [...] }], dropped }
