@@ -905,7 +905,7 @@ function viewNote() {
     ${D.students.map((s, i) => {
       const l = lastCounsel(s), late = !l || daysAgo(l) > 30;
       return `<div class="sitem ${s.id === V.sid ? 'on' : ''}" onclick="openStudent('${s.id}',${V.sec})">
-        <span class="num">${s.emoji}</span><div><b>${esc(nname(s))}</b><span>${esc(s.career || '진로 미정')} · 문구 ${s.sentences.length}</span></div>
+        <span class="num">${s.emoji}</span><div><b>${esc(nname(s))}</b><span>상담 ${s.counsels.length} · 문구 ${s.sentences.length}</span></div>
         ${late ? '<span class="warn">상담</span>' : ''}</div>`; }).join('') || '<div class="empty">＋ 추가를 눌러 동물 친구를 만들어요.<br>이름 대신 동물 별칭과 번호로만 기억해요.</div>'}
   </aside>`;
   const st = cur();
@@ -914,7 +914,7 @@ function viewNote() {
   const grp = NOTE_GROUPS.find(g => g.secs.includes(V.sec));
   const body = SEC_VIEW()[V.sec](st);
   return `<div class="note">${side}<div>
-    <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2><span class="mini">${esc(st.career || '진로 미정')}</span>
+    <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2>
       <button class="pill" style="font-size:13px;padding:2px 10px" onclick="openNick()">🏷️ 별칭 고치기</button></div>
     ${isPencil(st) ? `<div class="item" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-color:var(--main)"><span style="font-size:26px">✏️</span>
       <div style="flex:1"><b class="hand" style="font-size:17px">아직 별칭을 안 정한 친구예요</b><div class="mini">상담을 시작하며 학생과 함께 동물 · 별칭을 골라 보세요. 정한 뒤에도 🏷️ 별칭 고치기로 언제든 바꿀 수 있어요.</div></div>
@@ -1089,6 +1089,7 @@ function secGrowth(st) {
     <div class="box"><div class="hd pink"><span class="n">2</span>내신 등급 <span class="sp mini" style="color:#fff">5등급제 · 위로 갈수록 좋아요</span></div><div class="bd">
       ${noNum}${metricPills(st, 'school')}${G.rows.length ? '<canvas id="chGrade" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣어 주세요 🌱</div>'}
       ${(V.gm?.school || 'grade') === 'grade' ? noGrade(G) : ''}
+      ${rankCard(st)}
       ${orig(G)}
       ${st.num ? gyogwaDocs().filter(d => d.rows.some(r => r.no === st.num)).map(d => `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer">📗 ${d.year}학년도 ${esc(d.sem)}학기 교과학습발달상황</summary>${gyogwaTable(d, st.num)}</details>`).join('') : ''}
       <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('grades', GRADE_SUBJ)}${table('grades', GRADE_SUBJ)}</details>
@@ -2012,7 +2013,7 @@ let SCH = { key: null, cls: 'all', sort: -1, asc: true };
 function dashSchool() {
   const docs = scoreDocs().filter(isWhole);
   if (!docs.length) return `<div class="empty">아직 전교생 성적표가 없어요.<br>📊 성적 파일에서 <b>반 · 번호 · 이름</b> 칸이 있는 전교생 파일을 올리면 여기서 볼 수 있어요.<br><button class="btn sm" style="margin-top:10px" onclick="DASH.tab='score';dashRefresh()">📊 성적 파일로 가기</button></div>`;
-  const d = SC[SCH.key] && isWhole(SC[SCH.key]) ? SC[SCH.key] : docs[docs.length - 1];
+  const d = SC[SCH.key] && isWhole(SC[SCH.key]) ? withCalc(SC[SCH.key]) : docs[docs.length - 1];
   const key = scoreKey(d.year, d.exam), me = myClass();
   const max = examOf(d).kind === 'mock' ? 9 : 5, gc = gradeCols(d, max), gset = new Set(gc.map(c => c.i));
   const num = (r, i) => r.v[i] === '' || isNaN(+r.v[i]) ? null : +r.v[i];
@@ -2230,7 +2231,7 @@ function dashAddEvents() {
    저장: 학번(번호) + 성적 칸만. 이름 · 연락처처럼 보이는 칸은 버려요. 학번 끝 두 자리 = 번호로 동물 친구와 이어져요 */
 const scoreKey = (y, id) => `scores_${y}_${id}`;
 const examOf = d => EXAMS.find(e => e.id === d.exam) || { kind: 'mock', label: d.exam, short: d.exam };
-function scoreDocs() { return Object.values(SC).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam)); }
+function scoreDocs() { return Object.values(SC).map(withCalc).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam)); }
 // 그래프에 쓸 등급 칸: 머리글에 '등급'이 있고 값이 1~max 숫자 (없으면 1~max 정수만 있는 칸)
 function gradeCols(d, max) {
   const num = v => /^\d+(\.\d+)?$/.test(v) && +v >= 1 && +v <= max;
@@ -2242,6 +2243,57 @@ function gradeCols(d, max) {
 }
 // 머리글 → 과목 이름. 끝에 붙은 학점 숫자('공통국어1 4'의 4)는 떼서 시험마다 같은 과목으로 이어지게 해요
 const subjName = h => h.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s+\d+(\.\d+)?$/, '');
+
+/* 🏫 중간 · 기말 전교생 성적표 (등급 칸 없이 원점수만) → 과목마다 전교 석차 · 상위 % · 5등급을 계산해요
+   5등급제 누적비율: 1등급 ~10% · 2등급 ~34% · 3등급 ~66% · 4등급 ~90% · 5등급 ~100%
+   동점자는 중간석차(석차 + (동점자 수 − 1) ÷ 2)로 비율을 내요. 계산한 칸은 저장하지 않고 볼 때마다 만들어요 */
+const GRADE5 = [10, 34, 66, 90, 100];
+const pctGrade = p => GRADE5.findIndex(x => p <= x + 1e-9) + 1;
+const useCalc = d => examOf(d).kind === 'school' && isWhole(d) && !d.cols.some(h => /등급/.test(h));
+// 원점수 칸 찾기: 머리글에 '원점수 · 합계 · 총점'이 있으면 그 칸, 없으면 5보다 큰 숫자가 든 과목 칸
+function rawCols(d) {
+  const all = d.cols.map((h, i) => ({ h, i }));
+  const numOk = i => d.rows.filter(r => r.v[i] !== '').length >= d.rows.length / 2 && d.rows.every(r => r.v[i] === '' || !isNaN(parseFloat(r.v[i])));
+  let cs = all.filter(c => /원점수|합계|총점/.test(c.h) && !/표준|백분위|석차/.test(c.h) && numOk(c.i));
+  if (!cs.length) cs = all.filter(c => !/석차|백분위|표준|평균|편차|학점|단위|성취|수강|응시|순위/.test(c.h) && numOk(c.i) && Math.max(...d.rows.map(r => parseFloat(r.v[c.i]) || 0)) > 5);
+  return cs.map(c => ({ i: c.i, subj: subjName(c.h.replace(/원점수|합계|총점|점수/g, '')) || c.h }));
+}
+const rankCache = new Map();
+function schoolRanks(d) {
+  const k = 'r' + d.exam + d.year + d.at; if (rankCache.has(k)) return rankCache.get(k);
+  const out = rawCols(d).map(c => {
+    const vals = d.rows.map(r => parseFloat(r.v[c.i])).filter(v => !isNaN(v)), N = vals.length, by = new Map();
+    d.rows.forEach(r => {
+      const v = parseFloat(r.v[c.i]); if (isNaN(v)) return;
+      const rank = 1 + vals.filter(x => x > v).length, ties = vals.filter(x => x === v).length, pct = (rank + (ties - 1) / 2) / N * 100;
+      by.set(r.sid, { v, rank, ties, N, pct, g: pctGrade(pct) });
+    });
+    return { ...c, N, by };
+  });
+  rankCache.set(k, out); return out;
+}
+// 성적표에 '과목 전교석차' · '과목 등급' 칸을 붙인 사본 → 그래프 · 우리반 성적 · 전교 성적이 그대로 등급을 읽어요
+function withCalc(d) {
+  if (!d || !useCalc(d)) return d;
+  const k = 'a' + d.exam + d.year + d.at; if (rankCache.has(k)) return rankCache.get(k);
+  const R = schoolRanks(d);
+  const d2 = R.length ? { ...d, calc: true, cols: [...d.cols, ...R.flatMap(c => [`${c.subj} 전교석차`, `${c.subj} 등급`])],
+    rows: d.rows.map(r => ({ ...r, v: [...r.v, ...R.flatMap(c => { const x = c.by.get(r.sid); return x ? [`${x.rank}/${x.N}`, String(x.g)] : ['', '']; })] })) } : d;
+  rankCache.set(k, d2); return d2;
+}
+// 개인 상담 기록 > 성적: 이 친구의 과목별 전교 석차 · 상위 % · 계산 등급
+function rankCard(st) {
+  if (!st.num) return '';
+  const docs = Object.values(SC).filter(d => useCalc(d)).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));
+  return docs.map((d, di) => {
+    const r = d.rows.find(x => x.no === st.num); if (!r) return '';
+    const R = schoolRanks(d).filter(c => c.by.has(r.sid)); if (!R.length) return '';
+    return `<details style="margin-top:10px" ${di === docs.length - 1 ? 'open' : ''}><summary class="mini" style="cursor:pointer">🏫 ${d.year}년 ${esc(examOf(d).label)} — 전교 석차 · 등급 (원점수로 계산)</summary>
+      <table class="dtable" style="margin-top:6px"><tr><th>과목</th><th style="text-align:center">원점수</th><th style="text-align:center">전교 석차</th><th style="text-align:center">상위</th><th style="text-align:center">등급</th></tr>
+      ${R.map(c => { const x = c.by.get(r.sid); return `<tr><td><b>${esc(c.subj)}</b></td><td style="text-align:center">${x.v}</td><td style="text-align:center">${x.rank} / ${x.N}${x.ties > 1 ? ` <span class="mini">(동점 ${x.ties}명)</span>` : ''}</td><td style="text-align:center">${x.pct.toFixed(1)}%</td>${gradeCell(x.g, 5)}</tr>`; }).join('')}</table>
+      <p class="mini" style="margin-top:4px">누적비율 1등급 ~10% · 2등급 ~34% · 3등급 ~66% · 4등급 ~90% · 5등급 ~100% (동점은 중간석차). 지필 원점수만으로 계산해서, 수행평가까지 더한 학기말 등급과는 다를 수 있어요.</p></details>`;
+  }).join('');
+}
 const DROP_COL = /이름|성명|생년|주민|연락|전화|휴대|주소|보호자|학부모|이메일/;
 const ID_COL = /^(학년|반|번호|번|학번)$/;
 // 엑셀 한 시트(줄 배열) → { cols, rows: [{ sid, no, v: [...] }], dropped }
@@ -2357,7 +2409,7 @@ function dashScore() {
       ${d ? `<span class="mini">${d.rows.length}명</span><button class="btn sm ghost" onclick="DASH.view='${key}';DASH.pending=null;dashRefresh()">👀 보기</button>` : '<span class="mini">아직 없음</span>'}
       <label class="btn sm ${d ? 'ghost' : ''}">⬆️ ${d ? '바꾸기' : '올리기'}<input type="file" accept=".xlsx,.xls,.csv" hidden onchange="scoreUpload('${e.id}',this)"></label></div>`;
   };
-  const p = DASH.pending, v = !p && DASH.view && SC[DASH.view];
+  const p = DASH.pending, v = !p && DASH.view && withCalc(SC[DASH.view]);
   let below = '';
   if (p) {
     const g = gradeCols(p, examOf(p).kind === 'mock' ? 9 : 5);
