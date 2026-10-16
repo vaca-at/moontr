@@ -897,7 +897,11 @@ function viewNote() {
   const grp = NOTE_GROUPS.find(g => g.secs.includes(V.sec));
   const body = SEC_VIEW()[V.sec](st);
   return `<div class="note">${side}<div>
-    <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2><span class="mini">${esc(st.career || '진로 미정')}</span></div>
+    <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2><span class="mini">${esc(st.career || '진로 미정')}</span>
+      <button class="pill" style="font-size:13px;padding:2px 10px" onclick="openNick()">🏷️ 별칭 고치기</button></div>
+    ${isPencil(st) ? `<div class="item" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-color:var(--main)"><span style="font-size:26px">✏️</span>
+      <div style="flex:1"><b class="hand" style="font-size:17px">아직 별칭을 안 정한 친구예요</b><div class="mini">상담을 시작하며 학생과 함께 동물 · 별칭을 골라 보세요. 정한 뒤에도 🏷️ 별칭 고치기로 언제든 바꿀 수 있어요.</div></div>
+      <button class="btn" onclick="openNick()">🏷️ 별칭 정하기</button></div>` : ''}
     <div class="row" style="margin-bottom:10px">${NOTE_GROUPS.map(g => `<button class="pill ${g === grp ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.sec=${g.secs[0]};render()">${g.t}</button>`).join('')}</div>
     ${grp.secs.length > 1 ? `<div class="steps">${grp.secs.map(n => SECS.find(s => s[0] === n)).map(([n, t, c]) => `<div class="step ${n === V.sec ? 'on' : ''}" onclick="V.sec=${n};render()"><span class="c" style="background:var(--${c})">${grp.secs.indexOf(n) + 1}</span><b>${t}</b></div>`).join('')}</div>` : ''}
     ${body}
@@ -1838,7 +1842,42 @@ function freeTag(nick) {
 function numTaken(n, except) { return n && D.students.some(s => s.num === n && s.id !== except); }
 function pickEmo(btn, e) { pickEmoji = e; document.querySelectorAll('#emoBox button').forEach(b => b.classList.remove('on')); btn.classList.add('on'); }
 function openAddStudent() {
-  openModal('동물 친구 추가', studentForm() + `<button class="btn" onclick="addStudent()">＋ 추가하기</button>`);
+  openModal('동물 친구 추가', studentForm() + `<button class="btn" onclick="addStudent()">＋ 추가하기</button>
+    <section style="margin-top:18px;border-top:1.5px dashed var(--line);padding-top:14px"><h4>✏️ 연필 친구 한꺼번에 만들기</h4>
+    <p class="mini">아직 상담 안 한 친구들을 '✏️ 연필1, 연필2…'로 먼저 만들어 둬요. 상담을 시작할 때 학생과 함께 별칭을 정하면 돼요.</p>
+    <div class="row" style="margin-top:6px"><input type="number" id="pFrom" value="1" min="1" max="60" style="width:80px">번부터 <input type="number" id="pTo" value="${Math.max(1, ...D.students.map(s => s.num || 0))}" min="1" max="60" style="width:80px">번까지
+      <button class="btn sm" onclick="makePencils(+$('#pFrom').value, +$('#pTo').value)">✏️ 없는 번호만 만들기</button></div></section>`);
+}
+/* ✏️ 연필 친구 = 아직 별칭을 안 정한 친구 (상담을 시작할 때 별칭을 정해요) */
+const PENCIL = '✏️', PENCIL_NICK = '연필';
+const isPencil = s => s.emoji === PENCIL && s.nick === PENCIL_NICK;
+// 반 번호 목록 중 아직 친구가 없는 번호를 연필1, 연필2… 로 만들어요 (숫자는 이어서 붙어요)
+function makePencils(from, to, list, inDash) {
+  const nums = (list || Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i)).filter(n => n >= 1 && n <= 60 && !D.students.some(s => s.num === n));
+  if (!nums.length) return toast('새로 만들 번호가 없어요 (이미 다 있어요)');
+  let t = Math.max(0, ...D.students.filter(isPencil).map(s => parseInt(s.tag, 10) || 0));
+  nums.forEach(n => { const st = normalize({ emoji: PENCIL, nick: PENCIL_NICK, tag: String(++t), num: n, order: D.students.length }); D.students.push(st); saveStudent(st); });
+  sortStudents(); if (!cur()) V.sid = D.students[0]?.id || null;
+  if (inDash) dashRefresh(); else closeModal();
+  render(); toast(`✏️ 연필 친구 ${nums.length}명을 만들었어요`);
+}
+// 🏷️ 별칭만 고치기 — 학생 앞에서 열어도 되게 반 번호는 안 보여요
+function openNick() {
+  const st = cur(); if (!st) return;
+  const pen = isPencil(st);
+  pickEmoji = pen ? EMOJIS[Math.floor(Math.random() * EMOJIS.length)] : st.emoji;
+  openModal(pen ? '🏷️ 별칭 정하기' : '🏷️ 별칭 고치기', `<section><h4>🐾 동물 고르기</h4><div class="emojis" id="emoBox">${EMOJIS.map(e => `<button class="${e === pickEmoji ? 'on' : ''}" onclick="pickEmo(this,'${e}')">${e}</button>`).join('')}</div></section>
+    <section><h4>🏷️ 별칭 + 숫자</h4><div class="row"><input type="text" id="sNick" value="${pen ? '' : esc(st.nick)}" placeholder="예: 새벽토끼, 노랑곰 (실명·이니셜은 쓰지 않아요)" maxlength="12" style="flex:1">
+      <input type="text" id="sTag" value="${pen ? '' : esc(st.tag || '')}" inputmode="numeric" maxlength="4" placeholder="숫자 (비우면 저절로)" style="width:150px"></div>
+    <p class="mini" style="margin-top:8px">별칭을 비우면 고른 동물 이름으로 넣어요. 🔒 화면에는 '🐰 토끼7'처럼 별칭과 숫자만 보여요.</p></section>
+    <button class="btn" onclick="saveNick()">💾 저장</button>`);
+  setTimeout(() => $('#sNick')?.focus(), 50);
+}
+function saveNick() {
+  const st = cur(), nick = $('#sNick').value.trim() || ANIMAL_NAMES[pickEmoji] || '친구';
+  if (piiCheck(nick).length) return toast('별칭에 숫자·연락처는 빼 주세요');
+  st.emoji = pickEmoji; st.nick = nick; st.tag = readTag() || freeTag(nick);
+  sortStudents(); saveStudent(st); closeModal(); render(); toast(`🏷️ ${sname(st)}(으)로 정했어요`);
 }
 function addStudent() {
   const nick = $('#sNick').value.trim() || ('친구' + (D.students.length + 1));
@@ -2205,17 +2244,10 @@ async function scoreDelete(key) {
 }
 const missingNums = d => [...new Set(d.rows.map(r => r.no))].filter(n => n && !D.students.some(s => s.num === n)).sort((a, b) => a - b);
 // 성적표에 있는데 동물 친구가 없는 번호를 한꺼번에 만들어요 (동물은 겹치지 않게 골라요)
+// → 별칭은 상담할 때 정하도록 '✏️ 연필1, 연필2…' 로 만들어요
 function makeAnimals(key) {
   const nums = missingNums(SC[key]); if (!nums.length) return;
-  const used = new Set(D.students.map(s => s.emoji)), pool = Object.keys(ANIMAL_NAMES);
-  nums.forEach(n => {
-    const free = pool.filter(e => !used.has(e)), e = free.length ? free[Math.floor(Math.random() * free.length)] : pool[n % pool.length];
-    used.add(e);
-    const st = normalize({ emoji: e, nick: ANIMAL_NAMES[e], tag: freeTag(ANIMAL_NAMES[e]), num: n, order: D.students.length });   // 숫자는 아무거나 (반 번호와 따로)
-    D.students.push(st); saveStudent(st);
-  });
-  sortStudents(); if (!cur()) V.sid = D.students[0]?.id || null;
-  dashRefresh(); render(); toast(`🐾 동물 친구 ${nums.length}명을 만들었어요`);
+  makePencils(0, 0, nums, true);
 }
 function scoreTable(d) { return dataTable(d, new Set(gradeCols(d, examOf(d).kind === 'mock' ? 9 : 5).map(c => c.i))); }
 // 번호 · 학번 · 동물 친구 + 저장한 칸 표 (g = 굵게 보일 칸)
@@ -2252,7 +2284,7 @@ function dashScore() {
     below = `<section><h4>📄 ${v.year}년 ${esc(examOf(v).label)} <span class="mini">${esc(v.file)} · ${v.rows.length}명 · ${new Date(v.at).toLocaleDateString()} 올림</span>
         ${isWhole(v) ? `<button class="btn sm" style="margin-left:auto" onclick="SCH.key='${DASH.view}';DASH.tab='school';dashRefresh()">🏫 전교 성적으로 보기</button>` : ''}
         <button class="x" style="${isWhole(v) ? '' : 'margin-left:auto'}" onclick="scoreDelete('${DASH.view}')">🗑 지우기</button></h4>
-      ${miss.length ? `<div class="row" style="margin-bottom:8px"><span class="mini">동물 친구가 없는 번호: ${miss.join(', ')}</span><button class="btn sm" onclick="makeAnimals('${DASH.view}')">🐾 ${miss.length}명 한꺼번에 만들기</button></div>` : ''}
+      ${miss.length ? `<div class="row" style="margin-bottom:8px"><span class="mini">동물 친구가 없는 번호: ${miss.join(', ')}</span><button class="btn sm" onclick="makeAnimals('${DASH.view}')">✏️ ${miss.length}명 연필 친구로 만들기</button></div>` : ''}
       ${scoreTable(v)}</section>`;
   }
   return `<section>
