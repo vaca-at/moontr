@@ -114,6 +114,14 @@ textarea{resize:vertical;min-height:80px}
 /* ---------- 개인 상담 기록 레이아웃 ---------- */
 .note{display:grid;grid-template-columns:250px 1fr;gap:18px;align-items:start}
 .side{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow:auto;padding-right:4px}
+/* 스크롤 막대: 얇고 둥근 분홍 막대 (위아래 화살표 없음) */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--main);opacity:.6;border-radius:99px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{border-width:2px}
+::-webkit-scrollbar-button{display:none;width:0;height:0}
+::-webkit-scrollbar-corner{background:transparent}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:var(--main) transparent}}
 .side h3{font-size:19px;display:flex;align-items:center;margin-bottom:8px}
 .sitem{display:flex;gap:10px;align-items:center;padding:9px 10px;margin-bottom:6px;cursor:pointer;background:#fff;border-radius:4px;clip-path:polygon(0 0,94% 0,100% 50%,94% 100%,0 100%);transition:.12s}
 .sitem:hover{background:var(--soft)}
@@ -607,10 +615,14 @@ function render() {
   $('#nav').innerHTML = tabs.map(([k, t]) => `<button class="pill ${V.tab === k ? 'on' : ''}" onclick="go('${k}')">${t}</button>`).join('');
   charts.forEach(c => c.destroy()); charts = [];
   const app = $('#app');
+  // 다시 그려도 스크롤 자리 그대로 (왼쪽 친구 목록 · 페이지)
+  const sideTop = $('.side')?.scrollTop || 0, winY = window.scrollY;
   if (syncState !== 'cloud') app.innerHTML = viewGate();
   else if (V.tab === 'cal') app.innerHTML = viewCalendar() + viewGallery();
   else if (V.tab === 'class') app.innerHTML = viewClass();
   else { app.innerHTML = viewNote(); if (V.sec === 3 && cur()) drawCharts(cur()); }
+  const side = $('.side'); if (side) side.scrollTop = sideTop;
+  window.scrollTo(0, winY);
 }
 function go(t) { V.tab = t; render(); window.scrollTo(0, 0); }
 
@@ -1006,7 +1018,7 @@ function secOverview(st) {
 /* 📘 선택과목 — 수강신청 확인서 (학기마다 과목 목록). 확인서 표를 복사해 붙여 넣거나 직접 적어요 */
 const SEMS = [['2-1', '2학년 1학기'], ['2-2', '2학년 2학기']];
 // 교과군 이름 (과목이 아니라 버려요)
-const SUBJ_GROUPS = new Set(['국어', '수학', '영어', '사회', '과학', '한국사', '체육', '예술', '음악', '미술', '교양', '정보', '기술·가정', '기술∙가정', '기술가정', '기술·가정/정보', '제2외국어', '한문', '제2외국어/한문', '생활·교양', '체육·예술', '사회(역사/도덕포함)', '교과군', '과목', '학점', '단위']);
+const SUBJ_GROUPS = new Set(['국어', '수학', '영어', '사회', '과학', '한국사', '체육', '예술', '음악', '미술', '교양', '기술·가정', '기술∙가정', '기술가정', '기술·가정/정보', '제2외국어', '제2외국어/한문', '생활·교양', '체육·예술', '사회(역사/도덕포함)', '교과군', '과목', '학점', '단위']);
 const isGroup = t => { const f = dotFix(t.replace(/\s/g, '')); return SUBJ_GROUPS.has(f) || /^사회\(/.test(f) || /\/(한문|정보)$/.test(f) || /^예술\(/.test(f); };
 function subjField(st) {
   const sel = st.num ? Object.values(RC).filter(d => d.kind === 'sel').sort((a, b) => b.year - a.year).map(d => { const r = d.rows.find(x => x.no === st.num); return r ? `<div class="mini">📋 ${d.year} 관리에서 올린 선택과목: ${d.cols.map((c, i) => r.v[i] ? `${esc(c)} <b>${esc(r.v[i])}</b>` : '').filter(Boolean).join(' · ')}</div>` : ''; }).join('') : '';
@@ -1031,7 +1043,7 @@ const SUBJ_DICT = `화법과 언어,독서와 작문,문학,주제 탐구 독서
 세계시민과 지리,세계사,사회와 문화,현대사회와 윤리,한국지리 탐구,도시의 미래 탐구,동아시아 역사 기행,정치,법과 사회,경제,윤리와 사상,인문학과 윤리,국제 관계의 이해,여행지리,역사로 탐구하는 현대 세계,사회문제 탐구,금융과 경제생활,윤리문제 탐구,기후변화와 지속가능한 세계,한국지리,세계지리,동아시아사,정치와 법,생활과 윤리,고전과 윤리,
 물리학Ⅰ,물리학Ⅱ,화학Ⅰ,화학Ⅱ,생명과학Ⅰ,생명과학Ⅱ,지구과학Ⅰ,지구과학Ⅱ,물리학,화학,생명과학,지구과학,역학과 에너지,전자기와 양자,물질과 에너지,화학 반응의 세계,세포와 물질대사,생물의 유전,지구시스템과학,행성우주과학,과학의 역사와 문화,기후변화와 환경생태,융합과학 탐구,과학사,생활과 과학,융합과학,
 일본어,일본어 회화,심화 일본어,일본 문화,일본어Ⅰ,일본어Ⅱ,중국어,중국어 회화,심화 중국어,중국 문화,중국어Ⅰ,중국어Ⅱ,독일어,독일어 회화,프랑스어,프랑스어 회화,스페인어,스페인어 회화,러시아어,아랍어,베트남어,한문 고전 읽기,언어생활과 한자,한문Ⅰ,한문Ⅱ,
-인공지능 기초,데이터 과학,소프트웨어와 생활,정보과학,로봇과 공학세계,생활과학 탐구,창의 공학 설계,지식 재산 일반,생애 설계와 자립,아동발달과 부모,
+정보,한문,인공지능 기초,데이터 과학,소프트웨어와 생활,정보과학,로봇과 공학세계,생활과학 탐구,창의 공학 설계,지식 재산 일반,생애 설계와 자립,아동발달과 부모,
 진로와 직업,생태와 환경,인간과 철학,논리와 사고,인간과 심리,교육의 이해,삶과 종교,보건,인간관계와 소통,논술,철학,심리학,교육학,실용 경제,
 운동과 건강,스포츠 문화,스포츠 과학,스포츠 생활1,스포츠 생활2,스포츠 생활,음악 연주와 창작,음악 감상과 비평,음악과 미디어,미술 창작,미술 감상과 비평,미술과 매체,연극`.split(',').map(x => x.trim()).filter(Boolean);
 // 교과군 · 머리글 (과목이 아니라 건너뛰어요). '한문' · '정보'처럼 과목 이름이기도 한 것은 '제2외국어/한문'처럼 붙은 꼴만 건너뛰어요
