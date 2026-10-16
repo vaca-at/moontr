@@ -1004,7 +1004,7 @@ function secOverview(st) {
   </div>`;
 }
 /* 📘 선택과목 — 수강신청 확인서 (학기마다 과목 목록). 확인서 표를 복사해 붙여 넣거나 직접 적어요 */
-const SEMS = [['2-1', '2학년 1학기'], ['2-2', '2학년 2학기'], ['3-1', '3학년 1학기'], ['3-2', '3학년 2학기']];
+const SEMS = [['2-1', '2학년 1학기'], ['2-2', '2학년 2학기']];
 // 교과군 이름 (과목이 아니라 버려요)
 const SUBJ_GROUPS = new Set(['국어', '수학', '영어', '사회', '과학', '한국사', '체육', '예술', '음악', '미술', '교양', '정보', '기술·가정', '기술∙가정', '기술가정', '기술·가정/정보', '제2외국어', '한문', '제2외국어/한문', '생활·교양', '체육·예술', '사회(역사/도덕포함)', '교과군', '과목', '학점', '단위']);
 const isGroup = t => { const f = t.replace(/\s/g, ''); return SUBJ_GROUPS.has(f) || /^사회\(/.test(f) || /\/(한문|정보)$/.test(f) || /^예술\(/.test(f); };
@@ -1013,11 +1013,9 @@ function subjField(st) {
   return `<div class="field"><label>📘 선택과목 <span class="mini">(수강신청 확인서)</span></label>
     ${SEMS.map(([k, l]) => `<div class="row" style="gap:6px;margin-bottom:4px"><span class="mini" style="width:74px;flex:none">${l}</span><input type="text" value="${esc((st.subjects?.[k] || []).join(', '))}" placeholder="예: 기하, 사회와 문화, 화학" style="flex:1" onchange="setSubj('${k}',this.value)"></div>`).join('')}
     ${sel}
-    <details style="margin-top:4px"><summary class="mini" style="cursor:pointer">📋 확인서 표 붙여 넣기 (학기 · 교과군은 알아서 걸러요)</summary>
-      <div class="row" style="margin-top:6px;gap:6px"><label class="btn sm ghost">📷 캡처 사진으로<input type="file" accept="image/*" hidden onchange="subjImage(this.files[0])"></label>
-        <span class="mini">또는 아래 칸을 누르고 캡처를 Ctrl+V · AI가 과목을 읽어요 (AI 키 필요)<br>⚠️ 사진은 AI에 보내져요. 맨 위 이름이 안 나오게 표만 캡처해 주세요</span></div>
-      <textarea id="subjPaste" style="margin-top:6px;min-height:80px;font-size:12.5px" onpaste="subjPasteImg(event)" placeholder="수강신청 확인서의 '2학년 1학기' 표부터 드래그해 복사(Ctrl+C)한 뒤 붙여 넣어요. 캡처 사진을 Ctrl+V 해도 돼요. 위쪽 이름 줄은 빼고 복사해 주세요"></textarea>
-      <div class="row" style="margin-top:6px"><select id="subjSem" style="width:auto">${SEMS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><span class="mini">학기 글자가 없으면 이 학기로</span><button class="btn sm" style="margin-left:auto" onclick="pasteSubj()">넣기</button></div></details></div>`;
+    <div style="margin-top:6px"><div class="mini">📋 확인서 표 붙여 넣기 (학기 · 교과군은 알아서 걸러요)</div>
+      <textarea id="subjPaste" style="margin-top:6px;min-height:80px;font-size:12.5px" placeholder="수강신청 확인서의 '2학년 1학기' 표부터 드래그해 복사(Ctrl+C)한 뒤 붙여 넣어요. 위쪽 이름 줄은 빼고 복사해 주세요"></textarea>
+      <div class="row" style="margin-top:6px"><select id="subjSem" style="width:auto">${SEMS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><span class="mini">학기 글자가 없으면 이 학기로</span><button class="btn sm" style="margin-left:auto" onclick="pasteSubj()">넣기</button></div></div></div>`;
 }
 function setSubj(k, v) {
   const st = cur(); st.subjects = st.subjects || {};
@@ -1060,6 +1058,7 @@ function pasteSubj() {
     const out = {}, re = /([123])\s*학\s*년\s*([12])\s*학\s*기/g, ms = [...text.matchAll(re)];
     if (!ms.length) out[$('#subjSem').value] = subjScan(text);
     ms.forEach((m, j) => { const a = subjScan(text.slice(m.index + m[0].length, j + 1 < ms.length ? ms[j + 1].index : text.length)); if (a.length) out[`${m[1]}-${m[2]}`] = a; });
+    Object.keys(out).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete out[k]; });   // 2학년 1 · 2학기만
     const ks = Object.keys(out).filter(k => out[k].length); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
     st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
     return toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${out[k].length}과목`).join(' · ')} 넣었어요 — 틀린 곳은 칸에서 고쳐 주세요`);
@@ -1078,34 +1077,10 @@ function pasteSubj() {
   });
   // 학기 글자가 나오기 전 줄(이름 · 제목)은 버려요
   if (/학기/.test(text)) { const first = text.search(/[123]\s*학년\s*[12]\s*학기/); if (first > 0) { const before = text.slice(0, first).split(/[\t\n]/).map(x => x.trim()).filter(Boolean); Object.keys(out).forEach(k => out[k] = out[k].filter(x => !before.includes(x))); } }
+  Object.keys(out).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete out[k]; });   // 2학년 1 · 2학기만
   const ks = Object.keys(out); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
   st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
   toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${out[k].length}과목`).join(' · ')} 넣었어요`);
-}
-// 📷 수강신청 확인서 캡처 → AI가 학기마다 과목을 읽어 넣어요 (이름은 읽지 않게 시켜요)
-function subjPasteImg(e) {
-  const f = [...(e.clipboardData?.items || [])].find(i => i.kind === 'file' && i.type.startsWith('image/'));
-  if (!f) return;                       // 글이면 원래대로 붙여 넣기
-  e.preventDefault(); subjImage(f.getAsFile());
-}
-async function subjImage(file) {
-  if (!file) return;
-  const st = cur(); if (!st) return;
-  toast('📷 사진에서 과목을 읽는 중이에요…');
-  try {
-    const img = await imgToB64(file);
-    const out = await callAI('너는 고등학교 수강신청 확인서 사진에서 학기별 선택 과목만 정확히 옮겨 적는 도우미다. 학생 이름 · 학번 같은 개인정보는 절대 출력하지 않는다. 반드시 JSON 객체만 출력한다.', {
-      text: `사진 속 표에서 학기마다 고른 '과목' 이름만 뽑아 줘.
-- 출력: {"2-1":["과목",…],"2-2":[…],"3-1":[…],"3-2":[…]} — 키는 "학년-학기", 사진에 없는 학기는 빼.
-- '교과군' 칸(수학, 과학, 사회(역사/도덕 포함), 제2외국어/한문 등)은 빼고 '과목' 칸만. 과목 이름은 사진 그대로 (줄바꿈으로 잘린 이름은 이어 붙여).
-- 학기 표시가 안 보이면 "2-1" 하나로.`, images: [img] }, 800);
-    const j = JSON.parse((out.match(/\{[\s\S]*\}/) || ['{}'])[0]);
-    const res = {};
-    SEMS.forEach(([k]) => { if (Array.isArray(j[k])) { const a = j[k].map(x => String(x).trim()).filter(x => x && x.length <= 30 && !isGroup(x)); if (a.length) res[k] = [...new Set(a)]; } });
-    const ks = Object.keys(res); if (!ks.length) return toast('📷 과목을 찾지 못했어요. 표가 잘 보이게 다시 캡처해 주세요');
-    st.subjects = Object.assign(st.subjects || {}, res); saveStudent(st); render();
-    toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${res[k].length}과목`).join(' · ')} 넣었어요 — 틀린 곳은 칸에서 고쳐 주세요`);
-  } catch (e) { toast('📷 읽지 못했어요: ' + e.message); }
 }
 const subjText = st => SEMS.map(([k, l]) => (st.subjects?.[k] || []).length ? `${l} ${st.subjects[k].join('·')}` : '').filter(Boolean).join(' / ');
 function md(t) {
