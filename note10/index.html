@@ -300,6 +300,7 @@ const RECORDS = [
   { id: 'club', label: '동아리활동', chang: /동아리/ },
   { id: 'career', label: '진로활동', chang: /진로/ },
   { id: 'haeng', label: '행동특성 및 종합의견' },
+  { id: 'sel', label: '📘 선택과목' },
   { id: 'setuk', label: '📚 과목별 세특' },
   { id: 'gyogwa', label: '📗 교과학습발달상황' },
 ];
@@ -332,7 +333,8 @@ function normalize(s) {
     mocks: [], grades: [], counsels: [], acts: [], episodes: [], sentences: [],
     final: { 자율: '', 진로: '', 행특: '' }, aiEval: '', aiEvalDate: '', created: today(),
     ev: {}, comp: null, story: null, links: null, prep: null,   // 공통 행사 칸 · AI 분석 결과 (역량 지도 · 성장 서사 · 책·탐구 연결 · 상담 준비)
-    check: {}   // 생기부 점검 결과 (글마다)
+    check: {},   // 생기부 점검 결과 (글마다)
+    subjects: {} // 선택과목 { '2-1': ['기하', '화학', …], '2-2': […] } — 수강신청 확인서에서
   }, s, { final: Object.assign({ 자율: '', 진로: '', 행특: '' }, s?.final || {}) });
   // 바구니가 자율·자치 · 진로 · 행발 셋이 되면서, 예전 동아리 문구는 자율·자치로 옮겨요 (예전 동아리 단락 final.동아리 는 지우지 않고 둬요)
   o.sentences.forEach(x => { if (x.area === '동아리') x.area = '자율'; });
@@ -539,6 +541,7 @@ async function callAI(system, user, maxTokens = 1800) {
 }
 function studentContext(st, brief = true) {
   const lines = [`희망 진로 분야: ${st.career || '미정'} ${st.careerDetail ? '(' + st.careerDetail + ')' : ''}`];
+  if (subjText(st)) lines.push('선택과목: ' + subjText(st));
   if (!brief) {
     if (st.worry) lines.push('평소 고민: ' + st.worry);
     if (st.study) lines.push('공부 패턴: ' + st.study);
@@ -847,7 +850,7 @@ function viewClassAtt() {
 
 /* ✍️ 생기부 진행: 나이스에 들어간 창체 · 행발 · 세특 + 이 앱에서 정리한 단락 */
 function viewClassRec() {
-  const ys = [...new Set(Object.values(RC).filter(d => d.kind !== 'att' && d.kind !== 'vol').map(d => d.year))].sort((a, b) => b - a);
+  const ys = [...new Set(Object.values(RC).filter(d => !['att', 'vol', 'sel'].includes(d.kind)).map(d => d.year))].sort((a, b) => b - a);
   const y = ys.includes(V.cRecY) ? V.cRecY : ys[0] || new Date().getFullYear();
   const sd = setukDocs(y);
   const L = D.students.filter(s => s.num).sort((a, b) => a.num - b.num);
@@ -973,6 +976,7 @@ function secOverview(st) {
         <input type="text" value="${esc(st.careerDetail)}" placeholder="구체적으로 (예: 초등교사, 데이터 분석가)" onchange="setField('careerDetail',this.value)"></div>
       <div class="field"><label>💭 평소 고민</label><textarea onchange="setField('worry',this.value)" placeholder="친구 관계, 진로 고민, 마음 상태…">${esc(st.worry)}</textarea></div>
       <div class="field"><label>📚 공부 패턴</label><textarea onchange="setField('study',this.value)" placeholder="자습 시간대, 플래너 사용, 약한 과목 공부법…">${esc(st.study)}</textarea></div>
+      ${subjField(st)}
     </div></div>
     <div class="box"><div class="hd green"><span class="n">2</span>AI 담임 메모</div><div class="bd">
       <p class="lead">쌓인 기록으로 <mark>AI가 정리</mark>해요.</p>
@@ -990,6 +994,47 @@ function secOverview(st) {
     </div></div>
   </div>`;
 }
+/* 📘 선택과목 — 수강신청 확인서 (학기마다 과목 목록). 확인서 표를 복사해 붙여 넣거나 직접 적어요 */
+const SEMS = [['2-1', '2학년 1학기'], ['2-2', '2학년 2학기'], ['3-1', '3학년 1학기'], ['3-2', '3학년 2학기']];
+// 교과군 이름 (과목이 아니라 버려요)
+const SUBJ_GROUPS = new Set(['국어', '수학', '영어', '사회', '과학', '한국사', '체육', '예술', '음악', '미술', '교양', '정보', '기술·가정', '기술∙가정', '기술가정', '기술·가정/정보', '제2외국어', '한문', '제2외국어/한문', '생활·교양', '체육·예술', '사회(역사/도덕포함)', '교과군', '과목', '학점', '단위']);
+const isGroup = t => { const f = t.replace(/\s/g, ''); return SUBJ_GROUPS.has(f) || /^사회\(/.test(f) || /\/(한문|정보)$/.test(f) || /^예술\(/.test(f); };
+function subjField(st) {
+  const sel = st.num ? Object.values(RC).filter(d => d.kind === 'sel').sort((a, b) => b.year - a.year).map(d => { const r = d.rows.find(x => x.no === st.num); return r ? `<div class="mini">📋 ${d.year} 관리에서 올린 선택과목: ${d.cols.map((c, i) => r.v[i] ? `${esc(c)} <b>${esc(r.v[i])}</b>` : '').filter(Boolean).join(' · ')}</div>` : ''; }).join('') : '';
+  return `<div class="field"><label>📘 선택과목 <span class="mini">(수강신청 확인서)</span></label>
+    ${SEMS.map(([k, l]) => `<div class="row" style="gap:6px;margin-bottom:4px"><span class="mini" style="width:74px;flex:none">${l}</span><input type="text" value="${esc((st.subjects?.[k] || []).join(', '))}" placeholder="예: 기하, 사회와 문화, 화학" style="flex:1" onchange="setSubj('${k}',this.value)"></div>`).join('')}
+    ${sel}
+    <details style="margin-top:4px"><summary class="mini" style="cursor:pointer">📋 확인서 표 붙여 넣기 (학기 · 교과군은 알아서 걸러요)</summary>
+      <textarea id="subjPaste" style="margin-top:6px;min-height:80px;font-size:12.5px" placeholder="수강신청 확인서의 '2학년 1학기' 표부터 드래그해 복사(Ctrl+C)한 뒤 붙여 넣어요. 위쪽 이름 줄은 빼고 복사해 주세요"></textarea>
+      <div class="row" style="margin-top:6px"><select id="subjSem" style="width:auto">${SEMS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><span class="mini">학기 글자가 없으면 이 학기로</span><button class="btn sm" style="margin-left:auto" onclick="pasteSubj()">넣기</button></div></details></div>`;
+}
+function setSubj(k, v) {
+  const st = cur(); st.subjects = st.subjects || {};
+  st.subjects[k] = String(v).split(/[,，、]/).map(x => x.trim()).filter(Boolean);
+  saveStudent(st);
+}
+// 확인서 표 → 학기마다 과목. '2학년 1학기' 글자가 있는 칸 위치로 옆에 붙은 표(1학기 | 2학기)도 나눠요
+function pasteSubj() {
+  const st = cur(), text = $('#subjPaste').value; if (!text.trim()) return toast('확인서 표를 붙여 넣어 주세요');
+  const out = {}; let marks = [];
+  text.split(/\r?\n/).forEach(line => {
+    const cells = line.split('\t').map(c => c.trim());
+    const mk = cells.map((c, i) => { const m = c.match(/([123])\s*학년\s*([12])\s*학기/); return m ? { i, k: `${m[1]}-${m[2]}` } : null; }).filter(Boolean);
+    if (mk.length) { marks = mk; return; }
+    cells.forEach((c, i) => {
+      if (!c || isGroup(c) || /확인서|수강신청/.test(c)) return;
+      const m = [...marks].reverse().find(x => x.i <= i) || marks[0];
+      const k = m ? m.k : $('#subjSem').value;   // 학기 글자가 아예 없으면 고른 학기
+      (out[k] = out[k] || []).includes(c) || out[k].push(c);
+    });
+  });
+  // 학기 글자가 나오기 전 줄(이름 · 제목)은 버려요
+  if (/학기/.test(text)) { const first = text.search(/[123]\s*학년\s*[12]\s*학기/); if (first > 0) { const before = text.slice(0, first).split(/[\t\n]/).map(x => x.trim()).filter(Boolean); Object.keys(out).forEach(k => out[k] = out[k].filter(x => !before.includes(x))); } }
+  const ks = Object.keys(out); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
+  st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
+  toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${out[k].length}과목`).join(' · ')} 넣었어요`);
+}
+const subjText = st => SEMS.map(([k, l]) => (st.subjects?.[k] || []).length ? `${l} ${st.subjects[k].join('·')}` : '').filter(Boolean).join(' / ');
 function md(t) {
   return esc(t).replace(/^#{1,4}\s*(.*)$/gm, '<h4>$1</h4>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
     .replace(/^\s*[-•*]\s+(.*)$/gm, '<li>$1</li>').replace(/\n(?=<h4>|<li>)/g, '').replace(/(<\/h4>|<\/li>)\n/g, '$1').replace(/\n/g, '<br>');
@@ -1498,7 +1543,7 @@ function gradeBrief(st) {
   const f = k => growthRows(st, k).rows.map(r => r.label + ': ' + Object.entries(r).filter(([x]) => x !== 'label').map(([x, v]) => x + ' ' + v).join(', ')).join(' / ');
   return `모의고사(9등급) ${f('mock') || '없음'}\n내신(5등급제) ${f('school') || '없음'}`;
 }
-const aiHead = st => `[이 학생] 희망 진로: ${st.career || '미정'} ${st.careerDetail || ''}`;
+const aiHead = st => `[이 학생] 희망 진로: ${st.career || '미정'} ${st.careerDetail || ''}${subjText(st) ? `\n[선택과목] ${subjText(st)}` : ''}`;
 function needRecords(st, n = 2) { const c = corpus(st); if (c.n < n) { toast(`기록이 ${c.n}개뿐이에요. 일화 · 상담 · 공통 행사를 조금 더 쌓아 주세요`); return null; } return c; }
 const ago = at => at ? `${new Date(at).toLocaleDateString()} 기준` : '';
 
