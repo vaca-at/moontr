@@ -601,6 +601,12 @@ function render() {
 function go(t) { V.tab = t; render(); window.scrollTo(0, 0); }
 
 /* ===== 1. 달력 ===== */
+// 상담 예정(그 상담 기록의 '다음 상담' 날짜)만 지워요 — 상담 기록은 그대로 남아요
+function clearNext(sid, cid) {
+  const st = D.students.find(s => s.id === sid), c = st && st.counsels.find(x => x.id === cid);
+  if (!c || !confirm('이 상담 예정을 지울까요? (상담 기록은 그대로 남아요)')) return;
+  c.next = ''; saveStudent(st); render(); toast('📅 상담 예정을 지웠어요');
+}
 function dayData(ds) {
   const ev = D.events.filter(e => e.date === ds);
   const cs = [], act = [], next = [];
@@ -666,7 +672,8 @@ function viewDayPanel() {
         if (!n) return '';
         return `<details class="item" style="padding:10px 12px"><summary style="cursor:pointer;font-family:var(--hand);font-size:16px">🔒 이날 학생 기록 ${n}개 <span class="mini">— 눌러서 보기 (학생들이 볼 수 있는 화면이면 펼치지 마세요)</span></summary>
         <div style="margin-top:8px">
-        ${dd.next.map(n => `<div class="item" style="cursor:pointer" onclick="openStudent('${n.st.id}',2)"><div class="top"><span class="chip 자율">상담 예정</span><b class="hand" style="font-size:16px">${esc(sname(n.st))}</b></div><div class="mini">지난 상담(${n.c.date}) 이어서</div></div>`).join('')}
+        ${dd.next.map(n => `<div class="item" style="cursor:pointer" onclick="openStudent('${n.st.id}',2)"><div class="top"><span class="chip 자율">상담 예정</span><b class="hand" style="font-size:16px">${esc(sname(n.st))}</b>
+          <button class="x" style="margin-left:auto" title="상담 예정 지우기 (상담 기록은 그대로)" onclick="event.stopPropagation();clearNext('${n.st.id}','${n.c.id}')">✕</button></div><div class="mini">지난 상담(${n.c.date}) 이어서</div></div>`).join('')}
         ${dd.cs.map(x => `<div class="item" style="cursor:pointer" onclick="openStudent('${x.st.id}',2)"><div class="top"><span class="chip 자율">${esc(x.c.type)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(x.c.text.slice(0, 70))}${x.c.text.length > 70 ? '…' : ''}</div></div>`).join('')}
         ${dd.act.map(x => `<div class="item"><div class="top"><span class="chip ${esc(x.t)}">${esc(x.t)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(String(x.x).slice(0, 60))}</div></div>`).join('')}
         </div></details>`;
@@ -859,7 +866,8 @@ function viewClassCs() {
       ${Object.keys(cnt).length ? Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="bar"><span class="t">${esc(k)}</span><span class="g"><i style="width:${v / max * 100}%"></i></span><b>${v}</b></div>`).join('') : '<div class="empty">아직 없어요</div>'}
       <hr style="border:none;border-top:1.5px dashed var(--line);margin:14px 0">
       <h4 style="font-size:18px;margin-bottom:6px">🔔 다가오는 상담 약속</h4>
-      ${upcoming().map(x => `<div class="item" style="cursor:pointer" onclick="openStudent('${x.st.id}',2)"><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b> <span class="mini">${x.c.next}</span></div>`).join('') || '<div class="empty">예정된 상담이 없어요</div>'}
+      ${upcoming().map(x => `<div class="item" style="cursor:pointer" onclick="openStudent('${x.st.id}',2)"><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b> <span class="mini">${x.c.next}</span>
+        <button class="x" style="float:right" title="상담 예정 지우기" onclick="event.stopPropagation();clearNext('${x.st.id}','${x.c.id}')">✕</button></div>`).join('') || '<div class="empty">예정된 상담이 없어요</div>'}
     </div></div>
   </div>`;
 }
