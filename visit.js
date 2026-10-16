@@ -12,9 +12,10 @@
    - 한 번 들어올 때(탭을 닫기 전까지) 한 번만 셉니다
    - 관리자 화면(?admin · #admin · #teacher)이나 관리자 허브 안에서 열리면 세지 않습니다
    - 기록: Firestore site_counts 에 "이름__total"(누적), "이름__d2026-09-25"(그날) 숫자 하나씩
+   - 기기: site_devices 에 "이름__기기번호" (무작위 번호 · 기기 종류 · 마지막 접속 시각 · 횟수 · 들어온 날짜). 관리자만 봅니다
    ============================================================ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const q = new URL(import.meta.url).searchParams;
 const APP = (q.get('app') || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -48,7 +49,7 @@ async function start(){
   });
   if (!isAdmin && !counted){
     try { sessionStorage.setItem('moontr-visit-' + APP, '1'); } catch {}
-    await Promise.all([bump(totalRef), bump(todayRef)]).catch(() => {});
+    await Promise.all([bump(totalRef), bump(todayRef), device(db, day.slice(1))]).catch(() => {});
   }
   if (q.get('hide') === '1') return;
 
@@ -79,6 +80,20 @@ async function start(){
   num.textContent = `오늘 ${today.toLocaleString()} · 누적 ${total.toLocaleString()}`;
 }
 
+/* 이 기기 기록 (같은 기기인지 알아보는 무작위 번호만, 이름 · 연락처는 없음) */
+function device(db, dayKey){
+  let id = '';
+  try { id = localStorage.getItem('moontr-dev') || ''; } catch {}
+  if (!/^[a-z0-9]{16}$/.test(id)){
+    id = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+    try { localStorage.setItem('moontr-dev', id); } catch {}
+  }
+  const ua = navigator.userAgent || '';
+  const kind = /iPad|Tablet/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) ? 'tablet'
+    : /Mobi|iPhone|Android/i.test(ua) ? 'phone' : 'pc';
+  return setDoc(doc(db, 'site_devices', `${APP}__${id}`), { app: APP, kind, last: Date.now(), n: increment(1), days: { [dayKey]: true } }, { merge: true }).catch(() => {});
+}
+
 /* 구글 앱스 스크립트로 만든 수업 웹앱: 이 웹앱에 대한 이용약관·개인정보 처리방침 (작은 창) */
 function openGasPolicy(right){
   let box = document.getElementById('moontr-policy');
@@ -107,7 +122,7 @@ function openGasPolicy(right){
       <li><b>쓰임</b>: 수업 진행과 피드백</li>
       <li><b>보관</b>: 활동이 끝나면 교사가 지웁니다</li>
       <li>화면은 Google(script.google.com)에서 불러오며, 구글 계정에 로그인한 상태라면 Google 의 정책이 함께 적용됩니다.</li>
-      <li>왼쪽 아래 방문 수는 횟수만 세고, 누가 들어왔는지는 남기지 않습니다.</li>
+      <li>왼쪽 아래 방문 수는 횟수를 세고, 같은 기기인지 알아보는 무작위 번호 · 기기 종류(휴대폰 · 태블릿 · 컴퓨터) · 마지막 접속 시각만 남깁니다. 이름처럼 누가 들어왔는지는 남기지 않고, 교사만 봅니다.</li>
     </ul>
     <p style="margin:6px 0 0;color:#5F6B7A">입력한 기록을 보거나 지우고 싶으면: anstjsdud@sen.go.kr</p>`;
   box.querySelector('button').addEventListener('click', () => box.remove());

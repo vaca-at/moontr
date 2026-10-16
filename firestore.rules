@@ -254,6 +254,21 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
+    // ===== ★ 웹앱 방문 기기 (/visit.js) =====
+    // 문서 이름: "앱이름__기기번호" (기기번호 = 그 기기 브라우저에만 있는 무작위 글자, 이름 · 연락처 없음)
+    // 남기는 것: 앱 이름, 기기 종류(phone · tablet · pc), 마지막 접속 시각, 들어온 횟수, 들어온 날짜들
+    // 누구나 자기 기기 기록만 만들고 고치기 · 보기와 지우기는 관리자만
+    match /site_devices/{id} {
+      allow read, delete: if isTeacher();
+      allow create, update: if id.matches('^[a-z0-9_-]+__[a-z0-9]{12,24}$')
+        && request.resource.data.keys().hasOnly(['app', 'kind', 'last', 'n', 'days'])
+        && request.resource.data.app is string && id.matches('^' + request.resource.data.app + '__.*')
+        && request.resource.data.kind in ['phone', 'tablet', 'pc']
+        && request.resource.data.last is int
+        && request.resource.data.n is int
+        && request.resource.data.days is map && request.resource.data.days.size() <= 400;
+    }
+
     // ===== 진선 50주년 기념 웹앱 =====
     // 메뉴 안내글: 누구나 보기, 관리자만 쓰기
     match /jinsun50_menus/{menuId} {
