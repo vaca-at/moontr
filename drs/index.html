@@ -293,7 +293,11 @@
     @keyframes dr-invite { 0%,100% { transform:scale(1); box-shadow:0 12px 26px rgba(0,0,0,.45),0 0 0 8px rgba(255,255,255,.1); } 50% { transform:scale(1.05); box-shadow:0 12px 26px rgba(0,0,0,.45),0 0 0 14px rgba(255,216,77,.35); } }
     /* 소리 단추 · 테스트 단추 */
     #view-draw .dr-head { position:relative; }
-    #view-draw .dr-sound { position:absolute; right:0; top:-6px; height:40px; padding:0 14px; border-radius:20px; border:1px solid var(--dr-line); background:var(--dr-deep); color:#fff; font-size:15px; font-family:inherit; cursor:pointer; touch-action:manipulation; }
+    #view-draw .dr-soundbar { position:absolute; right:0; top:-6px; display:flex; flex-direction:column; align-items:flex-end; gap:6px; z-index:2; }
+    #view-draw .dr-sound { height:40px; padding:0 14px; border-radius:20px; border:1px solid var(--dr-line); background:var(--dr-deep); color:#fff; font-size:15px; font-family:inherit; cursor:pointer; touch-action:manipulation; }
+    #view-draw .dr-packs { display:flex; gap:4px; padding:3px; border-radius:20px; background:#07070D; border:1px solid var(--dr-line); }
+    #view-draw .dr-pack { width:34px; height:34px; border-radius:50%; border:0; background:transparent; color:#9AA6C8; font-family:'Press Start 2P',monospace; font-size:12px; cursor:pointer; touch-action:manipulation; }
+    #view-draw .dr-pack.on { background:#FFD84D; color:#12306B; box-shadow:0 0 10px rgba(255,216,77,.8); }
     #view-draw .dr-test { margin-top:12px; width:100%; height:48px; border-radius:14px; border:2px dashed var(--dr-line); background:transparent; color:var(--dr-soft); font-size:17px; font-family:inherit; cursor:pointer; touch-action:manipulation; }
     #view-draw .dr-test:disabled { opacity:.5; }
     /* 굴러가는 동안: 유리통 빛 · 공 흔들림 · 두구두구 글자 */
@@ -323,7 +327,7 @@
     #view-draw .dr-confetti b.star { width:auto; height:auto; background:none !important; font-size:26px; color:#FFE27A; }
     @keyframes dr-burst { 0% { transform:translate(0,0) rotate(0) scale(.6); opacity:1; } 35% { transform:translate(var(--x),var(--y)) rotate(300deg) scale(1); opacity:1; } 100% { transform:translate(calc(var(--x) * 1.4), calc(var(--y) + 90vh)) rotate(900deg) scale(1); opacity:.9; } }
     @media (max-width:600px) {
-      #view-draw .dr-sound { position:static; margin-bottom:8px; }
+      #view-draw .dr-soundbar { position:static; flex-direction:row; justify-content:center; margin-bottom:8px; }
       #view-draw .dr-drum, #view-draw .dr-top .dr-drum { width:280px; height:280px; }
       #view-draw .dr-head h1 { font-size:38px; }
       #view-draw .dr-out { flex-wrap:wrap; justify-content:center; text-align:center; }
@@ -339,11 +343,11 @@
     @media (orientation:landscape) and (min-width:900px) {
       #view-draw.active { height:100vh; height:100dvh; min-height:0; overflow:hidden; }
       #view-draw .dr-stage { max-width:none; height:100%; padding:16px 26px 20px; display:grid; grid-template-columns:auto minmax(0,1fr) minmax(300px,30vw); grid-template-rows:auto minmax(0,1fr); grid-template-areas:"head head head" "drum out led"; gap:14px 22px; align-items:center; }
-      #view-draw .dr-head { grid-area:head; display:flex; align-items:center; gap:22px; text-align:left; padding-right:150px; }
+      #view-draw .dr-head { grid-area:head; display:flex; align-items:center; gap:22px; text-align:left; padding-right:290px; }
       #view-draw .dr-kicker { font-size:13px; letter-spacing:1px; }
       #view-draw .dr-head h1 { margin:0; font-size:38px; white-space:nowrap; }
       #view-draw .dr-meter { flex:1; max-width:460px; margin:0 0 0 auto; }
-      #view-draw .dr-sound { top:50%; transform:translateY(-50%); }
+      #view-draw .dr-soundbar { top:50%; transform:translateY(-50%); flex-direction:row; align-items:center; }
       #view-draw .dr-top { display:contents; }
       #view-draw .dr-machine { grid-area:drum; }
       #view-draw .dr-top .dr-drum { width:min(58vh, 34vw); height:min(58vh, 34vw); }
@@ -679,7 +683,14 @@
 <div id="view-draw" class="view">
   <div class="dr-stage">
     <header class="dr-head">
-      <button class="dr-sound" id="dr-soundBtn" onclick="dr_toggleSound()">🔊 소리 켜짐</button>
+      <div class="dr-soundbar">
+        <button class="dr-sound" id="dr-soundBtn" onclick="dr_toggleSound()">🔊 소리 켜짐</button>
+        <div class="dr-packs" role="group" aria-label="소리 고르기">
+          <button class="dr-pack" data-pack="1" onclick="dr_setPack('1')" aria-label="소리 1번">1</button>
+          <button class="dr-pack" data-pack="2" onclick="dr_setPack('2')" aria-label="소리 2번">2</button>
+          <button class="dr-pack" data-pack="3" onclick="dr_setPack('3')" aria-label="소리 3번 (고급 오락실)">3</button>
+        </div>
+      </div>
       <p class="dr-kicker">2026 또래상담부 · 천원의 행복</p>
       <h1>행운의 번호 추첨</h1>
       <div class="dr-meter">
@@ -1876,6 +1887,142 @@ function dr_fanfare() {
   [523.25, 659.25, 783.99, 1046.5].forEach(f => brass(f, 1.3, 0.06, 0.46));          // 밤~
   [1568, 2093, 2637, 3136].forEach((f, i) => dr_tone(f, 0.5, 'sine', 0.07, 0.55 + i * 0.07));   // 반짝 (종소리)
 }
+/* ===== 소리 1번: 처음 소리 (삑삑 오락기, 처음 만든 그대로) ===== */
+function dr1_tone(freq, dur, type, vol, when, slideTo) {
+  const ac = dr_audio(); if (!ac) return;
+  const t = ac.currentTime + (when || 0);
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(vol || 0.15, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+function dr1_noise(dur, vol, when, filterType, freq) {
+  const ac = dr_audio(); if (!ac) return;
+  const t = ac.currentTime + (when || 0);
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = dr_noiseBuf; f.type = filterType || 'highpass'; f.frequency.value = freq || 5000;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t); src.stop(t + dur);
+}
+function dr1_roll() {
+  const ac = dr_audio(); if (!ac) return () => {};
+  const src = ac.createBufferSource(); src.buffer = dr_noiseBuf; src.loop = true;
+  const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 180; f.Q.value = 0.8;
+  const g = ac.createGain(); g.gain.value = 0.35;
+  const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.type = 'square'; lfo.frequency.value = 16; lg.gain.value = 0.3;
+  lfo.connect(lg); lg.connect(g.gain); src.connect(f); f.connect(g); g.connect(ac.destination); src.start(); lfo.start();
+  return () => { const t = ac.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0.35, t); g.gain.linearRampToValueAtTime(0, t + 0.25); lg.gain.setValueAtTime(0.3, t); lg.gain.linearRampToValueAtTime(0, t + 0.25); src.stop(t + 0.3); lfo.stop(t + 0.3); };
+}
+
+/* ===== 소리 3번: 고급 오락실 (동전 띠링 · 8비트 반주 · 레벨업 팡파르, 울림 + 메아리) ===== */
+let dr3_rev = null, dr3_echo = null;
+function dr3_bus() {
+  const ac = dr_audio(); if (!ac) return null;
+  if (!dr3_rev) {
+    // 울림(리버브): 2초 동안 서서히 줄어드는 잡음으로 '넓은 오락실' 느낌
+    const len = Math.floor(ac.sampleRate * 2), ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+    dr3_rev = ac.createConvolver(); dr3_rev.buffer = ir;
+    const rg = ac.createGain(); rg.gain.value = 0.5; dr3_rev.connect(rg); rg.connect(dr_out);
+    // 메아리(에코): 0.15초 뒤에 작게 한 번 더, 또 한 번 더
+    dr3_echo = ac.createDelay(1); dr3_echo.delayTime.value = 0.15;
+    const fb = ac.createGain(), lp = ac.createBiquadFilter(), eg = ac.createGain();
+    fb.gain.value = 0.32; lp.type = 'lowpass'; lp.frequency.value = 3200; eg.gain.value = 0.45;
+    dr3_echo.connect(lp); lp.connect(fb); fb.connect(dr3_echo); lp.connect(eg); eg.connect(dr_out);
+  }
+  return ac;
+}
+// 소리 하나: o = { type, vol, when, slide, lp(거름 Hz), rev(울림 0~1), echo(메아리 0~1), detune(살짝 어긋나게), vib(떨림) }
+function dr3_v(freq, dur, o) {
+  const ac = dr3_bus(); if (!ac) return;
+  o = o || {};
+  const t = ac.currentTime + 0.01 + (o.when || 0);
+  const osc = ac.createOscillator(), g = ac.createGain();
+  osc.type = o.type || 'square';
+  osc.frequency.setValueAtTime(freq, t);
+  if (o.slide) osc.frequency.exponentialRampToValueAtTime(o.slide, t + dur);
+  if (o.detune) osc.detune.value = o.detune;
+  if (o.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = freq * 0.006; l.connect(lg); lg.connect(osc.frequency); l.start(t + 0.15); l.stop(t + dur + 0.05); }
+  dr_env(g, t, o.vol || 0.08, dur, o.a || 0.005);
+  let node = osc;
+  if (o.lp) { const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = o.lp; f.Q.value = 0.8; osc.connect(f); node = f; }
+  node.connect(g);
+  g.connect(dr_out);
+  if (o.rev) { const s = ac.createGain(); s.gain.value = o.rev; g.connect(s); s.connect(dr3_rev); }
+  if (o.echo) { const s = ac.createGain(); s.gain.value = o.echo; g.connect(s); s.connect(dr3_echo); }
+  osc.start(t); osc.stop(t + dur + 0.05);
+}
+function dr3_hat(t, vol) {
+  const ac = dr_ac, src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = dr_noiseBuf; f.type = 'highpass'; f.frequency.value = 8000;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+  src.connect(f); f.connect(g); g.connect(dr_out); src.start(t, Math.random() * 1.5); src.stop(t + 0.06);
+}
+const dr3_note = n => 440 * Math.pow(2, (n - 69) / 12);   // 건반 번호 → Hz (60 = 가운데 도)
+function dr3_start() {   // 동전 넣는 '띠링'
+  dr3_v(988, 0.09, { type: 'square', vol: 0.07, lp: 5000, rev: 0.25 });
+  dr3_v(1319, 0.55, { type: 'square', vol: 0.07, lp: 5000, when: 0.085, rev: 0.4, echo: 0.35 });
+  dr3_v(1319, 0.55, { type: 'sine', vol: 0.08, when: 0.085 });
+}
+function dr3_roll() {    // 8비트 반주: 도-라-파-솔 화음을 빠르게 튕기기 + 베이스 + 하이햇
+  const ac = dr3_bus(); if (!ac) return () => {};
+  const chords = [[60, 64, 67, 72], [57, 60, 64, 69], [53, 57, 60, 65], [55, 59, 62, 67]];
+  const step = 1 / 14;
+  let next = ac.currentTime + 0.05, i = 0, on = true;
+  const play = t => {
+    const ch = chords[Math.floor(i / 8) % 4], k = i % 8, w = t - ac.currentTime - 0.01;
+    const n = ch[[0, 1, 2, 3, 2, 1, 2, 3][k]] + 12;
+    dr3_v(dr3_note(n), step * 0.9, { type: 'square', vol: 0.045, lp: 2800, when: w, echo: 0.25 });
+    if (k % 4 === 0) dr3_v(dr3_note(ch[0] - 24), step * 3.6, { type: 'triangle', vol: 0.16, when: w });
+    dr3_hat(t, k % 2 ? 0.025 : 0.05);
+    i++;
+  };
+  const timer = setInterval(() => { while (on && next < ac.currentTime + 0.12) { play(next); next += step; } }, 25);
+  return () => { on = false; clearInterval(timer); };
+}
+function dr3_tick(p) {   // 숫자 바뀔 때 '뾱' (갈수록 높아져요)
+  dr3_v(1100 + p * 1300, 0.05, { type: 'triangle', vol: 0.11 });
+  dr3_v(2200 + p * 2600, 0.025, { type: 'sine', vol: 0.04 });
+}
+function dr3_win() {     // 쿵 → 레벨업 계단 → 큰 화음 → 반짝 종소리
+  dr3_v(130, 0.7, { type: 'sine', vol: 0.55, slide: 40, a: 0.003 });
+  dr_noise(1.2, 0.06, 0.4, 'highpass', 9000);
+  [72, 76, 79, 84, 88, 91, 96].forEach((n, i) => dr3_v(dr3_note(n), 0.08, { type: 'square', vol: 0.055, lp: 6000, when: i * 0.05, rev: 0.35 }));
+  [72, 76, 79, 84].forEach(n => {
+    dr3_v(dr3_note(n), 1.8, { type: 'sawtooth', vol: 0.035, lp: 3200, when: 0.38, rev: 0.6, echo: 0.2, vib: true, a: 0.02 });
+    dr3_v(dr3_note(n), 1.8, { type: 'sawtooth', vol: 0.03, lp: 3200, when: 0.38, rev: 0.6, detune: 9, vib: true, a: 0.02 });
+    dr3_v(dr3_note(n - 12), 1.8, { type: 'triangle', vol: 0.06, when: 0.38, rev: 0.4, a: 0.02 });
+  });
+  [96, 100, 103, 108].forEach((n, i) => dr3_v(dr3_note(n), 0.6, { type: 'sine', vol: 0.05, when: 0.5 + i * 0.07, rev: 0.7 }));
+}
+function dr3_fail() { [69, 66, 63, 60].forEach((n, i) => dr3_v(dr3_note(n), 0.14, { type: 'square', vol: 0.06, lp: 2200, when: i * 0.13, rev: 0.3 })); }
+
+/* ===== 소리 고르기 (1 · 2 · 3번, 이 기기에 기억) ===== */
+const DR_PACKS = {
+  '1': { start: () => dr1_tone(220, 0.4, 'sawtooth', 0.12, 0, 880), tick: p => dr1_tone(500 + p * 1100, 0.05, 'square', 0.07), roll: dr1_roll,
+         win: () => { dr1_tone(90, 0.5, 'sine', 0.6, 0, 40); dr1_noise(1.4, 0.35, 0.02, 'highpass', 4000); [523.25, 659.25, 783.99].forEach((f, i) => dr1_tone(f, 0.16, 'square', 0.12, 0.08 + i * 0.12)); [523.25, 659.25, 783.99, 1046.5].forEach(f => dr1_tone(f, 1.1, 'sawtooth', 0.05, 0.46)); [1046.5, 1318.5, 1568, 2093].forEach((f, i) => dr1_tone(f, 0.25, 'triangle', 0.08, 0.5 + i * 0.07)); },
+         fail: () => dr1_tone(300, 0.4, 'sawtooth', 0.12, 0, 120) },
+  '2': { start: () => dr_tone(330, 0.45, 'sine', 0.22, 0, 990), tick: dr_tick, roll: dr_drumroll, win: dr_fanfare, fail: () => dr_tone(300, 0.4, 'triangle', 0.2, 0, 140) },
+  '3': { start: dr3_start, tick: dr3_tick, roll: dr3_roll, win: dr3_win, fail: dr3_fail }
+};
+let dr_pack = (() => { try { return localStorage.getItem('drsSoundPack') || '3'; } catch (e) { return '3'; } })();
+function dr_snd(kind, arg) {
+  if (dr_muted || !dr_audio()) return kind === 'roll' ? () => {} : undefined;
+  const p = DR_PACKS[dr_pack] || DR_PACKS['3'];
+  return p[kind](arg);
+}
+function dr_setPack(n) {
+  dr_pack = n;
+  try { localStorage.setItem('drsSoundPack', n); } catch (e) {}
+  dr_packLabel();
+  if (dr_muted) { dr_muted = false; ss('drsMute', null); dr_soundLabel(); }
+  dr_snd('start');                       // 미리 듣기: 시작 소리 → 당첨 소리
+  setTimeout(() => dr_snd('win'), 700);
+}
+function dr_packLabel() { document.querySelectorAll('#view-draw .dr-pack').forEach(b => b.classList.toggle('on', b.dataset.pack === dr_pack)); }
+
 function dr_toggleSound() {
   dr_muted = !dr_muted;
   ss('drsMute', dr_muted ? '1' : null);
@@ -1949,7 +2096,7 @@ async function dr_doDraw(test) {
   const infoK = document.getElementById('dr-infoK'), infoName = document.getElementById('dr-infoName'), infoSub = document.getElementById('dr-infoSub');
   const photo = document.getElementById('dr-photo');
   const range = Math.max(200, ...ALL_GIFTS.map(g => Number(g.serial) || 0));
-  const flash = p => { const n = 1 + Math.floor(Math.random() * range); num.textContent = n; ball.style.setProperty('--c', dr_color(n)); dr_tick(p); };
+  const flash = p => { const n = 1 + Math.floor(Math.random() * range); num.textContent = n; ball.style.setProperty('--c', dr_color(n)); dr_snd('tick', p); };
 
   dr_rolling = true;
   ball.classList.remove('ready');
@@ -1961,8 +2108,8 @@ async function dr_doDraw(test) {
   infoName.classList.add('beat');
   infoSub.innerText = '';
   drum.classList.add('spin');
-  dr_tone(330, 0.45, 'sine', 0.22, 0, 990);   // 슝~ 시작
-  const stopRoll = dr_drumroll();
+  dr_snd('start');                      // 시작 소리 (고른 소리 1 · 2 · 3번)
+  const stopRoll = dr_snd('roll');
   const fast = setInterval(() => flash(0), 60);
 
   let res;
@@ -1978,7 +2125,7 @@ async function dr_doDraw(test) {
     drum.classList.remove('spin'); ball.classList.remove('roll'); infoName.classList.remove('beat');
     num.textContent = '?'; ball.style.removeProperty('--c');
     infoK.innerText = '앗!'; infoName.innerText = res.message;
-    dr_tone(300, 0.4, 'triangle', 0.2, 0, 140);
+    dr_snd('fail');
   } else {
     const slow = [80, 100, 130, 170, 220, 280, 360, 460];   // 점점 느려지기 (틱 소리는 점점 높아져요)
     for (let i = 0; i < slow.length; i++) { flash((i + 1) / slow.length); await dr_wait(slow[i]); }
@@ -1995,7 +2142,7 @@ async function dr_doDraw(test) {
     const src = giftImg(g);
     if (src) { photo.src = src; photo.hidden = false; }
     if (!test) dr_just = g.docId;
-    dr_fanfare();
+    dr_snd('win');
     dr_flashOn();
     dr_confetti();
   }
@@ -2039,6 +2186,7 @@ if (CURRENT_PAGE === 'student') {
 } else {
   document.body.style.background = '#12306B';   // 뽑기 화면은 끝까지 남색
   dr_soundLabel();
+  dr_packLabel();
   // 아이패드를 돌리면(가로 ↔ 세로) 유리통 크기에 맞게 공을 다시 담아요
   addEventListener('resize', () => { if (!dr_rolling && giftsLoaded) dr_fillDrum(); });
   watchGifts(dr_render);
