@@ -213,7 +213,39 @@
     #view-draw .dr-confetti { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
     #view-draw .dr-confetti i { position:absolute; top:-20px; width:10px; height:16px; border-radius:2px; animation:dr-fall 2.8s ease-in forwards; }
     @keyframes dr-fall { to { transform:translate(var(--x),110vh) rotate(720deg); } }
+    /* 소리 단추 · 테스트 단추 */
+    #view-draw .dr-head { position:relative; }
+    #view-draw .dr-sound { position:absolute; right:0; top:-6px; height:40px; padding:0 14px; border-radius:20px; border:1px solid var(--dr-line); background:var(--dr-deep); color:#fff; font-size:15px; font-family:inherit; cursor:pointer; touch-action:manipulation; }
+    #view-draw .dr-test { margin-top:12px; width:100%; height:48px; border-radius:14px; border:2px dashed var(--dr-line); background:transparent; color:var(--dr-soft); font-size:17px; font-family:inherit; cursor:pointer; touch-action:manipulation; }
+    #view-draw .dr-test:disabled { opacity:.5; }
+    /* 굴러가는 동안: 유리통 빛 · 공 흔들림 · 두구두구 글자 */
+    #view-draw .dr-drum.spin { box-shadow:0 0 0 0 rgba(255,154,77,.0); animation:dr-shake .18s linear infinite, dr-glow .5s ease-in-out infinite alternate; }
+    @keyframes dr-glow { from { box-shadow:0 0 18px 4px rgba(127,211,255,.35); } to { box-shadow:0 0 46px 14px rgba(255,154,77,.75); } }
+    #view-draw .dr-ball.roll { animation:dr-wobble .16s linear infinite; }
+    @keyframes dr-wobble { 0%,100% { transform:rotate(-6deg) scale(1); } 50% { transform:rotate(6deg) scale(1.04); } }
+    #view-draw .dr-info-name.beat { animation:dr-beat .3s ease-in-out infinite alternate; }
+    @keyframes dr-beat { from { transform:scale(1); } to { transform:scale(1.08); } }
+    /* 멈춘 순간: 빛줄기 · 결과 칸 빛 · 화면 번쩍 · 흔들림 */
+    #view-draw .dr-ballwrap { position:relative; flex:none; }
+    #view-draw .dr-rays { position:absolute; left:-60px; top:-60px; right:-60px; bottom:-60px; border-radius:50%; background:repeating-conic-gradient(rgba(255,226,122,.55) 0 9deg, transparent 9deg 22deg); -webkit-mask:radial-gradient(circle, #000 35%, transparent 70%); mask:radial-gradient(circle, #000 35%, transparent 70%); opacity:0; pointer-events:none; }
+    #view-draw .dr-ball { position:relative; }
+    #view-draw .dr-out.win .dr-rays { opacity:1; animation:dr-spinrays 6s linear infinite; }
+    @keyframes dr-spinrays { to { transform:rotate(360deg); } }
+    #view-draw .dr-out { transition:box-shadow .4s; overflow:visible; }
+    #view-draw .dr-out.win { box-shadow:0 0 0 4px var(--dr-acc), 0 0 40px rgba(255,154,77,.6); animation:dr-thud .5s ease-out; }
+    @keyframes dr-thud { 0% { transform:scale(.96); } 40% { transform:scale(1.03); } 100% { transform:scale(1); } }
+    #view-draw .dr-out.win .dr-info-name { animation:dr-zoom .6s cubic-bezier(.2,1.6,.4,1); }
+    @keyframes dr-zoom { from { transform:scale(.4); opacity:0; } to { transform:scale(1); opacity:1; } }
+    #view-draw .dr-stage.quake { animation:dr-quake .45s linear; }
+    @keyframes dr-quake { 0%,100% { transform:translate(0,0); } 20% { transform:translate(-8px,4px); } 40% { transform:translate(7px,-5px); } 60% { transform:translate(-5px,3px); } 80% { transform:translate(4px,-2px); } }
+    #view-draw .dr-flash { position:fixed; inset:0; background:#FFF6D6; opacity:0; pointer-events:none; z-index:60; }
+    #view-draw .dr-flash.on { animation:dr-flashon .55s ease-out; }
+    @keyframes dr-flashon { from { opacity:.85; } to { opacity:0; } }
+    #view-draw .dr-confetti b { position:absolute; width:12px; height:12px; border-radius:3px; animation:dr-burst 2.4s cubic-bezier(.15,.7,.4,1) forwards; }
+    #view-draw .dr-confetti b.star { width:auto; height:auto; background:none !important; font-size:26px; color:#FFE27A; }
+    @keyframes dr-burst { 0% { transform:translate(0,0) rotate(0) scale(.6); opacity:1; } 35% { transform:translate(var(--x),var(--y)) rotate(300deg) scale(1); opacity:1; } 100% { transform:translate(calc(var(--x) * 1.4), calc(var(--y) + 90vh)) rotate(900deg) scale(1); opacity:.9; } }
     @media (max-width:600px) {
+      #view-draw .dr-sound { position:static; margin-bottom:8px; }
       #view-draw .dr-drum { width:280px; height:280px; }
       #view-draw .dr-head h1 { font-size:38px; }
       #view-draw .dr-out { flex-wrap:wrap; justify-content:center; text-align:center; }
@@ -221,7 +253,7 @@
       #view-draw .dr-row { flex-direction:column; }
     }
     @media (prefers-reduced-motion:reduce) {
-      #view-draw .dr-mini, #view-draw .dr-drum.spin, #view-draw .dr-drum.spin .dr-mini { animation:none; }
+      #view-draw .dr-mini, #view-draw .dr-drum.spin, #view-draw .dr-drum.spin .dr-mini, #view-draw .dr-ball.roll, #view-draw .dr-stage.quake, #view-draw .dr-out.win .dr-rays { animation:none; }
     }
   </style>
 </head>
@@ -524,6 +556,7 @@
 <div id="view-draw" class="view">
   <div class="dr-stage">
     <header class="dr-head">
+      <button class="dr-sound" id="dr-soundBtn" onclick="dr_toggleSound()">🔊 소리 켜짐</button>
       <p class="dr-kicker">2026 또래상담부 · 천원의 행복</p>
       <h1>행운의 번호 추첨</h1>
       <div class="dr-meter">
@@ -537,8 +570,8 @@
       <div class="dr-neck"></div>
     </div>
 
-    <div class="dr-out" aria-live="polite">
-      <div class="dr-ball" id="dr-ball"><span id="dr-num">?</span></div>
+    <div class="dr-out" id="dr-out" aria-live="polite">
+      <div class="dr-ballwrap"><span class="dr-rays" aria-hidden="true"></span><div class="dr-ball" id="dr-ball"><span id="dr-num">?</span></div></div>
       <div class="dr-info">
         <p class="dr-info-k" id="dr-infoK">버튼을 누르면 공이 굴러가요</p>
         <p class="dr-info-name" id="dr-infoName">어떤 번호가 나올까요?</p>
@@ -553,6 +586,7 @@
         <input type="text" id="dr-studentLabel" placeholder="예: 10203 김지우" autocomplete="off">
         <button class="dr-go" id="dr-drawBtn" onclick="dr_doDraw()">공 굴리기</button>
       </div>
+      <button class="dr-test" id="dr-testBtn" onclick="dr_doDraw(true)">🧪 테스트 굴리기 (기록 안 함)</button>
     </div>
 
     <section class="dr-list">
@@ -561,6 +595,7 @@
     </section>
   </div>
   <div class="dr-confetti" id="dr-confetti" aria-hidden="true"></div>
+  <div class="dr-flash" id="dr-flash" aria-hidden="true"></div>
 </div>
 
 <script>
@@ -1500,15 +1535,107 @@ function dr_render() {
     </div>`).join('') + '</div>';
 }
 
-// 꽃가루
+/* ----- 🔊 소리 (새 라이브러리 없이 브라우저 소리 기능으로 직접 만들어요) ----- */
+let dr_ac = null;
+let dr_muted = ss('drsMute') === '1';
+function dr_audio() {
+  if (dr_muted) return null;
+  try {
+    dr_ac = dr_ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (dr_ac.state === 'suspended') dr_ac.resume();
+    return dr_ac;
+  } catch (e) { return null; }
+}
+// 삑 소리 하나: 높이(Hz) · 길이(초) · 음색 · 크기 · 몇 초 뒤 · 끝 높이(미끄러지듯)
+function dr_tone(freq, dur, type, vol, when, slideTo) {
+  const ac = dr_audio(); if (!ac) return;
+  const t = ac.currentTime + (when || 0);
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(vol || 0.15, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+// 쏴아 · 쾅 같은 잡음 소리 (심벌)
+function dr_noise(dur, vol, when, filterType, freq) {
+  const ac = dr_audio(); if (!ac) return;
+  const t = ac.currentTime + (when || 0);
+  const len = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = buf; f.type = filterType || 'highpass'; f.frequency.value = freq || 5000;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur);
+}
+// 두구두구 북소리: 굴러가는 동안 계속, 멈추면 작아지며 끝
+function dr_drumroll() {
+  const ac = dr_audio(); if (!ac) return () => {};
+  const buf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+  const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 180; f.Q.value = 0.8;
+  const g = ac.createGain(); g.gain.value = 0.35;
+  const lfo = ac.createOscillator(), lg = ac.createGain();   // 빠르게 두드리는 느낌
+  lfo.type = 'square'; lfo.frequency.value = 16; lg.gain.value = 0.3;
+  lfo.connect(lg); lg.connect(g.gain);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start(); lfo.start();
+  return () => {
+    const t = ac.currentTime;
+    g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0.35, t); g.gain.linearRampToValueAtTime(0, t + 0.25);
+    lg.gain.setValueAtTime(0.3, t); lg.gain.linearRampToValueAtTime(0, t + 0.25);
+    src.stop(t + 0.3); lfo.stop(t + 0.3);
+  };
+}
+function dr_tick(p) { dr_tone(500 + p * 1100, 0.05, 'square', 0.07); }   // p: 0~1, 갈수록 높아져요
+function dr_fanfare() {
+  dr_tone(90, 0.5, 'sine', 0.6, 0, 40);                 // 쿵
+  dr_noise(1.4, 0.35, 0.02, 'highpass', 4000);          // 쾅 (심벌)
+  [523.25, 659.25, 783.99].forEach((f, i) => dr_tone(f, 0.16, 'square', 0.12, 0.08 + i * 0.12));   // 빰 빠 바
+  [523.25, 659.25, 783.99, 1046.5].forEach(f => dr_tone(f, 1.1, 'sawtooth', 0.05, 0.46));          // 밤~
+  [1046.5, 1318.5, 1568, 2093].forEach((f, i) => dr_tone(f, 0.25, 'triangle', 0.08, 0.5 + i * 0.07)); // 반짝
+}
+function dr_toggleSound() {
+  dr_muted = !dr_muted;
+  ss('drsMute', dr_muted ? '1' : null);
+  dr_soundLabel();
+  if (!dr_muted) dr_tone(880, 0.12, 'triangle', 0.15);
+}
+function dr_soundLabel() { document.getElementById('dr-soundBtn').innerText = dr_muted ? '🔇 소리 꺼짐' : '🔊 소리 켜짐'; }
+
+/* ----- 🎉 효과 ----- */
+function dr_reduced() { return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+// 꽃가루: 위에서 떨어지는 것 + 공에서 터져 나오는 것 + 별
 function dr_confetti() {
-  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (dr_reduced()) return;
   const box = document.getElementById('dr-confetti');
-  box.innerHTML = Array.from({ length: 60 }, () => {
-    const left = Math.random() * 100, x = Math.round(Math.random() * 200 - 100), delay = (Math.random() * 0.6).toFixed(2);
-    return `<i style="left:${left}%;background:${DR_COLS[Math.floor(Math.random() * DR_COLS.length)]};--x:${x}px;animation-delay:${delay}s"></i>`;
+  const r = document.getElementById('dr-ball').getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const pick = () => DR_COLS[Math.floor(Math.random() * DR_COLS.length)];
+  const fall = Array.from({ length: 70 }, () => {
+    const left = Math.random() * 100, x = Math.round(Math.random() * 200 - 100), delay = (Math.random() * 0.8).toFixed(2);
+    return `<i style="left:${left}%;background:${pick()};--x:${x}px;animation-delay:${delay}s"></i>`;
   }).join('');
-  setTimeout(() => { box.innerHTML = ''; }, 3600);
+  const burst = Array.from({ length: 90 }, (_, i) => {
+    const a = Math.random() * Math.PI * 2, d = 120 + Math.random() * 320;
+    const x = Math.round(Math.cos(a) * d), y = Math.round(Math.sin(a) * d - 140);
+    const star = i % 9 === 0;
+    return `<b class="${star ? 'star' : ''}" style="left:${cx - 6}px;top:${cy - 6}px;background:${pick()};--x:${x}px;--y:${y}px">${star ? '★' : ''}</b>`;
+  }).join('');
+  box.innerHTML = fall + burst;
+  setTimeout(() => { box.innerHTML = ''; }, 4000);
+}
+function dr_flashOn() {
+  if (dr_reduced()) return;
+  const f = document.getElementById('dr-flash'), st = document.querySelector('#view-draw .dr-stage');
+  f.classList.remove('on'); st.classList.remove('quake');
+  void f.offsetWidth;
+  f.classList.add('on'); st.classList.add('quake');
+  setTimeout(() => st.classList.remove('quake'), 500);
 }
 // 남은 선물 중 하나를 골라, 동시에 다른 학생이 가져가지 않았는지 확인하며 뽑음
 async function drawRandomGift(label) {
@@ -1526,58 +1653,80 @@ async function drawRandomGift(label) {
   }
   return { success: false, message: '사람이 많아요! 잠시 후 다시 눌러주세요.' };
 }
+// 테스트 굴리기: 남은 선물 중 하나를 골라 보여 주기만 해요 (뽑힘으로 기록하지 않아요)
+function dr_testPick() {
+  const left = ALL_GIFTS.filter(g => !g.drawn);
+  if (left.length) return { success: true, gift: { ...left[Math.floor(Math.random() * left.length)], docId: null } };
+  const n = 1 + Math.floor(Math.random() * 200);
+  return { success: true, gift: { serial: n, name: '테스트 선물', price: 0 } };
+}
+
 // 공 굴리기: 숫자가 1~200 사이에서 빠르게 돌다가 점점 느려지고, 뽑힌 선물 번호에서 멈춰요
-async function dr_doDraw() {
+async function dr_doDraw(test) {
   if (dr_rolling) return;
-  if (giftsLoaded && !ALL_GIFTS.some(g => !g.drawn)) { alert('모든 선물이 이미 뽑혔습니다!'); return; }
-  const btn = document.getElementById('dr-drawBtn');
+  if (!test && giftsLoaded && !ALL_GIFTS.some(g => !g.drawn)) { alert('모든 선물이 이미 뽑혔습니다!'); return; }
+  const btn = document.getElementById('dr-drawBtn'), tbtn = document.getElementById('dr-testBtn');
   const label = document.getElementById('dr-studentLabel').value.trim() || '익명';
   const drum = document.getElementById('dr-drum'), ball = document.getElementById('dr-ball'), num = document.getElementById('dr-num');
+  const out = document.getElementById('dr-out');
   const infoK = document.getElementById('dr-infoK'), infoName = document.getElementById('dr-infoName'), infoSub = document.getElementById('dr-infoSub');
   const photo = document.getElementById('dr-photo');
   const range = Math.max(200, ...ALL_GIFTS.map(g => Number(g.serial) || 0));
-  const flash = () => { const n = 1 + Math.floor(Math.random() * range); num.textContent = n; ball.style.background = dr_color(n); };
+  const flash = p => { const n = 1 + Math.floor(Math.random() * range); num.textContent = n; ball.style.background = dr_color(n); dr_tick(p); };
 
   dr_rolling = true;
-  btn.disabled = true; btn.innerText = '굴러가는 중...';
+  btn.disabled = true; tbtn.disabled = true;
+  btn.innerText = '굴러가는 중...';
   photo.hidden = true;
-  ball.classList.remove('pop');
-  infoK.innerText = label === '익명' ? '두근두근…' : label + ' 님, 두근두근…';
-  infoName.innerText = '공이 굴러가요!';
+  out.classList.remove('win');
+  ball.classList.remove('pop'); ball.classList.add('roll');
+  infoK.innerText = (test ? '[테스트] ' : '') + (label === '익명' ? '두근두근…' : label + ' 님, 두근두근…');
+  infoName.innerText = '두구두구두구…';
+  infoName.classList.add('beat');
   infoSub.innerText = '';
   drum.classList.add('spin');
-  const fast = setInterval(flash, 60);
+  dr_tone(220, 0.4, 'sawtooth', 0.12, 0, 880);   // 슝~ 시작
+  const stopRoll = dr_drumroll();
+  const fast = setInterval(() => flash(0), 60);
 
   let res;
   try {
-    [res] = await Promise.all([drawRandomGift(label), dr_wait(2600)]);
+    [res] = await Promise.all([test ? dr_testPick() : drawRandomGift(label), dr_wait(2800)]);
   } catch (e) {
     res = { success: false, message: '연결 오류: ' + e.message };
   }
   clearInterval(fast);
 
   if (!res.success) {
-    drum.classList.remove('spin');
+    stopRoll();
+    drum.classList.remove('spin'); ball.classList.remove('roll'); infoName.classList.remove('beat');
     num.textContent = '?'; ball.style.background = '';
     infoK.innerText = '앗!'; infoName.innerText = res.message;
+    dr_tone(300, 0.4, 'sawtooth', 0.12, 0, 120);
   } else {
-    for (const d of [90, 120, 160, 210, 270, 350]) { flash(); await dr_wait(d); }   // 점점 느려지기
-    drum.classList.remove('spin');
+    const slow = [80, 100, 130, 170, 220, 280, 360, 460];   // 점점 느려지기 (틱 소리는 점점 높아져요)
+    for (let i = 0; i < slow.length; i++) { flash((i + 1) / slow.length); await dr_wait(slow[i]); }
+    stopRoll();
+    drum.classList.remove('spin'); ball.classList.remove('roll'); infoName.classList.remove('beat');
     const g = res.gift, n = Number(g.serial) || '?';
     num.textContent = n;
     ball.style.background = dr_color(n);
     void ball.offsetWidth; ball.classList.add('pop');
-    infoK.innerText = (label === '익명' ? '' : label + ' 님의 ') + n + '번 선물';
+    out.classList.add('win');
+    infoK.innerText = (test ? '[테스트 · 기록 안 함] ' : '') + (label === '익명' ? '' : label + ' 님의 ') + n + '번 선물';
     infoName.innerText = g.name || '선물';
     infoSub.innerText = g.price ? (Number(g.price) || 0).toLocaleString() + '원 상당' : '';
     const src = giftImg(g);
     if (src) { photo.src = src; photo.hidden = false; }
-    dr_just = g.docId;
+    if (!test) dr_just = g.docId;
+    dr_fanfare();
+    dr_flashOn();
     dr_confetti();
   }
   dr_rolling = false;
-  btn.disabled = false; btn.innerText = '공 굴리기';
-  document.getElementById('dr-studentLabel').value = '';
+  btn.disabled = false; tbtn.disabled = false;
+  btn.innerText = '공 굴리기';
+  if (!test) document.getElementById('dr-studentLabel').value = '';
   dr_render();
 }
 
@@ -1615,6 +1764,7 @@ if (CURRENT_PAGE === 'student') {
   });
 } else {
   document.body.style.background = '#12306B';   // 뽑기 화면은 끝까지 남색
+  dr_soundLabel();
   watchGifts(dr_render);
 }
 </script>
