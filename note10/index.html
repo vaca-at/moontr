@@ -1922,7 +1922,7 @@ function removeStudent() {
 /* ---------------- 🛠 관리 (로그인한 선생님만) ----------------
    ① 달력 가져오기: 다른 달력 앱 화면을 캡처해 붙여 넣으면 AI가 일정을 뽑아 이 달력에 한꺼번에 넣어요
    ② 성적 한꺼번에: 모의고사 · 내신 등급을 표 하나에 넣어요 (엑셀에서 복사해 붙여 넣기 가능) */
-let DASH = { tab: 'cal', imgs: [], text: '', rows: [], year: new Date().getFullYear(), view: null, pending: null, rec: 'att', recPending: null };
+let DASH = { tab: 'roster', imgs: [], text: '', rows: [], year: new Date().getFullYear(), view: null, pending: null, rec: 'att', recPending: null };
 function openDash(tab) {
   if (syncState !== 'cloud') return toast('🔑 로그인한 뒤에 쓸 수 있어요');
   if (tab) DASH.tab = tab;
@@ -1931,13 +1931,44 @@ function openDash(tab) {
 }
 function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
 function viewDash() {
-  const tabs = [['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['photo', '📷 사진'], ['score', '📊 성적 파일'], ['school', '🏫 전교 성적'], ['rec', '📋 생기부 자료']];
-  $('#modal .sheet').classList.toggle('xwide', DASH.tab === 'school');   // 전교 성적은 표가 넓어서 창을 더 넓게
+  const tabs = [['roster', '👥 우리반 명단'], ['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['photo', '📷 사진'], ['score', '📊 성적 파일'], ['school', '🏫 전교 성적'], ['rec', '📋 생기부 자료']];  $('#modal .sheet').classList.toggle('xwide', DASH.tab === 'school');   // 전교 성적은 표가 넓어서 창을 더 넓게
   return `<div class="row" style="margin-bottom:12px">${tabs.map(([k, t]) => `<button class="pill ${DASH.tab === k ? 'on' : ''}" onclick="DASH.tab='${k}';dashRefresh()">${t}</button>`).join('')}</div>
-  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'ev' ? dashEv() : DASH.tab === 'photo' ? dashPhoto() : DASH.tab === 'score' ? dashScore() : DASH.tab === 'school' ? dashSchool() : dashRec()}`;
+  ${DASH.tab === 'roster' ? dashRoster() : DASH.tab === 'cal' ? dashCal() : DASH.tab === 'ev' ? dashEv() : DASH.tab === 'photo' ? dashPhoto() : DASH.tab === 'score' ? dashScore() : DASH.tab === 'school' ? dashSchool() : dashRec()}`;
 }
 
-/* 🏫 전교 성적 — 전교생 성적표(학번 · 성적만, 이름 없음)를 과목별 · 반별 · 학생별로 한눈에 */
+/* 👥 우리반 명단 — 연필 친구 한꺼번에 만들기 + 번호마다 동물 · 별칭 · 숫자 바로 고치기 (선생님만 보는 관리 화면이라 반 번호도 보여요) */
+function dashRoster() {
+  const list = [...D.students].sort((a, b) => (a.num || 99) - (b.num || 99) || nname(a).localeCompare(nname(b), 'ko'));
+  const pen = D.students.filter(isPencil).length, maxNo = Math.max(27, ...D.students.map(s => s.num || 0));
+  const emoOpts = cur => [PENCIL, ...EMOJIS].map(e => `<option ${e === cur ? 'selected' : ''}>${e}</option>`).join('');
+  return `<section><h4>✏️ 처음 한 번: 연필 친구 한꺼번에 만들기</h4>
+    <p class="mini">반 번호마다 '✏️ 연필1, 연필2…' 친구를 만들어 둬요. 이미 친구가 있는 번호는 건너뛰어요. 별칭은 아래 표나, 상담할 때 학생 노트의 🏷️ 별칭 고치기에서 언제든 바꿀 수 있어요.</p>
+    <div class="row" style="margin-top:8px"><input type="number" id="pFrom" value="1" min="1" max="60" style="width:80px">번부터 <input type="number" id="pTo" value="${maxNo}" min="1" max="60" style="width:80px">번까지
+      <button class="btn" onclick="makePencils(+$('#pFrom').value, +$('#pTo').value, null, true)">✏️ 한꺼번에 만들기</button></div></section>
+  <section><h4>👥 우리반 명단 <span class="mini">${D.students.length}명 · 연필(별칭 안 정함) ${pen}명</span></h4>
+    <p class="mini">고치면 바로 저장돼요. 🔒 반 번호는 이 관리 화면에서만 보이고, 학생 노트 · 홈에는 별칭과 숫자만 보여요.</p>
+    ${list.length ? `<div style="overflow:auto;max-height:60vh"><table class="dtable"><tr><th style="width:70px">반 번호</th><th style="width:80px">동물</th><th>별칭</th><th style="width:90px">숫자</th><th style="width:90px">상담</th><th style="width:90px"></th></tr>
+      ${list.map(s => `<tr style="${isPencil(s) ? 'background:var(--soft)' : ''}">
+        <td><input type="number" min="1" max="60" value="${s.num || ''}" style="width:62px" onchange="rosterSet('${s.id}','num',this.value)"></td>
+        <td><select style="width:70px;font-size:18px" onchange="rosterSet('${s.id}','emoji',this.value)">${emoOpts(s.emoji)}</select></td>
+        <td><input type="text" maxlength="12" value="${esc(s.nick)}" placeholder="별칭" onchange="rosterSet('${s.id}','nick',this.value)"></td>
+        <td><input type="text" inputmode="numeric" maxlength="4" value="${esc(s.tag || '')}" style="width:80px" onchange="rosterSet('${s.id}','tag',this.value)"></td>
+        <td class="mini" style="vertical-align:middle">${s.counsels.length ? `${s.counsels.length}회` : '아직'}</td>
+        <td style="vertical-align:middle"><button class="btn sm ghost" onclick="closeModal();openStudent('${s.id}',1)">노트 →</button></td></tr>`).join('')}
+    </table></div>` : '<div class="empty">아직 친구가 없어요. 위에서 연필 친구를 한꺼번에 만들어 보세요 ✏️</div>'}</section>`;
+}
+// 명단 표에서 고친 칸 하나 저장
+function rosterSet(id, k, v) {
+  const st = D.students.find(s => s.id === id); if (!st) return;
+  v = String(v).trim();
+  if (k === 'num') { const n = parseInt(v, 10) || 0; if (n && (n < 1 || n > 60)) return toast('반 번호는 1~60이에요'), dashRefresh(); if (numTaken(n, id)) return toast(`반 번호 ${n}번은 이미 다른 친구예요`), dashRefresh(); st.num = n; }
+  if (k === 'nick') { if (!v) return dashRefresh(); if (piiCheck(v).length) return toast('별칭에 숫자·연락처는 빼 주세요'), dashRefresh(); st.nick = v; }
+  if (k === 'tag') st.tag = v.replace(/\D/g, '').slice(0, 4);
+  if (k === 'emoji') { const old = st.emoji; st.emoji = v; if (st.nick === PENCIL_NICK && v !== PENCIL) st.nick = ANIMAL_NAMES[v] || st.nick; else if (st.nick === ANIMAL_NAMES[old] && ANIMAL_NAMES[v]) st.nick = ANIMAL_NAMES[v]; }
+  sortStudents(); saveStudent(st); render(); dashRefresh();
+}
+
+/* 🏫 전교 성적 —전교생 성적표(학번 · 성적만, 이름 없음)를 과목별 · 반별 · 학생별로 한눈에 */
 let SCH = { key: null, cls: 'all', sort: -1, asc: true };
 function dashSchool() {
   const docs = scoreDocs().filter(isWhole);
