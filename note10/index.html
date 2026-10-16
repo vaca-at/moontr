@@ -1023,7 +1023,7 @@ const isGroup = t => { const f = dotFix(t.replace(/\s/g, '')); return SUBJ_GROUP
 function subjField(st) {
   const sel = st.num ? Object.values(RC).filter(d => d.kind === 'sel').sort((a, b) => b.year - a.year).map(d => { const r = d.rows.find(x => x.no === st.num); return r ? `<div class="mini">📋 ${d.year} 관리에서 올린 선택과목: ${d.cols.map((c, i) => r.v[i] ? `${esc(c)} <b>${esc(r.v[i])}</b>` : '').filter(Boolean).join(' · ')}</div>` : ''; }).join('') : '';
   return `<div class="field"><label>📘 선택과목 <span class="mini">(수강신청 확인서)</span></label>
-    ${SEMS.map(([k, l]) => `<div class="row" style="gap:6px;margin-bottom:4px"><span class="mini" style="width:74px;flex:none">${l}</span><input type="text" value="${esc((st.subjects?.[k] || []).join(', '))}" placeholder="예: 기하, 사회와 문화, 화학" style="flex:1" onchange="setSubj('${k}',this.value)"></div>`).join('')}
+    ${SEMS.map(([k, l]) => `<div class="row" style="gap:6px;margin-bottom:4px"><span class="mini" style="width:74px;flex:none">${l}</span><input type="text" value="${esc((st.subjects?.[k] || []).join(', '))}" placeholder="예: 기하, 사회와 문화, 화학" style="flex:1" onchange="setSubj('${k}',this.value)">${subjBadge((st.subjects?.[k] || []).length)}</div>`).join('')}
     ${sel}
     <div style="margin-top:6px"><div class="mini">📋 확인서 표 붙여 넣기 (학기 · 교과군은 알아서 걸러요)</div>
       <textarea id="subjPaste" style="margin-top:6px;min-height:80px;font-size:12.5px" placeholder="수강신청 확인서의 '2학년 1학기' 표부터 드래그해 복사(Ctrl+C)한 뒤 붙여 넣어요. 위쪽 이름 줄은 빼고 복사해 주세요"></textarea>
@@ -1032,8 +1032,14 @@ function subjField(st) {
 function setSubj(k, v) {
   const st = cur(); st.subjects = st.subjects || {};
   st.subjects[k] = String(v).split(/[,，、]/).map(x => x.trim()).filter(Boolean);
-  saveStudent(st);
+  saveStudent(st); render();
 }
+// 학기마다 선택과목 수 확인 (우리 학교는 학기마다 5과목) — 맞으면 초록 ✓, 다르면 빨강
+const SUBJ_N = 5;
+// 넣은 뒤 알림: 학기마다 몇 과목인지, 5과목이 아니면 확인하라고
+const subjToast = (out, ks) => toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${out[k].length}과목${out[k].length === SUBJ_N ? ' ✓' : ' ⚠️'}`).join(' · ')} 넣었어요${ks.some(k => out[k].length !== SUBJ_N) ? ' — 5과목이 아닌 학기가 있어요. 칸을 확인해 주세요' : ''}`);
+const subjBadge = n => `<span class="chip" style="flex:none;white-space:nowrap;${n === SUBJ_N ? 'background:var(--greenL);border-color:#bfe3cc;color:#3d8a5f' : n ? 'background:#fff0f2;border-color:#f6c6d6;color:var(--red)' : ''}" title="학기마다 ${SUBJ_N}과목이어야 해요">${n ? `${n}과목 ${n === SUBJ_N ? '✓' : '⚠️'}` : '비어 있음'}</span>`;
+const subjOk = st => SEMS.every(([k]) => (st.subjects?.[k] || []).length === SUBJ_N);
 // 확인서 표 → 학기마다 과목. '2학년 1학기' 글자가 있는 칸 위치로 옆에 붙은 표(1학기 | 2학기)도 나눠요
 /* 선택과목 이름 사전 (2015 · 2022 개정) — PDF에서 복사해 칸이 띄어쓰기 · 줄바꿈으로 깨져도 과목 이름을 찾아요.
    사전에 없는 과목은 남은 글자로 넣으니, 틀리면 칸에서 고쳐 주세요 */
@@ -1081,7 +1087,7 @@ function pasteSubj() {
     Object.keys(out).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete out[k]; });   // 2학년 1 · 2학기만
     const ks = Object.keys(out).filter(k => out[k].length); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
     st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
-    return toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${out[k].length}과목`).join(' · ')} 넣었어요 — 틀린 곳은 칸에서 고쳐 주세요`);
+    return subjToast(out, ks);
   }
   const out = {}; let marks = [];
   text.split(/\r?\n/).forEach(line => {
@@ -1100,7 +1106,7 @@ function pasteSubj() {
   Object.keys(out).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete out[k]; });   // 2학년 1 · 2학기만
   const ks = Object.keys(out); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
   st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
-  toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${out[k].length}과목`).join(' · ')} 넣었어요`);
+  subjToast(out, ks);
 }
 const subjText = st => SEMS.map(([k, l]) => (st.subjects?.[k] || []).length ? `${l} ${st.subjects[k].join('·')}` : '').filter(Boolean).join(' / ');
 function md(t) {
@@ -2133,15 +2139,16 @@ function dashRoster() {
     <p class="mini">반 번호마다 '✏️ 연필1, 연필2…' 친구를 만들어 둬요. 이미 친구가 있는 번호는 건너뛰어요. 별칭은 아래 표나, 상담할 때 개인 상담 기록의 🏷️ 별칭 고치기에서 언제든 바꿀 수 있어요.</p>
     <div class="row" style="margin-top:8px"><input type="number" id="pFrom" value="1" min="1" max="60" style="width:80px">번부터 <input type="number" id="pTo" value="${maxNo}" min="1" max="60" style="width:80px">번까지
       <button class="btn" onclick="makePencils(+$('#pFrom').value, +$('#pTo').value, null, true)">✏️ 한꺼번에 만들기</button></div></section>
-  <section><h4>👥 우리반 명단 <span class="mini">${D.students.length}명 · 연필(별칭 안 정함) ${pen}명</span></h4>
+  <section><h4>👥 우리반 명단 <span class="mini">${D.students.length}명 · 연필(별칭 안 정함) ${pen}명 · 선택과목 다 넣음 ${D.students.filter(subjOk).length}명</span></h4>
     <p class="mini">고치면 바로 저장돼요. 🔒 반 번호는 이 관리 화면에서만 보이고, 개인 상담 기록 · 홈에는 별칭과 숫자만 보여요.</p>
-    ${list.length ? `<div style="overflow:auto;max-height:60vh"><table class="dtable"><tr><th style="width:70px">반 번호</th><th style="width:80px">동물</th><th>별칭</th><th style="width:90px">숫자</th><th style="width:90px">상담</th><th style="width:90px"></th></tr>
+    ${list.length ? `<div style="overflow:auto;max-height:60vh"><table class="dtable"><tr><th style="width:70px">반 번호</th><th style="width:80px">동물</th><th>별칭</th><th style="width:90px">숫자</th><th style="width:90px">상담</th><th style="width:120px">선택과목</th><th style="width:90px"></th></tr>
       ${list.map(s => `<tr style="${isPencil(s) ? 'background:var(--soft)' : ''}">
         <td><input type="number" min="1" max="60" value="${s.num || ''}" style="width:62px" onchange="rosterSet('${s.id}','num',this.value)"></td>
         <td><select style="width:70px;font-size:18px" onchange="rosterSet('${s.id}','emoji',this.value)">${emoOpts(s.emoji)}</select></td>
         <td><input type="text" maxlength="12" value="${esc(s.nick)}" placeholder="별칭" onchange="rosterSet('${s.id}','nick',this.value)"></td>
         <td><input type="text" inputmode="numeric" maxlength="4" value="${esc(s.tag || '')}" style="width:80px" onchange="rosterSet('${s.id}','tag',this.value)"></td>
         <td class="mini" style="vertical-align:middle">${s.counsels.length ? `${s.counsels.length}회` : '아직'}</td>
+        <td class="mini" style="vertical-align:middle;white-space:nowrap;${subjOk(s) ? 'color:#3d8a5f' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? 'color:var(--red)' : ''}">${SEMS.map(([k]) => (s.subjects?.[k] || []).length).join(' · ')}${subjOk(s) ? ' ✓' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? ' ⚠️' : ''}</td>
         <td style="vertical-align:middle"><button class="btn sm ghost" onclick="closeModal();openStudent('${s.id}',1)">노트 →</button></td></tr>`).join('')}
     </table></div>` : '<div class="empty">아직 친구가 없어요. 위에서 연필 친구를 한꺼번에 만들어 보세요 ✏️</div>'}</section>`;
 }
