@@ -1260,7 +1260,57 @@ function secGrowth(st) {
       <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('grades', GRADE_SUBJ)}${table('grades', GRADE_SUBJ)}</details>
     </div></div>
   </div>
+  ${scoreSummary(st)}
   <div class="mini" style="margin-top:10px">💡 그래프는 성적표의 '등급' 칸으로 그려요. AI 담임 메모에도 등급만 보내요 (학번은 안 보내요).</div>`;
+}
+/* 📋 성적 한눈에 — 올린 성적 파일에서 이 친구 줄만 모아 표 하나로 (모의고사: 과목마다 원점수 · 표준점수 · 백분위 · 등급 / 내신: 과목 점수 + 나이스 학기 등급) */
+const MET_RE = /원점수|표준\s*점수|표점|백분위|등급/;
+const MET_ORDER = ['원점수', '표준점수', '백분위', '등급', ''];
+function splitHead(h) {
+  if (TOTAL_RE.test(h.replace(/\s/g, '')) || TOTAL_RE.test(h)) return { extra: h.trim() };
+  const m = h.match(MET_RE);
+  if (m) return { subj: subjName(h.replace(MET_RE, '')) || h, met: m[0].replace(/\s/g, '').replace('표점', '표준점수') };
+  return { subj: subjName(h) || h, met: '' };
+}
+function scoreSheet(st, kind) {
+  if (!st.num) return null;
+  const docs = Object.values(SC).filter(d => examOf(d).kind === kind).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));
+  const subjs = [], mets = {}, extras = [], rows = [];
+  const addS = (s, m) => { if (!subjs.includes(s)) subjs.push(s); (mets[s] = mets[s] || new Set()).add(m); };
+  docs.forEach(d => {
+    const r = d.rows.find(x => x.no === st.num); if (!r) return;
+    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}`, v: {} };
+    d.cols.forEach((h, i) => { const p = splitHead(h), v = r.v[i]; if (v === '' || v == null) return;
+      if (p.extra) { if (!extras.includes(p.extra)) extras.push(p.extra); o.v['@' + p.extra] = v; }
+      else { addS(p.subj, p.met); o.v[p.subj + '|' + p.met] = v; } });
+    rows.push(o);
+  });
+  // 내신: 나이스 교과학습발달상황의 학기 등급(없으면 성취도)도 한 줄로
+  if (kind === 'school') gyogwaDocs().forEach(d => {
+    const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return;
+    const iS = d.cols.findIndex(c => c === '과목'), iG = d.cols.findIndex(c => /석차/.test(c)), iA = d.cols.findIndex(c => /성취도/.test(c));
+    const o = { label: `${String(d.year).slice(2)}년 ${d.sem}학기 전체 (나이스)`, v: {}, grade: true };
+    rs.forEach(r => { const s = subjName(r.v[iS] || ''); if (!s) return; const v = (iG >= 0 && r.v[iG]) || (iA >= 0 ? (r.v[iA] || '').replace(/\(.*\)/, '').trim() : ''); if (!v) return; addS(s, ''); o.v[s + '|'] = v; });
+    rows.push(o);
+  });
+  if (!rows.length) return null;
+  const groups = subjs.map(s => ({ s, ms: MET_ORDER.filter(m => mets[s].has(m)) }));
+  return { groups, extras, rows };
+}
+function scoreSummary(st) {
+  const box = (kind, title, color) => {
+    const t = scoreSheet(st, kind); if (!t) return '';
+    const max = kind === 'mock' ? 9 : 5, two = t.groups.some(g => g.ms.length > 1 || g.ms[0]);
+    const cell = (v, m, row) => (m === '등급' || row.grade) && +v >= 1 && +v <= max && Number.isInteger(+v) ? gradeCell(+v, max) : `<td style="text-align:center">${esc(v ?? '')}</td>`;
+    const th = 'text-align:center;white-space:nowrap;border:1px solid var(--line);padding:4px 6px;background:var(--soft)';
+    return `<div class="box" style="margin-top:12px"><div class="hd ${color}"><span class="n">📋</span>${title} 한눈에 <span class="sp mini" style="color:#fff">올린 성적 파일에서 이 친구 줄만</span></div><div class="bd" style="overflow:auto">
+      <table class="dtable" style="border-collapse:collapse;min-width:100%">
+        <tr><th rowspan="${two ? 2 : 1}" style="${th}"></th>${t.groups.map(g => `<th colspan="${g.ms.length}" style="${th}">${esc(g.s)}</th>`).join('')}${t.extras.map(x => `<th rowspan="${two ? 2 : 1}" style="${th}">${esc(x)}</th>`).join('')}</tr>
+        ${two ? `<tr>${t.groups.map(g => g.ms.map(m => `<th style="${th};font-weight:500">${esc(m || '점수')}</th>`).join('')).join('')}</tr>` : ''}
+        ${t.rows.map(r => `<tr><td style="white-space:nowrap;font-weight:700;border:1px solid var(--line);padding:4px 8px">${esc(r.label)}</td>${t.groups.map(g => g.ms.map(m => cell(r.v[g.s + '|' + m], m, r)).join('')).join('')}${t.extras.map(x => `<td style="text-align:center">${esc(r.v['@' + x] ?? '')}</td>`).join('')}</tr>`).join('')}
+      </table></div></div>`;
+  };
+  return box('mock', '모의고사', 'blue') + box('school', '내신', 'pink');
 }
 function addScore(kind) {
   const st = cur(), subj = kind === 'mocks' ? MOCK_SUBJ : GRADE_SUBJ;
@@ -2442,11 +2492,13 @@ function gradeCols(d, max) {
   const num = v => /^\d+(\.\d+)?$/.test(v) && +v >= 1 && +v <= max;
   const ok = i => d.rows.some(r => r.v[i] !== '') && d.rows.every(r => r.v[i] === '' || num(r.v[i]));
   const all = d.cols.map((h, i) => ({ h, i }));
-  let cs = all.filter(c => /등급/.test(c.h) && ok(c.i));
-  if (!cs.length) cs = all.filter(c => ok(c.i) && d.rows.every(r => r.v[c.i] === '' || Number.isInteger(+r.v[c.i])));
+  let cs = all.filter(c => /등급/.test(c.h) && !TOTAL_RE.test(c.h) && ok(c.i));
+  if (!cs.length) cs = all.filter(c => !TOTAL_RE.test(c.h) && ok(c.i) && d.rows.every(r => r.v[c.i] === '' || Number.isInteger(+r.v[c.i])));
   return cs.map(c => ({ i: c.i, subj: subjName(c.h.replace(/석차|등급/g, '')) || c.h }));
 }
 // 머리글 → 과목 이름. 끝에 붙은 학점 숫자('공통국어1 4'의 4)는 떼서 시험마다 같은 과목으로 이어지게 해요
+// 과목이 아니라 합계 · 평균 · 석차 같은 칸 (그래프 · 등급 계산에서 빼고, 한눈에 표에서는 맨 뒤에)
+const TOTAL_RE = /단위|반영|평균|총합|합계|총점|백분위\s*합|환산|탐\s*표준|탐구\s*합|전교\s*석차|반\s*석차|^석차$|^순위$/;
 const subjName = h => h.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s+\d+(\.\d+)?$/, '');
 
 /* 🏫 중간 · 기말 전교생 성적표 (등급 칸 없이 원점수만) → 과목마다 전교 석차 · 상위 % · 5등급을 계산해요
@@ -2459,8 +2511,8 @@ const useCalc = d => examOf(d).kind === 'school' && isWhole(d) && !d.cols.some(h
 function rawCols(d) {
   const all = d.cols.map((h, i) => ({ h, i }));
   const numOk = i => d.rows.filter(r => r.v[i] !== '').length >= d.rows.length / 2 && d.rows.every(r => r.v[i] === '' || !isNaN(parseFloat(r.v[i])));
-  let cs = all.filter(c => /원점수|합계|총점/.test(c.h) && !/표준|백분위|석차/.test(c.h) && numOk(c.i));
-  if (!cs.length) cs = all.filter(c => !/석차|백분위|표준|평균|편차|학점|단위|성취|수강|응시|순위/.test(c.h) && numOk(c.i) && Math.max(...d.rows.map(r => parseFloat(r.v[c.i]) || 0)) > 5);
+  let cs = all.filter(c => /원점수/.test(c.h) && !/표준|백분위|석차/.test(c.h) && !TOTAL_RE.test(c.h) && numOk(c.i));
+  if (!cs.length) cs = all.filter(c => !TOTAL_RE.test(c.h) && !/석차|백분위|표준|평균|편차|학점|단위|성취|수강|응시|순위/.test(c.h) && numOk(c.i) && Math.max(...d.rows.map(r => parseFloat(r.v[c.i]) || 0)) > 5);
   return cs.map(c => ({ i: c.i, subj: subjName(c.h.replace(/원점수|합계|총점|점수/g, '')) || c.h }));
 }
 const rankCache = new Map();
