@@ -219,8 +219,9 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 
 <header>
   <div class="logo">🫶</div>
-  <span class="tag" id="classTag">1학년 10반</span>
-  <div class="title">우리반 생기부노트 <small>상담 · 성장 · 생기부</small></div>
+  <!-- 반 이름 · 앱 이름을 누르면 홈(📅 달력)으로 -->
+  <span class="tag" id="classTag" style="cursor:pointer" title="홈으로" onclick="go('cal')">1학년 10반</span>
+  <div class="title" style="cursor:pointer" title="홈으로" onclick="go('cal')">우리반 생기부노트 <small>상담 · 성장 · 생기부</small></div>
   <nav class="nav" id="nav"></nav>
   <div class="right">
     <span class="badge" id="syncBadge">🔒 로그인 전</span>
@@ -660,9 +661,16 @@ function viewDayPanel() {
       ${dd.ev.map((e, i, a) => `<div class="item"><div class="top"><span class="chip" style="background:#fde9b8">일정</span><b class="hand" style="font-size:16px">${esc(e.title)}</b>
         <span style="margin-left:auto;display:flex;gap:2px">${a.length > 1 ? `<button class="x" title="위로" ${i === 0 ? 'disabled style="opacity:.25"' : ''} onclick="moveEvent('${e.id}',-1)">▲</button><button class="x" title="아래로" ${i === a.length - 1 ? 'disabled style="opacity:.25"' : ''} onclick="moveEvent('${e.id}',1)">▼</button>` : ''}
         <button class="x" onclick="delEvent('${e.id}')">✕</button></span></div></div>`).join('')}
-      ${dd.next.map(n => `<div class="item" style="cursor:pointer" onclick="openStudent('${n.st.id}',2)"><div class="top"><span class="chip 자율">상담 예정</span><b class="hand" style="font-size:16px">${esc(sname(n.st))}</b></div><div class="mini">지난 상담(${n.c.date}) 이어서</div></div>`).join('')}
-      ${dd.cs.map(x => `<div class="item" style="cursor:pointer" onclick="openStudent('${x.st.id}',2)"><div class="top"><span class="chip 자율">${esc(x.c.type)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(x.c.text.slice(0, 70))}${x.c.text.length > 70 ? '…' : ''}</div></div>`).join('')}
-      ${dd.act.map(x => `<div class="item"><div class="top"><span class="chip ${esc(x.t)}">${esc(x.t)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(String(x.x).slice(0, 60))}</div></div>`).join('')}
+      ${(() => {   // 🔒 상담 · 활동 기록은 교실 화면에 그대로 보이지 않게 접어 둬요 (눌러야 펼쳐지고, 화면이 바뀌면 다시 접혀요)
+        const n = dd.next.length + dd.cs.length + dd.act.length;
+        if (!n) return '';
+        return `<details class="item" style="padding:10px 12px"><summary style="cursor:pointer;font-family:var(--hand);font-size:16px">🔒 이날 학생 기록 ${n}개 <span class="mini">— 눌러서 보기 (학생들이 볼 수 있는 화면이면 펼치지 마세요)</span></summary>
+        <div style="margin-top:8px">
+        ${dd.next.map(n => `<div class="item" style="cursor:pointer" onclick="openStudent('${n.st.id}',2)"><div class="top"><span class="chip 자율">상담 예정</span><b class="hand" style="font-size:16px">${esc(sname(n.st))}</b></div><div class="mini">지난 상담(${n.c.date}) 이어서</div></div>`).join('')}
+        ${dd.cs.map(x => `<div class="item" style="cursor:pointer" onclick="openStudent('${x.st.id}',2)"><div class="top"><span class="chip 자율">${esc(x.c.type)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(x.c.text.slice(0, 70))}${x.c.text.length > 70 ? '…' : ''}</div></div>`).join('')}
+        ${dd.act.map(x => `<div class="item"><div class="top"><span class="chip ${esc(x.t)}">${esc(x.t)}</span><b class="hand" style="font-size:16px">${esc(sname(x.st))}</b></div><div class="mini">${esc(String(x.x).slice(0, 60))}</div></div>`).join('')}
+        </div></details>`;
+      })()}
       ${!dd.ev.length && !dd.cs.length && !dd.act.length && !dd.next.length ? '<div class="empty">이날은 아직 기록이 없어요 🌱</div>' : ''}
       <hr style="border:none;border-top:1.5px dashed var(--line);margin:14px 0">
       <div class="field"><label>💬 이날 상담 바로 기록</label>
