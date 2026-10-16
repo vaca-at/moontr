@@ -1025,8 +1025,45 @@ function setSubj(k, v) {
   saveStudent(st);
 }
 // 확인서 표 → 학기마다 과목. '2학년 1학기' 글자가 있는 칸 위치로 옆에 붙은 표(1학기 | 2학기)도 나눠요
+/* 선택과목 이름 사전 (2015 · 2022 개정) — PDF에서 복사해 칸이 띄어쓰기 · 줄바꿈으로 깨져도 과목 이름을 찾아요.
+   사전에 없는 과목은 남은 글자로 넣으니, 틀리면 칸에서 고쳐 주세요 */
+const SUBJ_DICT = `화법과 언어,독서와 작문,문학,주제 탐구 독서,문학과 영상,직무 의사소통,독서 토론과 글쓰기,매체 의사소통,언어생활 탐구,화법과 작문,언어와 매체,독서,실용 국어,심화 국어,고전 읽기,
+대수,미적분Ⅰ,미적분Ⅱ,미적분I,미적분II,미적분,확률과 통계,기하,경제 수학,인공지능 수학,직무 수학,수학과 문화,실용 통계,수학과제 탐구,수학 과제 탐구,수학Ⅰ,수학Ⅱ,수학I,수학II,실용 수학,기본 수학,전문 수학,이산 수학,고급 기하,고급 대수,고급 미적분,
+영어Ⅰ,영어Ⅱ,영어I,영어II,영어 독해와 작문,영미 문학 읽기,영어 발표와 토론,심화 영어,심화 영어 독해와 작문,직무 영어,실생활 영어 회화,미디어 영어,세계 문화와 영어,영어 회화,실용 영어,진로 영어,
+세계시민과 지리,세계사,사회와 문화,현대사회와 윤리,한국지리 탐구,도시의 미래 탐구,동아시아 역사 기행,정치,법과 사회,경제,윤리와 사상,인문학과 윤리,국제 관계의 이해,여행지리,역사로 탐구하는 현대 세계,사회문제 탐구,금융과 경제생활,윤리문제 탐구,기후변화와 지속가능한 세계,한국지리,세계지리,동아시아사,정치와 법,생활과 윤리,고전과 윤리,
+물리학Ⅰ,물리학Ⅱ,화학Ⅰ,화학Ⅱ,생명과학Ⅰ,생명과학Ⅱ,지구과학Ⅰ,지구과학Ⅱ,물리학,화학,생명과학,지구과학,역학과 에너지,전자기와 양자,물질과 에너지,화학 반응의 세계,세포와 물질대사,생물의 유전,지구시스템과학,행성우주과학,과학의 역사와 문화,기후변화와 환경생태,융합과학 탐구,과학사,생활과 과학,융합과학,
+일본어,일본어 회화,심화 일본어,일본 문화,일본어Ⅰ,일본어Ⅱ,중국어,중국어 회화,심화 중국어,중국 문화,중국어Ⅰ,중국어Ⅱ,독일어,독일어 회화,프랑스어,프랑스어 회화,스페인어,스페인어 회화,러시아어,아랍어,베트남어,한문 고전 읽기,언어생활과 한자,한문Ⅰ,한문Ⅱ,
+인공지능 기초,데이터 과학,소프트웨어와 생활,정보과학,로봇과 공학세계,생활과학 탐구,창의 공학 설계,지식 재산 일반,생애 설계와 자립,아동발달과 부모,
+진로와 직업,생태와 환경,인간과 철학,논리와 사고,인간과 심리,교육의 이해,삶과 종교,보건,인간관계와 소통,논술,철학,심리학,교육학,실용 경제,
+운동과 건강,스포츠 문화,스포츠 과학,스포츠 생활1,스포츠 생활2,스포츠 생활,음악 연주와 창작,음악 감상과 비평,음악과 미디어,미술 창작,미술 감상과 비평,미술과 매체,연극`.split(',').map(x => x.trim()).filter(Boolean);
+// 교과군 · 머리글 (과목이 아니라 건너뛰어요). '한문' · '정보'처럼 과목 이름이기도 한 것은 '제2외국어/한문'처럼 붙은 꼴만 건너뛰어요
+const SUBJ_SKIP = ['사회(역사/도덕포함)', '제2외국어/한문', '기술·가정/정보', '기술∙가정/정보', '기술·가정/정보/제2외국어/한문/교양', '체육·예술', '예술(음악/미술)', '생활·교양', '기술·가정', '제2외국어', '교과군', '과목', '학점', '단위', '국어', '수학', '영어', '사회', '과학', '한국사', '체육', '예술', '교양'];
+// 띄어쓰기 · 줄바꿈을 모두 지운 글에서 사전 과목을 앞에서부터 가장 긴 것으로 찾아요
+function subjScan(chunk) {
+  const s = chunk.replace(/\s+/g, ''), dict = SUBJ_DICT.map(n => ({ f: n.replace(/\s+/g, ''), n })), out = [];
+  let i = 0, buf = '';
+  const flush = () => { if (/[가-힣]{2,}/.test(buf)) out.push(buf); buf = ''; };
+  while (i < s.length) {
+    let best = null;
+    dict.forEach(d => { if (s.startsWith(d.f, i) && (!best || d.f.length > best.len)) best = { len: d.f.length, n: d.n }; });
+    SUBJ_SKIP.forEach(g => { if (s.startsWith(g, i) && (!best || g.length > best.len)) best = { len: g.length, n: null }; });
+    if (best) { flush(); if (best.n && !out.includes(best.n)) out.push(best.n); i += best.len; }
+    else buf += s[i++];
+  }
+  flush();
+  return out;
+}
 function pasteSubj() {
   const st = cur(), text = $('#subjPaste').value; if (!text.trim()) return toast('확인서 표를 붙여 넣어 주세요');
+  // 탭이 없으면 (PDF에서 복사) → 학기 글자로 나누고 사전으로 과목 찾기
+  if (!text.includes('\t')) {
+    const out = {}, re = /([123])\s*학\s*년\s*([12])\s*학\s*기/g, ms = [...text.matchAll(re)];
+    if (!ms.length) out[$('#subjSem').value] = subjScan(text);
+    ms.forEach((m, j) => { const a = subjScan(text.slice(m.index + m[0].length, j + 1 < ms.length ? ms[j + 1].index : text.length)); if (a.length) out[`${m[1]}-${m[2]}`] = a; });
+    const ks = Object.keys(out).filter(k => out[k].length); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
+    st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
+    return toast(`📘 ${ks.map(k => `${k.replace('-', '학년 ')}학기 ${out[k].length}과목`).join(' · ')} 넣었어요 — 틀린 곳은 칸에서 고쳐 주세요`);
+  }
   const out = {}; let marks = [];
   text.split(/\r?\n/).forEach(line => {
     const cells = line.split('\t').map(c => c.trim());
