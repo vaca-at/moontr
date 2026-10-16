@@ -107,7 +107,8 @@ textarea{resize:vertical;min-height:80px}
 .dots{position:absolute;left:9px;bottom:7px;display:flex;gap:4px}
 .dots i{width:8px;height:8px;border-radius:50%;opacity:.28}
 .dots i.on{opacity:1}
-.dots i:nth-child(1){background:#e59bb3}.dots i:nth-child(2){background:#8fb0e4}.dots i:nth-child(3){background:#8fcf98}
+.dots i.d1{background:#e59bb3}.dots i.d2{background:#8fb0e4}.dots i.d3{background:#8fcf98}
+.dots{flex-wrap:wrap;right:6px;gap:3px}.dots .dmore{font-size:10px;color:#e07a9c;line-height:8px}
 .calnote{font-family:var(--hand);font-size:14.5px;color:var(--ink);margin-top:10px}
 
 /* ---------- 개인 상담 기록 레이아웃 ---------- */
@@ -452,6 +453,7 @@ async function connectCloud() {
       if (d.id === 'classev') CE = Object.assign({ events: [], due: '' }, d.data());
       if (d.id === 'summary') SM = Object.assign({ weeks: {} }, d.data());
     });
+    fixCounselDates();
     setSync('cloud');
   } catch (e) { db = null; setSync('error'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
 }
@@ -608,6 +610,32 @@ function clearNext(sid, cid) {
   if (!c || !confirm('이 상담 예정을 지울까요? (상담 기록은 그대로 남아요)')) return;
   c.next = ''; saveStudent(st); render(); toast('📅 상담 예정을 지웠어요');
 }
+// 글 맨 앞에 적힌 날짜 ('10/8(목) …', '10월 15일 …') 가 상담 날짜보다 앞이면 그 날짜 (지난 상담을 오늘 옮겨 적은 경우)
+function textDate(text, ref) {
+  const m = String(text || '').match(/^\s*[\[(]?\s*(\d{1,2})\s*(?:\/|\.|월)\s*(\d{1,2})\s*일?/);
+  if (!m || !ref) return null;
+  const mo = +m[1], dy = +m[2]; if (mo < 1 || mo > 12 || dy < 1 || dy > 31) return null;
+  const d = `${ref.slice(0, 4)}-${String(mo).padStart(2, '0')}-${String(dy).padStart(2, '0')}`;
+  return d < ref ? d : null;
+}
+// 이미 저장한 상담 중 글 맨 앞 날짜가 더 이른 것은 그 날짜로 고쳐 저장해요 (클라우드에서 불러온 뒤 한 번)
+function fixCounselDates() {
+  D.students.forEach(st => {
+    let ch = false;
+    st.counsels.forEach(c => { const t = textDate(c.text, c.date); if (t) { c.date = t; ch = true; } });
+    if (ch) saveStudent(st);
+  });
+}
+// 상담 타임라인에서 날짜 바로 고치기
+function setCsDate(id, v) {
+  const st = cur(), c = st && st.counsels.find(x => x.id === id); if (!c || !v) return;
+  c.date = v; saveStudent(st); render(); toast(`📅 상담 날짜를 ${v}(으)로 바꿨어요`);
+}
+// 저장할 때: 글 앞 날짜가 고른 날짜보다 이르면 그 날짜로 할지 물어봐요
+function askTextDate(text, date) {
+  const t = textDate(text, date);
+  return t && confirm(`글 맨 앞에 ${t.slice(5).replace('-', '/')} 날짜가 있어요.\n상담한 날짜를 ${t}(으)로 저장할까요?\n(취소하면 ${date}로 저장해요)`) ? t : date;
+}
 function dayData(ds) {
   const ev = D.events.filter(e => e.date === ds);
   const cs = [], act = [], next = [];
@@ -617,6 +645,13 @@ function dayData(ds) {
     st.acts.forEach(a => { if (a.date === ds) act.push({ st, t: a.area, x: a.title || a.text }); });
   });
   return { ev, cs, act, next };
+}
+// 그날 상담한 학생 수만큼 분홍 동그라미 (한 학생이 진로 · 교우관계처럼 여러 번 상담해도 1명)
+const csStudents = dd => new Set(dd.cs.map(x => x.st.id)).size;
+function csDots(dd) {
+  const n = csStudents(dd);
+  if (!n) return '<i class="d1"></i>';
+  return '<i class="d1 on"></i>'.repeat(Math.min(n, 6)) + (n > 6 ? `<b class="dmore">+${n - 6}</b>` : '');
 }
 function viewCalendar() {
   const { y, m } = V;
@@ -636,7 +671,7 @@ function viewCalendar() {
     cells += `<div class="cell ${ds > td ? 'future' : ''} ${ds === td ? 'today' : ''} ${ds === V.sel ? 'sel' : ''}" onclick="pickDay('${ds}')">
       <span class="dnum ${dow === 0 || hol ? 'sun' : dow === 6 ? 'sat' : ''}">${d}</span>${hol ? `<span class="hname">${hol}</span>` : ''}
       ${shown}
-      <div class="dots"><i class="${dd.cs.length ? 'on' : ''}"></i><i class="${dd.act.length ? 'on' : ''}"></i><i class="${dd.ev.length || dd.next.length ? 'on' : ''}"></i></div>
+      <div class="dots">${csDots(dd)}<i class="d2 ${dd.act.length ? 'on' : ''}"></i><i class="d3 ${dd.ev.length || dd.next.length ? 'on' : ''}"></i></div>
     </div>`;
   }
   return `
@@ -671,7 +706,7 @@ function viewDayPanel() {
       ${(() => {   // 🔒 상담 · 활동 기록은 교실 화면에 그대로 보이지 않게 접어 둬요 (눌러야 펼쳐지고, 화면이 바뀌면 다시 접혀요)
         const n = dd.next.length + dd.cs.length + dd.act.length;
         if (!n) return '';
-        return `<details class="item" style="padding:10px 12px"><summary style="cursor:pointer;font-family:var(--hand);font-size:16px">🔒 이날 학생 기록 ${n}개 <span class="mini">— 눌러서 보기 (학생들이 볼 수 있는 화면이면 펼치지 마세요)</span></summary>
+        return `<details class="item" style="padding:10px 12px"><summary style="cursor:pointer;font-family:var(--hand);font-size:16px">🔒 이날 학생 기록 ${n}개${dd.cs.length ? ` · 상담 ${csStudents(dd)}명` : ''} <span class="mini">— 눌러서 보기 (학생들이 볼 수 있는 화면이면 펼치지 마세요)</span></summary>
         <div style="margin-top:8px">
         ${dd.next.map(n => `<div class="item" style="cursor:pointer" onclick="openStudent('${n.st.id}',2)"><div class="top"><span class="chip 자율">상담 예정</span><b class="hand" style="font-size:16px">${esc(sname(n.st))}</b>
           <button class="x" style="margin-left:auto" title="상담 예정 지우기 (상담 기록은 그대로)" onclick="event.stopPropagation();clearNext('${n.st.id}','${n.c.id}')">✕</button></div><div class="mini">지난 상담(${n.c.date}) 이어서</div></div>`).join('')}
@@ -714,7 +749,7 @@ function quickCounsel() {
   const st = D.students.find(s => s.id === $('#qSt').value); const text = $('#qText').value.trim();
   if (!st || !text) return toast('내용을 적어 주세요');
   if (!piiOk(text)) return;
-  st.counsels.push({ id: uid(), date: V.sel, type: $('#qType').value, text, next: $('#qNext').value || '' });
+  st.counsels.push({ id: uid(), date: askTextDate(text, V.sel), type: $('#qType').value, text, next: $('#qNext').value || '' });
   saveStudent(st); toast('💬 상담이 기록됐어요'); render();
 }
 
@@ -987,14 +1022,14 @@ function secCounsel(st) {
   return `<div class="cols c2">
     <div class="box"><div class="hd green"><span class="n">1</span>오늘 상담 적기</div><div class="bd">
       <p class="lead">나눈 이야기를 <mark>편하게</mark> 적어요.</p>
-      <div class="row"><div class="field" style="flex:1"><label>날짜</label><input type="date" id="cDate" value="${today()}"></div>
+      <div class="row"><div class="field" style="flex:1"><label>상담한 날짜 <span class="mini">(지난 상담이면 바꿔 주세요)</span></label><input type="date" id="cDate" value="${today()}"></div>
       <div class="field" style="flex:1"><label>상담 종류</label><select id="cType">${CS_TYPES.map(t => `<option>${t}</option>`).join('')}</select></div></div>
       <div class="field"><label>나눈 이야기</label><textarea id="cText" style="min-height:150px" placeholder="이름 대신 '이 친구'로 적어요. 다른 친구 이야기도 이름은 빼 주세요."></textarea></div>
       <div class="field"><label>📅 다음 상담 약속 (달력에 표시돼요)</label><input type="date" id="cNext"></div>
       <button class="btn" onclick="addCounsel()">💬 상담 저장</button>
     </div></div>
     <div class="box"><div class="hd mustard"><span class="n">2</span>상담 타임라인 <span class="sp">${list.length}회</span></div><div class="bd">
-      ${list.map(c => `<div class="item"><div class="top"><span class="chip">${esc(c.type)}</span><b>${c.date}</b>${c.next ? `<span class="mini">→ 다음 ${c.next}</span>` : ''}<button class="x" style="margin-left:auto" onclick="delIn('counsels','${c.id}')">✕</button></div>
+      ${list.map(c => `<div class="item"><div class="top"><span class="chip">${esc(c.type)}</span><input type="date" value="${c.date}" title="상담한 날짜 (눌러서 고치기)" style="width:auto;padding:2px 6px;font-weight:700" onchange="setCsDate('${c.id}',this.value)">${c.next ? `<span class="mini">→ 다음 ${c.next}</span>` : ''}<button class="x" style="margin-left:auto" onclick="delIn('counsels','${c.id}')">✕</button></div>
         <div style="white-space:pre-wrap;font-size:13.5px">${esc(c.text)}</div>
         <div class="row" style="margin-top:6px"><button class="btn ai sm" onclick="genFrom('counsels','${c.id}',this)">✨ 이 상담에서 문구 만들기</button></div></div>`).join('') || '<div class="empty">첫 상담을 기다리고 있어요 🌷</div>'}
     </div></div>
@@ -1004,7 +1039,7 @@ function addCounsel() {
   const st = cur(), text = $('#cText').value.trim();
   if (!text) return toast('내용을 적어 주세요');
   if (!piiOk(text)) return;
-  st.counsels.push({ id: uid(), date: $('#cDate').value || today(), type: $('#cType').value, text, next: $('#cNext').value || '' });
+  st.counsels.push({ id: uid(), date: askTextDate(text, $('#cDate').value || today()), type: $('#cType').value, text, next: $('#cNext').value || '' });
   saveStudent(st); toast('💬 저장했어요'); render();
 }
 function delIn(key, id) { if (!confirm('지울까요?')) return; const st = cur(); st[key] = st[key].filter(x => x.id !== id); saveStudent(st); render(); }
