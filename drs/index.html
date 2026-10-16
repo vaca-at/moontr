@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>2026 또래상담부</title>
-  <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Black+Han+Sans&family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Black+Han+Sans&family=Jua&family=Gowun+Dodum&family=Press+Start+2P&display=swap" rel="stylesheet">
   <!-- Firebase (compat 버전: 일반 script 태그로 바로 사용) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -58,6 +58,8 @@
     #view-student nav.cat-row { display:flex; gap:6px; padding:8px 16px; justify-content:flex-end; overflow-x:auto; }
     #view-student nav.cat-row button { padding:6px 12px; border-radius:16px; border:1px solid var(--border); background:var(--card); font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; font-family:inherit; }
     #view-student nav.cat-row button.active { border-color:var(--mint); color:var(--mint); background:var(--mint-pale); }
+    /* 게임 화면(번호 추첨)으로 가는 단추: 눈에 띄게 주황 */
+    #view-student nav.cat-row a.game-link { padding:6px 14px; border-radius:16px; background:#FF9A4D; color:#12306B; font-size:12px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; box-shadow:0 2px 0 #C2621F; }
     #view-student main { padding:16px; max-width:640px; margin:0 auto; padding-bottom:50px; }
     #view-student .panel { display:none; }
     #view-student .panel.active { display:block; }
@@ -173,11 +175,19 @@
     #view-draw .dr-drum { position:relative; width:380px; height:380px; box-sizing:border-box; border-radius:50%; border:8px solid var(--dr-soft); background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.32),rgba(255,255,255,.05) 60%); overflow:hidden; }
     #view-draw .dr-drum::after { content:""; position:absolute; left:18%; top:9%; width:26%; height:11%; border-radius:50%; background:rgba(255,255,255,.3); transform:rotate(-25deg); }
     #view-draw .dr-neck { width:90px; height:40px; margin-top:-10px; background:var(--dr-soft); border-radius:0 0 18px 18px; }
-    #view-draw .dr-mini { position:absolute; width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Black Han Sans',sans-serif; font-size:19px; color:var(--dr-ink); box-shadow:inset -4px -6px 0 rgba(0,0,0,.15); animation:dr-float 3s ease-in-out infinite alternate; }
+    #view-draw .dr-mini { position:absolute; width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Black Han Sans',sans-serif; font-size:19px; color:var(--dr-ink); box-shadow:inset -4px -6px 0 rgba(0,0,0,.15); animation:dr-roam var(--dur,3s) ease-in-out infinite; }
     #view-draw .dr-drum.spin { animation:dr-shake .18s linear infinite; }
-    #view-draw .dr-drum.spin .dr-mini { animation:dr-tumble .45s ease-in-out infinite alternate; }
-    @keyframes dr-float { to { transform:translateY(-6px); } }
-    @keyframes dr-tumble { from { transform:translate(0,0) rotate(0); } to { transform:translate(var(--dx),var(--dy)) rotate(200deg); } }
+    #view-draw .dr-drum.spin .dr-mini { animation:dr-tumble .4s ease-in-out infinite alternate; }
+    /* 평소: 유리통 안을 이리저리 굴러다녀요 */
+    @keyframes dr-roam {
+      0%   { transform:translate(0,0) rotate(0); }
+      25%  { transform:translate(var(--dx),calc(var(--dy) * -0.6)) rotate(90deg); }
+      50%  { transform:translate(calc(var(--dx) * -0.7),var(--dy)) rotate(200deg); }
+      75%  { transform:translate(calc(var(--dx) * 0.4),calc(var(--dy) * 0.5)) rotate(290deg); }
+      100% { transform:translate(0,0) rotate(360deg); }
+    }
+    /* 공 굴리기 누르면: 빠르게 뒤섞여요 */
+    @keyframes dr-tumble { from { transform:translate(0,0) rotate(0); } to { transform:translate(calc(var(--dx) * 1.6),calc(var(--dy) * -1.6)) rotate(260deg); } }
     @keyframes dr-shake { 0%,100% { transform:rotate(0); } 25% { transform:rotate(1.5deg); } 75% { transform:rotate(-1.5deg); } }
     #view-draw .dr-out { width:100%; box-sizing:border-box; display:flex; align-items:center; gap:22px; background:var(--dr-deep); border-radius:24px; padding:20px 24px; }
     #view-draw .dr-ball { flex:none; width:150px; height:150px; border-radius:50%; background:var(--dr-acc); display:flex; align-items:center; justify-content:center; font-family:'Black Han Sans',sans-serif; font-size:64px; color:var(--dr-ink); box-shadow:inset -10px -12px 0 rgba(0,0,0,.12),0 0 0 8px rgba(255,255,255,.12); }
@@ -213,6 +223,29 @@
     #view-draw .dr-confetti { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
     #view-draw .dr-confetti i { position:absolute; top:-20px; width:10px; height:16px; border-radius:2px; animation:dr-fall 2.8s ease-in forwards; }
     @keyframes dr-fall { to { transform:translate(var(--x),110vh) rotate(720deg); } }
+    /* 유리통 + 옆 전광판 (아이패드 세로: 나란히, 좁은 화면: 위아래) */
+    #view-draw .dr-top { width:100%; display:flex; align-items:center; justify-content:center; gap:18px; flex-wrap:wrap; }
+    #view-draw .dr-top .dr-drum { width:360px; height:360px; }
+    #view-draw .dr-led { flex:1 1 360px; max-width:400px; box-sizing:border-box; background:#07070D; border:4px solid #2A2F45; border-radius:14px; padding:12px; position:relative; box-shadow:inset 0 0 0 2px #000, 0 10px 24px rgba(0,0,0,.45); font-family:'Press Start 2P','Black Han Sans',monospace; }
+    #view-draw .dr-led::after { content:""; position:absolute; inset:0; border-radius:10px; pointer-events:none; background:repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px); }
+    #view-draw .dr-led-title { text-align:center; color:#FFD84D; font-size:12px; letter-spacing:2px; text-shadow:0 0 6px rgba(255,216,77,.8); margin-bottom:10px; }
+    #view-draw .dr-led-stats { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; margin-bottom:10px; }
+    #view-draw .dr-led-stats div { background:#111426; border:2px solid #23284A; border-radius:6px; padding:6px 4px 8px; text-align:center; }
+    #view-draw .dr-led-stats span { display:block; font-family:'Black Han Sans',sans-serif; font-size:13px; color:#9AA6C8; margin-bottom:5px; }
+    #view-draw .dr-led-stats b { display:block; font-weight:400; font-size:20px; color:#FFFFFF; text-shadow:0 0 8px rgba(255,255,255,.7); }
+    #view-draw .dr-led-stats .out b { color:#FF4D6D; text-shadow:0 0 8px rgba(255,77,109,.9); }
+    #view-draw .dr-led-stats .left b { color:#39FF88; text-shadow:0 0 8px rgba(57,255,136,.9); }
+    #view-draw .dr-led-grid { display:grid; grid-template-columns:repeat(20, minmax(0, 1fr)); gap:2px; }
+    #view-draw .dr-led-grid i { display:block; aspect-ratio:1; border-radius:2px; background:#1A1D2E; position:relative; }
+    #view-draw .dr-led-grid i.on { background:#1FD670; box-shadow:0 0 4px rgba(57,255,136,.8); }
+    #view-draw .dr-led-grid i.off { background:#5A1222; }
+    #view-draw .dr-led-grid i.off::after { content:""; position:absolute; inset:2px; background:linear-gradient(45deg, transparent 42%, #FF4D6D 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, #FF4D6D 42% 58%, transparent 58%); }
+    #view-draw .dr-led-grid i.new { background:#FFD84D; box-shadow:0 0 8px 2px rgba(255,216,77,.9); animation:dr-blink .5s steps(2) infinite; }
+    #view-draw .dr-led-grid i.new::after { display:none; }
+    @keyframes dr-blink { 50% { opacity:.25; } }
+    #view-draw .dr-led-key { display:flex; justify-content:center; gap:14px; margin-top:10px; font-family:'Black Han Sans',sans-serif; font-size:12px; color:#9AA6C8; }
+    #view-draw .dr-led-key i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+    #view-draw .dr-led-key i.on { background:#1FD670; } #view-draw .dr-led-key i.off { background:#FF4D6D; } #view-draw .dr-led-key i.new { background:#FFD84D; }
     /* 소리 단추 · 테스트 단추 */
     #view-draw .dr-head { position:relative; }
     #view-draw .dr-sound { position:absolute; right:0; top:-6px; height:40px; padding:0 14px; border-radius:20px; border:1px solid var(--dr-line); background:var(--dr-deep); color:#fff; font-size:15px; font-family:inherit; cursor:pointer; touch-action:manipulation; }
@@ -246,14 +279,15 @@
     @keyframes dr-burst { 0% { transform:translate(0,0) rotate(0) scale(.6); opacity:1; } 35% { transform:translate(var(--x),var(--y)) rotate(300deg) scale(1); opacity:1; } 100% { transform:translate(calc(var(--x) * 1.4), calc(var(--y) + 90vh)) rotate(900deg) scale(1); opacity:.9; } }
     @media (max-width:600px) {
       #view-draw .dr-sound { position:static; margin-bottom:8px; }
-      #view-draw .dr-drum { width:280px; height:280px; }
+      #view-draw .dr-drum, #view-draw .dr-top .dr-drum { width:280px; height:280px; }
       #view-draw .dr-head h1 { font-size:38px; }
       #view-draw .dr-out { flex-wrap:wrap; justify-content:center; text-align:center; }
       #view-draw .dr-ball { width:110px; height:110px; font-size:46px; }
       #view-draw .dr-row { flex-direction:column; }
     }
     @media (prefers-reduced-motion:reduce) {
-      #view-draw .dr-mini, #view-draw .dr-drum.spin, #view-draw .dr-drum.spin .dr-mini, #view-draw .dr-ball.roll, #view-draw .dr-stage.quake, #view-draw .dr-out.win .dr-rays { animation:none; }
+      /* '동작 줄이기'를 켠 기기: 화면 흔들림만 빼요 (공은 그대로 굴러다녀요) */
+      #view-draw .dr-stage.quake { animation:none; }
     }
   </style>
 </head>
@@ -300,6 +334,7 @@
   </div>
 
   <nav class="cat-row">
+    <a class="game-link" href="?page=draw"><span>🎱</span> 행운의 번호 추첨 (게임 화면)</a>
     <button class="cat-btn active" data-cat="gift"><span>🎁</span> 천원의 행복 뽑기 준비</button>
     <button class="cat-btn" data-cat="attend"><span>✅</span> 출석체크</button>
   </nav>
@@ -337,6 +372,7 @@
     <header>
       <h1>🤝 또래상담부 <span style="font-size:14px;font-weight:normal;">교사용 관리보드</span></h1>
       <p><a href="?" style="color:white;">← 학생용 화면으로 돌아가기</a> · <a href="#" style="color:white;" onclick="ad_logout(); return false;">로그아웃</a></p>
+      <p style="margin-top:10px;"><a href="?page=draw" style="display:inline-block; background:#FF9A4D; color:#12306B; font-weight:bold; text-decoration:none; padding:8px 16px; border-radius:18px;">🎱 행운의 번호 추첨 (게임 화면) 열기</a></p>
     </header>
 
     <div class="notice-bar">
@@ -477,6 +513,12 @@
           <p style="font-size:13px;color:var(--muted)">뽑기 당일 학생들에게 이 주소를 공유하세요.</p>
           <p style="font-size:13px;word-break:break-all;"><a id="ad-drawLink" href="?page=draw" target="_blank"></a></p>
         </div>
+        <div class="card">
+          <h2>🔄 뽑기 초기화</h2>
+          <p class="help">테스트로 뽑아 본 기록을 지우고, 모든 선물을 '아직 안 뽑힘'으로 되돌려요. 선물 목록 · 사진은 그대로예요.</p>
+          <button class="btn danger" id="ad-resetDrawBtn" onclick="ad_resetDrawn()">뽑기 초기화</button>
+          <div id="ad-resetMsg" class="result-msg"></div>
+        </div>
       </div>
 
       <!-- 자료 가져오기 -->
@@ -565,9 +607,23 @@
       </div>
     </header>
 
-    <div class="dr-machine" aria-hidden="true">
-      <div class="dr-drum" id="dr-drum"></div>
-      <div class="dr-neck"></div>
+    <div class="dr-top">
+      <div class="dr-machine" aria-hidden="true">
+        <div class="dr-drum" id="dr-drum"></div>
+        <div class="dr-neck"></div>
+      </div>
+
+      <!-- 픽셀 전광판: 전체 · 뽑힘 · 남음 + 1~200번 칸 -->
+      <section class="dr-led" aria-label="선물 현황 전광판">
+        <div class="dr-led-title">★ GIFT BOARD ★</div>
+        <div class="dr-led-stats">
+          <div><span>전체</span><b id="dr-ledTotal">---</b></div>
+          <div class="out"><span>뽑힘</span><b id="dr-ledOut">---</b></div>
+          <div class="left"><span>남음</span><b id="dr-ledLeft">---</b></div>
+        </div>
+        <div class="dr-led-grid" id="dr-ledGrid"></div>
+        <div class="dr-led-key"><span><i class="on"></i>남음</span><span><i class="off"></i>뽑힘</span><span><i class="new"></i>방금</span></div>
+      </section>
     </div>
 
     <div class="dr-out" id="dr-out" aria-live="polite">
@@ -1361,6 +1417,20 @@ function ad_changeGiftPhoto(docId) {
   ad_changeTarget = docId;
   document.getElementById('ad-changePhoto').click();
 }
+// 🔄 뽑기 초기화: 뽑힌 선물을 모두 '안 뽑힘'으로 (선물 자체는 지우지 않아요)
+async function ad_resetDrawn() {
+  const drawn = ALL_GIFTS.filter(g => g.drawn);
+  if (!drawn.length) { showMsg('ad-resetMsg', '뽑힌 선물이 없어요. 이미 처음 상태예요.'); return; }
+  if (!confirm('뽑힌 선물 ' + drawn.length + '개를 모두 "안 뽑힘"으로 되돌릴까요?\n(누가 뽑았는지 기록도 지워지고, 되돌릴 수 없어요)')) return;
+  const btn = document.getElementById('ad-resetDrawBtn');
+  btn.disabled = true;
+  try {
+    showMsg('ad-resetMsg', '초기화하는 중...');
+    await batchWrite(drawn.map(g => b => b.update(db.collection(COL.gifts).doc(g.docId), { drawn: false, drawnBy: '', drawnAt: FV.delete() })));
+    showMsg('ad-resetMsg', '✅ ' + drawn.length + '개를 초기화했어요. 이제 모든 선물을 다시 뽑을 수 있어요.');
+  } catch (e) { showMsg('ad-resetMsg', '오류: ' + e.message, true); }
+  btn.disabled = false;
+}
 async function ad_undoDrawn(docId) {
   if (!confirm('뽑힘 표시를 취소할까요? (다시 뽑을 수 있는 상태가 됩니다)')) return;
   await db.collection(COL.gifts).doc(docId).update({ drawn: false, drawnBy: '' });
@@ -1508,10 +1578,29 @@ function dr_fillDrum() {
   drum.innerHTML = nums.map(n => {
     const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * (c - ball / 2 - 14);
     const x = Math.round(c + Math.cos(a) * d - ball / 2), y = Math.round(c + Math.sin(a) * d * 0.8 + c * 0.15 - ball / 2);
-    const dx = Math.round(Math.random() * 120 - 60), dy = Math.round(Math.random() * 120 - 70);
-    const delay = (Math.random() * -3).toFixed(2);
-    return `<span class="dr-mini" style="left:${x}px;top:${y}px;background:${dr_color(n)};--dx:${dx}px;--dy:${dy}px;animation-delay:${delay}s">${esc(n)}</span>`;
+    const dx = Math.round((Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 50)), dy = Math.round((Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 45));
+    const dur = (2.4 + Math.random() * 2.2).toFixed(2), delay = (Math.random() * -4).toFixed(2);
+    return `<span class="dr-mini" style="left:${x}px;top:${y}px;background:${dr_color(n)};--dx:${dx}px;--dy:${dy}px;--dur:${dur}s;animation-delay:${delay}s">${esc(n)}</span>`;
   }).join('');
+}
+
+// 픽셀 전광판: 1~200번 칸마다 남음(초록) · 뽑힘(빨간 ✕) · 방금(노랑 깜빡) · 없는 번호(어두움)
+function dr_renderBoard(total, drawnN, left) {
+  const pad = n => String(n).padStart(3, '0');
+  document.getElementById('dr-ledTotal').innerText = pad(total);
+  document.getElementById('dr-ledOut').innerText = pad(drawnN);
+  document.getElementById('dr-ledLeft').innerText = pad(left);
+  const bySerial = {};
+  ALL_GIFTS.forEach(g => { bySerial[Number(g.serial)] = g; });
+  const cells = Math.max(200, ...ALL_GIFTS.map(g => Number(g.serial) || 0));
+  let html = '';
+  for (let n = 1; n <= cells; n++) {
+    const g = bySerial[n];
+    const cls = !g ? '' : g.docId === dr_just ? 'new' : g.drawn ? 'off' : 'on';
+    const tip = n + '번' + (!g ? '' : g.drawn ? ' · 뽑힘' : ' · 남음');
+    html += `<i class="${cls}" title="${tip}"></i>`;
+  }
+  document.getElementById('dr-ledGrid').innerHTML = html;
 }
 
 function dr_render() {
@@ -1522,6 +1611,7 @@ function dr_render() {
   document.getElementById('dr-barFill').style.width = (total ? left / total * 100 : 0) + '%';
   document.getElementById('dr-countTitle').innerText = '선물 목록 · 뽑힘 ' + drawnN + '개 · 남은 선물 ' + left + '개';
   dr_fillDrum();
+  dr_renderBoard(total, drawnN, left);
   const grid = document.getElementById('dr-giftGrid');
   grid.className = '';
   if (total === 0) { grid.innerHTML = '<div class="loading">등록된 선물이 없습니다. (교사용 관리보드에서 선물을 올려 주세요)</div>'; return; }
@@ -1611,7 +1701,6 @@ function dr_soundLabel() { document.getElementById('dr-soundBtn').innerText = dr
 function dr_reduced() { return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }
 // 꽃가루: 위에서 떨어지는 것 + 공에서 터져 나오는 것 + 별
 function dr_confetti() {
-  if (dr_reduced()) return;
   const box = document.getElementById('dr-confetti');
   const r = document.getElementById('dr-ball').getBoundingClientRect();
   const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -1715,7 +1804,7 @@ async function dr_doDraw(test) {
     out.classList.add('win');
     infoK.innerText = (test ? '[테스트 · 기록 안 함] ' : '') + (label === '익명' ? '' : label + ' 님의 ') + n + '번 선물';
     infoName.innerText = g.name || '선물';
-    infoSub.innerText = g.price ? (Number(g.price) || 0).toLocaleString() + '원 상당' : '';
+    infoSub.innerText = '축하해요! 선생님께 이 화면을 보여 주세요';   // 가격은 보여 주지 않아요
     const src = giftImg(g);
     if (src) { photo.src = src; photo.hidden = false; }
     if (!test) dr_just = g.docId;
