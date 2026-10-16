@@ -177,6 +177,7 @@ textarea{resize:vertical;min-height:80px}
 .modal.on{display:flex}
 .sheet{background:#fff;border-radius:18px;max-width:720px;width:100%;border:1.5px solid var(--line);overflow:hidden}
 .sheet.wide{max-width:1040px}
+.sheet.wide.xwide{max-width:1400px}
 .dtable{width:100%;font-size:13.5px;border-collapse:collapse}
 .dtable th{text-align:left;font-weight:600;color:var(--sub);padding:4px;border-bottom:1.5px solid var(--line)}
 .dtable td{padding:3px 4px}
@@ -366,6 +367,15 @@ function saveEvents() {
 }
 function saveSettings() { localStorage.setItem('mn_settings', JSON.stringify(S)); }
 const roomRef = () => db.collection('maumnote').doc('main'); // 어느 기기에서든 같은 자리
+// 우리반 학년 · 반 (설정의 반 이름 '1학년 10반'에서 읽어요) → 전교생 성적표에서 우리반 줄을 찾을 때 써요
+const myClass = () => { const m = String(S.className || '').match(/(\d)\s*학년\s*(\d{1,2})\s*반/); return m ? { g: +m[1], c: +m[2] } : { g: 1, c: 10 }; };
+// 학번 5자리 = 학년 1 + 반 2 + 번호 2 (예: 1학년 10반 3번 → 11003)
+const sidCls = sid => sid && sid.length === 5 ? +sid.slice(1, 3) : null;
+const isMine = sid => { const me = myClass(); return !!sid && sid.length === 5 && +sid[0] === me.g && +sid.slice(1, 3) === me.c; };
+// 학번 → 우리반 번호 (다른 반 학생이면 null → 동물 친구와 안 이어져요)
+const sidNo = sid => sid.length === 5 ? (isMine(sid) ? +sid.slice(3) : null) : (parseInt(sid.slice(-2), 10) || null);
+// 여러 반이 들어 있는 성적표 = 전교생 성적표
+const isWhole = d => new Set(d.rows.map(r => sidCls(r.sid)).filter(Boolean)).size > 1;
 
 function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
 // 클라우드는 공부방 파이어베이스(moon-15f88)를 같이 써요.
@@ -718,21 +728,23 @@ function classScoreSources() {
 }
 function classGrades(src) {
   const max = src.kind === 'mock' ? 9 : 5, d = src.d, rows = {};
-  let subj = [];
+  let subj = [], sch = null;
   if (src.key.startsWith('sc:')) {
     const gc = gradeCols(d, max); subj = gc.map(c => c.subj);
-    d.rows.forEach(r => { const o = rows[r.no] = {}; gc.forEach(c => { const v = Number(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; }); });
+    // 전교생 성적표면 우리반 줄만 (다른 반은 no 가 비어 있어요) + 과목별 전교 평균
+    d.rows.forEach(r => { if (!r.no) return; const o = rows[r.no] = {}; gc.forEach(c => { const v = Number(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; }); });
+    if (isWhole(d)) { sch = {}; gc.forEach(c => { const vs = d.rows.map(r => r.v[c.i]).filter(v => v !== '' && !isNaN(+v)).map(Number); if (vs.length) sch[c.subj] = vs.reduce((a, b) => a + b, 0) / vs.length; }); }
   } else {
     const iS = d.cols.indexOf('과목'), iG = d.cols.findIndex(c => /석차/.test(c));
     d.rows.forEach(r => { const v = Number(r.v[iG]); if (iG < 0 || r.v[iG] === '' || isNaN(v)) return; (rows[r.no] = rows[r.no] || {})[r.v[iS]] = v; if (!subj.includes(r.v[iS])) subj.push(r.v[iS]); });
   }
-  return { max, subj, rows };
+  return { max, subj, rows, sch };
 }
 function viewClassScore() {
   const srcs = classScoreSources();
   if (!srcs.length) return emptyGo('아직 올린 성적이 없어요. 관리 > 성적 파일이나 생기부 자료 > 교과학습발달상황에서 넣어 주세요 📊', 'score');
   const src = srcs.find(s => s.key === V.cScore) || srcs[srcs.length - 1];
-  const { max, subj, rows } = classGrades(src);
+  const { max, subj, rows, sch } = classGrades(src);
   const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : null;
   const nos = Object.keys(rows).map(Number).map(no => ({ no, a: avg(Object.values(rows[no])) })).sort((x, y) => (x.a ?? 99) - (y.a ?? 99));
   const stat = subj.map(s => { const vs = nos.map(n => rows[n.no][s]).filter(v => v !== undefined); const c = Array(max + 1).fill(0); vs.forEach(v => c[Math.round(v)]++); return { s, a: avg(vs), n: vs.length, c }; });
@@ -740,8 +752,8 @@ function viewClassScore() {
   return `<div class="row" style="margin-bottom:12px">${srcs.map(s => `<button class="pill ${s.key === src.key ? 'on' : ''}" style="font-size:14px;padding:4px 12px" onclick="V.cScore='${s.key}';render()">${esc(s.label)}</button>`).join('')}</div>
   <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,1.5fr)">
     <div class="box"><div class="hd blue"><span class="n">1</span>과목별 평균 · 등급 분포 <span class="sp mini" style="color:#fff">${max}등급${max === 5 ? '제' : ''}</span></div><div class="bd" style="overflow:auto">
-      <table class="dtable"><tr><th>과목</th><th>평균</th>${Array.from({ length: max }, (_, i) => `<th style="text-align:center">${i + 1}</th>`).join('')}</tr>
-      ${stat.map(x => `<tr><td><b>${esc(x.s)}</b></td><td><b>${x.a ? x.a.toFixed(2) : '-'}</b></td>${x.c.slice(1).map(n => `<td style="text-align:center;background:rgba(122,174,219,${(n / cmax * 0.6).toFixed(2)})">${n || ''}</td>`).join('')}</tr>`).join('')}</table>
+      <table class="dtable"><tr><th>과목</th><th>평균</th>${sch ? '<th>전교</th>' : ''}${Array.from({ length: max }, (_, i) => `<th style="text-align:center">${i + 1}</th>`).join('')}</tr>
+      ${stat.map(x => `<tr><td><b>${esc(x.s)}</b></td><td><b>${x.a ? x.a.toFixed(2) : '-'}</b></td>${sch ? `<td class="mini">${sch[x.s] ? sch[x.s].toFixed(2) : '-'}</td>` : ''}${x.c.slice(1).map(n => `<td style="text-align:center;background:rgba(122,174,219,${(n / cmax * 0.6).toFixed(2)})">${n || ''}</td>`).join('')}</tr>`).join('')}</table>
       <p class="mini">칸 숫자 = 그 등급을 받은 친구 수</p>
     </div></div>
     <div class="box"><div class="hd pink"><span class="n">2</span>친구별 등급 <span class="sp mini" style="color:#fff">평균 좋은 순 · 이름을 누르면 학생 노트</span></div><div class="bd" style="overflow:auto">
@@ -1858,13 +1870,84 @@ function openDash(tab) {
   if (syncState !== 'cloud') return toast('🔑 로그인한 뒤에 쓸 수 있어요');
   if (tab) DASH.tab = tab;
   openModal('🛠 관리', viewDash(), true);
+  $('#modal .sheet').classList.toggle('xwide', DASH.tab === 'school');
 }
 function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
 function viewDash() {
-  const tabs = [['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['photo', '📷 사진'], ['score', '📊 성적 파일'], ['rec', '📋 생기부 자료']];
+  const tabs = [['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['photo', '📷 사진'], ['score', '📊 성적 파일'], ['school', '🏫 전교 성적'], ['rec', '📋 생기부 자료']];
+  $('#modal .sheet').classList.toggle('xwide', DASH.tab === 'school');   // 전교 성적은 표가 넓어서 창을 더 넓게
   return `<div class="row" style="margin-bottom:12px">${tabs.map(([k, t]) => `<button class="pill ${DASH.tab === k ? 'on' : ''}" onclick="DASH.tab='${k}';dashRefresh()">${t}</button>`).join('')}</div>
-  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'ev' ? dashEv() : DASH.tab === 'photo' ? dashPhoto() : DASH.tab === 'score' ? dashScore() : dashRec()}`;
+  ${DASH.tab === 'cal' ? dashCal() : DASH.tab === 'ev' ? dashEv() : DASH.tab === 'photo' ? dashPhoto() : DASH.tab === 'score' ? dashScore() : DASH.tab === 'school' ? dashSchool() : dashRec()}`;
 }
+
+/* 🏫 전교 성적 — 전교생 성적표(학번 · 성적만, 이름 없음)를 과목별 · 반별 · 학생별로 한눈에 */
+let SCH = { key: null, cls: 'all', sort: -1, asc: true };
+function dashSchool() {
+  const docs = scoreDocs().filter(isWhole);
+  if (!docs.length) return `<div class="empty">아직 전교생 성적표가 없어요.<br>📊 성적 파일에서 <b>반 · 번호 · 이름</b> 칸이 있는 전교생 파일을 올리면 여기서 볼 수 있어요.<br><button class="btn sm" style="margin-top:10px" onclick="DASH.tab='score';dashRefresh()">📊 성적 파일로 가기</button></div>`;
+  const d = SC[SCH.key] && isWhole(SC[SCH.key]) ? SC[SCH.key] : docs[docs.length - 1];
+  const key = scoreKey(d.year, d.exam), me = myClass();
+  const max = examOf(d).kind === 'mock' ? 9 : 5, gc = gradeCols(d, max), gset = new Set(gc.map(c => c.i));
+  const num = (r, i) => r.v[i] === '' || isNaN(+r.v[i]) ? null : +r.v[i];
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const f2 = v => v == null ? '-' : v.toFixed(2);
+  // 등급 평균 칸 색 (좋을수록 진하게)
+  const heat = (v, bold) => v == null ? '<td class="mini" style="text-align:center">-</td>'
+    : `<td style="text-align:center;${bold ? 'font-weight:700;' : ''}background:rgba(238,143,173,${(0.06 + (1 - (v - 1) / (max - 1)) * 0.5).toFixed(2)})">${Number.isInteger(v) ? v : v.toFixed(2)}</td>`;
+  const classes = [...new Set(d.rows.map(r => sidCls(r.sid)).filter(Boolean))].sort((a, b) => a - b);
+  const my = d.rows.filter(r => isMine(r.sid));
+  const rowAvg = r => avg(gc.map(c => num(r, c.i)).filter(v => v != null));
+  // ① 과목별: 전교 평균 · 우리반 평균 · 등급 분포
+  const subj = gc.map(c => {
+    const all = d.rows.map(r => num(r, c.i)).filter(v => v != null), cnt = Array(max + 1).fill(0);
+    all.forEach(v => cnt[Math.min(max, Math.max(1, Math.round(v)))]++);
+    return { ...c, a: avg(all), m: avg(my.map(r => num(r, c.i)).filter(v => v != null)), n: all.length, cnt };
+  });
+  const cmax = Math.max(1, ...subj.flatMap(s => s.cnt.slice(1)));
+  // ② 반별 평균 등급
+  const byCls = classes.map(c => { const rs = d.rows.filter(r => sidCls(r.sid) === c); const s = gc.map(g => avg(rs.map(r => num(r, g.i)).filter(v => v != null))); return { c, n: rs.length, s, all: avg(s.filter(v => v != null)) }; });
+  const allAvg = avg(d.rows.map(rowAvg).filter(v => v != null)), myAvg = avg(my.map(rowAvg).filter(v => v != null));
+  const rank = [...byCls].sort((a, b) => (a.all ?? 99) - (b.all ?? 99)).findIndex(x => x.c === me.c) + 1;
+  // ③ 학생별 표 (반 고르기 · 학번 찾기 · 머리글 눌러 정렬)
+  let rows = d.rows.filter(r => SCH.cls === 'all' || (SCH.cls === 'mine' ? isMine(r.sid) : sidCls(r.sid) === SCH.cls));
+  if (SCH.sort >= 0) { const k = SCH.sort, sgn = SCH.asc ? 1 : -1; rows = [...rows].sort((a, b) => { const x = k === 999 ? rowAvg(a) : num(a, k), y = k === 999 ? rowAvg(b) : num(b, k); return x == null ? 1 : y == null ? -1 : (x - y) * sgn || a.sid.localeCompare(b.sid); }); }
+  const arrow = k => SCH.sort === k ? (SCH.asc ? ' ▲' : ' ▼') : '';
+  const th = 'position:sticky;top:0;background:#fff;z-index:1;cursor:pointer;white-space:nowrap';
+  const clsPill = (v, label) => `<button class="pill ${SCH.cls === v ? 'on' : ''}" style="font-size:14px;padding:3px 11px" onclick="SCH.cls=${typeof v === 'string' ? `'${v}'` : v};dashRefresh()">${label}</button>`;
+  return `
+  ${docs.length > 1 ? `<div class="row" style="margin-bottom:10px">${docs.map(x => { const k = scoreKey(x.year, x.exam); return `<button class="pill ${k === key ? 'on' : ''}" onclick="SCH.key='${k}';SCH.cls='all';SCH.sort=-1;dashRefresh()">${x.year} ${esc(examOf(x).label)}</button>`; }).join('')}</div>` : ''}
+  <div class="stats">
+    <div class="stat"><b>${d.rows.length}</b>전교 인원 · ${classes.length}개 반</div>
+    <div class="stat"><b>${my.length}</b>우리반 (${me.g}학년 ${me.c}반)</div>
+    <div class="stat"><b>${f2(myAvg)}</b>우리반 평균 등급 <span class="mini">(전교 ${f2(allAvg)})</span></div>
+    <div class="stat"><b>${rank || '-'}<span style="font-size:18px">/${classes.length}</span></b>반 평균 순위 (등급 낮을수록 위)</div>
+  </div>
+  <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:12px">
+    <div class="box"><div class="hd blue"><span class="n">1</span>과목별 평균 · 등급 분포 <span class="sp mini" style="color:#fff">${max}등급${max === 5 ? '제' : ''} · 칸 숫자 = 인원</span></div><div class="bd" style="overflow:auto">
+      <table class="dtable"><tr><th>과목</th><th style="text-align:center">전교</th><th style="text-align:center">우리반</th>${Array.from({ length: max }, (_, i) => `<th style="text-align:center">${i + 1}</th>`).join('')}</tr>
+      ${subj.map(s => `<tr><td><b>${esc(s.subj)}</b></td><td style="text-align:center">${f2(s.a)}</td><td style="text-align:center;font-weight:700;color:${s.m != null && s.a != null && s.m < s.a ? 'var(--green)' : 'var(--red)'}">${f2(s.m)}</td>
+        ${s.cnt.slice(1).map(n => `<td style="text-align:center;background:rgba(122,174,219,${(n / cmax * 0.6).toFixed(2)})">${n || ''}</td>`).join('')}</tr>`).join('')}</table>
+      <p class="mini">우리반 평균이 초록이면 전교보다 좋아요, 빨강이면 전교보다 낮아요.</p>
+    </div></div>
+    <div class="box"><div class="hd purple"><span class="n">2</span>반별 평균 등급 <span class="sp mini" style="color:#fff">반을 누르면 아래 표가 그 반만</span></div><div class="bd" style="overflow:auto">
+      <table class="dtable"><tr><th>반</th><th style="text-align:center">인원</th>${gc.map(c => `<th style="text-align:center">${esc(c.subj)}</th>`).join('')}<th style="text-align:center">평균</th></tr>
+      ${byCls.map(x => `<tr style="${x.c === me.c ? 'outline:2px solid var(--main);outline-offset:-2px' : ''}"><td style="white-space:nowrap"><a href="#" style="color:inherit;text-decoration:none" onclick="SCH.cls=${x.c};dashRefresh();return false"><b>${x.c}반</b></a>${x.c === me.c ? ' ⭐' : ''}</td><td style="text-align:center" class="mini">${x.n}</td>${x.s.map(v => heat(v)).join('')}${heat(x.all, true)}</tr>`).join('')}</table>
+    </div></div>
+  </div>
+  <div class="box"><div class="hd pink"><span class="n">3</span>학생별 성적 <span class="sp mini" style="color:#fff">🔒 학번만 · 이름 없음 · 머리글을 누르면 정렬</span></div><div class="bd">
+    <div class="row" style="margin-bottom:8px;gap:6px">${clsPill('all', '전체')}${clsPill('mine', '⭐ 우리반')}${classes.map(c => clsPill(c, c + '반')).join('')}
+      <input id="schQ" placeholder="🔍 학번 찾기 (예: 110)" style="width:170px;margin-left:auto" oninput="schFind(this.value)"></div>
+    <div style="overflow:auto;max-height:60vh"><table class="dtable" id="schT">
+      <tr><th style="${th}" onclick="schSort(-1)">학번${arrow(-1)}</th><th style="${th}">우리반</th><th style="${th};text-align:center" onclick="schSort(999)">평균${arrow(999)}</th>${d.cols.map((c, i) => `<th style="${th};${gset.has(i) ? 'color:var(--main)' : ''}" onclick="schSort(${i})">${esc(c)}${arrow(i)}</th>`).join('')}</tr>
+      ${rows.map(r => { const s = r.no ? byNum(r.no) : null;
+        return `<tr data-sid="${esc(r.sid)}" style="${isMine(r.sid) ? 'background:var(--soft)' : ''}"><td><b>${esc(r.sid)}</b></td><td class="mini" style="white-space:nowrap">${isMine(r.sid) ? (s ? esc(sname(s)) : r.no + '번') : ''}</td>${heat(rowAvg(r), true)}${r.v.map((v, i) => gset.has(i) ? heat(num(r, i), true) : `<td>${esc(v)}</td>`).join('')}</tr>`; }).join('')}
+    </table></div>
+    <p class="mini" style="margin-top:6px">${rows.length}명 보는 중 · ${esc(d.file)} · ${new Date(d.at).toLocaleDateString()} 올림</p>
+  </div></div>`;
+}
+function schSort(k) { if (SCH.sort === k) SCH.asc = !SCH.asc; else { SCH.sort = k; SCH.asc = true; } dashRefresh(); }
+// 학번 찾기: 다시 그리지 않고 줄만 숨겨요 (입력칸 커서가 안 튀게)
+function schFind(q) { q = q.replace(/\D/g, ''); document.querySelectorAll('#schT tr[data-sid]').forEach(tr => tr.style.display = !q || tr.dataset.sid.includes(q) ? '' : 'none'); }
 
 /* ① 달력 가져오기 */
 function monthStr(y, m) { const d = new Date(y, m, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
@@ -2037,12 +2120,18 @@ function parseScoreSheet(aoa) {
   // 칸 안 줄바꿈(특기사항 여러 줄)은 살리고 띄어쓰기만 정리해요
   const rows = aoa.map(r => r.map(v => String(v ?? '').replace(/[ \t ]+/g, ' ').replace(/ *\n */g, '\n').trim()));
   const flat = c => c.replace(/\s/g, '');
+  const isNoHead = c => /^(번호|번)$/.test(flat(c));
+  // 학번 칸 → 없으면 반 + 번호 칸(전교생 파일) → 없으면 번호 칸(우리반 파일)
   let idKind = 'sid', h = rows.findIndex(r => r.some(c => flat(c) === '학번'));
+  if (h < 0) { idKind = 'cb'; h = rows.findIndex(r => r.some(c => flat(c) === '반') && r.some(isNoHead)); }
   if (h < 0) { idKind = 'no'; h = rows.findIndex(r => r.some(c => flat(c) === '번호')); }
-  if (h < 0) throw new Error("'학번' 또는 '번호' 머리글을 찾지 못했어요");
-  const idCol = rows[h].findIndex(c => flat(c) === (idKind === 'sid' ? '학번' : '번호'));
+  if (h < 0) throw new Error("'학번', '반 · 번호', '번호' 머리글을 찾지 못했어요");
+  const idCol = idKind === 'cb' ? rows[h].findIndex(isNoHead) : rows[h].findIndex(c => flat(c) === (idKind === 'sid' ? '학번' : '번호'));
+  const clsCol = idKind === 'cb' ? rows[h].findIndex(c => flat(c) === '반') : -1, grCol = rows[h].findIndex(c => flat(c) === '학년');
+  const lastNum = x => (String(x || '').match(/\d+/g) || []).pop() || '';   // '1-10', '10반' → '10'
   const isData = r => {
     const x = r[idCol] || '';
+    if (idKind === 'cb') return /^\d{1,2}$/.test(x) && /^\d{1,2}$/.test(lastNum(r[clsCol])) && (r[clsCol] || '').length <= 6;
     return idKind === 'sid' ? /^[\d\- ]+$/.test(x) && x.replace(/\D/g, '').length >= 4 && x.replace(/\D/g, '').length <= 6 : /^\d{1,2}$/.test(x);
   };
   const first = rows.findIndex((r, i) => i > h && isData(r));
@@ -2075,9 +2164,13 @@ function parseScoreSheet(aoa) {
   return {
     cols: keep.map(c => head[c] || `칸${c + 1}`), dropped,
     rows: data.map(r => {
-      const sid = idKind === 'sid' ? r[idCol].replace(/\D/g, '') : '';
-      return { sid, no: parseInt(idKind === 'sid' ? sid.slice(-2) : r[idCol], 10), v: keep.map(c => r[c] || '') };
-    })
+      let sid = idKind === 'sid' ? r[idCol].replace(/\D/g, '') : '';
+      if (idKind === 'cb') {   // 반 · 번호로 학번 5자리를 만들어요 (학년 칸이 없으면 우리반 학년)
+        const g = lastNum(r[grCol]).slice(-1) || myClass().g;
+        sid = `${g}${lastNum(r[clsCol]).padStart(2, '0')}${r[idCol].padStart(2, '0')}`;
+      }
+      return { sid, no: idKind === 'no' ? parseInt(r[idCol], 10) : sidNo(sid), v: keep.map(c => r[c] || '') };
+    }).sort((a, b) => a.sid.localeCompare(b.sid))
   };
 }
 async function scoreUpload(id, inp) {
@@ -2097,6 +2190,8 @@ async function scoreSave() {
   const p = DASH.pending, key = scoreKey(p.year, p.exam);
   if (SC[key] && !confirm('이미 올린 파일이 있어요. 새 파일로 바꿀까요?')) return;
   const doc = { exam: p.exam, year: p.year, file: p.file, cols: p.cols, rows: p.rows, at: Date.now() };
+  // 클라우드 문서 하나는 1MB까지라 넘으면 미리 알려 줘요
+  if (new Blob([JSON.stringify(doc)]).size > 950000) return toast('📊 파일이 너무 커요 (1MB 넘음). 필요 없는 칸을 지우거나 학년별로 나눠 올려 주세요');
   try { await roomRef().collection('meta').doc(key).set(doc); } catch (e) { return toast('☁️ 저장 실패: ' + e.message); }
   SC[key] = doc; DASH.pending = null; DASH.view = key; dashRefresh(); render();
   toast(`📊 ${p.year}년 ${examOf(doc).label} — ${doc.rows.length}명 저장했어요`);
@@ -2125,7 +2220,7 @@ function scoreTable(d) { return dataTable(d, new Set(gradeCols(d, examOf(d).kind
 function dataTable(d, g = new Set()) {
   return `<div style="overflow:auto;max-height:55vh"><table class="dtable"><tr><th>번호</th><th>학번</th><th>동물 친구</th>${d.cols.map((c, i) => `<th style="${g.has(i) ? 'color:var(--main)' : ''}">${esc(c)}</th>`).join('')}</tr>
     ${d.rows.map(r => { const s = D.students.find(x => x.num === r.no);
-      return `<tr><td>${r.no}</td><td>${esc(r.sid)}</td><td style="white-space:nowrap">${s ? `<a href="#" onclick="closeModal();openStudent('${s.id}',3);return false">${esc(sname(s))}</a>` : '<span class="mini">—</span>'}</td>${r.v.map((v, i) => `<td style="${g.has(i) ? 'font-weight:700;' : ''}${String(v).includes('\n') ? 'white-space:pre-line;min-width:260px' : ''}">${esc(v)}</td>`).join('')}</tr>`; }).join('')}
+      return `<tr><td>${r.no ?? ''}</td><td>${esc(r.sid)}</td><td style="white-space:nowrap">${s ? `<a href="#" onclick="closeModal();openStudent('${s.id}',3);return false">${esc(sname(s))}</a>` : '<span class="mini">—</span>'}</td>${r.v.map((v, i) => `<td style="${g.has(i) ? 'font-weight:700;' : ''}${String(v).includes('\n') ? 'white-space:pre-line;min-width:260px' : ''}">${esc(v)}</td>`).join('')}</tr>`; }).join('')}
   </table></div>`;
 }
 function yearSelect() {
@@ -2146,19 +2241,21 @@ function dashScore() {
     const g = gradeCols(p, examOf(p).kind === 'mock' ? 9 : 5);
     below = `<section><h4>👀 ${p.year}년 ${esc(examOf(p).label)} 미리 보기 <span class="mini">${esc(p.file)} · ${p.rows.length}명</span></h4>
       ${p.dropped.length ? `<p class="mini">🔒 저장하지 않는 칸: ${p.dropped.map(esc).join(', ')}</p>` : ''}
+      ${isWhole(p) ? `<p class="mini">🏫 전교생 성적표예요: <b>${p.rows.length}명 · ${new Set(p.rows.map(r => sidCls(r.sid))).size}개 반</b> · 우리반(${myClass().g}학년 ${myClass().c}반) <b>${p.rows.filter(r => isMine(r.sid)).length}명</b> — 반 · 번호로 학번 5자리를 만들었어요. 저장하면 🏫 전교 성적에서 볼 수 있어요.</p>` : ''}
       <p class="mini">📈 그래프에 쓸 등급 칸: ${g.length ? g.map(c => `<span class="chip">${esc(c.subj)}</span>`).join(' ') : `<b style="color:var(--red)">못 찾았어요 (머리글에 '등급'이 들어간 칸이 있어야 해요)</b>`}</p>
       ${scoreTable(p)}
       <div class="row" style="margin-top:10px"><button class="btn" onclick="scoreSave()">💾 이대로 저장</button><button class="btn ghost sm" onclick="DASH.pending=null;dashRefresh()">취소</button></div></section>`;
   } else if (v) {
     const miss = missingNums(v);
     below = `<section><h4>📄 ${v.year}년 ${esc(examOf(v).label)} <span class="mini">${esc(v.file)} · ${v.rows.length}명 · ${new Date(v.at).toLocaleDateString()} 올림</span>
-        <button class="x" style="margin-left:auto" onclick="scoreDelete('${DASH.view}')">🗑 지우기</button></h4>
+        ${isWhole(v) ? `<button class="btn sm" style="margin-left:auto" onclick="SCH.key='${DASH.view}';DASH.tab='school';dashRefresh()">🏫 전교 성적으로 보기</button>` : ''}
+        <button class="x" style="${isWhole(v) ? '' : 'margin-left:auto'}" onclick="scoreDelete('${DASH.view}')">🗑 지우기</button></h4>
       ${miss.length ? `<div class="row" style="margin-bottom:8px"><span class="mini">동물 친구가 없는 번호: ${miss.join(', ')}</span><button class="btn sm" onclick="makeAnimals('${DASH.view}')">🐾 ${miss.length}명 한꺼번에 만들기</button></div>` : ''}
       ${scoreTable(v)}</section>`;
   }
   return `<section>
     <div class="row" style="margin-bottom:8px">${yearSelect()}</div>
-    <p class="mini">우리반만 있는 엑셀 파일(.xlsx)을 칸마다 올려요. <b>학번(또는 번호)과 성적 칸만</b> 클라우드에 저장하고, 이름 · 연락처 칸은 버려요. 학번 끝 두 자리(반 번호)로 동물 친구와 이어지고, 상담 화면에는 '🐰 토끼4821'처럼 별칭과 숫자만 보여요 (숫자는 반 번호와 달라요).</p>
+    <p class="mini">엑셀 파일(.xlsx)을 칸마다 올려요. 우리반 파일도, <b>반 · 번호 · 이름 칸이 있는 전교생 파일</b>도 돼요 — 전교생 파일은 반 · 번호로 <b>학번 5자리</b>(학년+반+번호, 예: 11003)를 만들고 <b>이름 칸은 버려요.</b> 학번과 성적 칸만 클라우드에 저장해요. 학번 끝 두 자리(반 번호)로 동물 친구와 이어지고, 상담 화면에는 '🐰 토끼4821'처럼 별칭과 숫자만 보여요 (숫자는 반 번호와 달라요).</p>
     <div class="cols c2" style="gap:12px"><div><h4 style="font-size:18px;margin-bottom:6px">📘 모의고사</h4>${EXAMS.filter(e => e.kind === 'mock').map(slot).join('')}</div>
       <div><h4 style="font-size:18px;margin-bottom:6px">📗 내신</h4>${EXAMS.filter(e => e.kind === 'school').map(slot).join('')}</div></div>
   </section>${below}`;
@@ -2734,7 +2831,7 @@ function cycleFont() { const t = ['unz', 'gaegu', 'dodum']; S.font = t[(t.indexO
 function toggleBig() { S.big = S.big === 'on' ? 'off' : 'on'; saveSettings(); render(); }
 
 /* ---------------- 모달·토스트 ---------------- */
-function openModal(t, html, wide) { $('#mTitle').textContent = t; $('#mBody').innerHTML = html; $('#modal .sheet').classList.toggle('wide', !!wide); $('#modal').classList.add('on'); }
+function openModal(t, html, wide) { $('#mTitle').textContent = t; $('#mBody').innerHTML = html; $('#modal .sheet').classList.toggle('wide', !!wide); $('#modal .sheet').classList.remove('xwide'); $('#modal').classList.add('on'); }
 function closeModal() { $('#modal').classList.remove('on'); }
 let tt; function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600); }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
