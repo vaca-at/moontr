@@ -954,8 +954,11 @@ const SECS = [
   [13, '생기부 점검', 'blue']
 ];
 // 개인 상담 기록 다섯 갈래: 상담 · 성적 · 기록 쌓기 · 분석 · 생기부
+// 한눈에 · 상담 준비 카드 · 상담 기록은 위쪽 메뉴로 바로. 공통 행사 채우기(8)는 🛠 관리 > 공통 행사에서 (메뉴에는 없어요)
 const NOTE_GROUPS = [
-  { t: '💬 상담', secs: [1, 9, 2, 8] },
+  { t: '👀 한눈에', secs: [1] },
+  { t: '🗂️ 상담 준비 카드', secs: [9] },
+  { t: '💬 상담 기록', secs: [2] },
   { t: '📈 성적', secs: [3] },
   { t: '🌱 기록 쌓기', secs: [4, 5, 6] },
   { t: '🧭 분석', secs: [10, 11, 12] },
@@ -987,7 +990,8 @@ function viewNote() {
       <div style="flex:1"><b class="hand" style="font-size:17px">아직 별칭을 안 정한 친구예요</b><div class="mini">상담을 시작하며 학생과 함께 동물 · 별칭을 골라 보세요. 정한 뒤에도 🏷️ 별칭 고치기로 언제든 바꿀 수 있어요.</div></div>
       <button class="btn" onclick="openNick()">🏷️ 별칭 정하기</button></div>` : ''}
     <div class="row" style="margin-bottom:10px">${NOTE_GROUPS.map(g => `<button class="pill ${g === grp ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.sec=${g.secs[0]};render()">${g.t}</button>`).join('')}</div>
-    ${grp.secs.length > 1 ? `<div class="steps">${grp.secs.map(n => SECS.find(s => s[0] === n)).map(([n, t, c]) => `<div class="step ${n === V.sec ? 'on' : ''}" onclick="V.sec=${n};render()"><span class="c" style="background:var(--${c})">${grp.secs.indexOf(n) + 1}</span><b>${t}</b></div>`).join('')}</div>` : ''}
+    ${!grp ? `<div class="row" style="margin-bottom:10px"><span class="chip">🗓️ 공통 행사 채우기</span><button class="btn ghost sm" onclick="openDash('ev')">🛠 관리 > 공통 행사에서 한꺼번에 보기</button></div>` : ''}
+    ${grp && grp.secs.length > 1 ? `<div class="steps">${grp.secs.map(n => SECS.find(s => s[0] === n)).map(([n, t, c]) => `<div class="step ${n === V.sec ? 'on' : ''}" onclick="V.sec=${n};render()"><span class="c" style="background:var(--${c})">${grp.secs.indexOf(n) + 1}</span><b>${t}</b></div>`).join('')}</div>` : ''}
     ${body}
   </div></div>`;
 }
@@ -1613,14 +1617,14 @@ function viewClassEv() {
   const L = D.students, E = CE.events, dd = ceDday();
   const total = L.length * E.length, done = L.reduce((n, s) => n + E.filter(e => ceFilled(s, e)).length, 0);
   return `<div class="row" style="margin-bottom:12px"><span class="chip" style="font-size:14px;padding:4px 12px">⏰ 마감 ${ceDue()} · ${dd >= 0 ? `D-${dd}` : `${-dd}일 지남`}</span>
-    <span class="mini">행사 ${E.length}개 · 상담할 때 개인 상담 기록 → 💬 상담 → 공통 행사 채우기에서 채우거나, 아래 표의 칸을 눌러 바로 적어요.</span>
+    <span class="mini">행사 ${E.length}개 · 아래 표의 칸을 눌러 바로 적어요. 친구 이름을 누르면 그 친구 것만 모아 채울 수 있어요.</span>
     <button class="btn sm" style="margin-left:auto" onclick="openDash('ev')">🛠 관리에서 행사 넣기 · 고치기</button></div>
   ${E.length ? '' : `<div class="empty">아직 행사가 없어요.<br>🛠 관리 → 🗓️ 공통 행사에서 행사 계획표 사진을 붙여 넣거나 직접 넣어 주세요.<br><button class="btn" style="margin-top:10px" onclick="openDash('ev')">🛠 관리에서 행사 넣기</button></div>`}
   ${E.length && L.length ? `<div class="box"><div class="hd green"><span class="n">✿</span>채우기 표 <span class="sp" style="font-size:15px">${done} / ${total}칸 (${Math.round(done / total * 100)}%)</span></div><div class="bd" style="overflow:auto">
     <div class="meter" style="height:10px;margin-bottom:10px"><i style="width:${done / total * 100}%"></i></div>
     <table class="dtable"><tr><th>친구</th>${E.map(e => `<th style="text-align:center;min-width:72px">${esc(e.title)}<div class="mini">${e.date ? e.date.slice(5) : ''}</div></th>`).join('')}<th style="text-align:center">남은 칸</th></tr>
     ${[...L].sort((a, b) => E.filter(e => ceFilled(a, e)).length - E.filter(e => ceFilled(b, e)).length).map(s => { const left = E.filter(e => !ceFilled(s, e)).length;
-      return `<tr><td><a href="#" onclick="openStudent('${s.id}',8);return false" style="white-space:nowrap">${esc(sname(s))}</a></td>
+      return `<tr><td><a href="#" onclick="closeModal();openStudent('${s.id}',8);return false" style="white-space:nowrap">${esc(sname(s))}</a></td>
       ${E.map(e => ceFilled(s, e) ? `<td style="text-align:center;cursor:pointer;background:var(--greenL);color:#3d8a5a" title="${esc(s.ev[e.id].text)}" onclick="ceCell('${s.id}','${e.id}')">✓</td>` : `<td style="text-align:center;cursor:pointer;color:var(--line)" onclick="ceCell('${s.id}','${e.id}')">○</td>`).join('')}
       <td style="text-align:center;${left ? 'color:var(--red);font-weight:700' : 'color:#3d8a5a'}">${left || '다 채움'}</td></tr>`; }).join('')}</table>
     <p class="mini">남은 칸이 많은 친구부터 보여요. 칸을 누르면 바로 적을 수 있어요 (✓ 위에 올리면 내용이 보여요).</p>
@@ -1837,7 +1841,7 @@ function secPrep(st) {
       <div class="item"><b class="hand" style="font-size:17px">💬 지난 상담</b>${f.cs.length ? f.cs.map(c => `<div class="mini" style="margin-top:4px"><b>${c.date}</b> [${esc(c.type)}] ${esc(c.text.slice(0, 90))}${c.text.length > 90 ? '…' : ''}${c.next ? ` → 다음 약속 ${c.next}` : ''}</div>`).join('') : '<div class="mini">아직 상담 전이에요</div>'}</div>
       <div class="item"><b class="hand" style="font-size:17px">🗓️ 아직 안 채운 공통 행사 <span class="mini">${f.leftEv.length}개 · 마감 ${dd >= 0 ? 'D-' + dd : -dd + '일 지남'}</span></b>
         <div class="mini" style="margin-top:4px">${f.leftEv.map(e => `<span class="chip" style="margin:2px">${esc(e.title)}${e.ask ? ' — ' + esc(e.ask) : ''}</span>`).join('') || '다 채웠어요 🎉'}</div>
-        ${f.leftEv.length ? `<button class="btn ghost sm" style="margin-top:6px" onclick="V.sec=8;render()">공통 행사 채우러 →</button>` : ''}</div>
+        ${f.leftEv.length ? `<button class="btn ghost sm" style="margin-top:6px" onclick="openDash('ev')">🛠 관리에서 공통 행사 채우기 →</button>` : ''}</div>
       <div class="item"><b class="hand" style="font-size:17px">📈 성적 변화 <span class="mini">(⬆ 좋아짐)</span></b><div class="mini" style="margin-top:4px">모의고사: ${f.mock || '비교할 자료 없음'}<br>내신: ${f.school || '비교할 자료 없음'}</div></div>
       ${recItems(st)}
       <div class="item"><b class="hand" style="font-size:17px">🧭 근거가 약한 역량</b><div class="mini" style="margin-top:4px">${st.comp ? (f.weak.map(w => `<span class="chip" style="margin:2px">${esc(w)}</span>`).join('') || '고르게 쌓였어요') : '🧭 분석 → 역량 지도를 먼저 그려 주세요'}</div></div>
