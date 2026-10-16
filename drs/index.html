@@ -270,6 +270,14 @@
     #view-draw .dr-led-key { display:flex; justify-content:center; gap:14px; margin-top:10px; font-family:'Black Han Sans',sans-serif; font-size:12px; color:#9AA6C8; }
     #view-draw .dr-led-key i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
     #view-draw .dr-led-key i.on { background:#1FD670; } #view-draw .dr-led-key i.off { background:#FF4D6D; } #view-draw .dr-led-key i.new { background:#FFD84D; }
+    /* 뽑기 화면 글씨: 온글잎 언즈체 (눈누, 아이아이노트와 같은 파일) */
+    @font-face { font-family:'OngleipUnz'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2406-1@1.0/Ownglyph_UNZ-Rg.woff2') format('woff2'); font-weight:normal; font-display:swap; }
+    #view-draw .dr-stage { font-family:'OngleipUnz','Gowun Dodum',sans-serif; }
+    #view-draw .dr-kicker { font-size:22px; }
+    #view-draw .dr-meter-t { font-size:23px; }
+    #view-draw .dr-sound { font-size:21px; }
+    #view-draw .dr-list h2 { font-family:'OngleipUnz','Gowun Dodum',sans-serif; font-weight:400; font-size:24px; }
+    #view-draw .dr-card .nm { font-weight:400; font-size:16px; }
     /* 한글 픽셀 글꼴: 둥근모꼴 (무료 글꼴, 눈누) */
     @font-face { font-family:'DungGeunMo'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.woff') format('woff'); font-weight:normal; font-display:swap; }
     /* 전광판 숫자 · 글씨 크게 */
@@ -343,8 +351,8 @@
     @media (orientation:landscape) and (min-width:900px) {
       #view-draw.active { height:100vh; height:100dvh; min-height:0; overflow:hidden; }
       #view-draw .dr-stage { max-width:none; height:100%; padding:16px 26px 20px; display:grid; grid-template-columns:auto minmax(0,1fr) minmax(300px,30vw); grid-template-rows:auto minmax(0,1fr); grid-template-areas:"head head head" "drum out led"; gap:14px 22px; align-items:center; }
-      #view-draw .dr-head { grid-area:head; display:flex; align-items:center; gap:22px; text-align:left; padding-right:290px; }
-      #view-draw .dr-kicker { font-size:13px; letter-spacing:1px; }
+      #view-draw .dr-head { grid-area:head; display:flex; align-items:center; gap:22px; text-align:left; padding-right:290px; padding-left:46px; }   /* 왼쪽 위 새로고침 단추 자리 비우기 */
+      #view-draw .dr-kicker { font-size:21px; letter-spacing:0; white-space:nowrap; }
       #view-draw .dr-head h1 { margin:0; font-size:38px; white-space:nowrap; }
       #view-draw .dr-meter { flex:1; max-width:460px; margin:0 0 0 auto; }
       #view-draw .dr-soundbar { top:50%; transform:translateY(-50%); flex-direction:row; align-items:center; }
@@ -719,7 +727,7 @@
     </div>
 
     <div class="dr-out" id="dr-out" aria-live="polite">
-      <div class="dr-ballwrap"><span class="dr-rays" aria-hidden="true"></span><button class="dr-ball ready" id="dr-ball" onclick="dr_doDraw(DR_TEST)" aria-label="공 굴리기"><span id="dr-num">?</span></button></div>
+      <div class="dr-ballwrap"><span class="dr-rays" aria-hidden="true"></span><button class="dr-ball ready" id="dr-ball" aria-label="공 굴리기"><span id="dr-num">?</span></button></div>
       <div class="dr-info">
         <p class="dr-info-k" id="dr-infoK">공을 누르면 굴러가요</p>
         <p class="dr-info-name" id="dr-infoName">어떤 번호가 나올까요?</p>
@@ -2087,6 +2095,35 @@ function dr_testPick() {
 // 공 굴리기: 숫자가 1~200 사이에서 빠르게 돌다가 점점 느려지고, 뽑힌 선물 번호에서 멈춰요
 // 주소 끝에 &test 를 붙이면 공을 눌러도 기록하지 않는 테스트 모드 (moontr.site/drs/?page=draw&test)
 const DR_TEST = new URLSearchParams(location.search).has('test');
+let dr_shownAt = 0;   // 결과가 나온 때 (0 = 첫 화면)
+
+// 화면 누르기: 첫 화면에서 공을 누르면 뽑기 → 결과가 나온 뒤에는 어디를 눌러도 첫 화면으로
+function dr_onTap(e) {
+  if (e.target.closest('.dr-soundbar, a')) return;
+  if (dr_rolling) return;
+  if (dr_shownAt) {
+    if (Date.now() - dr_shownAt < 1500) return;   // 결과가 나오자마자 실수로 누른 건 무시
+    dr_resetView();
+    return;
+  }
+  if (e.target.closest('#dr-ball')) dr_doDraw(DR_TEST);
+}
+// 첫 화면으로: 물음표 공 · 안내 글로 되돌리기
+function dr_resetView() {
+  dr_shownAt = 0;
+  dr_just = null;
+  const ball = document.getElementById('dr-ball');
+  document.getElementById('dr-out').classList.remove('win');
+  ball.classList.remove('pop', 'roll');
+  ball.style.removeProperty('--c');
+  document.getElementById('dr-num').textContent = '?';
+  document.getElementById('dr-infoK').innerText = '공을 누르면 굴러가요';
+  document.getElementById('dr-infoName').innerText = '어떤 번호가 나올까요?';
+  document.getElementById('dr-infoSub').innerText = '';
+  document.getElementById('dr-photo').hidden = true;
+  ball.classList.add('ready');
+  dr_render();
+}
 async function dr_doDraw(test) {
   if (dr_rolling) return;
   if (!test && giftsLoaded && !ALL_GIFTS.some(g => !g.drawn)) { alert('모든 선물이 이미 뽑혔습니다!'); return; }
@@ -2138,7 +2175,8 @@ async function dr_doDraw(test) {
     out.classList.add('win');
     infoK.innerText = (test ? '[테스트 · 기록 안 함] ' : '') + (label === '익명' ? '' : label + ' 님의 ') + n + '번 선물';
     infoName.innerText = g.name || '선물';
-    infoSub.innerText = '축하해요! 선생님께 이 화면을 보여 주세요';   // 가격은 보여 주지 않아요
+    infoSub.innerText = '축하해요! 선생님께 이 화면을 보여 주세요\n(화면을 누르면 처음으로)';   // 가격은 보여 주지 않아요
+    dr_shownAt = Date.now();
     const src = giftImg(g);
     if (src) { photo.src = src; photo.hidden = false; }
     if (!test) dr_just = g.docId;
@@ -2147,7 +2185,7 @@ async function dr_doDraw(test) {
     dr_confetti();
   }
   dr_rolling = false;
-  setTimeout(() => { if (!dr_rolling) ball.classList.add('ready'); }, 900);   // 튀어나오는 효과가 끝난 뒤 다시 두근두근
+  if (!res.success) ball.classList.add('ready');   // 실패하면 바로 다시 누를 수 있게 (성공하면 화면을 눌러 첫 화면으로)
   dr_render();
 }
 
@@ -2187,6 +2225,7 @@ if (CURRENT_PAGE === 'student') {
   document.body.style.background = '#12306B';   // 뽑기 화면은 끝까지 남색
   dr_soundLabel();
   dr_packLabel();
+  document.getElementById('view-draw').addEventListener('click', dr_onTap);
   // 아이패드를 돌리면(가로 ↔ 세로) 유리통 크기에 맞게 공을 다시 담아요
   addEventListener('resize', () => { if (!dr_rolling && giftsLoaded) dr_fillDrum(); });
   watchGifts(dr_render);
