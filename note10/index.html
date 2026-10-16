@@ -292,6 +292,7 @@ let SC = {};
 // 생기부 자료 (나이스에서 복사해 붙여 넣기) — meta/rec_연도_종류, 번호 + 칸만 (성명은 버려요). 다시 붙여 넣으면 새것으로 바뀌어요
 const RECORDS = [
   { id: 'att', label: '출결상황' },
+  { id: 'vol', label: '봉사활동' },
   { id: 'jayul', label: '자율·자치활동', chang: /자율|자치/ },
   { id: 'club', label: '동아리활동', chang: /동아리/ },
   { id: 'career', label: '진로활동', chang: /진로/ },
@@ -781,7 +782,7 @@ function viewClassAtt() {
 
 /* ✍️ 생기부 진행: 나이스에 들어간 창체 · 행발 · 세특 + 이 앱에서 정리한 단락 */
 function viewClassRec() {
-  const ys = [...new Set(Object.values(RC).filter(d => d.kind !== 'att').map(d => d.year))].sort((a, b) => b - a);
+  const ys = [...new Set(Object.values(RC).filter(d => d.kind !== 'att' && d.kind !== 'vol').map(d => d.year))].sort((a, b) => b - a);
   const y = ys.includes(V.cRecY) ? V.cRecY : ys[0] || new Date().getFullYear();
   const sd = setukDocs(y);
   const L = D.students.filter(s => s.num).sort((a, b) => a.num - b.num);
@@ -1364,6 +1365,9 @@ function corpus(st, max = 14000, ownOnly = false) {
       const h = haengText(st.num, y); if (h) L.push([y + '', '나이스 행발', h]);
     });
     Object.values(RC).filter(d => d.kind === 'setuk').forEach(d => { const r = d.rows.find(x => x.no === st.num); if (r && r.text) L.push([`${d.year}-${d.sem}학기`, '세특 ' + d.subj, r.text]); });
+    // 봉사활동은 한 번 한 번 날짜 순으로 섞어 넣어요
+    Object.values(RC).filter(d => d.kind === 'vol').forEach(d => { const r = d.rows.find(x => x.no === st.num);
+      (r?.items || []).forEach(x => L.push([volDate(x.date) || d.year + '', '나이스 봉사', `${x.text} (${x.h}시간${x.place ? ', ' + x.place : ''})`])); });
   }
   // 출결도 AI에 같이 보내요 (0이 아닌 칸만, 다 0이면 '모두 0') — 글이 길어도 잘리지 않게 맨 앞에 따로 붙여요
   const A = [];
@@ -2121,7 +2125,7 @@ function scoreTable(d) { return dataTable(d, new Set(gradeCols(d, examOf(d).kind
 function dataTable(d, g = new Set()) {
   return `<div style="overflow:auto;max-height:55vh"><table class="dtable"><tr><th>번호</th><th>학번</th><th>동물 친구</th>${d.cols.map((c, i) => `<th style="${g.has(i) ? 'color:var(--main)' : ''}">${esc(c)}</th>`).join('')}</tr>
     ${d.rows.map(r => { const s = D.students.find(x => x.num === r.no);
-      return `<tr><td>${r.no}</td><td>${esc(r.sid)}</td><td style="white-space:nowrap">${s ? `<a href="#" onclick="closeModal();openStudent('${s.id}',3);return false">${esc(sname(s))}</a>` : '<span class="mini">—</span>'}</td>${r.v.map((v, i) => `<td style="${g.has(i) ? 'font-weight:700' : ''}">${esc(v)}</td>`).join('')}</tr>`; }).join('')}
+      return `<tr><td>${r.no}</td><td>${esc(r.sid)}</td><td style="white-space:nowrap">${s ? `<a href="#" onclick="closeModal();openStudent('${s.id}',3);return false">${esc(sname(s))}</a>` : '<span class="mini">—</span>'}</td>${r.v.map((v, i) => `<td style="${g.has(i) ? 'font-weight:700;' : ''}${String(v).includes('\n') ? 'white-space:pre-line;min-width:260px' : ''}">${esc(v)}</td>`).join('')}</tr>`; }).join('')}
   </table></div>`;
 }
 function yearSelect() {
@@ -2182,7 +2186,8 @@ function parseTSV(t) {
 function recSetPending(p) {
   const iArea = p.cols.findIndex(c => /영역/.test(c));
   const area = iArea >= 0 ? (p.rows.find(r => r.v[iArea]) || { v: [] }).v[iArea] : '';
-  const hit = p.cols.some(c => /수업일수|결석|지각/.test(c)) ? RECORDS[0]
+  const hit = p.cols.some(c => /봉사/.test(c)) ? RECORDS.find(r => r.id === 'vol')
+    : p.cols.some(c => /수업일수|결석|지각/.test(c)) ? RECORDS[0]
     : p.cols.some(c => /종합의견/.test(c)) ? RECORDS.find(r => r.id === 'haeng')
     : area && RECORDS.find(r => r.chang && r.chang.test(area));
   if (hit && hit.id !== p.kind) { p.kind = hit.id; DASH.rec = hit.id; toast(`📋 표 모양을 보니 ${hit.label}(으)로 넣을게요`); }
@@ -2190,12 +2195,47 @@ function recSetPending(p) {
 }
 // 행발처럼 긴 글 한 칸 표는 쪽이 넘어가며 이어진 글까지 합쳐 읽어요
 function parseAnyRec(aoa) {
-  if (/종합의견/.test(aoa.slice(0, 20).flat().join('').replace(/\s/g, ''))) {
+  const top = aoa.slice(0, 20).flat().join('').replace(/\s/g, '');
+  if (/주관기관|봉사활동/.test(top) && /활동내용/.test(top)) return parseVol(aoa);
+  if (/종합의견/.test(top)) {
     const g = parseSetuk(aoa)[0];
     return { cols: ['행동특성 및 종합의견'], dropped: ['성명'], rows: g.rows.map(r => ({ sid: '', no: r.no, v: [r.text] })) };
   }
   return parseScoreSheet(aoa);
 }
+/* 봉사활동상황: 한 학생이 여러 줄 (번호 · 성명은 첫 줄에만 있고 아래 줄은 비어 있어요)
+   → 학생마다 한 줄로 모아요: [활동 수, 시간 합계, 활동 목록] + items(날짜 · 장소 · 내용 · 시간) */
+function parseVol(aoa) {
+  const rows = aoa.map(r => r.map(v => String(v ?? '').replace(/\s+/g, ' ').trim()));
+  const flat = c => c.replace(/\s/g, '');
+  const h = rows.findIndex(r => r.some(c => flat(c) === '활동내용'));
+  if (h < 0) throw new Error("'활동 내용' 머리글을 찾지 못했어요");
+  const col = re => rows[h].findIndex(c => re.test(flat(c)));
+  const iNo = col(/^번호$|^번$/), iDate = col(/일자|기간/), iPlace = col(/장소|주관/), iText = col(/^활동내용$/), iH = col(/^시간$/);
+  if (iNo < 0) throw new Error("'번호' 칸이 없어요 — 번호 · 성명 칸부터 같이 복사해 주세요");
+  const by = new Map(); let no = null, last = null;
+  rows.slice(h + 1).forEach(r => {
+    if (r.some(c => flat(c) === '활동내용')) return;                 // 쪽이 넘어가며 다시 나온 머리글
+    const n = r[iNo] || '';
+    if (/^\d{1,6}$/.test(n)) { no = +n % 100 || +n; last = null; }   // 학번이면 끝 두 자리
+    else if (n) return;                                               // 제목 · 반 같은 줄
+    if (no === null) return;
+    const date = r[iDate] || '', text = r[iText] || '';
+    if (!date && text && last) { last.text += ' ' + text; return; }  // 쪽이 넘어가며 이어진 글
+    if (!date && !text) return;
+    last = { date, place: iPlace >= 0 ? r[iPlace] || '' : '', text, h: iH >= 0 ? parseFloat(r[iH]) || 0 : 0 };
+    if (!by.has(no)) by.set(no, []);
+    by.get(no).push(last);
+  });
+  if (!by.size) throw new Error('학생 봉사 줄을 찾지 못했어요');
+  return {
+    cols: ['활동 수', '봉사 시간 합계', '봉사 활동'], dropped: ['성명', '학년', '누계시간'],
+    rows: [...by].sort((a, b) => a[0] - b[0]).map(([no, items]) => ({ sid: '', no, items,
+      v: [items.length + '', items.reduce((s, x) => s + x.h, 0) + '', items.map(x => `${x.date} ${x.text} (${x.h}시간)`).join('\n')] }))
+  };
+}
+// '2026.03.19.' → '2026-03-19' (AI에 날짜 순으로 넣을 때)
+const volDate = s => { const m = String(s).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : ''; };
 function recPreview() {
   try {
     const aoa = parseTSV($('#recText').value);
@@ -2214,7 +2254,7 @@ async function recFile(inp) {
 }
 async function recSave() {
   const p = DASH.recPending, key = recKey(p.year, p.kind);
-  const doc = { kind: p.kind, year: p.year, file: p.file, cols: p.cols, rows: p.rows, at: Date.now() };
+  const doc = JSON.parse(JSON.stringify({ kind: p.kind, year: p.year, file: p.file, cols: p.cols, rows: p.rows, at: Date.now() }));   // items 같은 안쪽 목록까지 그대로
   try { await roomRef().collection('meta').doc(key).set(doc); } catch (e) { return toast('☁️ 저장 실패: ' + e.message); }
   RC[key] = doc; DASH.recPending = null; dashRefresh(); render();
   toast(`📋 ${p.year}학년도 ${recOf(doc).label} ${doc.rows.length}명을 저장했어요`);
@@ -2289,8 +2329,16 @@ function recByStudent() {
     const attTxt = a ? att.cols.map((c, i) => a.v[i] && a.v[i] !== '0' ? `${esc(c)} <b>${esc(a.v[i])}</b>` : '').filter(Boolean).join(' · ') : '';
     return `<div class="repwrap"><div class="row" style="margin-bottom:6px"><b class="hand" style="font-size:18px">${no}번 ${s ? esc(sname(s)) : '<span class="mini">(동물 친구 없음)</span>'}</b>
       ${s ? `<button class="btn ghost sm" style="margin-left:auto" onclick="closeModal();openStudent('${s.id}',7)">학생 노트 →</button>` : ''}</div>
-      ${changCard(no, y)}${haengCard(no, y)}${attTxt ? `<div class="mini" style="margin-top:6px">📋 출결: ${attTxt}</div>` : ''}${setukList(no, y, true)}</div>`;
+      ${changCard(no, y)}${haengCard(no, y)}${attTxt ? `<div class="mini" style="margin-top:6px">📋 출결: ${attTxt}</div>` : ''}${volCard(no, y)}${setukList(no, y, true)}</div>`;
   }).join('');
+}
+// 한 학생의 봉사활동 (나이스 '봉사활동상황'처럼 날짜 · 장소 · 내용 · 시간 표)
+function volCard(no, year) {
+  const d = RC[recKey(year, 'vol')], r = d && d.rows.find(x => x.no === no);
+  if (!r) return '';
+  const items = r.items || [];
+  return `<table class="rep" style="margin-top:8px"><tr><th style="width:96px">일자</th><th>🤝 봉사 활동 내용 <span class="mini">${items.length}회 · ${esc(r.v[1])}시간</span></th><th style="width:44px">시간</th></tr>
+    ${items.map(x => `<tr><td class="mini">${esc(x.date)}</td><td>${esc(x.text)}${x.place ? `<div class="mini">${esc(x.place)}</div>` : ''}</td><td style="text-align:center">${esc(x.h)}</td></tr>`).join('')}</table>`;
 }
 
 /* 과목별 세부능력 및 특기사항 — 나이스 출력물을 엑셀로 저장해 올리거나 표를 복사해 붙여 넣어요
@@ -2460,6 +2508,10 @@ function recItems(st) {
     const r = d.rows.find(x => x.no === st.num); if (!r) return '';
     const parts = d.cols.map((c, i) => r.v[i] && r.v[i] !== '0' ? `${esc(c)} <b>${esc(r.v[i])}</b>` : '').filter(Boolean);
     return `<div class="item"><b class="hand" style="font-size:17px">📋 ${d.year} ${esc(recOf(d).label)}</b><div class="mini">${parts.join(' · ')}</div></div>`;
+  }).join('') + Object.values(RC).filter(d => d.kind === 'vol').sort((a, b) => b.year - a.year).map(d => {
+    const r = d.rows.find(x => x.no === st.num); if (!r) return '';
+    return `<div class="item"><b class="hand" style="font-size:17px">🤝 ${d.year} 봉사활동</b> <span class="mini">${esc(r.v[0])}회 · ${esc(r.v[1])}시간</span>
+      <div class="mini" style="white-space:pre-line;margin-top:4px">${esc(r.v[2])}</div></div>`;
   }).join('');
 }
 
