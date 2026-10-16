@@ -1365,9 +1365,21 @@ function corpus(st, max = 14000, ownOnly = false) {
     });
     Object.values(RC).filter(d => d.kind === 'setuk').forEach(d => { const r = d.rows.find(x => x.no === st.num); if (r && r.text) L.push([`${d.year}-${d.sem}학기`, '세특 ' + d.subj, r.text]); });
   }
+  // 출결도 AI에 같이 보내요 (0이 아닌 칸만, 다 0이면 '모두 0') — 글이 길어도 잘리지 않게 맨 앞에 따로 붙여요
+  const A = [];
+  if (st.num && !ownOnly) {
+    Object.values(RC).filter(d => d.kind === 'att').sort((a, b) => a.year - b.year).forEach(d => {
+      const r = d.rows.find(x => x.no === st.num); if (!r) return;
+      const iDays = d.cols.findIndex(c => /수업일수/.test(c)), iNote = d.cols.findIndex(c => /특기/.test(c));
+      const cnt = d.cols.map((c, i) => i !== iDays && i !== iNote && Number(r.v[i]) ? `${c.replace(/\s/g, '')} ${r.v[i]}` : '').filter(Boolean).join(' · ');
+      const note = iNote >= 0 && r.v[iNote] ? ` / 특기사항: ${r.v[iNote]}` : '';
+      A.push(`[${d.year}학년도] (나이스 출결) ${iDays >= 0 && r.v[iDays] ? `수업일수 ${r.v[iDays]} / ` : ''}${cnt || '결석 · 지각 · 조퇴 · 결과 모두 0'}${note}`);
+    });
+  }
   L.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
   const s = L.map(([d, k, t]) => `[${d || '날짜 없음'}] (${k}) ${t}`).join('\n');
-  return { text: s.length > max ? s.slice(-max) : s, n: L.length };
+  const body = s.length > max ? s.slice(-max) : s;
+  return { text: A.length ? A.join('\n') + '\n' + body : body, n: L.length };
 }
 function gradeBrief(st) {
   const f = k => growthRows(st, k).rows.map(r => r.label + ': ' + Object.entries(r).filter(([x]) => x !== 'label').map(([x, v]) => x + ' ' + v).join(', ')).join(' / ');
