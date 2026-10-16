@@ -8,6 +8,7 @@
   <!-- Firebase (compat 버전: 일반 script 태그로 바로 사용) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquare/nanumsquare.css');
     @font-face { font-family:'Paperlogy'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
@@ -244,9 +245,11 @@
     <div style="background:white; border-radius:14px; padding:28px 24px; width:85%; max-width:300px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
       <div style="font-size:36px; margin-bottom:8px;">🔒</div>
       <h2 style="margin:0 0 4px; color:var(--main);">관리자 확인</h2>
-      <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">비밀번호 4자리를 입력하세요</p>
-      <input type="password" id="ad-adminPw" maxlength="4" inputmode="numeric" style="text-align:center; font-size:20px; letter-spacing:8px;" placeholder="••••">
-      <button class="btn" style="width:100%" onclick="ad_checkAdminPw()">확인</button>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">관리자 계정(센메일)으로 로그인하세요</p>
+      <button class="btn" style="width:100%; margin-bottom:12px;" onclick="ad_googleLogin()">G 구글 계정으로 로그인</button>
+      <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">또는 관리자 비밀번호</p>
+      <input type="password" id="ad-adminPw" inputmode="numeric" autocomplete="current-password" style="text-align:center; font-size:20px; letter-spacing:6px;" placeholder="••••••">
+      <button class="btn secondary" style="width:100%" onclick="ad_checkAdminPw()">확인</button>
       <div id="ad-pwMsg" style="color:var(--danger); font-size:13px; margin-top:8px; display:none;">비밀번호가 올바르지 않습니다.</div>
       <p style="margin-top:14px;"><a href="?" style="font-size:12px;color:var(--muted);">← 학생용 화면</a></p>
     </div>
@@ -255,7 +258,7 @@
   <div id="ad-adminContent" style="display:none;">
     <header>
       <h1>🤝 또래상담부 <span style="font-size:14px;font-weight:normal;">교사용 관리보드</span></h1>
-      <p><a href="?" style="color:white;">← 학생용 화면으로 돌아가기</a></p>
+      <p><a href="?" style="color:white;">← 학생용 화면으로 돌아가기</a> · <a href="#" style="color:white;" onclick="ad_logout(); return false;">로그아웃</a></p>
     </header>
 
     <div class="notice-bar">
@@ -452,15 +455,6 @@
           <div id="im-giftsMsg" class="result-msg"></div>
         </div>
 
-        <div class="card">
-          <h2>🔑 관리자 비밀번호 바꾸기</h2>
-          <p class="help">숫자 4자리 (처음 기본값은 0000)</p>
-          <div class="row">
-            <input type="password" id="im-newPw" maxlength="4" inputmode="numeric" placeholder="새 비밀번호 4자리">
-            <button class="btn" onclick="im_changePw()">변경</button>
-          </div>
-          <div id="im-pwMsg" class="result-msg"></div>
-        </div>
       </div>
 
       <!-- 워리스톤 -->
@@ -611,17 +605,17 @@ async function clearCollection(name) {
   await batchWrite(snap.docs.map(d => b => b.delete(d.ref)));
 }
 
-/* ===================== 설정 (공지 / 관리자 비밀번호) ===================== */
+/* ===================== 관리자 로그인 ===================== */
+// moontr.site 의 다른 앱과 같은 관리자 계정. 비밀번호는 코드에 적지 않아요
+const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const auth = firebase.auth();
+
+/* ===================== 설정 (공지) ===================== */
 const settingsRef = db.collection(COL.settings).doc('main');
 async function getSettings() {
   const s = await settingsRef.get();
-  if (!s.exists) {
-    const def = { notice: '여기에 공지사항을 입력하세요.', adminPw: '0000' };
-    await settingsRef.set(def);
-    return def;
-  }
-  const d = s.data();
-  return { notice: d.notice || '', adminPw: String(d.adminPw || '0000') };
+  if (!s.exists) return { notice: '' };
+  return { notice: s.data().notice || '' };
 }
 
 /* ===================== 명단 ===================== */
@@ -726,7 +720,7 @@ async function st_loadNotice() {
   } catch (e) { console.error(e); }
 }
 
-// 5자리: 학번 / 4자리: 관리자 비밀번호면 교사, 아니면 방문객
+// 5자리: 학번 / 4자리: 방문객 (선생님은 교사용 관리보드에서 관리자 계정으로)
 async function loginStudent(input) {
   input = String(input).trim();
   if (!/^[0-9]+$/.test(input)) return { success: false, message: '학번(5자리) 또는 전화번호 뒷자리(4자리) 숫자만 입력해주세요.' };
@@ -741,8 +735,6 @@ async function loginStudent(input) {
     return { success: true, id: input, name: label, role: 'nonmember', welcome: label + ' 반가워요!' };
   }
   if (input.length === 4) {
-    const s = await getSettings();
-    if (input === s.adminPw) return { success: true, id: 'teacher', name: '선생님', role: 'teacher', welcome: '선생님, 반가워요!' };
     return { success: true, id: input, name: '방문객', role: 'guest', welcome: '진선여고 또래상담부를 찾아주셔서 감사합니다!' };
   }
   return { success: false, message: '학번(5자리) 또는 전화번호 뒷자리(4자리)를 입력해주세요.' };
@@ -920,24 +912,47 @@ let ad_regCount = 0;
 let ad_bulkItems = [];
 let ad_changeTarget = null;
 
-async function ad_checkAdminPw() {
-  const pw = document.getElementById('ad-adminPw').value.trim();
-  if (pw.length !== 4) return;
-  try {
-    const s = await getSettings();
-    if (pw === s.adminPw) {
-      ss('pcAdminAuthed', 'true');
-      ad_openAdmin();
-    } else {
-      document.getElementById('ad-pwMsg').style.display = 'block';
-      document.getElementById('ad-adminPw').value = '';
-      document.getElementById('ad-adminPw').focus();
-    }
-  } catch (e) { alert('연결 오류: ' + e.message); }
+function ad_showMsg(text) {
+  const m = document.getElementById('ad-pwMsg');
+  m.innerText = text;
+  m.style.display = 'block';
 }
+// 관리자 비밀번호 (moontr.site 다른 앱과 같은 센메일 계정 비밀번호)
+async function ad_checkAdminPw() {
+  const input = document.getElementById('ad-adminPw');
+  const pw = input.value.trim();
+  if (!pw) return;
+  try {
+    await auth.signInWithEmailAndPassword(ADMIN_EMAIL, pw);
+    input.value = '';
+  } catch (e) {
+    ad_showMsg('비밀번호가 올바르지 않습니다.');
+    input.value = '';
+    input.focus();
+  }
+}
+// 구글 계정으로 로그인 (관리자 센메일 계정만 들어갈 수 있어요)
+async function ad_googleLogin() {
+  const p = new firebase.auth.GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account', login_hint: ADMIN_EMAIL });
+  try {
+    await auth.signInWithPopup(p);
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') ad_showMsg('로그인하지 못했어요: ' + e.message);
+  }
+}
+async function ad_logout() {
+  await auth.signOut();
+  location.reload();
+}
+let ad_opened = false;
 function ad_openAdmin() {
+  if (ad_opened) return;
+  ad_opened = true;
   document.getElementById('ad-pwGate').style.display = 'none';
   document.getElementById('ad-adminContent').style.display = 'block';
+  // 예전 4자리 비밀번호가 남아 있으면 지워요 (누구나 읽을 수 있는 곳이었어요)
+  settingsRef.update({ adminPw: FV.delete() }).catch(() => {});
   ad_initAdminApp();
 }
 
@@ -1369,14 +1384,6 @@ async function im_gifts() {
   } catch (e) { showMsg('im-giftsMsg', '오류: ' + e.message, true); }
 }
 
-async function im_changePw() {
-  const pw = document.getElementById('im-newPw').value.trim();
-  if (!/^[0-9]{4}$/.test(pw)) { showMsg('im-pwMsg', '숫자 4자리로 입력해주세요.', true); return; }
-  await settingsRef.set({ adminPw: pw }, { merge: true });
-  document.getElementById('im-newPw').value = '';
-  showMsg('im-pwMsg', '✅ 비밀번호가 바뀌었어요.');
-}
-
 /* ============================================================ */
 /* 뽑기 공개 화면                                                  */
 /* ============================================================ */
@@ -1454,7 +1461,13 @@ if (CURRENT_PAGE === 'student') {
   document.getElementById('st-loginId').addEventListener('keydown', e => { if (e.key === 'Enter') st_doLogin(); });
 } else if (CURRENT_PAGE === 'admin') {
   document.getElementById('ad-adminPw').addEventListener('keydown', e => { if (e.key === 'Enter') ad_checkAdminPw(); });
-  if (ss('pcAdminAuthed') === 'true') ad_openAdmin();
+  ss('pcAdminAuthed', null); // 예전 방식 기록 지우기
+  // 관리자 허브 등에서 이미 로그인돼 있으면 비밀번호 창 없이 바로 열어요
+  auth.onAuthStateChanged(u => {
+    if (!u) return;
+    if (u.email === ADMIN_EMAIL) ad_openAdmin();
+    else { auth.signOut(); ad_showMsg('관리자 계정(센메일)으로 로그인해 주세요.'); }
+  });
 } else {
   watchGifts(dr_render);
 }
