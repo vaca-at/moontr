@@ -475,7 +475,7 @@ async function connectCloud() {
       if (d.id === 'classev') CE = Object.assign({ events: [], due: '' }, d.data());
       if (d.id === 'summary') SM = Object.assign({ weeks: {} }, d.data());
     });
-    fixCounselDates();
+    fixCounselDates(); fixNickDigits();
     setSync('cloud');
   } catch (e) { db = null; setSync('error'); toast('☁️ 파이어스토어 연결 실패: ' + e.message); }
 }
@@ -2090,20 +2090,36 @@ function openNick() {
     <button class="btn" onclick="saveNick()">💾 저장</button>`);
   setTimeout(() => $('#sNick')?.focus(), 50);
 }
+// '해바라기17'처럼 별칭 칸 끝에 숫자를 붙여 적으면 → 별칭 '해바라기' + 숫자 '17' (숫자 칸보다 이쪽이 먼저)
+function splitNick(nick, tag) {
+  const m = String(nick || '').trim().match(/^(.*?[^\d\s])\s*(\d{1,4})$/);
+  return m ? { nick: m[1].trim(), tag: m[2] } : { nick: String(nick || '').trim(), tag: tag || '' };
+}
+// 예전에 별칭 칸에 숫자까지 적어 '해바라기17' + 아무 숫자(7104)로 저장된 친구 → '해바라기' + 17 로 고쳐 저장 (불러온 뒤 한 번)
+function fixNickDigits() {
+  D.students.forEach(st => {
+    if (isPencil(st)) return;
+    const sp = splitNick(st.nick, ''); if (!sp.tag) return;
+    st.nick = sp.nick; st.tag = sp.tag !== String(st.num || '') ? sp.tag : freeTag(sp.nick, st.num);
+    saveStudent(st);
+  });
+}
+// 숫자 정하기: 반 번호와 상관없이 (비었거나 반 번호와 같으면 겹치지 않는 아무 숫자)
+function nickTag(tag, nick, num) {
+  if (tag && tag === String(num || '')) { toast('🔒 반 번호와 같은 숫자는 쓰지 않아요 — 다른 숫자로 바꿨어요'); return freeTag(nick, num); }
+  return tag || freeTag(nick, num);
+}
 function saveNick() {
-  const st = cur(), nick = $('#sNick').value.trim() || ANIMAL_NAMES[pickEmoji] || '친구';
+  const st = cur(), sp = splitNick($('#sNick').value, readTag()), nick = sp.nick || ANIMAL_NAMES[pickEmoji] || '친구';
   if (piiCheck(nick).length) return toast('별칭에 숫자·연락처는 빼 주세요');
-  // 숫자는 반 번호와 상관없이 (비우거나 반 번호와 같으면 겹치지 않는 아무 숫자)
-  const tag = readTag();
-  st.emoji = pickEmoji; st.nick = nick; st.tag = tag && tag !== String(st.num || '') ? tag : freeTag(nick, st.num);
-  if (tag && tag === String(st.num || '')) toast('🔒 반 번호와 같은 숫자는 쓰지 않아요 — 다른 숫자로 바꿨어요');
+  st.emoji = pickEmoji; st.nick = nick; st.tag = nickTag(sp.tag, nick, st.num);
   sortStudents(); saveStudent(st); closeModal(); render(); toast(`🏷️ ${sname(st)}(으)로 정했어요`);
 }
 function addStudent() {
-  const nick = $('#sNick').value.trim() || ('친구' + (D.students.length + 1));
+  const sp = splitNick($('#sNick').value, readTag()), nick = sp.nick || ('친구' + (D.students.length + 1));
   if (piiCheck(nick).length) return toast('별칭에 숫자·연락처는 빼 주세요');
   const num = readNum(); if (numTaken(num)) return toast(`반 번호 ${num}번은 이미 있어요`);
-  const st = normalize({ emoji: pickEmoji, nick, tag: readTag(), num, order: D.students.length });
+  const st = normalize({ emoji: pickEmoji, nick, tag: nickTag(sp.tag, nick, num), num, order: D.students.length });
   D.students.push(st); sortStudents(); V.sid = st.id; V.sec = 1; saveStudent(st); closeModal(); V.tab = 'note'; render();
 }
 function openEditStudent() {
@@ -2113,7 +2129,8 @@ function openEditStudent() {
 function editStudent() {
   const st = cur(), num = readNum();
   if (numTaken(num, st.id)) return toast(`반 번호 ${num}번은 이미 다른 친구예요`);
-  st.emoji = pickEmoji; st.nick = $('#sNick').value.trim() || st.nick; st.tag = readTag(); st.num = num;
+  const sp = splitNick($('#sNick').value, readTag());
+  st.emoji = pickEmoji; st.nick = sp.nick || st.nick; st.num = num; st.tag = nickTag(sp.tag, st.nick, num);
   sortStudents(); saveStudent(st); closeModal(); render();
 }
 function removeStudent() {
@@ -2177,12 +2194,16 @@ function rosterSet(id, k, v) {
   const st = D.students.find(s => s.id === id); if (!st) return;
   v = String(v).trim();
   if (k === 'num') { const n = parseInt(v, 10) || 0; if (n && (n < 1 || n > 60)) return toast('반 번호는 1~60이에요'), dashRefresh(); if (numTaken(n, id)) return toast(`반 번호 ${n}번은 이미 다른 친구예요`), dashRefresh(); st.num = n; }
-  const wasPencil = isPencil(st);
-  if (k === 'nick') { if (!v) return dashRefresh(); if (piiCheck(v).length) return toast('별칭에 숫자·연락처는 빼 주세요'), dashRefresh(); st.nick = v; }
+  const wasPencil = isPencil(st); let typed = false;
+  if (k === 'nick') {
+    const sp = splitNick(v, '');   // '해바라기17' → 별칭 '해바라기' + 숫자 17
+    if (!sp.nick) return dashRefresh(); if (piiCheck(sp.nick).length) return toast('별칭에 숫자·연락처는 빼 주세요'), dashRefresh();
+    st.nick = sp.nick; if (sp.tag) { st.tag = nickTag(sp.tag, sp.nick, st.num); typed = true; }
+  }
   if (k === 'tag') { st.tag = v.replace(/\D/g, '').slice(0, 4); if (!isPencil(st) && st.tag && st.tag === String(st.num || '')) { st.tag = freeTag(st.nick, st.num); toast('🔒 반 번호와 같은 숫자는 쓰지 않아요 — 다른 숫자로 바꿨어요'); } }
   if (k === 'emoji') { const old = st.emoji; st.emoji = v; if (st.nick === PENCIL_NICK && v !== PENCIL) st.nick = ANIMAL_NAMES[v] || st.nick; else if (st.nick === ANIMAL_NAMES[old] && ANIMAL_NAMES[v]) st.nick = ANIMAL_NAMES[v]; }
   // 연필 친구가 별칭을 받으면 연필 숫자(= 반 번호)를 버리고 반 번호와 상관없는 숫자로
-  if (wasPencil && !isPencil(st) && (k === 'nick' || k === 'emoji')) st.tag = freeTag(st.nick, st.num);
+  if (wasPencil && !isPencil(st) && !typed && (k === 'nick' || k === 'emoji')) st.tag = freeTag(st.nick, st.num);
   if (k === 'num' && !isPencil(st) && st.tag === String(st.num)) st.tag = freeTag(st.nick, st.num);
   sortStudents(); saveStudent(st); render(); dashRefresh();
 }
