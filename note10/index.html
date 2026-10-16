@@ -1050,11 +1050,12 @@ const SUBJ_DICT = `화법과 언어,독서와 작문,문학,주제 탐구 독서
 const SUBJ_SKIP = ['사회(역사/도덕포함)', '제2외국어/한문', '기술·가정/정보', '기술∙가정/정보', '기술·가정/정보/제2외국어/한문/교양', '체육·예술', '예술(음악/미술)', '생활·교양', '기술·가정', '제2외국어', '교과군', '과목', '학점', '단위', '국어', '수학', '영어', '사회', '과학', '한국사', '체육', '예술', '교양'];
 // 띄어쓰기 · 줄바꿈을 모두 지운 글에서 사전 과목을 앞에서부터 가장 긴 것으로 찾아요
 // 가운데 점은 문서마다 다른 글자(·ㆍ･∙•‧・)라 하나로 맞추고, '기술·가정/정보' 교과군은 점이 빠져도 알아봐요
-const dotFix = t => t.replace(/[·ㆍ･∙•‧・]/g, '·').replace(/기술·?가정\/?정보/g, '기술·가정/정보');
-function subjScan(chunk) {
+const dotFix = t => t.replace(/[·ㆍ･∙•‧・⋅∘◦˙・]/g, '·').replace(/기술[^가-힣]?가정\s*\/?\s*정\s*보/g, '기술·가정/정보');
+// strict = 사전에 있는 과목만 (학기 글자 앞쪽 글에는 이름 · 제목이 섞일 수 있어서)
+function subjScan(chunk, strict) {
   const s = dotFix(chunk.replace(/\s+/g, '')), dict = SUBJ_DICT.map(n => ({ f: n.replace(/\s+/g, ''), n })), out = [];
   let i = 0, buf = '';
-  const flush = () => { if (/[가-힣]{2,}/.test(buf)) out.push(buf); buf = ''; };
+  const flush = () => { if (!strict && /[가-힣]{2,}/.test(buf)) out.push(buf); buf = ''; };
   while (i < s.length) {
     let best = null;
     dict.forEach(d => { if (s.startsWith(d.f, i) && (!best || d.f.length > best.len)) best = { len: d.f.length, n: d.n }; });
@@ -1071,6 +1072,11 @@ function pasteSubj() {
   if (!text.includes('\t')) {
     const out = {}, re = /([123])\s*학\s*년\s*([12])\s*학\s*기/g, ms = [...text.matchAll(re)];
     if (!ms.length) out[$('#subjSem').value] = subjScan(text);
+    // '2학년 2학기' 앞에 학기 글자 없이 복사된 과목 → 그 앞 학기(2학년 1학기)로, 사전에 있는 과목만
+    else if (ms[0].index > 0) {
+      const pre = subjScan(text.slice(0, ms[0].index), true), k = ms[0][2] === '2' ? `${ms[0][1]}-1` : $('#subjSem').value;
+      if (pre.length) out[k] = pre;
+    }
     ms.forEach((m, j) => { const a = subjScan(text.slice(m.index + m[0].length, j + 1 < ms.length ? ms[j + 1].index : text.length)); if (a.length) out[`${m[1]}-${m[2]}`] = a; });
     Object.keys(out).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete out[k]; });   // 2학년 1 · 2학기만
     const ks = Object.keys(out).filter(k => out[k].length); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
