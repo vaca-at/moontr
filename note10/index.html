@@ -2071,8 +2071,8 @@ const isPencil = s => s.emoji === PENCIL && s.nick === PENCIL_NICK;
 function makePencils(from, to, list, inDash) {
   const nums = (list || Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i)).filter(n => n >= 1 && n <= 60 && !D.students.some(s => s.num === n));
   if (!nums.length) return toast('새로 만들 번호가 없어요 (이미 다 있어요)');
-  let t = Math.max(0, ...D.students.filter(isPencil).map(s => parseInt(s.tag, 10) || 0));
-  nums.forEach(n => { const st = normalize({ emoji: PENCIL, nick: PENCIL_NICK, tag: String(++t), num: n, order: D.students.length }); D.students.push(st); saveStudent(st); });
+  // 연필 숫자 = 반 번호 (27번 친구는 '연필27') — 별칭을 정하기 전까지만 쓰는 임시 이름이라 헷갈리지 않게
+  nums.forEach(n => { const st = normalize({ emoji: PENCIL, nick: PENCIL_NICK, tag: String(n), num: n, order: D.students.length }); D.students.push(st); saveStudent(st); });
   sortStudents(); if (!cur()) V.sid = D.students[0]?.id || null;
   if (inDash) dashRefresh(); else closeModal();
   render(); toast(`✏️ 연필 친구 ${nums.length}명을 만들었어요`);
@@ -2157,6 +2157,14 @@ function dashRoster() {
         <td class="mini" style="vertical-align:middle;white-space:nowrap;${subjOk(s) ? 'color:#3d8a5f' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? 'color:var(--red)' : ''}">${SEMS.map(([k]) => (s.subjects?.[k] || []).length).join(' · ')}${subjOk(s) ? ' ✓' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? ' ⚠️' : ''}</td>
         <td style="vertical-align:middle"><button class="btn sm ghost" onclick="closeModal();openStudent('${s.id}',1)">노트 →</button></td></tr>`).join('')}
     </table></div>` : '<div class="empty">아직 친구가 없어요. 위에서 연필 친구를 한꺼번에 만들어 보세요 ✏️</div>'}</section>`;
+}
+// 연필 친구들의 숫자를 반 번호와 똑같이 맞춰요 (예전에 만든 연필 친구는 숫자가 밀려 있을 수 있어요)
+function pencilSync() {
+  const list = D.students.filter(s => isPencil(s) && s.num && s.tag !== String(s.num));
+  if (!list.length) return toast('✏️ 연필 친구 숫자가 이미 반 번호와 같아요');
+  if (!confirm(`연필 친구 ${list.length}명의 숫자를 반 번호와 똑같이 바꿀까요?\n(예: ${list.slice(0, 3).map(s => `연필${s.tag} → 연필${s.num}`).join(', ')})`)) return;
+  list.forEach(s => { s.tag = String(s.num); saveStudent(s); });
+  sortStudents(); render(); dashRefresh(); toast(`✏️ 연필 친구 ${list.length}명 숫자를 반 번호와 맞췄어요`);
 }
 // 명단 표에서 고친 칸 하나 저장
 function rosterSet(id, k, v) {
