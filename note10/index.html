@@ -272,6 +272,14 @@ const ACT_AREAS = ['자율', '진로', '동아리', '독서', '심화탐구', '�
 const CS_TYPES = ['정기 상담', '진로', '학업', '교우관계', '생활', '마음', '학부모'];
 const MOCK_SUBJ = ['국어', '수학', '영어', '한국사', '통합사회', '통합과학'];
 const GRADE_SUBJ = ['평균', '국어', '수학', '영어', '통합사회', '통합과학'];
+// 희망 진로 분야는 여러 개 → '공학, IT' 처럼 쉼표로 이어 저장해요
+const careers = st => String(st.career || '').split(/\s*,\s*/).filter(Boolean);
+function toggleCareer(c) {
+  const st = cur(); let a = careers(st);
+  if (a.includes(c)) a = a.filter(x => x !== c);
+  else a = c === '미정' ? ['미정'] : [...a.filter(x => x !== '미정'), c];   // '미정'은 다른 분야와 같이 고르지 않아요
+  st.career = a.join(', '); saveStudent(st); render();
+}
 const CAREERS = ['인문', '어문', '사회', '교육', '경영·경제', '법·행정', '자연과학', '공학', 'IT', '메디컬', '보건', '예체능', '미정'];
 const EMOJIS = ['🐰','🐻','🐱','🐶','🦊','🐼','🐨','🐯','🦁','🐸','🐥','🐧','🦄','🐹','🐿️','🦔','🐳','🐬','🦋','🐞','🐢','🦦','🐑','🐮','🌻','🌷','🍀','🍓','🍑','🍋','🍒','⭐','🌙','☁️','🌈','🎈'];
 const SUBJ_COLORS = ['#ee8fad', '#7aaedb', '#7fc59a', '#d9a74c', '#a68fd8', '#f0a37a', '#5cc0c0', '#c97b9b', '#8a9a5b', '#e0556a', '#6b7fd7', '#b58b5a'];
@@ -880,7 +888,7 @@ function viewClassCs() {
   const monthCs = L.reduce((n, s) => n + s.counsels.filter(c => c.date.startsWith(ym)).length, 0);
   const late = L.filter(s => { const l = lastCounsel(s); return !l || daysAgo(l) > 30; });
   const sent = L.reduce((n, s) => n + s.sentences.length, 0);
-  const cnt = {}; L.forEach(s => { const k = s.career || '미정'; cnt[k] = (cnt[k] || 0) + 1; });
+  const cnt = {}; L.forEach(s => { (careers(s).length ? careers(s) : ['미정']).forEach(k => { cnt[k] = (cnt[k] || 0) + 1; }); });   // 여러 분야를 고른 친구는 분야마다 1명씩
   const max = Math.max(1, ...Object.values(cnt));
   const sorted = [...L].sort((a, b) => (lastCounsel(a) || '0000').localeCompare(lastCounsel(b) || '0000'));
   return `
@@ -972,7 +980,8 @@ function secOverview(st) {
     <div class="box"><div class="hd pink"><span class="n">1</span>프로필 <button class="x sp" style="color:#fff" onclick="openEditStudent()">✏️</button></div><div class="bd">
       <p class="lead">이 친구는 <mark>무엇을 꿈꾸고</mark> 있을까요?</p>
       <div class="field"><label>🧭 희망 진로 분야</label>
-        <div class="row" style="margin-bottom:6px">${st.career && !CAREERS.includes(st.career) ? `<span class="pill on" style="font-size:14px;padding:3px 10px" title="예전 분류예요. 아래에서 다시 골라 주세요">${esc(st.career)} (예전)</span>` : ''}${CAREERS.map(c => `<button class="pill ${st.career === c ? 'on' : ''}" style="font-size:14px;padding:3px 10px" onclick="setField('career','${c}');render()">${c}</button>`).join('')}</div>
+        <div class="row" style="margin-bottom:6px">${careers(st).filter(c => !CAREERS.includes(c)).map(c => `<button class="pill on" style="font-size:14px;padding:3px 10px" title="예전 분류예요. 누르면 빠져요" onclick="toggleCareer(${esc(JSON.stringify(c))})">${esc(c)} (예전) ✕</button>`).join('')}${CAREERS.map(c => `<button class="pill ${careers(st).includes(c) ? 'on' : ''}" style="font-size:14px;padding:3px 10px" onclick="toggleCareer('${c}')">${c}</button>`).join('')}</div>
+        <div class="mini" style="margin:-2px 0 6px">여러 개 고를 수 있어요. 다시 누르면 빠져요.</div>
         <input type="text" value="${esc(st.careerDetail)}" placeholder="구체적으로 (예: 초등교사, 데이터 분석가)" onchange="setField('careerDetail',this.value)"></div>
       <div class="field"><label>💭 평소 고민</label><textarea onchange="setField('worry',this.value)" placeholder="친구 관계, 진로 고민, 마음 상태…">${esc(st.worry)}</textarea></div>
       <div class="field"><label>📚 공부 패턴</label><textarea onchange="setField('study',this.value)" placeholder="자습 시간대, 플래너 사용, 약한 과목 공부법…">${esc(st.study)}</textarea></div>
