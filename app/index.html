@@ -1328,7 +1328,7 @@
         <div class="full"><label>연도</label><div class="unit-pills" id="year-pills"></div></div>
         <div class="full"><label>월</label><div class="unit-pills" id="month-pills"></div></div>
         <div><label>문항번호</label><input id="f-num" placeholder="14" inputmode="numeric"></div>
-        <div><label>문항ID (자동 생성)</label><input id="f-id" placeholder="연도・월・문항번호 선택 시 자동" readonly style="background:var(--paper-2);"></div>
+        <div><label>문항ID (자동 생성 · 직접 고쳐도 돼요)</label><input id="f-id" placeholder="예: 2511-3"></div>
         <div><label>실시일 (자동)</label><input id="f-src" placeholder="26년 9월"></div>
         <div><label>오답률 (자동 조회)</label><input id="f-rate" placeholder="89.6"></div>
         <div><label>배점 (자동 조회)</label><input id="f-point" placeholder="3"></div>
@@ -4414,6 +4414,15 @@ function initAdmin(){
   const yearPick = buildPills('year-pills', yearList(), ()=>rebuildId());
   const monthPick = buildPills('month-pills', MONTHS.slice(), ()=>rebuildId());
   document.getElementById('f-num').addEventListener('input', ()=>rebuildId());
+  // 문항ID 칸을 직접 고치면 연도・월・문항번호・실시일도 거기에 맞춘다 (예: 2611-3 → 2511-3)
+  document.getElementById('f-id').addEventListener('input', ()=>{
+    const p = parseId(document.getElementById('f-id').value.trim());
+    if(!p) return;
+    yearPick.set(p.yy); monthPick.set(String(Number(p.mm)));
+    document.getElementById('f-num').value = p.num;
+    document.getElementById('f-src').value = `${p.yy}년 ${Number(p.mm)}월`;
+    lookupRate(makeId(p.yy, p.mm, p.num));
+  });
 
   function rebuildId(skipLookup){
     const num = document.getElementById('f-num').value.trim();
@@ -4790,8 +4799,9 @@ function initAdmin(){
 
   // ----- 저장 -----
   function collectQuestion(){
-    const id = document.getElementById('f-id').value;
-    const p = parseId(id);
+    const typed = document.getElementById('f-id').value.trim();
+    const p = parseId(typed);
+    const id = p ? makeId(p.yy, p.mm, p.num) : typed;   // 2511-03 처럼 적어도 2511-3 으로 맞춘다
     const thinkers = [];
     for(let i=0;i<state.thinkerCount;i++){
       const key = THINKER_LABELS[i];
@@ -4835,6 +4845,7 @@ function initAdmin(){
     const q = collectQuestion();
     const problems = [];
     if(!q.id) problems.push('문항ID(연도・월・문항번호)');
+    else if(!parseId(q.id)) problems.push('문항ID 모양(예: 2511-3)');
     if(!q.stem) problems.push('발문');
     if(q.choices.length < 2) problems.push('선지');
     if(!q.correctNum) problems.push('정답');
@@ -4884,13 +4895,81 @@ function initAdmin(){
   document.getElementById("submit-btn").addEventListener("click", ()=> saveQuestion(false));
 
   // ================= 등록 문항 목록 =================
+  let listFilter = 'all';   // 목록 위 점검 단추 (전체 / 문항ID 점검 / 11월 / 오답률 없음)
+
+  // [보기] 단추: 문항 전체(발문·제시문·보기·범례·선지·정답·해설)를 작은 창으로 띄운다
+  function showQuestionPopup(q, warn){
+    if(!q) return;
+    const old = document.getElementById('q-popup');
+    if(old) old.remove();
+    const nl = s => escapeHtml(s).replace(/\n/g,'<br>');
+    const correct = Number(q.correctNum);
+    const box = (title, body) => body ? `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;">${title}</div><div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--paper);">${body}</div></div>` : '';
+    const wrap = document.createElement('div');
+    wrap.id = 'q-popup';
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+    wrap.innerHTML = `
+      <div style="background:var(--card);color:var(--ink);border-radius:14px;max-width:720px;width:100%;max-height:90vh;overflow:auto;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <b style="font-size:18px;">${escapeHtml(q.id)}</b>
+          <span class="badge">${escapeHtml(q.src || '')}</span>
+          ${q.unit ? `<span class="badge">${escapeHtml(q.unit)}</span>` : ''}
+          <span class="badge ${rateNumber(q.rate) === null ? 'off' : ''}">오답률 ${rateNumber(q.rate) ?? '없음'}${q.point ? ` · ${escapeHtml(q.point)}점` : ''}</span>
+          <button class="small-btn line" type="button" id="q-popup-close" style="margin-left:auto;">닫기</button>
+        </div>
+        ${warn ? `<div class="no-text" style="margin-top:8px;font-size:13px;">⚠️ ${warn.join(' · ')}</div>` : ''}
+        <div style="margin-top:12px;font-weight:700;line-height:1.6;">${nl(q.stem)}</div>
+        ${box('제시문', q.thinkers.map(t => `${q.thinkers.length > 1 ? `<b>${escapeHtml(t.label)}</b>${t.name ? ` <span style="color:var(--muted);">(${escapeHtml(t.name)})</span>` : ''}: ` : (t.name ? `<span style="color:var(--muted);">(${escapeHtml(t.name)})</span> ` : '')}${nl(t.passage)}`).join('<div style="height:8px;"></div>'))}
+        ${box('보기', nl(q.bogi))}
+        ${box('범례', nl(q.legend))}
+        ${box('선지', q.choices.map((c,i)=>`<div style="padding:3px 0;${i+1===correct ? 'color:var(--green-dark);font-weight:700;' : ''}">${NUM_MARK[i]} ${nl(c)}${i+1===correct ? ' ✔' : ''}</div>`).join(''))}
+        <div style="margin-top:10px;"><b>정답</b> ${correct ? NUM_MARK[correct-1] : '<span class="no-text">없음</span>'}</div>
+        ${box('해설', nl(q.explanation)) || '<div style="margin-top:10px;color:var(--muted);font-size:13px;">해설 없음</div>'}
+      </div>`;
+    const close = ()=>{ wrap.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = e=>{ if(e.key === 'Escape') close(); };
+    wrap.addEventListener('click', e=>{ if(e.target === wrap) close(); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(wrap);
+    document.getElementById('q-popup-close').addEventListener('click', close);
+  }
   async function renderAdminList(){
     const el = document.getElementById('a-list');
     el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
     try{
       const snap = await getDocs(collection(db, COL.questions));
+      const raw = {};   // 문항ID 바꾸기 때 그대로 옮겨 담을 원래 내용
+      snap.docs.forEach(d => raw[d.id] = d.data());
       const qs = snap.docs.map(d=>normalizeQuestion({ id:d.id, ...d.data() })).sort(compareId);
       const publicCnt = qs.filter(q => !q.yy || Number(q.yy) >= MIN_YY).length;
+
+      // ----- 점검: 아직 안 치른 시험 · 문항ID와 실시일이 다름 · 오답률 없음 -----
+      // 예) 지금이 26년 10월인데 2611-3 이 있으면 아직 안 치른 시험이라 잘못 들어간 것
+      const now = new Date();
+      const nowKey = (now.getFullYear() % 100) * 100 + (now.getMonth() + 1);
+      const problemOf = q => {
+        const p = parseId(q.id);
+        const out = [];
+        if(!p) return ['문항ID 모양이 이상해요'];
+        if(Number(p.yy) * 100 + Number(p.mm) > nowKey) out.push('아직 안 치른 시험');
+        const d = raw[q.id] || {};
+        const s = parseSrc(d.src);
+        if((s && (s.yy !== p.yy || s.mm !== String(Number(p.mm))))
+          || (d.yy && String(d.yy) !== p.yy) || (d.mm && Number(d.mm) !== Number(p.mm))){
+          out.push(`실시일(${escapeHtml(d.src || `${d.yy}년 ${Number(d.mm)}월`)})과 다름`);
+        }
+        return out;
+      };
+      const probs = {}; qs.forEach(q => { const r = problemOf(q); if(r.length) probs[q.id] = r; });
+      const noRate = q => rateNumber(q.rate) === null;
+      const FILTERS = {
+        all:   { label:`전체 ${qs.length}`,                                      test:()=>true },
+        prob:  { label:`⚠️ 문항ID 점검 ${Object.keys(probs).length}`,            test:q=>!!probs[q.id] },
+        nov:   { label:`11월(수능) ${qs.filter(q=>Number(q.mm)===11).length}`,    test:q=>Number(q.mm)===11 },
+        norate:{ label:`오답률 없음 ${qs.filter(noRate).length}`,                 test:noRate }
+      };
+      if(!FILTERS[listFilter]) listFilter = 'all';
+      const shown = qs.filter(FILTERS[listFilter].test);
       const suggest = {};
       qs.forEach(q=>{
         const body = [...q.thinkers.map(t=>t.passage), q.bogi, q.legend, ...q.choices, q.explanation].join(' ');
@@ -4906,19 +4985,43 @@ function initAdmin(){
           ${changeCnt ? `<button class="small-btn green" id="reclassify-btn" type="button">🔄 발문 기준 자동 분류 제안 ${changeCnt}건 일괄 적용</button>` : `<span class="badge off">단원 분류 제안 없음</span>`}
         </div>
         ${changeCnt ? `<div class="section-hint">노란 줄은 발문(없으면 제시문 키워드)을 보고 다른 단원을 제안한 문항이에요. 한 건만 고치려면 [수정]에서 단원을 바꿔 저장하세요.</div>` : ''}
+        <div class="unit-pills" id="list-filter" style="margin:10px 0 6px;">
+          ${Object.entries(FILTERS).map(([k,f])=>`<button type="button" class="unit-pill ${listFilter===k?'active':''}" data-lf="${k}">${f.label}</button>`).join('')}
+        </div>
+        <div class="section-hint">수능(11월)은 <b>시험 본 해</b>로 적어요 — 2026학년도 수능은 25년 11월에 봤으니 <b>2511</b>. [ID 바꾸기]로 하나씩 고치면 실시일도 같이 맞춰져요.</div>
         <div class="data-table-wrap"><table class="data-table" data-sortable>
           <thead><tr><th>문항ID</th><th>단원</th><th>분류 제안</th><th>오답률</th><th>정답</th><th>발문</th><th></th></tr></thead>
-          <tbody>${qs.map(q=>`
+          <tbody>${shown.map(q=>`
             <tr class="${suggest[q.id] ? 'changed' : ''}">
-              <td><b>${escapeHtml(q.id)}</b>${q.yy && Number(q.yy) < MIN_YY ? '<br><span style="color:var(--muted);font-size:11px;">비공개</span>' : ''}</td>
+              <td><b>${escapeHtml(q.id)}</b>${q.yy && Number(q.yy) < MIN_YY ? '<br><span style="color:var(--muted);font-size:11px;">비공개</span>' : ''}${probs[q.id] ? `<br><span class="no-text" style="font-size:11px;">⚠️ ${probs[q.id].join(' · ')}</span>` : ''}</td>
               <td>${escapeHtml(q.unit) || '<span class="no-text">없음</span>'}</td>
               <td>${suggest[q.id] ? '→ ' + escapeHtml(suggest[q.id]) : ''}</td>
-              <td>${rateNumber(q.rate) ?? ''}</td>
+              <td>${rateNumber(q.rate) ?? '<span class="no-text">없음</span>'}</td>
               <td>${q.correctNum ? NUM_MARK[Number(q.correctNum)-1] : '<span class="no-text">없음</span>'}</td>
               <td class="stem">${escapeHtml(q.stem.slice(0,60))}</td>
-              <td><div class="row-btns"><button data-edit="${escapeHtml(q.id)}">수정</button><button class="del" data-del="${escapeHtml(q.id)}">삭제</button></div></td>
-            </tr>`).join('')}</tbody>
+              <td><div class="row-btns"><button data-view="${escapeHtml(q.id)}">보기</button><button data-edit="${escapeHtml(q.id)}">수정</button><button data-reid="${escapeHtml(q.id)}">ID 바꾸기</button><button class="del" data-del="${escapeHtml(q.id)}">삭제</button></div></td>
+            </tr>`).join('') || `<tr><td colspan="7" class="state-msg">해당하는 문항이 없어요 👍</td></tr>`}</tbody>
         </table></div>`;
+      el.querySelectorAll('[data-lf]').forEach(b=> b.addEventListener('click', ()=>{ listFilter = b.dataset.lf; renderAdminList(); }));
+      el.querySelectorAll('[data-view]').forEach(b=> b.addEventListener('click', ()=> showQuestionPopup(qs.find(x=>x.id===b.dataset.view), probs[b.dataset.view])));
+      // 문항ID 바꾸기: 새 ID로 그대로 옮기고 옛 문서는 지운다 (연도・월・번호・실시일도 새 ID에 맞춤)
+      el.querySelectorAll('[data-reid]').forEach(b=> b.addEventListener('click', async ()=>{
+        const oldId = b.dataset.reid;
+        const typed = prompt(`${oldId} 문항의 새 문항ID를 적어 주세요.\n(예: 2511-3 — 연도 두 자리 + 월 두 자리 - 문항번호)`, oldId);
+        if(typed === null) return;
+        const p = parseId(typed.trim());
+        if(!p){ alert('문항ID 모양이 아니에요. 예: 2511-3'); return; }
+        const newId = makeId(p.yy, p.mm, p.num);
+        if(newId === oldId) return;
+        try{
+          const newRef = doc(db, COL.questions, newId);
+          if((await getDoc(newRef)).exists() && !confirm(`${newId} 문항이 이미 있어요. ${oldId} 내용으로 덮어쓸까요?`)) return;
+          await setDoc(newRef, { ...raw[oldId], id:newId, yy:p.yy, mm:p.mm, num:p.num, src:`${p.yy}년 ${Number(p.mm)}월`, updatedAt: serverTimestamp() });
+          await deleteDoc(doc(db, COL.questions, oldId));
+          bumpQuestionsVersion();
+          renderAdminList();
+        }catch(e){ console.error(e); alert('바꾸지 못했어요: 권한을 확인해주세요.'); }
+      }));
       const rb = document.getElementById('reclassify-btn');
       if(rb) rb.addEventListener('click', async ()=>{
         if(!confirm(`제안된 ${changeCnt}문항의 단원을 한꺼번에 바꿀까요?`)) return;
