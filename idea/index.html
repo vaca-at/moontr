@@ -4884,6 +4884,43 @@ function initAdmin(){
 
   // ================= 등록 문항 목록 =================
   let listFilter = 'all';   // 목록 위 점검 단추 (전체 / 문항ID 점검 / 11월 / 오답률 없음)
+
+  // [보기] 단추: 문항 전체(발문·제시문·보기·범례·선지·정답·해설)를 작은 창으로 띄운다
+  function showQuestionPopup(q, warn){
+    if(!q) return;
+    const old = document.getElementById('q-popup');
+    if(old) old.remove();
+    const nl = s => escapeHtml(s).replace(/\n/g,'<br>');
+    const correct = Number(q.correctNum);
+    const box = (title, body) => body ? `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;">${title}</div><div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--paper);">${body}</div></div>` : '';
+    const wrap = document.createElement('div');
+    wrap.id = 'q-popup';
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+    wrap.innerHTML = `
+      <div style="background:var(--card);color:var(--ink);border-radius:14px;max-width:720px;width:100%;max-height:90vh;overflow:auto;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <b style="font-size:18px;">${escapeHtml(q.id)}</b>
+          <span class="badge">${escapeHtml(q.src || '')}</span>
+          ${q.unit ? `<span class="badge">${escapeHtml(q.unit)}</span>` : ''}
+          <span class="badge ${rateNumber(q.rate) === null ? 'off' : ''}">오답률 ${rateNumber(q.rate) ?? '없음'}${q.point ? ` · ${escapeHtml(q.point)}점` : ''}</span>
+          <button class="small-btn line" type="button" id="q-popup-close" style="margin-left:auto;">닫기</button>
+        </div>
+        ${warn ? `<div class="no-text" style="margin-top:8px;font-size:13px;">⚠️ ${warn.join(' · ')}</div>` : ''}
+        <div style="margin-top:12px;font-weight:700;line-height:1.6;">${nl(q.stem)}</div>
+        ${box('제시문', q.thinkers.map(t => `${q.thinkers.length > 1 ? `<b>${escapeHtml(t.label)}</b>${t.name ? ` <span style="color:var(--muted);">(${escapeHtml(t.name)})</span>` : ''}: ` : (t.name ? `<span style="color:var(--muted);">(${escapeHtml(t.name)})</span> ` : '')}${nl(t.passage)}`).join('<div style="height:8px;"></div>'))}
+        ${box('보기', nl(q.bogi))}
+        ${box('범례', nl(q.legend))}
+        ${box('선지', q.choices.map((c,i)=>`<div style="padding:3px 0;${i+1===correct ? 'color:var(--green-dark);font-weight:700;' : ''}">${NUM_MARK[i]} ${nl(c)}${i+1===correct ? ' ✔' : ''}</div>`).join(''))}
+        <div style="margin-top:10px;"><b>정답</b> ${correct ? NUM_MARK[correct-1] : '<span class="no-text">없음</span>'}</div>
+        ${box('해설', nl(q.explanation)) || '<div style="margin-top:10px;color:var(--muted);font-size:13px;">해설 없음</div>'}
+      </div>`;
+    const close = ()=>{ wrap.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = e=>{ if(e.key === 'Escape') close(); };
+    wrap.addEventListener('click', e=>{ if(e.target === wrap) close(); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(wrap);
+    document.getElementById('q-popup-close').addEventListener('click', close);
+  }
   async function renderAdminList(){
     const el = document.getElementById('a-list');
     el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
@@ -4950,10 +4987,11 @@ function initAdmin(){
               <td>${rateNumber(q.rate) ?? '<span class="no-text">없음</span>'}</td>
               <td>${q.correctNum ? NUM_MARK[Number(q.correctNum)-1] : '<span class="no-text">없음</span>'}</td>
               <td class="stem">${escapeHtml(q.stem.slice(0,60))}</td>
-              <td><div class="row-btns"><button data-edit="${escapeHtml(q.id)}">수정</button><button data-reid="${escapeHtml(q.id)}">ID 바꾸기</button><button class="del" data-del="${escapeHtml(q.id)}">삭제</button></div></td>
+              <td><div class="row-btns"><button data-view="${escapeHtml(q.id)}">보기</button><button data-edit="${escapeHtml(q.id)}">수정</button><button data-reid="${escapeHtml(q.id)}">ID 바꾸기</button><button class="del" data-del="${escapeHtml(q.id)}">삭제</button></div></td>
             </tr>`).join('') || `<tr><td colspan="7" class="state-msg">해당하는 문항이 없어요 👍</td></tr>`}</tbody>
         </table></div>`;
       el.querySelectorAll('[data-lf]').forEach(b=> b.addEventListener('click', ()=>{ listFilter = b.dataset.lf; renderAdminList(); }));
+      el.querySelectorAll('[data-view]').forEach(b=> b.addEventListener('click', ()=> showQuestionPopup(qs.find(x=>x.id===b.dataset.view), probs[b.dataset.view])));
       // 문항ID 바꾸기: 새 ID로 그대로 옮기고 옛 문서는 지운다 (연도・월・번호・실시일도 새 ID에 맞춤)
       el.querySelectorAll('[data-reid]').forEach(b=> b.addEventListener('click', async ()=>{
         const oldId = b.dataset.reid;
