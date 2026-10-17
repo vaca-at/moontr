@@ -1892,6 +1892,9 @@ function regionMap(q){
       if(d) map[letter] = { type:'비판', from:d[1], to:d[2] };
       return;
     }
+    // "A: 갑만의 입장" / "C: 을에게만 해당하는 진술" → 그 사람만의 주장 (차이점)
+    const only = desc.match(/([갑을병])s*(?:에게)?s*만/);
+    if(only) map[letter] = { type:'만', who:only[1] };
   });
   return map;
 }
@@ -1906,6 +1909,13 @@ function commonRegionLetters(q){
   if(!isVennStatementQuestion(q)) return [];
   const map = regionMap(q);
   return Object.keys(map).filter(k => map[k].type === '공통');
+}
+// 벤다이어그램(진술형)에서 "갑만의 입장(A)" · "을만의 입장(C)" 영역 → { A:'갑', C:'을' }
+function onlyRegionLetters(q){
+  if(!isVennStatementQuestion(q)) return {};
+  const map = regionMap(q), out = {};
+  Object.keys(map).forEach(k=>{ if(map[k].type === '만') out[k] = map[k].who; });
+  return out;
 }
 // <보기> 를 ㄱ・ㄴ・ㄷ 항목으로 쪼갠다. 항목 앞에 A:/B:/C: 가 붙어 있으면 영역도 같이 읽는다.
 //  예) "ㄷ. B: 법률의 제정 없이 각자는 어떠한 자유도 누릴 수 없다."
@@ -1931,18 +1941,28 @@ function pairStatements(questions){
     if(labels.length !== 2) return;      // 갑・을 두 명짜리만 (갑・을・병은 헷갈려서 제외)
     const names = (q.thinkers || []).map(t => cleanName(t.name)).filter(Boolean);
     if(names.length !== 2) return;
+    const nameOfLabel = lb => { const t = (q.thinkers || []).find(x => x.label === lb); return t ? cleanName(t.name) : ''; };
+    // 차이점: "롤스와 칸트 중 롤스만의 주장 — ~" (정답이면 그 사람만의 주장이 맞다 O, 아니면 X)
+    //  정답이 아니면 그 사람만의 주장이 아니다 — 둘의 공통점이거나 그 사람 주장이 아닐 수 있다.
+    const onlyItem = (who, body, ans, extra) => {
+      const mine = nameOfLabel(who), other = names.find(n => n !== mine);
+      if(!mine || !other) return;
+      out.push({ ...extra, text: fixJosa(`${mine}와 ${other} 중 ${mine}만의 주장 — ${labelToName(q, body)}`, [mine, other]), ans, kind:'차이점', names:[mine, other] });
+    };
+    const onlyL = onlyRegionLetters(q);
 
     // (가) <보기> 조합형 벤다이어그램
     //  "ㄷ. B: 법률의 제정 없이 ~" 처럼 보기 항목에 영역이 붙어 있고, 선지는 ㄱ・ㄴ 조합이다.
     //  정답 조합에 그 보기가 들어 있으면 공통점이 맞고(O), 빠져 있으면 아니다(X).
     const commonsB = commonRegionLetters(q);
-    if(q.bogi && commonsB.length){
-      const items = parseBogiItems(q.bogi).filter(it => commonsB.indexOf(it.letter) >= 0);
+    if(q.bogi && (commonsB.length || Object.keys(onlyL).length)){
+      const items = parseBogiItems(q.bogi).filter(it => commonsB.indexOf(it.letter) >= 0 || onlyL[it.letter]);
       if(items.length){
         const ci = parseInt(q.correctNum, 10) - 1;
         const answer = bogiMarksIn((q.choices || [])[ci] || '');
         if(answer.size){
           items.forEach(it=>{
+            if(onlyL[it.letter]){ onlyItem(onlyL[it.letter], it.body, answer.has(it.mark) ? 'O' : 'X', { q, i:ci, mark:it.mark }); return; }
             out.push({
               q, i:ci, mark:it.mark,
               text: fixJosa(`${names[0]}와 ${names[1]} 모두 — ${labelToName(q, it.body)}`, names),
@@ -1971,6 +1991,10 @@ function pairStatements(questions){
         if(!m) return;
         const info = map[m[1].toUpperCase()];
         if(!info) return;
+        if(info.type === '만'){
+          if(isVennStatementQuestion(q)) onlyItem(info.who, m[2].trim(), choiceTruth(q, i), { q, i });
+          return;
+        }
         const body = labelToName(q, m[2].trim());
         if(info.type === '공통'){
           if(!isVennStatementQuestion(q)) return;   // 진술형 벤다이어그램만 공통점으로 쓴다
@@ -3154,7 +3178,9 @@ function initStudent(){
             <div class="tox-num">${from + k + 1}</div>
             <div class="tox-body">
               <div class="tox-kind ${kindOf(s) === '차이점' ? 'diff' : ''}">${kindOf(s) === '차이점'
-                ? `↔️ 차이점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) + '의' : '두 사상가의'} 차이를 바르게 말한 내용일까요?`
+                ? (/만의 주장 —/.test(s.text)
+                    ? `↔️ 차이점 OX · 두 사상가 중 <b>한 사람만</b> 주장한 내용으로 맞을까요? (둘 다 주장했거나 그 사람 주장이 아니면 X)`
+                    : `↔️ 차이점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) + '의' : '두 사상가의'} 차이를 바르게 말한 내용일까요?`)
                 : `🤝 공통점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) : '두 사상가'} 모두 주장한 공통점으로 맞는 내용일까요?`}</div>
               <div class="tox-q">${escapeHtml(s.text)}</div>
               <div class="tox-note" ${mark ? '' : 'hidden'}>${mark
