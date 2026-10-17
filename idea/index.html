@@ -2293,7 +2293,8 @@ function initStudent(){
     ]},
     { id:'g-ox',     label:'OX 맞추기', items:[
       { panel:'p16', label:'사상가별 OX 맞추기' },
-      { panel:'p18', label:'공통점・차이점 OX' }
+      { panel:'p18', label:'🤝 공통점 OX', pk:'공통점' },
+      { panel:'p18', label:'↔️ 차이점 OX', pk:'차이점' }
     ]},
     { id:'g-review', label:'복습', items:[
       { panel:'p8',  label:'오답노트' },
@@ -2349,6 +2350,7 @@ function initStudent(){
     const g = currentGroup();
     const it = g.items[menuItem] || g.items[0];
     if(it.mode) collect.mode = it.mode;
+    if(it.pk && pox.kind !== it.pk){ pox.kind = it.pk; pox.page = 0; }   // 공통점 OX / 차이점 OX
     renderMenu();
     document.querySelectorAll('#student-view .panel').forEach(p=> p.classList.toggle('active', p.id === it.panel));
     renderPanelById(it.panel);
@@ -3108,7 +3110,7 @@ function initStudent(){
     if(!sayPick || !says[sayPick]) sayPick = names[0];
     const lines = says[sayPick].o;
     el.innerHTML = `
-      <div class="dash-note">기출 선지 가운데 <b>맞는 설명만</b> 사상가별로 모았어요. 갑・을을 견주는 비교형 선지는 [OX 맞추기 > 공통점・차이점 OX]에 있습니다.</div>
+      <div class="dash-note">기출 선지 가운데 <b>맞는 설명만</b> 사상가별로 모았어요. 갑・을을 견주는 비교형 선지는 [OX 맞추기 > 공통점 OX · 차이점 OX]에 있습니다.</div>
       <div class="pick-bar">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length, items:says[n].o }])), sayPick, 'data-t')}</div>
       <div class="read-head">✅ ${escapeHtml(sayPick)}에 대해 맞는 설명 ${lines.length}개</div>
       <div class="say-box">${lines.map(s=>`
@@ -3125,7 +3127,7 @@ function initStudent(){
   }
 
   // ----- 갑・을 OX 맞추기 (두 사상가를 견주는 선지) -----
-  const pox = { list:[], page:0, marks:{}, loaded:false, kind:'all' };
+  const pox = { list:[], page:0, marks:{}, loaded:false, kind:'공통점' };
   async function loadPairItems(){
     try{
       const snap = await getDocs(collection(db, COL.compare));
@@ -3145,14 +3147,11 @@ function initStudent(){
     // 공통점 / 차이점 골라 보기 (저장할 때 정한 종류. 비어 있으면 공통점으로 본다)
     const kindOf = x => x.kind === '차이점' ? '차이점' : '공통점';
     const cnt = k => pox.list.filter(x => kindOf(x) === k).length;
-    const all = pox.kind === 'all' ? pox.list : pox.list.filter(x => kindOf(x) === pox.kind);
-    const head = `
-      <div class="m1-subtabs">${[['all','전체 ' + pox.list.length],['공통점','🤝 공통점 OX ' + cnt('공통점')],['차이점','↔️ 차이점 OX ' + cnt('차이점')]]
-        .map(([k,l])=>`<button type="button" class="m1-subtab ${pox.kind===k?'active':''}" data-pk="${k}">${l}</button>`).join('')}</div>
-      <div class="dash-note">두 사상가를 <b>견주는 설명</b>을 O/X로 판단해요.
-        <b>🤝 공통점 OX</b>는 "두 사상가가 <b>모두</b> 주장한 내용인가?", <b>↔️ 차이점 OX</b>는 "두 사상가의 <b>차이</b>를 바르게 말했나?"를 묻습니다.
-        한 사람만 주장한 내용이면 공통점이 아니니 <b>X</b>예요.</div>`;
-    const bindKind = () => el.querySelectorAll('[data-pk]').forEach(b=> b.addEventListener('click', ()=>{ pox.kind = b.dataset.pk; pox.page = 0; renderPairOX(); }));
+    const all = pox.list.filter(x => kindOf(x) === pox.kind);
+    const head = pox.kind === '차이점'
+      ? `<div class="dash-note">↔️ 두 사상가 중 <b>한 사람만</b> 주장한 내용인지(또는 둘의 차이를 바르게 말했는지) O/X로 판단해요. 둘 다 주장했거나 그 사람 주장이 아니면 <b>X</b>예요. <b>${cnt('차이점')}</b>문항</div>`
+      : `<div class="dash-note">🤝 두 사상가가 <b>모두</b> 주장한 공통점인지 O/X로 판단해요. 한 사람만 주장했거나 둘 다 주장하지 않았으면 <b>X</b>예요. <b>${cnt('공통점')}</b>문항</div>`;
+    const bindKind = () => {};
     if(!all.length){
       el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
       bindKind();
@@ -5534,7 +5533,7 @@ function initAdmin(){
           <button class="small-btn line" id="cmp-csv" type="button">CSV로 내려받기</button>
           <span class="msg" id="cmp-msg"></span>
         </div>
-        <div class="section-hint">두 사상가를 견주는 선지("갑과 을 모두 ~", "을은 갑과 달리 ~")를 모읍니다. 정답이면 <b>O</b>, 정답이 아니면 <b>X</b>로 자동 판정합니다. <b>저장한 것만 학생 화면 [OX 맞추기 &gt; 공통점・차이점 OX]에 나옵니다.</b> 기출이 아닌 내용도 아래에서 직접 넣을 수 있어요.</div>
+        <div class="section-hint">두 사상가를 견주는 선지("갑과 을 모두 ~", "을은 갑과 달리 ~")를 모읍니다. 정답이면 <b>O</b>, 정답이 아니면 <b>X</b>로 자동 판정합니다. <b>저장한 것만 학생 화면 [OX 맞추기 &gt; 공통점 OX · 차이점 OX]에 나옵니다.</b> 기출이 아닌 내용도 아래에서 직접 넣을 수 있어요.</div>
 
         <div class="section-title first">직접 추가</div>
         <div class="form-grid">
