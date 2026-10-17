@@ -1876,6 +1876,8 @@ function statementOwner(q, text){
 // 갑・을을 견주는 선지만 따로 모은다 (공통점 / 차이점)
 // 선지가 "A: ~", "B: ~" 로 시작하는 그림・비판형 문항인지
 // (범례에 A: 갑만의 입장 / B: 갑과 을의 공통 입장 … 처럼 영역이 적혀 있는 유형)
+// "로크: ~" 처럼 한 사람 이름으로 시작하는 문장 (한 사람의 주장이라 공통점・차이점 OX로 풀 수 없음)
+function isOnePersonLine(text){ return /^\s*[^\s:：—]{1,12}\s*[:：]/.test(String(text || '')) && !isRegionChoice(text); }
 function isRegionChoice(text){ return /^\s*[A-EＡ-Ｅ]\s*[:：]/.test(String(text || '')); }
 function isRegionQuestion(q){
   if(/(^|\n)\s*[A-EＡ-Ｅ]\s*[:：]/.test(String(q.legend || ''))) return true;
@@ -1901,7 +1903,7 @@ function regionMap(q){
       return;
     }
     // "A: 갑만의 입장" / "C: 을에게만 해당하는 진술" → 그 사람만의 주장 (차이점)
-    const only = desc.match(/([갑을병])s*(?:에게)?s*만/);
+    const only = desc.match(/([갑을병])\s*(?:에게)?\s*만/);
     if(only) map[letter] = { type:'만', who:only[1] };
   });
   return map;
@@ -2098,6 +2100,7 @@ function pairStatements(questions){
     (q.choices || []).forEach((choice, i)=>{
       const s = String(choice || '');
       if(isRegionChoice(s)) return;
+      if(/^\s*[갑을병]\s*[:：]/.test(s)) return;   // "갑: ~" 은 한 사람의 주장이라 견주는 선지가 아님
       const hit = labels.filter(l => new RegExp('(^|[\\s,·(])' + l + '(?=[은는이가만도:,]|\\s|와|과)').test(s));
       // "사람과 동물은 모두 ~" 처럼 갑・을과 무관한 '모두'가 섞이지 않도록,
       // 갑・을・병이 두 명 이상 실제로 등장할 때만 비교형으로 본다
@@ -3221,7 +3224,7 @@ function initStudent(){
       const snap = await getDocs(collection(db, COL.compare));
       // 그림 영역 선지("D: ~를 간과한다")・비판형・세 사람 이상은 공통점/차이점 O/X로 풀 수 없어서 학생 화면에서 뺀다
       // (관리자 [갑・을 OX]의 "잘못 들어간 것 골라내기"와 같은 기준)
-      const usable = x => x.text && x.ans && !isRegionChoice(x.text) && x.kind !== '비판' && ((x.names || []).length <= 2 || (x.kind === '공통점' && (x.names || []).length === 3));
+      const usable = x => x.text && x.ans && !isRegionChoice(x.text) && !isOnePersonLine(x.text) && x.kind !== '비판' && ((x.names || []).length <= 2 || (x.kind === '공통점' && (x.names || []).length === 3));
       pox.list = shuffle(snap.docs.map(d=>({ id:d.id, ...d.data() })).filter(usable));
     }catch(e){ console.error('갑・을 OX 목록을 불러오지 못했어요', e); pox.list = []; }
     pox.loaded = true;
@@ -5677,7 +5680,7 @@ function initAdmin(){
             <thead><tr><th style="width:34px;"></th><th>정답</th><th>종류</th><th>설명</th><th>대상</th><th>출처</th><th></th></tr></thead>
             <tbody>${compareSaved.map(x=>`
               <tr>
-                <td><input type="checkbox" class="cmp-spick" data-id="${escapeHtml(x.id)}" data-bad="${(isRegionChoice(x.text) || ((x.names || []).length > 2 && !(x.kind === '공통점' && (x.names || []).length === 3)) || x.kind === '비판') ? '1' : '0'}"></td>
+                <td><input type="checkbox" class="cmp-spick" data-id="${escapeHtml(x.id)}" data-bad="${(isRegionChoice(x.text) || isOnePersonLine(x.text) || ((x.names || []).length > 2 && !(x.kind === '공통점' && (x.names || []).length === 3)) || x.kind === '비판') ? '1' : '0'}"></td>
                 <td><b class="${x.ans === 'O' ? '' : 'no-text'}">${escapeHtml(x.ans || '')}</b></td>
                 <td>${escapeHtml(x.kind || '')}</td>
                 <td class="stem" style="color:var(--ink);">${escapeHtml(x.text || '')}</td>
