@@ -588,6 +588,8 @@
   .tox-row.no{ background:var(--red-light); }
   .tox-num{ flex:none; width:20px; font-size:12.5px; font-weight:800; color:var(--muted); line-height:1.9; }
   .tox-body{ flex:1; min-width:0; }
+  .tox-kind{ display:inline-block; font-size:12px; font-weight:800; color:var(--green-dark); background:var(--green-light); border-radius:10px; padding:2px 10px; margin-bottom:5px; line-height:1.5; }
+  .tox-kind.diff{ color:var(--gold); background:var(--gold-light); }
   .tox-q{ font-family:var(--font-read); font-size:calc(var(--q) * .95); line-height:1.75; word-break:keep-all; }
   .tox-note{ margin-top:6px; font-size:12.5px; font-weight:700; line-height:1.6; color:var(--ink); }
   .tox-note .say-src-plain{ display:block; margin-top:2px; color:var(--muted); }
@@ -2267,7 +2269,7 @@ function initStudent(){
     ]},
     { id:'g-ox',     label:'OX 맞추기', items:[
       { panel:'p16', label:'사상가별 OX 맞추기' },
-      { panel:'p18', label:'갑・을 OX 맞추기' }
+      { panel:'p18', label:'공통점・차이점 OX' }
     ]},
     { id:'g-review', label:'복습', items:[
       { panel:'p8',  label:'오답노트' },
@@ -3082,7 +3084,7 @@ function initStudent(){
     if(!sayPick || !says[sayPick]) sayPick = names[0];
     const lines = says[sayPick].o;
     el.innerHTML = `
-      <div class="dash-note">기출 선지 가운데 <b>맞는 설명만</b> 사상가별로 모았어요. 갑・을을 견주는 비교형 선지는 [OX 맞추기 > 갑・을 OX]에 있습니다.</div>
+      <div class="dash-note">기출 선지 가운데 <b>맞는 설명만</b> 사상가별로 모았어요. 갑・을을 견주는 비교형 선지는 [OX 맞추기 > 공통점・차이점 OX]에 있습니다.</div>
       <div class="pick-bar">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:says[n].o.length, items:says[n].o }])), sayPick, 'data-t')}</div>
       <div class="read-head">✅ ${escapeHtml(sayPick)}에 대해 맞는 설명 ${lines.length}개</div>
       <div class="say-box">${lines.map(s=>`
@@ -3113,11 +3115,20 @@ function initStudent(){
       el.innerHTML = `<div class="state-msg">불러오는 중...</div>`;
       await loadPairItems();
     }
-    const all = pox.list;
+    // 공통점 / 차이점 골라 보기 (저장할 때 정한 종류. 비어 있으면 공통점으로 본다)
+    const kindOf = x => x.kind === '차이점' ? '차이점' : '공통점';
+    const cnt = k => pox.list.filter(x => kindOf(x) === k).length;
+    const all = pox.kind === 'all' ? pox.list : pox.list.filter(x => kindOf(x) === pox.kind);
     const head = `
-      <div class="dash-note">두 사상가를 <b>견주는 설명</b>이 맞는지 O/X로 판단해요. 맞는 설명이면 <b>O</b>, 틀린 설명이면 <b>X</b>입니다. <b>${pox.list.length}</b>문항</div>`;
+      <div class="m1-subtabs">${[['all','전체 ' + pox.list.length],['공통점','🤝 공통점 OX ' + cnt('공통점')],['차이점','↔️ 차이점 OX ' + cnt('차이점')]]
+        .map(([k,l])=>`<button type="button" class="m1-subtab ${pox.kind===k?'active':''}" data-pk="${k}">${l}</button>`).join('')}</div>
+      <div class="dash-note">두 사상가를 <b>견주는 설명</b>을 O/X로 판단해요.
+        <b>🤝 공통점 OX</b>는 "두 사상가가 <b>모두</b> 주장한 내용인가?", <b>↔️ 차이점 OX</b>는 "두 사상가의 <b>차이</b>를 바르게 말했나?"를 묻습니다.
+        한 사람만 주장한 내용이면 공통점이 아니니 <b>X</b>예요.</div>`;
+    const bindKind = () => el.querySelectorAll('[data-pk]').forEach(b=> b.addEventListener('click', ()=>{ pox.kind = b.dataset.pk; pox.page = 0; renderPairOX(); }));
     if(!all.length){
       el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
+      bindKind();
       return;
     }
     const pages = Math.ceil(all.length / TOX_PAGE);
@@ -3139,6 +3150,9 @@ function initStudent(){
           <div class="tox-row ${mark ? (ok ? 'ok' : 'no') : ''}" data-id="${escapeHtml(s.id)}">
             <div class="tox-num">${from + k + 1}</div>
             <div class="tox-body">
+              <div class="tox-kind ${kindOf(s) === '차이점' ? 'diff' : ''}">${kindOf(s) === '차이점'
+                ? `↔️ 차이점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) + '의' : '두 사상가의'} 차이를 바르게 말한 내용일까요?`
+                : `🤝 공통점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) : '두 사상가'} 모두 주장한 공통점으로 맞는 내용일까요?`}</div>
               <div class="tox-q">${escapeHtml(s.text)}</div>
               <div class="tox-note" ${mark ? '' : 'hidden'}>${mark
                 ? `${ok ? '맞았어요.' : `아니에요. 이 설명은 <b>${s.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`}${s.src ? ` <span class="say-src-plain">출처 ${escapeHtml(s.src)}</span>` : ''}`
@@ -3157,6 +3171,7 @@ function initStudent(){
           ? `<button type="button" class="tox-move next" id="p18-next">다음 ${Math.min(TOX_PAGE, all.length - from - slice.length)}개 →</button>`
           : `<button type="button" class="tox-move next" id="p18-again">처음부터 다시 풀기</button>`}
       </div>`;
+    bindKind();
     el.querySelectorAll('.tox-row').forEach(row=>{
       row.querySelectorAll('.ox').forEach(b=> b.addEventListener('click', ()=>{
         const id = row.dataset.id;
@@ -5490,7 +5505,7 @@ function initAdmin(){
           <button class="small-btn line" id="cmp-csv" type="button">CSV로 내려받기</button>
           <span class="msg" id="cmp-msg"></span>
         </div>
-        <div class="section-hint">두 사상가를 견주는 선지("갑과 을 모두 ~", "을은 갑과 달리 ~")를 모읍니다. 정답이면 <b>O</b>, 정답이 아니면 <b>X</b>로 자동 판정합니다. <b>저장한 것만 학생 화면 [OX 맞추기 &gt; 갑・을 OX]에 나옵니다.</b> 기출이 아닌 내용도 아래에서 직접 넣을 수 있어요.</div>
+        <div class="section-hint">두 사상가를 견주는 선지("갑과 을 모두 ~", "을은 갑과 달리 ~")를 모읍니다. 정답이면 <b>O</b>, 정답이 아니면 <b>X</b>로 자동 판정합니다. <b>저장한 것만 학생 화면 [OX 맞추기 &gt; 공통점・차이점 OX]에 나옵니다.</b> 기출이 아닌 내용도 아래에서 직접 넣을 수 있어요.</div>
 
         <div class="section-title first">직접 추가</div>
         <div class="form-grid">
