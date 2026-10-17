@@ -5438,14 +5438,22 @@ function initAdmin(){
       };
       const probs = {}; qs.forEach(q => { const r = problemOf(q); if(r.length) probs[q.id] = r; });
       const noRate = q => rateNumber(q.rate) === null;
+      // 중복 점검: 발문・제시문・보기・선지가 한 글자도 다르지 않은 문항끼리 묶는다 (띄어쓰기는 무시)
+      const sameKey = q => [q.stem, ...q.thinkers.map(t => t.passage), q.bogi, ...q.choices].join('|').replace(/ +/g, '');
+      const groups = {};
+      qs.forEach(q => { (groups[sameKey(q)] = groups[sameKey(q)] || []).push(q.id); });
+      const dupOf = {};
+      Object.values(groups).filter(g => g.length > 1).forEach(g => g.forEach(id => { dupOf[id] = g.filter(x => x !== id); }));
       const FILTERS = {
         all:   { label:`전체 ${qs.length}`,                                      test:()=>true },
         prob:  { label:`⚠️ 문항ID 점검 ${Object.keys(probs).length}`,            test:q=>!!probs[q.id] },
         nov:   { label:`11월(수능) ${qs.filter(q=>Number(q.mm)===11).length}`,    test:q=>Number(q.mm)===11 },
+        dup:   { label:`👯 중복 점검 ${Object.keys(dupOf).length}`,                test:q=>!!dupOf[q.id] },
         norate:{ label:`오답률 없음 ${qs.filter(noRate).length}`,                 test:noRate }
       };
       if(!FILTERS[listFilter]) listFilter = 'all';
       const shown = qs.filter(FILTERS[listFilter].test);
+      if(listFilter === 'dup') shown.sort((a,b)=> sameKey(a).localeCompare(sameKey(b)) || compareId(a,b));   // 같은 문항끼리 붙여서
       const suggest = {};
       qs.forEach(q=>{
         const body = [...q.thinkers.map(t=>t.passage), q.bogi, q.legend, ...q.choices, q.explanation].join(' ');
@@ -5469,7 +5477,7 @@ function initAdmin(){
           <thead><tr><th>문항ID</th><th>단원</th><th>분류 제안</th><th>오답률</th><th>정답</th><th>발문</th><th></th></tr></thead>
           <tbody>${shown.map(q=>`
             <tr class="${suggest[q.id] ? 'changed' : ''}">
-              <td><b>${escapeHtml(q.id)}</b>${q.yy && Number(q.yy) < MIN_YY ? '<br><span style="color:var(--muted);font-size:11px;">비공개</span>' : ''}${probs[q.id] ? `<br><span class="no-text" style="font-size:11px;">⚠️ ${probs[q.id].join(' · ')}</span>` : ''}</td>
+              <td><b>${escapeHtml(q.id)}</b>${q.yy && Number(q.yy) < MIN_YY ? '<br><span style="color:var(--muted);font-size:11px;">비공개</span>' : ''}${probs[q.id] ? `<br><span class="no-text" style="font-size:11px;">⚠️ ${probs[q.id].join(' · ')}</span>` : ''}${dupOf[q.id] ? `<br><span class="no-text" style="font-size:11px;">👯 ${dupOf[q.id].map(escapeHtml).join(', ')}와 내용이 같아요</span>` : ''}</td>
               <td>${escapeHtml(q.unit) || '<span class="no-text">없음</span>'}</td>
               <td>${suggest[q.id] ? '→ ' + escapeHtml(suggest[q.id]) : ''}</td>
               <td>${rateNumber(q.rate) ?? '<span class="no-text">없음</span>'}</td>
