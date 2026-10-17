@@ -69,6 +69,17 @@ svg{width:16px;height:16px;flex:none}
 .alink .nm{flex:1;min-width:0;border:0;background:none;padding:0;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .alink .grp{color:var(--muted);font-size:.75rem}
 
+/* 🚨 학생 오류 신고 · 답 기다리는 질문 알림 (위쪽 막대 바로 아래, 어느 화면에서나 보임) */
+.alert-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.55rem clamp(16px,2.5vw,32px);background:#B3261E;color:#fff;font-size:.92rem}
+.alert-bar b{font-size:1rem}
+.alert-bar button{display:inline-flex;align-items:center;gap:.35rem;min-height:34px;padding:0 .85rem;border:0;border-radius:999px;background:#fff;color:#B3261E;font-weight:800;cursor:pointer}
+.alert-bar button:hover{filter:brightness(.95)}
+.alert-bar .re{margin-left:auto;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);font-weight:600}
+.alert-bar.calm{background:#E8F5EE;color:#1F6B4E}
+.nbadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#D93025;color:#fff;font-size:.72rem;font-weight:800;line-height:1}
+@keyframes blink{50%{opacity:.35}}
+.tab .nbadge{animation:blink 1.4s ease-in-out infinite}
+
 /* 본문: 고른 앱의 관리자 화면 */
 #frame{display:block;width:100%;height:calc(100dvh - var(--top-h, 110px));border:0;background:var(--surface)}
 .frame-note{display:flex;align-items:center;gap:.5rem;padding:.45rem clamp(16px,2.5vw,32px);font-size:.8rem;color:var(--muted);background:#FBFCFE;border-bottom:1px solid var(--line)}
@@ -253,6 +264,7 @@ body.editing .del{display:inline-block}
     </div>
   </div>
   <nav class="tabs" id="tabs" aria-label="관리자 화면 고르기" hidden></nav>
+  <div class="alert-bar" id="alertBar" role="alert" hidden></div>
 </header>
 <div class="menu" id="menu" role="menu" hidden></div>
 
@@ -294,7 +306,7 @@ body.editing .del{display:inline-block}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, getCountFromServer, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
@@ -472,6 +484,64 @@ const LOGIN_NOTE = {
   gg:'다른 Firebase(공부방 · 생기부노트 · 아이아이노트)라 처음 한 번은 구글 관리자 계정(bellachord)으로 로그인합니다. 로그인 창이 안 뜨거나 막히면 [새 창으로]를 누르세요.'
 };
 
+/* ============================================================
+   🚨 학생이 기다리는 것 (오류 신고 · 선생님 답을 기다리는 질문)
+   관리자 화면 주소 → 셀 곳. 새 앱에 신고·질문 기능이 생기면 여기에 한 줄 추가
+     col: Firestore 컬렉션 · field/value: "아직 처리 안 함" 표시 · tab: 눌렀을 때 열 관리자 탭
+   ============================================================ */
+const WAITS = {
+  '/idea/?admin': [
+    { label:'오류 신고', col:'yunsa_reports', field:'status', value:'new', tab:'a-reports' },
+    { label:'질문', col:'yunsa_chats', field:'needTeacher', value:true, tab:'a-chats' }
+  ],
+  '/app/?admin': [
+    { label:'오류 신고', col:'saengyun_reports', field:'status', value:'new', tab:'a-reports' },
+    { label:'질문', col:'saengyun_chats', field:'needTeacher', value:true, tab:'a-chats' }
+  ]
+};
+let waits = null;   // 관리자 화면 주소 → [{label, tab, n}] (아직 안 셌으면 null)
+const waitCount = a => ((waits && waits[a.admin]) || []).reduce((s, w) => s + w.n, 0);
+/* 문서를 다 받지 않고 개수만 세어 와서 요금이 거의 들지 않아요 */
+async function loadWaits(){
+  const next = {};
+  await Promise.all(Object.entries(WAITS).map(async ([admin, list]) => {
+    next[admin] = await Promise.all(list.map(async w => {
+      try { return { ...w, n: (await getCountFromServer(query(collection(db, w.col), where(w.field, '==', w.value)))).data().count }; }
+      catch (e){ console.error('개수를 세지 못했어요', w.col, e); return { ...w, n: 0 }; }
+    }));
+  }));
+  waits = next;
+  renderAlert();
+  renderTabs();
+  if (cur === 'home' && homeData) renderHome();   // 카드에도 빨간 숫자
+}
+function renderAlert(){
+  if (!waits){ $('#alertBar').hidden = true; return; }
+  const rows = [];
+  Object.entries(waits).forEach(([admin, list]) => {
+    const a = ALL_APPS.find(x => x.admin === admin); if (!a) return;
+    list.forEach(w => { if (w.n) rows.push({ a, w }); });
+  });
+  const total = rows.reduce((s, r) => s + r.w.n, 0);
+  const bar = $('#alertBar');
+  bar.hidden = !total && cur !== 'home';
+  bar.classList.toggle('calm', !total);
+  bar.innerHTML = total
+    ? `<b>🚨 학생이 기다리고 있어요 (${total}건)</b>${rows.map(r =>
+        `<button type="button" data-wopen="${esc(r.a.admin)}" data-wtab="${esc(r.w.tab)}">${esc(r.a.name.replace(' 만점 다이어리', ''))} ${esc(r.w.label)} ${r.w.n}건 →</button>`).join('')}
+       <button type="button" class="re" data-wreload>다시 세기</button>`
+    : `✅ 처리할 학생 오류 신고 · 질문이 없어요.`;
+  document.title = (total ? `(${total}) ` : '') + '관리자 허브 · moontr.site';
+  fitFrame();
+}
+$('#alertBar').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.hasAttribute('data-wreload')) return loadWaits();
+  show(ALL_APPS.find(a => a.admin === b.dataset.wopen), b.dataset.wtab);
+});
+/* 허브를 켜 둔 채로 있어도 3분마다 다시 셉니다 */
+setInterval(() => { if (auth.currentUser && !document.hidden) loadWaits(); }, 3 * 60 * 1000);
+
 /* ---------- 지금 보고 있는 화면 ---------- */
 /* 허브를 열면 늘 [홈]부터 보여 줍니다 */
 let cur = 'home';         // 'home' = 홈, null = 즐겨찾기, 그 밖에는 고른 앱
@@ -480,12 +550,14 @@ function renderTabs(){
   $('#tabs').innerHTML = ADMIN_GROUPS.map((g, gi) => {
     const on = g.items.includes(cur);
     const multi = g.items.length > 1;
+    const n = g.items.reduce((s, a) => s + waitCount(a), 0);
     return `<div class="tab ${on ? 'on' : ''}"><button type="button" data-g="${gi}" ${multi ? 'aria-haspopup="menu"' : ''}>
-      ${svg(g.icon)}${esc(g.title)}${on && multi ? `<span class="cur">· ${esc(cur.name)}</span>` : ''}${multi ? CARET : ''}</button></div>`;
+      ${svg(g.icon)}${esc(g.title)}${n ? `<span class="nbadge" title="학생이 기다리는 것 ${n}건">${n}</span>` : ''}${on && multi ? `<span class="cur">· ${esc(cur.name)}</span>` : ''}${multi ? CARET : ''}</button></div>`;
   }).join('') + `<div class="tab ${cur ? '' : 'on'}"><button type="button" data-bm>${svg('star')}즐겨찾기</button></div>`;
   $('#tabs').insertAdjacentHTML('afterbegin', `<div class="tab ${cur === 'home' ? 'on' : ''}"><button type="button" data-home>${svg('chart')}홈</button></div>`);
 }
-function show(app){
+/* tab: 그 관리자 화면 안의 탭부터 열기 (예: 'a-reports' = 신고 탭) */
+function show(app, tab){
   cur = app;
   closeMenu();
   renderTabs();
@@ -495,9 +567,11 @@ function show(app){
   $('#bm').hidden = app !== null;
   $('#edit').hidden = app !== null;
   $('#siteBtn').hidden = $('#newWin').hidden = !isApp;
-  if (app === 'home') renderHome();
+  if (app !== 'home') renderAlert();
+  if (app === 'home'){ renderHome(); loadWaits(); }
   else if (isApp){
-    if ($('#frame').dataset.src !== app.admin){ $('#frame').dataset.src = app.admin; $('#frame').src = app.admin; }
+    const src = tab ? `${app.admin}${app.admin.includes('?') ? '&' : '?'}tab=${tab}` : app.admin;
+    if ($('#frame').dataset.src !== src){ $('#frame').dataset.src = src; $('#frame').src = src; }
     $('#siteBtn').href = app.student || app.admin;
     $('#newWin').href = app.admin;
     const note = LOGIN_NOTE[app.login];
@@ -519,7 +593,7 @@ function openMenu(btn, gi){
   const g = ADMIN_GROUPS[gi], r = btn.getBoundingClientRect();
   const m = $('#menu');
   m.innerHTML = g.items.map((a, i) => `<div class="mrow"><button type="button" role="menuitem" data-i="${i}" ${a === cur ? 'aria-current="true"' : ''}>
-      <span class="dot ${a.login}"></span>${esc(a.name)}</button>${goLinks(a)}</div>`).join('');
+      <span class="dot ${a.login}"></span>${esc(a.name)}${waitCount(a) ? ` <span class="nbadge">${waitCount(a)}</span>` : ''}</button>${goLinks(a)}</div>`).join('');
   m.hidden = false;
   m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
   m.style.top = (r.bottom + 4) + 'px';
@@ -680,7 +754,7 @@ async function renderHome(force){
       : `<div class="nums"><span><b>${d.today}</b><small>오늘 ${unit}</small></span><span class="tot"><b>${d.total.toLocaleString()}</b><small>누적</small></span></div>
          ${grass(d.days)}${d.devices ? `<p class="msg">기기 ${d.devices}대 · 잔디는 날짜별 들어온 기기 수</p>` : ''}`;
     return `<div class="card" role="button" tabindex="0" data-open="${esc(a.admin)}">
-      <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}<span class="grp">${esc(g.title)}</span>${goLinks(a)}</span>${body}</div>`;
+      <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}${waitCount(a) ? ` <span class="nbadge" title="학생이 기다리는 것">${waitCount(a)}</span>` : ''}<span class="grp">${esc(g.title)}</span>${goLinks(a)}</span>${body}</div>`;
   }).join('');
   /* 방문 기록이 없는 관리자 화면 (심인당 · 실습편 · 교사용 화면 등): 이름 + 🏠 · 🔒 */
   const noStat = apps.filter(({ a }) => !STATS[a.admin]);
@@ -924,7 +998,7 @@ onAuthStateChanged(auth, user => {
   $('#login').hidden = ok;
   $('#acts').hidden = $('#tabs').hidden = !ok;
   if (ok) show(cur);
-  else { $('#stage').hidden = $('#bm').hidden = $('#home').hidden = true; homeData = null; $('#frame').removeAttribute('src'); delete $('#frame').dataset.src; $('#pw').focus(); }
+  else { $('#stage').hidden = $('#bm').hidden = $('#home').hidden = true; homeData = null; waits = null; renderAlert(); $('#frame').removeAttribute('src'); delete $('#frame').dataset.src; $('#pw').focus(); }
   if (ok && !unsubHidden) unsubHidden = onSnapshot(HIDDEN_DOC, snap => {
     hidden = (snap.exists() && Array.isArray(snap.data().hidden)) ? snap.data().hidden : [];
     const o = (snap.exists() && snap.data().others) || {};
