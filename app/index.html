@@ -5684,7 +5684,11 @@ function initAdmin(){
         <span class="msg reply-msg"></span>`;
       const ta = cell.querySelector('.reply-input');
       ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
-      cell.querySelector('.reply-cancel').addEventListener('click', ()=>{ cell.innerHTML = replyCellHTML(r); bindReplyCell(cell, r); });
+      // 코멘트를 쓰는 동안에는 같은 줄 오른쪽 단추(문항 수정 · 해결 완료 · 삭제)를 흐리게 잠가서 잘못 눌러 화면을 나가지 않게 한다
+      const sideBtns = [...(cell.closest('tr')?.lastElementChild?.querySelectorAll('button') || [])];
+      const lockSide = on => sideBtns.forEach(btn => { btn.disabled = on; btn.style.opacity = on ? '.3' : ''; btn.style.pointerEvents = on ? 'none' : ''; btn.title = on ? '코멘트를 보내거나 취소하면 다시 눌러져요' : ''; });
+      lockSide(true);
+      cell.querySelector('.reply-cancel').addEventListener('click', ()=>{ lockSide(false); cell.innerHTML = replyCellHTML(r); bindReplyCell(cell, r); });
       cell.querySelector('.reply-save').addEventListener('click', async (e)=>{
         const text = ta.value.trim().slice(0, 500);
         if(!text){ cell.querySelector('.reply-msg').textContent = '내용을 적어주세요.'; return; }
