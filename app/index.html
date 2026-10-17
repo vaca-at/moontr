@@ -3113,7 +3113,10 @@ function initStudent(){
   async function loadPairItems(){
     try{
       const snap = await getDocs(collection(db, COL.compare));
-      pox.list = shuffle(snap.docs.map(d=>({ id:d.id, ...d.data() })).filter(x => x.text && x.ans));
+      // 그림 영역 선지("D: ~를 간과한다")・비판형・세 사람 이상은 공통점/차이점 O/X로 풀 수 없어서 학생 화면에서 뺀다
+      // (관리자 [갑・을 OX]의 "잘못 들어간 것 골라내기"와 같은 기준)
+      const usable = x => x.text && x.ans && !isRegionChoice(x.text) && x.kind !== '비판' && (x.names || []).length <= 2;
+      pox.list = shuffle(snap.docs.map(d=>({ id:d.id, ...d.data() })).filter(usable));
     }catch(e){ console.error('갑・을 OX 목록을 불러오지 못했어요', e); pox.list = []; }
     pox.loaded = true;
   }
