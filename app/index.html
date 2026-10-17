@@ -2482,7 +2482,7 @@ function initStudent(){
   // ----- 문항 캐시 -----
   // 문항은 자주 바뀌지 않으므로 기기에 저장해 두고, 바뀌었을 때만 다시 받는다.
   // 들어올 때마다 문항 전체(약 100건)를 읽던 것을 버전 확인 1건으로 줄인다.
-  const QCACHE_KEY = 'saengyun-qcache';
+  const QCACHE_KEY = 'saengyun-qcache2';   // 2: 오답률표를 합쳐 담기 시작 (예전 캐시는 한 번 새로 받게)
   const QCACHE_TTL = 6 * 60 * 60 * 1000;   // 버전 표시가 아직 없을 때만 쓰는 예비 기한
   async function questionsVersion(){
     try{
@@ -2501,6 +2501,22 @@ function initStudent(){
     catch(e){ /* 저장 공간이 모자라면 그냥 캐시 없이 쓴다 */ }
   }
 
+  // 문항에 오답률・배점이 비어 있으면 관리자 [오답률표]에 저장된 값으로 채운다
+  // (오답률표만 저장하고 문항에는 안 들어간 경우가 많아서 학생 화면에 오답률이 안 보였음)
+  async function fillRatesFromTable(list){
+    try{
+      const snap = await waitUpTo(getDocs(collection(db, COL.rates)), 15000);
+      const key = id => { const p = parseId(id); return p ? makeId(p.yy, p.mm, p.num) : id; };
+      const table = {};
+      snap.docs.forEach(d => table[key(d.id)] = d.data());
+      const empty = v => v === undefined || v === null || String(v).trim() === '';
+      return list.map(q => {
+        const r = table[key(q.id)];
+        if(!r) return q;
+        return { ...q, rate: empty(q.rate) ? (r.rate ?? '') : q.rate, point: empty(q.point) ? (r.point ?? '') : q.point };
+      });
+    }catch(e){ console.error('오답률표를 불러오지 못했어요', e); return list; }
+  }
   // 네트워크가 막히면 답이 영영 안 올 수 있어 정해진 시간까지만 기다린다
   function waitUpTo(p, ms){
     return Promise.race([p, new Promise((_, no)=> setTimeout(()=> no(new Error('TIMEOUT')), ms))]);
@@ -2523,6 +2539,7 @@ function initStudent(){
             const { updatedAt, ...rest } = d.data();            // 시각 값은 캐시에 담지 않는다
             return { id:d.id, ...rest };
           });
+          raw = await fillRatesFromTable(raw);
           writeQCache(v, raw);
         }catch(err){
           // 학교망에서 막히는 일이 있다. 지난번에 받아 둔 것이라도 보여 준다.
@@ -5218,6 +5235,12 @@ function initAdmin(){
       const raw = {};   // 문항ID 바꾸기 때 그대로 옮겨 담을 원래 내용
       snap.docs.forEach(d => raw[d.id] = d.data());
       const qs = snap.docs.map(d=>normalizeQuestion({ id:d.id, ...d.data() })).sort(compareId);
+      // 문항에 오답률이 비어 있으면 [오답률표] 값을 보여 준다 (학생 화면도 같은 방식)
+      qs.forEach(q=>{
+        if(rateNumber(q.rate) !== null) return;
+        const p = parseId(q.id), r = RATES[q.id] || (p && RATES[makeId(p.yy, p.mm, p.num)]);
+        if(r && r.rate !== undefined && r.rate !== ''){ q.rate = r.rate; if(!q.point) q.point = r.point || ''; }
+      });
       const publicCnt = qs.filter(q => !q.yy || Number(q.yy) >= MIN_YY).length;
 
       // ----- 점검: 아직 안 치른 시험 · 문항ID와 실시일이 다름 · 오답률 없음 -----
@@ -5380,6 +5403,7 @@ function initAdmin(){
       document.getElementById('rates-paste').value = '';
       document.getElementById('rates-preview').innerHTML = '';
       document.getElementById('rates-save-btn').disabled = true;
+      bumpQuestionsVersion();   // 학생 화면이 새 오답률을 다시 받아 가게
       await loadRates(); renderSavedRates();
     }catch(e){ console.error(e); msg.className = 'msg no-text'; msg.textContent = '저장 실패. 권한을 확인해주세요.'; }
   });
@@ -5576,7 +5600,7 @@ function initAdmin(){
     btn.disabled = true; msg.className = 'msg'; msg.textContent = '저장 중...';
     try{
       await batchWrite(importJobs);
-      if(importJobs.some(j => j.col === COL.questions)) bumpQuestionsVersion();
+      if(importJobs.some(j => j.col === COL.questions || j.col === COL.rates)) bumpQuestionsVersion();
       const filled = importJobs.filter(j => j.col === COL.questions && j.mode === 'update').length;
       msg.className = 'msg ok-text';
       msg.textContent = `✓ 저장 완료 — ${importJobs.length}건 기록${filled ? `, 그중 문항 ${filled}개에 오답률을 채웠어요` : ''}`;
