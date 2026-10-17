@@ -1942,11 +1942,69 @@ function parseBogiItems(bogi){
 function bogiMarksIn(text){
   return new Set(String(text || '').match(/[ㄱ-ㅎ]/g) || []);
 }
+// ----- 순서도형 ("사상가 갑, 을의 입장을 탐구한다 → A → 예/아니요") -----
+// 범례 "A: 갑은 '예', 을은 '아니요'라고 대답할 질문" / "A: 갑이 을과 달리 긍정의 대답을 할 질문" 을 읽어 { A:'갑' } 으로 돌려준다.
+function flowOnlyLetters(q){
+  const out = {};
+  String(q.legend || '').split(/\r?\n|\\n|\s\/\s/).forEach(line=>{
+    const m = String(line).match(/^\s*([A-EＡ-Ｅ])\s*[:：]\s*(.+)$/);
+    if(!m || !/질문/.test(m[2])) return;
+    const d = m[2];
+    let who = null;
+    const a = d.match(/([갑을])\s*[은는이가]?\s*['‘"“]?\s*예/), b = d.match(/([갑을])\s*[은는이가]?\s*['‘"“]?\s*아니/);
+    if(a && b && a[1] !== b[1]) who = a[1];
+    const c = d.match(/([갑을])\s*[이가은는]\s*([갑을])\s*[과와]\s*달리\s*(긍정|['‘"“]?예)/);
+    if(c) who = c[1];
+    if(who) out[m[1].toUpperCase()] = who;
+  });
+  return out;
+}
+// 순서도 A 칸 질문이 정답이 아닐 때는 "둘 다 예"인지 "둘 다 아니요"인지 사람이 판단해야 한다.
+// 문항ID:보기 → { text: 학생에게 보일 문장(질문을 평서문으로), both: 'yes'(둘 다 예) | 'no'(둘 다 아니요) }
+// 정답에 들어 있는 것은 both 없이 text 만 적어도 된다 (text 를 안 적으면 질문을 평서문으로 자동으로 바꿔 씀).
+const FLOW_JUDGE = {
+  '2606-9:ㄱ': { text:'사회 계약에 근거해 사형의 정당성을 판단할 수 있다.', both:'yes' }   // 정답에 없음, 해설: 루소・베카리아 모두 '예'
+};
+// "~필요한가?" → "~필요하다." 처럼 질문을 평서문으로 (자동이라 어색하면 FLOW_JUDGE 에 text 를 적는다)
+function questionToStatement(s){
+  const t = String(s || '').trim();
+  const rules = [[/있는가\?$/,'있다.'],[/없는가\?$/,'없다.'],[/하는가\?$/,'한다.'],[/되는가\?$/,'된다.'],[/한가\?$/,'하다.'],[/인가\?$/,'이다.']];
+  for(const [re, to] of rules){ if(re.test(t)) return t.replace(re, to); }
+  return t;
+}
+// ----- 세 사상가 벤다이어그램: "갑과 을과 병의 공통 입장" 영역(D 또는 E)만 쓴다 -----
+//  그 영역 진술이 정답이면 세 사람 모두의 공통점 O, 정답이 아니면 X
+function tripleCommonStatements(q, out){
+  if(!isVennStatementQuestion(q)) return;
+  const names = (q.thinkers || []).map(t => cleanName(t.name)).filter(Boolean);
+  if(names.length !== 3) return;
+  const letters = [];
+  String(q.legend || '').split(/\r?\n|\\n|\s\/\s/).forEach(line=>{
+    const m = String(line).match(/^\s*([A-FＡ-Ｆ])\s*[:：]\s*(.+)$/);
+    if(m && /공통/.test(m[2]) && !/만의/.test(m[2]) && /갑/.test(m[2]) && /을/.test(m[2]) && /병/.test(m[2])) letters.push(m[1].toUpperCase());
+  });
+  if(!letters.length) return;
+  const head = `${names.join(', ')} 모두 — `;
+  if(q.bogi){
+    const ci = parseInt(q.correctNum, 10) - 1;
+    const answer = bogiMarksIn((q.choices || [])[ci] || '');
+    if(!answer.size) return;
+    parseBogiItems(q.bogi).filter(it => letters.includes(it.letter)).forEach(it=>{
+      out.push({ q, i:ci, mark:it.mark, text: head + labelToName(q, it.body), ans: answer.has(it.mark) ? 'O' : 'X', kind:'공통점', names });
+    });
+    return;
+  }
+  (q.choices || []).forEach((choice, i)=>{
+    const m = String(choice || '').match(/^\s*([A-FＡ-Ｆ])\s*[:：]\s*([\s\S]+)$/);
+    if(m && letters.includes(m[1].toUpperCase())) out.push({ q, i, text: head + labelToName(q, m[2].trim()), ans: choiceTruth(q, i), kind:'공통점', names });
+  });
+}
 function pairStatements(questions){
   const out = [];
   (questions || []).forEach(q=>{
     const labels = (q.thinkers || []).map(t => t.label).filter(Boolean);
-    if(labels.length !== 2) return;      // 갑・을 두 명짜리만 (갑・을・병은 헷갈려서 제외)
+    if(labels.length === 3){ tripleCommonStatements(q, out); return; }   // 갑・을・병은 셋 모두의 공통 영역만
+    if(labels.length !== 2) return;      // 그 밖에는 갑・을 두 명짜리만
     const names = (q.thinkers || []).map(t => cleanName(t.name)).filter(Boolean);
     if(names.length !== 2) return;
     const nameOfLabel = lb => { const t = (q.thinkers || []).find(x => x.label === lb); return t ? cleanName(t.name) : ''; };
@@ -1958,6 +2016,28 @@ function pairStatements(questions){
       out.push({ ...extra, text: fixJosa(`${mine}와 ${other} 중 ${mine}만의 주장 — ${labelToName(q, body)}`, [mine, other]), ans, kind:'차이점', names:[mine, other] });
     };
     const onlyL = onlyRegionLetters(q);
+
+    // (다) 순서도형: A 칸("갑만 '예'") 보기만 쓴다
+    //  · A가 정답에 들어 있으면 → 갑만의 주장 O(차이점), 둘 다의 공통점 X(공통점)
+    //  · A가 정답이 아니면 → FLOW_JUDGE 에 적어 둔 판단대로: 둘 다 '예'면 공통점 O · 차이점 X, 둘 다 '아니요'면 둘 다 X
+    const flowL = flowOnlyLetters(q);
+    if(q.bogi && Object.keys(flowL).length){
+      const ci = parseInt(q.correctNum, 10) - 1;
+      const answer = bogiMarksIn((q.choices || [])[ci] || '');
+      if(answer.size){
+        parseBogiItems(q.bogi).filter(it => flowL[it.letter]).forEach(it=>{
+          const j = FLOW_JUDGE[`${q.id}:${it.mark}`] || {};
+          const stmt = j.text || questionToStatement(it.body);
+          const inAns = answer.has(it.mark);
+          if(!inAns && j.both !== 'yes' && j.both !== 'no') return;   // 판단을 안 적어 둔 오답은 건너뜀
+          const extra = { q, i:ci, mark:it.mark };
+          onlyItem(flowL[it.letter], stmt, inAns ? 'O' : 'X', extra);
+          out.push({ ...extra, text: fixJosa(`${names[0]}와 ${names[1]} 모두 — ${labelToName(q, stmt)}`, names),
+            ans: (!inAns && j.both === 'yes') ? 'O' : 'X', kind:'공통점', names });
+        });
+        return;
+      }
+    }
 
     // (가) <보기> 조합형 벤다이어그램
     //  "ㄷ. B: 법률의 제정 없이 ~" 처럼 보기 항목에 영역이 붙어 있고, 선지는 ㄱ・ㄴ 조합이다.
@@ -2269,8 +2349,8 @@ function initStudent(){
   // 로그인한 학생에게 처음 한 번 위쪽에 초록 띠로 보여요. ✕를 누르면 그 기기에서는 다시 안 떠요.
   // 새 공지를 쓸 때는 id 를 새 날짜로 바꾸세요 (닫았던 학생에게도 새 공지가 다시 떠요).
   const NOTICE = {
-    id: '2026-10-17-home',
-    text: '<b>10월 17일</b> 기준으로 그동안 보내 준 <b>오류 신고를 모두 확인하고 고쳤어요.</b> 알려 줘서 고마워요 💙 로그인한 학생들을 위한 <b>🏠 홈 화면</b>도 만들었어요! 곧 <b>2023년 어려운 기출 문제</b>도 올릴 예정이에요!'
+    id: '2026-10-17-ox',
+    text: '<b>10월 17일</b> 기준으로 그동안 보내 준 <b>오류 신고를 모두 확인하고 고쳤어요.</b> 알려 줘서 고마워요 💙 로그인한 학생들을 위한 <b>🏠 홈 화면</b>도 만들었어요! 곧 <b>2023년 어려운 기출 문제</b>도 올릴 예정이에요! <b>OX 맞추기</b> 메뉴의 <b>🤝 공통점 OX · ↔️ 차이점 OX</b>도 많관부 🙏 <span style="color:var(--muted);font-size:12.5px;">(최종 수정 10월 17일 오후 10:20)</span>'
   };
   function renderNotice(){
     const bar = document.getElementById('notice-bar');
@@ -3141,7 +3221,7 @@ function initStudent(){
       const snap = await getDocs(collection(db, COL.compare));
       // 그림 영역 선지("D: ~를 간과한다")・비판형・세 사람 이상은 공통점/차이점 O/X로 풀 수 없어서 학생 화면에서 뺀다
       // (관리자 [갑・을 OX]의 "잘못 들어간 것 골라내기"와 같은 기준)
-      const usable = x => x.text && x.ans && !isRegionChoice(x.text) && x.kind !== '비판' && (x.names || []).length <= 2;
+      const usable = x => x.text && x.ans && !isRegionChoice(x.text) && x.kind !== '비판' && ((x.names || []).length <= 2 || (x.kind === '공통점' && (x.names || []).length === 3));
       pox.list = shuffle(snap.docs.map(d=>({ id:d.id, ...d.data() })).filter(usable));
     }catch(e){ console.error('갑・을 OX 목록을 불러오지 못했어요', e); pox.list = []; }
     pox.loaded = true;
@@ -3158,7 +3238,7 @@ function initStudent(){
     const all = pox.list.filter(x => kindOf(x) === pox.kind);
     const head = pox.kind === '차이점'
       ? `<div class="dash-note">↔️ 두 사상가 중 <b>한 사람만</b> 주장한 내용인지(또는 둘의 차이를 바르게 말했는지) O/X로 판단해요. 둘 다 주장했거나 그 사람 주장이 아니면 <b>X</b>예요. <b>${cnt('차이점')}</b>문항</div>`
-      : `<div class="dash-note">🤝 두 사상가가 <b>모두</b> 주장한 공통점인지 O/X로 판단해요. 한 사람만 주장했거나 둘 다 주장하지 않았으면 <b>X</b>예요. <b>${cnt('공통점')}</b>문항</div>`;
+      : `<div class="dash-note">🤝 두(세) 사상가가 <b>모두</b> 주장한 공통점인지 O/X로 판단해요. 한 사람만 주장했거나 둘 다 주장하지 않았으면 <b>X</b>예요. <b>${cnt('공통점')}</b>문항</div>`;
     const bindKind = () => {};
     if(!all.length){
       el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
@@ -3188,7 +3268,7 @@ function initStudent(){
                 ? (/만의 주장 —/.test(s.text)
                     ? `↔️ 차이점 OX · 두 사상가 중 <b>한 사람만</b> 주장한 내용으로 맞을까요? (둘 다 주장했거나 그 사람 주장이 아니면 X)`
                     : `↔️ 차이점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) + '의' : '두 사상가의'} 차이를 바르게 말한 내용일까요?`)
-                : `🤝 공통점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) : '두 사상가'} 모두 주장한 공통점으로 맞는 내용일까요?`}</div>
+                : `🤝 공통점 OX · ${(s.names||[]).length >= 2 ? escapeHtml(s.names.join(' · ')) : '두 사상가'} 모두 주장한 공통점으로 맞는 내용일까요?`}</div>
               <div class="tox-q">${escapeHtml(s.text)}</div>
               <div class="tox-note" ${mark ? '' : 'hidden'}>${mark
                 ? `${ok ? '맞았어요.' : `아니에요. 이 설명은 <b>${s.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`}${s.src ? ` <span class="say-src-plain">출처 ${escapeHtml(s.src)}</span>` : ''}`
@@ -5597,7 +5677,7 @@ function initAdmin(){
             <thead><tr><th style="width:34px;"></th><th>정답</th><th>종류</th><th>설명</th><th>대상</th><th>출처</th><th></th></tr></thead>
             <tbody>${compareSaved.map(x=>`
               <tr>
-                <td><input type="checkbox" class="cmp-spick" data-id="${escapeHtml(x.id)}" data-bad="${(isRegionChoice(x.text) || (x.names || []).length > 2 || x.kind === '비판') ? '1' : '0'}"></td>
+                <td><input type="checkbox" class="cmp-spick" data-id="${escapeHtml(x.id)}" data-bad="${(isRegionChoice(x.text) || ((x.names || []).length > 2 && !(x.kind === '공통점' && (x.names || []).length === 3)) || x.kind === '비판') ? '1' : '0'}"></td>
                 <td><b class="${x.ans === 'O' ? '' : 'no-text'}">${escapeHtml(x.ans || '')}</b></td>
                 <td>${escapeHtml(x.kind || '')}</td>
                 <td class="stem" style="color:var(--ink);">${escapeHtml(x.text || '')}</td>
