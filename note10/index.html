@@ -117,6 +117,26 @@ textarea{resize:vertical;min-height:80px}
 
 /* ---------- 개인 상담 기록 레이아웃 ---------- */
 .note{display:grid;grid-template-columns:250px 1fr;gap:18px;align-items:start}
+/* 👀 한눈에: 꿈 · 선택과목 칩, 숫자 타일, 상담 말풍선 */
+.ov-hero{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:14px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}
+.ov-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.ov-lab{font-family:var(--hand);font-size:16px;font-weight:700;min-width:104px}
+.ov-chip{border-radius:99px;padding:3px 12px;font-size:13.5px;font-weight:600;border:1.5px solid}
+.ov-chip.dream{background:var(--pinkL);border-color:#f6c6d6;color:#c2577d}
+.ov-chip.dream2{background:#fff7e0;border-color:#efd7a5;color:#a7791f}
+.ov-chip.subj{background:var(--blueL);border-color:#c5dcf2;color:#3f73a8;font-weight:500}
+.ov-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.ov-stats>div{background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:10px 14px;text-align:center}
+.ov-stats b{display:block;font-family:var(--hand);font-size:28px;color:var(--main);line-height:1.2}
+.ov-stats span{font-size:12px;color:var(--sub)}
+.bubs{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.bub{border:1.5px solid;padding:10px 14px 12px;min-height:84px;transition:.15s}
+.bub:hover{transform:translateY(-2px)}
+.bub-top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.bub-n{width:20px;height:20px;border-radius:50%;color:#fff;font-size:11px;display:grid;place-items:center;font-weight:700}
+.bub-t{font-family:var(--hand);font-size:17px;line-height:1.35;outline:none}
+.bub-t:focus{background:#fff;border-radius:6px}
+@media(max-width:820px){.ov-stats{grid-template-columns:1fr 1fr}}
 .side{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow:auto;padding-right:4px}
 /* 스크롤 막대: 얇고 둥근 분홍 막대 (위아래 화살표 없음) */
 ::-webkit-scrollbar{width:10px;height:10px}
@@ -994,11 +1014,69 @@ function viewNote() {
 function setField(k, v) { const st = cur(); if (!piiOk(v)) { render(); return; } st[k] = v; saveStudent(st); }
 
 /* 1 한눈에 */
+// 한눈에 숫자: 출결(결석 · 지각 · 조퇴 · 결과 합) · 봉사 시간 — 가장 최근 학년도
+function attShort(st) {
+  const d = st.num && Object.values(RC).filter(x => x.kind === 'att').sort((a, b) => b.year - a.year)[0], r = d && d.rows.find(x => x.no === st.num);
+  if (!r) return null;
+  const sum = g => d.cols.reduce((n, c, i) => c.replace(/\s/g, '').startsWith(g) ? n + (Number(r.v[i]) || 0) : n, 0);
+  const a = ['결석', '지각', '조퇴', '결과'].map(g => [g, sum(g)]).filter(x => x[1]);
+  return a.length ? a.map(([g, n]) => `${g} ${n}`).join(' · ') : '개근 🌟';
+}
+function volShort(st) {
+  const d = st.num && Object.values(RC).filter(x => x.kind === 'vol').sort((a, b) => b.year - a.year)[0], r = d && d.rows.find(x => x.no === st.num);
+  return r ? `${r.v[1]}시간` : null;
+}
+// 상담 한 줄 요약: AI가 만든 것(c.sum)이 없으면 첫 문장 앞부분
+const csShort = c => c.sum || (c.text.split(/(?<=[.!?。])\s|\n/)[0] || c.text).slice(0, 34) + ((c.text.split(/(?<=[.!?。])\s|\n/)[0] || c.text).length > 34 ? '…' : '');
+const BUB = [['#fde8ef', '#ee8fad', '22px 22px 22px 6px'], ['#e7f6ed', '#7fc59a', '22px 22px 6px 22px'], ['#fbf1dd', '#d9a74c', '28px 10px 28px 10px'], ['#efe9fb', '#a78bdc', '50% 50% 46% 46% / 30% 30% 22% 22%'], ['#e6f0fb', '#7aaedb', '10px 28px 10px 28px']];
+// ✨ AI로 상담마다 한 줄 요약 (아직 요약이 없는 상담만)
+async function summarizeCounsels(btn) {
+  const st = cur(), todo = st.counsels.filter(c => !c.sum && c.text.trim());
+  if (!todo.length) return toast('모든 상담에 요약이 있어요');
+  await withBusy(btn, async () => {
+    const out = await callAI(SYS_RULES + '\n지금은 생기부 문구가 아니라 담임이 한눈에 보는 상담 요약을 쓴다. 반드시 JSON 배열만 출력한다.',
+      `아래 상담마다 핵심만 15~25자 한 줄로 요약해 줘. 이름은 쓰지 말고, '~함'처럼 짧게.\n출력: [{"id":"상담 id","sum":"요약"}]\n\n${todo.map(c => `[id:${c.id}] (${c.date} ${c.type}) ${c.text.slice(0, 600)}`).join('\n\n')}`, 1200);
+    const arr = JSON.parse((out.match(/\[[\s\S]*\]/) || ['[]'])[0]);
+    let n = 0; arr.forEach(x => { const c = st.counsels.find(y => y.id === x.id); if (c && x.sum) { c.sum = String(x.sum).trim().slice(0, 40); n++; } });
+    saveStudent(st); render(); toast(`✨ 상담 ${n}개를 한 줄로 요약했어요`);
+  });
+}
+function setCsSum(id, v) { const st = cur(), c = st.counsels.find(x => x.id === id); if (!c) return; c.sum = v.trim(); saveStudent(st); render(); }
 function secOverview(st) {
-  const l = lastCounsel(st);
-  const nx = st.counsels.map(c => c.next).filter(x => x && x >= today()).sort()[0];
-  return `<div class="cols c3">
-    <div class="box"><div class="hd pink"><span class="n">1</span>프로필 <button class="x sp" style="color:#fff" onclick="openEditStudent()">✏️</button></div><div class="bd">
+  const l = lastCounsel(st), cs = [...st.counsels].sort((a, b) => a.date.localeCompare(b.date));
+  const cr = careers(st), att = attShort(st), vol = volShort(st);
+  const subjChips = SEMS.map(([k, lab]) => (st.subjects?.[k] || []).length ? `<div class="ov-line"><span class="ov-lab">${lab}</span>${st.subjects[k].map(s => `<span class="ov-chip subj">${esc(s)}</span>`).join('')}</div>` : '').join('');
+  return `
+  <div class="ov-hero">
+    <div class="ov-line"><span class="ov-lab">🌈 꿈꾸는 분야</span>${cr.length ? cr.map(c => `<span class="ov-chip dream">${esc(c)}</span>`).join('') : '<span class="mini">아직 안 골랐어요</span>'}${st.careerDetail ? `<span class="ov-chip dream2">✨ ${esc(st.careerDetail)}</span>` : ''}</div>
+    ${subjChips || `<div class="ov-line"><span class="ov-lab">📘 선택과목</span><span class="mini">아직 없어요 — 아래 ✏️ 고치기에서 넣어요</span></div>`}
+    ${st.worry ? `<div class="ov-line"><span class="ov-lab">💭 고민</span><span class="mini" style="font-size:13px">${esc(st.worry.slice(0, 80))}${st.worry.length > 80 ? '…' : ''}</span></div>` : ''}
+  </div>
+  <div class="ov-stats">
+    <div><b>${st.counsels.length}</b><span>상담 횟수</span></div>
+    <div><b style="${l ? '' : 'color:var(--red)'}">${l ? `${daysAgo(l)}일 전` : '아직'}</b><span>마지막 상담${l ? ` · ${l.slice(5)}` : ''}</span></div>
+    <div><b style="font-size:${att && att.length > 6 ? '18px' : '28px'}">${att || '-'}</b><span>출결</span></div>
+    <div><b>${vol || '-'}</b><span>봉사</span></div>
+  </div>
+  <div class="box" style="margin-bottom:14px"><div class="hd pink"><span class="n">💬</span>상담 모아보기 <span class="sp" style="display:flex;gap:6px">${cs.some(c => !c.sum) ? '<button class="btn sm ghost" onclick="summarizeCounsels(this)">✨ AI 한 줄 요약</button>' : ''}<button class="btn sm ghost" onclick="V.sec=2;render()">＋ 상담 적기</button></span></div><div class="bd">
+    ${cs.length ? `<div class="bubs">${cs.map((c, i) => { const [bg, fg, rad] = BUB[i % BUB.length]; return `<div class="bub" style="background:${bg};border-color:${fg};border-radius:${rad}" title="${esc(c.text.slice(0, 300))}">
+        <div class="bub-top"><span class="bub-n" style="background:${fg}">${i + 1}</span><span class="mini">${c.date.slice(5).replace('-', '/')}</span><span class="chip" style="font-size:11px;padding:0 7px">${esc(c.type)}</span></div>
+        <div class="bub-t" contenteditable="true" title="눌러서 요약 고치기" onblur="if(this.innerText.trim()!==${esc(JSON.stringify(c.sum || ''))})setCsSum('${c.id}',this.innerText)">${esc(csShort(c))}</div>
+        ${c.sum ? '' : '<div class="mini" style="opacity:.6;margin-top:2px">첫 문장 · ✨로 요약해요</div>'}</div>`; }).join('')}</div>`
+      : '<div class="empty">아직 상담 전이에요. ＋ 상담 적기를 눌러 첫 상담을 남겨요 🌷</div>'}
+  </div></div>
+  <div class="cols c2" style="margin-bottom:14px">
+    <div class="box"><div class="hd green"><span class="n">🤖</span>AI 담임 메모</div><div class="bd">
+      <button class="btn ai sm" onclick="aiEval(this)">🤖 AI 평가 받기</button>
+      <div style="margin-top:10px">${st.aiEval ? `<div class="mini">${st.aiEvalDate} 기준</div><div class="ai-out">${md(st.aiEval)}</div>` : '<div class="empty">상담·성적·활동이 쌓일수록 정확해져요</div>'}</div>
+    </div></div>
+    <div class="box"><div class="hd mustard"><span class="n">📋</span>나이스 기록</div><div class="bd">
+      ${recItems(st) || '<div class="empty">관리에서 출결 · 봉사를 넣으면 여기에 보여요</div>'}
+      <div class="mini" style="margin-top:6px">📊 쌓인 기록: 상담 ${st.counsels.length} · 활동 ${st.acts.length} · 일화 ${st.episodes.length} · 문구 ${st.sentences.length}</div>
+    </div></div>
+  </div>
+  <details class="box" style="padding:0"><summary class="hd pink" style="cursor:pointer;list-style:none"><span class="n">✏️</span>꿈 · 고민 · 공부 · 선택과목 고치기 <span class="sp mini" style="color:#fff">눌러서 펼치기</span></summary><div class="bd">
+    <div class="cols c2"><div>
       <p class="lead">이 친구는 <mark>무엇을 꿈꾸고</mark> 있을까요?</p>
       <div class="field"><label>🧭 희망 진로 분야</label>
         <div class="row" style="margin-bottom:6px">${careers(st).filter(c => !CAREERS.includes(c)).map(c => `<button class="pill on" style="font-size:14px;padding:3px 10px" title="예전 분류예요. 누르면 빠져요" onclick="toggleCareer(${esc(JSON.stringify(c))})">${esc(c)} (예전) ✕</button>`).join('')}${CAREERS.map(c => `<button class="pill ${careers(st).includes(c) ? 'on' : ''}" style="font-size:14px;padding:3px 10px" onclick="toggleCareer('${c}')">${c}</button>`).join('')}</div>
@@ -1006,22 +1084,8 @@ function secOverview(st) {
         <input type="text" value="${esc(st.careerDetail)}" placeholder="구체적으로 (예: 초등교사, 데이터 분석가)" onchange="setField('careerDetail',this.value)"></div>
       <div class="field"><label>💭 평소 고민</label><textarea onchange="setField('worry',this.value)" placeholder="친구 관계, 진로 고민, 마음 상태…">${esc(st.worry)}</textarea></div>
       <div class="field"><label>📚 공부 패턴</label><textarea onchange="setField('study',this.value)" placeholder="자습 시간대, 플래너 사용, 약한 과목 공부법…">${esc(st.study)}</textarea></div>
-      ${subjField(st)}
-    </div></div>
-    <div class="box"><div class="hd green"><span class="n">2</span>AI 담임 메모</div><div class="bd">
-      <p class="lead">쌓인 기록으로 <mark>AI가 정리</mark>해요.</p>
-      <button class="btn ai" onclick="aiEval(this)">🤖 AI 평가 받기</button>
-      <div style="margin-top:12px">${st.aiEval ? `<div class="mini">${st.aiEvalDate} 기준</div><div class="ai-out">${md(st.aiEval)}</div>` : '<div class="empty">상담·성적·활동이 쌓일수록 정확해져요</div>'}</div>
-    </div></div>
-    <div class="box"><div class="hd mustard"><span class="n">3</span>상담 흐름</div><div class="bd">
-      <p class="lead">상담이 <mark>끊기지 않게</mark> 이어가요.</p>
-      <div class="item"><b class="hand" style="font-size:17px">💬 마지막 상담</b><div>${l ? `${l} (${daysAgo(l)}일 전)` : '<span style="color:var(--red)">아직 상담 전이에요</span>'}</div></div>
-      ${recItems(st)}
-      <div class="item"><b class="hand" style="font-size:17px">📊 쌓인 기록</b><div class="mini">상담 ${st.counsels.length} · 모의고사 ${st.mocks.length} · 내신 ${st.grades.length} · 활동 ${st.acts.length} · 일화 ${st.episodes.length}</div></div>
-      ${[...st.counsels].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3).map(c => `<div class="item"><div class="top"><span class="chip">${esc(c.type)}</span><span class="mini">${c.date}</span></div><div class="mini">${esc(c.text.slice(0, 80))}${c.text.length > 80 ? '…' : ''}</div></div>`).join('')}
-      <button class="btn ghost sm" onclick="V.sec=2;render()">상담 기록하러 가기 →</button>
-    </div></div>
-  </div>`;
+    </div><div>${subjField(st)}<button class="btn ghost sm" style="margin-top:8px" onclick="openEditStudent()">🔗 반 번호 · 동물 고치기</button></div></div>
+  </div></details>`;
 }
 /* 📘 선택과목 — 수강신청 확인서 (학기마다 과목 목록). 확인서 표를 복사해 붙여 넣거나 직접 적어요 */
 const SEMS = [['2-1', '2학년 1학기'], ['2-2', '2학년 2학기']];
