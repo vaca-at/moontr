@@ -983,6 +983,8 @@
   .data-table th{ background:var(--paper-2); color:var(--green-dark); font-weight:800; text-align:left; padding:8px 10px; border-bottom:1.5px solid var(--line); white-space:nowrap; }
   .data-table td{ padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
   .data-table tr:last-child td{ border-bottom:none; }
+  .sug-x{ margin-left:4px; width:22px; height:22px; padding:0; border-radius:50%; border:1px solid var(--line); background:var(--card); color:var(--muted); font-size:11px; line-height:20px; cursor:pointer; }
+  .sug-x:hover{ color:#c0392b; border-color:#c0392b; }
   .data-table td.stem{ max-width:320px; color:var(--muted); }
   .data-table .row-btns{ display:flex; gap:4px; white-space:nowrap; }
   .data-table .row-btns button{ font-family:var(--font-ui); font-size:11.5px; font-weight:700; padding:4px 9px; border-radius:5px; cursor:pointer; border:1.5px solid var(--line); background:var(--card); color:var(--ink); }
@@ -5532,7 +5534,7 @@ function initAdmin(){
       qs.forEach(q=>{
         const body = [...q.thinkers.map(t=>t.passage), q.bogi, q.legend, ...q.choices, q.explanation].join(' ');
         const g = guessUnitFrom(q.stem, body);
-        if(g && g !== q.unit) suggest[q.id] = g;
+        if(g && g !== q.unit && (raw[q.id] || {}).unitKeep !== g) suggest[q.id] = g;   // ✕로 지운 제안(unitKeep)은 다시 안 띄움 (2026-10-18)
       });
       const changeCnt = Object.keys(suggest).length;
       el.innerHTML = `
@@ -5542,7 +5544,7 @@ function initAdmin(){
           ${qs.length-publicCnt ? `<span class="badge off">비공개(오래된 연도) ${qs.length-publicCnt}문항</span>` : ''}
           ${changeCnt ? `<button class="small-btn green" id="reclassify-btn" type="button">🔄 발문 기준 자동 분류 제안 ${changeCnt}건 일괄 적용</button>` : `<span class="badge off">단원 분류 제안 없음</span>`}
         </div>
-        ${changeCnt ? `<div class="section-hint">노란 줄은 발문(없으면 제시문 키워드)을 보고 다른 단원을 제안한 문항이에요. 한 건만 고치려면 [수정]에서 단원을 바꿔 저장하세요.</div>` : ''}
+        ${changeCnt ? `<div class="section-hint">노란 줄은 발문(없으면 제시문 키워드)을 보고 다른 단원을 제안한 문항이에요. 지금 단원이 맞으면 제안 옆 <b>✕</b>를 눌러 지워요(다시 안 떠요). 한 건만 고치려면 [수정]에서 단원을 바꿔 저장하세요.</div>` : ''}
         <div class="unit-pills" id="list-filter" style="margin:10px 0 6px;">
           ${Object.entries(FILTERS).map(([k,f])=>`<button type="button" class="unit-pill ${listFilter===k?'active':''}" data-lf="${k}">${f.label}</button>`).join('')}
         </div>
@@ -5553,7 +5555,7 @@ function initAdmin(){
             <tr class="${suggest[q.id] ? 'changed' : ''}">
               <td><b>${escapeHtml(q.id)}</b>${q.yy && Number(q.yy) < MIN_YY ? '<br><span style="color:var(--muted);font-size:11px;">비공개</span>' : ''}${probs[q.id] ? `<br><span class="no-text" style="font-size:11px;">⚠️ ${probs[q.id].join(' · ')}</span>` : ''}${dupOf[q.id] ? `<br><span class="no-text" style="font-size:11px;">👯 ${dupOf[q.id].map(escapeHtml).join(', ')}와 내용이 같아요</span>` : ''}</td>
               <td>${escapeHtml(q.unit) || '<span class="no-text">없음</span>'}</td>
-              <td>${suggest[q.id] ? '→ ' + escapeHtml(suggest[q.id]) : ''}</td>
+              <td>${suggest[q.id] ? `<span style="white-space:nowrap;">→ ${escapeHtml(suggest[q.id])} <button type="button" class="sug-x" data-keep="${escapeHtml(q.id)}" title="이 제안은 무시하고 지금 단원 그대로 두기" aria-label="분류 제안 취소">✕</button></span>` : ''}</td>
               <td>${rateNumber(q.rate) ?? '<span class="no-text">없음</span>'}</td>
               <td>${q.correctNum ? NUM_MARK[Number(q.correctNum)-1] : '<span class="no-text">없음</span>'}</td>
               <td class="stem">${escapeHtml(q.stem.slice(0,60))}</td>
@@ -5579,6 +5581,17 @@ function initAdmin(){
           bumpQuestionsVersion();
           renderAdminList();
         }catch(e){ console.error(e); alert('바꾸지 못했어요: 권한을 확인해주세요.'); }
+      }));
+      // 분류 제안 ✕: 이 문항은 지금 단원 그대로 (문항 문서에 unitKeep = 무시한 제안 단원을 적어 둠, 학생 화면에는 영향 없음)
+      el.querySelectorAll('[data-keep]').forEach(b=> b.addEventListener('click', async ()=>{
+        const id = b.dataset.keep, g = suggest[id];
+        if(!g) return;
+        b.disabled = true;
+        try{
+          await updateDoc(doc(db, COL.questions, id), { unitKeep: g });
+          raw[id] = { ...(raw[id] || {}), unitKeep: g };
+          renderAdminList();
+        }catch(e){ console.error(e); alert('지우지 못했어요: 권한을 확인해주세요.'); b.disabled = false; }
       }));
       const rb = document.getElementById('reclassify-btn');
       if(rb) rb.addEventListener('click', async ()=>{
