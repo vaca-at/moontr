@@ -3432,6 +3432,10 @@ function initStudent(){
     const head = pox.kind === '차이점'
       ? `<div class="dash-note">↔️ 두 사상가 중 <b>한 사람만</b> 주장한 내용인지(또는 둘의 차이를 바르게 말했는지) O/X로 판단해요. 둘 다 주장했거나 그 사람 주장이 아니면 <b>X</b>예요. <b>${cnt('차이점')}</b>문항</div>`
       : `<div class="dash-note">🤝 두(세) 사상가가 <b>모두</b> 주장한 공통점인지 O/X로 판단해요. 한 사람만 주장했거나 둘 다 주장하지 않았으면 <b>X</b>예요. <b>${cnt('공통점')}</b>문항</div>`;
+    // 무엇을 묻는지 칩은 문장마다 붙이지 않고 설명 바로 아래에 한 번만
+    const askChip = pox.kind === '차이점'
+      ? `<div class="tox-kind diff">↔️ 차이점 OX · 두 사상가 중 <b>한 사람만</b> 주장한 내용으로 맞을까요? (둘 다 주장했거나 그 사람 주장이 아니면 X)</div>`
+      : `<div class="tox-kind">🤝 공통점 OX · 사상가들이 <b>모두</b> 주장한 공통점으로 맞는 내용일까요?</div>`;
     const bindKind = () => {};
     if(!all.length){
       el.innerHTML = head + `<div class="state-msg">아직 등록된 문항이 없어요. 선생님이 관리자 화면에서 추가하면 여기에 나옵니다.</div>`;
@@ -3444,7 +3448,7 @@ function initStudent(){
     const slice = all.slice(from, from + TOX_PAGE);
     const doneN = Object.keys(pox.marks).length;
     const rightN = Object.keys(pox.marks).filter(k => pox.marks[k] === (pox.list.find(x=>x.id===k)||{}).ans).length;
-    el.innerHTML = head + `
+    el.innerHTML = head + askChip + `
       <div class="tox-head">
         <b>${from + 1}~${from + slice.length} / ${all.length}</b>
         <span class="tox-score">맞힌 개수 ${rightN} / ${doneN}</span>
@@ -3457,16 +3461,12 @@ function initStudent(){
           <div class="tox-row ${mark ? (ok ? 'ok' : 'no') : ''}" data-id="${escapeHtml(s.id)}">
             <div class="tox-num">${from + k + 1}</div>
             <div class="tox-body">
-              <div class="tox-kind ${kindOf(s) === '차이점' ? 'diff' : ''}">${kindOf(s) === '차이점'
-                ? (/만의 주장 —/.test(s.text)
-                    ? `↔️ 차이점 OX · 두 사상가 중 <b>한 사람만</b> 주장한 내용으로 맞을까요? (둘 다 주장했거나 그 사람 주장이 아니면 X)`
-                    : `↔️ 차이점 OX · ${(s.names||[]).length === 2 ? escapeHtml(s.names.join(' · ')) + '의' : '두 사상가의'} 차이를 바르게 말한 내용일까요?`)
-                : `🤝 공통점 OX · ${(s.names||[]).length >= 2 ? escapeHtml(s.names.join(' · ')) : '두 사상가'} 모두 주장한 공통점으로 맞는 내용일까요?`}</div>${(()=>{
+              ${(()=>{
                 // 전체 학생 정답률 (3번 넘게 풀린 문장만)
                 const v = (pox.stats || {})['p_' + String(s.id).replace(/[.:]/g, '_')];
                 if(!v || v[0] + v[1] < 3) return '';
                 const r = Math.round(v[0] / (v[0] + v[1]) * 100);
-                return ` <span class="tox-rate ${r < 50 ? 'hard' : ''}">전체 정답률 ${r}%</span>`;
+                return `<span class="tox-rate ${r < 50 ? 'hard' : ''}">전체 정답률 ${r}%</span>`;
               })()}
               <div class="tox-q">${escapeHtml(s.text)}</div>
               <div class="tox-note" ${mark ? '' : 'hidden'}>${mark
