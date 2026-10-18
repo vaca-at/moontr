@@ -125,7 +125,7 @@ textarea{resize:vertical;min-height:80px}
 .ov-chip.dream{background:var(--pinkL);border-color:#f6c6d6;color:#c2577d}
 .ov-chip.dream2{background:#fff7e0;border-color:#efd7a5;color:#a7791f}
 .ov-chip.subj{background:var(--blueL);border-color:#c5dcf2;color:#3f73a8;font-weight:500}
-.ov-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.ov-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
 .ov-stats>div{background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:10px 14px;text-align:center}
 .ov-stats b{display:block;font-family:var(--hand);font-size:28px;color:var(--main);line-height:1.2}
 .ov-stats span{font-size:12px;color:var(--sub)}
@@ -375,7 +375,7 @@ function normalize(s) {
     ev: {}, comp: null, story: null, links: null, prep: null,   // 공통 행사 칸 · AI 분석 결과 (역량 지도 · 성장 서사 · 책·탐구 연결 · 상담 준비)
     check: {},   // 생기부 점검 결과 (글마다)
     subjects: {}, // 선택과목 { '2-1': ['기하', '화학', …], '2-2': […] } — 수강신청 확인서에서
-    school: '', family: ''   // 출신 학교 · 가족 (구글 문서 가져오기 · 직접 적기)
+    school: '', family: '', club: ''   // 출신 학교 · 가족 (구글 문서 가져오기 · 직접 적기) · 동아리
   }, s, { final: Object.assign({ 자율: '', 진로: '', 행특: '' }, s?.final || {}) });
   // 바구니가 자율·자치 · 진로 · 행발 셋이 되면서, 예전 동아리 문구는 자율·자치로 옮겨요 (예전 동아리 단락 final.동아리 는 지우지 않고 둬요)
   o.sentences.forEach(x => { if (x.area === '동아리') x.area = '자율'; });
@@ -1057,6 +1057,38 @@ function csPop(id) {
     <div class="row" style="margin-top:4px"><button class="btn sm ghost" onclick="closeModal();V.sec=2;render()">💬 상담 기록 화면에서 고치기 · 더하기 →</button></div>`, true);
   setTimeout(() => document.getElementById('cp_' + id)?.scrollIntoView({ block: 'center' }), 60);
 }
+// 🎨 동아리: 직접 적은 것 → 없으면 나이스 창체 동아리활동 글 맨 앞 '(동아리명)'
+function clubOf(st) {
+  if (st.club) return st.club;
+  if (!st.num) return '';
+  for (const y of changYears()) {
+    const r = changRows(st.num, y).find(x => x.label === '동아리활동');
+    const m = r && r.text.match(/^\s*\(([^()]{1,30})\)/);
+    if (m && !/^\d+\s*시간$/.test(m[1])) return m[1].trim();
+  }
+  return '';
+}
+// 📚 읽은 책: 세특 · 창체 · 행발 글 속 『책』, '책'(지은이), '책'을 읽고 … 꼴에서 찾아요 (같은 책은 한 번)
+function booksOf(st) {
+  if (!st.num) return [];
+  const src = [];
+  Object.values(RC).filter(d => d.kind === 'setuk').forEach(d => { const r = d.rows.find(x => x.no === st.num); if (r?.text) src.push([`${d.year} ${d.subj}`, r.text]); });
+  changYears().forEach(y => { changRows(st.num, y).forEach(r => r.text && src.push([`${y} ${r.label}`, r.text])); const h = haengText(st.num, y); if (h) src.push([`${y} 행발`, h]); });
+  const out = new Map(), add = (t, a, from) => { t = t.trim().replace(/\s+/g, ' '); const k = t.replace(/\s/g, ''); if (k.length < 2 || k.length > 40 || out.has(k)) return; out.set(k, { title: t, author: (a || '').trim(), from }); };
+  src.forEach(([from, t]) => {
+    for (const m of t.matchAll(/『([^』]{2,40})』(?:\s*\(([^()]{1,25})\))?/g)) add(m[1], m[2], from);
+    for (const m of t.matchAll(/《([^》]{2,40})》(?:\s*\(([^()]{1,25})\))?/g)) add(m[1], m[2], from);
+    for (const m of t.matchAll(/[‘'"“]([^‘’'"“”\n]{2,40})[’'"”]\s*\(([^()\d][^()]{0,24})\)/g)) add(m[1], m[2], from);        // '책'(지은이)
+    for (const m of t.matchAll(/[‘'"“]([^‘’'"“”\n]{2,40})[’'"”]\s*(?:을|를)?\s*(?:읽|탐독|독서)/g)) add(m[1], '', from);      // '책'을 읽고
+  });
+  return [...out.values()];
+}
+function bookPop() {
+  const st = cur(), bk = booksOf(st);
+  openModal(`📚 ${sname(st)} 읽은 책 ${bk.length}권`, `<div class="mini" style="margin-bottom:10px">세특 · 창체 · 행발 글에서 『책』, '책'(지은이), '책'을 읽고 같은 꼴을 찾아 모았어요. 책이 아닌 것이 섞일 수 있어요.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">${bk.map((b, i) => { const [bg, fg] = BUB[i % BUB.length]; return `<div style="background:${bg};border:1.5px solid ${fg};border-radius:14px;padding:10px 12px">
+      <b class="hand" style="font-size:17px">📖 ${esc(b.title)}</b>${b.author ? `<div class="mini">${esc(b.author)}</div>` : ''}<div class="mini" style="margin-top:4px;color:${fg}">${esc(b.from)}</div></div>`; }).join('')}</div>`, true);
+}
 // 한눈에 > 나이스 기록: 학기마다 교과 등급 칩 (등급이 없으면 성취도)
 function gyogwaChips(st) {
   if (!st.num) return '';
@@ -1108,15 +1140,14 @@ function secOverview(st) {
   <div class="ov-hero">
     <div class="ov-line"><span class="ov-lab">🌈 꿈꾸는 분야</span>${cr.length ? cr.map(c => `<span class="ov-chip dream">${esc(c)}</span>`).join('') : '<span class="mini">아직 안 골랐어요</span>'}${st.careerDetail ? `<span class="ov-chip dream2">✨ ${esc(st.careerDetail)}</span>` : ''}</div>
     ${subjChips || `<div class="ov-line"><span class="ov-lab">📘 선택과목</span><span class="mini">아직 없어요 — 아래 ✏️ 고치기에서 넣어요</span></div>`}
-    ${st.school || st.family ? `<div class="ov-line">${st.school ? `<span class="ov-lab">🏫 출신 학교</span>${st.school.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#f3f0ff;border-color:#d8cdf2;color:#6c55b5">${esc(s)}</span>`).join('')}` : ''}
-      ${st.family ? `<span class="ov-lab" style="margin-left:${st.school ? '10px' : '0'}">👪 가족</span>${st.family.split(/\s*·\s*/).map(s => `<span class="ov-chip" style="background:#e7f6ed;border-color:#bfe3cc;color:#3d8a5f;font-weight:500">${esc(s)}</span>`).join('')}` : ''}</div>` : ''}
+    ${(() => { const club = clubOf(st); return club ? `<div class="ov-line"><span class="ov-lab">🎨 동아리</span>${club.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#fff1e6;border-color:#f3d2b0;color:#b9682f">${esc(s)}</span>`).join('')}</div>` : ''; })()}
+    ${st.school ? `<div class="ov-line"><span class="ov-lab">🏫 출신 학교</span>${st.school.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#f3f0ff;border-color:#d8cdf2;color:#6c55b5">${esc(s)}</span>`).join('')}</div>` : ''}
     ${st.worry ? `<div class="ov-line"><span class="ov-lab">💭 고민</span><span class="mini" style="font-size:13px">${esc(st.worry.slice(0, 80))}${st.worry.length > 80 ? '…' : ''}</span></div>` : ''}
   </div>
   <div class="ov-stats">
-    <div><b>${st.counsels.length}</b><span>상담 횟수</span></div>
-    <div><b style="${l ? '' : 'color:var(--red)'}">${l ? `${daysAgo(l)}일 전` : '아직'}</b><span>마지막 상담${l ? ` · ${l.slice(5)}` : ''}</span></div>
     <div><b style="font-size:${att && att.length > 6 ? '18px' : '28px'}">${att || '-'}</b><span>출결</span></div>
     <div><b>${vol || '-'}</b><span>봉사</span></div>
+    ${(() => { const bk = booksOf(st); return `<div style="${bk.length ? 'cursor:pointer' : ''}" ${bk.length ? 'onclick="bookPop()" title="눌러서 책 목록 보기"' : ''}><b>${bk.length ? bk.length + '권' : '-'}</b><span>📚 읽은 책 ${bk.length ? '· 눌러서 보기' : '(세특 · 창체에서 찾아요)'}</span></div>`; })()}
   </div>
   <div class="box" style="margin-bottom:14px"><div class="hd pink"><span class="n">💬</span>상담 모아보기 <span class="sp" style="display:flex;gap:6px">${cs.some(c => !c.sum) ? '<button class="btn sm ghost" onclick="summarizeCounsels(this)">✨ AI 한 줄 요약</button>' : ''}<button class="btn sm ghost" onclick="V.sec=2;render()">＋ 상담 적기</button></span></div><div class="bd">
     ${cs.length ? `<div class="bubs">${cs.map((c, i) => { const [bg, fg, rad] = BUB[i % BUB.length]; return `<div class="bub" style="background:${bg};border-color:${fg};border-radius:${rad};cursor:pointer" title="눌러서 상담 누가 기록 보기" onclick="csPop('${c.id}')">
@@ -1144,6 +1175,7 @@ function secOverview(st) {
         <input type="text" value="${esc(st.careerDetail)}" placeholder="구체적으로 (예: 초등교사, 데이터 분석가)" onchange="setField('careerDetail',this.value)"></div>
       <div class="field"><label>💭 평소 고민</label><textarea onchange="setField('worry',this.value)" placeholder="친구 관계, 진로 고민, 마음 상태…">${esc(st.worry)}</textarea></div>
       <div class="field"><label>📚 공부 패턴</label><textarea onchange="setField('study',this.value)" placeholder="자습 시간대, 플래너 사용, 약한 과목 공부법…">${esc(st.study)}</textarea></div>
+      <div class="field"><label>🎨 동아리 <span class="mini">(비우면 나이스 창체 동아리활동에서 읽어요)</span></label><input type="text" value="${esc(st.club || '')}" placeholder="${esc(clubOf({ ...st, club: '' }) || '예: CPR, 방송부')}" onchange="setField('club',this.value);render()"></div>
       <div class="field"><label>🏫 출신 학교</label><input type="text" value="${esc(st.school || '')}" placeholder="예: ○○초, ○○중" onchange="setField('school',this.value);render()"></div>
       <div class="field"><label>👪 가족</label><input type="text" value="${esc(st.family || '')}" placeholder="예: 외동 / 오빠(고3) · 여동생(초2)" onchange="setField('family',this.value);render()"></div>
     </div><div>${subjField(st)}<button class="btn ghost sm" style="margin-top:8px" onclick="openEditStudent()">🔗 반 번호 · 동물 고치기</button></div></div>
