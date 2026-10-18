@@ -2983,12 +2983,32 @@ function parseGyogwa(aoa) {
   if (!groups.length) throw new Error('학생 줄을 찾지 못했어요');
   return groups;
 }
+/* PDF에서 복사한 교과학습발달상황 (칸 구분 없이 띄어쓰기 · 줄바꿈만) → 과목 줄마다 '과목 학점 원점수/평균 성취도 분포 석차 수강자수' 꼴을 찾아요
+   번호 · 학기는 '번호 이름 학년 학기' 줄에서 읽고 (이름은 버려요), 다음 학생이 나올 때까지 이어 받아요 */
+function parseGyogwaText(text) {
+  const s = text.replace(/\s+/g, ' ');
+  const heads = [...s.matchAll(/(?:^|\s)(\d{1,2})\s+[가-힣]{2,5}\s+([123])\s+([12])\s/g)].map(m => ({ i: m.index, no: +m[1], yr: m[2], sem: m[3] }));
+  const re = /([^\s()]+)\s+(\d)\s+(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s+([A-EP])\s+((?:[A-E]\s*\(\s*[\d.]+\s*\)\s*)+)(?:\s*([1-5]))?\s+(\d{2,4})(?=\s|$)/g;
+  const g = {};
+  for (const m of s.matchAll(re)) {
+    const h = [...heads].reverse().find(x => x.i < m.index); if (!h) continue;
+    const pre = s.slice(Math.max(h.i, s.lastIndexOf(m[1], m.index) - 30), m.index), area = (pre.match(/(국어|수학|영어|사회\s*\(\s*역사\s*\/\s*도\s*덕\s*포\s*함\s*\)|과학|체육|예술|기술·가정|정보|제2외국어|한문|교양)\s*$/) || [, ''])[1].replace(/\s/g, '');
+    (g[h.sem] = g[h.sem] || { sem: h.sem, grade: h.yr, rows: [] }).rows.push({ no: h.no, v: [area, m[1], m[2], `${m[3]}/${m[4]}`, m[5], m[6].trim(), m[7] || '', m[8], ''] });
+  }
+  const groups = Object.values(g).map(x => ({ ...x, cols: ['교과', '과목', '학점', '원점수/과목평균', '성취도', '성취도별분포비율', '석차등급', '수강자수', '비고'] }));
+  if (!groups.length) throw new Error('과목 줄을 찾지 못했어요. 엑셀로 저장해 올리거나 표를 복사해 주세요');
+  return groups;
+}
 const gyogwaKey = (y, sem) => `rec_${y}_gyogwa_${sem || 0}`;
 const gyogwaDocs = () => Object.values(RC).filter(d => d.kind === 'gyogwa').sort((a, b) => a.year - b.year || String(a.sem).localeCompare(String(b.sem)));
 async function gyogwaRead(src) {
   try {
     let aoa;
-    if (src === 'text') aoa = parseTSV($('#recText').value);
+    if (src === 'text') {
+      const txt = $('#recText').value;
+      if (txt.trim() && !txt.includes('\t')) { DASH.gyPending = parseGyogwaText(txt); return dashRefresh(); }   // PDF에서 복사한 글
+      aoa = parseTSV(txt);
+    }
     else {
       const f = src.files[0]; if (!f) return;
       if (/\.pdf$/i.test(f.name)) return toast('📗 PDF는 칸이 합쳐져 있어 나누기 어려워요. 나이스 출력 화면에서 엑셀로 저장해 올려 주세요');
