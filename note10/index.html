@@ -1043,6 +1043,23 @@ async function summarizeCounsels(btn) {
   });
 }
 function setCsSum(id, v) { const st = cur(), c = st.counsels.find(x => x.id === id); if (!c) return; c.sum = v.trim(); saveStudent(st); render(); }
+// 한눈에 > 나이스 기록: 학기마다 교과 등급 칩 (등급이 없으면 성취도)
+function gyogwaChips(st) {
+  if (!st.num) return '';
+  return gyogwaDocs().map(d => {
+    const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return '';
+    const iS = d.cols.findIndex(c => c === '과목'), iG = d.cols.findIndex(c => /석차/.test(c)), iA = d.cols.findIndex(c => c === '성취도'), iR = d.cols.findIndex(c => /원점수/.test(c));
+    return `<div class="item"><b class="hand" style="font-size:17px">📗 ${d.year} ${esc(d.sem)}학기 교과 성적</b><div class="ov-line" style="margin-top:4px">${rs.map(r => {
+      const g = iG >= 0 ? r.v[iG] : '', a = iA >= 0 ? r.v[iA] : '';
+      return `<span class="ov-chip subj" title="${esc(iR >= 0 ? '원점수/평균 ' + r.v[iR] : '')}">${esc(r.v[iS] || '')} <b>${esc(g || a || '-')}</b>${g && a ? `<span class="mini"> (${esc(a)})</span>` : ''}</span>`; }).join('')}</div></div>`;
+  }).join('');
+}
+// 한눈에 > 나이스 기록: 과목별 세특 (학년도마다 접어서)
+function setukFold(st) {
+  if (!st.num) return '';
+  const ys = [...new Set(Object.values(RC).filter(d => d.kind === 'setuk').map(d => d.year))].sort((a, b) => b - a);
+  return ys.map(y => setukList(st.num, y, true)).join('');
+}
 function secOverview(st) {
   const l = lastCounsel(st), cs = [...st.counsels].sort((a, b) => a.date.localeCompare(b.date));
   const cr = careers(st), att = attShort(st), vol = volShort(st);
@@ -1074,7 +1091,7 @@ function secOverview(st) {
       <div style="margin-top:10px">${st.aiEval ? `<div class="mini">${st.aiEvalDate} 기준</div><div class="ai-out">${md(st.aiEval)}</div>` : '<div class="empty">상담·성적·활동이 쌓일수록 정확해져요</div>'}</div>
     </div></div>
     <div class="box"><div class="hd mustard"><span class="n">📋</span>나이스 기록</div><div class="bd">
-      ${recItems(st) || '<div class="empty">관리에서 출결 · 봉사를 넣으면 여기에 보여요</div>'}
+      ${(gyogwaChips(st) + recItems(st) + setukFold(st)) || '<div class="empty">관리 > 생기부 자료에서 교과 성적 · 세특 · 출결 · 봉사를 넣으면 여기에 보여요</div>'}
       <div class="mini" style="margin-top:6px">📊 쌓인 기록: 상담 ${st.counsels.length} · 활동 ${st.acts.length} · 일화 ${st.episodes.length} · 문구 ${st.sentences.length}</div>
     </div></div>
   </div>
