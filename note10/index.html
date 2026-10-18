@@ -1043,6 +1043,21 @@ async function summarizeCounsels(btn) {
   });
 }
 function setCsSum(id, v) { const st = cur(), c = st.counsels.find(x => x.id === id); if (!c) return; c.sum = v.trim(); saveStudent(st); render(); }
+// 팝업 안에서 상담 고치기 · 더하기 · 지우기 — 화면은 한눈에 그대로, 팝업도 그 자리에서 다시 그려요
+function csEdit(id, k, v) {
+  const st = cur(); let c = id && st.counsels.find(x => x.id === id);
+  if (k === 'add') {
+    const text = $('#cpText').value.trim(); if (!text) return toast('내용을 적어 주세요');
+    if (!piiOk(text)) return;
+    c = { id: uid(), date: askTextDate(text, $('#cpDate').value || today()), type: $('#cpType').value, text, next: '' };
+    st.counsels.push(c); toast('💬 상담을 더했어요');
+  } else if (!c) return;
+  else if (k === 'del') { if (!confirm('이 상담을 지울까요?')) return; st.counsels = st.counsels.filter(x => x.id !== id); c = null; }
+  else if (k === 'text') { if (!v.trim() || !piiOk(v)) return csPop(id); c.text = v.trim(); }
+  else if (k === 'date') { if (!v) return; c.date = v; }
+  else c[k] = String(v).trim();
+  saveStudent(st); render(); csPop(c ? c.id : '');
+}
 // 💬 말풍선을 누르면: 이 친구 상담 누가 기록 전체를 말풍선 색 그대로 알록달록 카드로 (누른 상담으로 바로 이동)
 function csPop(id) {
   const st = cur(), cs = [...st.counsels].sort((a, b) => a.date.localeCompare(b.date));
@@ -1050,11 +1065,16 @@ function csPop(id) {
     ${cs.map((c, i) => { const [bg, fg] = BUB[i % BUB.length]; return `<div id="cp_${c.id}" style="display:flex;gap:10px;margin-bottom:12px">
       <div style="display:flex;flex-direction:column;align-items:center;flex:none"><span class="bub-n" style="background:${fg};width:28px;height:28px;font-size:13px">${i + 1}</span>${i < cs.length - 1 ? `<span style="flex:1;width:3px;background:${fg};opacity:.35;margin-top:4px;border-radius:2px"></span>` : ''}</div>
       <div style="flex:1;background:${bg};border:1.5px solid ${fg};border-radius:${i % 2 ? '18px 18px 18px 4px' : '18px 18px 4px 18px'};padding:10px 14px;${c.id === id ? `box-shadow:0 0 0 3px ${fg}55` : ''}">
-        <div class="row" style="gap:6px;margin-bottom:6px"><b class="hand" style="font-size:17px;color:${fg}">${c.date.replace(/-/g, '.')}</b><span class="chip" style="font-size:11.5px;background:#fff;border-color:${fg};color:${fg}">${esc(c.type)}</span>
-          <input type="text" value="${esc(c.sum || '')}" placeholder="✨ 한 줄 요약 (비우면 첫 문장)" style="flex:1;min-width:140px;padding:3px 8px;font-size:13px;background:#ffffffcc;border-color:${fg}66" onchange="setCsSum('${c.id}',this.value);csPop('${c.id}')"></div>
-        <div style="white-space:pre-wrap;font-size:13.5px;line-height:1.65">${esc(c.text)}</div>
+        <div class="row" style="gap:6px;margin-bottom:6px"><input type="date" value="${c.date}" style="width:auto;padding:2px 6px;font-weight:700;color:${fg};background:#ffffffcc;border-color:${fg}66" onchange="csEdit('${c.id}','date',this.value)">
+          <select style="width:auto;padding:2px 6px;font-size:12.5px;background:#fff;border-color:${fg};color:${fg}" onchange="csEdit('${c.id}','type',this.value)">${[...new Set([...CS_TYPES, c.type])].map(t => `<option ${t === c.type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+          <input type="text" value="${esc(c.sum || '')}" placeholder="✨ 한 줄 요약 (비우면 첫 문장)" style="flex:1;min-width:140px;padding:3px 8px;font-size:13px;background:#ffffffcc;border-color:${fg}66" onchange="csEdit('${c.id}','sum',this.value)">
+          <button class="x" title="이 상담 지우기" onclick="csEdit('${c.id}','del')">🗑</button></div>
+        <textarea style="width:100%;min-height:${Math.min(240, 60 + (c.text.split('\n').length) * 20)}px;font-size:13.5px;line-height:1.65;background:#ffffffb3;border-color:${fg}55" onchange="csEdit('${c.id}','text',this.value)">${esc(c.text)}</textarea>
       </div></div>`; }).join('') || '<div class="empty">아직 상담이 없어요</div>'}
-    <div class="row" style="margin-top:4px"><button class="btn sm ghost" onclick="closeModal();V.sec=2;render()">💬 상담 기록 화면에서 고치기 · 더하기 →</button></div>`, true);
+    <div class="box" style="margin-top:6px"><div class="bd"><b class="hand" style="font-size:17px">＋ 새 상담 더하기</b>
+      <div class="row" style="gap:6px;margin:6px 0"><input type="date" id="cpDate" value="${today()}" style="width:auto"><select id="cpType" style="width:auto">${CS_TYPES.map(t => `<option>${t}</option>`).join('')}</select></div>
+      <textarea id="cpText" style="min-height:80px" placeholder="나눈 이야기를 적어요. 이름 대신 '이 친구'로 적어요."></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn sm" style="margin-left:auto" onclick="csEdit(null,'add')">💬 저장</button></div></div></div>`, true);
   setTimeout(() => document.getElementById('cp_' + id)?.scrollIntoView({ block: 'center' }), 60);
 }
 // 🎨 동아리: 직접 적은 것 → 없으면 나이스 창체 동아리활동 글 맨 앞 '(동아리명)'
@@ -1149,7 +1169,7 @@ function secOverview(st) {
     <div><b>${vol || '-'}</b><span>봉사</span></div>
     ${(() => { const bk = booksOf(st); return `<div style="${bk.length ? 'cursor:pointer' : ''}" ${bk.length ? 'onclick="bookPop()" title="눌러서 책 목록 보기"' : ''}><b>${bk.length ? bk.length + '권' : '-'}</b><span>📚 읽은 책 ${bk.length ? '· 눌러서 보기' : '(세특 · 창체에서 찾아요)'}</span></div>`; })()}
   </div>
-  <div class="box" style="margin-bottom:14px"><div class="hd pink"><span class="n">💬</span>상담 모아보기 <span class="sp" style="display:flex;gap:6px">${cs.some(c => !c.sum) ? '<button class="btn sm ghost" onclick="summarizeCounsels(this)">✨ AI 한 줄 요약</button>' : ''}<button class="btn sm ghost" onclick="V.sec=2;render()">＋ 상담 적기</button></span></div><div class="bd">
+  <div class="box" style="margin-bottom:14px"><div class="hd pink"><span class="n">💬</span>상담 모아보기 <span class="sp" style="display:flex;gap:6px">${cs.some(c => !c.sum) ? '<button class="btn sm ghost" onclick="summarizeCounsels(this)">✨ AI 한 줄 요약</button>' : ''}<button class="btn sm ghost" onclick="csPop('');setTimeout(()=>{const t=$('#cpText');t?.scrollIntoView({block:'center'});t?.focus()},120)">＋ 상담 적기</button></span></div><div class="bd">
     ${cs.length ? `<div class="bubs">${cs.map((c, i) => { const [bg, fg, rad] = BUB[i % BUB.length]; return `<div class="bub" style="background:${bg};border-color:${fg};border-radius:${rad};cursor:pointer" title="눌러서 상담 누가 기록 보기" onclick="csPop('${c.id}')">
         <div class="bub-top"><span class="bub-n" style="background:${fg}">${i + 1}</span><span class="mini">${c.date.slice(5).replace('-', '/')}</span><span class="chip" style="font-size:11px;padding:0 7px">${esc(c.type)}</span></div>
         <div class="bub-t">${esc(csShort(c))}</div>
