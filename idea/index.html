@@ -5138,8 +5138,12 @@ function initAdmin(){
     const msg = document.getElementById('quick-msg');
     const sections = {};
     let cur = null;
+    // 정해진 제목([문항ID] [단원] [발문] [제시문] [사상가] [보기] [범례] [선지·정답·해설] [해설])만 새 칸으로 본다.
+    // 해설 안의 [출제의도] [오답풀이] [정답해설] 같은 대괄호 줄은 해설 글로 그대로 이어 붙인다.
+    const KNOWN = /^(문항ID|ID|단원|발문|제시문|사상가|보기|범례|선지|정답$|해설$)/;
     text.split('\n').forEach(line=>{
-      const m = line.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+      let m = line.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+      if(m && !KNOWN.test(m[1].replace(/\s/g,''))) m = null;
       if(m){
         cur = m[1].replace(/\s/g,'');
         sections[cur] = m[2] ? m[2] + '\n' : '';
@@ -5173,7 +5177,8 @@ function initAdmin(){
     document.getElementById('paste-bogi').value = /^(없음|-)?$/.test(bogi) ? '' : bogi;
     const legend = get('범례');
     document.getElementById('paste-legend').value = /^(없음|-)?$/.test(legend) ? '' : legend;
-    document.getElementById('paste-choices').value = get('선지','정답');
+    // [해설] 을 따로 적었으면 선지・정답 뒤에 이어 붙인다 (정답 줄 뒤의 글은 해설로 저장됨)
+    document.getElementById('paste-choices').value = get('선지','정답') + (sections['해설'] ? '\n' + sections['해설'].trim() : '');
 
     state.thinkerNames = {};
     const names = get('사상가');
