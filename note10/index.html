@@ -2900,6 +2900,8 @@ function parseSetuk(aoa) {
     if (iYear >= 0 && /^\d$/.test(r[iYear] || '')) yr = r[iYear];
     if (iSem >= 0 && /^\d$/.test(r[iSem] || '')) sem = r[iSem];
     const no = r[iNo] || '', t = r[iText] || '';
+    // 쪽마다 찍히는 제목 · 사용자명 · 쪽 번호 · 학교 이름 · 날짜 줄은 글에 섞지 않아요
+    if (r.some(c => /사용자명|학교생활기록부/.test(c)) || /^\d+\s*\/\s*\d+$|^\S*학교$|^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?$/.test(t)) continue;
     if (/^\d{1,2}$/.test(no)) { cur = { subj, yr, sem, no: +no, text: t }; out.push(cur); }
     else if (t && cur && cur.subj === subj) cur.text += (/[.!?)」』'"]$/.test(cur.text) ? ' ' : '') + t;   // 쪽이 넘어가며 이어진 글
   }
@@ -2909,18 +2911,25 @@ function parseSetuk(aoa) {
 /* 과목 칸 없이 한 칸에 '공통국어1: … 공통수학1: …' 로 이어진 세특 → 과목마다 나누기.
    '이름:' 이 과목인지는 끝이 숫자 · Ⅰ Ⅱ 이거나, 선택과목 사전 · 올린 교과학습발달상황 과목에 있으면 과목으로 봐요 */
 function splitSubjects(text) {
-  const known = new Set([...SUBJ_DICT, ...gyogwaDocs().flatMap(d => { const i = d.cols.indexOf('과목'); return d.rows.map(r => r.v[i] || ''); })].map(x => x.replace(/\s/g, '')).filter(Boolean));
-  const re = /(^|\n|[.!?」』'"]\s+|\s{2,})([가-힣A-Za-z][가-힣A-Za-z0-9ⅠⅡⅢ·]{0,15}(?: [가-힣A-Za-z0-9ⅠⅡⅢ·]{1,10}){0,2})\s*[:：]\s*/g;
+  // 숫자 없이 쓰는 과목 (음악 · 미술 · 체육 …) — 세특에서만 과목으로 봐요 (선택과목 칸에서는 '체육'이 교과군이라 따로 둬요)
+  const plain = ['음악', '미술', '체육', '연극', '정보', '보건', '한문', '기술·가정', '진로와 직업', '교양', '스포츠 생활', '운동과 건강'];
+  const known = new Set([...SUBJ_DICT, ...plain, ...gyogwaDocs().flatMap(d => { const i = d.cols.indexOf('과목'); return d.rows.map(r => r.v[i] || ''); })].map(x => x.replace(/\s/g, '').replace(/\(\d+\)$/, '')).filter(Boolean));
+  const re = /(^|\n|[.!?」』'"]\s+|\s{2,})([가-힣A-Za-z][가-힣A-Za-z0-9ⅠⅡⅢ·]{0,15}(?: [가-힣A-Za-z0-9ⅠⅡⅢ·]{1,10}){0,2})(?:\s*\(\d+\))?\s*[:：]\s*/g;   // '음악(3):' 처럼 학점이 붙어도
   const hits = [];
   for (const m of text.matchAll(re)) {
     const name = m[2].trim();
-    if (/[\dⅠⅡⅢ]$/.test(name) || known.has(name.replace(/\s/g, ''))) hits.push({ at: m.index + m[1].length, start: m.index + m[0].length, subj: name });
+    // '공통국어1' · '체육1' 처럼 글자 두 개 이상 바로 뒤에 숫자 · Ⅰ Ⅱ 가 붙은 꼴만 (띄어 쓴 '또한 3:3 농구' 같은 글은 과목이 아니에요)
+    if (/^[가-힣A-Za-z·]{2,}[0-9ⅠⅡⅢ]$/.test(name) || known.has(name.replace(/\s/g, ''))) hits.push({ at: m.index + m[1].length, start: m.index + m[0].length, subj: name });
   }
   return hits.map((h, i) => ({ subj: h.subj, text: text.slice(h.start, i + 1 < hits.length ? hits[i + 1].at : text.length).trim() })).filter(x => x.text);
 }
 // 학생 한 칸 → 과목마다, 학기 칸이 없으면 관리에서 고른 학기
 function groupSetuk(out) {
   const sem0 = DASH.setukSem || '1';
+  // 과목 칸이 없는 출력물: 쪽이 바뀌며 번호가 다시 찍혀 나뉜 조각을 같은 번호끼리 차례대로 이어 붙여요 (엑셀을 고치지 않아도 돼요)
+  const byNo = new Map();
+  out.filter(e => !e.subj).forEach(e => { const x = byNo.get(e.no); if (x) x.text = x.text + (/[.!?」』'"”’)]$/.test(x.text) ? ' ' : '') + e.text; else byNo.set(e.no, { ...e }); });
+  out = [...out.filter(e => e.subj), ...byNo.values()];
   const ex = out.flatMap(e => {
     if (e.subj) return [{ ...e, sem: e.sem || sem0 }];
     const parts = splitSubjects(e.text);
@@ -2938,7 +2947,9 @@ function parseSetukText(text) {
   // '번호 이름 학년' 다음에 바로 '과목:' 이 와야 학생 시작으로 봐요 (글 속 숫자와 헷갈리지 않게)
   const heads = [...s.matchAll(/(?:^|\s)(\d{1,2})\s+[가-힣]{2,5}\s+([123])\s+/g)].filter(m => splitSubjects(s.slice(m.index + m[0].length, m.index + m[0].length + 60))[0] && /^\s*[^\s:：]{1,30}\s*[:：]/.test(s.slice(m.index + m[0].length)));
   if (!heads.length) throw new Error("'번호 이름 학년 과목:' 으로 시작하는 학생을 찾지 못했어요");
-  const out = heads.map((m, i) => ({ no: +m[1], yr: m[2], sem: '', subj: '', text: s.slice(m.index + m[0].length, i + 1 < heads.length ? heads[i + 1].index : s.length).trim() }));
+  // 쪽이 바뀌며 다시 찍힌 '번호 이름 학년' 은 글에서 지워요 (이름이 남지 않게)
+  const marks = [...new Set(heads.map(m => m[0].trim()))];
+  const out = heads.map((m, i) => ({ no: +m[1], yr: m[2], sem: '', subj: '', text: marks.reduce((t, k) => t.split(k).join(' '), s.slice(m.index + m[0].length, i + 1 < heads.length ? heads[i + 1].index : s.length)).replace(/\s+/g, ' ').trim() }));
   return groupSetuk(out);
 }
 const setukKey = (y, g) => `rec_${y}_setuk_${g.sem || 0}_${g.subj.replace(/[\/\\.#\[\]\s]/g, '')}`;
