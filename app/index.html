@@ -2217,9 +2217,52 @@ document.addEventListener('change', (e)=>{
 });
 
 // { 사상가이름: { o:[옳은 선지], x:[옳지 않은 선지] } }
+// ----- 순서도형 → 사상가별 선지 (2026-10-18) -----
+// 범례 "B: 갑이 긍정의 대답을 할 질문" · "C: 을이 '예'라고 대답할 질문" 을 읽어 { B:'갑', C:'을' } 으로 돌려준다.
+function flowYesLetters(q){
+  const out = {};
+  String(q.legend || '').split(/\r?\n|\\n|\s\/\s/).forEach(line=>{
+    const m = String(line).match(/^\s*([A-EＡ-Ｅ])\s*[:：]\s*(.+)$/);
+    if(!m || !/질문/.test(m[2]) || /달리|아니/.test(m[2])) return;
+    const w = m[2].match(/^\s*([갑을병])\s*[이가은는]\s*(?:['‘"“]?\s*예|긍정)/);
+    if(w) out[m[1].toUpperCase()] = w[1];
+  });
+  return out;
+}
+// B · C 칸 보기: 정답 조합에 들어 있으면 그 사람이 '예' → 맞는 선지(O), 빠져 있으면 '아니요' → 틀린 선지(X)
+// A 칸("갑이 을과 달리 긍정")은 정답일 때만: 갑 O · 을 X (정답이 아니면 둘 다 예인지 둘 다 아니요인지 몰라서 뺌)
+// 질문은 평서문으로 바꿔 쓴다 (어색하면 FLOW_JUDGE 에 text 를 적는다). 출처는 〈보기〉 ㄴ 처럼 (i = 'bㄴ')
+function flowSays(q, by){
+  if(!q.bogi) return;
+  const yes = flowYesLetters(q), only = flowOnlyLetters(q);
+  if(!Object.keys(yes).length) return;
+  const ci = parseInt(q.correctNum, 10) - 1;
+  const answer = bogiMarksIn((q.choices || [])[ci] || '');
+  if(!answer.size) return;
+  const nameOf = lb => { const t = (q.thinkers || []).find(x => x.label === lb); return t ? cleanName(t.name) : ''; };
+  const put = (nm, ok, it, stmt) => {
+    if(!nm) return;
+    by[nm] = by[nm] || { o:[], x:[] };
+    by[nm][ok ? 'o' : 'x'].push({ q, i:'b' + it.mark, mark:it.mark, text: labelToName(q, stmt) });
+  };
+  parseBogiItems(q.bogi).forEach(it=>{
+    const j = FLOW_JUDGE[`${q.id}:${it.mark}`] || {};
+    const stmt = j.text || questionToStatement(it.body);
+    const inAns = answer.has(it.mark);
+    if(yes[it.letter]) put(nameOf(yes[it.letter]), inAns, it, stmt);
+    else if(only[it.letter] && inAns){
+      put(nameOf(only[it.letter]), true, it, stmt);
+      const other = (q.thinkers || []).find(t => t.label && t.label !== only[it.letter]);
+      if(other) put(cleanName(other.name), false, it, stmt);
+    }
+  });
+}
+// 사상가별 선지 출처 표시: 선지는 ①②…, 순서도 보기는 〈보기〉 ㄴ
+function sayMark(s){ return s.mark ? `〈보기〉 ${s.mark}` : sayMark(s); }
 function thinkerSays(questions){
   const by = {};
   (questions || []).forEach(q=>{
+    flowSays(q, by);                     // 순서도형 B · C 칸 (2026-10-18)
     if(!soxAvailable(q)) return;
     if(isRegionQuestion(q)) return;      // A・B 영역을 묻는 문항은 사상가별 선지로 쓰지 않는다
     (q.choices || []).forEach((choice, i)=>{
@@ -2277,7 +2320,7 @@ function blankItems(kind, questions){
     const says = thinkerSays(questions);
     Object.keys(says).forEach(nm=>{
       if(!says[nm].o.length) return;
-      out[nm] = says[nm].o.map(s=>({ key: blankKey('s', s.q.id, s.i), text: s.text, q: s.q, label: `${qLabel(s.q)} ${NUM_MARK[s.i]}` }));
+      out[nm] = says[nm].o.map(s=>({ key: blankKey('s', s.q.id, s.i), text: s.text, q: s.q, label: `${qLabel(s.q)} ${sayMark(s)}` }));
     });
   }
   return out;
@@ -3347,7 +3390,7 @@ function initStudent(){
         <div class="say-line">
           <span class="say-dot o">✓</span>
           <span class="say-text">${escapeHtml(s.text)}</span>
-          <button type="button" class="say-src" data-open="${escapeHtml(s.q.id)}" title="이 문제 보기">${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}</button>
+          <button type="button" class="say-src" data-open="${escapeHtml(s.q.id)}" title="이 문제 보기">${escapeHtml(qLabel(s.q))} ${sayMark(s)}</button>
         </div>`).join('')}</div>`;
     el.querySelectorAll('[data-t]').forEach(b=> b.addEventListener('click', ()=>{ sayPick = b.dataset.t; renderSaysPanelStudent(); }));
     el.querySelectorAll('[data-open]').forEach(b=> b.addEventListener('click', ()=>{
@@ -3544,7 +3587,7 @@ function initStudent(){
       if(!rec || !rec.w) return;                 // 그 뒤에 맞힌 것은 뺀다
       if(key.startsWith('t:')){
         const s = byThinker[key];
-        if(s) out.push({ key, kind:'t', text:s.text, ans:s.ans, who:s.who, q:s.q, i:s.i, at:rec.at||0, n:rec.n||1 });
+        if(s) out.push({ key, kind:'t', text:s.text, ans:s.ans, who:s.who, q:s.q, i:s.i, mark:s.mark, at:rec.at||0, n:rec.n||1 });
       }else{
         const x = byPair[key];
         if(x) out.push({ key, kind:'p', text:x.text, ans:x.ans, src:x.src, at:rec.at||0, n:rec.n||1 });
@@ -3784,7 +3827,7 @@ function initStudent(){
           const mark = oxr.marks[s.key];
           const ok = mark && mark === s.ans;
           const where = s.kind === 't'
-            ? `${escapeHtml(s.who || '')} · 출처 ${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}`
+            ? `${escapeHtml(s.who || '')} · 출처 ${escapeHtml(qLabel(s.q))} ${sayMark(s)}`
             : `갑・을 OX${s.src ? ' · 출처 ' + escapeHtml(s.src) : ''}`;
           return `
           <div class="tox-row ${mark ? (ok ? 'ok' : 'no') : ''}" data-key="${escapeHtml(s.key)}">
@@ -3882,7 +3925,7 @@ function initStudent(){
             <div class="tox-body">
               <div class="tox-q">${escapeHtml(s.text)}</div>
               <div class="tox-note" ${mark ? '' : 'hidden'}>${mark
-                ? `${ok ? '맞았어요.' : `아니에요. 이 설명은 <b>${s.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`} <span class="say-src-plain">출처 ${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}${s.q.unit ? ' · ' + escapeHtml(s.q.unit) : ''}</span>`
+                ? `${ok ? '맞았어요.' : `아니에요. 이 설명은 <b>${s.ans === 'O' ? '맞는' : '틀린'}</b> 설명이에요.`} <span class="say-src-plain">출처 ${escapeHtml(qLabel(s.q))} ${sayMark(s)}${s.q.unit ? ' · ' + escapeHtml(s.q.unit) : ''}</span>`
                 : ''}</div>
             </div>
             <div class="tox-btns">
@@ -5953,7 +5996,7 @@ function initAdmin(){
         const says = thinkerSays(qs);
         Object.keys(says).forEach(nm=>{
           ['o','x'].forEach(k=> says[nm][k].forEach(s=>{
-            items[`t:${s.q.id}:${s.i}`] = { kind:'사상가별', text: s.text, ans: k === 'o' ? 'O' : 'X', src: `${nm} · ${qLabel(s.q)} ${NUM_MARK[s.i]}` };
+            items[`t:${s.q.id}:${s.i}`] = { kind:'사상가별', text: s.text, ans: k === 'o' ? 'O' : 'X', src: `${nm} · ${qLabel(s.q)} ${sayMark(s)}` };
           }));
         });
         const stat = {};    // ox 키 → { r, n, who:[틀린 학생] }
@@ -6372,7 +6415,7 @@ function initAdmin(){
             <div class="mc-src"><b style="font-size:14.5px;color:var(--ink);">${escapeHtml(n)}</b> · ⭕ ${says[n].o.length}개 · ❌ ${says[n].x.length}개</div>
             ${['o','x'].map(k=> says[n][k].length ? `
               <div class="says-head ${k}">${k === 'o' ? '⭕ 옳은 선지' : '❌ 옳지 않은 선지'}</div>
-              ${says[n][k].map(s=>`<div class="say-line"><span class="say-dot ${k}">${k === 'o' ? 'O' : 'X'}</span><span class="say-text">${escapeHtml(s.text)}</span><span class="say-src-plain">${escapeHtml(qLabel(s.q))} ${NUM_MARK[s.i]}</span></div>`).join('')}` : '').join('')}
+              ${says[n][k].map(s=>`<div class="say-line"><span class="say-dot ${k}">${k === 'o' ? 'O' : 'X'}</span><span class="say-text">${escapeHtml(s.text)}</span><span class="say-src-plain">${escapeHtml(qLabel(s.q))} ${sayMark(s)}</span></div>`).join('')}` : '').join('')}
           </div>`).join('')}`;
       el.querySelectorAll('[data-sp]').forEach(b=> b.addEventListener('click', ()=>{
         saysPick = b.dataset.sp || null;
