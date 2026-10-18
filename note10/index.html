@@ -1063,10 +1063,36 @@ function gyogwaChips(st) {
   return gyogwaDocs().map(d => {
     const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return '';
     const iS = d.cols.findIndex(c => c === '과목'), iG = d.cols.findIndex(c => /석차/.test(c)), iA = d.cols.findIndex(c => c === '성취도'), iR = d.cols.findIndex(c => /원점수/.test(c));
-    return `<div class="item"><b class="hand" style="font-size:17px">📗 ${d.year} ${esc(d.sem)}학기 교과 성적</b><div class="ov-line" style="margin-top:4px">${rs.map(r => {
+    return `<div class="item" style="cursor:pointer" title="눌러서 교과 성적 · 세특 한눈에 보기" onclick="gyoPop()"><b class="hand" style="font-size:17px">📗 ${d.year} ${esc(d.sem)}학기 교과 성적 <span class="mini" style="font-family:var(--body)">· 눌러서 세특과 함께 보기</span></b><div class="ov-line" style="margin-top:4px">${rs.map(r => {
       const g = iG >= 0 ? r.v[iG] : '', a = iA >= 0 ? r.v[iA] : '';
       return `<span class="ov-chip subj" title="${esc(iR >= 0 ? '원점수/평균 ' + r.v[iR] : '')}">${esc(r.v[iS] || '')} <b>${esc(g || a || '-')}</b>${g && a ? `<span class="mini"> (${esc(a)})</span>` : ''}</span>`; }).join('')}</div></div>`;
   }).join('');
+}
+// 📗 교과 성적 칸을 누르면: 학기마다 과목 카드 (교과 성적 + 그 과목 세특 누가 기록)
+function gyoPop() {
+  const st = cur(); if (!st?.num) return;
+  const flat = s => String(s || '').replace(/\s|\(\d+\)/g, '');
+  const docs = gyogwaDocs().filter(d => d.rows.some(r => r.no === st.num));
+  const COL = [['#fde8ef', '#ee8fad'], ['#e6f0fb', '#7aaedb'], ['#e7f6ed', '#7fc59a'], ['#fbf1dd', '#d9a74c'], ['#efe9fb', '#a78bdc'], ['#fff1e6', '#f0a27a']];
+  const body = docs.map(d => {
+    const ci = re => d.cols.findIndex(c => re.test(c));
+    const iS = ci(/^과목$/), iE = ci(/^교과$/), iU = ci(/학점|단위/), iR = ci(/원점수/), iA = ci(/^성취도$/), iP = ci(/분포/), iG = ci(/석차/), iN = ci(/수강자/);
+    const set = Object.values(RC).filter(x => x.kind === 'setuk' && x.year === d.year && String(x.sem) === String(d.sem));
+    const rs = d.rows.filter(r => r.no === st.num);
+    return `<h4 style="font-size:19px;margin:6px 0 10px">📗 ${d.year}학년도 ${esc(d.sem)}학기 <span class="mini">${rs.length}과목</span></h4>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:16px">
+      ${rs.map((r, i) => {
+        const [bg, fg] = COL[i % COL.length], subj = r.v[iS] || '', g = iG >= 0 ? r.v[iG] : '', a = iA >= 0 ? r.v[iA] : '';
+        const sk = set.find(x => flat(x.subj) === flat(subj)), tx = sk?.rows.find(x => x.no === st.num)?.text || '';
+        return `<div style="background:${bg};border:1.5px solid ${fg};border-radius:18px;padding:12px 14px">
+          <div class="row" style="gap:6px;align-items:center"><b class="hand" style="font-size:18px">${esc(subj)}</b>${iE >= 0 && r.v[iE] ? `<span class="mini">${esc(r.v[iE])}</span>` : ''}
+            <span style="margin-left:auto;display:flex;gap:4px">${g ? `<span class="chip" style="background:${fg};border-color:${fg};color:#fff;font-weight:700">${esc(g)}등급</span>` : ''}${a ? `<span class="chip" style="background:#fff;border-color:${fg};color:${fg};font-weight:700">${esc(a)}</span>` : ''}</span></div>
+          <div class="mini" style="margin:4px 0 6px">${[iU >= 0 && r.v[iU] ? `${esc(r.v[iU])}학점` : '', iR >= 0 && r.v[iR] ? `원점수/평균 <b>${esc(r.v[iR])}</b>` : '', iN >= 0 && r.v[iN] ? `수강자 ${esc(r.v[iN])}명` : ''].filter(Boolean).join(' · ')}</div>
+          ${iP >= 0 && r.v[iP] ? `<div class="mini" style="opacity:.8;margin-bottom:6px">📊 ${esc(r.v[iP])}</div>` : ''}
+          <div style="background:#ffffffb3;border-radius:12px;padding:8px 10px;font-size:13px;line-height:1.65;white-space:pre-wrap">${tx ? `<b style="color:${fg}">✍️ 세특</b> <span class="mini">${nbytes(tx)}B</span>\n${esc(tx)}` : '<span class="mini">세특이 아직 없어요 — 관리 > 생기부 자료 > 과목별 세특에서 넣어요</span>'}</div>
+        </div>`; }).join('')}</div>`;
+  }).join('');
+  openModal(`📗 ${sname(st)} 교과 성적 · 세특`, body || '<div class="empty">교과학습발달상황이 아직 없어요</div>', true);
 }
 // 한눈에 > 나이스 기록: 과목별 세특 (학년도마다 접어서)
 function setukFold(st) {
