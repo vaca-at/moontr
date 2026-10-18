@@ -629,6 +629,8 @@
   /* 펼친 목록은 운영체제가 그려서 글씨체가 안 먹는 기기도 있어요 (닫힌 칸은 바뀝니다) */
   .pick-sel option, .pick-sel optgroup{ font-family:var(--font-ui); font-size:14px; }
   .pick-hint{ font-size:12px; color:var(--muted); }
+  /* 발문의 '않은 · 아닌 · 없는' 밑줄 (시험지처럼) */
+  u.neg{ text-decoration:underline; text-decoration-thickness:1.5px; text-underline-offset:3px; }
   /* 🟨 빈칸: 학생 화면은 글자를 감추고 노랗게, 누르면(.shown) 글자가 보인다 */
   .blank{ background:#FFE066; color:transparent; border-radius:4px; padding:0 2px; cursor:pointer; box-decoration-break:clone; -webkit-box-decoration-break:clone; transition:color .15s, background .15s; }
   .blank:hover{ background:#FFD43B; }
@@ -1754,6 +1756,8 @@ function imageFromEvent(e){
   return null;
 }
 
+// 발문의 "옳지 않은 것은?" · "아닌 것은?" · "없는 것은?" 처럼 부정을 묻는 말에 시험지처럼 밑줄 (escapeHtml 한 뒤에 씀)
+function negUnderline(html){ return String(html).replace(/(않은|아닌|없는)(?=\s*것)/g, '<u class="neg">$1</u>'); }
 function escapeHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -3117,7 +3121,8 @@ function initStudent(){
   }
   function paintPart(el, q, part){
     const text = hlKeyText(q, part);
-    el.innerHTML = markedHTML(text, fixRanges(text, hlRanges(q.id, part)));
+    const html = markedHTML(text, fixRanges(text, hlRanges(q.id, part)));
+    el.innerHTML = part === 'stem' ? negUnderline(html) : html;
   }
   function paintQuestion(root, q){
     root.querySelectorAll('[data-hl]').forEach(el => paintPart(el, q, el.dataset.hl));
@@ -3293,7 +3298,7 @@ function initStudent(){
         }).join('');
         return `<div class="memo-card hl-card">
           <div class="mc-src">${escapeHtml(qLabel(q))}${q.unit ? ' · ' + escapeHtml(q.unit) : ''}${me.favorites.includes(q.id) ? ' <span class="hl-fav">★</span>' : ''}</div>
-          <div class="mc-stem">${escapeHtml(q.stem)}</div>
+          <div class="mc-stem">${negUnderline(escapeHtml(q.stem))}</div>
           ${rows}
           <div class="hl-card-actions"><button type="button" data-open="${escapeHtml(q.id)}">이 문제 보기</button></div>
         </div>`;
@@ -4001,7 +4006,7 @@ function initStudent(){
       ${list.map(q=>`
         <div class="memo-card">
           <div class="mc-src">${escapeHtml(qLabel(q))}${q.unit ? ' · ' + escapeHtml(q.unit) : ''}</div>
-          <div class="mc-stem">${escapeHtml(q.stem)}</div>
+          <div class="mc-stem">${negUnderline(escapeHtml(q.stem))}</div>
           <div class="mc-memo">${escapeHtml(me.memos[q.id])}</div>
         </div>`).join('')}`;
     document.getElementById('p10-solve').addEventListener('click', ()=> startQuiz('p10', list, { onFinishBack: renderMemoPanel }));
@@ -4033,7 +4038,7 @@ function initStudent(){
             <span class="rep-state ${done ? 'done' : 'wait'}">${done ? '✅ 처리 완료' : '⏳ 확인 중'}</span>
             ${escapeHtml(r.questionId || '')}${q ? ' · ' + escapeHtml(qLabel(q)) : ''}${r.at ? ' · ' + escapeHtml(fmtMs(r.at)) : ''}
           </div>
-          ${q ? `<div class="mc-stem">${escapeHtml(q.stem)}</div>` : ''}
+          ${q ? `<div class="mc-stem">${negUnderline(escapeHtml(q.stem))}</div>` : ''}
           <div class="mc-memo"><b>내가 쓴 내용</b><br>${r.reason ? escapeHtml(r.reason) : '<span style="color:var(--muted);">(사유 없이 보냄)</span>'}</div>
           ${r.img ? `<div class="chat-img" data-img="${escapeHtml(r.img)}"><span class="chat-img-no">사진 불러오는 중...</span></div>` : ''}
           ${r.reply ? `<div class="mc-memo rep-reply"><b>선생님 코멘트</b>${r.replyAt ? ` <span style="color:var(--muted);font-weight:400;">${escapeHtml(fmtMs(r.replyAt))}</span>` : ''}<br>${escapeHtml(r.reply)}</div>` : ''}
@@ -4464,7 +4469,7 @@ function initStudent(){
       <div class="ox-hint" id="${panelId}-ox-hint"${soxModeOn() ? '' : ' hidden'}>${soxAvailable(q) ? '⭕❌ 선지마다 맞는 설명이면 O, 틀린 설명이면 X를 누르세요. 다 고르면 자동으로 채점돼요.' : '⭕❌ 이 문제는 보기 조합형이라 선지 O/X 대신 평소처럼 골라요.'}</div>
       <div class="hl-hint" id="${panelId}-hl-hint"${hlModeOn() ? '' : ' hidden'}>🖍 형광펜이 켜져 있어요 — 어려운 문장을 드래그하면 칠해지고, 칠한 곳을 다시 누르면 지워져요. (선지 고르기는 형광펜을 끄면 다시 돼요)</div>
       <div id="${panelId}-streak">${streak >= 2 ? `<span class="streak-chip">🔥 ${streak}연속 정답 중!</span>` : ''}</div>
-      <div class="stem-box" data-hl="stem">${escapeHtml(q.stem)}</div>
+      <div class="stem-box" data-hl="stem">${negUnderline(escapeHtml(q.stem))}</div>
       ${renderPassageHTML(q, opts.showNames)}
       <div class="choice-list" id="${panelId}-choices"></div>
       <div class="feedback" id="${panelId}-feedback">
@@ -5393,7 +5398,7 @@ function initAdmin(){
           <button class="small-btn line" type="button" id="q-popup-close" style="margin-left:auto;">닫기</button>
         </div>
         ${warn ? `<div class="no-text" style="margin-top:8px;font-size:13px;">⚠️ ${warn.join(' · ')}</div>` : ''}
-        <div style="margin-top:12px;font-weight:700;line-height:1.6;">${nl(q.stem)}</div>
+        <div style="margin-top:12px;font-weight:700;line-height:1.6;">${negUnderline(nl(q.stem))}</div>
         ${box('제시문', q.thinkers.map(t => `${q.thinkers.length > 1 ? `<b>${escapeHtml(t.label)}</b>${t.name ? ` <span style="color:var(--muted);">(${escapeHtml(t.name)})</span>` : ''}: ` : (t.name ? `<span style="color:var(--muted);">(${escapeHtml(t.name)})</span> ` : '')}${nl(t.passage)}`).join('<div style="height:8px;"></div>'))}
         ${box('보기', nl(q.bogi))}
         ${box('범례', nl(q.legend))}
