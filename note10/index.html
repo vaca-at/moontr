@@ -2231,10 +2231,10 @@ function dashRoster() {
     ${D.students.some(s => isPencil(s) && s.num && s.tag !== String(s.num)) ? `<div class="row" style="margin-bottom:8px"><span class="mini" style="color:var(--red)">⚠️ 연필 숫자와 반 번호가 다른 친구가 있어요</span><button class="btn sm" onclick="pencilSync()">✏️ 연필 숫자를 반 번호와 맞추기</button></div>` : ''}
     ${list.length ? `<div style="overflow:auto;max-height:60vh"><table class="dtable"><tr><th style="width:70px">반 번호</th><th style="width:80px">동물</th><th>별칭</th><th style="width:90px">숫자</th><th style="width:90px">상담</th><th style="width:120px">선택과목</th><th style="width:90px"></th></tr>
       ${list.map(s => `<tr style="${isPencil(s) ? 'background:var(--soft)' : ''}">
-        <td><input type="number" min="1" max="60" value="${s.num || ''}" style="width:62px" onchange="rosterSet('${s.id}','num',this.value)"></td>
-        <td><select style="width:70px;font-size:18px" onchange="rosterSet('${s.id}','emoji',this.value)">${emoOpts(s.emoji)}</select></td>
-        <td><input type="text" maxlength="12" value="${esc(s.nick)}" placeholder="별칭" onchange="rosterSet('${s.id}','nick',this.value)"></td>
-        <td><input type="text" inputmode="numeric" maxlength="4" value="${esc(s.tag || '')}" style="width:80px" onchange="rosterSet('${s.id}','tag',this.value)"></td>
+        <td><input type="number" min="1" max="60" value="${s.num || ''}" style="width:62px" data-row="${s.id}" data-k="num" onchange="rosterSet('${s.id}','num',this.value)"></td>
+        <td><select style="width:70px;font-size:18px" data-row="${s.id}" data-k="emoji" onchange="rosterSet('${s.id}','emoji',this.value)">${emoOpts(s.emoji)}</select></td>
+        <td><input type="text" maxlength="12" value="${esc(s.nick)}" placeholder="별칭" data-row="${s.id}" data-k="nick" onchange="rosterSet('${s.id}','nick',this.value)"></td>
+        <td><input type="text" inputmode="numeric" maxlength="4" value="${esc(s.tag || '')}" style="width:80px" data-row="${s.id}" data-k="tag" onchange="rosterSet('${s.id}','tag',this.value)"></td>
         <td class="mini" style="vertical-align:middle">${s.counsels.length ? `${s.counsels.length}회` : '아직'}</td>
         <td class="mini" style="vertical-align:middle;white-space:nowrap;${subjOk(s) ? 'color:#3d8a5f' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? 'color:var(--red)' : ''}">${SEMS.map(([k]) => (s.subjects?.[k] || []).length).join(' · ')}${subjOk(s) ? ' ✓' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? ' ⚠️' : ''}</td>
         <td style="vertical-align:middle"><button class="btn sm ghost" onclick="closeModal();openStudent('${s.id}',1)">노트 →</button></td></tr>`).join('')}
@@ -2268,7 +2268,14 @@ function rosterSet(id, k, v) {
   // 연필 친구가 별칭을 받으면 연필 숫자(= 반 번호)를 버리고 반 번호와 상관없는 숫자로
   if (wasPencil && !isPencil(st) && !typed && !st.tagSet && (k === 'nick' || k === 'emoji')) st.tag = freeTag(st.nick, st.num);
   if (k === 'num' && !isPencil(st) && st.tag === String(st.num)) { st.tag = freeTag(st.nick, st.num); toast('🔒 별칭 숫자가 반 번호와 같아져서 다른 숫자로 바꿨어요'); }
-  sortStudents(); saveStudent(st); render(); dashRefresh();
+  sortStudents(); saveStudent(st);
+  // 표를 다시 그린 뒤, 커서가 가 있던 칸(별칭 → 숫자 칸 등)으로 다시 돌려놔요 — 안 그러면 이어서 친 글자가 사라져요
+  setTimeout(() => {
+    const a = document.activeElement, row = a?.dataset?.row, kk = a?.dataset?.k;
+    render(); dashRefresh();
+    const el = row && document.querySelector(`[data-row="${row}"][data-k="${kk}"]`);
+    if (el) { el.focus(); el.select?.(); }
+  }, 0);
 }
 
 /* 🏫 전교 성적 —전교생 성적표(학번 · 성적만, 이름 없음)를 과목별 · 반별 · 학생별로 한눈에 */
