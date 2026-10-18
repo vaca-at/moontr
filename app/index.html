@@ -4994,7 +4994,15 @@ function initAdmin(){
   // ----- 단원 pill -----
   let unitTouched = false;
   let selectedUnit = null;
-  function loadCustomUnits(){ try{ return JSON.parse(lsGet('saengyun-custom-units') || '[]'); }catch(e){ return []; } }
+  // 직접 추가한 단원: 정해 둔 단원(BUILTIN_UNITS)과 띄어쓰기만 다른 것 · 겹치는 것 · 없앤 단원은 빼고 보여 줘요 (2026-10-18: '서양 윤리' 두 개 · '사회사상' 정리)
+  const REMOVED_UNITS = [];
+  const unitSq = u => String(u || '').replace(/\s+/g, '');
+  function loadCustomUnits(){
+    try{
+      const builtin = new Set(BUILTIN_UNITS.map(unitSq)), seen = new Set();
+      return JSON.parse(lsGet('saengyun-custom-units') || '[]').filter(u=>{ const k = unitSq(u); if(!k || builtin.has(k) || seen.has(k) || REMOVED_UNITS.includes(u)) return false; seen.add(k); return true; });
+    }catch(e){ return []; }
+  }
   function saveCustomUnits(list){ lsSet('saengyun-custom-units', JSON.stringify(list)); }
   function renderUnitPills(){
     const wrap = document.getElementById('unit-pills');
@@ -5007,7 +5015,7 @@ function initAdmin(){
     const all = BUILTIN_UNITS.concat(loadCustomUnits());
     if(!all.includes(u)){ const c = loadCustomUnits(); c.push(u); saveCustomUnits(c); }
   }
-  function setUnit(u){ ensureUnit(u); selectedUnit = u; renderUnitPills(); }
+  function setUnit(u){ const b = BUILTIN_UNITS.find(x => unitSq(x) === unitSq(u)); if(b) u = b; ensureUnit(u); selectedUnit = u; renderUnitPills(); }   // '사회사상' → '사회 사상'
   function addCustomUnit(){
     const input = document.getElementById('unit-new-input');
     const val = input.value.trim();

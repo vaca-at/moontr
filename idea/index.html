@@ -1547,7 +1547,7 @@ const COL = {
 // 윤리와사상 단원(카테고리) — 발문을 먼저 보고, 발문만으로 애매하면 제시문 키워드로 판단
 const BUILTIN_UNITS = [
   "서양 윤리","고대 서양","중세 서양","근대 서양","현대 서양","사회 사상",
-  "동양 윤리","중국 유교","한국 유교","불교 윤리","한국 불교","도가·도교","한국 근대 사상","동서양 비교"
+  "동양 윤리","중국 유교","한국 유교","불교 윤리","한국 불교","도가·도교","동서양 비교"
 ];
 // 단원 정리 기준 (선생님이 정한 것)
 //  · 서양: 고대・중세・근대・현대 사상가가 2시대 이상 섞여 나오면 "서양 윤리"
@@ -1565,8 +1565,7 @@ const THINKER_UNIT = {
   "한국 유교": ["이황","이이","정약용","기대승","정제두","박지원","홍대용","이익","박제가","조식"],
   "불교 윤리": ["석가모니","붓다","혜능","혜원","길장","법장","지의","용수","신수","근본 불교"],
   "한국 불교": ["원효","의천","지눌"],
-  "도가·도교": ["노자","장자","열자","갈홍","양주"],
-  "한국 근대 사상": ["최제우","박중빈","신기선","최시형","손병희","이항로","박은식"]
+  "도가·도교": ["노자","장자","열자","갈홍","양주"]
 };
 const WEST_ERAS = ["고대 서양","중세 서양","근대 서양","현대 서양"];
 const EAST_FAMILY = { "중국 유교":"유교", "한국 유교":"유교", "불교 윤리":"불교", "한국 불교":"불교", "도가·도교":"도가" };
@@ -1584,7 +1583,6 @@ function unitFromThinkers(names){
   const west = set.filter(u => WEST_ERAS.includes(u)), social = set.includes('사회 사상');
   const east = set.filter(u => EAST_FAMILY[u]);
   if(east.length && (west.length || social)) return '동서양 비교';
-  if(set.includes('한국 근대 사상')) return '한국 근대 사상';
   if(social) return '사회 사상';                                   // 사회사상가와 윤리 사상가가 함께 나오면 사회 사상
   if(west.length === set.length) return '서양 윤리';                // 서양 2시대 이상
   const fams = new Set(east.map(u => EAST_FAMILY[u]));
@@ -5033,7 +5031,15 @@ function initAdmin(){
   // ----- 단원 pill -----
   let unitTouched = false;
   let selectedUnit = null;
-  function loadCustomUnits(){ try{ return JSON.parse(lsGet('yunsa-custom-units') || '[]'); }catch(e){ return []; } }
+  // 직접 추가한 단원: 정해 둔 단원(BUILTIN_UNITS)과 띄어쓰기만 다른 것 · 겹치는 것 · 없앤 단원은 빼고 보여 줘요 (2026-10-18: '서양 윤리' 두 개 · '사회사상' 정리)
+  const REMOVED_UNITS = ['한국 근대 사상'];
+  const unitSq = u => String(u || '').replace(/\s+/g, '');
+  function loadCustomUnits(){
+    try{
+      const builtin = new Set(BUILTIN_UNITS.map(unitSq)), seen = new Set();
+      return JSON.parse(lsGet('yunsa-custom-units') || '[]').filter(u=>{ const k = unitSq(u); if(!k || builtin.has(k) || seen.has(k) || REMOVED_UNITS.includes(u)) return false; seen.add(k); return true; });
+    }catch(e){ return []; }
+  }
   function saveCustomUnits(list){ lsSet('yunsa-custom-units', JSON.stringify(list)); }
   function renderUnitPills(){
     const wrap = document.getElementById('unit-pills');
@@ -5046,7 +5052,7 @@ function initAdmin(){
     const all = BUILTIN_UNITS.concat(loadCustomUnits());
     if(!all.includes(u)){ const c = loadCustomUnits(); c.push(u); saveCustomUnits(c); }
   }
-  function setUnit(u){ ensureUnit(u); selectedUnit = u; renderUnitPills(); }
+  function setUnit(u){ const b = BUILTIN_UNITS.find(x => unitSq(x) === unitSq(u)); if(b) u = b; ensureUnit(u); selectedUnit = u; renderUnitPills(); }   // '사회사상' → '사회 사상'
   function addCustomUnit(){
     const input = document.getElementById('unit-new-input');
     const val = input.value.trim();
