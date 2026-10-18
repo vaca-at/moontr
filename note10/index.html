@@ -2904,17 +2904,51 @@ function parseSetuk(aoa) {
     else if (t && cur && cur.subj === subj) cur.text += (/[.!?)」』'"]$/.test(cur.text) ? ' ' : '') + t;   // 쪽이 넘어가며 이어진 글
   }
   if (!out.length) throw new Error('학생 줄을 찾지 못했어요');
+  return groupSetuk(out);
+}
+/* 과목 칸 없이 한 칸에 '공통국어1: … 공통수학1: …' 로 이어진 세특 → 과목마다 나누기.
+   '이름:' 이 과목인지는 끝이 숫자 · Ⅰ Ⅱ 이거나, 선택과목 사전 · 올린 교과학습발달상황 과목에 있으면 과목으로 봐요 */
+function splitSubjects(text) {
+  const known = new Set([...SUBJ_DICT, ...gyogwaDocs().flatMap(d => { const i = d.cols.indexOf('과목'); return d.rows.map(r => r.v[i] || ''); })].map(x => x.replace(/\s/g, '')).filter(Boolean));
+  const re = /(^|\n|[.!?」』'"]\s+|\s{2,})([가-힣A-Za-z][가-힣A-Za-z0-9ⅠⅡⅢ·]{0,15}(?: [가-힣A-Za-z0-9ⅠⅡⅢ·]{1,10}){0,2})\s*[:：]\s*/g;
+  const hits = [];
+  for (const m of text.matchAll(re)) {
+    const name = m[2].trim();
+    if (/[\dⅠⅡⅢ]$/.test(name) || known.has(name.replace(/\s/g, ''))) hits.push({ at: m.index + m[1].length, start: m.index + m[0].length, subj: name });
+  }
+  return hits.map((h, i) => ({ subj: h.subj, text: text.slice(h.start, i + 1 < hits.length ? hits[i + 1].at : text.length).trim() })).filter(x => x.text);
+}
+// 학생 한 칸 → 과목마다, 학기 칸이 없으면 관리에서 고른 학기
+function groupSetuk(out) {
+  const sem0 = DASH.setukSem || '1';
+  const ex = out.flatMap(e => {
+    if (e.subj) return [{ ...e, sem: e.sem || sem0 }];
+    const parts = splitSubjects(e.text);
+    return parts.length ? parts.map(x => ({ ...e, subj: x.subj, text: x.text, sem: e.sem || sem0 })) : [{ ...e, sem: e.sem || sem0 }];
+  });
   const g = {};
-  out.forEach(e => { const k = e.sem + '|' + e.subj; (g[k] = g[k] || { subj: e.subj || '(과목 없음)', sem: e.sem, grade: e.yr, rows: [] }).rows.push({ no: e.no, text: e.text }); });
+  ex.forEach(e => { const k = e.sem + '|' + e.subj; (g[k] = g[k] || { subj: e.subj || '(과목 없음)', sem: e.sem, grade: e.yr, rows: [] }).rows.push({ no: e.no, text: e.text }); });
   return Object.values(g);
+}
+// PDF에서 복사한 세특 글 → 쪽 머리 · 꼬리(제목 · 반 · 사용자명 · 쪽 번호 · 학교 이름 · 날짜)를 지우고 '번호 이름 학년' 으로 학생을 나눠요 (이름은 버려요)
+function parseSetukText(text) {
+  let s = text.replace(/학교생활기록부\s*세부능력\s*및\s*특기사항/g, ' ').replace(/번\s*호\s*성\s*명\s*학\s*년\s*(학\s*기\s*)?세부능력\s*및\s*특기사항/g, ' ')
+    .replace(/사용자명\s*[:：]\s*\S+/g, ' ').replace(/\d\s*학년\s*\d{1,2}\s*반/g, ' ').replace(/\d+\s*\/\s*\d+\s+\S*학교/g, ' ').replace(/\d{4}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2}\s*\./g, ' ')
+    .replace(/\s*\n\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  // '번호 이름 학년' 다음에 바로 '과목:' 이 와야 학생 시작으로 봐요 (글 속 숫자와 헷갈리지 않게)
+  const heads = [...s.matchAll(/(?:^|\s)(\d{1,2})\s+[가-힣]{2,5}\s+([123])\s+/g)].filter(m => splitSubjects(s.slice(m.index + m[0].length, m.index + m[0].length + 60))[0] && /^\s*[^\s:：]{1,30}\s*[:：]/.test(s.slice(m.index + m[0].length)));
+  if (!heads.length) throw new Error("'번호 이름 학년 과목:' 으로 시작하는 학생을 찾지 못했어요");
+  const out = heads.map((m, i) => ({ no: +m[1], yr: m[2], sem: '', subj: '', text: s.slice(m.index + m[0].length, i + 1 < heads.length ? heads[i + 1].index : s.length).trim() }));
+  return groupSetuk(out);
 }
 const setukKey = (y, g) => `rec_${y}_setuk_${g.sem || 0}_${g.subj.replace(/[\/\\.#\[\]\s]/g, '')}`;
 const setukDocs = y => Object.values(RC).filter(d => d.kind === 'setuk' && d.year === y).sort((a, b) => String(a.sem).localeCompare(String(b.sem)) || a.subj.localeCompare(b.subj));
 function setukPreview() {
   try {
-    const aoa = parseTSV($('#recText').value);
-    if (!aoa.length) return toast('표를 복사해 붙여 넣어 주세요');
-    DASH.setukPending = { file: '붙여 넣기', groups: parseSetuk(aoa) }; dashRefresh();
+    const txt = $('#recText').value;
+    if (!txt.trim()) return toast('표를 복사해 붙여 넣어 주세요');
+    // 탭이 없으면 PDF에서 복사한 글
+    DASH.setukPending = { file: '붙여 넣기', groups: txt.includes('\t') ? parseSetuk(parseTSV(txt)) : parseSetukText(txt) }; dashRefresh();
   } catch (e) { toast('📚 ' + e.message); }
 }
 async function setukFile(inp) {
@@ -2947,8 +2981,10 @@ function dashSetuk(tabs) {
   const y = DASH.year, docs = setukDocs(y), p = DASH.setukPending;
   const keyOf = d => setukKey(d.year, d);
   return `<section>${tabs}
-    <p class="mini">나이스 '세부능력 및 특기사항' 출력 화면에서 <b>엑셀로 저장</b>한 파일을 올리거나, 표를 복사해 붙여 넣어요. 여러 과목이 한 파일에 있어도 돼요.<br>🔒 과목 · 학기 · 번호 · 세특 글만 저장하고 성명은 버려요. 같은 과목 · 학기를 다시 올리면 새것으로 바뀌어요.</p>
-    <textarea id="recText" style="min-height:90px;font-size:12.5px" placeholder="여기에 붙여 넣기 (Ctrl+V)"></textarea>
+    <p class="mini">나이스 '세부능력 및 특기사항' 출력 화면에서 <b>엑셀로 저장</b>한 파일을 올리거나, 표 · PDF 글을 복사해 붙여 넣어요. 여러 과목이 한 파일에 있어도 돼요.<br>
+      한 칸에 '공통국어1: … 공통수학1: …'처럼 과목이 이어진 출력물도 과목마다 나눠요.<br>🔒 과목 · 학기 · 번호 · 세특 글만 저장하고 성명은 버려요. 같은 과목 · 학기를 다시 올리면 새것으로 바뀌어요.</p>
+    <div class="row" style="margin-bottom:6px;gap:6px"><span class="mini">학기 칸이 없는 출력물은</span>${['1', '2'].map(s => `<button class="pill ${(DASH.setukSem || '1') === s ? 'on' : ''}" style="font-size:14px;padding:3px 12px" onclick="DASH.setukDraft=$('#recText').value;DASH.setukSem='${s}';DASH.setukPending=null;dashRefresh()">${s}학기</button>`).join('')}<span class="mini">로 넣어요</span></div>
+    <textarea id="recText" style="min-height:90px;font-size:12.5px" placeholder="여기에 붙여 넣기 (Ctrl+V)">${esc(DASH.setukDraft || '')}</textarea>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="setukPreview()">👀 미리 보기</button><label class="btn sm ghost">📂 엑셀 파일로<input type="file" accept=".xlsx,.xls,.csv,.pdf" hidden onchange="setukFile(this)"></label></div></section>
   ${p ? `<section><h4>👀 미리 보기 <span class="mini">${esc(p.file)} · ${p.groups.length}과목</span></h4>
     <table class="dtable"><tr><th>과목</th><th>학기</th><th>학생</th><th>첫 학생 세특 (앞부분)</th><th></th></tr>
