@@ -286,6 +286,7 @@
   .chat-empty{ text-align:center; color:var(--muted); font-size:13px; line-height:1.9; padding:26px 8px; }
   .chat-row{ display:flex; margin-bottom:10px; }
   .chat-row.me{ justify-content:flex-end; }
+  .chat-bubble.auto{ outline:1.5px dashed rgba(0,0,0,.18); outline-offset:-4px; }   /* 🚨 · ✅ 자동 말풍선 */
   .chat-bubble{ max-width:min(86%, 520px); border-radius:12px; padding:9px 12px; background:var(--card); border:1.5px solid var(--line); }
   .chat-row.me .chat-bubble{ background:var(--green-light); border-color:transparent; }
   .chat-row.teacher .chat-bubble{ background:var(--memo); border-color:transparent; }
@@ -1495,7 +1496,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getFirestore, initializeFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
   query, where, getCountFromServer,
-  serverTimestamp, writeBatch
+  serverTimestamp, writeBatch, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
@@ -3616,10 +3617,10 @@ function initStudent(){
   }
   function chatBubbleHTML(m){
     const who = m.who === 's' ? 'me' : (m.who === 't' ? 'teacher' : 'bot');
-    const name = m.who === 's' ? '나' : (m.who === 't' ? '선생님' : '안내');   // 지난 자동 안내글이 남아 있을 때만 쓰인다
+    const name = m.kind === 'report' ? '🚨 나의 오류 신고' : m.kind === 'done' ? '✅ 선생님 · 신고 처리' : (m.who === 's' ? '나' : (m.who === 't' ? '선생님' : '안내'));   // 지난 자동 안내글이 남아 있을 때만 쓰인다
     return `
       <div class="chat-row ${who}">
-        <div class="chat-bubble">
+        <div class="chat-bubble${m.kind ? ' auto' : ''}">
           <div class="chat-who">${name}${m.at ? ` · ${escapeHtml(fmtMs(m.at))}` : ''}</div>
           ${m.img ? `<div class="chat-img" data-img="${escapeHtml(m.img)}"><span class="chat-img-no">사진 불러오는 중...</span></div>` : ''}
           ${m.text ? `<div class="chat-text">${m.who === 's' ? escapeHtml(m.text) : m.text}</div>` : ''}
@@ -3651,6 +3652,18 @@ function initStudent(){
     document.getElementById('chat-send').addEventListener('click', sendChat);
   }
 
+  // 💬 내 채팅에 🚨 신고 말풍선 (선생님 '답 기다리는 질문'으로는 세지 않아요, 2026-10-18)
+  async function chatAutoReport(qid, reason, rid){
+    if(!db || !loginInfo) return;
+    const m = { id:'r' + Date.now(), who:'s', kind:'report', rid: rid || '', text:`문항 ${qid} 오류 신고${reason ? '\n' + reason : ''}`, img:'', at: Date.now() };
+    try{
+      await setDoc(doc(db, COL.chats, loginInfo.key), {
+        studentId: loginInfo.studentId, nickname: loginInfo.nickname,
+        msgs: arrayUnion(m), lastAt: serverTimestamp()
+      }, { merge: true });
+      if(chat) chat.msgs = [...(chat.msgs || []), m].slice(-200);
+    }catch(e){ console.error('채팅에 신고 말풍선 올리기 실패', e); }
+  }
   async function sendChat(){
     const ta = document.getElementById('chat-text');
     const msg = document.getElementById('chat-msg');
@@ -4578,14 +4591,17 @@ function initStudent(){
         e.currentTarget.disabled = true;
         status.textContent = '보내는 중...';
         try{
-          await addDoc(collection(db, COL.reports), {
+          const reason = document.getElementById(panelId+'-report-text').value.trim().slice(0, 500);
+          const rref = await addDoc(collection(db, COL.reports), {
             questionId: q.id,
-            reason: document.getElementById(panelId+'-report-text').value.trim().slice(0, 500),
+            reason,
             studentId: loginInfo ? loginInfo.studentId : '',
             nickname: loginInfo ? loginInfo.nickname : '',
+            key: loginInfo ? loginInfo.key : '',   // 해결하면 이 학생 💬 채팅에 자동 답장을 보내려고 (2026-10-18)
             status: 'new',
             at: serverTimestamp()
           });
+          chatAutoReport(q.id, reason, rref.id);   // 💬 내 채팅에도 🚨 신고 말풍선 (실패해도 신고는 그대로)
           reportedIds.add(q.id);
           flagQuestion(q.id);   // 다른 학생 화면에도 "신고된 문항" 표시
           document.querySelector(`#${panelId} .report-area`).innerHTML = `<span class="report-done">🚩 신고가 접수됐어요. 선생님이 확인할게요. 고마워요!</span>`;
@@ -6402,6 +6418,7 @@ function initAdmin(){
       const targets = snap.docs.filter(d => d.data().questionId === qid && d.data().status === 'new');
       for(const d of targets){
         await updateDoc(doc(db, COL.reports, d.id), { status:'done', doneAt: serverTimestamp(), doneBy:'문항 수정' });
+        await chatAutoDone({ docId:d.id, ...d.data() });   // 💬 학생 채팅에 ✅ 자동 답장
       }
       await clearFlag(qid);
       return targets.length;
@@ -6411,6 +6428,21 @@ function initAdmin(){
   // 신고 처리 결과・코멘트를 학생 학습 문서 안의 사본에도 반영한다.
   // 학생 화면 [내 학습 현황 > 내 오류 신고]는 이 사본만 읽는다 (신고 모음에는 다른 학생 정보도 있어 학생이 못 읽는다).
   // 배열 안에는 serverTimestamp()를 넣을 수 없어 숫자 시각(Date.now())을 쓴다.
+  // 💬 신고 ↔ 채팅 (2026-10-18): 학생이 신고하면 그 학생 채팅에 🚨 말풍선, 해결하면 ✅ 자동 답장.
+  // 자동 말풍선은 '답 기다리는 질문'(needTeacher)으로 세지 않아요. 열쇠(key)가 없는 예전 신고는 건너뛰어요.
+  async function chatAutoDone(r, comment){
+    if(!r || !r.key || !r.studentId) return;
+    const qid = escapeHtml(r.questionId || '');
+    const text = `신고해 준 <b>${qid}</b> 문항을 확인하고 고쳤어요. 알려 줘서 고마워요 💙` + (comment ? `<br>💬 ${escapeHtml(comment)}` : '');
+    try{
+      await setDoc(doc(db, COL.chats, r.key), {
+        studentId: r.studentId, nickname: r.nickname || '',
+        msgs: arrayUnion({ id:'d' + Date.now() + Math.random().toString(36).slice(2, 6), who:'t', kind:'done', rid: r.docId || '', text, img:'', at: Date.now() }),
+        lastAt: serverTimestamp(),
+        studentUnread: true      // 학생 💬 단추에 빨간 점
+      }, { merge: true });
+    }catch(e){ console.error('채팅 자동 답장 실패', e); }
+  }
   async function mirrorToLearner(r, patch){
     if(!r || !r.key || !r.docId) return;   // 이 기능이 생기기 전에 들어온 신고는 사본이 없다
     try{
@@ -6473,6 +6505,7 @@ function initAdmin(){
             ? { reply: text, replyAt: Date.now(), status:'done', doneAt: Date.now(), doneBy:'코멘트' }
             : { reply: text, replyAt: Date.now() });
           if(markDone) await clearFlag(r.questionId);   // 학생 화면의 "신고된 문항" 표시 없애기
+          if(markDone) await chatAutoDone(r, text);   // 💬 학생 채팅에 ✅ 자동 답장 (코멘트도 함께)
           renderReports();
         }catch(err){
           console.error(err);
@@ -6595,10 +6628,10 @@ function initAdmin(){
   // 학생 화면과 같은 모양으로 말풍선을 그린다
   function chatBubbleHTML(m){
     const who = m.who === 's' ? 'me-s' : (m.who === 't' ? 'teacher' : 'bot');
-    const name = m.who === 's' ? '학생' : (m.who === 't' ? '선생님' : '안내');   // 지난 자동 안내글이 남아 있을 때만 쓰인다
+    const name = m.kind === 'report' ? '🚨 학생 오류 신고 (자동)' : m.kind === 'done' ? '✅ 신고 처리 (자동)' : (m.who === 's' ? '학생' : (m.who === 't' ? '선생님' : '안내'));   // 지난 자동 안내글이 남아 있을 때만 쓰인다
     return `
       <div class="chat-row ${m.who === 't' ? 'me' : ''}">
-        <div class="chat-bubble ${who}">
+        <div class="chat-bubble ${who}${m.kind ? ' auto' : ''}">
           <div class="chat-who">${name}${m.at ? ` · ${escapeHtml(fmtMs(m.at))}` : ''}</div>
           ${m.img ? `<div class="chat-img" data-img="${escapeHtml(m.img)}"><span class="chat-img-no">사진 불러오는 중...</span></div>` : ''}
           ${m.text ? `<div class="chat-text">${m.who === 's' ? escapeHtml(m.text) : m.text}</div>` : ''}
@@ -6650,6 +6683,7 @@ function initAdmin(){
       el.querySelectorAll('[data-done]').forEach(b=> b.addEventListener('click', async ()=>{
         try{
           await updateDoc(doc(db, COL.reports, b.dataset.done), { status:'done', doneAt: serverTimestamp() });
+          await chatAutoDone(list.find(x => x.docId === b.dataset.done));   // 💬 학생 채팅에 ✅ 자동 답장
           await mirrorToLearner(list.find(x => x.docId === b.dataset.done), { status:'done', doneAt: Date.now(), doneBy:'확인 완료' });
           await clearFlag(b.dataset.doneQid);   // 학생 화면의 "신고된 문항" 표시 없애기
           renderReports();
