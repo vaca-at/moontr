@@ -1371,6 +1371,15 @@ function attInfo(st) {
   return { text: a.length ? a.map(([g, n]) => `${g} ${n}`).join(' · ') : '개근 🌟', warn: why.length > 0, why, exempt, abs };
 }
 function toggleAttExempt() { const st = cur(); st.attExempt = !st.attExempt; saveStudent(st); render(); }
+// 🤝 특별 봉사: 반 공통 봉사(자율·자치 · 반 친구 40% 이상이 같은 날 같은 내용)를 빼고 이 친구만 한 봉사
+function volSpecial(st) {
+  const d = st.num && Object.values(RC).filter(x => x.kind === 'vol').sort((a, b) => b.year - a.year)[0], r = d && d.rows.find(x => x.no === st.num);
+  if (!r?.items?.length) return [];
+  const key = x => `${x.date}|${String(x.text).replace(/\s/g, '')}`, cnt = {};
+  d.rows.forEach(y => new Set((y.items || []).map(key)).forEach(k => { cnt[k] = (cnt[k] || 0) + 1; }));
+  const many = Math.max(3, d.rows.length * 0.4);
+  return r.items.filter(x => !/^\s*\(?\s*자율\s*[·ㆍ.]?\s*자치/.test(x.text) && (cnt[key(x)] || 0) < many);
+}
 function volShort(st) {
   const d = st.num && Object.values(RC).filter(x => x.kind === 'vol').sort((a, b) => b.year - a.year)[0], r = d && d.rows.find(x => x.no === st.num);
   return r ? `${r.v[1]}시간` : null;
@@ -1519,6 +1528,7 @@ function secOverview(st) {
     ${subjChips || `<div class="ov-line"><span class="ov-lab">📘 선택과목</span><span class="mini">아직 없어요 — 아래 ✏️ 고치기에서 넣어요</span></div>`}
     ${(() => { const club = clubOf(st); return `<div class="ov-line"><span class="ov-lab">🎨 동아리</span>${club ? club.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#fff1e6;border-color:#f3d2b0;color:#b9682f">${esc(s)}</span>`).join('') : ''}
       ${club && !V.editClub ? `<button class="x" title="동아리 고치기" onclick="V.editClub=1;render()">✏️</button>` : `<input type="text" value="${esc(st.club || '')}" placeholder="동아리 이름 (예: CPR, 방송부)" style="width:200px;padding:4px 8px" onchange="V.editClub=0;setField('club',this.value);render()"><span class="mini">${club ? '' : '나이스 창체에서 못 찾았어요 — 적고 Enter'}</span>`}</div>`; })()}
+    ${(() => { const sp = volSpecial(st); return sp.length ? `<div class="ov-line"><span class="ov-lab">🤝 특별 봉사</span>${sp.map(x => `<span class="ov-chip" style="background:#e7f6ed;border-color:#bfe3cc;color:#3d8a5f;font-weight:500" title="${esc(x.date + ' · ' + (x.place || ''))}">${esc(x.text.replace(/^\s*\([^)]*\)\s*/, '').slice(0, 30))}${x.text.length > 30 ? '…' : ''} <b>${esc(x.h)}h</b></span>`).join('')}</div>` : ''; })()}
     ${st.school ? `<div class="ov-line"><span class="ov-lab">🏫 출신 학교</span>${st.school.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#f3f0ff;border-color:#d8cdf2;color:#6c55b5">${esc(s)}</span>`).join('')}</div>` : ''}
     ${st.worry ? `<div class="ov-line"><span class="ov-lab">💭 고민</span><span class="mini" style="font-size:13px">${esc(st.worry.slice(0, 80))}${st.worry.length > 80 ? '…' : ''}</span></div>` : ''}
   </div>
