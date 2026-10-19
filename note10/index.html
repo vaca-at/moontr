@@ -1022,6 +1022,154 @@ function examRanks(d) {
   }
   const out = { subj, total, N }; rankCache.set(k, out); return out;
 }
+/* 📥 상담 카드 엑셀 — 한 학생을 A4 한 장에 (꿈 · 선택과목 · 동아리 · 출결 · 봉사 · 책 · 내신 · 모의고사 · 분석 · 세특 요약 · 최근 상담 · 메모)
+   홈페이지처럼 파스텔 색 · 얇은 선. 이름은 저장하지 않으니 인쇄한 뒤 손으로 적어요 */
+const XC = { ink: 'FF4B3A3A', sub: 'FF9B8782', line: 'FFF2DDD6', red: 'FFD9534F', white: 'FFFFFFFF', soft: 'FFFFF7F2',
+  pink: 'FFEE8FAD', pinkL: 'FFFDE8EF', green: 'FF7FC59A', greenL: 'FFE7F6ED', blue: 'FF7AAEDB', blueL: 'FFE6F0FB', mus: 'FFD9A74C', musL: 'FFFBF1DD', pur: 'FFA78BDC', purL: 'FFEFE9FB' };
+// 과목 이름 줄이기: 공통국어1 → 국어, 통합사회2 → 사회, 사회탐구 → 사탐
+const shortSubj = s => String(s).replace(/^(공통|통합)/, '').replace(/[12ⅠⅡ]$/, '').replace('사회탐구', '사탐').replace('과학탐구', '과탐');
+// 줄 이름 → 그 시험의 이 친구 등수 { total, N, subj }
+function rankMap(st, kind) {
+  const RK = {};
+  Object.values(SC).filter(d => examOf(d).kind === kind).forEach(d => { const r = d.rows.find(x => x.no === st.num), e = r && examRanks(d); if (e) RK[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = { e, sid: e.byNo ? (r.sid || 'no' + r.no) : r.sid }; });
+  return label => { const x = RK[label]; if (!x) return null; const t = x.e.total.get(x.sid); return t ? (x.e.N ? `${t}/${x.e.N}` : `${t}`) : null; };
+}
+// 🔍 한눈에 분석 (규칙으로 만드는 짧은 문장들 — AI 안 써요)
+function cardAnalysis(st) {
+  const L = [], avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const rowAvg = (r, subj) => avg(subj.map(s => r[s]).filter(v => v != null));
+  const G = growthRows(st, 'school'), Gr = G.rows.filter(r => G.subj.some(s => r[s] != null));
+  const last = Gr.filter(r => /나이스/.test(r.label)).pop() || Gr[Gr.length - 1];
+  let sAvg = null;
+  if (last) {
+    const sub = G.subj.filter(s => last[s] != null).map(s => [shortSubj(s), last[s]]); sAvg = rowAvg(last, G.subj);
+    const best = Math.min(...sub.map(x => x[1])), worst = Math.max(...sub.map(x => x[1]));
+    L.push(`📗 내신(${last.label}) 평균 ${sAvg.toFixed(2)}등급 · 강점 ${sub.filter(x => x[1] === best).map(x => x[0]).join(', ')}${worst > best ? ` · 보완 ${sub.filter(x => x[1] === worst).map(x => x[0]).join(', ')}` : ''}`);
+  }
+  const M = growthRows(st, 'mock'), Mr = M.rows.filter(r => M.subj.some(s => r[s] != null));
+  let mAvg = null;
+  if (Mr.length) {
+    const f = Mr[0], l = Mr[Mr.length - 1]; mAvg = rowAvg(l, M.subj);
+    const d = Mr.length > 1 ? mAvg - rowAvg(f, M.subj) : 0;
+    L.push(`📘 모의고사(${l.label}) 평균 ${mAvg.toFixed(2)}등급${Mr.length > 1 ? ` · 처음(${f.label})보다 ${d <= -0.3 ? '올랐어요 ▲' : d >= 0.3 ? '내려갔어요 ▼' : '비슷해요'}` : ''}`);
+    if (Mr.length > 1) {
+      const ch = M.subj.filter(s => f[s] != null && l[s] != null).map(s => [shortSubj(s), l[s] - f[s]]);
+      const up = ch.filter(x => x[1] <= -1).map(x => x[0]), down = ch.filter(x => x[1] >= 1).map(x => x[0]);
+      if (up.length || down.length) L.push(`${up.length ? `▲ 오른 과목: ${up.join(', ')}` : ''}${up.length && down.length ? '  ·  ' : ''}${down.length ? `▼ 떨어진 과목: ${down.join(', ')}` : ''}`);
+    }
+  }
+  if (sAvg != null && mAvg != null) {
+    // 내신은 5등급, 모의는 9등급이라 상위 % 로 맞춰 비교해요 (대략)
+    const sp = GRADE5[Math.round(sAvg) - 1] || 100, mp = [4, 11, 23, 40, 60, 77, 89, 96, 100][Math.round(mAvg) - 1] || 100;
+    if (mp + 10 < sp) L.push('💡 모의고사가 내신보다 강해요 → 수능(정시) 경쟁력도 함께 살펴봐요');
+    else if (sp + 10 < mp) L.push('💡 내신이 모의고사보다 강해요 → 학생부(수시) 중심 전략을 함께 살펴봐요');
+    else L.push('💡 내신과 모의고사가 비슷한 수준이에요 → 수시 · 정시를 함께 준비해요');
+  }
+  const ai = attInfo(st); if (ai?.warn) L.push(`⚠️ 출결: ${ai.why.join(' · ')} — 잦은 결석 · 지각은 성실성 평가에 영향을 줄 수 있어요`);
+  const bk = booksOf(st); if (bk.length) L.push(`📚 세특 · 창체에 나온 책 ${bk.length}권 — 진로와 이어지는 독서를 이어 가요`);
+  if (!careers(st).length && !st.careerDetail) L.push('🌱 희망 진로를 아직 정하지 않았어요 — 관심 분야부터 함께 찾아봐요');
+  return L.length ? L : ['아직 분석할 성적 · 기록이 없어요'];
+}
+function buildCard(wb, st, used) {
+  let nm = `${st.num ? st.num + '번 ' : ''}${nname(st)}`.replace(/[\[\]:*?\/\\]/g, '').slice(0, 28), k = 2;
+  while (used.has(nm)) nm = nm.slice(0, 26) + '_' + k++; used.add(nm);
+  const ws = wb.addWorksheet(nm, { views: [{ showGridLines: false }], pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1, horizontalCentered: true, margins: { left: 0.4, right: 0.4, top: 0.45, bottom: 0.45, header: 0.2, footer: 0.2 } } });
+  ws.columns = Array.from({ length: 12 }, () => ({ width: 7.6 }));
+  const thin = { style: 'thin', color: { argb: XC.line } };
+  const box = (r, c1, c2, v, o = {}) => {
+    if (c2 > c1) ws.mergeCells(r, c1, r, c2);
+    for (let c = c1; c <= c2; c++) { const x = ws.getCell(r, c); if (o.fill) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: o.fill } }; if (!o.noBorder) x.border = { top: thin, left: thin, bottom: thin, right: thin }; }
+    const x = ws.getCell(r, c1); x.value = v ?? '';
+    x.font = { name: '맑은 고딕', size: o.size || 9, bold: !!o.bold, color: { argb: o.color || XC.ink } };
+    x.alignment = { vertical: 'middle', horizontal: o.h || 'left', wrapText: true, indent: (o.h || 'left') === 'left' ? 1 : 0 };
+  };
+  const H = (r, h) => { ws.getRow(r).height = h; };
+  const section = (r, title, fill) => { box(r, 1, 12, title, { fill, color: XC.white, bold: true, size: 10.5 }); H(r, 20); };
+  const kv = (r, label, val, light, o = {}) => { box(r, 1, 2, label, { fill: light, bold: true, h: 'center' }); box(r, 3, 12, val || '-', { fill: XC.white, ...o }); H(r, o.h2 || 18); };
+  const heat = (v, max) => { const a = 0.12 + (1 - (v - 1) / (max - 1)) * 0.55, m = (c, t) => Math.round(255 + (t - 255) * a).toString(16).padStart(2, '0'); return 'FF' + m(0, 0xee) + m(0, 0x8f) + m(0, 0xad); };
+  let r = 1;
+  // 제목
+  box(r, 1, 8, '🌷 우리반 상담 카드', { size: 16, bold: true, color: XC.pink, noBorder: true }); box(r, 9, 12, `${S.className || ''} · ${today()}`, { h: 'right', color: XC.sub, noBorder: true }); H(r, 30); r++;
+  box(r, 1, 5, `${st.emoji} ${nname(st)}`, { fill: XC.pinkL, bold: true, size: 12 }); box(r, 6, 7, `${st.num || '-'}번`, { fill: XC.soft, h: 'center', bold: true }); box(r, 8, 12, '이름 :', { fill: XC.soft, color: XC.sub }); H(r, 24); r += 2;
+  // 꿈 · 선택과목 · 동아리
+  section(r++, '🌈 꿈 · 선택과목 · 동아리', XC.green);
+  kv(r++, '꿈꾸는 분야', [careers(st).join(', '), st.careerDetail].filter(Boolean).join(' · '), XC.greenL, { bold: true, color: 'FFC2577D' });
+  kv(r++, '동아리', clubOf(st), XC.greenL);
+  SEMS.forEach(([k2, lab]) => kv(r++, lab, (st.subjects?.[k2] || []).join(' · '), XC.greenL));
+  r++;
+  // 출결 · 봉사 · 독서
+  section(r++, '📋 출결 · 봉사 · 독서', XC.mus);
+  const ai = attInfo(st), vol = volShort(st), bk = booksOf(st);
+  box(r, 1, 2, '출결', { fill: XC.musL, bold: true, h: 'center' }); box(r, 3, 6, ai ? (ai.warn ? '⚠️ ' : '') + ai.text : '-', { fill: ai?.warn ? 'FFFFF0F2' : XC.white, color: ai?.warn ? XC.red : XC.ink, bold: !!ai?.warn });
+  box(r, 7, 8, '봉사', { fill: XC.musL, bold: true, h: 'center' }); box(r, 9, 9, vol || '-', { h: 'center' });
+  box(r, 10, 11, '읽은 책', { fill: XC.musL, bold: true, h: 'center' }); box(r, 12, 12, `${bk.length}권`, { h: 'center' }); H(r, 18); r++;
+  if (bk.length) { kv(r++, '책 목록', bk.map(b => b.title + (b.author ? `(${b.author})` : '')).join(', ').slice(0, 160), XC.musL, { h2: bk.length > 4 ? 30 : 18 }); }
+  r++;
+  // 성적 표 (내신 · 모의고사)
+  const gradeTable = (kind, title, fill, light) => {
+    const G = growthRows(st, kind), max = kind === 'mock' ? 9 : 5, rows = G.rows.filter(x => G.subj.some(s => x[s] != null)); if (!rows.length) return;
+    // 과목을 짧은 이름으로 묶어요 (공통국어1 · 공통국어2 → 국어)
+    const cols = [...new Set(G.subj.map(shortSubj))].slice(0, 7), val = (row, c) => { const s = G.subj.find(x => shortSubj(x) === c && row[x] != null); return s ? row[s] : null; };
+    const rk = rankMap(st, kind), std = kind === 'mock' ? stdSums(st) : {};
+    section(r++, title, fill);
+    box(r, 1, 2, '시기', { fill: light, bold: true, h: 'center' }); cols.forEach((c, i) => box(r, 3 + i, 3 + i, c, { fill: light, bold: true, h: 'center' }));
+    box(r, 10, 10, '평균', { fill: light, bold: true, h: 'center' }); box(r, 11, 11, kind === 'mock' ? '표점합' : '', { fill: light, bold: true, h: 'center' }); box(r, 12, 12, '석차', { fill: light, bold: true, h: 'center' }); H(r, 18); r++;
+    rows.forEach(row => {
+      box(r, 1, 2, row.label.replace(/^\d+년\s*/, ''), { bold: true, h: 'center', fill: XC.soft });
+      const vs = []; cols.forEach((c, i) => { const v = val(row, c); if (v != null) vs.push(v); box(r, 3 + i, 3 + i, v ?? '-', { h: 'center', fill: v != null ? heat(v, max) : XC.white }); });
+      for (let i = cols.length; i < 7; i++) box(r, 3 + i, 3 + i, '', {});
+      const a = vs.length ? vs.reduce((x, y) => x + y, 0) / vs.length : null;
+      box(r, 10, 10, a != null ? +a.toFixed(2) : '-', { h: 'center', bold: true, fill: a != null ? heat(a, max) : XC.white });
+      box(r, 11, 11, kind === 'mock' ? (std[row.label] ?? '-') : '', { h: 'center' }); box(r, 12, 12, rk(row.label) || '-', { h: 'center', color: XC.sub }); H(r, 17); r++;
+    });
+    r++;
+  };
+  gradeTable('school', '📗 내신 성적 (등급)', XC.pink, XC.pinkL);
+  gradeTable('mock', '📘 모의고사 성적 (등급)', XC.blue, XC.blueL);
+  // 분석
+  section(r++, '🔍 한눈에 분석', XC.pur);
+  cardAnalysis(st).forEach(t => { box(r, 1, 12, t, { fill: XC.purL }); H(r, 18); r++; });
+  r++;
+  // 과세특 요약 (가장 최근 학년도, 과목마다 첫 문장)
+  const sk = Object.values(RC).filter(d => d.kind === 'setuk').map(d => ({ d, t: d.rows.find(x => x.no === st.num)?.text })).filter(x => x.t);
+  if (sk.length) {
+    const yMax = Math.max(...sk.map(x => x.d.year));
+    section(r++, `✍️ 과목별 세특 요약 (${yMax}학년도)`, XC.green);
+    sk.filter(x => x.d.year === yMax).slice(0, 10).forEach(({ d, t }) => { const first = (t.split(/(?<=[.。])\s/)[0] || t); kv(r++, `${shortSubj(d.subj)}${d.sem ? ` ${d.sem}학기` : ''}`, first.length > 95 ? first.slice(0, 95) + '…' : first, XC.greenL, { h2: 28 }); });
+    r++;
+  }
+  // 최근 상담 3개
+  const cs = [...st.counsels].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  if (cs.length) { section(r++, '💬 최근 상담', XC.pink); cs.forEach(c => kv(r++, `${c.date.slice(5).replace('-', '/')} ${c.type}`, csShort(c), XC.pinkL)); r++; }
+  // 메모
+  section(r++, '📝 상담 메모', XC.mus);
+  for (let i = 0; i < 4; i++) { box(r, 1, 12, '', {}); H(r, 22); r++; }
+  ws.pageSetup.printArea = `A1:L${r - 1}`;
+}
+// 모의고사 줄 이름 → 표준점수 합
+function stdSums(st) {
+  const o = {};
+  Object.values(SC).filter(d => examOf(d).kind === 'mock').forEach(d => {
+    const r = d.rows.find(x => x.no === st.num); if (!r) return;
+    const vs = metricCols(d, 'std').filter(c => !TOTAL_RE.test(d.cols[c.i].replace(/\s/g, ''))).map(c => parseFloat(r.v[c.i])).filter(v => !isNaN(v));
+    if (vs.length) o[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = +vs.reduce((a, b) => a + b, 0).toFixed(1);
+  });
+  return o;
+}
+async function downloadCards(list, fname) {
+  if (!list.length) return toast('친구가 없어요');
+  toast('📥 엑셀을 만드는 중이에요…');
+  try {
+    if (!window.ExcelJS) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+    const wb = new ExcelJS.Workbook(), used = new Set(); wb.creator = '우리반 생기부노트';
+    list.forEach(st => buildCard(wb, st, used));
+    const blob = new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`📥 상담 카드 ${list.length}장을 내려받았어요`);
+  } catch (e) { toast('📥 만들지 못했어요: ' + e.message); }
+}
+const downloadCard = () => { const st = cur(); if (st) downloadCards([st], `상담카드_${nname(st)}_${today()}.xlsx`); };
+const downloadAllCards = () => downloadCards([...D.students].filter(s => s.num).sort((a, b) => a.num - b.num), `우리반_상담카드_${today()}.xlsx`);
 /* 📈 모의고사 표준점수 합 추이 (펼치기) — 시험마다 과목 표준점수를 더한 값 (합계 · 탐구 합 칸은 빼고) */
 function stdSumBox(st) {
   if (!st.num) return '';
@@ -1090,7 +1238,8 @@ function viewNote() {
   const body = SEC_VIEW()[V.sec](st);
   return `<div class="note">${side}<div>
     <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2>
-      <button class="pill" style="font-size:13px;padding:2px 10px" onclick="openNick()">🏷️ 별칭 고치기</button></div>
+      <button class="pill" style="font-size:13px;padding:2px 10px" onclick="openNick()">🏷️ 별칭 고치기</button>
+      <button class="pill" style="font-size:13px;padding:2px 10px" title="A4 한 장 상담 카드를 엑셀로 내려받아요" onclick="downloadCard()">📥 상담 카드 (엑셀)</button></div>
     ${isPencil(st) ? `<div class="item" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-color:var(--main)"><span style="font-size:26px">✏️</span>
       <div style="flex:1"><b class="hand" style="font-size:17px">아직 별칭을 안 정한 친구예요</b><div class="mini">상담을 시작하며 학생과 함께 동물 · 별칭을 골라 보세요. 정한 뒤에도 🏷️ 별칭 고치기로 언제든 바꿀 수 있어요.</div></div>
       <button class="btn" onclick="openNick()">🏷️ 별칭 정하기</button></div>` : ''}
@@ -2574,7 +2723,8 @@ function dashRoster() {
     <p class="mini">반 번호마다 '✏️ 연필1, 연필2…' 친구를 만들어 둬요. 이미 친구가 있는 번호는 건너뛰어요. 별칭은 아래 표나, 상담할 때 개인 상담 기록의 🏷️ 별칭 고치기에서 언제든 바꿀 수 있어요.</p>
     <div class="row" style="margin-top:8px"><input type="number" id="pFrom" value="1" min="1" max="60" style="width:80px">번부터 <input type="number" id="pTo" value="${maxNo}" min="1" max="60" style="width:80px">번까지
       <button class="btn" onclick="makePencils(+$('#pFrom').value, +$('#pTo').value, null, true)">✏️ 한꺼번에 만들기</button></div></section>
-  <section><h4>👥 우리반 명단 <span class="mini">${D.students.length}명 · 연필(별칭 안 정함) ${pen}명 · 선택과목 다 넣음 ${D.students.filter(subjOk).length}명</span></h4>
+  <section><div class="row" style="margin-bottom:6px"><button class="btn sm" onclick="downloadAllCards()">📥 우리반 전체 상담 카드 (엑셀 · 한 명에 한 시트)</button><span class="mini">A4 한 장씩 인쇄돼요. 이름은 인쇄한 뒤 손으로 적어요.</span></div>
+  <h4>👥 우리반 명단 <span class="mini">${D.students.length}명 · 연필(별칭 안 정함) ${pen}명 · 선택과목 다 넣음 ${D.students.filter(subjOk).length}명</span></h4>
     <p class="mini">고치면 바로 저장돼요. 🔒 반 번호는 이 관리 화면에서만 보이고, 개인 상담 기록 · 홈에는 별칭과 숫자만 보여요.
       반 번호를 서로 바꿀 때는 한 줄의 반 번호를 먼저 비운 뒤 바꿔요 (같은 번호 둘은 안 돼요).</p>
     ${D.students.some(s => isPencil(s) && s.num && s.tag !== String(s.num)) ? `<div class="row" style="margin-bottom:8px"><span class="mini" style="color:var(--red)">⚠️ 연필 숫자와 반 번호가 다른 친구가 있어요</span><button class="btn sm" onclick="pencilSync()">✏️ 연필 숫자를 반 번호와 맞추기</button></div>` : ''}
@@ -3162,7 +3312,11 @@ function dashScore() {
         <button class="x" style="${isWhole(v) ? '' : 'margin-left:auto'}" onclick="scoreDelete('${DASH.view}')">🗑 지우기</button></h4>
       ${examOf(v).kind === 'school' ? `<p class="mini" style="margin-bottom:8px;${!isWhole(v) ? 'color:var(--red)' : ''}">🏫 등급 계산: ${!isWhole(v) ? '<b>안 됨</b> — 우리반만 있는 파일이라 전교 석차 · 등급을 매길 수 없어요. 반 · 번호 칸이 있는 <b>전교생 파일</b>로 다시 올려 주세요.'
         : v.calc ? `<b>됨</b> — 원점수로 과목 ${rawCols(SC[DASH.view]).length}개의 전교 석차 · 5등급을 계산했어요 (${rawCols(SC[DASH.view]).map(c => esc(c.subj)).join(', ')})`
-        : useCalc(SC[DASH.view]) ? '<b>안 됨</b> — 원점수 칸을 찾지 못했어요. 과목 칸 머리글에 과목 이름(예: 공통국어1(4))이나 \'원점수\'가 있어야 해요.' : '성적표에 들어 있는 <b>등급 칸을 그대로</b> 써요.'}</p>` : ''}
+        : useCalc(SC[DASH.view]) ? '<b>안 됨</b> — 원점수 칸을 찾지 못했어요. 과목 칸 머리글에 과목 이름(예: 공통국어1(4))이나 \'원점수\'가 있어야 해요.' : '성적표에 들어 있는 <b>등급 칸을 그대로</b> 써요.'}
+        <br>🏅 전교 등수: ${(() => { const raw = SC[DASH.view], e = examRanks(raw); if (!e) return '<b style="color:var(--red)">안 됨</b> — 우리반만 있는 파일이고 \'전교석차\' 칸도 없어요.';
+          const ns = Object.keys(e.subj).length, nt = e.total.size;
+          return `과목별 <b>${ns ? ns + '과목' : '없음'}</b>${ns ? ` (${Object.keys(e.subj).map(esc).join(', ')})` : ''} · 전체 <b>${nt ? nt + '명' : '없음'}</b>${e.byNo ? ' (성적표의 전교석차 칸)' : ''}${!ns && !nt ? ' — 원점수 칸을 찾지 못했어요' : ''}`; })()}
+        <br><span style="color:var(--sub)">파일 칸: ${SC[DASH.view].cols.map(esc).join(' · ')}</span></p>` : ''}
       ${miss.length ? `<div class="row" style="margin-bottom:8px"><span class="mini">동물 친구가 없는 번호: ${miss.join(', ')}</span><button class="btn sm" onclick="makeAnimals('${DASH.view}')">✏️ ${miss.length}명 연필 친구로 만들기</button></div>` : ''}
       ${scoreTable(v)}</section>`;
   }
