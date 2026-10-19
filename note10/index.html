@@ -1027,7 +1027,8 @@ function volShort(st) {
 }
 // 상담 한 줄 요약: AI가 만든 것(c.sum)이 없으면 첫 문장 앞부분
 const csShort = c => c.sum || (c.text.split(/(?<=[.!?。])\s|\n/)[0] || c.text).slice(0, 34) + ((c.text.split(/(?<=[.!?。])\s|\n/)[0] || c.text).length > 34 ? '…' : '');
-const BUB = [['#fde8ef', '#ee8fad', '22px 22px 22px 6px'], ['#e7f6ed', '#7fc59a', '22px 22px 6px 22px'], ['#fbf1dd', '#d9a74c', '28px 10px 28px 10px'], ['#efe9fb', '#a78bdc', '50% 50% 46% 46% / 30% 30% 22% 22%'], ['#e6f0fb', '#7aaedb', '10px 28px 10px 28px']];
+// 상담 말풍선: 색은 네 가지가 차례로, 모양은 ① ② 두 가지가 번갈아 (BUB[0] · BUB[1] 모양)
+const BUB = [['#fde8ef', '#ee8fad', '22px 22px 22px 6px'], ['#e7f6ed', '#7fc59a', '22px 22px 6px 22px'], ['#fbf1dd', '#d9a74c', '28px 10px 28px 10px'], ['#efe9fb', '#a78bdc', '50% 50% 46% 46% / 30% 30% 22% 22%']];
 // ✨ AI로 상담마다 한 줄 요약 (아직 요약이 없는 상담만)
 async function summarizeCounsels(btn) {
   const st = cur(), todo = st.counsels.filter(c => !c.sum && c.text.trim());
@@ -1081,8 +1082,9 @@ function clubOf(st) {
   if (!st.num) return '';
   for (const y of changYears()) {
     const r = changRows(st.num, y).find(x => x.label === '동아리활동');
-    const m = r && r.text.match(/^\s*\(([^()]{1,30})\)/);
-    if (m && !/^\d+\s*시간$/.test(m[1])) return m[1].trim();
+    // '(CPR)(34시간) …' · '[CPR] …' · 'CPR(34시간) …' · '동아리명: CPR' 꼴
+    const m = r && (r.text.match(/^\s*[(\[]([^()\[\]]{1,30})[)\]]/) || r.text.match(/^\s*([가-힣A-Za-z0-9·&\s]{1,20}?)\s*\(\s*\d+\s*시간\s*\)/) || r.text.match(/동아리(?:명)?\s*[:：]\s*([^,.\n]{1,20})/));
+    if (m && !/^\d+\s*시간$/.test(m[1].trim())) return m[1].trim();
   }
   return '';
 }
@@ -1161,7 +1163,8 @@ function secOverview(st) {
     ${V.pickCareer ? `<div class="ov-line" style="padding-left:110px">${CAREERS.map(c => `<button class="pill ${cr.includes(c) ? 'on' : ''}" style="font-size:14px;padding:3px 10px" onclick="toggleCareer('${c}')">${c}</button>`).join('')}
       <input type="text" value="${esc(st.careerDetail)}" placeholder="구체적으로 (예: 뮤지컬 배우)" style="width:200px;padding:4px 8px" onchange="setField('careerDetail',this.value);render()"><span class="mini">여러 개 고를 수 있어요</span></div>` : ''}
     ${subjChips || `<div class="ov-line"><span class="ov-lab">📘 선택과목</span><span class="mini">아직 없어요 — 아래 ✏️ 고치기에서 넣어요</span></div>`}
-    ${(() => { const club = clubOf(st); return club ? `<div class="ov-line"><span class="ov-lab">🎨 동아리</span>${club.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#fff1e6;border-color:#f3d2b0;color:#b9682f">${esc(s)}</span>`).join('')}</div>` : ''; })()}
+    ${(() => { const club = clubOf(st); return `<div class="ov-line"><span class="ov-lab">🎨 동아리</span>${club ? club.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#fff1e6;border-color:#f3d2b0;color:#b9682f">${esc(s)}</span>`).join('') : ''}
+      ${club && !V.editClub ? `<button class="x" title="동아리 고치기" onclick="V.editClub=1;render()">✏️</button>` : `<input type="text" value="${esc(st.club || '')}" placeholder="동아리 이름 (예: CPR, 방송부)" style="width:200px;padding:4px 8px" onchange="V.editClub=0;setField('club',this.value);render()"><span class="mini">${club ? '' : '나이스 창체에서 못 찾았어요 — 적고 Enter'}</span>`}</div>`; })()}
     ${st.school ? `<div class="ov-line"><span class="ov-lab">🏫 출신 학교</span>${st.school.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#f3f0ff;border-color:#d8cdf2;color:#6c55b5">${esc(s)}</span>`).join('')}</div>` : ''}
     ${st.worry ? `<div class="ov-line"><span class="ov-lab">💭 고민</span><span class="mini" style="font-size:13px">${esc(st.worry.slice(0, 80))}${st.worry.length > 80 ? '…' : ''}</span></div>` : ''}
   </div>
@@ -1171,7 +1174,7 @@ function secOverview(st) {
     ${(() => { const bk = booksOf(st); return `<div style="${bk.length ? 'cursor:pointer' : ''}" ${bk.length ? 'onclick="bookPop()" title="눌러서 책 목록 보기"' : ''}><b>${bk.length ? bk.length + '권' : '-'}</b><span>📚 읽은 책 ${bk.length ? '· 눌러서 보기' : '(세특 · 창체에서 찾아요)'}</span></div>`; })()}
   </div>
   <div class="box" style="margin-bottom:14px"><div class="hd pink"><span class="n">💬</span>상담 모아보기 <span class="sp" style="display:flex;gap:6px">${cs.some(c => !c.sum) ? '<button class="btn sm ghost" onclick="summarizeCounsels(this)">✨ AI 한 줄 요약</button>' : ''}<button class="btn sm ghost" onclick="csPop('');setTimeout(()=>{const t=$('#cpText');t?.scrollIntoView({block:'center'});t?.focus()},120)">＋ 상담 적기</button></span></div><div class="bd">
-    ${cs.length ? `<div class="bubs">${cs.map((c, i) => { const [bg, fg, rad] = BUB[i % BUB.length]; return `<div class="bub" style="background:${bg};border-color:${fg};border-radius:${rad};cursor:pointer" title="눌러서 상담 누가 기록 보기" onclick="csPop('${c.id}')">
+    ${cs.length ? `<div class="bubs">${cs.map((c, i) => { const [bg, fg] = BUB[i % BUB.length], rad = BUB[i % 2][2]; return `<div class="bub" style="background:${bg};border-color:${fg};border-radius:${rad};cursor:pointer" title="눌러서 상담 누가 기록 보기" onclick="csPop('${c.id}')">
         <div class="bub-top"><span class="bub-n" style="background:${fg}">${i + 1}</span><span class="mini">${c.date.slice(5).replace('-', '/')}</span><span class="chip" style="font-size:11px;padding:0 7px">${esc(c.type)}</span></div>
         <div class="bub-t">${esc(csShort(c))}</div>
         ${c.sum ? '' : '<div class="mini" style="opacity:.6;margin-top:2px">첫 문장 · ✨로 요약해요</div>'}</div>`; }).join('')}</div>`
@@ -1390,19 +1393,71 @@ function metricCols(d, m) {
   return d.cols.map((h, i) => ({ h, i })).filter(c => METRIC_RE[m].test(c.h) && d.rows.some(r => r.v[c.i] !== '' && !isNaN(parseFloat(r.v[c.i]))))
     .map(c => ({ i: c.i, subj: subjName(c.h.replace(/원점수|표준\s*점수|표점|백분위|석차|등급/g, '')) || c.h }));
 }
+// 내신 자세히 보기: 원점수 · 전교석차 · 상위 % (전교생 성적표면 과목마다 계산, 나이스 교과 성적은 원점수만)
+const SCHOOL_METRICS = { grade: '등급', raw: '원점수', srank: '전교석차', spct: '상위 %' };
 function growthMetric(st, kind, m) {
   if (m === 'grade') return growthRows(st, kind);
   const rows = [];
-  if (st.num) scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
+  const label = d => `${String(d.year).slice(2)}년 ${examOf(d).short}`;
+  if (st.num && kind === 'school' && ['raw', 'srank', 'spct'].includes(m)) {
+    Object.values(SC).filter(d => examOf(d).kind === 'school').sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam)).forEach(d => {
+      const r = d.rows.find(x => x.no === st.num); if (!r) return;
+      const o = { label: label(d) };
+      if (m === 'raw') { const mc = metricCols(d, 'raw'); (mc.length ? mc : rawCols(d)).forEach(c => { const v = parseFloat(r.v[c.i]); if (!isNaN(v)) o[c.subj] = v; }); }
+      else if (useCalc(d)) schoolRanks(d).forEach(c => { const x = c.by.get(r.sid); if (x) o[c.subj] = m === 'srank' ? x.rank : +x.pct.toFixed(1); });
+      if (Object.keys(o).length > 1) rows.push(o);
+    });
+    if (m === 'raw') gyogwaDocs().forEach(d => {   // 나이스 학기 성적의 '원점수/과목평균' 앞 숫자
+      const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return;
+      const iS = d.cols.findIndex(c => c === '과목'), iR = d.cols.findIndex(c => /원점수/.test(c)); if (iR < 0) return;
+      const o = { label: `${String(d.year).slice(2)}년 ${d.sem}학기 (나이스)` };
+      rs.forEach(r => { const v = parseFloat(r.v[iR]); if (!isNaN(v)) o[subjName(r.v[iS] || '')] = v; });
+      if (Object.keys(o).length > 1) rows.push(o);
+    });
+  } else if (st.num) scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
     const r = d.rows.find(x => x.no === st.num); if (!r) return;
-    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}` };
+    const o = { label: label(d) };
     metricCols(d, m).forEach(c => { const v = parseFloat(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; });
     rows.push(o);
   });
   return { rows, subj: [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label')))], files: [] };
 }
-// 그래프 위 단추: 등급 · 백분위 · 표준점수 · 원점수 (성적표에 있는 것만)
+/* 🏫 과목 묶음 전교 석차 (전교과 · 국수영사과 · 국수영사 …) — 전교생 내신 성적표의 원점수를 학점으로 가중 평균해 석차를 매겨요 */
+const COMBOS = [['전교과', null], ['국수영사과', '국수영사과'], ['국수영사', '국수영사'], ['국수영과', '국수영과'], ['국수영', '국수영'], ['국영사', '국영사'], ['수영과', '수영과'], ['수과', '수과']];
+const subjGroup = s => /과학탐구|실험/.test(s) ? '' : /국어/.test(s) ? '국' : /수학/.test(s) ? '수' : /영어/.test(s) ? '영' : /한국사/.test(s) ? '' : /사회/.test(s) ? '사' : /과학/.test(s) ? '과' : '';
+function comboRanks(d) {
+  const k = 'c' + d.exam + d.year + d.at; if (rankCache.has(k)) return rankCache.get(k);
+  const cols = rawCols(d).map(c => ({ ...c, g: subjGroup(c.subj), w: +((d.cols[c.i].match(/\((\d+)\)/) || [])[1] || 1) }));
+  const out = COMBOS.map(([name, set]) => {
+    const use = cols.filter(c => set ? c.g && set.includes(c.g) : true);
+    if (!use.length || (set && [...new Set(use.map(c => c.g))].length < set.length)) return null;
+    const avg = new Map();
+    d.rows.forEach(r => { let s = 0, w = 0; for (const c of use) { const v = parseFloat(r.v[c.i]); if (isNaN(v)) return; s += v * c.w; w += c.w; } avg.set(r.sid, s / w); });
+    const vals = [...avg.values()];
+    return { name, by: new Map([...avg].map(([sid, v]) => [sid, { avg: v, rank: 1 + vals.filter(x => x > v).length, N: vals.length }])) };
+  }).filter(Boolean);
+  rankCache.set(k, out); return out;
+}
+function comboCard(st) {
+  if (!st.num) return '';
+  const docs = Object.values(SC).filter(useCalc).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));
+  const rows = docs.map(d => { const r = d.rows.find(x => x.no === st.num); return r ? { d, r, C: comboRanks(d) } : null; }).filter(Boolean);
+  if (!rows.length) return '';
+  const names = COMBOS.map(c => c[0]).filter(n => rows.some(x => x.C.some(c => c.name === n)));
+  const th = 'text-align:center;white-space:nowrap;border:1px solid var(--line);padding:4px 6px;background:#e6f6fb';
+  return `<details style="margin-top:10px" open><summary class="mini" style="cursor:pointer">🏫 과목 묶음 전교 석차 (원점수를 학점으로 가중 평균해 계산)</summary>
+    <div style="overflow:auto;margin-top:6px"><table class="dtable" style="border-collapse:collapse"><tr><th style="${th}"></th>${names.map(n => `<th style="${th}">${n}<br><span class="mini">(석차)</span></th>`).join('')}</tr>
+    ${rows.map(({ d, r, C }) => `<tr><td style="white-space:nowrap;font-weight:700;border:1px solid var(--line);padding:4px 8px">${d.year} ${esc(examOf(d).label)}</td>${names.map(n => { const x = C.find(c => c.name === n)?.by.get(r.sid); return `<td style="text-align:center;border:1px solid var(--line)">${x ? `<b>${x.rank}</b><span class="mini">/${x.N}</span><div class="mini">평균 ${x.avg.toFixed(1)}</div>` : '-'}</td>`; }).join('')}</tr>`).join('')}</table></div>
+    <p class="mini" style="margin-top:4px">국 = 국어 과목, 수 = 수학, 영 = 영어, 사 = 통합사회 (한국사 · 과학탐구실험 빼고), 과 = 통합과학. 전교과는 원점수가 있는 모든 과목이에요.</p></details>`;
+}
+// 그래프 위 단추: 등급 · 백분위 · 표준점수 · 원점수 (성적표에 있는 것만) / 내신은 등급 · 원점수 · 전교석차 · 상위 %
 function metricPills(st, kind) {
+  if (kind === 'school') {
+    const has = Object.keys(SCHOOL_METRICS).filter(m => m === 'grade' || growthMetric(st, kind, m).subj.length);
+    if (has.length < 2) return '';
+    const on = V.gm?.school || 'grade';
+    return `<div class="row" style="margin-bottom:8px;gap:4px"><span class="mini">🔍 자세히 보기</span>${has.map(m => `<button class="pill ${m === on ? 'on' : ''}" style="font-size:13px;padding:2px 10px" onclick="V.gm=Object.assign(V.gm||{},{school:'${m}'});render()">${SCHOOL_METRICS[m]}</button>`).join('')}</div>`;
+  }
   const has = Object.keys(METRICS).filter(m => m === 'grade' || growthMetric(st, kind, m).subj.length);
   if (has.length < 2) return '';
   const on = V.gm?.[kind] || 'grade';
@@ -1422,15 +1477,16 @@ function secGrowth(st) {
     <tr>${['', ...subj, ''].map(h => `<th style="text-align:left;border-bottom:1.5px solid var(--line);padding:4px">${h}</th>`).join('')}</tr>
     ${st[kind].map(r => `<tr><td style="padding:4px"><b>${esc(r.label)}</b></td>${subj.map(s => `<td>${r[s] ?? '-'}</td>`).join('')}<td><button class="x" onclick="delIn('${kind}','${r.id}')">✕</button></td></tr>`).join('')}</table>` : '';
   return `<div class="cols c2">
-    <div class="box"><div class="hd blue"><span class="n">1</span>모의고사 등급 <span class="sp mini" style="color:#fff">9등급 · 위로 갈수록 좋아요</span></div><div class="bd">
+    <div class="box"><div class="hd blue"><span class="n">1</span>모의고사 성적 변화 <span class="sp mini" style="color:#fff">위로 갈수록 좋아요</span></div><div class="bd">
       ${noNum}${metricPills(st, 'mock')}${M.rows.length ? '<canvas id="chMock" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣으면 그래프가 그려져요 📈</div>'}
       ${(V.gm?.mock || 'grade') === 'grade' ? noGrade(M) : ''}
       ${orig(M)}
       <details style="margin-top:10px"><summary class="mini" style="cursor:pointer">✍️ 직접 넣기</summary>${form('mocks', MOCK_SUBJ)}${table('mocks', MOCK_SUBJ)}</details>
     </div></div>
-    <div class="box"><div class="hd pink"><span class="n">2</span>내신 등급 <span class="sp mini" style="color:#fff">5등급제 · 위로 갈수록 좋아요</span></div><div class="bd">
+    <div class="box"><div class="hd pink"><span class="n">2</span>내신 성적 변화 <span class="sp mini" style="color:#fff">위로 갈수록 좋아요</span></div><div class="bd">
       ${noNum}${metricPills(st, 'school')}${G.rows.length ? '<canvas id="chGrade" height="220"></canvas>' : '<div class="empty">🛠 관리에서 성적 파일을 올리거나 아래에 직접 넣어 주세요 🌱</div>'}
       ${(V.gm?.school || 'grade') === 'grade' ? noGrade(G) : ''}
+      ${comboCard(st)}
       ${rankCard(st)}
       ${orig(G)}
       ${st.num ? gyogwaDocs().filter(d => d.rows.some(r => r.no === st.num)).map(d => `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer">📗 ${d.year}학년도 ${esc(d.sem)}학기 교과학습발달상황</summary>${gyogwaTable(d, st.num)}</details>`).join('') : ''}
@@ -1451,7 +1507,7 @@ function splitHead(h) {
 }
 function scoreSheet(st, kind) {
   if (!st.num) return null;
-  const docs = Object.values(SC).filter(d => examOf(d).kind === kind).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));
+  const docs = Object.values(SC).filter(d => examOf(d).kind === kind).map(d => kind === 'mock' ? withCalc(d) : d).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));   // 모의고사는 영어 · 한국사 등급 계산 포함
   const subjs = [], mets = {}, extras = [], rows = [];
   const addS = (s, m) => { if (!subjs.includes(s)) subjs.push(s); (mets[s] = mets[s] || new Set()).add(m); };
   docs.forEach(d => {
@@ -1507,6 +1563,8 @@ function drawCharts(st) {
     const el = document.getElementById(id); if (!el) return;
     // 백분위 · 표준점수 · 원점수는 높을수록 좋아서 위로 (등급만 거꾸로)
     const y = m === 'grade' ? { reverse: true, min: 1, max, ticks: { stepSize: 1, callback: v => v + '등급' } }
+      : m === 'srank' ? { reverse: true, min: 1, grace: '5%', ticks: { callback: v => v + '등' } }        // 석차 · 상위 %는 작을수록 위로
+      : m === 'spct' ? { reverse: true, min: 0, max: 100, ticks: { callback: v => v + '%' } }
       : { reverse: false, ...(m === 'pct' ? { max: 100 } : {}), grace: '5%', ticks: { callback: v => v + (m === 'pct' ? '' : '점') } };
     rows = rows.filter(r => subj.some(s => r[s] != null));   // 등급이 하나도 없는 시험(예: 원점수만 있는 중간고사)은 빼요
     charts.push(new Chart(el, {
@@ -2817,7 +2875,22 @@ function schoolRanks(d) {
   rankCache.set(k, out); return out;
 }
 // 성적표에 '과목 전교석차' · '과목 등급' 칸을 붙인 사본 → 그래프 · 우리반 성적 · 전교 성적이 그대로 등급을 읽어요
+// 모의고사 절대평가 과목: 등급 칸이 없으면 원점수로 등급을 만들어요 (영어 90↑1 · 80↑2 … / 한국사 40↑1 · 35↑2 … 5점씩)
+const ABS = [[/영어/, v => v >= 90 ? 1 : v >= 80 ? 2 : v >= 70 ? 3 : v >= 60 ? 4 : v >= 50 ? 5 : v >= 40 ? 6 : v >= 30 ? 7 : v >= 20 ? 8 : 9],
+             [/한국사/, v => v >= 40 ? 1 : v >= 35 ? 2 : v >= 30 ? 3 : v >= 25 ? 4 : v >= 20 ? 5 : v >= 15 ? 6 : v >= 10 ? 7 : v >= 5 ? 8 : 9]];
+function mockAbs(d) {
+  const k = 'm' + d.exam + d.year + d.at; if (rankCache.has(k)) return rankCache.get(k);
+  const add = [];
+  ABS.forEach(([re, f]) => {
+    const iR = d.cols.findIndex(h => re.test(h) && /원점수/.test(h)); if (iR < 0) return;
+    const hasG = d.cols.some((h, i) => re.test(h) && /등급/.test(h) && d.rows.some(r => +r.v[i] >= 1 && +r.v[i] <= 9));
+    if (!hasG) add.push({ iR, name: subjName(d.cols[iR].replace(/원점수/g, '')) + ' 등급', f });
+  });
+  const d2 = add.length ? { ...d, cols: [...d.cols, ...add.map(a => a.name)], rows: d.rows.map(r => ({ ...r, v: [...r.v, ...add.map(a => { const v = parseFloat(r.v[a.iR]); return isNaN(v) ? '' : String(a.f(v)); })] })) } : d;
+  rankCache.set(k, d2); return d2;
+}
 function withCalc(d) {
+  if (d && examOf(d).kind === 'mock') return mockAbs(d);
   if (!d || !useCalc(d)) return d;
   const k = 'a' + d.exam + d.year + d.at; if (rankCache.has(k)) return rankCache.get(k);
   const R = schoolRanks(d);
