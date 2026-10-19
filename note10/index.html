@@ -1876,13 +1876,15 @@ function scoreSheet(st, kind) {
   if (!st.num) return null;
   const docs = Object.values(SC).filter(d => examOf(d).kind === kind).map(d => kind === 'mock' ? withCalc(d) : d).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));   // 모의고사는 영어 · 한국사 등급 계산 포함
   const subjs = [], mets = {}, extras = [], rows = [];
+  // 내신은 공통국어1 · 공통국어2 를 '공통국어' 한 칸으로 (과목 끝의 1 · 2 · Ⅰ · Ⅱ 만 떼요)
+  const base = s => kind === 'school' ? String(s).replace(/\s*[12ⅠⅡ]$/, '') : s;
   const addS = (s, m) => { if (!subjs.includes(s)) subjs.push(s); (mets[s] = mets[s] || new Set()).add(m); };
   docs.forEach(d => {
     const r = d.rows.find(x => x.no === st.num); if (!r) return;
-    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}`, v: {} };
+    const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}`, v: {}, grade: !!END_SEM[d.exam] };   // 학기말 파일은 과목 칸이 등급이라 색칠
     d.cols.forEach((h, i) => { const p = splitHead(h), v = r.v[i]; if (v === '' || v == null) return;
       if (p.extra) { if (!extras.includes(p.extra)) extras.push(p.extra); o.v['@' + p.extra] = v; }
-      else { addS(p.subj, p.met); o.v[p.subj + '|' + p.met] = v; } });
+      else { const s = base(p.subj); addS(s, p.met); o.v[s + '|' + p.met] = v; } });
     rows.push(o);
   });
   // 내신: 나이스 교과학습발달상황의 학기 등급(없으면 성취도)도 한 줄로
@@ -1894,7 +1896,7 @@ function scoreSheet(st, kind) {
     let o = rows.find(x => x.label === endLabel);
     if (o) { o.grade = true; o.label = `${endLabel} (성적 파일 + 나이스)`; }
     else { o = { label: `${endLabel} (나이스)`, v: {}, grade: true }; rows.push(o); }
-    rs.forEach(r => { const s = subjName(r.v[iS] || ''); if (!s) return; const v = (iG >= 0 && r.v[iG]) || (iA >= 0 ? (r.v[iA] || '').replace(/\(.*\)/, '').trim() : ''); if (!v) return; addS(s, ''); o.v[s + '|'] = v; });
+    rs.forEach(r => { const s = base(subjName(r.v[iS] || '')); if (!s) return; const v = (iG >= 0 && r.v[iG]) || (iA >= 0 ? (r.v[iA] || '').replace(/\(.*\)/, '').trim() : ''); if (!v) return; addS(s, ''); o.v[s + '|'] = v; });
   });
   if (!rows.length) return null;
   const groups = subjs.map(s => ({ s, ms: MET_ORDER.filter(m => mets[s].has(m)) }));
