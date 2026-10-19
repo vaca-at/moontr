@@ -2879,7 +2879,8 @@ const subjName = h => h.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim().replac
    동점자는 중간석차(석차 + (동점자 수 − 1) ÷ 2)로 비율을 내요. 계산한 칸은 저장하지 않고 볼 때마다 만들어요 */
 const GRADE5 = [10, 34, 66, 90, 100];
 const pctGrade = p => GRADE5.findIndex(x => p <= x + 1e-9) + 1;
-const useCalc = d => examOf(d).kind === 'school' && isWhole(d) && !d.cols.some(h => /등급/.test(h));
+// '석차등급' 칸이 있어도 값이 비어 있으면 원점수로 계산해요 (등급 값이 1~5로 들어 있을 때만 그 값을 써요)
+const useCalc = d => examOf(d).kind === 'school' && isWhole(d) && !d.cols.some((h, i) => /등급/.test(h) && d.rows.some(r => +r.v[i] >= 1 && +r.v[i] <= 5));
 // 원점수 칸 찾기: 머리글에 '원점수 · 합계 · 총점'이 있으면 그 칸, 없으면 5보다 큰 숫자가 든 과목 칸
 function rawCols(d) {
   const all = d.cols.map((h, i) => ({ h, i }));
@@ -3069,6 +3070,9 @@ function dashScore() {
     below = `<section><h4>📄 ${v.year}년 ${esc(examOf(v).label)} <span class="mini">${esc(v.file)} · ${v.rows.length}명 · ${new Date(v.at).toLocaleDateString()} 올림</span>
         ${isWhole(v) ? `<button class="btn sm" style="margin-left:auto" onclick="SCH.key='${DASH.view}';DASH.tab='school';dashRefresh()">🏫 전교 성적으로 보기</button>` : ''}
         <button class="x" style="${isWhole(v) ? '' : 'margin-left:auto'}" onclick="scoreDelete('${DASH.view}')">🗑 지우기</button></h4>
+      ${examOf(v).kind === 'school' ? `<p class="mini" style="margin-bottom:8px;${!isWhole(v) ? 'color:var(--red)' : ''}">🏫 등급 계산: ${!isWhole(v) ? '<b>안 됨</b> — 우리반만 있는 파일이라 전교 석차 · 등급을 매길 수 없어요. 반 · 번호 칸이 있는 <b>전교생 파일</b>로 다시 올려 주세요.'
+        : v.calc ? `<b>됨</b> — 원점수로 과목 ${rawCols(SC[DASH.view]).length}개의 전교 석차 · 5등급을 계산했어요 (${rawCols(SC[DASH.view]).map(c => esc(c.subj)).join(', ')})`
+        : useCalc(SC[DASH.view]) ? '<b>안 됨</b> — 원점수 칸을 찾지 못했어요. 과목 칸 머리글에 과목 이름(예: 공통국어1(4))이나 \'원점수\'가 있어야 해요.' : '성적표에 들어 있는 <b>등급 칸을 그대로</b> 써요.'}</p>` : ''}
       ${miss.length ? `<div class="row" style="margin-bottom:8px"><span class="mini">동물 친구가 없는 번호: ${miss.join(', ')}</span><button class="btn sm" onclick="makeAnimals('${DASH.view}')">✏️ ${miss.length}명 연필 친구로 만들기</button></div>` : ''}
       ${scoreTable(v)}</section>`;
   }
