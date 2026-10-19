@@ -892,7 +892,8 @@ function viewClassAtt() {
   </div>
   <div class="box"><div class="hd green"><span class="n">✿</span>${d.year}학년도 출결 <span class="sp mini" style="color:#fff">${new Date(d.at).toLocaleDateString()} 넣음 · 많은 친구부터</span></div><div class="bd" style="overflow:auto">
     <table class="dtable"><tr><th>친구</th><th>수업일수</th>${G.map(g => `<th style="text-align:center">${g}</th>`).join('')}<th style="text-align:center">미인정</th><th>자세히</th><th>특기사항</th></tr>
-    ${rows.map(r => `<tr style="${r.sum ? '' : 'opacity:.55'}"><td>${whoCell(r.no)}</td><td>${esc(r.days)}</td>${r.g.map(n => `<td style="text-align:center;${n ? 'font-weight:700;color:var(--red)' : ''}">${n}</td>`).join('')}<td style="text-align:center;${r.un ? 'font-weight:700;color:var(--red)' : ''}">${r.un}</td><td class="mini">${esc(r.detail)}</td><td class="mini">${esc(r.note)}</td></tr>`).join('')}</table>
+    ${rows.map(r => { const late = r.g[1] + r.g[2] + r.g[3], ex = byNum(r.no)?.attExempt || /수술|입원/.test(r.note), warn = late >= ATT_WARN || (r.g[0] >= ATT_WARN && !ex) || r.un > 0;
+      return `<tr style="${r.sum ? '' : 'opacity:.55'}${warn ? ';background:#fff0f2' : ''}"><td>${warn ? '<span title="잦은 결석 · 지각 — 성실성을 낮게 평가받을 수 있어요">⚠️</span> ' : ''}${whoCell(r.no)}</td><td>${esc(r.days)}</td>${r.g.map(n => `<td style="text-align:center;${n ? 'font-weight:700;color:var(--red)' : ''}">${n}</td>`).join('')}<td style="text-align:center;${r.un ? 'font-weight:700;color:var(--red)' : ''}">${r.un}</td><td class="mini">${esc(r.detail)}</td><td class="mini">${esc(r.note)}</td></tr>`; }).join('')}</table>
   </div></div>`;
 }
 
@@ -1014,13 +1015,24 @@ function setField(k, v) { const st = cur(); if (!piiOk(v)) { render(); return; }
 
 /* 1 한눈에 */
 // 한눈에 숫자: 출결(결석 · 지각 · 조퇴 · 결과 합) · 봉사 시간 — 가장 최근 학년도
-function attShort(st) {
+function attShort(st) { return attInfo(st)?.text || null; }
+/* ⚠️ 잦은 결석 · 지각 경고 — 지각 · 조퇴 · 결과 합 3회↑, 결석 3일↑, 미인정 1회↑
+   수술 · 입원(출결 특기사항에 적혀 있거나 선생님이 '예외'로 표시)이면 결석 경고는 빼요 */
+const ATT_WARN = 3;
+function attInfo(st) {
   const d = st.num && Object.values(RC).filter(x => x.kind === 'att').sort((a, b) => b.year - a.year)[0], r = d && d.rows.find(x => x.no === st.num);
   if (!r) return null;
-  const sum = g => d.cols.reduce((n, c, i) => c.replace(/\s/g, '').startsWith(g) ? n + (Number(r.v[i]) || 0) : n, 0);
+  const flat = c => c.replace(/\s/g, '');
+  const sum = g => d.cols.reduce((n, c, i) => flat(c).startsWith(g) ? n + (Number(r.v[i]) || 0) : n, 0);
+  const un = d.cols.reduce((n, c, i) => /미인정/.test(flat(c)) ? n + (Number(r.v[i]) || 0) : n, 0);
+  const iNote = d.cols.findIndex(c => /특기/.test(c)), note = iNote >= 0 ? r.v[iNote] || '' : '';
+  const exempt = !!st.attExempt || /수술|입원/.test(note);
   const a = ['결석', '지각', '조퇴', '결과'].map(g => [g, sum(g)]).filter(x => x[1]);
-  return a.length ? a.map(([g, n]) => `${g} ${n}`).join(' · ') : '개근 🌟';
+  const late = sum('지각') + sum('조퇴') + sum('결과'), abs = sum('결석');
+  const why = [late >= ATT_WARN ? `지각 · 조퇴 · 결과 ${late}회` : '', abs >= ATT_WARN && !exempt ? `결석 ${abs}일` : '', un ? `미인정 ${un}` : ''].filter(Boolean);
+  return { text: a.length ? a.map(([g, n]) => `${g} ${n}`).join(' · ') : '개근 🌟', warn: why.length > 0, why, exempt, abs };
 }
+function toggleAttExempt() { const st = cur(); st.attExempt = !st.attExempt; saveStudent(st); render(); }
 function volShort(st) {
   const d = st.num && Object.values(RC).filter(x => x.kind === 'vol').sort((a, b) => b.year - a.year)[0], r = d && d.rows.find(x => x.no === st.num);
   return r ? `${r.v[1]}시간` : null;
@@ -1169,7 +1181,9 @@ function secOverview(st) {
     ${st.worry ? `<div class="ov-line"><span class="ov-lab">💭 고민</span><span class="mini" style="font-size:13px">${esc(st.worry.slice(0, 80))}${st.worry.length > 80 ? '…' : ''}</span></div>` : ''}
   </div>
   <div class="ov-stats">
-    <div><b style="font-size:${att && att.length > 6 ? '18px' : '28px'}">${att || '-'}</b><span>출결</span></div>
+    ${(() => { const ai = attInfo(st); return `<div style="${ai?.warn ? 'background:#fff0f2;border-color:#f19ab0;border-width:2px' : ''}"><b style="font-size:${att && att.length > 6 ? '18px' : '28px'};${ai?.warn ? 'color:var(--red)' : ''}">${ai?.warn ? '⚠️ ' : ''}${att || '-'}</b><span>출결</span>
+      ${ai?.warn ? `<div style="font-size:12px;color:var(--red);margin-top:4px;line-height:1.4"><b>${ai.why.join(' · ')}</b><br>잦은 결석 · 지각은 대학과 사회에서 성실성을 낮게 평가받을 수 있어요</div>` : ''}
+      ${ai && ai.abs ? `<label class="mini" style="display:block;margin-top:4px;cursor:pointer"><input type="checkbox" ${ai.exempt ? 'checked' : ''} ${st.attExempt ? '' : (ai.exempt ? 'disabled' : '')} onchange="toggleAttExempt()" style="width:auto;vertical-align:middle"> 수술 · 입원 등 예외${ai.exempt && !st.attExempt ? ' (특기사항)' : ''}</label>` : ''}</div>`; })()}
     <div><b>${vol || '-'}</b><span>봉사</span></div>
     ${(() => { const bk = booksOf(st); return `<div style="${bk.length ? 'cursor:pointer' : ''}" ${bk.length ? 'onclick="bookPop()" title="눌러서 책 목록 보기"' : ''}><b>${bk.length ? bk.length + '권' : '-'}</b><span>📚 읽은 책 ${bk.length ? '· 눌러서 보기' : '(세특 · 창체에서 찾아요)'}</span></div>`; })()}
   </div>
