@@ -1105,11 +1105,14 @@ ${aiCardFacts(st)}`, 1200);
     st.aiCard = { at: today(), lines: arr }; saveStudent(st); render(); toast('🤖 AI 한눈에 분석을 만들었어요');
   });
 }
+// 한눈에 오른쪽 칸: ① AI 한눈에 분석 만들기 → ② 확인한 뒤 상담 카드 출력 (엑셀)
 function aiCardBox(st) {
   const a = st.aiCard;
-  return `<div class="box" style="margin-bottom:14px"><div class="hd purple"><span class="n">🤖</span>AI 한눈에 분석 <span class="sp" style="display:flex;gap:6px;align-items:center"><span class="mini" style="color:#fff">${a ? `${a.at} · AI가 만든 내용 · 참고용` : '성적 · 출결 · 독서 · 진로 · 상담을 읽고 정리해요'}</span><button class="btn sm ghost" onclick="aiCardRun(this)">${a ? '🔄 다시 만들기' : '✨ 만들기'}</button></span></div><div class="bd">
-    ${a ? a.lines.map(t => `<div class="item" style="background:var(--purpleL,#efe9fb);border-color:#d8cdf2;padding:6px 12px">${esc(t)}</div>`).join('') + '<div class="mini" style="margin-top:4px">🤖 AI가 쓴 분석이라 사실과 다른 부분이 있을 수 있어요. 상담 카드(엑셀)에도 이 분석이 들어가요. 이름 · 별칭 · 번호는 AI에 보내지 않아요.</div>'
-      : '<div class="empty">✨ 만들기를 누르면 AI가 이 친구 기록을 한눈에 정리해요 (AI 키 필요)</div>'}
+  return `<div class="box"><div class="hd purple"><span class="n">🤖</span>AI 한눈에 분석 <span class="sp"><button class="btn sm ghost" onclick="aiCardRun(this)">${a ? '🔄 다시 만들기' : '✨ 만들기'}</button></span></div><div class="bd" style="display:flex;flex-direction:column">
+    ${a ? `<div class="mini" style="margin-bottom:4px">${a.at} · AI가 만든 내용 · 참고용</div>` + a.lines.map(t => `<div class="item" style="background:var(--purpleL,#efe9fb);border-color:#d8cdf2;padding:5px 10px;margin-bottom:5px;font-size:13.5px">${esc(t)}</div>`).join('') + '<div class="mini">🤖 AI가 쓴 분석이라 사실과 다른 부분이 있을 수 있어요. 이름 · 별칭 · 번호는 AI에 보내지 않아요.</div>'
+      : '<div class="empty" style="flex:1">① ✨ 만들기를 누르면 AI가 성적 · 출결 · 독서 · 진로 · 상담을 읽고 한눈에 정리해요 (AI 키 필요)</div>'}
+    <div style="margin-top:auto;padding-top:10px;border-top:1.5px dashed var(--line)"><button class="btn" style="width:100%" onclick="downloadCard()">🖨️ ${a ? '' : '② '}상담 카드 출력 (엑셀 · A4 한 장)</button>
+      <div class="mini" style="margin-top:4px;text-align:center">${a ? '이 AI 분석이 상담 카드에 들어가요' : 'AI 분석을 먼저 만들면 카드에 함께 들어가요'}</div></div>
   </div></div>`;
 }
 function buildCard(wb, st, used) {
@@ -1233,7 +1236,11 @@ async function downloadCards(list, fname) {
     toast(`📥 상담 카드 ${list.length}장을 내려받았어요`);
   } catch (e) { toast('📥 만들지 못했어요: ' + e.message); }
 }
-const downloadCard = () => { const st = cur(); if (st) downloadCards([st], `상담카드_${nname(st)}_${today()}.xlsx`); };
+const downloadCard = () => {
+  const st = cur(); if (!st) return;
+  if (!st.aiCard && !confirm('AI 한눈에 분석이 아직 없어요.\n규칙으로 만든 분석으로 상담 카드를 내려받을까요?\n(취소하고 ✨ 만들기를 먼저 누르면 AI 분석이 카드에 들어가요)')) return;
+  downloadCards([st], `상담카드_${nname(st)}_${today()}.xlsx`);
+};
 const downloadAllCards = () => downloadCards([...D.students].filter(s => s.num).sort((a, b) => a.num - b.num), `우리반_상담카드_${today()}.xlsx`);
 /* 📈 모의고사 표준점수 합 추이 (펼치기) — 시험마다 과목 표준점수를 더한 값 (합계 · 탐구 합 칸은 빼고) */
 function stdSumBox(st) {
@@ -1329,8 +1336,7 @@ function viewNote() {
   const body = SEC_VIEW()[V.sec](st);
   return `<div class="note">${side}<div>
     <div class="stitle"><h2>${st.emoji} ${esc(nname(st))}</h2>
-      <button class="pill" style="font-size:13px;padding:2px 10px" onclick="openNick()">🏷️ 별칭 고치기</button>
-      <button class="pill" style="font-size:13px;padding:2px 10px" title="A4 한 장 상담 카드를 엑셀로 내려받아요" onclick="downloadCard()">📥 상담 카드 (엑셀)</button></div>
+      <button class="pill" style="font-size:13px;padding:2px 10px" onclick="openNick()">🏷️ 별칭 고치기</button></div>
     ${isPencil(st) ? `<div class="item" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-color:var(--main)"><span style="font-size:26px">✏️</span>
       <div style="flex:1"><b class="hand" style="font-size:17px">아직 별칭을 안 정한 친구예요</b><div class="mini">상담을 시작하며 학생과 함께 동물 · 별칭을 골라 보세요. 정한 뒤에도 🏷️ 별칭 고치기로 언제든 바꿀 수 있어요.</div></div>
       <button class="btn" onclick="openNick()">🏷️ 별칭 정하기</button></div>` : ''}
@@ -1519,8 +1525,8 @@ function secOverview(st) {
   const cr = careers(st), att = attShort(st), vol = volShort(st);
   const subjChips = SEMS.map(([k, lab]) => (st.subjects?.[k] || []).length ? `<div class="ov-line"><span class="ov-lab">${lab}</span>${st.subjects[k].map(s => `<span class="ov-chip subj">${esc(s)}</span>`).join('')}</div>` : '').join('');
   return `
-  <div class="row" style="justify-content:flex-end;margin:-4px 0 8px"><span class="mini">A4 한 장 상담 카드 — 내려받아 엑셀에서 바로 인쇄해요</span><button class="btn sm" onclick="downloadCard()">🖨️ 상담 카드 출력 (엑셀)</button></div>
-  <div class="ov-hero">
+  <div class="cols" style="grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:stretch">
+  <div class="ov-hero" style="margin-bottom:0">
     <div class="ov-line"><span class="ov-lab">🌈 꿈꾸는 분야</span>${cr.length ? cr.map(c => `<span class="ov-chip dream">${esc(c)}</span>`).join('') : '<span class="mini">아직 안 골랐어요</span>'}${st.careerDetail ? `<span class="ov-chip dream2">✨ ${esc(st.careerDetail)}</span>` : ''}
       <button class="pill ${V.pickCareer ? 'on' : ''}" style="font-size:13px;padding:2px 10px" onclick="V.pickCareer=!V.pickCareer;render()">${V.pickCareer ? '✓ 다 골랐어요' : '✏️ 분야 고르기'}</button></div>
     ${V.pickCareer ? `<div class="ov-line" style="padding-left:110px">${CAREERS.map(c => `<button class="pill ${cr.includes(c) ? 'on' : ''}" style="font-size:14px;padding:3px 10px" onclick="toggleCareer('${c}')">${c}</button>`).join('')}
@@ -1531,6 +1537,8 @@ function secOverview(st) {
     ${(() => { const sp = volSpecial(st); return sp.length ? `<div class="ov-line"><span class="ov-lab">🤝 특별 봉사</span>${sp.map(x => `<span class="ov-chip" style="background:#e7f6ed;border-color:#bfe3cc;color:#3d8a5f;font-weight:500" title="${esc(x.date + ' · ' + (x.place || ''))}">${esc(x.text.replace(/^\s*\([^)]*\)\s*/, '').slice(0, 30))}${x.text.length > 30 ? '…' : ''} <b>${esc(x.h)}h</b></span>`).join('')}</div>` : ''; })()}
     ${st.school ? `<div class="ov-line"><span class="ov-lab">🏫 출신 학교</span>${st.school.split(/\s*,\s*/).map(s => `<span class="ov-chip" style="background:#f3f0ff;border-color:#d8cdf2;color:#6c55b5">${esc(s)}</span>`).join('')}</div>` : ''}
     ${st.worry ? `<div class="ov-line"><span class="ov-lab">💭 고민</span><span class="mini" style="font-size:13px">${esc(st.worry.slice(0, 80))}${st.worry.length > 80 ? '…' : ''}</span></div>` : ''}
+  </div>
+  ${aiCardBox(st)}
   </div>
   <div class="ov-stats">
     ${(() => { const ai = attInfo(st); return `<div style="${ai?.warn ? 'background:#fff0f2;border-color:#f19ab0;border-width:2px' : ''}"><b style="font-size:${att && att.length > 6 ? '18px' : '28px'};${ai?.warn ? 'color:var(--red)' : ''}">${ai?.warn ? '⚠️ ' : ''}${att || '-'}</b><span>출결</span>
@@ -1547,7 +1555,6 @@ function secOverview(st) {
       : '<div class="empty">아직 상담 전이에요. ＋ 상담 적기를 눌러 첫 상담을 남겨요 🌷</div>'}
   </div></div>
   ${gradeGrass(st)}
-  ${aiCardBox(st)}
   <div style="margin-bottom:14px">
     <div class="box"><div class="hd mustard"><span class="n">📋</span>나이스 기록</div><div class="bd">
       ${(gyogwaChips(st) + recItems(st) + setukFold(st)) || '<div class="empty">관리 > 생기부 자료에서 교과 성적 · 세특 · 출결 · 봉사를 넣으면 여기에 보여요</div>'}
