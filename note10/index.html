@@ -950,9 +950,14 @@ function viewClassCs() {
         <div class="mini">🌱 활동 ${s.acts.length} · 일화 ${s.episodes.length} · 문구 ${s.sentences.length}</div>
         <div class="adots">${AREAS.map(a => `<span class="${s.final[a.k] ? 'ok' : ''}">${a.short}</span>`).join('')}</div>
       </div>`; }).join('')}</div>` : '<div class="empty">개인 상담 기록에서 동물 친구를 추가하면 여기에 모여요 🐰🐻🐱</div>'}</div>
-    <div class="box"><div class="hd green"><span class="n">✿</span>희망 진로 분야</div><div class="bd">
-      ${Object.keys(cnt).length ? Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="bar"><span class="t">${esc(k)}</span><span class="g"><i style="width:${v / max * 100}%"></i></span><b>${v}</b></div>`).join('') : '<div class="empty">아직 없어요</div>'}
+    <div><div class="box"><div class="hd green"><span class="n">✿</span>희망 진로 분야 <span class="sp mini" style="color:#fff">막대를 누르면 학생</span></div><div class="bd">
+      ${Object.keys(cnt).length ? Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="bar" style="cursor:pointer" title="눌러서 학생 보기" onclick="whoPop('career',${esc(JSON.stringify(k))})"><span class="t">${esc(k)}</span><span class="g"><i style="width:${v / max * 100}%"></i></span><b>${v}</b></div>`).join('') : '<div class="empty">아직 없어요</div>'}
     </div></div>
+    ${SEMS.map(([k, lab], si) => { const sc = {}; L.forEach(s => (s.subjects?.[k] || []).forEach(x => { sc[x] = (sc[x] || 0) + 1; }));
+      const done = L.filter(s => (s.subjects?.[k] || []).length === SUBJ_N).length, smax = Math.max(1, ...Object.values(sc));
+      return `<div class="box" style="margin-top:12px"><div class="hd ${si ? 'purple' : 'blue'}"><span class="n">📘</span>${lab} 선택과목</div><div class="bd"><div class="mini" style="margin-bottom:8px">${SUBJ_N}과목 다 넣음 <b>${done}/${L.length}명</b> · 막대를 누르면 학생 목록</div>
+        ${Object.keys(sc).length ? Object.entries(sc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([x, v]) => `<div class="bar" style="cursor:pointer" title="눌러서 학생 보기" onclick="whoPop('subj',${esc(JSON.stringify(x))},'${k}')"><span class="t" style="width:120px">${esc(x)}</span><span class="g"><i style="width:${v / smax * 100}%;background:${si ? 'var(--purple)' : 'var(--blue)'}"></i></span><b>${v}</b></div>`).join('') : '<div class="empty">아직 넣은 선택과목이 없어요</div>'}
+      </div></div>`; }).join('')}</div>
   </div>`;
 }
 function upcoming() {
@@ -1014,6 +1019,15 @@ function viewNote() {
 function setField(k, v) { const st = cur(); if (!piiOk(v)) { render(); return; } st[k] = v; saveStudent(st); }
 
 /* 1 한눈에 */
+// 담임 학급 관리 막대를 누르면: 그 진로 분야 · 선택과목을 고른 학생 목록 (별칭으로, 누르면 그 친구 한눈에)
+function whoPop(type, key, sem) {
+  const L = D.students.filter(s => type === 'career' ? (careers(s).length ? careers(s) : ['미정']).includes(key) : (s.subjects?.[sem] || []).includes(key));
+  const title = type === 'career' ? `🧭 희망 진로 '${key}'` : `📘 ${SEMS.find(x => x[0] === sem)?.[1] || ''} '${key}'`;
+  openModal(`${title} · ${L.length}명`, `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px">${L.map((s, i) => { const [bg, fg] = BUB[i % BUB.length];
+    return `<div style="background:${bg};border:1.5px solid ${fg};border-radius:14px;padding:8px 12px;cursor:pointer" onclick="closeModal();openStudent('${s.id}',1)"><b class="hand" style="font-size:17px">${s.emoji} ${esc(nname(s))}</b>
+      <div class="mini">${type === 'subj' ? esc((s.subjects?.[sem] || []).filter(x => x !== key).join(' · ')) : esc(careers(s).join(', ') + (s.careerDetail ? ' · ' + s.careerDetail : ''))}</div></div>`; }).join('') || '<div class="empty">없어요</div>'}</div>
+    <p class="mini" style="margin-top:8px">${type === 'subj' ? '아래 작은 글씨는 이 친구가 함께 고른 다른 과목이에요. ' : ''}카드를 누르면 그 친구 한눈에로 가요.</p>`, true);
+}
 // 한눈에 숫자: 출결(결석 · 지각 · 조퇴 · 결과 합) · 봉사 시간 — 가장 최근 학년도
 function attShort(st) { return attInfo(st)?.text || null; }
 /* ⚠️ 잦은 결석 · 지각 경고 — 지각 · 조퇴 · 결과 합 3회↑, 결석 3일↑, 미인정 1회↑
