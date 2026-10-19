@@ -2776,16 +2776,18 @@ function dashRoster() {
     <p class="mini">고치면 바로 저장돼요. 🔒 반 번호는 이 관리 화면에서만 보이고, 개인 상담 기록 · 홈에는 별칭과 숫자만 보여요.
       반 번호를 서로 바꿀 때는 한 줄의 반 번호를 먼저 비운 뒤 바꿔요 (같은 번호 둘은 안 돼요).</p>
     ${D.students.some(s => isPencil(s) && s.num && s.tag !== String(s.num)) ? `<div class="row" style="margin-bottom:8px"><span class="mini" style="color:var(--red)">⚠️ 연필 숫자와 반 번호가 다른 친구가 있어요</span><button class="btn sm" onclick="pencilSync()">✏️ 연필 숫자를 반 번호와 맞추기</button></div>` : ''}
-    ${list.length ? `<div style="overflow:auto;max-height:60vh"><table class="dtable"><tr><th style="width:70px">반 번호</th><th style="width:80px">동물</th><th>별칭</th><th style="width:90px">숫자</th><th style="width:90px">상담</th><th style="width:120px">선택과목</th><th style="width:90px"></th></tr>
+    ${list.length ? `<div style="overflow:auto;max-height:60vh"><table class="dtable"><tr><th style="width:70px">반 번호</th><th style="width:80px">동물</th><th>별칭</th><th style="width:90px">숫자</th><th style="width:90px">상담</th><th style="width:110px">동아리</th><th style="width:120px">선택과목</th><th style="width:90px"></th></tr>
       ${list.map(s => `<tr style="${isPencil(s) ? 'background:var(--soft)' : ''}">
         <td><input type="number" min="1" max="60" value="${s.num || ''}" style="width:62px" data-row="${s.id}" data-k="num" onchange="rosterSet('${s.id}','num',this.value)"></td>
         <td><select style="width:70px;font-size:18px" data-row="${s.id}" data-k="emoji" onchange="rosterSet('${s.id}','emoji',this.value)">${emoOpts(s.emoji)}</select></td>
         <td><input type="text" maxlength="12" value="${esc(s.nick)}" placeholder="별칭" data-row="${s.id}" data-k="nick" onchange="rosterSet('${s.id}','nick',this.value)"></td>
         <td><input type="text" inputmode="numeric" maxlength="4" value="${esc(s.tag || '')}" style="width:80px" data-row="${s.id}" data-k="tag" onchange="rosterSet('${s.id}','tag',this.value)"></td>
         <td class="mini" style="vertical-align:middle">${s.counsels.length ? `${s.counsels.length}회` : '아직'}</td>
+        <td><input type="text" value="${esc(s.club || '')}" placeholder="${esc(clubOf({ ...s, club: '' }) || '동아리')}" style="width:100px" data-row="${s.id}" data-k="club" onchange="rosterSet('${s.id}','club',this.value)"></td>
         <td class="mini" style="vertical-align:middle;white-space:nowrap;${subjOk(s) ? 'color:#3d8a5f' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? 'color:var(--red)' : ''}">${SEMS.map(([k]) => (s.subjects?.[k] || []).length).join(' · ')}${subjOk(s) ? ' ✓' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? ' ⚠️' : ''}</td>
         <td style="vertical-align:middle"><button class="btn sm ghost" onclick="closeModal();openStudent('${s.id}',1)">노트 →</button></td></tr>`).join('')}
     </table></div>` : '<div class="empty">아직 친구가 없어요. 위에서 연필 친구를 한꺼번에 만들어 보세요 ✏️</div>'}</section>
+  ${clubBox()}
   ${gdBox()}`;
 }
 // 연필 친구들의 숫자를 반 번호와 똑같이 맞춰요 (예전에 만든 연필 친구는 숫자가 밀려 있을 수 있어요)
@@ -2896,12 +2898,75 @@ function gdBox() {
       <div class="row" style="margin-top:10px"><button class="btn" onclick="gdSave()">💾 ${p.blocks.length}명 누가 기록에 넣기</button><span class="mini">같은 내용은 다시 넣어도 겹치지 않아요. 이미 적힌 출신 학교 · 가족 · 진로는 덮어쓰지 않아요.</span></div></div>` : ''}
   </section>`;
 }
+/* 🎨 동아리 부서 배정 한꺼번에 — 표 복사(번호 · 동아리 칸을 찾아요, 반 칸이 있으면 우리반만) 또는 캡처 사진(AI가 번호 · 동아리만 읽어요)
+   미리 보기에서 확인한 뒤 저장하면 친구마다 '동아리' 칸에 들어가요 (이름은 저장하지 않아요) */
+let CLUBP = null;
+function clubParseText(text) {
+  const me = myClass(), out = [];
+  const lines = text.replace(/\r/g, '').split('\n').map(l => l.split(/\t/).map(c => c.trim())).filter(r => r.some(Boolean));
+  const flat = c => c.replace(/\s/g, '');
+  const h = lines.findIndex(r => r.some(c => /동아리|부서/.test(flat(c))));
+  if (h >= 0 && lines[h].length > 1) {   // 머리글이 있는 표
+    const H = lines[h].map(flat), iC = H.findIndex(c => /동아리|부서/.test(c)), iN = H.findIndex(c => /^(번호|번)$/.test(c)), iK = H.findIndex(c => c === '반'), iS = H.findIndex(c => c === '학번');
+    lines.slice(h + 1).forEach(r => {
+      const club = (r[iC] || '').trim(); if (!club) return;
+      let no = 0;
+      if (iS >= 0 && /^\d{5}$/.test(r[iS] || '')) { if (!isMine(r[iS])) return; no = +r[iS].slice(3); }
+      else { if (iK >= 0 && r[iK] && parseInt(r[iK].replace(/\D/g, ''), 10) !== me.c) return; no = parseInt((r[iN] || '').replace(/\D/g, ''), 10); }
+      if (no >= 1 && no <= 60) out.push({ no, club });
+    });
+  } else {   // 머리글 없는 줄: '5 홍길동 CPR' · '10반 5번 CPR' · '11005 CPR' — 마지막 칸이 동아리
+    text.split('\n').forEach(l => {
+      const t = l.trim().split(/\s+|\t/).filter(Boolean); if (t.length < 2) return;
+      const club = t[t.length - 1]; let no = 0;
+      const sid = t.find(x => /^\d{5}$/.test(x));
+      if (sid) { if (!isMine(sid)) return; no = +sid.slice(3); }
+      else { const nums = t.slice(0, -1).map(x => parseInt(x.replace(/\D/g, ''), 10)).filter(n => !isNaN(n)); if (!nums.length) return; if (nums.length >= 2) { if (nums[0] !== me.c) return; no = nums[1]; } else no = nums[0]; }
+      if (no >= 1 && no <= 60 && !/^\d+$/.test(club)) out.push({ no, club });
+    });
+  }
+  return out;
+}
+function clubPreview() {
+  const list = clubParseText($('#clubText').value);
+  if (!list.length) return toast('🎨 번호와 동아리를 찾지 못했어요. 번호 · 동아리 칸 머리글까지 복사해 주세요');
+  CLUBP = list; dashRefresh();
+}
+async function clubImage(file) {
+  if (!file) return;
+  toast('📷 사진에서 동아리 배정을 읽는 중이에요…');
+  try {
+    const img = await imgToB64(file), me = myClass();
+    const out = await callAI('너는 학교 동아리 부서 배정표 사진에서 반 · 번호 · 동아리 이름만 정확히 옮겨 적는 도우미다. 학생 이름은 절대 출력하지 않는다. 반드시 JSON 배열만 출력한다.', {
+      text: `사진 속 표에서 학생마다 반 · 번호 · 동아리(부서) 이름을 뽑아 줘.\n- 출력: [{"cls":반 숫자 또는 null,"no":번호 숫자,"club":"동아리 이름"}]\n- 이름 칸은 무시하고, 반이 안 보이면 cls는 null.`, images: [img] }, 2000);
+    const arr = JSON.parse((out.match(/\[[\s\S]*\]/) || ['[]'])[0]);
+    CLUBP = arr.filter(x => x && x.club && +x.no >= 1 && +x.no <= 60 && (x.cls == null || +x.cls === me.c)).map(x => ({ no: +x.no, club: String(x.club).trim() }));
+    if (!CLUBP.length) { CLUBP = null; return toast('📷 우리반 동아리 배정을 찾지 못했어요'); }
+    dashRefresh();
+  } catch (e) { toast('📷 읽지 못했어요: ' + e.message); }
+}
+function clubPasteImg(e) { const f = [...(e.clipboardData?.items || [])].find(i => i.kind === 'file' && i.type.startsWith('image/')); if (!f) return; e.preventDefault(); clubImage(f.getAsFile()); }
+function clubSave() {
+  let n = 0; (CLUBP || []).forEach(x => { const s = D.students.find(y => y.num === x.no); if (s && s.club !== x.club) { s.club = x.club; saveStudent(s); n++; } });
+  CLUBP = null; dashRefresh(); render(); toast(`🎨 동아리 ${n}명을 넣었어요`);
+}
+function clubBox() {
+  const p = CLUBP;
+  return `<section style="margin-top:14px;border-top:1.5px dashed var(--line);padding-top:14px"><h4>🎨 동아리 부서 배정 한꺼번에 넣기</h4>
+    <p class="mini">동아리 배정 엑셀 · 명단을 <b>번호 · 동아리 머리글부터</b> 복사해 붙여 넣어요 (반 칸이 있으면 우리반만 골라요, AI 안 씀). 또는 <b>캡처 사진</b>을 아래 칸에 Ctrl+V · 📷 단추로 넣으면 AI가 번호 · 동아리만 읽어요.<br>⚠️ 사진은 AI에 보내져요 — 이름 칸은 가리고 캡처해 주세요. 🔒 이름은 저장하지 않아요.</p>
+    <textarea id="clubText" style="min-height:70px;font-size:12.5px" onpaste="clubPasteImg(event)" placeholder="예) 번호 ⇥ 이름 ⇥ 동아리  /  10반 5번 CPR  /  11005 방송부"></textarea>
+    <div class="row" style="margin-top:6px"><button class="btn sm" onclick="clubPreview()">👀 미리 보기</button><label class="btn sm ghost">📷 캡처 사진으로<input type="file" accept="image/*" hidden onchange="clubImage(this.files[0])"></label></div>
+    ${p ? `<div style="margin-top:8px"><div class="mini" style="margin-bottom:4px">${p.length}명 — 바뀌는 친구는 분홍</div><div class="row" style="gap:4px">${p.sort((a, b) => a.no - b.no).map(x => { const s = D.students.find(y => y.num === x.no); return `<span class="chip" style="${s && s.club !== x.club ? 'background:var(--pinkL);border-color:#f6c6d6' : ''}">${x.no}번 ${s ? esc(nname(s)) : '(친구 없음)'} → <b>${esc(x.club)}</b>${s?.club && s.club !== x.club ? ` <span class="mini">(전: ${esc(s.club)})</span>` : ''}</span>`; }).join('')}</div>
+      <div class="row" style="margin-top:8px"><button class="btn" onclick="clubSave()">💾 동아리 넣기</button><button class="btn ghost sm" onclick="CLUBP=null;dashRefresh()">취소</button></div></div>` : ''}
+  </section>`;
+}
 // 명단 표에서 고친 칸 하나 저장
 function rosterSet(id, k, v) {
   const st = D.students.find(s => s.id === id); if (!st) return;
   v = String(v).trim();
   if (k === 'num') { const n = parseInt(v, 10) || 0; if (n && (n < 1 || n > 60)) return toast('반 번호는 1~60이에요'), dashRefresh(); if (numTaken(n, id)) return toast(`반 번호 ${n}번은 이미 다른 친구예요`), dashRefresh(); st.num = n; }
   const wasPencil = isPencil(st); let typed = false;
+  if (k === 'club') { st.club = v; saveStudent(st); render(); return dashRefresh(); }
   if (k === 'nick') {
     const sp = splitNick(v, '');   // '해바라기17' → 별칭 '해바라기' + 숫자 17
     if (!sp.nick) return dashRefresh(); if (piiCheck(sp.nick).length) return toast('별칭에 숫자·연락처는 빼 주세요'), dashRefresh();
