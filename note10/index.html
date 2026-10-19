@@ -1011,7 +1011,7 @@ function examRanks(d) {
   const rk = vals => v => 1 + vals.filter(x => x > v).length;
   let subj = {}, total = new Map(), N = d.rows.length;
   if (examOf(d).kind === 'school') {
-    schoolRanks(d).forEach(c => { subj[c.subj] = new Map([...c.by].map(([sid, x]) => [sid, x.rank])); });
+    if (!END_SEM[d.exam]) schoolRanks(d).forEach(c => { subj[c.subj] = new Map([...c.by].map(([sid, x]) => [sid, x.rank])); });   // 학기말은 과목 등수 안 써요
     if (iT >= 0) d.rows.forEach(r => { const v = parseInt(r.v[iT], 10); if (v) total.set(r.sid, v); });   // 성적표의 전교석차를 그대로
     else { const all = comboRanks(d).find(c => c.name === '전교과'); if (all) total = new Map([...all.by].map(([sid, x]) => [sid, x.rank])); }
   } else {
@@ -1040,10 +1040,10 @@ function cardAnalysis(st) {
   const L = [], avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
   const rowAvg = (r, subj) => avg(subj.map(s => r[s]).filter(v => v != null));
   const G = growthRows(st, 'school'), Gr = G.rows.filter(r => G.subj.some(s => r[s] != null));
-  const last = Gr.filter(r => /나이스/.test(r.label)).pop() || Gr[Gr.length - 1];
+  const last = Gr.filter(r => r._end).pop() || Gr[Gr.length - 1];   // 학기말(성적 파일 · 나이스)이 있으면 그 줄
   let sAvg = null;
   if (last) {
-    const sub = G.subj.filter(s => last[s] != null).map(s => [shortSubj(s), last[s]]); sAvg = rowAvg(last, G.subj);
+    const sub = G.subj.filter(s => last[s] != null).map(s => [shortSubj(s), last[s]]); sAvg = last._avg ?? rowAvg(last, G.subj);
     const best = Math.min(...sub.map(x => x[1])), worst = Math.max(...sub.map(x => x[1]));
     L.push(`📗 내신(${last.label}) 평균 ${sAvg.toFixed(2)}등급 · 강점 ${sub.filter(x => x[1] === best).map(x => x[0]).join(', ')}${worst > best ? ` · 보완 ${sub.filter(x => x[1] === worst).map(x => x[0]).join(', ')}` : ''}`);
   }
@@ -1119,9 +1119,10 @@ function buildCard(wb, st, used) {
       box(r, 1, 2, row.label.replace(/^\d+년\s*/, ''), { bold: true, h: 'center', fill: XC.soft });
       const vs = []; cols.forEach((c, i) => { const v = val(row, c); if (v != null) vs.push(v); box(r, 3 + i, 3 + i, v ?? '-', { h: 'center', fill: v != null ? heat(v, max) : XC.white }); });
       for (let i = cols.length; i < 7; i++) box(r, 3 + i, 3 + i, '', {});
-      const a = vs.length ? vs.reduce((x, y) => x + y, 0) / vs.length : null;
+      const a = row._avg ?? (vs.length ? vs.reduce((x, y) => x + y, 0) / vs.length : null);   // 학기말은 학점 반영 등급 평균
       box(r, 10, 10, a != null ? +a.toFixed(2) : '-', { h: 'center', bold: true, fill: a != null ? heat(a, max) : XC.white });
-      box(r, 11, 11, kind === 'mock' ? (std[row.label] ?? '-') : '', { h: 'center' }); box(r, 12, 12, rk(row.label) || '-', { h: 'center', color: XC.sub }); H(r, 17); r++;
+      const rkTxt = row._end ? (row._rank ? (row._N ? `${row._rank}/${row._N}` : `${row._rank}`) : null) : rk(row.label);
+      box(r, 11, 11, kind === 'mock' ? (std[row.label] ?? '-') : '', { h: 'center' }); box(r, 12, 12, rkTxt || '-', { h: 'center', color: XC.sub }); H(r, 17); r++;
     });
     r++;
   };
@@ -1208,10 +1209,18 @@ function rankWhy(st, kind, labels) {
 /* 📊 성적 잔디 — 시험마다 과목별 등급을 분홍 진하기 + 숫자로 (진할수록 좋은 등급), 오른쪽 끝은 시험 평균, 맨 아래는 과목 평균 */
 function gradeGrass(st) {
   const one = (kind, title, color) => {
-    const G = growthRows(st, kind), max = kind === 'mock' ? 9 : 5;
+    let G = growthRows(st, kind); const max = kind === 'mock' ? 9 : 5;
+    // 내신은 공통국어1 · 공통국어2 를 '국어' 한 칸으로 (등수 찾을 때는 원래 과목 이름을 _orig 에)
+    if (kind === 'school') {
+      const G0 = G;
+      G = { subj: [...new Set(G0.subj.map(shortSubj))], rows: G0.rows.map(r => { const o = { _orig: {} }; Object.keys(r).forEach(k => { if (k === 'label' || k[0] === '_') o[k] = r[k]; }); G0.subj.forEach(s => { if (r[s] != null) { o[shortSubj(s)] = r[s]; o._orig[shortSubj(s)] = s; } }); return o; }) };
+    }
     // 줄 이름 → 그 시험의 이 친구 전교 등수
     const RK = {}; Object.values(SC).filter(d => examOf(d).kind === kind).forEach(d => { const r = d.rows.find(x => x.no === st.num), e = r && examRanks(d); if (e) RK[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = { e, sid: e.byNo ? (r.sid || 'no' + r.no) : r.sid }; });
-    const rkOf = (label, s) => { const x = RK[label]; const v = x && (s ? x.e.subj[s]?.get(x.sid) : x.e.total.get(x.sid)); return v ? { v, N: x.e.N } : null; };
+    // 학기말 줄은 성적 파일의 전교석차만 (과목 등수는 쓰지 않아요)
+    const endRow = label => G.rows.find(x => x.label === label && x._end);
+    const rkOf = (label, s) => { const e = endRow(label); if (e) return !s && e._rank ? { v: e._rank, N: e._N } : null; const x = RK[label]; const v = x && (s ? x.e.subj[s]?.get(x.sid) : x.e.total.get(x.sid)); return v ? { v, N: x.e.N } : null; };
+    if (G.rows.some(x => x._end && x._rank)) RK._end = true;
     // 등수는 바로 보이지 않게 — '🏅 전교 등수 보기'를 눌러야 보여요
     const hasRank = Object.keys(RK).length > 0 && !!V.showRank?.[kind];
     const canRank = Object.keys(RK).length > 0;
@@ -1224,7 +1233,9 @@ function gradeGrass(st) {
     return `<div class="box"><div class="hd ${color}"><span class="n">📊</span>${title} <span class="sp mini" style="color:#fff">${max}등급 · 진할수록 좋아요</span></div><div class="bd" style="overflow:auto">
       <table class="dtable"><tr><th></th>${subj.map(s => `<th style="${th}">${esc(s)}</th>`).join('')}<th style="${th}">평균</th>${hasRank ? `<th style="${th}">🏅 전교<br>등수</th>` : ''}</tr>
       ${rows.map(r => { const vs = subj.map(s => r[s]).filter(v => v != null), t = hasRank && rkOf(r.label);
-        return `<tr><td style="white-space:nowrap;font-weight:600">${esc(r.label)}</td>${subj.map(s => cell(r[s], false, hasRank && rkOf(r.label, s))).join('')}${cell(avg(vs), true)}${hasRank ? `<td style="text-align:center;white-space:nowrap">${t ? `<b style="color:var(--main);font-size:15px">${t.v}</b>${t.N ? `<span class="mini">/${t.N}</span>` : ''}` : '<span class="mini">-</span>'}</td>` : ''}</tr>`; }).join('')}
+        // 학기말: 평균은 성적 파일의 학점 반영 등급 평균, 출처(성적 파일 · 나이스)와 서로 다른 값이 있으면 ⚠️
+        const src = r._end ? `<div class="mini" style="font-weight:400">${[r._file && '성적 파일', r._nice && '나이스'].filter(Boolean).join(' + ')}${r._diff?.length ? ` <span title="${esc(r._diff.join(' / '))}" style="color:var(--red)">⚠️ 다른 값 ${r._diff.length}</span>` : ''}</div>` : '';
+        return `<tr><td style="white-space:nowrap;font-weight:600">${esc(r.label)}${src}</td>${subj.map(s => cell(r[s], false, hasRank && rkOf(r.label, r._orig?.[s] || s))).join('')}${cell(r._avg ?? avg(vs), true)}${hasRank ? `<td style="text-align:center;white-space:nowrap">${t ? `<b style="color:var(--main);font-size:15px">${t.v}</b>${t.N ? `<span class="mini">/${t.N}</span>` : ''}` : '<span class="mini">-</span>'}</td>` : ''}</tr>`; }).join('')}
       ${kind === 'mock' ? `<tr style="border-top:1.5px solid var(--line)"><td style="font-weight:700">과목 평균</td>${subj.map(s => cell(avg(rows.map(r => r[s]).filter(v => v != null)), true)).join('')}${cell(avg(rows.flatMap(r => subj.map(s => r[s]).filter(v => v != null))), true)}${hasRank ? '<td></td>' : ''}</tr>` : ''}
       </table>
       ${canRank ? `<button class="pill ${hasRank ? 'on' : ''}" style="font-size:13px;padding:2px 10px;margin-top:8px" onclick="V.showRank=Object.assign(V.showRank||{},{${kind}:!${hasRank}});render()">🏅 전교 등수 ${hasRank ? '접기' : '보기'}</button>` : ''}
@@ -1638,6 +1649,8 @@ function genFrom(key, id, btn) {
 
 /* 3 성장 그래프 */
 // 그래프에 쓸 줄: 관리에서 올린 성적 파일(번호로 찾기) + 여기서 직접 넣은 등급
+// 학기말 성적 파일 칸 (중간 · 기말 · 수행을 합친 최종 등급) → 나이스 학기 성적과 같은 학기
+const END_SEM = { s1t: '1', s2t: '2' };
 function growthRows(st, kind) {
   const max = kind === 'mock' ? 9 : 5, rows = [], files = [];
   scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
@@ -1645,20 +1658,31 @@ function growthRows(st, kind) {
     if (!r) return;
     const o = { label: `${String(d.year).slice(2)}년 ${examOf(d).short}`, _k: d.year * 100 + EXAMS.findIndex(e => e.id === d.exam) };
     gradeCols(d, max).forEach(c => { const v = Number(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; });
+    // 학기말 성적 파일(1학기말 · 2학기말): 학점 반영 등급 평균 · 전교석차 · 반석차 칸도 함께 (과목 등수는 안 써요)
+    if (END_SEM[d.exam]) {
+      const raw = SC[scoreKey(d.year, d.exam)] || d, rr = raw.rows.find(x => x.no === st.num) || r;
+      const col = re => raw.cols.findIndex(h => re.test(h.replace(/\s/g, '')));
+      const iA = col(/^평균$/), iT = col(/전교석차/), iC = col(/반석차|학급석차/);
+      o._end = END_SEM[d.exam]; o._year = d.year; o._file = true;
+      if (iA >= 0 && rr.v[iA] !== '' && !isNaN(parseFloat(rr.v[iA]))) o._avg = parseFloat(rr.v[iA]);
+      if (iT >= 0 && parseInt(rr.v[iT], 10)) o._rank = parseInt(rr.v[iT], 10), o._N = isWhole(raw) ? raw.rows.length : 0;
+      if (iC >= 0 && parseInt(rr.v[iC], 10)) o._crank = parseInt(rr.v[iC], 10);
+    }
     rows.push(o); files.push({ d, r });
   });
-  // 교과학습발달상황(나이스 학기 성적)의 석차등급 → 내신 그래프
+  // 교과학습발달상황(나이스 학기 성적)의 석차등급 → 같은 학기의 학기말 줄과 하나로 합쳐요 (나이스 값이 먼저, 다르면 ⚠️)
   if (kind === 'school' && st.num) gyogwaDocs().forEach(d => {
     const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return;
     const iS = d.cols.findIndex(c => c === '과목'), iG = d.cols.findIndex(c => /석차/.test(c));
-    const o = { label: `${String(d.year).slice(2)}년 ${d.sem}학기 (나이스)`, _k: d.year * 100 + (d.sem == 2 ? 9.5 : 6.5) };
-    rs.forEach(r => { const v = Number(r.v[iG]); if (iG >= 0 && r.v[iG] !== '' && !isNaN(v)) o[r.v[iS]] = v; });
-    rows.push(o);
+    let o = rows.find(x => x._end === String(d.sem) && x._year === d.year);
+    if (!o) { o = { label: `${String(d.year).slice(2)}년 ${d.sem}학기말`, _k: d.year * 100 + (d.sem == 2 ? 9.5 : 6.5), _end: String(d.sem), _year: d.year }; rows.push(o); }
+    o._nice = true; o._diff = [];
+    rs.forEach(r => { const v = Number(r.v[iG]), s = subjName(r.v[iS] || ''); if (iG < 0 || r.v[iG] === '' || isNaN(v)) return; if (o[s] != null && o[s] !== v) o._diff.push(`${s} 파일 ${o[s]} · 나이스 ${v}`); o[s] = v; });
   });
   rows.sort((a, b) => a._k - b._k);
   st[kind === 'mock' ? 'mocks' : 'grades'].forEach(r => { const o = { label: r.label }; Object.keys(r).forEach(k => { if (k !== 'id' && k !== 'label') o[k] = r[k]; }); rows.push(o); });
   rows.forEach(r => delete r._k);
-  const subj = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label')))];
+  const subj = [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label' && k[0] !== '_')))];   // _로 시작하는 칸은 덧붙인 정보
   return { rows, subj, files };
 }
 /* 🔍 자세히 보기 — 1등급이 몰려 있는 친구는 등급만으로는 변화가 안 보여요 → 백분위 · 표준점수 · 원점수 변화로 보기 */
@@ -1676,18 +1700,12 @@ function growthMetric(st, kind, m) {
   const rows = [];
   const label = d => `${String(d.year).slice(2)}년 ${examOf(d).short}`;
   if (st.num && kind === 'school' && ['raw', 'srank', 'spct'].includes(m)) {
-    Object.values(SC).filter(d => examOf(d).kind === 'school').sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam)).forEach(d => {
+    // 원점수 · 전교석차 · 상위 %는 원점수가 있는 중간 · 기말만 (학기말 파일은 등급만 있어서 빼요)
+    Object.values(SC).filter(d => examOf(d).kind === 'school' && !END_SEM[d.exam]).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam)).forEach(d => {
       const r = d.rows.find(x => x.no === st.num); if (!r) return;
       const o = { label: label(d) };
       if (m === 'raw') { const mc = metricCols(d, 'raw'); (mc.length ? mc : rawCols(d)).forEach(c => { const v = parseFloat(r.v[c.i]); if (!isNaN(v)) o[c.subj] = v; }); }
       else if (useCalc(d)) schoolRanks(d).forEach(c => { const x = c.by.get(r.sid); if (x) o[c.subj] = m === 'srank' ? x.rank : +x.pct.toFixed(1); });
-      if (Object.keys(o).length > 1) rows.push(o);
-    });
-    if (m === 'raw') gyogwaDocs().forEach(d => {   // 나이스 학기 성적의 '원점수/과목평균' 앞 숫자
-      const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return;
-      const iS = d.cols.findIndex(c => c === '과목'), iR = d.cols.findIndex(c => /원점수/.test(c)); if (iR < 0) return;
-      const o = { label: `${String(d.year).slice(2)}년 ${d.sem}학기 (나이스)` };
-      rs.forEach(r => { const v = parseFloat(r.v[iR]); if (!isNaN(v)) o[subjName(r.v[iS] || '')] = v; });
       if (Object.keys(o).length > 1) rows.push(o);
     });
   } else if (st.num) scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
@@ -1716,14 +1734,20 @@ function comboRanks(d) {
 }
 function comboCard(st) {
   if (!st.num) return '';
-  const docs = Object.values(SC).filter(useCalc).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));
+  const docs = Object.values(SC).filter(d => useCalc(d) && !END_SEM[d.exam]).sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam));
   const rows = docs.map(d => { const r = d.rows.find(x => x.no === st.num); return r ? { d, r, C: comboRanks(d) } : null; }).filter(Boolean);
+  // 학기말: 성적 파일의 전교석차 · 학점 반영 등급 평균을 '전교과' 칸에 (묶음 석차는 원점수가 없어 못 내요)
+  growthRows(st, 'school').rows.filter(x => x._end && x._rank).forEach(x => {
+    const d = { year: x._year, exam: x._end === '1' ? 's1t' : 's2t' }, by = new Map([['_', { rank: x._rank, N: x._N, avg: x._avg ?? 0, grade: true }]]);
+    const at = rows.findIndex(y => y.d.year > d.year || (y.d.year === d.year && EXAMS.findIndex(e => e.id === y.d.exam) > EXAMS.findIndex(e => e.id === d.exam)));
+    rows.splice(at < 0 ? rows.length : at, 0, { d, r: { sid: '_' }, C: [{ name: '전교과', by }] });
+  });
   if (!rows.length) return '';
   const names = COMBOS.map(c => c[0]).filter(n => rows.some(x => x.C.some(c => c.name === n)));
   const th = 'text-align:center;white-space:nowrap;border:1px solid var(--line);padding:4px 6px;background:#e6f6fb';
   return `<details style="margin-top:10px" open><summary class="mini" style="cursor:pointer">🏫 과목 묶음 전교 석차 (원점수를 학점으로 가중 평균해 계산)</summary>
     <div style="overflow:auto;margin-top:6px"><table class="dtable" style="border-collapse:collapse"><tr><th style="${th}"></th>${names.map(n => `<th style="${th}">${n}<br><span class="mini">(석차)</span></th>`).join('')}</tr>
-    ${rows.map(({ d, r, C }) => `<tr><td style="white-space:nowrap;font-weight:700;border:1px solid var(--line);padding:4px 8px">${d.year} ${esc(examOf(d).label)}</td>${names.map(n => { const x = C.find(c => c.name === n)?.by.get(r.sid); return `<td style="text-align:center;border:1px solid var(--line)">${x ? `<b>${x.rank}</b><span class="mini">/${x.N}</span><div class="mini">평균 ${x.avg.toFixed(1)}</div>` : '-'}</td>`; }).join('')}</tr>`).join('')}</table></div>
+    ${rows.map(({ d, r, C }) => `<tr><td style="white-space:nowrap;font-weight:700;border:1px solid var(--line);padding:4px 8px">${d.year} ${esc(examOf(d).label)}</td>${names.map(n => { const x = C.find(c => c.name === n)?.by.get(r.sid); return `<td style="text-align:center;border:1px solid var(--line)">${x ? `<b>${x.rank}</b>${x.N ? `<span class="mini">/${x.N}</span>` : ''}<div class="mini">${x.grade ? `등급 평균 ${x.avg ? x.avg.toFixed(2) : '-'}` : `평균 ${x.avg.toFixed(1)}`}</div>` : '-'}</td>`; }).join('')}</tr>`).join('')}</table></div>
     <p class="mini" style="margin-top:4px">국 = 국어 과목, 수 = 수학, 영 = 영어, 사 = 통합사회 (한국사 · 과학탐구실험 빼고), 과 = 통합과학. 전교과는 원점수가 있는 모든 과목이에요.</p></details>`;
 }
 // 그래프 위 단추: 등급 · 백분위 · 표준점수 · 원점수 (성적표에 있는 것만) / 내신은 등급 · 원점수 · 전교석차 · 상위 %
@@ -1798,9 +1822,12 @@ function scoreSheet(st, kind) {
   if (kind === 'school') gyogwaDocs().forEach(d => {
     const rs = d.rows.filter(r => r.no === st.num); if (!rs.length) return;
     const iS = d.cols.findIndex(c => c === '과목'), iG = d.cols.findIndex(c => /석차/.test(c)), iA = d.cols.findIndex(c => /성취도/.test(c));
-    const o = { label: `${String(d.year).slice(2)}년 ${d.sem}학기 전체 (나이스)`, v: {}, grade: true };
+    // 같은 학기의 학기말 성적 파일 줄이 있으면 한 줄로 합쳐요 (나이스 등급 · 성취도가 먼저)
+    const endLabel = `${String(d.year).slice(2)}년 ${d.sem}학기말`;
+    let o = rows.find(x => x.label === endLabel);
+    if (o) { o.grade = true; o.label = `${endLabel} (성적 파일 + 나이스)`; }
+    else { o = { label: `${endLabel} (나이스)`, v: {}, grade: true }; rows.push(o); }
     rs.forEach(r => { const s = subjName(r.v[iS] || ''); if (!s) return; const v = (iG >= 0 && r.v[iG]) || (iA >= 0 ? (r.v[iA] || '').replace(/\(.*\)/, '').trim() : ''); if (!v) return; addS(s, ''); o.v[s + '|'] = v; });
-    rows.push(o);
   });
   if (!rows.length) return null;
   const groups = subjs.map(s => ({ s, ms: MET_ORDER.filter(m => mets[s].has(m)) }));
@@ -1852,7 +1879,10 @@ function drawCharts(st) {
   };
   const gm = V.gm || {}, M = growthMetric(st, 'mock', gm.mock || 'grade'), G = growthMetric(st, 'school', gm.school || 'grade');
   mk('chMock', M.rows, M.subj, 9, gm.mock || 'grade');
-  mk('chGrade', G.rows, G.subj, 5, gm.school || 'grade');
+  // 내신은 공통국어1 · 공통국어2 처럼 학기마다 과목 이름이 달라요 → 국어 · 수학 … 한 선으로 이어 그려요 (줄 이름도 '1학기 중간' 처럼 짧게)
+  const sh = [...new Set(G.subj.map(shortSubj))];
+  const gRows = G.rows.map(r => { const o = { label: r.label.replace(/^\d+년\s*/, '') }; G.subj.forEach(s => { if (r[s] != null) o[shortSubj(s)] = r[s]; }); return o; });
+  mk('chGrade', gRows, sh, 5, gm.school || 'grade');
 }
 
 /* 4 활동 누적 */
