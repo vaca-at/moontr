@@ -972,7 +972,7 @@ const SECS = [
   [5, '일화 → 문구', 'purple'], [6, '문장 담벼락', 'pink'], [7, '생기부 정리', 'green'],
   [8, '공통 행사 채우기', 'mustard'], [9, '상담 준비 카드', 'blue'],
   [10, '역량 지도', 'green'], [11, '성장 서사', 'purple'], [12, '책·탐구 연결', 'pink'],
-  [13, '생기부 점검', 'blue']
+  [13, '생기부 점검', 'blue'], [14, 'AI 담임 메모', 'green']
 ];
 // 개인 상담 기록 다섯 갈래: 상담 · 성적 · 기록 쌓기 · 분석 · 생기부
 // 한눈에 · 상담 준비 카드 · 상담 기록은 위쪽 메뉴로 바로. 공통 행사 채우기(8)는 🛠 관리 > 공통 행사에서 (메뉴에는 없어요)
@@ -980,12 +980,39 @@ const NOTE_GROUPS = [
   { t: '👀 한눈에', secs: [1] },
   { t: '🗂️ 상담 준비 카드', secs: [9] },
   { t: '💬 상담 기록', secs: [2] },
+  { t: '🤖 AI 담임 메모', secs: [14] },
   { t: '📈 성적', secs: [3] },
   { t: '🌱 기록 쌓기', secs: [4, 5, 6] },
   { t: '🧭 분석', secs: [10, 11, 12] },
   { t: '✍️ 생기부', secs: [7, 13] },
 ];
-const SEC_VIEW = () => ({ 1: secOverview, 2: secCounsel, 3: secGrowth, 4: secActs, 5: secEpisode, 6: secWall, 7: secFinal, 8: secEvents, 9: secPrep, 10: secComp, 11: secStory, 12: secLinks, 13: secCheck });
+const SEC_VIEW = () => ({ 1: secOverview, 2: secCounsel, 3: secGrowth, 4: secActs, 5: secEpisode, 6: secWall, 7: secFinal, 8: secEvents, 9: secPrep, 10: secComp, 11: secStory, 12: secLinks, 13: secCheck, 14: secAiMemo });
+// 🤖 AI 담임 메모 (한눈에서 위쪽 메뉴로 옮겼어요)
+function secAiMemo(st) {
+  return `<div class="box"><div class="hd green"><span class="n">🤖</span>AI 담임 메모 <span class="sp mini" style="color:#fff">상담 · 성적 · 활동 · 나이스 기록을 읽고 담임이 볼 메모로 정리해요</span></div><div class="bd">
+    <button class="btn ai" onclick="aiEval(this)">🤖 AI 평가 받기</button>
+    <div style="margin-top:12px">${st.aiEval ? `<div class="mini">${st.aiEvalDate} 기준</div><div class="ai-out">${md(st.aiEval)}</div>` : '<div class="empty">상담·성적·활동이 쌓일수록 정확해져요</div>'}</div>
+  </div></div>`;
+}
+/* 📊 성적 잔디 — 시험마다 과목별 등급을 분홍 진하기 + 숫자로 (진할수록 좋은 등급), 오른쪽 끝은 시험 평균, 맨 아래는 과목 평균 */
+function gradeGrass(st) {
+  const one = (kind, title, color) => {
+    const G = growthRows(st, kind), max = kind === 'mock' ? 9 : 5;
+    const rows = G.rows.filter(r => G.subj.some(s => r[s] != null)); if (!rows.length) return '';
+    const subj = G.subj.filter(s => rows.some(r => r[s] != null));
+    const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    const cell = (v, bold) => v == null ? '<td class="mini" style="text-align:center">-</td>'
+      : `<td style="text-align:center;${bold ? 'font-weight:700;' : ''}background:rgba(238,143,173,${(0.08 + (1 - (v - 1) / (max - 1)) * 0.5).toFixed(2)})">${Number.isInteger(v) ? v : v.toFixed(2)}</td>`;
+    const th = 'text-align:center;font-size:12px;line-height:1.25;word-break:keep-all;min-width:38px';   // 긴 과목 이름은 두 줄로
+    return `<div class="box"><div class="hd ${color}"><span class="n">📊</span>${title} <span class="sp mini" style="color:#fff">${max}등급 · 진할수록 좋아요</span></div><div class="bd" style="overflow:auto">
+      <table class="dtable"><tr><th></th>${subj.map(s => `<th style="${th}">${esc(s)}</th>`).join('')}<th style="${th}">평균</th></tr>
+      ${rows.map(r => { const vs = subj.map(s => r[s]).filter(v => v != null); return `<tr><td style="white-space:nowrap;font-weight:600">${esc(r.label)}</td>${subj.map(s => cell(r[s])).join('')}${cell(avg(vs), true)}</tr>`; }).join('')}
+      <tr style="border-top:1.5px solid var(--line)"><td style="font-weight:700">과목 평균</td>${subj.map(s => cell(avg(rows.map(r => r[s]).filter(v => v != null)), true)).join('')}${cell(avg(rows.flatMap(r => subj.map(s => r[s]).filter(v => v != null))), true)}</tr>
+      </table></div></div>`;
+  };
+  const m = one('mock', '모의고사 성적', 'blue'), s = one('school', '내신 성적', 'pink');
+  return m || s ? `<div class="cols c2" style="margin-bottom:14px">${m || '<div></div>'}${s || '<div></div>'}</div>` : '';
+}
 function openStudent(id, sec) { V.sid = id; V.sec = sec || 1; V.tab = 'note'; render(); window.scrollTo(0, 0); }
 function viewNote() {
   const side = `<aside class="side">
@@ -1208,11 +1235,8 @@ function secOverview(st) {
         ${c.sum ? '' : '<div class="mini" style="opacity:.6;margin-top:2px">첫 문장 · ✨로 요약해요</div>'}</div>`; }).join('')}</div>`
       : '<div class="empty">아직 상담 전이에요. ＋ 상담 적기를 눌러 첫 상담을 남겨요 🌷</div>'}
   </div></div>
-  <div class="cols c2" style="margin-bottom:14px">
-    <div class="box"><div class="hd green"><span class="n">🤖</span>AI 담임 메모</div><div class="bd">
-      <button class="btn ai sm" onclick="aiEval(this)">🤖 AI 평가 받기</button>
-      <div style="margin-top:10px">${st.aiEval ? `<div class="mini">${st.aiEvalDate} 기준</div><div class="ai-out">${md(st.aiEval)}</div>` : '<div class="empty">상담·성적·활동이 쌓일수록 정확해져요</div>'}</div>
-    </div></div>
+  ${gradeGrass(st)}
+  <div style="margin-bottom:14px">
     <div class="box"><div class="hd mustard"><span class="n">📋</span>나이스 기록</div><div class="bd">
       ${(gyogwaChips(st) + recItems(st) + setukFold(st)) || '<div class="empty">관리 > 생기부 자료에서 교과 성적 · 세특 · 출결 · 봉사를 넣으면 여기에 보여요</div>'}
       <div class="mini" style="margin-top:6px">📊 쌓인 기록: 상담 ${st.counsels.length} · 활동 ${st.acts.length} · 일화 ${st.episodes.length} · 문구 ${st.sentences.length}</div>
