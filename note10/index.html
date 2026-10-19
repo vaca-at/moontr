@@ -1189,6 +1189,21 @@ function stdSumBox(st) {
         <text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11.5" fill="#9b8782">${esc(p.label)}</text>`).join('')}
     </svg><div class="mini">더한 과목: ${esc(pts[pts.length - 1].subj)} (시험마다 과목 수가 다르면 합도 달라져요)</div></details>`;
 }
+// 🏅 등수가 안 나오는 줄마다 이유 (어느 성적 파일 칸인지 · 무엇이 모자란지)
+function rankWhy(st, kind, labels) {
+  if (!labels.length) return '';
+  const byLabel = {}; Object.entries(SC).forEach(([key, d]) => { if (examOf(d).kind === kind) byLabel[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = { key, d }; });
+  const why = labels.map(lb => {
+    const x = byLabel[lb]; if (!x) return `<b>${esc(lb)}</b>: 나이스 학기 성적 · 직접 넣은 성적에는 석차가 없어요`;
+    const d = x.d, slot = `관리 › 성적 파일 › '${esc(examOf(d).label)}' 칸 (${esc(d.file || '')}, ${new Date(d.at).toLocaleDateString()} 올림, ${d.rows.length}명)`;
+    const r = d.rows.find(y => y.no === st.num);
+    if (!isWhole(d)) return `<b>${esc(lb)}</b>: 우리반만 있는 파일이에요 (반 칸이 없어 전교 비교 불가)${d.cols.some(h => /전교\s*석차/.test(h)) ? '' : ' · 전교석차 칸도 없어요'} — ${slot}에 <b>전교생 파일</b>을 다시 올려 주세요`;
+    if (!r) return `<b>${esc(lb)}</b>: 파일에서 이 친구(반 번호 ${st.num || '-'}) 줄을 못 찾았어요 — ${slot}`;
+    if (!rawCols(d).length) return `<b>${esc(lb)}</b>: 원점수 칸을 못 찾았어요 — ${slot} · 파일 칸: ${d.cols.slice(0, 12).map(esc).join(' · ')}`;
+    return `<b>${esc(lb)}</b>: 원점수가 비어 있어 전체 등수를 못 냈어요 — ${slot}`;
+  });
+  return `<div class="mini" style="margin-top:6px;padding:8px 10px;background:#fff8e6;border:1px dashed #efd7a5;border-radius:10px;line-height:1.6">🔎 등수가 안 나온 이유<br>${why.join('<br>')}</div>`;
+}
 /* 📊 성적 잔디 — 시험마다 과목별 등급을 분홍 진하기 + 숫자로 (진할수록 좋은 등급), 오른쪽 끝은 시험 평균, 맨 아래는 과목 평균 */
 function gradeGrass(st) {
   const one = (kind, title, color) => {
@@ -1212,6 +1227,7 @@ function gradeGrass(st) {
       ${kind === 'mock' ? `<tr style="border-top:1.5px solid var(--line)"><td style="font-weight:700">과목 평균</td>${subj.map(s => cell(avg(rows.map(r => r[s]).filter(v => v != null)), true)).join('')}${cell(avg(rows.flatMap(r => subj.map(s => r[s]).filter(v => v != null))), true)}${hasRank ? '<td></td>' : ''}</tr>` : ''}
       </table>
       ${canRank ? `<button class="pill ${hasRank ? 'on' : ''}" style="font-size:13px;padding:2px 10px;margin-top:8px" onclick="V.showRank=Object.assign(V.showRank||{},{${kind}:!${hasRank}});render()">🏅 전교 등수 ${hasRank ? '접기' : '보기'}</button>` : ''}
+      ${hasRank ? rankWhy(st, kind, rows.filter(r => !rkOf(r.label)).map(r => r.label)) : ''}
       ${hasRank ? `<p class="mini" style="margin-top:4px">작은 '○등' = 과목 전교 등수 · 🏅 = 전체 전교 등수 (${kind === 'mock' ? '전교생 성적표 · 표준점수, 없으면 원점수 · 성적표의 석차 칸' : '전교생 성적표면 원점수 · 학점 가중 평균, 성적표에 전교석차 칸이 있으면 그 값'}). 나이스 학기 성적에는 석차가 없어 등수가 안 나와요.</p>` : ''}
       ${kind === 'mock' ? stdSumBox(st) : ''}</div></div>`;
   };
