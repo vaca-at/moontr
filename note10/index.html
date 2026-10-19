@@ -1108,7 +1108,14 @@ function buildCard(wb, st, used) {
   r++;
   // 성적 표 (내신 · 모의고사)
   const gradeTable = (kind, title, fill, light) => {
-    const G = growthRows(st, kind), max = kind === 'mock' ? 9 : 5, rows = G.rows.filter(x => G.subj.some(s => x[s] != null)); if (!rows.length) return;
+    const G = growthRows(st, kind), max = kind === 'mock' ? 9 : 5;
+    let rows = G.rows.filter(x => G.subj.some(s => x[s] != null)); if (!rows.length) return;
+    // 내신은 학년도마다 '1학기 중간 · 기말 · 학기말 / 2학기 중간 · 기말 · 학기말' 여섯 줄로 고정 (없는 시험은 빈 줄)
+    if (kind === 'school') {
+      const yrs = [...new Set(rows.map(x => x.label.match(/^(\d+)년/)?.[1]).filter(Boolean))];
+      const fixed = yrs.flatMap(y => ['1학기 중간', '1학기 기말', '1학기말', '2학기 중간', '2학기 기말', '2학기말'].map(k => rows.find(x => x.label === `${y}년 ${k}`) || { label: `${y}년 ${k}` }));
+      rows = [...fixed, ...rows.filter(x => !fixed.includes(x))];   // 직접 넣은 성적 등 그 밖의 줄은 뒤에
+    }
     // 과목을 짧은 이름으로 묶어요 (공통국어1 · 공통국어2 → 국어)
     const cols = [...new Set(G.subj.map(shortSubj))].slice(0, 7), val = (row, c) => { const s = G.subj.find(x => shortSubj(x) === c && row[x] != null); return s ? row[s] : null; };
     const rk = rankMap(st, kind), std = kind === 'mock' ? stdSums(st) : {};
