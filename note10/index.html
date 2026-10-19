@@ -999,7 +999,14 @@ function secAiMemo(st) {
 /* 🏅 전교 등수 (전교생 성적표가 있는 시험만) — 과목별 · 전체
    내신: 원점수로 과목 등수, 학점 가중 평균(전교과)으로 전체 / 모의고사: 표준점수(없으면 원점수)로 과목 등수, '석차' 칸이 있으면 그 값, 없으면 합계로 전체 */
 function examRanks(d) {
-  if (!d || !isWhole(d)) return null;
+  if (!d) return null;
+  // 성적표에 '전교석차' 칸이 있으면 (우리반 파일이어도) 그 값을 전체 등수로
+  const iT = d.cols.findIndex(h => /전교\s*석차/.test(h) && !/\S+\s+전교\s*석차/.test(h.trim()));
+  if (!isWhole(d)) {
+    if (iT < 0) return null;
+    const total = new Map(); d.rows.forEach(r => { const v = parseInt(r.v[iT], 10); if (v) total.set(r.sid || 'no' + r.no, v); });
+    return { subj: {}, total, N: 0, byNo: true };
+  }
   const k = 'e' + d.exam + d.year + d.at; if (rankCache.has(k)) return rankCache.get(k);
   const rk = vals => v => 1 + vals.filter(x => x > v).length;
   let subj = {}, total = new Map(), N = d.rows.length;
@@ -1015,14 +1022,35 @@ function examRanks(d) {
   }
   const out = { subj, total, N }; rankCache.set(k, out); return out;
 }
+/* 📈 모의고사 표준점수 합 추이 (펼치기) — 시험마다 과목 표준점수를 더한 값 (합계 · 탐구 합 칸은 빼고) */
+function stdSumBox(st) {
+  if (!st.num) return '';
+  const pts = Object.values(SC).filter(d => examOf(d).kind === 'mock').sort((a, b) => a.year - b.year || EXAMS.findIndex(e => e.id === a.exam) - EXAMS.findIndex(e => e.id === b.exam)).map(d => {
+    const r = d.rows.find(x => x.no === st.num); if (!r) return null;
+    const cs = metricCols(d, 'std').filter(c => !TOTAL_RE.test(d.cols[c.i].replace(/\s/g, '')));
+    const vs = cs.map(c => parseFloat(r.v[c.i])).filter(v => !isNaN(v));
+    return vs.length ? { label: `${String(d.year).slice(2)}년 ${examOf(d).short}`, v: vs.reduce((a, b) => a + b, 0), n: vs.length, subj: cs.map(c => c.subj).join(' · ') } : null;
+  }).filter(Boolean);
+  if (!pts.length) return '';
+  const W = 460, H = 170, P = 34, lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v)), span = Math.max(10, hi - lo);
+  const x = i => pts.length === 1 ? W / 2 : P + i * (W - 2 * P) / (pts.length - 1), y = v => H - 30 - (v - (lo - span * .15)) / (span * 1.3) * (H - 50);
+  return `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer">📈 표준점수 합 추이 보기 (${pts.length}회)</summary>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:560px;height:auto;margin-top:6px;font-family:Pretendard,sans-serif">
+      <polyline points="${pts.map((p, i) => `${x(i)},${y(p.v)}`).join(' ')}" fill="none" stroke="#7aaedb" stroke-width="3" stroke-linejoin="round"/>
+      ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.v)}" r="5" fill="#7aaedb"/><text x="${x(i)}" y="${y(p.v) - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#3f73a8">${+p.v.toFixed(1)}</text>
+        <text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11.5" fill="#9b8782">${esc(p.label)}</text>`).join('')}
+    </svg><div class="mini">더한 과목: ${esc(pts[pts.length - 1].subj)} (시험마다 과목 수가 다르면 합도 달라져요)</div></details>`;
+}
 /* 📊 성적 잔디 — 시험마다 과목별 등급을 분홍 진하기 + 숫자로 (진할수록 좋은 등급), 오른쪽 끝은 시험 평균, 맨 아래는 과목 평균 */
 function gradeGrass(st) {
   const one = (kind, title, color) => {
     const G = growthRows(st, kind), max = kind === 'mock' ? 9 : 5;
     // 줄 이름 → 그 시험의 이 친구 전교 등수
-    const RK = {}; Object.values(SC).filter(d => examOf(d).kind === kind).forEach(d => { const r = d.rows.find(x => x.no === st.num), e = r && examRanks(d); if (e) RK[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = { e, sid: r.sid }; });
+    const RK = {}; Object.values(SC).filter(d => examOf(d).kind === kind).forEach(d => { const r = d.rows.find(x => x.no === st.num), e = r && examRanks(d); if (e) RK[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = { e, sid: e.byNo ? (r.sid || 'no' + r.no) : r.sid }; });
     const rkOf = (label, s) => { const x = RK[label]; const v = x && (s ? x.e.subj[s]?.get(x.sid) : x.e.total.get(x.sid)); return v ? { v, N: x.e.N } : null; };
-    const hasRank = Object.keys(RK).length > 0;
+    // 등수는 바로 보이지 않게 — '🏅 전교 등수 보기'를 눌러야 보여요
+    const hasRank = Object.keys(RK).length > 0 && !!V.showRank?.[kind];
+    const canRank = Object.keys(RK).length > 0;
     const rows = G.rows.filter(r => G.subj.some(s => r[s] != null)); if (!rows.length) return '';
     const subj = G.subj.filter(s => rows.some(r => r[s] != null));
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
@@ -1032,9 +1060,12 @@ function gradeGrass(st) {
     return `<div class="box"><div class="hd ${color}"><span class="n">📊</span>${title} <span class="sp mini" style="color:#fff">${max}등급 · 진할수록 좋아요</span></div><div class="bd" style="overflow:auto">
       <table class="dtable"><tr><th></th>${subj.map(s => `<th style="${th}">${esc(s)}</th>`).join('')}<th style="${th}">평균</th>${hasRank ? `<th style="${th}">🏅 전교<br>등수</th>` : ''}</tr>
       ${rows.map(r => { const vs = subj.map(s => r[s]).filter(v => v != null), t = hasRank && rkOf(r.label);
-        return `<tr><td style="white-space:nowrap;font-weight:600">${esc(r.label)}</td>${subj.map(s => cell(r[s], false, rkOf(r.label, s))).join('')}${cell(avg(vs), true)}${hasRank ? `<td style="text-align:center;white-space:nowrap">${t ? `<b style="color:var(--main);font-size:15px">${t.v}</b><span class="mini">/${t.N}</span>` : '<span class="mini">-</span>'}</td>` : ''}</tr>`; }).join('')}
-      <tr style="border-top:1.5px solid var(--line)"><td style="font-weight:700">과목 평균</td>${subj.map(s => cell(avg(rows.map(r => r[s]).filter(v => v != null)), true)).join('')}${cell(avg(rows.flatMap(r => subj.map(s => r[s]).filter(v => v != null))), true)}${hasRank ? '<td></td>' : ''}</tr>
-      </table>${hasRank ? `<p class="mini" style="margin-top:4px">작은 '○등' = 과목 전교 등수 · 🏅 = 전체 전교 등수 (전교생 성적표를 올린 시험만, ${kind === 'mock' ? '표준점수 · 없으면 원점수 기준' : '원점수 · 학점 가중 평균 기준'})</p>` : ''}</div></div>`;
+        return `<tr><td style="white-space:nowrap;font-weight:600">${esc(r.label)}</td>${subj.map(s => cell(r[s], false, hasRank && rkOf(r.label, s))).join('')}${cell(avg(vs), true)}${hasRank ? `<td style="text-align:center;white-space:nowrap">${t ? `<b style="color:var(--main);font-size:15px">${t.v}</b>${t.N ? `<span class="mini">/${t.N}</span>` : ''}` : '<span class="mini">-</span>'}</td>` : ''}</tr>`; }).join('')}
+      ${kind === 'mock' ? `<tr style="border-top:1.5px solid var(--line)"><td style="font-weight:700">과목 평균</td>${subj.map(s => cell(avg(rows.map(r => r[s]).filter(v => v != null)), true)).join('')}${cell(avg(rows.flatMap(r => subj.map(s => r[s]).filter(v => v != null))), true)}${hasRank ? '<td></td>' : ''}</tr>` : ''}
+      </table>
+      ${canRank ? `<button class="pill ${hasRank ? 'on' : ''}" style="font-size:13px;padding:2px 10px;margin-top:8px" onclick="V.showRank=Object.assign(V.showRank||{},{${kind}:!${hasRank}});render()">🏅 전교 등수 ${hasRank ? '접기' : '보기'}</button>` : ''}
+      ${hasRank ? `<p class="mini" style="margin-top:4px">작은 '○등' = 과목 전교 등수 · 🏅 = 전체 전교 등수 (${kind === 'mock' ? '전교생 성적표 · 표준점수, 없으면 원점수 · 성적표의 석차 칸' : '전교생 성적표면 원점수 · 학점 가중 평균, 성적표에 전교석차 칸이 있으면 그 값'}). 나이스 학기 성적에는 석차가 없어 등수가 안 나와요.</p>` : ''}
+      ${kind === 'mock' ? stdSumBox(st) : ''}</div></div>`;
   };
   const m = one('mock', '모의고사 성적', 'blue'), s = one('school', '내신 성적', 'pink');
   return m || s ? `<div class="cols c2" style="margin-bottom:14px">${m || '<div></div>'}${s || '<div></div>'}</div>` : '';
