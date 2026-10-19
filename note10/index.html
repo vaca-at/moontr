@@ -1071,6 +1071,47 @@ function cardAnalysis(st) {
   if (!careers(st).length && !st.careerDetail) L.push('🌱 희망 진로를 아직 정하지 않았어요 — 관심 분야부터 함께 찾아봐요');
   return L.length ? L : ['아직 분석할 성적 · 기록이 없어요'];
 }
+/* 🤖 AI 한눈에 분석 — 성적 · 출결 · 봉사 · 책 · 진로 · 선택과목 · 동아리 · 상담 요약을 읽고 5줄 안팎으로 (이름 · 별칭 · 번호는 안 보내요)
+   저장: st.aiCard = { at, lines } — 한눈에 · 상담 카드에 'AI가 만든 분석'으로 보여요 */
+function aiCardFacts(st) {
+  const L = [];
+  const tbl = kind => { const G = growthRows(st, kind); return G.rows.filter(r => G.subj.some(s => r[s] != null)).map(r => `${r.label}: ${G.subj.filter(s => r[s] != null).map(s => `${shortSubj(s)} ${r[s]}`).join(', ')}${r._avg != null ? ` (학점 반영 평균 ${r._avg})` : ''}${r._rank ? ` (전교석차 ${r._rank}${r._N ? '/' + r._N : ''})` : ''}`).join('\n'); };
+  const s = tbl('school'), m = tbl('mock');
+  if (s) L.push(`[내신 등급 · 5등급제]\n${s}`);
+  if (m) L.push(`[모의고사 등급 · 9등급제]\n${m}`);
+  const ai = attInfo(st); if (ai) L.push(`[출결] ${ai.text}${ai.exempt ? ' (수술·입원 등 예외)' : ''}`);
+  const vol = volShort(st); if (vol) L.push(`[봉사] ${vol}`);
+  const bk = booksOf(st); if (bk.length) L.push(`[세특·창체 속 책] ${bk.map(b => b.title).join(', ')}`);
+  L.push(`[희망 진로] ${[careers(st).join(', '), st.careerDetail].filter(Boolean).join(' · ') || '미정'}`);
+  if (subjText(st)) L.push(`[선택과목] ${subjText(st)}`);
+  if (clubOf(st)) L.push(`[동아리] ${clubOf(st)}`);
+  const cs = [...st.counsels].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  if (cs.length) L.push(`[최근 상담 요약]\n${cs.map(c => `${c.date} ${c.type}: ${csShort(c)}`).join('\n')}`);
+  return L.join('\n\n');
+}
+async function aiCardRun(btn) {
+  const st = cur(); if (!st) return;
+  await withBusy(btn, async () => {
+    const out = await callAI(SYS_RULES + '\n지금은 생기부 문구가 아니라 담임이 상담 직전에 보는 한눈에 분석을 쓴다. 반드시 JSON 배열만 출력한다.',
+      `아래 기록만 보고 이 학생의 '한눈에 분석'을 5줄 안팎으로 써 줘.
+- 각 줄 60자 이내, 맨 앞에 알맞은 이모지 하나, 따뜻하고 간결한 존댓말 메모체.
+- 내신 · 모의고사 흐름(강점 · 보완 과목, 오르고 내린 것), 내신과 모의고사 비교에서 보이는 전략 힌트, 출결 · 독서 · 진로와 선택과목의 연결, 상담에서 이어 볼 점을 골라서.
+- 내신인지 모의고사인지 꼭 밝히고, 주어진 숫자만 쓰고 지어내지 않는다. 학생을 단정하거나 나무라지 않는다.
+- 출력: ["줄1","줄2",…]
+
+${aiCardFacts(st)}`, 1200);
+    const arr = JSON.parse((out.match(/\[[\s\S]*\]/) || ['[]'])[0]).map(x => String(x).trim()).filter(Boolean).slice(0, 7);
+    if (!arr.length) return toast('🤖 분석을 만들지 못했어요. 다시 눌러 주세요');
+    st.aiCard = { at: today(), lines: arr }; saveStudent(st); render(); toast('🤖 AI 한눈에 분석을 만들었어요');
+  });
+}
+function aiCardBox(st) {
+  const a = st.aiCard;
+  return `<div class="box" style="margin-bottom:14px"><div class="hd purple"><span class="n">🤖</span>AI 한눈에 분석 <span class="sp" style="display:flex;gap:6px;align-items:center"><span class="mini" style="color:#fff">${a ? `${a.at} · AI가 만든 내용 · 참고용` : '성적 · 출결 · 독서 · 진로 · 상담을 읽고 정리해요'}</span><button class="btn sm ghost" onclick="aiCardRun(this)">${a ? '🔄 다시 만들기' : '✨ 만들기'}</button></span></div><div class="bd">
+    ${a ? a.lines.map(t => `<div class="item" style="background:var(--purpleL,#efe9fb);border-color:#d8cdf2;padding:6px 12px">${esc(t)}</div>`).join('') + '<div class="mini" style="margin-top:4px">🤖 AI가 쓴 분석이라 사실과 다른 부분이 있을 수 있어요. 상담 카드(엑셀)에도 이 분석이 들어가요. 이름 · 별칭 · 번호는 AI에 보내지 않아요.</div>'
+      : '<div class="empty">✨ 만들기를 누르면 AI가 이 친구 기록을 한눈에 정리해요 (AI 키 필요)</div>'}
+  </div></div>`;
+}
 function buildCard(wb, st, used) {
   let nm = `${st.num ? st.num + '번 ' : ''}${nname(st)}`.replace(/[\[\]:*?\/\\]/g, '').slice(0, 28), k = 2;
   while (used.has(nm)) nm = nm.slice(0, 26) + '_' + k++; used.add(nm);
@@ -1136,9 +1177,16 @@ function buildCard(wb, st, used) {
   gradeTable('school', '📗 내신 성적 (등급)', XC.pink, XC.pinkL);
   gradeTable('mock', '📘 모의고사 성적 (등급)', XC.blue, XC.blueL);
   // 분석
-  section(r++, '🤖 한눈에 분석 — 자동으로 만든 내용 (참고용)', XC.pur);
-  box(r, 1, 12, '※ 앱이 성적 · 출결 · 기록을 보고 정해진 규칙으로 만든 문장이에요. 상담 전에 선생님이 확인해 주세요.', { fill: XC.white, color: XC.sub, size: 8 }); H(r, 16); r++;
-  cardAnalysis(st).forEach(t => { box(r, 1, 12, t, { fill: XC.purL }); H(r, 18); r++; });
+  // AI 한눈에 분석이 있으면 그걸, 없으면 규칙으로 만든 분석
+  if (st.aiCard?.lines?.length) {
+    section(r++, `🤖 한눈에 분석 — AI가 만든 내용 (${st.aiCard.at} · 참고용)`, XC.pur);
+    box(r, 1, 12, '※ AI가 성적 · 출결 · 독서 · 진로 · 상담 기록을 읽고 쓴 분석이에요. 사실과 다른 부분이 있을 수 있으니 상담 전에 선생님이 확인해 주세요.', { fill: XC.white, color: XC.sub, size: 8 }); H(r, 16); r++;
+    st.aiCard.lines.forEach(t => { box(r, 1, 12, t, { fill: XC.purL }); H(r, 18); r++; });
+  } else {
+    section(r++, '🤖 한눈에 분석 — 자동으로 만든 내용 (참고용)', XC.pur);
+    box(r, 1, 12, '※ 앱이 성적 · 출결 · 기록을 보고 정해진 규칙으로 만든 문장이에요. 상담 전에 선생님이 확인해 주세요.', { fill: XC.white, color: XC.sub, size: 8 }); H(r, 16); r++;
+    cardAnalysis(st).forEach(t => { box(r, 1, 12, t, { fill: XC.purL }); H(r, 18); r++; });
+  }
   // AI 담임 메모를 받아 둔 친구는 그 요약도 (AI가 쓴 글이라고 표시)
   if (st.aiEval) {
     const lines = st.aiEval.split('\n').map(x => x.replace(/^[#\-*•\s]+/, '').replace(/\*\*/g, '').trim()).filter(Boolean).slice(0, 3);
@@ -1489,6 +1537,7 @@ function secOverview(st) {
       : '<div class="empty">아직 상담 전이에요. ＋ 상담 적기를 눌러 첫 상담을 남겨요 🌷</div>'}
   </div></div>
   ${gradeGrass(st)}
+  ${aiCardBox(st)}
   <div style="margin-bottom:14px">
     <div class="box"><div class="hd mustard"><span class="n">📋</span>나이스 기록</div><div class="bd">
       ${(gyogwaChips(st) + recItems(st) + setukFold(st)) || '<div class="empty">관리 > 생기부 자료에서 교과 성적 · 세특 · 출결 · 봉사를 넣으면 여기에 보여요</div>'}
