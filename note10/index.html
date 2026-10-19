@@ -1012,7 +1012,8 @@ function examRanks(d) {
   let subj = {}, total = new Map(), N = d.rows.length;
   if (examOf(d).kind === 'school') {
     schoolRanks(d).forEach(c => { subj[c.subj] = new Map([...c.by].map(([sid, x]) => [sid, x.rank])); });
-    const all = comboRanks(d).find(c => c.name === '전교과'); if (all) total = new Map([...all.by].map(([sid, x]) => [sid, x.rank]));
+    if (iT >= 0) d.rows.forEach(r => { const v = parseInt(r.v[iT], 10); if (v) total.set(r.sid, v); });   // 성적표의 전교석차를 그대로
+    else { const all = comboRanks(d).find(c => c.name === '전교과'); if (all) total = new Map([...all.by].map(([sid, x]) => [sid, x.rank])); }
   } else {
     const pick = {}; [...metricCols(d, 'raw'), ...metricCols(d, 'std')].forEach(c => { pick[c.subj] = c; });   // 표준점수가 있으면 그걸로
     Object.values(pick).forEach(c => { const vals = d.rows.map(r => parseFloat(r.v[c.i])).filter(v => !isNaN(v)), f = rk(vals); subj[c.subj] = new Map(d.rows.filter(r => !isNaN(parseFloat(r.v[c.i]))).map(r => [r.sid, f(parseFloat(r.v[c.i]))])); });
@@ -3128,7 +3129,7 @@ function gradeCols(d, max) {
 }
 // 머리글 → 과목 이름. 끝에 붙은 학점 숫자('공통국어1 4'의 4)는 떼서 시험마다 같은 과목으로 이어지게 해요
 // 과목이 아니라 합계 · 평균 · 석차 같은 칸 (그래프 · 등급 계산에서 빼고, 한눈에 표에서는 맨 뒤에)
-const TOTAL_RE = /단위|반영|평균|총합|합계|총점|백분위\s*합|환산|탐\s*표준|탐구\s*합|전교\s*석차|반\s*석차|^석차$|^순위$/;
+const TOTAL_RE = /단위|반영|평균|총합|합계|총점|백분위\s*합|환산|탐\s*표준|탐구\s*합|전교\s*석차|반\s*석차|학급\s*석차|^석차$|^순위$/;
 const subjName = h => h.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s+\d+(\.\d+)?$/, '');
 
 /* 🏫 중간 · 기말 전교생 성적표 (등급 칸 없이 원점수만) → 과목마다 전교 석차 · 상위 % · 5등급을 계산해요
@@ -3141,7 +3142,8 @@ const useCalc = d => examOf(d).kind === 'school' && isWhole(d) && !d.cols.some((
 // 원점수 칸 찾기: 머리글에 '원점수 · 합계 · 총점'이 있으면 그 칸, 없으면 5보다 큰 숫자가 든 과목 칸
 function rawCols(d) {
   const all = d.cols.map((h, i) => ({ h, i }));
-  const numOk = i => d.rows.filter(r => r.v[i] !== '').length >= d.rows.length / 2 && d.rows.every(r => r.v[i] === '' || !isNaN(parseFloat(r.v[i])));
+  // 숫자가 대부분(90% 넘게)이면 원점수 칸으로 봐요 — '-' · '결시' 같은 몇 칸은 빈칸처럼 건너뛰어요
+  const numOk = i => { const f = d.rows.map(r => String(r.v[i] ?? '').trim()).filter(Boolean), n = f.filter(v => !isNaN(parseFloat(v))).length; return f.length >= d.rows.length / 2 && n >= f.length * 0.9; };
   let cs = all.filter(c => /원점수/.test(c.h) && !/표준|백분위|석차/.test(c.h) && !TOTAL_RE.test(c.h) && numOk(c.i));
   if (!cs.length) cs = all.filter(c => !TOTAL_RE.test(c.h) && !/석차|백분위|표준|평균|편차|학점|단위|성취|수강|응시|순위/.test(c.h) && numOk(c.i) && Math.max(...d.rows.map(r => parseFloat(r.v[c.i]) || 0)) > 5);
   return cs.map(c => ({ i: c.i, subj: subjName(c.h.replace(/원점수|합계|총점|점수/g, '')) || c.h }));
