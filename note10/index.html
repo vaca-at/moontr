@@ -379,6 +379,8 @@ function normalize(s) {
   }, s, { final: Object.assign({ 자율: '', 진로: '', 행특: '' }, s?.final || {}) });
   // 바구니가 자율·자치 · 진로 · 행발 셋이 되면서, 예전 동아리 문구는 자율·자치로 옮겨요 (예전 동아리 단락 final.동아리 는 지우지 않고 둬요)
   o.sentences.forEach(x => { if (x.area === '동아리') x.area = '자율'; });
+  // 바구니는 여러 곳에 함께 넣을 수 있어요: in = { 자율: 넣은 때, 진로: …, 행특: … } (예전 picked · area 는 그 바구니 하나로 옮겨요)
+  o.sentences.forEach(x => { if (!x.in) x.in = x.picked ? { [x.area]: x.pickedAt || 1 } : {}; });
   return o;
 }
 const cur = () => D.students.find(s => s.id === V.sid);
@@ -1690,48 +1692,57 @@ async function addEpisode(gen, btn) {
 }
 
 /* 6 문장 담벼락 */
+// 이 문구가 그 바구니(자율 · 진로 · 행특)에 들어 있나 / 바구니 속 문구 (넣은 차례대로)
+const inB = (s, k) => !!(s.in && s.in[k]);
+const bItems = (st, k) => st.sentences.filter(s => inB(s, k)).sort((x, y) => x.in[k] - y.in[k]);
 function secWall(st) {
   const f = V.wallFilter;
-  const list = st.sentences.filter(s => f === '전체' || (f === '고른 것' ? s.picked : s.area === f));
+  // 담벼락은 영역 구분 없이 쭉 — 위 단추는 '그 바구니에 넣은 것만 보기'
+  const list = st.sentences.filter(s => f === '전체' || (f === '안 넣은 것' ? !AREAS.some(a => inB(s, a.k)) : inB(s, f)));
   return `<div class="cols" style="grid-template-columns:minmax(0,1.9fr) minmax(280px,1fr)">
     <div>
       <div class="row" style="margin-bottom:12px">
-        ${['전체', ...AREAS.map(a => a.k), '고른 것'].map(k => `<button class="pill ${f === k ? 'on' : ''}" onclick="V.wallFilter='${k}';render()">${AN(k)} ${k === '전체' ? st.sentences.length : k === '고른 것' ? st.sentences.filter(s => s.picked).length : st.sentences.filter(s => s.area === k).length}</button>`).join('')}
+        ${['전체', ...AREAS.map(a => a.k), '안 넣은 것'].map(k => `<button class="pill ${f === k ? 'on' : ''}" onclick="V.wallFilter='${k}';render()">${AN(k)} ${k === '전체' ? st.sentences.length : k === '안 넣은 것' ? st.sentences.filter(s => !AREAS.some(a => inB(s, a.k))).length : bItems(st, k).length}</button>`).join('')}
       </div>
-      <div class="row" style="margin-bottom:14px"><input type="text" id="wNew" placeholder="직접 문구 붙이기 (예: 학급 회의에서 소수 의견을 정리해 전달함.)" style="flex:1">
-        <select id="wArea" style="width:auto">${AREAS.map(a => `<option value="${a.k}">${a.short}</option>`).join('')}</select><button class="btn sm" onclick="addManual()">📌 붙이기</button></div>
-      ${list.length ? `<div class="wallgrid">${list.map((s, i) => `<div class="post ${s.area} ${s.picked ? 'picked' : ''}" style="transform:rotate(${(i % 3 - 1) * .7}deg)">
+      <div class="row" style="margin-bottom:14px"><input type="text" id="wNew" placeholder="직접 문구 붙이기 (예: 학급 회의에서 소수 의견을 정리해 전달함.)" style="flex:1" onkeydown="if(event.key==='Enter')addManual()">
+        <button class="btn sm" onclick="addManual()">📌 붙이기</button></div>
+      <p class="mini" style="margin:-6px 0 10px">포스트잇 아래 <b>자율·자치 · 진로 · 행발</b>을 누르면 그 바구니에 들어가요. 여러 곳에 함께 넣어도 돼요. 다시 누르면 빠져요.</p>
+      ${list.length ? `<div class="wallgrid">${list.map((s, i) => { const any = AREAS.some(a => inB(s, a.k)); return `<div class="post ${any ? 'picked' : ''}" style="transform:rotate(${(i % 3 - 1) * .7}deg)">
         <span class="pin">📌</span>
-        <div class="meta"><select onchange="setSent('${s.id}','area',this.value)">${AREAS.map(a => `<option value="${a.k}" ${a.k === s.area ? 'selected' : ''}>${a.short}</option>`).join('')}</select>${s.trait ? `<span class="chip">#${esc(s.trait)}</span>` : ''}</div>
+        <div class="meta">${s.trait ? `<span class="chip">#${esc(s.trait)}</span>` : ''}${s.area ? `<span class="mini" title="AI가 어울린다고 본 영역">💡 ${AREAS.find(a => a.k === s.area)?.short || ''}</span>` : ''}</div>
         ${V.editSent === s.id ? `<textarea id="ed_${s.id}">${esc(s.text)}</textarea>` : `<div>${esc(s.text)}</div>`}
         <div class="mini">${esc(s.source)} · ${nbytes(s.text)}B</div>
+        <div class="row" style="gap:4px;margin-top:6px">${AREAS.map(a => `<button class="pill ${inB(s, a.k) ? 'on' : ''}" style="font-size:13px;padding:2px 9px" title="${inB(s, a.k) ? '바구니에서 빼기' : '바구니에 넣기'}" onclick="togglePick('${s.id}','${a.k}')">${inB(s, a.k) ? '✓ ' : '＋ '}${a.short}</button>`).join('')}</div>
         <div class="acts">
-          <button class="btn sm ${s.picked ? 'ghost' : ''}" onclick="togglePick('${s.id}')">${s.picked ? '➖ 빼기' : '➕ 넣기'}</button>
           ${V.editSent === s.id ? `<button class="btn ghost sm" onclick="saveEdit('${s.id}')">저장</button>` : `<button class="x" title="고치기" onclick="V.editSent='${s.id}';render()">✏️</button>`}
           <button class="x" title="떼기" onclick="delSent('${s.id}')">🗑</button>
-        </div></div>`).join('')}</div>` : '<div class="empty">일화·상담·활동에서 ✨ 문구 만들기를 누르면 여기에 포스트잇이 붙어요</div>'}
+        </div></div>`; }).join('')}</div>` : '<div class="empty">일화·상담·활동에서 ✨ 문구 만들기를 누르면 여기에 포스트잇이 붙어요</div>'}
     </div>
     <div>${AREAS.map(a => basket(st, a)).join('')}</div>
   </div>`;
 }
 function basket(st, a) {
-  const items = st.sentences.filter(s => s.picked && s.area === a.k).sort((x, y) => x.pickedAt - y.pickedAt);
+  const items = bItems(st, a.k);
   const b = nbytes(items.map(s => s.text).join(' '));
   return `<div class="basket"><h4><span class="chip ${a.k}">${a.short}</span>${a.label}</h4>
     ${items.map((s, i) => `<div class="bitem"><div>${esc(s.text)}</div><div style="flex:none;display:flex;flex-direction:column">
-      <button class="x" onclick="movePick('${s.id}',-1)" ${i === 0 ? 'disabled' : ''}>▲</button><button class="x" onclick="movePick('${s.id}',1)" ${i === items.length - 1 ? 'disabled' : ''}>▼</button></div></div>`).join('') || '<div class="mini">담벼락에서 ➕ 넣기를 눌러요</div>'}
+      <button class="x" onclick="movePick('${s.id}',-1,'${a.k}')" ${i === 0 ? 'disabled' : ''}>▲</button><button class="x" onclick="movePick('${s.id}',1,'${a.k}')" ${i === items.length - 1 ? 'disabled' : ''}>▼</button><button class="x" title="이 바구니에서 빼기" onclick="togglePick('${s.id}','${a.k}')">✕</button></div></div>`).join('') || `<div class="mini">담벼락에서 ＋ ${a.short}를 눌러요</div>`}
     <div class="meter"><i class="${b > a.limit ? 'over' : ''}" style="width:${Math.min(100, b / a.limit * 100)}%"></i></div>
     <div class="row"><span class="mini">${b} / ${a.limit} 바이트</span>
       ${items.length ? `<button class="btn ai sm" style="margin-left:auto" onclick="polish('${a.k}',this)">✨ 한 단락으로 다듬기</button>` : ''}</div>
   </div>`;
 }
 function setSent(id, k, v) { const st = cur(); const s = st.sentences.find(x => x.id === id); s[k] = v; saveStudent(st); render(); }
-function togglePick(id) { const st = cur(); const s = st.sentences.find(x => x.id === id); s.picked = !s.picked; s.pickedAt = Date.now(); saveStudent(st); render(); }
-function movePick(id, dir) {
-  const st = cur(); const s = st.sentences.find(x => x.id === id);
-  const items = st.sentences.filter(x => x.picked && x.area === s.area).sort((a, b) => a.pickedAt - b.pickedAt);
+// 그 바구니에 넣기 / 빼기 (다른 바구니는 그대로)
+function togglePick(id, k) {
+  const st = cur(), s = st.sentences.find(x => x.id === id); s.in = s.in || {};
+  if (s.in[k]) delete s.in[k]; else s.in[k] = Date.now();
+  s.picked = AREAS.some(a => s.in[a.k]); saveStudent(st); render();
+}
+function movePick(id, dir, k) {
+  const st = cur(), s = st.sentences.find(x => x.id === id), items = bItems(st, k);
   const i = items.indexOf(s), j = i + dir; if (j < 0 || j >= items.length) return;
-  [items[i].pickedAt, items[j].pickedAt] = [items[j].pickedAt, items[i].pickedAt];
+  [items[i].in[k], items[j].in[k]] = [items[j].in[k], items[i].in[k]];
   saveStudent(st); render();
 }
 function saveEdit(id) { const st = cur(); const v = $('#ed_' + id).value.trim(); if (!piiOk(v)) return; st.sentences.find(x => x.id === id).text = v; V.editSent = null; saveStudent(st); render(); }
@@ -1739,12 +1750,12 @@ function delSent(id) { const st = cur(); st.sentences = st.sentences.filter(x =>
 function addManual() {
   const st = cur(), t = $('#wNew').value.trim(); if (!t) return;
   if (!piiOk(t)) return;
-  st.sentences.push({ id: uid(), text: t, area: $('#wArea').value, trait: '', source: '직접 입력', picked: false, pickedAt: 0, date: today() });
+  st.sentences.push({ id: uid(), text: t, area: '', trait: '', source: '직접 입력', picked: false, pickedAt: 0, in: {}, date: today() });
   saveStudent(st); render();
 }
 async function polish(area, btn) {
   const st = cur(), a = AREAS.find(x => x.k === area);
-  const items = st.sentences.filter(s => s.picked && s.area === area).sort((x, y) => x.pickedAt - y.pickedAt);
+  const items = bItems(st, area);
   await withBusy(btn, async () => {
     const out = await callAI(SYS_RULES, `아래 문구들을 고등학교 생기부 '${a.label}' 특기사항 한 단락으로 자연스럽게 엮어 줘.
 - 새 사실을 더하지 말고, 겹치는 내용은 합쳐 줘.
