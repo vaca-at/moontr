@@ -6766,7 +6766,7 @@ function initAdmin(){
               <td style="white-space:nowrap;">${fmtDate(r.at)}</td>
               <td><b>${escapeHtml(r.questionId)}</b></td>
               <td class="stem" style="color:var(--ink);white-space:pre-line;">${escapeHtml(r.reason) || '<span style="color:var(--muted);">(사유 없음)</span>'}${r.img ? `<div class="chat-img" data-img="${escapeHtml(r.img)}" style="max-width:180px;margin-top:6px;"><span class="chat-img-no">사진...</span></div>` : ''}</td>
-              <td>${r.studentId ? `${escapeHtml(r.studentId)} ${escapeHtml(r.nickname || r.name || '')}` : '비로그인'}</td>
+              <td>${r.studentId ? `${escapeHtml(r.studentId)} ${escapeHtml(r.nickname || r.name || '')}` : '비로그인'}<div style="font-size:11.5px;margin-top:3px;">${r.key ? '<span style="color:var(--muted);">💬 채팅 연결됨</span>' : (r.studentId ? `<span style="color:#c0392b;">💬 채팅 안 감</span> <button data-rchat="${r.docId}" title="예전 화면에서 보낸 신고라 채팅에 안 들어갔어요. 학번으로 학생 채팅을 찾아 🚨 말풍선을 올려요">채팅에 올리기</button>` : '')}</div></td>
               <td>${r.status === 'new' ? '<span class="no-text">확인 전</span>' : '해결'}</td>
               <td class="reply-cell" data-cell="${r.docId}" style="min-width:180px;">${replyCellHTML(r)}</td>
               <td><div class="row-btns">
@@ -6793,6 +6793,20 @@ function initAdmin(){
           renderReports();
         }
         catch(e){ alert('처리 실패: 권한을 확인해주세요.'); }
+      }));
+      // 💬 채팅에 안 들어간 신고(예전 화면에서 보낸 것): 학번으로 학생 채팅 열쇠를 찾아 🚨 말풍선 올리고 신고에도 열쇠 저장
+      el.querySelectorAll('[data-rchat]').forEach(b=> b.addEventListener('click', async ()=>{
+        const r = list.find(x => x.docId === b.dataset.rchat); if(!r) return;
+        b.disabled = true;
+        try{
+          const ls = await getDocs(query(collection(db, COL.learners), where('studentId', '==', r.studentId)));
+          const hit = ls.docs.find(d => !r.nickname || (d.data().nickname || '') === r.nickname) || ls.docs[0];
+          if(!hit){ alert('이 학번으로 로그인한 학생을 찾지 못했어요.'); b.disabled = false; return; }
+          const m = { id:'r' + Date.now(), who:'s', kind:'report', rid: r.docId, text:`문항 ${r.questionId} 오류 신고${r.reason ? '\n' + r.reason : ''}`, img:'', at: (r.at?.seconds ? r.at.seconds * 1000 : Date.now()) };
+          await setDoc(doc(db, COL.chats, hit.id), { studentId: hit.data().studentId, nickname: hit.data().nickname || '', msgs: arrayUnion(m), lastAt: serverTimestamp() }, { merge: true });
+          await updateDoc(doc(db, COL.reports, r.docId), { key: hit.id });   // 이제 해결하면 ✅ 자동 답장도 가요
+          renderReports();
+        }catch(e){ console.error(e); alert('채팅에 올리지 못했어요: ' + e.message); b.disabled = false; }
       }));
       el.querySelectorAll('[data-rdel]').forEach(b=> b.addEventListener('click', async ()=>{
         if(!confirm('이 신고를 삭제할까요?')) return;
