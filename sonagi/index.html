@@ -1698,7 +1698,7 @@ go(location.hash.slice(1) || 1, false);
   const FACES = [["basic", "기본"], ["digital", "디지털"], ["flip", "카드"]];
   let saved = {}; try { saved = JSON.parse(localStorage.getItem("sonagiTimer") || "{}"); } catch (e) {}
   let face = saved.face || "basic", after = saved.after || "stop", sound = saved.sound ?? 3;
-  let total = 300, left = 300, tid = null, rang = false;
+  let total = 300, left = 300, tid = null, rang = false, picked = 5;   // picked = 마지막으로 누른 빨리 고르기 단추(분)
   const keep = () => { try { localStorage.setItem("sonagiTimer", JSON.stringify({ face, after, sound })); } catch (e) {} };
   function beep(n) { try { const ac = new (window.AudioContext || window.webkitAudioContext)(); for (let i = 0; i < n; i++) { const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * .5; o.frequency.value = 880; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.001, t + .35); o.start(t); o.stop(t + .4); } } catch (e) {} }
   $t("tmrFaces").innerHTML = FACES.map(([k, l]) => `<button type="button" data-face="${k}">${l}</button>`).join("");
@@ -1716,7 +1716,7 @@ go(location.hash.slice(1) || 1, false);
     $t("tmrGo").textContent = tid ? "⏸ 멈춤" : "▶ 시작";
     const u = [Math.floor(total / 3600), Math.floor(total % 3600 / 60), total % 60];
     document.querySelectorAll("#tmrSteppers [data-u]").forEach((e, i) => e.textContent = pad(u[i]));
-    document.querySelectorAll("#tmrPresets [data-m]").forEach(b => b.classList.toggle("on", +b.dataset.m * 60 === total));
+    document.querySelectorAll("#tmrPresets [data-m]").forEach(b => { const on = +b.dataset.m === picked; b.classList.toggle("on", on); b.title = on ? `한 번 더 누르면 ${b.dataset.m}분 더해요` : `${b.dataset.m}분으로 맞추기`; });
     document.querySelectorAll("#tmrFaces [data-face]").forEach(b => b.classList.toggle("on", b.dataset.face === face));
     document.querySelectorAll("#tmrPanel [data-after]").forEach(b => b.classList.toggle("on", b.dataset.after === after));
     document.querySelectorAll("#tmrPanel [data-snd]").forEach(b => b.classList.toggle("on", +b.dataset.snd === sound));
@@ -1734,8 +1734,9 @@ go(location.hash.slice(1) || 1, false);
   $t("tmrPanel").addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.face) { face = b.dataset.face; keep(); draw(); }
-    else if (b.dataset.m) set(+b.dataset.m * 60);
-    else if (b.dataset.d) set(total + [3600, 60, 1][b.dataset.d] * b.dataset.s);
+    // 처음 누르면 그 시간으로, 같은 단추를 한 번 더 누르면 그만큼 더해요 (돌아가는 중에도 +)
+    else if (b.dataset.m) { const m = +b.dataset.m; if (picked === m) { const add = m * 60; total = Math.min(99 * 3600, total + add); left += add; rang = false; draw(); } else { set(m * 60); picked = m; draw(); } }
+    else if (b.dataset.d) { set(total + [3600, 60, 1][b.dataset.d] * b.dataset.s); picked = 0; draw(); }
     else if (b.dataset.after) { after = b.dataset.after; keep(); draw(); }
     else if (b.dataset.snd) { sound = +b.dataset.snd; keep(); draw(); }
     else if (b.id === "tmrTest") beep(sound || 1);
