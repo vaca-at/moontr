@@ -258,6 +258,10 @@
   #view-admin .past .list li{ align-items:flex-start; }
   #view-admin .past .list input[type=date]{ flex:none; width:150px; font-size:14px; padding:6px 8px; }
   #view-admin .past .list input.guess{ border-color:var(--gold); }
+  /* 일정 고치기: 줄이 날짜 · 내용 칸으로 바뀌어요 */
+  #view-admin .list li.editing{ flex-wrap:wrap; }
+  #view-admin .list li.editing input[type=date]{ flex:none; width:160px; font-size:14px; padding:6px 8px; }
+  #view-admin .list li.editing input[type=text]{ flex:1; min-width:160px; font-size:14px; padding:6px 10px; }
   #view-admin .past .list .txt{ font-size:12.5px; white-space:pre-wrap; max-height:3.2em; overflow:hidden; line-height:1.6; }
   #view-admin .log .txt{ white-space:pre-wrap; font-size:13.5px; line-height:1.6; max-height:4.8em; overflow:hidden; }
   #view-admin .log li.open .txt{ max-height:none; }
@@ -1521,25 +1525,57 @@ if(PAGE === 'admin'){
     // ----- 일정 -----
     $('adSchDate').value = todayStr();
     // 앞으로 남은 일정(날짜순) · 지난 일정(최근 것부터)
-    (onSnapshot(collection(db, COL.schedule), (s)=>{
-      const all = s.docs.map(d=>({ id:d.id, ...d.data() })).filter(x=> x.date && x.content);
+    // [고치기]를 누르면 그 줄이 날짜 · 내용 칸으로 바뀌고, [저장]하면 그대로 고쳐져요.
+    let schAll = [], schEditId = null;
+    function schRender(){
       const today = todayStr();
       const row = (x, withYear)=>{
+        if(x.id === schEditId) return `<li class="editing" data-id="${esc(x.id)}"><input type="date" class="sch-ed-date" value="${esc(x.date)}"><input type="text" class="sch-ed-text" value="${esc(x.content)}"><button class="btn" data-save="${esc(x.id)}" style="padding:6px 12px;font-size:13px">저장</button><button class="ghost" data-cancel="1">취소</button></li>`;
         const d = new Date(x.date + 'T00:00:00');
         const ds = (withYear && d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '. ' : '') + (d.getMonth()+1) + '/' + d.getDate() + '(' + WD[d.getDay()] + ')';
-        return `<li><span class="date">${ds}</span><span class="grow" style="white-space:pre-wrap">${esc(x.content)}</span><button class="ghost del" data-del="${esc(x.id)}">지우기</button></li>`;
+        return `<li><span class="date">${ds}</span><span class="grow" style="white-space:pre-wrap">${esc(x.content)}</span><button class="ghost" data-edit="${esc(x.id)}">고치기</button><button class="ghost del" data-del="${esc(x.id)}">지우기</button></li>`;
       };
-      const next = all.filter(x=> x.date >= today).sort((a,b)=> String(a.date).localeCompare(String(b.date)));
-      const past = all.filter(x=> x.date < today).sort((a,b)=> String(b.date).localeCompare(String(a.date)));
+      const next = schAll.filter(x=> x.date >= today).sort((a,b)=> String(a.date).localeCompare(String(b.date)));
+      const past = schAll.filter(x=> x.date < today).sort((a,b)=> String(b.date).localeCompare(String(a.date)));
       $('adSchList').innerHTML = next.length ? next.map(x=> row(x)).join('') : '<li class="empty">앞으로 남은 일정이 없어요.</li>';
       $('adSchPast').innerHTML = past.length ? past.map(x=> row(x, true)).join('') : '<li class="empty">지난 일정이 없어요.</li>';
+      const ed = document.querySelector('#view-admin li.editing .sch-ed-text');
+      if(ed && document.activeElement !== ed){ ed.focus(); ed.setSelectionRange(ed.value.length, ed.value.length); }
+    }
+    (onSnapshot(collection(db, COL.schedule), (s)=>{
+      schAll = s.docs.map(d=>({ id:d.id, ...d.data() })).filter(x=> x.date && x.content);
+      // 고치는 중에 화면이 새로 그려져도 적던 글이 날아가지 않게 그대로 둬요
+      if(schEditId && schAll.some(x=> x.id === schEditId)) return;
+      schEditId = null; schRender();
     }));
-    const schDel = async (e)=>{
+    async function schSave(li){
+      const id = li.dataset.id;
+      const date = li.querySelector('.sch-ed-date').value, content = li.querySelector('.sch-ed-text').value.trim();
+      if(!date || !content){ msg('adSchMsg', '날짜와 내용을 적어 주세요.', 'err'); return; }
+      try{
+        await setDoc(doc(db, COL.schedule, id), { date, content, at: serverTimestamp() }, { merge:true });
+        const x = schAll.find(y=> y.id === id); if(x){ x.date = date; x.content = content; }
+        schEditId = null; schRender(); msg('adSchMsg', '고쳤어요.', 'ok');
+      }catch(err){ console.error(err); msg('adSchMsg', '고치지 못했어요.', 'err'); }
+    }
+    const schClick = async (e)=>{
+      const ed = e.target.closest('[data-edit]');
+      if(ed){ schEditId = ed.dataset.edit; schRender(); return; }
+      if(e.target.closest('[data-cancel]')){ schEditId = null; schRender(); return; }
+      const sv = e.target.closest('[data-save]');
+      if(sv){ schSave(sv.closest('li')); return; }
       const b = e.target.closest('[data-del]'); if(!b || !confirm('이 일정을 지울까요?')) return;
       try{ await deleteDoc(doc(db, COL.schedule, b.dataset.del)); }catch(err){ console.error(err); msg('adSchMsg', '지우지 못했어요.', 'err'); }
     };
-    $('adSchList').addEventListener('click', schDel);
-    $('adSchPast').addEventListener('click', schDel);
+    const schKey = (e)=>{
+      const li = e.target.closest('li.editing'); if(!li) return;
+      if(e.key === 'Enter' && !e.isComposing){ e.preventDefault(); schSave(li); }
+      else if(e.key === 'Escape'){ schEditId = null; schRender(); }
+    };
+    $('adSchList').addEventListener('click', schClick);
+    $('adSchPast').addEventListener('click', schClick);
+    $('adSchList').addEventListener('keydown', schKey);
+    $('adSchPast').addEventListener('keydown', schKey);
     $('adSchAdd').addEventListener('click', async ()=>{
       const date = $('adSchDate').value, content = $('adSchText').value.trim();
       if(!date || !content){ msg('adSchMsg', '날짜와 내용을 적어 주세요.', 'err'); return; }
