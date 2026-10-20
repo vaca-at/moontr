@@ -129,6 +129,11 @@ textarea{resize:vertical;min-height:80px}
 .ov-stats>div{background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:10px 14px;text-align:center}
 .ov-stats b{display:block;font-family:var(--hand);font-size:28px;color:var(--main);line-height:1.2}
 .ov-stats span{font-size:12px;color:var(--sub)}
+/* 한눈에: 상담 모아보기 2/3 · 상담 메모 1/3 (좁은 화면은 위아래) */
+.cs-2{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;margin-bottom:14px;align-items:stretch}
+.cs-2>.box{margin:0}
+.cs-memo{width:100%;min-height:150px;resize:vertical;line-height:1.6;font:inherit;font-size:14px}
+@media (max-width:860px){.cs-2{grid-template-columns:minmax(0,1fr)}}
 .bubs{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
 .bub{border:1.5px solid;padding:10px 14px 12px;min-height:84px;transition:.15s}
 .bub:hover{transform:translateY(-2px)}
@@ -1216,12 +1221,10 @@ function buildCard(wb, st, used) {
     sk.filter(x => x.d.year === yMax).forEach(({ d, t }) => { const lines = Math.max(1, Math.ceil(t.replace(/\s+/g, ' ').length / 62)); kv(r++, `${shortSubj(d.subj)}${d.sem ? `\n${d.sem}학기` : ''}`, t.replace(/\s+/g, ' ').trim(), XC.greenL, { size: 7.5, h2: Math.max(18, lines * 10.5 + 6) }); });
     r++;
   }
-  // 최근 상담 3개
-  const cs = [...st.counsels].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
-  if (cs.length) { section(r++, '💬 최근 상담', XC.pink); cs.forEach(c => kv(r++, `${c.date.slice(5).replace('-', '/')} ${c.type}`, csShort(c), XC.pinkL)); r++; }
-  // 메모
+  // 상담 메모: 한눈에 '상담 메모'에 적은 줄을 한 줄씩 + 손으로 더 쓸 빈 줄 (최소 4줄)
+  const memo = (st.csMemo || '').split('\n').map(s => s.trim()).filter(Boolean);
   section(r++, '📝 상담 메모', XC.mus);
-  for (let i = 0; i < 4; i++) { box(r, 1, 12, '', {}); H(r, 22); r++; }
+  for (let i = 0; i < Math.max(4, memo.length + 2); i++) { box(r, 1, 12, memo[i] ? `· ${memo[i]}` : '', {}); H(r, 22); r++; }
   ws.pageSetup.printArea = `A1:L${r - 1}`;
 }
 // 모의고사 줄 이름 → 표준점수 합
@@ -1386,6 +1389,7 @@ function attInfo(st) {
   const why = [late >= ATT_WARN ? `지각 · 조퇴 · 결과 ${late}회` : '', abs >= ATT_WARN && !exempt ? `결석 ${abs}일` : '', un ? `미인정 ${un}` : ''].filter(Boolean);
   return { text: a.length ? a.map(([g, n]) => `${g} ${n}`).join(' · ') : '개근 🌟', warn: why.length > 0, why, exempt, abs };
 }
+function saveCsMemo(v) { const st = cur(); st.csMemo = v.trim(); saveStudent(st); toast('상담 메모를 저장했어요'); }
 function toggleAttExempt() { const st = cur(); st.attExempt = !st.attExempt; saveStudent(st); render(); }
 // 🤝 특별 봉사: 반 공통 봉사(자율·자치 · 반 친구 40% 이상이 같은 날 같은 내용)를 빼고 이 친구만 한 봉사
 function volSpecial(st) {
@@ -1557,13 +1561,17 @@ function secOverview(st) {
     <div><b>${vol || '-'}</b><span>봉사</span></div>
     ${(() => { const bk = booksOf(st); return `<div style="${bk.length ? 'cursor:pointer' : ''}" ${bk.length ? 'onclick="bookPop()" title="눌러서 책 목록 보기"' : ''}><b>${bk.length ? bk.length + '권' : '-'}</b><span>📚 읽은 책 ${bk.length ? '· 눌러서 보기' : '(세특 · 창체에서 찾아요)'}</span></div>`; })()}
   </div>
-  <div class="box" style="margin-bottom:14px"><div class="hd pink"><span class="n">💬</span>상담 모아보기 <span class="sp" style="display:flex;gap:6px">${cs.some(c => !c.sum) ? '<button class="btn sm ghost" onclick="summarizeCounsels(this)">✨ AI 한 줄 요약</button>' : ''}<button class="btn sm ghost" onclick="csPop('');setTimeout(()=>{const t=$('#cpText');t?.scrollIntoView({block:'center'});t?.focus()},120)">＋ 상담 적기</button></span></div><div class="bd">
+  <div class="cs-2"><div class="box"><div class="hd pink"><span class="n">💬</span>상담 모아보기 <span class="sp" style="display:flex;gap:6px">${cs.some(c => !c.sum) ? '<button class="btn sm ghost" onclick="summarizeCounsels(this)">✨ AI 한 줄 요약</button>' : ''}<button class="btn sm ghost" onclick="csPop('');setTimeout(()=>{const t=$('#cpText');t?.scrollIntoView({block:'center'});t?.focus()},120)">＋ 상담 적기</button></span></div><div class="bd">
     ${cs.length ? `<div class="bubs">${cs.map((c, i) => { const [bg, fg] = BUB[i % BUB.length], rad = BUB[i % 2][2]; return `<div class="bub" style="background:${bg};border-color:${fg};border-radius:${rad};cursor:pointer" title="눌러서 상담 누가 기록 보기" onclick="csPop('${c.id}')">
         <div class="bub-top"><span class="bub-n" style="background:${fg}">${i + 1}</span><span class="mini">${c.date.slice(5).replace('-', '/')}</span><span class="chip" style="font-size:11px;padding:0 7px">${esc(c.type)}</span></div>
         <div class="bub-t">${esc(csShort(c))}</div>
         ${c.sum ? '' : '<div class="mini" style="opacity:.6;margin-top:2px">첫 문장 · ✨로 요약해요</div>'}</div>`; }).join('')}</div>`
       : '<div class="empty">아직 상담 전이에요. ＋ 상담 적기를 눌러 첫 상담을 남겨요 🌷</div>'}
   </div></div>
+  <div class="box"><div class="hd mustard"><span class="n">📝</span>상담 메모</div><div class="bd">
+    <textarea class="cs-memo" rows="7" placeholder="주요 상담을 한 줄에 하나씩 적어요&#10;예: 10/20 선택과목 생윤 빼고 사문 · 법정" onchange="saveCsMemo(this.value)">${esc(st.csMemo || '')}</textarea>
+    <div class="mini" style="margin-top:4px">한 줄씩 엑셀 상담 카드의 '상담 메모'에 들어가요</div>
+  </div></div></div>
   ${gradeGrass(st)}
   <div style="margin-bottom:14px">
     <div class="box"><div class="hd mustard"><span class="n">📋</span>나이스 기록</div><div class="bd">
