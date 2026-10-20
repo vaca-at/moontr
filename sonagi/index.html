@@ -157,9 +157,6 @@ h3.sec::after{content:"";flex:1;height:2px;background:var(--line)}
 @media (max-width:1100px){.pick3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.pick3>div:last-child{grid-column:1 / -1}}
 @media (max-width:640px){.pick3{grid-template-columns:minmax(0,1fr)}}
 /* ↔ 가로 3줄: ① 영역 4개 한 줄 · ② 성취기준 한 줄에 4개 · ③ 활동 6개 한 줄 */
-.pick-sw{display:flex;justify-content:flex-end;align-items:center;gap:.375rem;margin:-.25rem 0 .5rem;font-size:.875rem}
-.pick-sw button{border:2px solid color-mix(in srgb,var(--lav) 45%,#fff);background:#fff;border-radius:999px;padding:.0625rem .75rem;cursor:pointer;color:var(--ink);font-size:.875rem}
-.pick-sw button.on{background:var(--lav);border-color:var(--lav);color:#fff}
 .pick3.lay-row{grid-template-columns:minmax(0,1fr);gap:.875rem}
 .pick3.lay-row>div:last-child{grid-column:auto}
 .pick3.lay-row #areaGrid{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -1110,8 +1107,7 @@ function giftFile(mode) {
 function renderCases() {
   return `
     <!-- ① 영역 · ② 성취기준 · ③ 활동을 한 화면에 나란히 세 칸 -->
-    <div class="pick-sw"><span class="muted">배치</span><button type="button" data-lay="row">↔ 가로 3줄</button><button type="button" data-lay="col">↕ 세로 3칸</button></div>
-    <div class="pick3" id="pick3">
+    <div class="pick3 lay-row" id="pick3">
       <div><h3 class="sec" style="margin-top:0">① 영역</h3><div class="bento" id="areaGrid"></div></div>
       <div><h3 class="sec" style="margin-top:0">② 성취기준</h3><div class="std-list" id="stdList"></div></div>
       <div><h3 class="sec" style="margin-top:0">③ 활동</h3><div class="bento three" id="actGrid"></div></div>
@@ -1120,8 +1116,8 @@ function renderCases() {
     <h3 class="sec">📥 받은 index.html 열어 보기</h3>
     <div class="bento">
       ${card({ e: "📁", t: "폴더 만들기", c: C.green, key: "바탕화면에 <b>영어 이름 폴더</b>를 만들고 그 안에 저장해요.", pts: ["예: myquiz", "파일 이름은 꼭 index.html"] })}
-      ${card({ e: "⬇️", t: "AI에게서 받기", c: C.sky, key: "미리보기 위쪽의 <b>내려받기(Download)</b> 단추를 눌러요.", more: 1 }, 0, "dl")}
       ${card({ e: "🌐", t: "두 가지로 열어 보기", c: C.pink, key: "같은 파일이 <b>브라우저에선 웹앱</b>, <b>메모장에선 코드</b>로 보여요.", pts: ["🌐 브라우저로: 웹앱 써 보기", "📝 메모장으로: 코드 보고 고치기"], more: 1 }, 2, "dl")}
+      ${card({ e: "⬇️", t: "AI에게서 받기", c: C.sky, key: "미리보기 위쪽의 <b>내려받기(Download)</b> 단추를 눌러요.", more: 1 }, 0, "dl")}
       ${card({ e: "🆘", t: "자주 나타나는 오류 해결", c: C.rose, key: "웹앱이 안 열리거나 이상할 때, <b>여기부터</b> 확인해요.", more: 1 }, 1, "dl")}
     </div>`;
 }
@@ -1150,16 +1146,7 @@ const DL_MORE = [
 ];
 
 /* 고를 때마다 영역 · 성취기준 · 활동 · 선물 상자를 다시 그려요 */
-// ② 세 칸 배치: 'row' 가로 3줄 · 'col' 세로 3칸 (이 기기에 기억)
-function pickLayout(v) {
-  if (v) store.set("lay", v);
-  const lay = v || store.get("lay") || "row", box = $("#pick3"); if (!box) return;
-  box.classList.toggle("lay-row", lay === "row");
-  document.querySelectorAll(".pick-sw [data-lay]").forEach(b => b.classList.toggle("on", b.dataset.lay === lay));
-}
-document.addEventListener("click", e => { const b = e.target.closest(".pick-sw [data-lay]"); if (b) pickLayout(b.dataset.lay); });
 function renderCaseDetail() {
-  pickLayout();
   const s = curStd(), a = actView(curAct(), s), area = AREAS.find(x => x.k === areaSel) || AREAS[0];
   $("#areaGrid").innerHTML = AREAS.map(x => `<article class="card click case-card ${x.k === areaSel ? "on" : ""}" style="--c:${x.c}" data-area="${x.k}" tabindex="0" role="button" aria-pressed="${x.k === areaSel}">
     <div class="ch"><span class="ce">${x.e}</span><h3 class="ct"><span class="area-no">${x.no}.</span> ${x.t}</h3></div>
@@ -1174,8 +1161,7 @@ function renderCaseDetail() {
   $("#actGrid").innerHTML = ACTS.map(x => actView(x, s)).map(o => `<article class="card click case-card ${o.id === a.id ? "on" : ""}" style="--c:${o.c}" data-act="${o.id}" tabindex="0" role="button" aria-pressed="${o.id === a.id}">
     <div class="ch"><span class="ce">${o.e}</span><h3 class="ct">${o.t}</h3></div>
     <div>${o.tags.map(t => `<span class="tag">${t}</span>`).join("")}</div>
-    <p class="key" style="font-size:1rem">${o.d}</p>
-    <div class="lvdots">🎁 선물 3종: 프롬프트 · index.html · 미리보기</div></article>`).join("");
+    <p class="key" style="font-size:1rem">${o.d}</p></article>`).join("");
   $("#caseDetail").innerHTML = `<section class="detail" style="--c:${a.c}">
     <div class="detail-h"><h3>${a.e} ${a.t} <small class="muted" style="font-family:var(--body);font-size:.9375rem">· [${s.code}] ${s.t}</small></h3><span class="gift-tag">🎁 선물 3종 세트</span></div>
     <div class="gifts">
