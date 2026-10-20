@@ -197,6 +197,16 @@
   #view-monitor .mon-col h4{ margin:0 0 10px; font-size:17px; color:#F0C24B; }
   #view-monitor .mon-col ul{ list-style:none; margin:0; padding:0; font-size:18px; line-height:1.95; color:#D9DCEC; }
   #view-monitor .mon-col .dim{ color:#8B92B5; font-size:16px; }
+  /* 일정 칸: 제목 옆 디데이 알약 · 일정마다 남은 날 */
+  #view-monitor .mon-sch-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+  #view-monitor .mon-sch-head h4{ margin:0; }
+  #view-monitor .mon-dd{ display:inline-flex; align-items:baseline; gap:6px; padding:4px 14px; border-radius:999px; background:#F0C24B; color:#1A1B24; font-weight:800; font-size:18px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  #view-monitor .mon-dd small{ font-weight:600; font-size:13px; }
+  #view-monitor .mon-sch-list li{ display:flex; gap:6px; align-items:baseline; }
+  #view-monitor .mon-sch-list li b{ color:#F0C24B; flex:none; }
+  #view-monitor .mon-sch-list li .t{ flex:1; min-width:0; }
+  #view-monitor .mon-sch-list li em{ font-style:normal; font-size:14px; color:#8B92B5; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  #view-monitor .mon-sch-list li.today em{ color:#5FD9C7; font-weight:700; }
   #view-monitor .mon-meal{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:26px; }
   #view-monitor .mon-meal .mm{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:16px 18px; }
   #view-monitor .mon-meal h4{ margin:0 0 8px; font-size:15px; color:#F0C24B; }
@@ -1807,15 +1817,19 @@ if(PAGE === 'monitor'){
       : `<h4>📝 오늘의 알림</h4><div class="mon-memo-body dim">아직 올라온 알림이 없어요.</div>`;
   });
 
-  // 앞으로 남은 일정
+  // 앞으로 남은 일정 — 제목 옆에 디데이 알약, 일정마다 오른쪽에 "오늘" · "D-3"
   (async function(){
-    const sch = await readMonthSchedule();
-    $('monSch').innerHTML = `<h4>📌 ${sch.month}월 일정</h4>` + (sch.items.length
-      ? `<ul>` + sch.items.slice(0, 12).map(s=>{
+    const [sch, cfg] = await Promise.all([readMonthSchedule(), readConfig()]);
+    const dd = calcDday(cfg);
+    const pill = cfg.ddayDate && dd.text !== 'D-?' ? `<span class="mon-dd"><small>${esc(dd.label)}</small>${dd.text}</span>` : '';
+    const todayMid = new Date(todayStr() + 'T00:00:00');
+    $('monSch').innerHTML = `<div class="mon-sch-head"><h4>📌 ${sch.month}월 일정</h4>${pill}</div>` + (sch.items.length
+      ? `<ul class="mon-sch-list">` + sch.items.slice(0, 12).map(s=>{
           const d = new Date(s.date + 'T00:00:00');
-          return `<li><b>${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})</b> ${esc(s.content)}</li>`;
+          const left = Math.round((d - todayMid) / 86400000);
+          return `<li${left === 0 ? ' class="today"' : ''}><b>${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})</b><span class="t">${esc(s.content)}</span><em>${left === 0 ? '오늘' : 'D-' + left}</em></li>`;
         }).join('') + `</ul>`
-      : `<div class="dim">이달 남은 일정이 없어요.</div>`);;
+      : `<div class="dim">이달 남은 일정이 없어요.</div>`);
   })();
 
   // 이번 달 자습왕 (1분마다 새로)
