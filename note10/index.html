@@ -1330,10 +1330,12 @@ function gradeGrass(st) {
     // 등수는 바로 보이지 않게 — '🏅 전교 등수 보기'를 눌러야 보여요
     const hasRank = Object.keys(RK).length > 0 && !!V.showRank?.[kind];
     const canRank = Object.keys(RK).length > 0;
-    const rows = G.rows.filter(r => G.subj.some(s => r[s] != null)); if (!rows.length) return '';
+    // 등급이 하나도 없어도 전교 등수가 있는 시험(가채점)은 줄을 남겨요
+    const rows = G.rows.filter(r => G.subj.some(s => r[s] != null) || RK[r.label]); if (!rows.length) return '';
     const subj = G.subj.filter(s => rows.some(r => r[s] != null));
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-    const cell = (v, bold, rk) => v == null ? '<td class="mini" style="text-align:center">-</td>'
+    // 등급이 없어도(가채점처럼 원점수만 있는 시험) 과목 전교 등수가 있으면 '-' 아래에 등수를 보여요
+    const cell = (v, bold, rk) => v == null ? `<td class="mini" style="text-align:center">-${rk ? `<div style="font-size:10.5px;color:#8a5a6a;line-height:1.1">${rk.v}등</div>` : ''}</td>`
       : `<td style="text-align:center;${bold ? 'font-weight:700;' : ''}background:rgba(238,143,173,${(0.08 + (1 - (v - 1) / (max - 1)) * 0.5).toFixed(2)})">${Number.isInteger(v) ? v : v.toFixed(2)}${rk ? `<div style="font-size:10.5px;font-weight:400;color:#8a5a6a;line-height:1.1">${rk.v}등</div>` : ''}</td>`;
     const th = 'text-align:center;font-size:12px;line-height:1.25;word-break:keep-all;min-width:38px';   // 긴 과목 이름은 두 줄로
     return `<div class="box"><div class="hd ${color}"><span class="n">📊</span>${title} <span class="sp mini" style="color:#fff">${max}등급 · 진할수록 좋아요</span></div><div class="bd" style="overflow:auto">
