@@ -1300,6 +1300,18 @@ function rankWhy(st, kind, labels) {
   });
   return `<div class="mini" style="margin-top:6px;padding:8px 10px;background:#fff8e6;border:1px dashed #efd7a5;border-radius:10px;line-height:1.6">🔎 등수가 안 나온 이유<br>${why.join('<br>')}</div>`;
 }
+// 성적 파일은 올렸는데 표에 줄이 안 생긴 시험 → 이유를 한 줄씩 (등급 칸 못 찾음 · 이 친구 줄 없음 · 등급이 비어 있음)
+function gradeMissWhy(st, kind, shown) {
+  const max = kind === 'mock' ? 9 : 5;
+  const why = scoreDocs().filter(d => examOf(d).kind === kind && !END_SEM[d.exam]).map(d => {
+    const lb = `${String(d.year).slice(2)}년 ${examOf(d).short}`; if (shown.includes(lb)) return '';
+    const r = st.num && d.rows.find(x => x.no === st.num), g = gradeCols(d, max);
+    if (!r) return `<b>${esc(lb)}</b>: 파일에서 이 친구(반 번호 ${st.num || '-'}) 줄을 못 찾았어요`;
+    if (!g.length) return `<b>${esc(lb)}</b>: 등급 칸을 못 찾았어요 (머리글에 '등급'이 있어야 해요) · 파일 칸: ${d.cols.slice(0, 12).map(esc).join(' · ')}`;
+    return `<b>${esc(lb)}</b>: 이 친구 등급 칸이 비어 있거나 숫자가 아니에요 (${g.slice(0, 6).map(c => `${esc(c.subj)} '${esc(r.v[c.i] || '빈칸')}'`).join(' · ')})`;
+  }).filter(Boolean);
+  return why.length ? `<div class="mini" style="margin-top:6px;padding:8px 10px;background:#fff8e6;border:1px dashed #efd7a5;border-radius:10px;line-height:1.6">🔎 올렸지만 표에 안 나온 시험<br>${why.join('<br>')}</div>` : '';
+}
 /* 📊 성적 잔디 — 시험마다 과목별 등급을 분홍 진하기 + 숫자로 (진할수록 좋은 등급), 오른쪽 끝은 시험 평균, 맨 아래는 과목 평균 */
 function gradeGrass(st) {
   const one = (kind, title, color) => {
@@ -1334,6 +1346,7 @@ function gradeGrass(st) {
       </table>
       ${canRank ? `<button class="pill ${hasRank ? 'on' : ''}" style="font-size:13px;padding:2px 10px;margin-top:8px" onclick="V.showRank=Object.assign(V.showRank||{},{${kind}:!${hasRank}});render()">🏅 전교 등수 ${hasRank ? '접기' : '보기'}</button>` : ''}
       ${hasRank ? rankWhy(st, kind, rows.filter(r => !rkOf(r.label)).map(r => r.label)) : ''}
+      ${gradeMissWhy(st, kind, rows.map(r => r.label))}
       ${hasRank ? `<p class="mini" style="margin-top:4px">작은 '○등' = 과목 전교 등수 · 🏅 = 전체 전교 등수 (${kind === 'mock' ? '전교생 성적표 · 표준점수, 없으면 원점수 · 성적표의 석차 칸' : '전교생 성적표면 원점수 · 학점 가중 평균, 성적표에 전교석차 칸이 있으면 그 값'}). 나이스 학기 성적에는 석차가 없어 등수가 안 나와요.</p>` : ''}
       ${kind === 'mock' ? stdSumBox(st) : ''}</div></div>`;
   };
@@ -3336,10 +3349,13 @@ function scoreDocs() { return Object.values(SC).map(withCalc).sort((a, b) => a.y
 // 그래프에 쓸 등급 칸: 머리글에 '등급'이 있고 값이 1~max 숫자 (없으면 1~max 정수만 있는 칸)
 function gradeCols(d, max) {
   const num = v => /^\d+(\.\d+)?$/.test(v) && +v >= 1 && +v <= max;
-  const ok = i => d.rows.some(r => r.v[i] !== '') && d.rows.every(r => r.v[i] === '' || num(r.v[i]));
+  // 결시 · - · 미응시 같은 글자가 몇 줄 섞여도 괜찮아요 (채워진 칸의 90% 이상이 등급 숫자면 등급 칸)
+  const share = (i, f) => { const vs = d.rows.map(r => String(r.v[i] ?? '').trim()).filter(v => v !== ''); return vs.length ? vs.filter(f).length / vs.length : 0; };
+  const ok = i => share(i, num) >= 0.9;
   const all = d.cols.map((h, i) => ({ h, i }));
   let cs = all.filter(c => /등급/.test(c.h) && !TOTAL_RE.test(c.h) && ok(c.i));
-  if (!cs.length) cs = all.filter(c => !TOTAL_RE.test(c.h) && ok(c.i) && d.rows.every(r => r.v[c.i] === '' || Number.isInteger(+r.v[c.i])));
+  // '등급' 머리글이 없을 때는 예전처럼 엄격하게 (반 · 번호 칸을 등급으로 잘못 읽지 않게)
+  if (!cs.length) cs = all.filter(c => !TOTAL_RE.test(c.h) && share(c.i, v => num(v) && Number.isInteger(+v)) === 1);
   return cs.map(c => ({ i: c.i, subj: subjName(c.h.replace(/석차|등급/g, '')) || c.h }));
 }
 // 머리글 → 과목 이름. 끝에 붙은 학점 숫자('공통국어1 4'의 4)는 떼서 시험마다 같은 과목으로 이어지게 해요
