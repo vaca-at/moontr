@@ -1854,7 +1854,9 @@ function rawAll(d) {
   const mc = metricCols(d, 'raw'), have = new Set(mc.map(c => c.i));
   const ex = /등급|석차|백분위|표준|표점|평균|편차|합계|총점|학점|단위|성취|수강|응시|순위|번호|학번|이름|성명|^반$/;
   const score = i => { const f = d.rows.map(r => String(r.v[i] ?? '').trim()).filter(Boolean), n = f.map(parseFloat).filter(v => !isNaN(v)); return f.length >= d.rows.length / 2 && n.length >= f.length * 0.9 && Math.max(...n) > 5 && Math.max(...n) <= 100; };
-  const more = d.cols.map((h, i) => ({ h, i })).filter(c => !have.has(c.i) && !ex.test(c.h.replace(/\s/g, '')) && !TOTAL_RE.test(c.h) && score(c.i)).map(c => ({ i: c.i, subj: subjName(c.h) || c.h }));
+  // '국어총점' · '수학총점'처럼 과목 이름 + 총점은 그 과목 원점수예요 (공통 + 선택을 더한 점수)
+  const subjTot = h => { const m = h.replace(/\s/g, '').match(/^(.+?)총점$/); return m && AREA_RE.some(([, re]) => re.test(m[1])) ? m[1] : null; };
+  const more = d.cols.map((h, i) => ({ h, i })).filter(c => !have.has(c.i) && (subjTot(c.h) || (!ex.test(c.h.replace(/\s/g, '')) && !TOTAL_RE.test(c.h))) && score(c.i)).map(c => ({ i: c.i, subj: subjTot(c.h) || subjName(c.h) || c.h }));
   return [...mc, ...more];
 }
 function metricCols(d, m) {
