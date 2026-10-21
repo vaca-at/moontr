@@ -1040,7 +1040,7 @@ function examRanks(d) {
     if (iT >= 0) d.rows.forEach(r => { const v = parseInt(r.v[iT], 10); if (v) total.set(r.sid, v); });   // 성적표의 전교석차를 그대로
     else { const all = comboRanks(d).find(c => c.name === '전교과'); if (all) total = new Map([...all.by].map(([sid, x]) => [sid, x.rank])); }
   } else {
-    const pick = {}; [...metricCols(d, 'raw'), ...metricCols(d, 'std')].forEach(c => { pick[c.subj] = c; });   // 표준점수가 있으면 그걸로
+    const pick = {}; [...rawAll(d), ...metricCols(d, 'std')].forEach(c => { pick[c.subj] = c; });   // 표준점수가 있으면 그걸로
     Object.values(pick).forEach(c => { const vals = d.rows.map(r => parseFloat(r.v[c.i])).filter(v => !isNaN(v)), f = rk(vals); subj[c.subj] = new Map(d.rows.filter(r => !isNaN(parseFloat(r.v[c.i]))).map(r => [r.sid, f(parseFloat(r.v[c.i]))])); });
     const iR = d.cols.findIndex(h => /^석차$|^전교\s*석차$/.test(h.trim()));
     if (iR >= 0) d.rows.forEach(r => { const v = parseInt(r.v[iR], 10); if (v) total.set(r.sid, v); });
@@ -1342,8 +1342,18 @@ function gradeGrass(st) {
     const hasRank = Object.keys(RK).length > 0 && !!V.showRank?.[kind];
     const canRank = Object.keys(RK).length > 0;
     // 등급이 하나도 없어도 전교 등수가 있는 시험(가채점)은 줄을 남겨요
-    const rows = G.rows.filter(r => G.subj.some(s => r[s] != null) || RK[r.label]); if (!rows.length) return '';
-    const subj = G.subj.filter(s => rows.some(r => r[s] != null));
+    // 가채점 모의고사(파일에 등급 칸이 없음, 예: 10월): 전국 등급이 없어 의미가 없으니 등급 대신 원점수 + 과목 전교 등수를 보여요
+    const RAW = {};
+    if (kind === 'mock') scoreDocs().filter(d => examOf(d).kind === 'mock').forEach(d => {
+      const orig = SC[scoreKey(d.year, d.exam)] || d; if (gradeCols(orig, 9).length) return;
+      const r = st.num && d.rows.find(x => x.no === st.num); if (!r) return;
+      const cs = rawAll(d), o = {};
+      cs.forEach(c => { const v = parseFloat(r.v[c.i]); if (isNaN(v)) return; const a = areaOf(c.subj); if (!o[a]) o[a] = { v, s: c.subj }; });
+      if (Object.keys(o).length) RAW[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = o;
+    });
+    const rows = G.rows.filter(r => G.subj.some(s => r[s] != null) || RK[r.label] || RAW[r.label]); if (!rows.length) return '';
+    const subj = G.subj.filter(s => rows.some(r => r[s] != null || RAW[r.label]?.[s]));
+    const gRows = rows.filter(r => !RAW[r.label]);   // 과목 평균은 등급이 있는 시험만
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
     // 등급이 없어도(가채점처럼 원점수만 있는 시험) 과목 전교 등수가 있으면 '-' 아래에 등수를 보여요
     const cell = (v, bold, rk) => v == null ? `<td class="mini" style="text-align:center">-${rk ? `<div style="font-size:10.5px;color:#8a5a6a;line-height:1.1">${rk.v}등</div>` : ''}</td>`
@@ -1352,10 +1362,14 @@ function gradeGrass(st) {
     return `<div class="box"><div class="hd ${color}"><span class="n">📊</span>${title} <span class="sp mini" style="color:#fff">${max}등급 · 진할수록 좋아요</span></div><div class="bd" style="overflow:auto">
       <table class="dtable"><tr><th></th>${subj.map(s => `<th style="${th}">${esc(s)}</th>`).join('')}<th style="${th}">평균</th>${hasRank ? `<th style="${th}">🏅 전교<br>등수</th>` : ''}</tr>
       ${rows.map(r => { const vs = subj.map(s => r[s]).filter(v => v != null), t = hasRank && rkOf(r.label);
+        const R = RAW[r.label];
+        if (R) { const rk = s => { const x = R[s], k = hasRank && rkOf(r.label, x ? x.s : s); return k ? `<div style="font-size:10.5px;color:#8a5a6a;line-height:1.1">${k.v}등</div>` : ''; };
+          const sum = Object.values(R).reduce((a, x) => a + x.v, 0);
+          return `<tr><td style="white-space:nowrap;font-weight:600">${esc(r.label)}<div class="mini" style="font-weight:400">가채점 · 원점수</div></td>${subj.map(s => `<td style="text-align:center;background:#f6f3f8">${R[s] ? `<b style="font-weight:600">${R[s].v}</b>` : '<span class="mini">-</span>'}${rk(s)}</td>`).join('')}<td style="text-align:center;background:#f6f3f8"><span class="mini">합</span> <b>${+sum.toFixed(1)}</b></td>${hasRank ? `<td style="text-align:center;white-space:nowrap">${t ? `<b style="color:var(--main);font-size:15px">${t.v}</b>${t.N ? `<span class="mini">/${t.N}</span>` : ''}` : '<span class="mini">-</span>'}</td>` : ''}</tr>`; }
         // 학기말: 평균은 성적 파일의 학점 반영 등급 평균, 출처(성적 파일 · 나이스)와 서로 다른 값이 있으면 ⚠️
         const src = r._end ? `<div class="mini" style="font-weight:400">${[r._file && '성적 파일', r._nice && '나이스'].filter(Boolean).join(' + ')}${r._diff?.length ? ` <span title="${esc(r._diff.join(' / '))}" style="color:var(--red)">⚠️ 다른 값 ${r._diff.length}</span>` : ''}</div>` : '';
         return `<tr><td style="white-space:nowrap;font-weight:600">${esc(r.label)}${src}</td>${subj.map(s => cell(r[s], false, hasRank && rkOf(r.label, r._orig?.[s] || s))).join('')}${cell(r._avg ?? avg(vs), true)}${hasRank ? `<td style="text-align:center;white-space:nowrap">${t ? `<b style="color:var(--main);font-size:15px">${t.v}</b>${t.N ? `<span class="mini">/${t.N}</span>` : ''}` : '<span class="mini">-</span>'}</td>` : ''}</tr>`; }).join('')}
-      ${kind === 'mock' ? `<tr style="border-top:1.5px solid var(--line)"><td style="font-weight:700">과목 평균</td>${subj.map(s => cell(avg(rows.map(r => r[s]).filter(v => v != null)), true)).join('')}${cell(avg(rows.flatMap(r => subj.map(s => r[s]).filter(v => v != null))), true)}${hasRank ? '<td></td>' : ''}</tr>` : ''}
+      ${kind === 'mock' ? `<tr style="border-top:1.5px solid var(--line)"><td style="font-weight:700">과목 평균</td>${subj.map(s => cell(avg(gRows.map(r => r[s]).filter(v => v != null)), true)).join('')}${cell(avg(gRows.flatMap(r => subj.map(s => r[s]).filter(v => v != null))), true)}${hasRank ? '<td></td>' : ''}</tr>` : ''}
       </table>
       ${canRank ? `<button class="pill ${hasRank ? 'on' : ''}" style="font-size:13px;padding:2px 10px;margin-top:8px" onclick="V.showRank=Object.assign(V.showRank||{},{${kind}:!${hasRank}});render()">🏅 전교 등수 ${hasRank ? '접기' : '보기'}</button>` : ''}
       ${hasRank ? rankWhy(st, kind, rows.filter(r => !rkOf(r.label)).map(r => r.label)) : ''}
@@ -1835,6 +1849,14 @@ function growthRows(st, kind) {
 const METRICS = { grade: '등급', pct: '백분위', std: '표준점수', raw: '원점수' };
 const METRIC_RE = { pct: /백분위/, std: /표준\s*점수|표점/, raw: /원점수/ };
 // 성적표에서 그 값(백분위 등) 칸 찾기 → { i, subj }
+// 원점수 칸 모두: 머리글에 '원점수'가 있는 칸 + '국어'처럼 과목 이름만 있고 0~100 점수가 들어 있는 칸 (가채점 파일)
+function rawAll(d) {
+  const mc = metricCols(d, 'raw'), have = new Set(mc.map(c => c.i));
+  const ex = /등급|석차|백분위|표준|표점|평균|편차|합계|총점|학점|단위|성취|수강|응시|순위|번호|학번|이름|성명|^반$/;
+  const score = i => { const f = d.rows.map(r => String(r.v[i] ?? '').trim()).filter(Boolean), n = f.map(parseFloat).filter(v => !isNaN(v)); return f.length >= d.rows.length / 2 && n.length >= f.length * 0.9 && Math.max(...n) > 5 && Math.max(...n) <= 100; };
+  const more = d.cols.map((h, i) => ({ h, i })).filter(c => !have.has(c.i) && !ex.test(c.h.replace(/\s/g, '')) && !TOTAL_RE.test(c.h) && score(c.i)).map(c => ({ i: c.i, subj: subjName(c.h) || c.h }));
+  return [...mc, ...more];
+}
 function metricCols(d, m) {
   return d.cols.map((h, i) => ({ h, i })).filter(c => METRIC_RE[m].test(c.h) && d.rows.some(r => r.v[c.i] !== '' && !isNaN(parseFloat(r.v[c.i]))))
     .map(c => ({ i: c.i, subj: subjName(c.h.replace(/원점수|표준\s*점수|표점|백분위|석차|등급/g, '')) || c.h }));
@@ -1857,7 +1879,9 @@ function growthMetric(st, kind, m) {
   } else if (st.num) scoreDocs().filter(d => examOf(d).kind === kind).forEach(d => {
     const r = d.rows.find(x => x.no === st.num); if (!r) return;
     const o = { label: label(d) };
-    metricCols(d, m).forEach(c => { const v = parseFloat(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; });
+    // 모의고사 원점수: '원점수'가 안 붙은 과목 칸(가채점 파일)도 · 선택과목 이름은 영역으로 (언어와 매체 → 국어)
+    if (m === 'raw' && kind === 'mock') rawAll(d).forEach(c => { const v = parseFloat(r.v[c.i]), a = areaOf(c.subj); if (r.v[c.i] !== '' && !isNaN(v) && o[a] == null) o[a] = v; });
+    else metricCols(d, m).forEach(c => { const v = parseFloat(r.v[c.i]); if (r.v[c.i] !== '' && !isNaN(v)) o[c.subj] = v; });
     rows.push(o);
   });
   return { rows, subj: [...new Set(rows.flatMap(r => Object.keys(r).filter(k => k !== 'label')))], files: [] };
@@ -2016,11 +2040,11 @@ function drawCharts(st) {
     const y = m === 'grade' ? { reverse: true, min: 1, max, ticks: { stepSize: 1, callback: v => v + '등급' } }
       : m === 'srank' ? { reverse: true, min: 1, grace: '5%', ticks: { callback: v => v + '등' } }        // 석차 · 상위 %는 작을수록 위로
       : m === 'spct' ? { reverse: true, min: 0, max: 100, ticks: { callback: v => v + '%' } }
-      : { reverse: false, ...(m === 'pct' ? { max: 100 } : {}), grace: '5%', ticks: { callback: v => v + (m === 'pct' ? '' : '점') } };
+      : { reverse: false, ...(m === 'pct' || m === 'raw' ? { max: 100 } : {}), grace: '5%', ticks: { callback: v => v + (m === 'pct' ? '' : '점') } };   // 원점수 · 백분위는 100이 맨 위
     rows = rows.filter(r => subj.some(s => r[s] != null));   // 등급이 하나도 없는 시험(예: 원점수만 있는 중간고사)은 빼요
     charts.push(new Chart(el, {
       type: 'line',
-      data: { labels: rows.map(r => r.label), datasets: subj.map((s, i) => ({ label: s, data: rows.map(r => r[s] ?? null), borderColor: SUBJ_COLORS[i % SUBJ_COLORS.length], backgroundColor: SUBJ_COLORS[i % SUBJ_COLORS.length], tension: .35, spanGaps: true, borderWidth: s === '평균' ? 4 : 2.5, pointRadius: 5, clip: false })).filter(d => d.data.some(v => v !== null)) },
+      data: { labels: rows.map(r => r.label), datasets: subj.map((s, i) => ({ label: s, data: rows.map(r => r[s] ?? null), borderColor: SUBJ_COLORS[i % SUBJ_COLORS.length], backgroundColor: SUBJ_COLORS[i % SUBJ_COLORS.length], cubicInterpolationMode: 'monotone', spanGaps: true, borderWidth: s === '평균' ? 4 : 2.5, pointRadius: 5, clip: false })).filter(d => d.data.some(v => v !== null)) },
       // 점이 그래프 가장자리에 붙어 잘리지 않게 양옆 · 위아래로 여유를 둬요
       options: { layout: { padding: 10 }, scales: { x: { offset: true }, y }, plugins: { legend: { labels: { boxWidth: 12, font: { family: 'Pretendard' } } } } }
     }));
