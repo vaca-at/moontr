@@ -1300,6 +1300,17 @@ function rankWhy(st, kind, labels) {
   });
   return `<div class="mini" style="margin-top:6px;padding:8px 10px;background:#fff8e6;border:1px dashed #efd7a5;border-radius:10px;line-height:1.6">🔎 등수가 안 나온 이유<br>${why.join('<br>')}</div>`;
 }
+// 과목 등수 찾기: 이름이 같으면 그대로, 다르면 선택과목 → 영역으로 맞춰요 (가채점 파일은 '언어와 매체 원점수'처럼 선택과목 이름으로 오기도 해요)
+const AREA_RE = [['국어', /국어|화법|작문|언어|매체|화작|언매/], ['수학', /수학|확률|통계|미적분|기하|확통/], ['영어', /영어/], ['한국사', /한국사/],
+  ['사회탐구', /사회탐구|사탐|윤리|지리|동아시아|세계사|경제|정치|법|사회\s*문화|사문|생윤|윤사|한지|세지|동사/], ['과학탐구', /과학탐구|과탐|물리|화학|생명|지구|생과|지과/]];
+const areaOf = n => (AREA_RE.find(([, re]) => re.test(String(n).replace(/\s/g, ''))) || [n])[0];
+function subjRank(e, s, sid) {
+  if (e.subj[s]?.has(sid)) return e.subj[s].get(sid);
+  const a = areaOf(s); if (a === s && !AREA_RE.some(([k]) => k === s)) return null;
+  // 같은 영역 칸 중 이 친구 점수가 있는 첫 칸 (탐구는 두 과목이면 먼저 나온 과목)
+  for (const [k, m] of Object.entries(e.subj)) if (k !== s && areaOf(k) === a && m.has(sid)) return m.get(sid);
+  return null;
+}
 // 성적 파일은 올렸는데 표에 줄이 안 생긴 시험 → 이유를 한 줄씩 (등급 칸 못 찾음 · 이 친구 줄 없음 · 등급이 비어 있음)
 function gradeMissWhy(st, kind, shown) {
   const max = kind === 'mock' ? 9 : 5;
@@ -1325,7 +1336,7 @@ function gradeGrass(st) {
     const RK = {}; Object.values(SC).filter(d => examOf(d).kind === kind).forEach(d => { const r = d.rows.find(x => x.no === st.num), e = r && examRanks(d); if (e) RK[`${String(d.year).slice(2)}년 ${examOf(d).short}`] = { e, sid: e.byNo ? (r.sid || 'no' + r.no) : r.sid }; });
     // 학기말 줄은 성적 파일의 전교석차만 (과목 등수는 쓰지 않아요)
     const endRow = label => G.rows.find(x => x.label === label && x._end);
-    const rkOf = (label, s) => { const e = endRow(label); if (e) return !s && e._rank ? { v: e._rank, N: e._N } : null; const x = RK[label]; const v = x && (s ? x.e.subj[s]?.get(x.sid) : x.e.total.get(x.sid)); return v ? { v, N: x.e.N } : null; };
+    const rkOf = (label, s) => { const e = endRow(label); if (e) return !s && e._rank ? { v: e._rank, N: e._N } : null; const x = RK[label]; const v = x && (s ? subjRank(x.e, s, x.sid) : x.e.total.get(x.sid)); return v ? { v, N: x.e.N } : null; };
     if (G.rows.some(x => x._end && x._rank)) RK._end = true;
     // 등수는 바로 보이지 않게 — '🏅 전교 등수 보기'를 눌러야 보여요
     const hasRank = Object.keys(RK).length > 0 && !!V.showRank?.[kind];
@@ -1349,6 +1360,8 @@ function gradeGrass(st) {
       ${canRank ? `<button class="pill ${hasRank ? 'on' : ''}" style="font-size:13px;padding:2px 10px;margin-top:8px" onclick="V.showRank=Object.assign(V.showRank||{},{${kind}:!${hasRank}});render()">🏅 전교 등수 ${hasRank ? '접기' : '보기'}</button>` : ''}
       ${hasRank ? rankWhy(st, kind, rows.filter(r => !rkOf(r.label)).map(r => r.label)) : ''}
       ${gradeMissWhy(st, kind, rows.map(r => r.label))}
+      ${hasRank ? (() => { const ls = rows.filter(r => RK[r.label] && Object.keys(RK[r.label].e.subj).length).map(r => { const miss = subj.filter(s => !rkOf(r.label, r._orig?.[s] || s)); return miss.length ? `<b>${esc(r.label)}</b>: ${miss.map(esc).join(' · ')} 등수를 못 맞췄어요 — 파일에서 등수를 낸 과목: ${Object.keys(RK[r.label].e.subj).map(esc).join(' · ') || '없음'}` : ''; }).filter(Boolean);
+        return ls.length ? `<div class="mini" style="margin-top:6px;padding:8px 10px;background:#fff8e6;border:1px dashed #efd7a5;border-radius:10px;line-height:1.6">🔎 과목 등수가 빈 칸<br>${ls.join('<br>')}</div>` : ''; })() : ''}
       ${hasRank ? `<p class="mini" style="margin-top:4px">작은 '○등' = 과목 전교 등수 · 🏅 = 전체 전교 등수 (${kind === 'mock' ? '전교생 성적표 · 표준점수, 없으면 원점수 · 성적표의 석차 칸' : '전교생 성적표면 원점수 · 학점 가중 평균, 성적표에 전교석차 칸이 있으면 그 값'}). 나이스 학기 성적에는 석차가 없어 등수가 안 나와요.</p>` : ''}
       ${kind === 'mock' ? stdSumBox(st) : ''}</div></div>`;
   };
