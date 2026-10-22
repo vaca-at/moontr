@@ -30,21 +30,31 @@
   body{ background:var(--bg); color:var(--ink); font-family:var(--kr); margin:0; padding-block:18px 20px; padding-left:max(12px, env(safe-area-inset-left, 0px)); padding-right:max(12px, env(safe-area-inset-right, 0px)); }
   button{ font-family:inherit; }
   button:focus-visible, input:focus-visible, textarea:focus-visible{ outline:2px solid var(--pink); outline-offset:2px; }
-  .game{ max-width:1240px; margin:0 auto; background:var(--panel); box-shadow:0 0 0 3px var(--maze), 0 0 0 7px var(--bg), 0 0 0 9px #1D2C66; border-radius:14px; overflow:hidden; }
+  .game{ max-width:1880px; margin:0 auto; background:var(--panel); box-shadow:0 0 0 3px var(--maze), 0 0 0 7px var(--bg), 0 0 0 9px #1D2C66; border-radius:14px; overflow:hidden; }
   .hud{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 20px; padding:12px 16px; font-family:var(--pix); font-size:11px; border-bottom:3px solid var(--maze); }
   .hud .y{ color:var(--yellow); font-variant-numeric:tabular-nums; }
   .hud .ctl{ margin-left:auto; display:flex; gap:6px; }
   .hud button{ font-size:14px; background:#000; color:var(--ink); border:2px solid #444; padding:4px 10px; cursor:pointer; }
   .hud button[aria-pressed="true"]{ border-color:var(--yellow); color:var(--yellow); }
 
-  .wrap{ display:grid; grid-template-columns:minmax(0,1fr) 340px; grid-template-rows:auto 1fr; grid-template-areas:"main me" "main side"; }
+  /* 넓은 PC: [내 화면 · 지금 · 임원 · 근무 | 지도 · 채팅 | 대기 · 재고 · 시간표 · 명단 · 약속] 3단
+     보통 PC: [지도 · 채팅 | 오른쪽에 모두] 2단, 휴대폰: 1단 */
+  .wrap{ display:grid; grid-template-columns:330px minmax(0,1fr) 330px; grid-template-rows:auto 1fr; grid-template-areas:"me main sb" "sa main sb"; }
   .left{ grid-area:main; padding:12px; min-width:0; }
-  .mine{ grid-area:me; padding:12px 12px 0; border-left:3px solid var(--maze); min-width:0; }
-  .side{ grid-area:side; padding:12px; display:grid; grid-template-columns:minmax(0,1fr); gap:10px; align-content:start; border-left:3px solid var(--maze); min-width:0; }
+  .mine{ grid-area:me; padding:12px 12px 0; border-right:3px solid var(--maze); min-width:0; }
+  .side{ padding:12px; display:grid; grid-template-columns:minmax(0,1fr); gap:10px; align-content:start; min-width:0; }
+  .sa{ grid-area:sa; border-right:3px solid var(--maze); }
+  .sb{ grid-area:sb; border-left:3px solid var(--maze); }
+  @media (max-width:1499px){
+    .wrap{ grid-template-columns:minmax(0,1fr) 340px; grid-template-rows:auto auto 1fr; grid-template-areas:"main me" "main sa" "main sb"; }
+    .mine, .sa, .sb{ border-right:none; border-left:3px solid var(--maze); }
+    .sa{ padding-bottom:0; }
+  }
   @media (max-width:900px){
-    .wrap{ grid-template-columns:minmax(0,1fr); grid-template-areas:"me" "main" "side"; }
-    .mine, .side{ border-left:none; }
-    .side{ border-top:3px solid var(--maze); grid-template-columns:repeat(auto-fill, minmax(250px,1fr)); }
+    .wrap{ grid-template-columns:minmax(0,1fr); grid-template-rows:none; grid-template-areas:"me" "main" "sa" "sb"; }
+    .mine, .sa, .sb{ border-left:none; }
+    .sa{ border-top:3px solid var(--maze); }
+    .side{ grid-template-columns:repeat(auto-fill, minmax(250px,1fr)); }
   }
   .stage{ position:relative; width:100%; }
   .stage svg.scene{ display:block; width:100%; height:auto; }
@@ -252,10 +262,12 @@
       <div class="legend"><span><i class="g1"></i>1학년</span><span><i class="g2"></i>2학년</span><span><i style="background:#8E8E9A"></i>손님</span><span>채팅은 또래상담부 부원만 쓸 수 있어요</span></div>
     </div>
     <div class="mine" id="mine" hidden></div>
-    <aside class="side">
+    <aside class="side sa">
       <div class="box now"><h4>NOW</h4><div class="clock" data-k="clock">--:--</div><div class="slot" id="slotLabel"></div><div class="next" id="nextLabel"></div></div>
       <div class="box"><h4>LEADERS · 임원</h4><div class="lead" id="leadList"></div></div>
       <div class="box zones"><h4>ON DUTY</h4><div id="zoneList"></div></div>
+    </aside>
+    <aside class="side sb">
       <div class="box waitbox"><h4>WAITING · 대기 손님</h4><div id="waitList"></div></div>
       <div class="box stock"><h4>PRIZE STOCK · 1~3등</h4><div id="stock"></div></div>
       <div class="box tl"><h4>TIME TABLE</h4><ol id="timeline"></ol></div>
