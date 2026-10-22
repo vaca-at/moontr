@@ -296,6 +296,8 @@ const PEOPLE = [
 ].map(([name, grade])=> ({ name, grade }));
 // SHA-256("drs|학번|이름") 앞 20자리 → 이름
 const KEYS = {'5cd54a12c9a71400c020':'수희','e46827f4d8022c108955':'수담','7511d8a2fa89dc2121cd':'유정','0a2225abc8aacd8edbdd':'지현','d2fc103408919ce37c93':'유진','68e77acae0045c3a8b0d':'시현','83bbe1d640f75a87c8c9':'유경','d1a93b64f2a76ee63444':'주연','400ab6b681d95f84d50a':'지수','ca62d7b362c58e1e6c00':'정현','d1fc95e0d0adf431c206':'하윤','812bc6b965125fab8252':'유주','40ff9d447599e8dde2e0':'예린','834651fee648771759e6':'은혜','cc49c6ba38d4857ed67d':'지민','c6bf94b0b7718db197e8':'유빈','1bff52103754b62f95eb':'다감','d78a1a5e252258126807':'채윤','9251a8615929e87d0cec':'유림','463a0f41d84fd4ba34d3':'수민','aee5e74e4861447805c5':'아인','70f398ce190921e9c5ec':'문샘'};
+// BOSS 자리의 부장 (두 글자 이름, 위 명단 중 한 명). 비워 두면 BOSS 에는 선생님만 있어요
+const LEADER = '';
 // 교사용 테스트 계정 (지도에는 안 나오고, 모든 기능을 써 볼 수 있어요)
 const TESTER = { name:'문샘', grade:0, test:true };
 const PASSWORD = '1022';
@@ -347,6 +349,7 @@ const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return n
 // ================================================================
 const U = 44, W = 16*U, H = 10*U;
 const PLAN = {
+  boss:[[7.4,2.3],[8.6,2.3]],   // BOSS 책상 앞: 부장 · 선생님
   hq:[[12.9,4.35],[14.5,4.35]],
   meet:[13.7,3.8],
   stone:[[1.7,3.95],[3.5,3.95],[5.3,3.95]],
@@ -378,7 +381,9 @@ function route(a, b){
 const HAIR = ['#3B2A20','#5A3A22','#1F1A17','#7A4B2A','#2B2B3A','#4A2E1C','#231815'];
 function pixelGuy(i, guest){
   const rows = ['..HHHHHH..','.HHHHHHHH.','.HSSSSSSH.','.SSESSESS.','.SSSSSSSS.','..SSSSSS..','.BBBWWBBB.','BBBBRRBBBB','SBBBRRBBBS','..BBBBBB..','..GG..GG..','..KK..KK..'];
-  const pal = guest
+  const pal = guest === 'teacher'
+    ? { H:'#2B2B3A', S:'#FFCFA8', E:'#111', B:'#3E7D5A', W:'#FFFFFF', R:'#3E7D5A', G:'#2F3A4A', K:'#222' }   // 선생님: 초록 카디건
+    : guest
     ? { H:HAIR[i % HAIR.length], S:'#FFCFA8', E:'#111', B:'#8E8E9A', W:'#C9C9D3', R:'#8E8E9A', G:'#5A5A66', K:'#222' }
     : { H:HAIR[i % HAIR.length], S:'#FFCFA8', E:'#111', B:'#2C3E66', W:'#FFFFFF', R:'#D7263D', G:'#4A5568', K:'#222' };
   let r = ''; rows.forEach((row, y)=> [...row].forEach((c, x)=>{ if(pal[c]) r += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${pal[c]}"/>`; }));
@@ -438,7 +443,7 @@ let si = -1;
 function makeChar(i, name, grade, guest){
   const el = document.createElement('div');
   el.className = 'ch' + (guest ? ' guest' : '');
-  el.style.setProperty('--gc', grade === 1 ? 'var(--cyan)' : 'var(--pink)');
+  el.style.setProperty('--gc', grade === 1 ? 'var(--cyan)' : grade === 0 ? 'var(--yellow)' : 'var(--pink)');
   el.innerHTML = `<div class="bub"></div><div class="fig">${pixelGuy(i, guest)}</div><div class="tag">${esc(name || '')}</div>`;
   el.style.opacity = 0;
   layer.appendChild(el);
@@ -471,6 +476,8 @@ async function goHome(c){
 async function say(c, text, ms){ const b = c.el.querySelector('.bub'); b.textContent = text; b.classList.add('on'); await sleep(ms); b.classList.remove('on'); }
 
 PEOPLE.forEach((p, i)=> chars[p.name] = Object.assign(makeChar(i, `${p.name}·${p.grade}`, p.grade, false), { p }));
+// BOSS: 선생님 (운영 시간 내내 BOSS 책상) + 부장 (자기 근무 시간이 아니면 BOSS 책상)
+chars['선생님'] = Object.assign(makeChar(0, '선생님', 0, 'teacher'), { p:{ name:'선생님', grade:0 } });
 
 function update(){
   const m = nowMin(), k = slotIndex(m), s = SLOTS[k];
@@ -486,8 +493,12 @@ function update(){
     c.off = z === 'off';
     if(z === 'gather') c.home = PLAN.gather[idx];
     else if(!c.off){ const list = PLAN[z], n = used[z]++; c.home = [list[n % list.length][0], list[n % list.length][1] + Math.floor(n / list.length)*0.7]; }
+    else if(p.name === LEADER && !s.hide){ c.off = false; c.home = PLAN.boss[0]; }   // 부장은 쉬는 시간에 BOSS 자리
     if(!c.busy) goHome(c);
   });
+  const t = chars['선생님'];
+  t.off = !!s.hide; t.home = s.gather ? [8.0, 7.7] : PLAN.boss[1];
+  if(!t.busy) goHome(t);
   document.querySelector('[data-k="part"]').textContent = s.hide ? '-' : s.label;
   document.querySelector('[data-k="staff"]').textContent = PEOPLE.filter(p=> zoneOf(p.name, si) !== 'off').length;
   renderSide();
@@ -502,8 +513,9 @@ function update(){
 async function actOut(name, text){
   const c = chars[name]; if(!c) return;
   const z = zoneOf(name, si);
-  if(c.hidden || c.busy || z === 'off'){ return; }
-  if(z === 'hq' || z === 'gather'){ say(c, text, 2600); return; }
+  if(c.hidden || c.busy) return;
+  // 총괄 · 종례 · BOSS(선생님, 쉬는 부장)는 그 자리에서 말해요
+  if(z === 'hq' || z === 'gather' || z === 'off'){ say(c, text, 2600); return; }
   c.busy = true; const id = ++c.moveId;
   if(await walk(c, PLAN.meet, id)) await say(c, text, 2600);
   c.busy = false; goHome(c);
@@ -825,7 +837,7 @@ function renderSide(){
   $('slotLabel').textContent = s.hide ? s.label : (s.gather ? '17:10 종례 · 모두 모여요' : s.tidy ? '부스 정리 중' : `${s.label} 운영 중`);
   const nx = SLOTS.slice(si + 1).find(x=> !x.hide);
   $('nextLabel').textContent = nx ? `다음: ${nx.t} ${nx.label}` : '';
-  $('zoneList').innerHTML = (s.hq ? ['hq','stone','gacha'].map(z=>
+  $('zoneList').innerHTML = (s.hide ? '' : `<div class="zrow"><b>BOSS</b><span class="chip" style="background:var(--yellow)">선생님</span>${LEADER ? `<span class="chip" style="background:var(--purple)">부장 ${esc(LEADER)}</span>` : ''}</div>`) + (s.hq ? ['hq','stone','gacha'].map(z=>
     `<div class="zrow"><b>${ZN[z]}</b>${s[z].map(chip).join('')}${z === 'hq' ? `<small>INFO · ${HQ_NOTE}</small>` : ''}${z === 'stone' && s.stoneNote ? `<small>${s.stoneNote}</small>` : ''}</div>`).join('')
     : `<div class="zrow" style="color:var(--muted)">${s.gather ? '21명 모두 운동장 종례 자리에 모여요.' : '지금은 부스에 아무도 없어요. (1부 14:00 시작)'}</div>`);
   [...$('timeline').children].forEach(li=> li.classList.toggle('on', li.dataset.i == si));
