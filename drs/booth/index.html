@@ -49,6 +49,17 @@
   .stage{ position:relative; width:100%; }
   .stage svg.scene{ display:block; width:100%; height:auto; }
   .layer{ position:absolute; inset:0; pointer-events:none; }
+  /* 운동장 공지: 트랙 안쪽 잔디 위 (사람은 그 위로 지나가요) */
+  .stage{ container-type:inline-size; }
+  .notice{ position:absolute; left:9%; right:9%; top:73.5%; height:22%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.4cqw; text-align:center; background:rgba(0,0,0,.55); border:.35cqw dashed #FFD400; pointer-events:none; padding:0 2cqw; }
+  .notice b{ font-family:var(--pix); font-weight:400; font-size:1.25cqw; color:#FFD400; }
+  .notice p{ margin:0; font-size:2.6cqw; line-height:1.25; color:#fff; white-space:pre-wrap; overflow:hidden; max-height:12cqw; text-shadow:.25cqw .25cqw 0 #000; }
+  .notice small{ font-size:1.3cqw; color:#9BD8A7; }
+  .ntx{ display:flex; flex-direction:column; gap:5px; }
+  .ntx textarea{ background:#000; color:var(--ink); border:2px solid #444; padding:7px; font-family:var(--kr); font-size:16px; min-height:64px; resize:vertical; }
+  .ntx div{ display:flex; gap:5px; }
+  .ntx button{ flex:1; background:var(--yellow); color:#000; border:none; padding:6px; font-size:15px; cursor:pointer; }
+  .ntx button.clr{ flex:none; background:#333; color:var(--ink); }
 
   /* 사람 (픽셀) */
   .ch{ position:absolute; transform:translate(-50%,-100%); display:flex; flex-direction:column; align-items:center; z-index:2; width:3.4%; }
@@ -232,7 +243,7 @@
   </div>
   <div class="wrap">
     <div class="left">
-      <div class="stage"><div id="sceneHolder"></div><div class="layer" id="layer"></div></div>
+      <div class="stage"><div id="sceneHolder"></div><div class="notice" id="notice" hidden><b>📢 NOTICE</b><p id="noticeText"></p><small id="noticeBy"></small></div><div class="layer" id="layer"></div></div>
       <div class="chat">
         <div class="ttl"><span>CHAT · 부스 채팅</span><span>MSG <span data-k="msgs">0</span></span></div>
         <ol id="chat"><li class="sys"><span class="tm">--:--</span><span class="who">[알림]</span><span>채팅을 불러오는 중이에요…</span></li></ol>
@@ -734,6 +745,26 @@ function renderStock(){
 }
 
 // ================================================================
+// 운동장 공지 (drs_booth/notice) — 선생님 · 임원이 쓰고, 지도 운동장 가운데에 크게
+// ================================================================
+let notice = {};
+onSnapshot(doc(db, COL.booth, 'notice'), snap=>{
+  notice = snap.exists() ? snap.data() : {};
+  const t = (notice.text || '').trim();
+  $('notice').hidden = !t;
+  $('noticeText').textContent = t;
+  const at = notice.at && notice.at.toDate ? notice.at.toDate() : null;
+  $('noticeBy').textContent = t ? `${ROLES[notice.by] ? ROLES[notice.by].t + ' ' : ''}${notice.by || ''}${at ? ' · ' + fmt(at.getHours()*60 + at.getMinutes()) : ''}` : '';
+}, err=> console.error(err));
+async function saveNotice(text, by){
+  text = text.trim().slice(0, 200);
+  try{
+    await setDoc(doc(db, COL.booth, 'notice'), { text, by, at:serverTimestamp() });
+    if(text) await send('📢 공지: ' + text.slice(0, 100));
+  }catch(e){ console.error(e); sysLine('공지를 올리지 못했어요. 잠시 뒤 다시 해 주세요.'); }
+}
+
+// ================================================================
 // 대기 손님 (drs_wait) — 순번과 전화번호 뒷자리 4자리만 남겨요 (이름 · 전체 번호는 종이에)
 // ================================================================
 let waits = [];
@@ -810,7 +841,7 @@ function renderMine(force){
   let done = {}; try{ done = JSON.parse(store.get('drs-booth-todo-' + who.name) || '{}'); }catch(e){}
   const canDraw = boss || (job && (job.z === 'gacha' || job.z === 'hq'));
   // 다시 그려도 적던 뒷자리 번호가 날아가지 않게
-  const keep = { tail: $('wTail') ? $('wTail').value : '', zone: $('wZone') ? $('wZone').value : (job && job.z === 'gacha' ? 'gacha' : 'stone'), focus: document.activeElement && document.activeElement.id };
+  const keep = { ntx: $('ntxIn') ? $('ntxIn').value : undefined, tail: $('wTail') ? $('wTail').value : '', zone: $('wZone') ? $('wZone').value : (job && job.z === 'gacha' ? 'gacha' : 'stone'), focus: document.activeElement && document.activeElement.id };
   const myWaits = [...active('stone'), ...active('gacha')];
   box.hidden = false;
   box.innerHTML = `<div class="me-box">
@@ -819,6 +850,9 @@ function renderMine(force){
     <div class="state ${on ? 'on' : ''}">${state}</div>
     ${tasks.length ? `<h5>MY TODO · 할 일</h5>
     <ul class="todo">${tasks.map((t, i)=> `<li><label><input type="checkbox" data-i="${i}" ${done[i] ? 'checked' : ''}><span>${esc(t)}</span></label></li>`).join('')}</ul>` : ''}
+    ${who.teacher || who.test || ROLES[who.name] ? `<h5>NOTICE · 운동장 공지 (200자)</h5>
+      <div class="ntx"><textarea id="ntxIn" maxlength="200" placeholder="예: 16시 3부 교대! 워리스톤 재료 INFO에 있어요">${esc(keep.ntx ?? notice.text ?? '')}</textarea>
+      <div><button id="ntxSave">공지 올리기</button><button class="clr" id="ntxClear">내리기</button></div></div>` : ''}
     ${who.teacher ? `<h5>재고 바로잡기 (채팅에 안 올라가요)</h5>
       <div class="draw">${PRIZES.map(([r, n])=> `<div class="fix" style="--rc:${RANK_C[r]}"><span>${r}등 ${stock[r]}/${n}</span><button data-fix="${r}" data-d="-1">−</button><button data-fix="${r}" data-d="1">+</button></div>`).join('')}</div>
       <button class="undo" id="btnClearWait">입장 끝난 대기 기록 지우기 (${waits.filter(w=> w.state === 'done').length}개)</button>` : ''}
@@ -845,6 +879,10 @@ function renderMine(force){
   if(keep.focus && $(keep.focus)) $(keep.focus).focus();
   $('btnOut').addEventListener('click', ()=>{ if(who.teacher) signOut(auth); else setMe(null); });
   box.querySelectorAll('.todo input').forEach(cb=> cb.addEventListener('change', ()=>{ done[cb.dataset.i] = cb.checked; store.set('drs-booth-todo-' + who.name, JSON.stringify(done)); }));
+  const ns = $('ntxSave'); if(ns){
+    ns.addEventListener('click', ()=> saveNotice($('ntxIn').value, who.name));
+    $('ntxClear').addEventListener('click', ()=>{ $('ntxIn').value = ''; saveNotice('', who.name); });
+  }
   box.querySelectorAll('[data-fix]').forEach(b=> b.addEventListener('click', ()=> changeStock(+b.dataset.fix, +b.dataset.d)));
   const cw = $('btnClearWait'); if(cw) cw.addEventListener('click', async ()=>{
     cw.disabled = true;

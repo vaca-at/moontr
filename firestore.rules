@@ -258,14 +258,20 @@ service cloud.firestore {
           || (isTeacher() && request.resource.data.name == '선생님' && request.resource.data.grade == 0));
       allow update, delete: if isTeacher();
     }
-    // 뽑기 1~3등 남은 개수 (문서 stock 하나): 0 이상 처음 개수 이하로만
+    // 뽑기 1~3등 남은 개수 (문서 stock): 0 이상 처음 개수 이하로만
+    // 운동장 공지 (문서 notice): 임원 4명 · 교사 테스트(문샘) 이름으로 200자까지
     match /drs_booth/{id} {
       allow read: if true;
       allow write: if isTeacher() || (id == 'stock'
         && request.resource.data.keys().hasOnly(['r1','r2','r3','at'])
         && request.resource.data.r1 is int && request.resource.data.r1 >= 0 && request.resource.data.r1 <= 1
         && request.resource.data.r2 is int && request.resource.data.r2 >= 0 && request.resource.data.r2 <= 2
-        && request.resource.data.r3 is int && request.resource.data.r3 >= 0 && request.resource.data.r3 <= 3);
+        && request.resource.data.r3 is int && request.resource.data.r3 >= 0 && request.resource.data.r3 <= 3)
+        || (id == 'notice'
+        && request.resource.data.keys().hasOnly(['text','by','at'])
+        && request.resource.data.text is string && request.resource.data.text.size() <= 200
+        && request.resource.data.by in ['주연','지수','유빈','지민','문샘']
+        && request.resource.data.at == request.time);
     }
     // 대기 손님: 순번 · 전화번호 뒷자리 4자리만. 상태(대기 → 호출 → 입장)만 바꿀 수 있고, 지우기는 관리자만
     match /drs_wait/{id} {
