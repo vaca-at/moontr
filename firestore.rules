@@ -246,14 +246,16 @@ service cloud.firestore {
     match /drs_counters/{id}   { allow read, write: if true; }
 
     // ===== 또래상담부 부스 상황판 (/drs/booth) =====
-    // 채팅: 누구나 보기, 부원 21명 이름으로만 새 글 (120자까지), 고치기 · 지우기는 관리자만
+    // 채팅: 누구나 보기, 부원 21명 · 교사 테스트(문샘) 이름이나 구글 로그인한 선생님만 새 글 (120자까지), 고치기 · 지우기는 관리자만
     match /drs_chat/{id} {
       allow read: if true;
       allow create: if request.resource.data.keys().hasOnly(['name','grade','text','part','at'])
-        && request.resource.data.name in ['수희','수담','유정','지현','유진','시현','유경','주연','지수','정현','하윤','유주','예린','은혜','지민','유빈','다감','채윤','유림','수민','아인']
-        && request.resource.data.grade in [1, 2]
         && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 120
-        && request.resource.data.at == request.time;
+        && request.resource.data.at == request.time
+        && ((request.resource.data.name in ['수희','수담','유정','지현','유진','시현','유경','주연','지수','정현','하윤','유주','예린','은혜','지민','유빈','다감','채윤','유림','수민','아인']
+              && request.resource.data.grade in [1, 2])
+          || (request.resource.data.name == '문샘' && request.resource.data.grade == 0)
+          || (isTeacher() && request.resource.data.name == '선생님' && request.resource.data.grade == 0));
       allow update, delete: if isTeacher();
     }
     // 뽑기 1~3등 남은 개수 (문서 stock 하나): 0 이상 처음 개수 이하로만
