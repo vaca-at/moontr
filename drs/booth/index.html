@@ -56,6 +56,21 @@
   .ch.walk .fig{ animation:bob .26s steps(2) infinite; }
   .ch .tag{ position:absolute; top:100%; font-size:12px; line-height:1; padding:2px 4px; white-space:nowrap; background:#000; color:var(--gc); border:1px solid var(--gc); }
   .ch.guest .tag{ display:none; }
+  /* 임원: 머리 위 왕관 · 별, 이름표를 그 색으로 */
+  .ch .badge{ width:62%; margin-bottom:-2px; animation:glint 1.6s steps(2) infinite; }
+  .ch .badge svg{ display:block; width:100%; height:auto; }
+  @keyframes glint{ 50%{ filter:brightness(1.6) drop-shadow(0 0 2px var(--rc)); } }
+  .ch.officer .tag{ background:var(--rc); color:#000; border-color:#fff; font-weight:400; }
+  .ch.officer .fig{ filter:drop-shadow(0 0 2px var(--rc)); }
+  .lead{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .lead .card{ border:2px solid var(--rc); padding:6px 8px; display:flex; align-items:center; gap:8px; }
+  .lead .card i{ width:22px; flex:none; display:block; }
+  .lead .card i svg{ display:block; width:100%; }
+  .lead .card b{ display:block; font-weight:400; font-size:16px; color:var(--rc); }
+  .lead .card span{ font-size:12px; color:var(--muted); }
+  .chip.off{ box-shadow:inset 0 -3px 0 rgba(0,0,0,.35); }
+  .chip.off::before{ content:attr(data-ic); margin-right:2px; }
+  .me-box .rank{ display:inline-block; margin-left:6px; padding:0 6px; font-size:13px; color:#000; background:var(--rc); }
   .ch.me .fig{ filter:drop-shadow(0 0 3px var(--yellow)) drop-shadow(0 0 2px var(--yellow)); }
   .ch.me .tag{ background:var(--yellow); color:#000; border-color:var(--yellow); }
   .ch.me::before{ content:'▼ 나'; position:absolute; bottom:calc(100% + 2px); font-size:12px; color:var(--yellow); white-space:nowrap; }
@@ -228,6 +243,7 @@
     <div class="mine" id="mine" hidden></div>
     <aside class="side">
       <div class="box now"><h4>NOW</h4><div class="clock" data-k="clock">--:--</div><div class="slot" id="slotLabel"></div><div class="next" id="nextLabel"></div></div>
+      <div class="box"><h4>LEADERS · 임원</h4><div class="lead" id="leadList"></div></div>
       <div class="box zones"><h4>ON DUTY</h4><div id="zoneList"></div></div>
       <div class="box waitbox"><h4>WAITING · 대기 손님</h4><div id="waitList"></div></div>
       <div class="box stock"><h4>PRIZE STOCK · 1~3등</h4><div id="stock"></div></div>
@@ -298,6 +314,15 @@ const PEOPLE = [
 const KEYS = {'5cd54a12c9a71400c020':'수희','e46827f4d8022c108955':'수담','7511d8a2fa89dc2121cd':'유정','0a2225abc8aacd8edbdd':'지현','d2fc103408919ce37c93':'유진','68e77acae0045c3a8b0d':'시현','83bbe1d640f75a87c8c9':'유경','d1a93b64f2a76ee63444':'주연','400ab6b681d95f84d50a':'지수','ca62d7b362c58e1e6c00':'정현','d1fc95e0d0adf431c206':'하윤','812bc6b965125fab8252':'유주','40ff9d447599e8dde2e0':'예린','834651fee648771759e6':'은혜','cc49c6ba38d4857ed67d':'지민','c6bf94b0b7718db197e8':'유빈','1bff52103754b62f95eb':'다감','d78a1a5e252258126807':'채윤','9251a8615929e87d0cec':'유림','463a0f41d84fd4ba34d3':'수민','aee5e74e4861447805c5':'아인','70f398ce190921e9c5ec':'문샘'};
 // BOSS 자리의 부장 (두 글자 이름, 위 명단 중 한 명). 비워 두면 BOSS 에는 선생님만 있어요
 const LEADER = '주연';
+// 임원: 지도에서 머리 위 왕관(부장 · 차장) · 별(1학년 부장 · 차장), 금색은 부장 · 은색은 차장
+const ROLES = {
+  '주연':{ t:'부장', ic:'crown', c:'#FFD400' },
+  '지수':{ t:'차장', ic:'crown', c:'#C9D6EA' },
+  '유빈':{ t:'1학년 부장', ic:'star', c:'#FFD400' },
+  '지민':{ t:'1학년 차장', ic:'star', c:'#C9D6EA' }
+};
+const BADGE = { crown:['X..X..X','XX.X.XX','XXXXXXX','XWXXXWX','XXXXXXX'], star:['...X...','..XXX..','XXXXXXX','.XXXXX.','.XX.XX.','XX...XX'] };
+const badgeSvg = (ic, c)=>{ const rows = BADGE[ic]; let r = ''; rows.forEach((row, y)=> [...row].forEach((ch, x)=>{ if(ch !== '.') r += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${ch === 'W' ? '#D7263D' : c}"/>`; })); return `<svg viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges">${r}</svg>`; };
 // 교사용 테스트 계정 (지도에는 안 나오고, 모든 기능을 써 볼 수 있어요)
 const TESTER = { name:'문샘', grade:0, test:true };
 const PASSWORD = '1022';
@@ -442,9 +467,11 @@ const chars = {};
 let si = -1;
 function makeChar(i, name, grade, guest){
   const el = document.createElement('div');
-  el.className = 'ch' + (guest ? ' guest' : '');
+  el.className = 'ch' + (guest === true ? ' guest' : '');
   el.style.setProperty('--gc', grade === 1 ? 'var(--cyan)' : grade === 0 ? 'var(--yellow)' : 'var(--pink)');
-  el.innerHTML = `<div class="bub"></div><div class="fig">${pixelGuy(i, guest)}</div><div class="tag">${esc(name || '')}</div>`;
+  const role = !guest && name ? ROLES[name.split('·')[0]] : null;
+  if(role){ el.classList.add('officer'); el.style.setProperty('--rc', role.c); }
+  el.innerHTML = `<div class="bub"></div>${role ? `<div class="badge">${badgeSvg(role.ic, role.c)}</div>` : ''}<div class="fig">${pixelGuy(i, guest)}</div><div class="tag">${esc(name || '')}</div>`;
   el.style.opacity = 0;
   layer.appendChild(el);
   return { el, pos:PLAN.entrance.slice(), home:PLAN.entrance.slice(), hidden:true, busy:false, moveId:0 };
@@ -623,7 +650,7 @@ function addMsg(d){
   const t = d.at && d.at.toDate ? d.at.toDate() : new Date();
   msgCount++; document.querySelector('[data-k="msgs"]').textContent = msgCount;
   const mine = (me && d.name === me.name) || (teacher && d.grade === 0);
-  chatLine(mine ? 'mine-msg' : '', fmt(t.getHours()*60 + t.getMinutes()), `${d.name}:`, d.text, d.grade, d.id);
+  chatLine(mine ? 'mine-msg' : '', fmt(t.getHours()*60 + t.getMinutes()), `${ROLES[d.name] ? '[' + ROLES[d.name].t + '] ' : ''}${d.name}:`, d.text, d.grade, d.id);
 }
 // 선생님은 채팅 줄 오른쪽 ✕ 로 지울 수 있어요
 $('chat').addEventListener('click', async e=>{
@@ -787,7 +814,7 @@ function renderMine(force){
   const myWaits = [...active('stone'), ...active('gacha')];
   box.hidden = false;
   box.innerHTML = `<div class="me-box">
-    <div class="hi"><b>${who.teacher ? '선생님' : who.test ? esc(who.name) + ' · 테스트' : esc(who.name) + ' · ' + who.grade + '학년'}</b><button class="out" id="btnOut">로그아웃</button></div>
+    <div class="hi"><b>${who.teacher ? '선생님' : who.test ? esc(who.name) + ' · 테스트' : esc(who.name) + ' · ' + who.grade + '학년'}${ROLES[who.name] ? `<span class="rank" style="--rc:${ROLES[who.name].c}">${ROLES[who.name].t}</span>` : ''}</b><button class="out" id="btnOut">로그아웃</button></div>
     ${job ? `<div class="job">${job.s.label} ${job.s.t}~${fmt(toMin(job.s.t) + 60)} · <b>${ZN[job.z]}</b>${job.z === 'stone' && job.s.stoneNote ? ' (전기 담당)' : ''}<br><span class="where">자리: ${WHERE[job.z]}</span></div>` : ''}
     <div class="state ${on ? 'on' : ''}">${state}</div>
     ${tasks.length ? `<h5>MY TODO · 할 일</h5>
@@ -830,7 +857,8 @@ function renderMine(force){
 // ================================================================
 // 상황 패널
 // ================================================================
-const chip = n => { const p = PEOPLE.find(x=> x.name === n); return `<span class="chip g${p.grade}${me && me.name === n ? ' me' : ''}">${esc(n)}</span>`; };
+const chip = n => { const p = PEOPLE.find(x=> x.name === n), r = ROLES[n]; return `<span class="chip g${p.grade}${r ? ' off' : ''}${me && me.name === n ? ' me' : ''}"${r ? ` data-ic="${r.ic === 'crown' ? '♛' : '★'}" title="${r.t}"` : ''}>${esc(n)}</span>`; };
+$('leadList').innerHTML = Object.entries(ROLES).map(([n, r])=> `<div class="card" style="--rc:${r.c}"><i>${badgeSvg(r.ic, r.c)}</i><div><b>${esc(n)}</b><span>${r.t} · ${PEOPLE.find(p=> p.name === n).grade}학년</span></div></div>`).join('');
 function renderSide(){
   if(si < 0) return;
   const s = SLOTS[si];
@@ -903,6 +931,7 @@ setInterval(()=>{
   if(!CLOCK.paused && CLOCK.mode === 'fast'){ CLOCK.min += 1; if(CLOCK.min >= CLOSE) CLOCK.min = OPEN; }
   update();
 }, 400);
+if(location.search.includes('demo')){ CLOCK.min = toMin('15:20'); setMode('fast'); }   // 주소 끝 ?demo → 빨리 미리 보기로 시작
 renderStock(); renderSay(); update();
 const saved = store.get('drs-booth-me'); if(saved && [...PEOPLE, TESTER].some(p=> p.name === saved)) setMe(saved);
 guestLoop();
