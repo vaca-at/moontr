@@ -175,9 +175,13 @@
   .stock .chk{ font-size:12px; color:var(--muted); margin-bottom:10px; padding-bottom:8px; border-bottom:1px dashed var(--line); }
   .wform.cnt2{ grid-template-columns:1fr auto; }
   .srow.tot{ grid-template-columns:1fr auto; border-top:1px dashed var(--line); padding-top:6px; margin:2px 0 0; font-size:14px; }
-  .rules p{ margin:0 0 6px; font-size:14px; line-height:1.55; }
-  .rules ol{ margin:0 0 6px; padding-left:18px; font-size:14px; line-height:1.55; }
-  .rules .no{ color:var(--pink); }
+  .rulebox{ width:min(620px, 100%); }
+  .rules h4{ margin:14px 0 6px; font-size:22px; font-weight:400; color:var(--yellow); }
+  .rules h4:first-child{ margin-top:0; }
+  .rules p{ margin:0 0 8px; font-size:18px; line-height:1.6; }
+  .rules p b{ color:var(--cyan); font-weight:400; }
+  .rules ol{ margin:0 0 8px; padding-left:24px; font-size:18px; line-height:1.7; }
+  .rules .no{ color:var(--pink); border:2px dashed var(--pink); padding:8px 12px; margin-top:10px; }
 
   /* 내 화면 (로그인하면) */
   .me-box{ border:3px solid var(--yellow); padding:11px 12px; background:#14130A; }
@@ -271,13 +275,8 @@
     <span>WAIT <span class="y" data-k="wait">0</span></span>
     <span><span style="font-family:var(--kr);font-size:16px">뽑기</span> <span class="y" data-k="left">200/200</span></span>
     <button class="maptab" id="btnMap">🗺 부스 배치도</button>
-    <button class="insttab" id="btnInstall">📲 홈 화면에 추가</button>
+    <button class="maptab" id="btnRules">📋 부스 운영 룰</button>
     <span class="ctl"><button id="btnReal" aria-pressed="true">실제 시간</button><button id="btnFast" aria-pressed="false">빨리 미리 보기</button><button id="btnPause" aria-pressed="false">멈춤</button></span>
-  </div>
-  <div class="itip" id="installTip" hidden>
-    <img src="/drs/booth/icon-192.png" alt="" width="56" height="56">
-    <div id="installText"></div>
-    <button id="installClose">닫기</button>
   </div>
   <div class="wrap">
     <div class="left">
@@ -300,12 +299,6 @@
       <div class="box stock"><h4>PRIZE STOCK · 행운의 뽑기</h4><div id="stock"></div></div>
       <div class="box tl"><h4>TIME TABLE</h4><ol id="timeline"></ol></div>
       <div class="box roster"><h4>CREW (21)</h4><div id="roster"></div></div>
-      <div class="box rules"><h4>RULES</h4>
-        <p><b>복장</b> 모든 학생은 교복 착용이 원칙이에요. 교복을 입고 공연 관람과 부스 활동을 해요.</p>
-        <p><b>수익</b> 아래에만 쓸 수 있어요.</p>
-        <ol><li>연화제 동아리 활동비를 넘은 비용 충당</li><li>동아리 활동에 필요한 교구 구입</li><li>담당 선생님을 통해 다음 기수 후배 활동비로 이월</li><li>기부</li></ol>
-        <p class="no">그 밖에, 특히 회식 · 1/N 등은 절대 안 돼요.</p>
-      </div>
     </aside>
   </div>
 </div>
@@ -324,6 +317,20 @@
     </div>
   </details>
 </footer>
+
+<div class="modal" id="rulesModal" hidden>
+  <div class="mapbox rulebox" role="dialog" aria-label="부스 운영 룰">
+    <div class="mh"><h3>부스 운영 룰</h3><button class="x" id="rulesClose">닫기 ✕</button></div>
+    <div class="rules">
+      <h4>1. 복장</h4>
+      <p>모든 학생은 <b>교복 착용</b>이 원칙이에요. 교복을 입고 공연 관람과 부스 활동을 해요. 공연 동아리는 공연 앞뒤로 교복을 입어요.</p>
+      <h4>2. 수익</h4>
+      <p>부스 수익은 아래에만 쓸 수 있어요.</p>
+      <ol><li>연화제 동아리 활동비를 넘은 비용 충당</li><li>동아리 활동에 필요한 교구 구입</li><li>담당 선생님을 통해 다음 기수 후배 활동비로 이월</li><li>기부</li></ol>
+      <p class="no">위를 뺀 나머지, 특히 회식 · 1/N 등은 절대 안 돼요.</p>
+    </div>
+  </div>
+</div>
 
 <div class="modal" id="mapModal" hidden>
   <div class="mapbox" role="dialog" aria-label="부스 배치도">
@@ -1028,25 +1035,11 @@ function boothMap(){
 $('btnMap').addEventListener('click', ()=>{ if(!$('mapHolder').innerHTML) $('mapHolder').innerHTML = boothMap(); $('mapModal').hidden = false; $('mapClose').focus(); });
 $('mapClose').addEventListener('click', ()=> $('mapModal').hidden = true);
 $('mapModal').addEventListener('click', e=>{ if(e.target === $('mapModal')) $('mapModal').hidden = true; });
-document.addEventListener('keydown', e=>{ if(e.key === 'Escape') $('mapModal').hidden = true; });
-
-// ================================================================
-// 홈 화면에 추가 — 안드로이드 크롬은 바로 설치 창, 아이폰 · 카카오톡은 방법 안내
-// ================================================================
-let installEvt = null;
-window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); installEvt = e; });
-const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-if(standalone) $('btnInstall').hidden = true;
-$('btnInstall').addEventListener('click', async ()=>{
-  if(installEvt){ installEvt.prompt(); const r = await installEvt.userChoice; installEvt = null; if(r.outcome === 'accepted') $('btnInstall').hidden = true; return; }
-  const ua = navigator.userAgent, kakao = /KAKAOTALK/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua);
-  $('installText').innerHTML = (kakao ? `<b>카카오톡 안에서는 바로 추가가 안 돼요.</b> 오른쪽 아래(또는 위) <b>⋮</b> → <b>다른 브라우저로 열기</b> 를 먼저 눌러 주세요.<br>` : '')
-    + (ios ? `<b>아이폰</b><ol><li>사파리 아래쪽 <b>공유 □↑</b> 단추</li><li><b>홈 화면에 추가</b> → <b>추가</b></li></ol>`
-           : `<b>갤럭시 · 크롬</b><ol><li>오른쪽 위 <b>⋮</b> 메뉴</li><li><b>홈 화면에 추가</b> (또는 <b>앱 설치</b>) → <b>추가</b></li></ol>`)
-    + `홈 화면에 <b>DRS 부스</b> 아이콘이 생겨요.`;
-  $('installTip').hidden = !$('installTip').hidden;
-});
-$('installClose').addEventListener('click', ()=> $('installTip').hidden = true);
+// 부스 운영 룰: 배치도처럼 팝업
+$('btnRules').addEventListener('click', ()=>{ $('rulesModal').hidden = false; $('rulesClose').focus(); });
+$('rulesClose').addEventListener('click', ()=> $('rulesModal').hidden = true);
+$('rulesModal').addEventListener('click', e=>{ if(e.target === $('rulesModal')) $('rulesModal').hidden = true; });
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape'){ $('mapModal').hidden = true; $('rulesModal').hidden = true; } });
 
 // ================================================================
 // 시작
