@@ -1930,7 +1930,16 @@ async function adminLogin() {
     const r = await firebase.auth().signInWithPopup(p);
     if (r.user.email !== ADMIN_EMAIL) { await firebase.auth().signOut(); toast("관리자 계정(sen 메일)으로 로그인해 주세요"); return; }
     toast("관리자로 들어왔어요");
-  } catch (e) { toast(e.code === "auth/popup-blocked" ? "팝업이 막혔어요. 팝업을 허용해 주세요" : "로그인하지 못했어요"); }
+  } catch (e) {
+    // 실패 이유를 쉬운 말로 (모르는 오류는 코드를 그대로 보여 줘서 원인을 찾게)
+    const why = { "auth/popup-blocked": "팝업이 막혔어요. 주소창 오른쪽에서 팝업을 허용해 주세요",
+      "auth/popup-closed-by-user": "로그인 창이 닫혔어요. 다시 눌러 주세요",
+      "auth/cancelled-popup-request": "로그인 창이 닫혔어요. 다시 눌러 주세요",
+      "auth/unauthorized-domain": "이 주소가 파이어베이스에 등록되지 않았어요 → Authentication → 설정 → 승인된 도메인에 " + location.hostname + " 추가",
+      "auth/operation-not-allowed": "구글 로그인이 꺼져 있어요 → Authentication → 로그인 방법에서 Google 사용 설정",
+      "auth/network-request-failed": "인터넷 연결을 확인해 주세요" }[e.code];
+    toast(why || "로그인하지 못했어요 (" + (e.code || e.message) + ")"); console.error(e);
+  }
 }
 function drawPeerWall() {
   const box = $("#peerWall"); if (!box || !PW.db) return;
