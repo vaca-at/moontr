@@ -166,6 +166,13 @@
   .srow .bar i{ display:block; height:100%; transition:width .4s steps(4); }
   .srow .ct{ font-family:var(--pix); font-size:10px; text-align:right; font-variant-numeric:tabular-nums; }
   .srow .ct small{ font-size:8px; color:var(--muted); }
+  .allrow{ display:flex; justify-content:space-between; align-items:baseline; font-size:16px; }
+  .allrow b{ font-family:var(--pix); font-weight:400; font-size:18px; color:var(--green); font-variant-numeric:tabular-nums; }
+  .allrow b small{ font-size:10px; color:var(--muted); }
+  .bar.big{ display:block; height:14px; background:#1A1A26; margin:6px 0 4px; }
+  .bar.big i{ display:block; height:100%; transition:width .4s steps(6); }
+  .stock .chk{ font-size:12px; color:var(--muted); margin-bottom:10px; padding-bottom:8px; border-bottom:1px dashed var(--line); }
+  .wform.cnt2{ grid-template-columns:1fr auto; }
   .srow.tot{ grid-template-columns:1fr auto; border-top:1px dashed var(--line); padding-top:6px; margin:2px 0 0; font-size:14px; }
   .rules p{ margin:0 0 6px; font-size:14px; line-height:1.55; }
   .rules ol{ margin:0 0 6px; padding-left:18px; font-size:14px; line-height:1.55; }
@@ -261,7 +268,7 @@
     <span>STAFF <span class="y" data-k="staff">0</span></span>
     <span>GUEST <span class="y" data-k="guest">0</span></span>
     <span>WAIT <span class="y" data-k="wait">0</span></span>
-    <span>TOP3 <span class="y" data-k="capsule">6/6</span></span>
+    <span><span style="font-family:var(--kr);font-size:16px">뽑기</span> <span class="y" data-k="left">200/200</span></span>
     <button class="maptab" id="btnMap">🗺 부스 배치도</button>
     <button class="insttab" id="btnInstall">📲 홈 화면에 추가</button>
     <span class="ctl"><button id="btnReal" aria-pressed="true">실제 시간</button><button id="btnFast" aria-pressed="false">빨리 미리 보기</button><button id="btnPause" aria-pressed="false">멈춤</button></span>
@@ -289,7 +296,7 @@
     </aside>
     <aside class="side sb">
       <div class="box waitbox"><h4>WAITING · 대기 손님</h4><div id="waitList"></div></div>
-      <div class="box stock"><h4>PRIZE STOCK · 1~3등</h4><div id="stock"></div></div>
+      <div class="box stock"><h4>PRIZE STOCK · 행운의 뽑기</h4><div id="stock"></div></div>
       <div class="box tl"><h4>TIME TABLE</h4><ol id="timeline"></ol></div>
       <div class="box roster"><h4>CREW (21)</h4><div id="roster"></div></div>
       <div class="box rules"><h4>RULES</h4>
@@ -385,11 +392,11 @@ const HQ_NOTE = '회계 · 대기 인원 관리 · 전기 · 상품관리 · 상
 const TODO = {
   hq:['체험비 2,000원 · 뽑기비 1,000원 입금 확인 (회계)','대기 손님 줄 세우고 순서 안내','멀티탭 · UV램프 전기 확인','뽑기 등수 확인하고 상품 전달','교대할 때 다음 총괄에게 돈 · 상품 넘기기'],
   stone:['손님 자리 안내 (책상 6개)','자리가 차면 대기 손님 이름 · 순번 · 전화번호 받고 아래에 대기 등록','레진 클레이 10ml씩 나눠 주기','반죽 2~3분 · 모양 꾸미기 도와주기','UV레진 얇게 바르고 램프로 1~2분 굳히기','다 끝난 자리 정리'],
-  gacha:['뽑기비 1,000원 받았는지 총괄과 확인','캡슐 하나 뽑기 안내','1 · 2 · 3등이 나오면 아래 등수 단추 누르기','당첨 손님을 INFO로 안내'],
+  gacha:['뽑기비 1,000원 받았는지 총괄과 확인','종이 뽑기 하나 고르기 안내','중간중간 남은 뽑기를 세어서 아래에 반영','1 · 2 · 3등이 나오면 아래 등수 단추 누르기','당첨 손님을 INFO로 안내'],
   all:['교복 입기','17:10 운동장 종례']
 };
 // 행운의 뽑기 상품 (등수, 개수)
-// 캡슐은 모두 200개. 1 · 2 · 3등만 채팅으로 알리고 남은 개수를 세요 (4 · 5등 194개는 세지 않아요)
+// 종이 뽑기는 모두 200개. 1 · 2 · 3등은 나올 때마다 단추로, 전체 남은 개수는 중간중간 직접 세어서 반영해요
 const PRIZES = [[1,1],[2,2],[3,3]];
 const TOTAL = 200;
 const RANK_C = { 1:'var(--yellow)', 2:'var(--pink)', 3:'var(--cyan)' };
@@ -492,8 +499,12 @@ function scene(){
   [1.0, 2.8, 4.6].forEach(x=> [4.15, 5.35].forEach(y=>{ s += R(x, y, 1.4, 0.6, '#FFD400') + R(x + 0.2, y + 0.16, 0.36, 0.26, '#F3E9DC') + R(x + 0.85, y + 0.2, 0.3, 0.22, (x + y) % 2 > 1 ? '#B07CFF' : '#2FE3F0'); }));
   // 손님 의자
   PLAN.chairs.forEach(([x,y])=> s += `<rect x="${px(x)-9}" y="${px(y)-9}" width="18" height="11" fill="none" stroke="#FFD9B0" stroke-width="2" opacity=".55"/>`);
-  // 뽑기 탁자 2개 + 캡슐 기계
-  [[7.3,'#2FE3F0'],[8.9,'#FFD400']].forEach(([x,c])=>{ s += R(x, 4.25, 1.4, 1.15, '#FF5FAE') + R(x + 0.3, 4.35, 0.8, 0.9, c) + R(x + 0.42, 4.45, 0.56, 0.42, '#fff', 'opacity=".85"') + R(x + 0.6, 5.0, 0.2, 0.14, '#000'); });
+  // 뽑기 탁자 2개 + 종이 뽑기 상자 (위에 구멍, 옆에 접힌 종이)
+  [[7.3,'#2FE3F0'],[8.9,'#FFD400']].forEach(([x,c])=>{
+    s += R(x, 4.25, 1.4, 1.15, '#FF5FAE') + R(x + 0.25, 4.45, 0.9, 0.75, c) + R(x + 0.45, 4.52, 0.5, 0.12, '#000');
+    s += `<text x="${px(x + 0.7)}" y="${px(5.02)}" text-anchor="middle" font-family="'Press Start 2P'" font-size="11" fill="#000">?</text>`;
+    [[0.08,5.25],[1.12,5.22],[0.95,4.3]].forEach(([dx,y])=> s += R(x + dx, y, 0.22, 0.12, '#FFFFFF') + R(x + dx, y + 0.06, 0.22, 0.03, '#C9C9D3'));
+  });
   // INFO 책상: 돈통(회계) · 멀티탭(전기) · 선물 상자(상품)
   s += R(12.4, 4.5, 2.6, 0.6, '#2FE3F0');
   s += R(12.55, 4.58, 0.5, 0.42, '#5BEA6F') + `<text x="${px(12.8)}" y="${px(4.92)}" font-family="'Press Start 2P'" font-size="8" fill="#0B0B12" text-anchor="middle">₩</text>`;
@@ -743,25 +754,45 @@ function renderSay(){
 // ================================================================
 // 뽑기 재고 (drs_booth/stock) — 뽑기 · 총괄 담당이 [나왔어요]를 누르면 줄어요
 // ================================================================
-const stock = {}; PRIZES.forEach(([r, n])=> stock[r] = n);
-let stockExists = false, lastDraw = null;
+// stock.all = 전체 남은 뽑기 (200개에서 시작). 1~3등 단추를 누르면 1씩 줄고, 중간중간 직접 세어서 바로잡아요
+const stock = { all:TOTAL }; PRIZES.forEach(([r, n])=> stock[r] = n);
+let stockExists = false, lastDraw = null, allCheck = null;
 onSnapshot(doc(db, COL.booth, 'stock'), snap=>{
   stockExists = snap.exists();
-  if(stockExists){ const d = snap.data(); PRIZES.forEach(([r, n])=> stock[r] = typeof d['r' + r] === 'number' ? d['r' + r] : n); }
+  if(stockExists){
+    const d = snap.data();
+    PRIZES.forEach(([r, n])=> stock[r] = typeof d['r' + r] === 'number' ? d['r' + r] : n);
+    stock.all = typeof d.all === 'number' ? d.all : TOTAL;
+    allCheck = d.allBy ? { by:d.allBy, at:d.allAt && d.allAt.toDate ? d.allAt.toDate() : null } : null;
+  }
   renderStock(); renderMine(true);
 }, err=> console.error(err));
-async function changeStock(r, delta){
+const stockRef = ()=> doc(db, COL.booth, 'stock');
+const fullStock = ()=>{ const o = { all:stock.all }; PRIZES.forEach(([k])=> o['r' + k] = stock[k]); return o; };
+async function changeStock(r, delta, withAll = true){
   const n = PRIZES.find(x=> x[0] === r)[1], next = stock[r] + delta;
   if(next < 0 || next > n) return false;
-  const ref = doc(db, COL.booth, 'stock');
+  const allOk = withAll && stock.all + delta >= 0 && stock.all + delta <= TOTAL;   // 전체 남은 뽑기도 같이 (선생님 바로잡기는 등수만)
   try{
-    if(!stockExists){ const all = {}; PRIZES.forEach(([k, m])=> all['r' + k] = k === r ? next : stock[k]); await setDoc(ref, { ...all, at:serverTimestamp() }); }
-    else await updateDoc(ref, { ['r' + r]: increment(delta), at:serverTimestamp() });
+    if(!stockExists) await setDoc(stockRef(), { ...fullStock(), ['r' + r]: next, all: allOk ? stock.all + delta : stock.all, at:serverTimestamp() });
+    else await updateDoc(stockRef(), { ['r' + r]: increment(delta), ...(allOk ? { all: increment(delta) } : {}), at:serverTimestamp() });
     return true;
   }catch(e){ console.error(e); sysLine('재고를 바꾸지 못했어요. 잠시 뒤 다시 눌러 주세요.'); return false; }
 }
+// 남은 뽑기를 직접 세어서 바로잡기 (0~200)
+async function setAll(n, by){
+  n = Math.round(Number(n));
+  if(!Number.isFinite(n) || n < 0 || n > TOTAL){ sysLine(`남은 뽑기는 0~${TOTAL} 사이 숫자로 넣어 주세요.`); return false; }
+  try{
+    const data = { all:n, allBy:by, allAt:serverTimestamp(), at:serverTimestamp() };
+    if(!stockExists) await setDoc(stockRef(), { ...fullStock(), ...data });
+    else await updateDoc(stockRef(), data);
+    await send(`남은 뽑기를 세어 봤어요: ${n}개 / ${TOTAL}개`);
+    return true;
+  }catch(e){ console.error(e); sysLine('반영하지 못했어요. 잠시 뒤 다시 해 주세요.'); return false; }
+}
 async function drawn(r){
-  if(await changeStock(r, -1)){ lastDraw = r; await send(`${r}등 나왔어요! (${r}등 남은 ${stock[r]}개)`); prizeGuest(); }
+  if(await changeStock(r, -1)){ lastDraw = r; await send(`${r}등 나왔어요! (${r}등 남은 ${stock[r]}개 · 전체 뽑기 ${stock.all}개)`); prizeGuest(); }
 }
 async function undoDraw(){
   if(!lastDraw) return;
@@ -769,11 +800,13 @@ async function undoDraw(){
   if(await changeStock(r, +1)) await send(`방금 ${r}등 기록을 취소했어요 (${r}등 ${stock[r]}개)`);
 }
 function renderStock(){
-  const left = PRIZES.reduce((a, [r])=> a + stock[r], 0), all = PRIZES.reduce((a, [, n])=> a + n, 0);
-  document.querySelector('[data-k="capsule"]').textContent = `${left}/${all}`;
-  $('stock').innerHTML = PRIZES.map(([r, n])=> `<div class="srow"><span class="rk" style="color:${RANK_C[r]}">${r}ST</span>
-    <span class="bar"><i style="width:${stock[r] / n * 100}%;background:${RANK_C[r]}"></i></span><span class="ct">${stock[r]}<small>/${n}</small></span></div>`).join('')
-    + `<div class="srow tot"><span>1~3등 남음 · 캡슐은 모두 ${TOTAL}개 (4 · 5등은 세지 않아요)</span><span class="ct">${left}<small>/${all}</small></span></div>`;
+  document.querySelector('[data-k="left"]').textContent = `${stock.all}/${TOTAL}`;
+  const chk = allCheck ? `마지막으로 센 때: ${allCheck.at ? fmt(allCheck.at.getHours()*60 + allCheck.at.getMinutes()) + ' · ' : ''}${esc(allCheck.by)}` : '아직 직접 세어 본 적 없어요';
+  $('stock').innerHTML = `<div class="allrow"><span>남은 뽑기</span><b>${stock.all}<small>/${TOTAL}</small></b></div>
+    <span class="bar big"><i style="width:${stock.all / TOTAL * 100}%;background:var(--green)"></i></span>
+    <div class="chk">${chk}</div>`
+    + PRIZES.map(([r, n])=> `<div class="srow"><span class="rk" style="color:${RANK_C[r]}">${r}ST</span>
+    <span class="bar"><i style="width:${stock[r] / n * 100}%;background:${RANK_C[r]}"></i></span><span class="ct">${stock[r]}<small>/${n}</small></span></div>`).join('');
 }
 
 // ================================================================
@@ -873,7 +906,7 @@ function renderMine(force){
   let done = {}; try{ done = JSON.parse(store.get('drs-booth-todo-' + who.name) || '{}'); }catch(e){}
   const canDraw = boss || (job && (job.z === 'gacha' || job.z === 'hq'));
   // 다시 그려도 적던 뒷자리 번호가 날아가지 않게
-  const keep = { ntx: $('ntxIn') ? $('ntxIn').value : undefined, tail: $('wTail') ? $('wTail').value : '', zone: $('wZone') ? $('wZone').value : (job && job.z === 'gacha' ? 'gacha' : 'stone'), focus: document.activeElement && document.activeElement.id };
+  const keep = { all: $('allIn') ? $('allIn').value : undefined, ntx: $('ntxIn') ? $('ntxIn').value : undefined, tail: $('wTail') ? $('wTail').value : '', zone: $('wZone') ? $('wZone').value : (job && job.z === 'gacha' ? 'gacha' : 'stone'), focus: document.activeElement && document.activeElement.id };
   const myWaits = [...active('stone'), ...active('gacha')];
   box.hidden = false;
   box.innerHTML = `<div class="me-box">
@@ -891,6 +924,8 @@ function renderMine(force){
     ${canDraw ? `<h5>뽑기 결과 누르기 · 누르면 재고가 줄고 채팅에 올라가요</h5>
       <div class="draw">${PRIZES.map(([r])=> `<button style="--rc:${RANK_C[r]}" data-r="${r}" ${stock[r] ? '' : 'disabled'}>${r}등<small>${stock[r]}</small></button>`).join('')}</div>
       <button class="undo" id="btnUndo" ${lastDraw ? '' : 'hidden'}>방금 누른 ${lastDraw || ''}등 취소</button>` : ''}
+    ${canDraw || ROLES[who.name] ? `<h5>남은 뽑기 세어서 반영 (지금 ${stock.all}/${TOTAL})</h5>
+      <div class="wform cnt2"><input id="allIn" type="number" inputmode="numeric" min="0" max="${TOTAL}" placeholder="센 개수" value="${esc(keep.all ?? '')}"><button id="allSet">반영</button></div>` : ''}
     <h5>WAITING · 대기 손님 등록 (이름 · 전체 번호는 종이에)</h5>
     <div class="wform"><select id="wZone">${Object.keys(WAITZ).map(z=> `<option value="${z}" ${keep.zone === z ? 'selected' : ''}>${WAITZ[z]}</option>`).join('')}</select>
       <input id="wTail" inputmode="numeric" maxlength="4" placeholder="전화 뒷자리 4" value="${esc(keep.tail)}"><button id="wAdd">등록</button></div>
@@ -915,13 +950,18 @@ function renderMine(force){
     ns.addEventListener('click', ()=> saveNotice($('ntxIn').value, who.name));
     $('ntxClear').addEventListener('click', ()=>{ $('ntxIn').value = ''; saveNotice('', who.name); });
   }
-  box.querySelectorAll('[data-fix]').forEach(b=> b.addEventListener('click', ()=> changeStock(+b.dataset.fix, +b.dataset.d)));
+  box.querySelectorAll('[data-fix]').forEach(b=> b.addEventListener('click', ()=> changeStock(+b.dataset.fix, +b.dataset.d, false)));
   const cw = $('btnClearWait'); if(cw) cw.addEventListener('click', async ()=>{
     cw.disabled = true;
     for(const w of waits.filter(x=> x.state === 'done')){ try{ await deleteDoc(doc(db, COL.wait, w.id)); }catch(e){ console.error(e); } }
   });
   box.querySelectorAll('.draw button').forEach(b=> b.addEventListener('click', async ()=>{ b.disabled = true; await drawn(+b.dataset.r); renderMine(true); }));
   const u = $('btnUndo'); if(u) u.addEventListener('click', async ()=>{ u.disabled = true; await undoDraw(); renderMine(true); });
+  const as = $('allSet'); if(as){
+    const go = async ()=>{ const v = $('allIn').value.trim(); if(v === '') return $('allIn').focus(); as.disabled = true; if(await setAll(v, who.name)) $('allIn').value = ''; as.disabled = false; };
+    as.addEventListener('click', go);
+    $('allIn').addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); go(); } });
+  }
 }
 
 // ================================================================

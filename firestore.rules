@@ -258,15 +258,17 @@ service cloud.firestore {
           || (isTeacher() && request.resource.data.name == '선생님' && request.resource.data.grade == 0));
       allow update, delete: if isTeacher();
     }
-    // 뽑기 1~3등 남은 개수 (문서 stock): 0 이상 처음 개수 이하로만
+    // 뽑기 1~3등 남은 개수 + 전체 남은 뽑기 all(0~200, 중간중간 직접 세어 반영) (문서 stock)
     // 운동장 공지 (문서 notice): 임원 4명 · 교사 테스트(문샘) 이름으로 200자까지
     match /drs_booth/{id} {
       allow read: if true;
       allow write: if isTeacher() || (id == 'stock'
-        && request.resource.data.keys().hasOnly(['r1','r2','r3','at'])
+        && request.resource.data.keys().hasOnly(['r1','r2','r3','all','allBy','allAt','at'])
         && request.resource.data.r1 is int && request.resource.data.r1 >= 0 && request.resource.data.r1 <= 1
         && request.resource.data.r2 is int && request.resource.data.r2 >= 0 && request.resource.data.r2 <= 2
-        && request.resource.data.r3 is int && request.resource.data.r3 >= 0 && request.resource.data.r3 <= 3)
+        && request.resource.data.r3 is int && request.resource.data.r3 >= 0 && request.resource.data.r3 <= 3
+        && (!('all' in request.resource.data) || (request.resource.data.all is int && request.resource.data.all >= 0 && request.resource.data.all <= 200))
+        && (!('allBy' in request.resource.data) || (request.resource.data.allBy is string && request.resource.data.allBy.size() <= 10)))
         || (id == 'notice'
         && request.resource.data.keys().hasOnly(['text','by','at'])
         && request.resource.data.text is string && request.resource.data.text.size() <= 200
