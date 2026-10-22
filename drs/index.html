@@ -192,6 +192,17 @@
     #view-draw .dr-bar { height:12px; border-radius:6px; background:var(--dr-deep); overflow:hidden; }
     #view-draw .dr-bar i { display:block; height:100%; width:0; background:var(--dr-acc); transition:width .6s; }
     #view-draw .dr-machine { display:flex; flex-direction:column; align-items:center; }
+    /* 통 한가운데 START 버튼 (굴리는 중 · 결과가 나온 뒤에는 숨겨요) */
+    #view-draw .dr-drumwrap { position:relative; }
+    #view-draw .dr-start { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:3; border:4px solid #fff; border-radius:999px; padding:14px 30px; background:linear-gradient(#FFB36B,#FF7A3D); color:#fff; font-family:'Press Start 2P','Black Han Sans',sans-serif; font-size:20px; letter-spacing:2px; cursor:pointer; box-shadow:0 6px 0 #C2551F,0 10px 24px rgba(0,0,0,.35); animation:dr-startbeat 1.1s ease-in-out infinite; transition:opacity .2s; }
+    #view-draw .dr-start:active { transform:translate(-50%,-46%); box-shadow:0 2px 0 #C2551F; }
+    @keyframes dr-startbeat { 0%,100% { transform:translate(-50%,-50%) scale(1); } 50% { transform:translate(-50%,-50%) scale(1.08); } }
+    #view-draw.rolling .dr-start, #view-draw.shown .dr-start { opacity:0; pointer-events:none; }
+    /* 홍보 영상 모드(&promo): 공이 통에서 튀어나오듯 · 아래 선물 목록은 숨겨 한 화면에 */
+    #view-draw .dr-ball.emerge { animation:dr-emerge 1s cubic-bezier(.2,1.45,.4,1); }
+    @keyframes dr-emerge { 0% { transform:translateY(-240px) scale(.15) rotate(-540deg); opacity:0; } 45% { opacity:1; } 100% { transform:none; } }
+    #view-draw.promo .dr-list { display:none; }
+    #view-draw.promo .dr-out.win .dr-info-name { color:#FFD86B; }
     #view-draw .dr-drum { position:relative; width:380px; height:380px; box-sizing:border-box; border-radius:50%; border:8px solid var(--dr-soft); background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.32),rgba(255,255,255,.05) 60%); overflow:hidden; }
     #view-draw .dr-drum::after { content:""; position:absolute; left:18%; top:9%; width:26%; height:11%; border-radius:50%; background:rgba(255,255,255,.3); transform:rotate(-25deg); }
     #view-draw .dr-neck { width:90px; height:40px; margin-top:-10px; background:var(--dr-soft); border-radius:0 0 18px 18px; }
@@ -376,6 +387,21 @@
       #view-draw .dr-ball { width:110px; height:110px; }
       #view-draw .dr-ball #dr-num { font-size:30px; }
       #view-draw .dr-row { flex-direction:column; }
+      /* 아이폰 한 화면: 옆으로 넘치지 않게 · 순서는 통 → 결과 → 전광판 (2026-10-22) */
+      #view-draw .dr-stage { padding:10px 12px 24px; gap:10px; overflow-x:hidden; }
+      #view-draw .dr-soundbar { flex-wrap:wrap; gap:6px; }
+      #view-draw .dr-head h1 { font-size:32px; margin:2px 0 8px; }
+      #view-draw .dr-top { display:contents; }
+      #view-draw .dr-head { order:0; } #view-draw .dr-machine { order:1; } #view-draw .dr-out { order:2; } #view-draw .dr-led { order:3; } #view-draw .dr-list { order:4; }
+      #view-draw .dr-drum, #view-draw .dr-top .dr-drum { width:240px; height:240px; }
+      #view-draw .dr-start { font-size:16px; padding:11px 22px; }
+      #view-draw .dr-out { padding:12px 14px; gap:10px; }
+      #view-draw .dr-ball { width:88px; height:88px; }
+      #view-draw .dr-ball #dr-num { font-size:26px; }
+      #view-draw .dr-led { flex:none; width:100%; max-width:100%; }
+      #view-draw .dr-info-k { font-size:15px !important; }
+      #view-draw .dr-info-name { font-size:22px !important; line-height:1.35; }
+      #view-draw .dr-info-sub { font-size:13px !important; }
     }
     @media (prefers-reduced-motion:reduce) {
       /* '동작 줄이기'를 켠 기기: 화면 흔들림만 빼요 (공은 그대로 굴러다녀요) */
@@ -747,9 +773,10 @@
     </header>
 
     <div class="dr-top">
-      <div class="dr-machine" aria-hidden="true">
-        <div class="dr-drum" id="dr-drum"></div>
-        <div class="dr-neck"></div>
+      <div class="dr-machine">
+        <!-- 통 한가운데 START: 아이폰 첫 화면에서도 바로 누를 수 있게 -->
+        <div class="dr-drumwrap"><div class="dr-drum" id="dr-drum" aria-hidden="true"></div><button type="button" class="dr-start" id="dr-start" aria-label="공 굴리기 시작">START</button></div>
+        <div class="dr-neck" aria-hidden="true"></div>
       </div>
 
       <!-- 픽셀 전광판: 전체 · 뽑힘 · 남음 + 1~200번 칸 -->
@@ -1790,7 +1817,7 @@ let dr_just = null;       // 방금 뽑힌 선물 (목록에서 반짝)
 // 유리통 안의 작은 공들: 아직 안 뽑힌 번호 중에서 22개
 function dr_fillDrum() {
   const drum = document.getElementById('dr-drum');
-  const left = ALL_GIFTS.filter(g => !g.drawn).map(g => g.serial);
+  const left = DR_PROMO ? Array.from({ length: 200 }, (_, i) => i + 1) : ALL_GIFTS.filter(g => !g.drawn).map(g => g.serial);   // 홍보 모드: 1~200번 모두
   const pool = left.length ? left.slice() : [];
   const nums = [];
   while (nums.length < Math.min(22, pool.length)) nums.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
@@ -1816,7 +1843,7 @@ function dr_renderBoard(total, drawnN, left) {
   let html = '';
   for (let n = 1; n <= cells; n++) {
     const g = bySerial[n];
-    const cls = !g ? '' : g.docId === dr_just ? 'new' : g.drawn ? 'off' : 'on';
+    const cls = DR_PROMO ? (n === dr_promoJust ? 'new' : 'on') : !g ? '' : g.docId === dr_just ? 'new' : g.drawn ? 'off' : 'on';   // 홍보 모드: 200칸 모두 남음
     const tip = n + '번' + (!g ? '' : g.drawn ? ' · 뽑힘' : ' · 남음');
     html += `<i class="${cls}" title="${tip}"></i>`;
   }
@@ -1825,7 +1852,7 @@ function dr_renderBoard(total, drawnN, left) {
 
 function dr_render() {
   if (dr_rolling) return;
-  const total = ALL_GIFTS.length, drawnN = ALL_GIFTS.filter(g => g.drawn).length, left = total - drawnN;
+  const total = DR_PROMO ? 200 : ALL_GIFTS.length, drawnN = DR_PROMO ? 0 : ALL_GIFTS.filter(g => g.drawn).length, left = total - drawnN;   // 홍보 모드: 전체 200 · 뽑힘 0 · 남음 200
   document.getElementById('dr-left').innerText = left;
   document.getElementById('dr-total').innerText = total;
   document.getElementById('dr-barFill').style.width = (total ? left / total * 100 : 0) + '%';
@@ -1916,6 +1943,22 @@ function dr_drumroll() {
   };
   const timer = setInterval(() => {
     while (on && next < ac.currentTime + 0.12) { hit(next, i % 4 === 0); next += 1 / 16; i++; }
+  }, 25);
+  return () => { on = false; clearInterval(timer); };
+}
+// 홍보 모드 '또리리리리리' — 높은 두 음을 아주 빠르게 번갈아 (돌아가는 동안 계속)
+function dr_trill() {
+  const ac = dr_audio(); if (!ac) return () => {};
+  let next = ac.currentTime + 0.05, i = 0, on = true;
+  const timer = setInterval(() => {
+    while (on && next < ac.currentTime + 0.12) {
+      const f = i % 2 ? 1568 : 1319;   // 솔 · 미 (높은 음)
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(f, next);
+      g.gain.setValueAtTime(0, next); g.gain.linearRampToValueAtTime(0.07, next + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, next + 0.045);
+      o.connect(g); g.connect(dr_out); o.start(next); o.stop(next + 0.05);
+      next += 0.05; i++;
+    }
   }, 25);
   return () => { on = false; clearInterval(timer); };
 }
@@ -2137,6 +2180,7 @@ async function drawRandomGift(label) {
 }
 // 테스트 굴리기: 남은 선물 중 하나를 골라 보여 주기만 해요 (뽑힘으로 기록하지 않아요)
 function dr_testPick() {
+  if (DR_PROMO) { const n = 1 + Math.floor(Math.random() * 200); return { success: true, gift: { serial: n, name: '', docId: null } }; }
   const left = ALL_GIFTS.filter(g => !g.drawn);
   if (left.length) return { success: true, gift: { ...left[Math.floor(Math.random() * left.length)], docId: null } };
   const n = 1 + Math.floor(Math.random() * 200);
@@ -2146,6 +2190,9 @@ function dr_testPick() {
 // 공 굴리기: 숫자가 1~200 사이에서 빠르게 돌다가 점점 느려지고, 뽑힌 선물 번호에서 멈춰요
 // 주소 끝에 &test 를 붙이면 공을 눌러도 기록하지 않는 테스트 모드 (moontr.site/drs/?page=draw&test)
 const DR_TEST = new URLSearchParams(location.search).has('test');
+// 홍보 영상 모드: 주소 끝에 &promo (moontr.site/drs/?page=draw&promo) — 전체 200 · 뽑힘 0 · 남음 200, 기록하지 않고, 또리리리 소리 + 행운의 공 문구
+const DR_PROMO = new URLSearchParams(location.search).has('promo');
+let dr_promoJust = 0;
 let dr_shownAt = 0;   // 결과가 나온 때 (0 = 첫 화면)
 
 // 화면 누르기: 첫 화면에서 공을 누르면 뽑기 → 결과가 나온 뒤에는 어디를 눌러도 첫 화면으로
@@ -2157,12 +2204,13 @@ function dr_onTap(e) {
     dr_resetView();
     return;
   }
-  if (e.target.closest('#dr-ball')) dr_doDraw(DR_TEST);
+  if (e.target.closest('#dr-ball, #dr-start')) dr_doDraw(DR_TEST || DR_PROMO);
 }
 // 첫 화면으로: 물음표 공 · 안내 글로 되돌리기
 function dr_resetView() {
   dr_shownAt = 0;
-  dr_just = null;
+  dr_just = null; dr_promoJust = 0;
+  document.getElementById('view-draw').classList.remove('shown');
   const ball = document.getElementById('dr-ball');
   document.getElementById('dr-out').classList.remove('win');
   ball.classList.remove('pop', 'roll');
@@ -2187,17 +2235,19 @@ async function dr_doDraw(test) {
   const flash = p => { const n = 1 + Math.floor(Math.random() * range); num.textContent = n; ball.style.setProperty('--c', dr_color(n)); dr_snd('tick', p); };
 
   dr_rolling = true;
-  ball.classList.remove('ready');
+  document.getElementById('view-draw').classList.add('rolling');
+  ball.classList.remove('ready', 'emerge');
   photo.hidden = true;
   out.classList.remove('win');
   ball.classList.remove('pop'); ball.classList.add('roll');
-  infoK.innerText = (test ? '[테스트] ' : '') + (label === '익명' ? '두근두근, 행운의 공 돌고 있는 중' : label + ' 님, 행운의 공 돌고 있는 중');
+  infoK.innerText = (test && !DR_PROMO ? '[테스트] ' : '') + (label === '익명' ? '두근두근, 행운의 공 돌고 있는 중' : label + ' 님, 행운의 공 돌고 있는 중');
   infoName.innerText = '두구두구두구… 과연 몇 번?!';
   infoName.classList.add('beat');
   infoSub.innerText = '';
   drum.classList.add('spin');
   dr_snd('start');                      // 시작 소리 (고른 소리 1 · 2 · 3번)
-  const stopRoll = dr_snd('roll');
+  const stopDrum = dr_snd('roll'), stopTrill = DR_PROMO ? dr_trill() : () => {};   // 홍보 모드: 또리리리리 소리도 함께
+  const stopRoll = () => { stopDrum(); stopTrill(); };
   const fast = setInterval(() => flash(0), 60);
 
   let res;
@@ -2222,20 +2272,29 @@ async function dr_doDraw(test) {
     const g = res.gift, n = Number(g.serial) || '?';
     num.textContent = n;
     ball.style.setProperty('--c', dr_color(n));
-    void ball.offsetWidth; ball.classList.add('pop');
+    void ball.offsetWidth; ball.classList.add(DR_PROMO ? 'emerge' : 'pop');
     out.classList.add('win');
+    if (DR_PROMO) {
+      dr_promoJust = Number(n);
+      infoK.innerText = '🎉 ' + n + '번 행운의 공!';
+      infoName.innerText = '행운의 공이 당신을 기다리고 있어요!';
+      infoSub.innerText = '✨ 또래상담부에서 내 행운을 뽑아 보세요 ✨';
+    } else {
     infoK.innerText = (test ? '[테스트 · 기록 안 함] ' : '') + (label === '익명' ? '' : label + ' 님의 ') + n + '번 선물';
     infoName.innerText = g.name || '선물';
     infoSub.innerText = '축하해요!\n또래상담부 요원에게 이 화면을 보여주세요';   // 가격은 보여 주지 않아요
+    }
+    document.getElementById('view-draw').classList.add('shown');
     dr_shownAt = Date.now();
     const src = giftImg(g);
-    if (src) { photo.src = src; photo.hidden = false; }
+    if (src && !DR_PROMO) { photo.src = src; photo.hidden = false; }
     if (!test) dr_just = g.docId;
     dr_snd('win');
     dr_flashOn();
     dr_confetti();
   }
   dr_rolling = false;
+  document.getElementById('view-draw').classList.remove('rolling');
   if (!res.success) ball.classList.add('ready');   // 실패하면 바로 다시 누를 수 있게 (성공하면 화면을 눌러 첫 화면으로)
   dr_render();
 }
@@ -2279,8 +2338,10 @@ if (CURRENT_PAGE === 'student') {
   dr_ballStyleLabel();
   document.getElementById('view-draw').addEventListener('click', dr_onTap);
   // 아이패드를 돌리면(가로 ↔ 세로) 유리통 크기에 맞게 공을 다시 담아요
-  addEventListener('resize', () => { if (!dr_rolling && giftsLoaded) dr_fillDrum(); });
+  addEventListener('resize', () => { if (!dr_rolling && (giftsLoaded || DR_PROMO)) dr_fillDrum(); });
   watchGifts(dr_render);
+  // 홍보 영상 모드: 선물 목록을 기다리지 않고 바로 200개 화면으로
+  if (DR_PROMO) { document.getElementById('view-draw').classList.add('promo'); dr_render(); }
 }
 </script>
 <script type="module" src="/visit.js?app=drs"></script>
