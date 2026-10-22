@@ -4034,13 +4034,15 @@ function initStudent(){
     const items = map[thinkerPick].slice().sort((a, b)=> compareId(a.q, b.q));
     el.innerHTML = `
       <div class="dash-note">문제를 푸는 곳이 아니라, 사상가가 한 말(기출 제시문)과 그 사상가에 대해 <b>맞는 설명</b>만 모아 읽는 곳이에요. 형광펜으로 칠해둔 곳도 그대로 보여요.</div>
+      <div class="panel-toolbar"><button class="hl-btn ${hlModeOn()?'active':''}" id="p15-hl" type="button" title="형광펜" aria-label="형광펜">🖍</button> <span style="color:var(--muted);">형광펜을 켜고 제시문을 칠하면, 문제 화면과 [형광펜] 모아보기에도 그대로 보여요.</span></div>
+      <div class="hl-hint" id="p15-hl-hint"${hlModeOn() ? '' : ' hidden'}>🖍 형광펜이 켜져 있어요 — 어려운 문장을 드래그하거나 톡 누르면 칠해지고, 칠한 곳을 다시 누르면 지워져요.</div>
       <div class="pick-bar">${thinkerPillsHTML(names, Object.fromEntries(names.map(n=>[n, { n:map[n].length, items:map[n] }])), thinkerPick, 'data-t')}</div>
       <div class="read-head">📖 ${escapeHtml(thinkerPick)}의 제시문 ${items.length}개</div>
       ${items.map(({ q, t, idx })=>{
         const text = t.passage || '';
         return `<div class="memo-card read-card">
           <div class="mc-src">${escapeHtml(qLabel(q))}${q.unit ? ' · ' + escapeHtml(q.unit) : ''}${q.thinkers.length > 1 ? ' · ' + escapeHtml(t.label) : ''}${me.favorites.includes(q.id) ? ' <span class="hl-fav">★</span>' : ''}</div>
-          <div class="read-text">${markedHTML(text, fixRanges(text, hlRanges(q.id, 'p' + idx)))}</div>
+          <div class="read-text" data-hl="p${idx}" data-qid="${escapeHtml(q.id)}">${markedHTML(text, fixRanges(text, hlRanges(q.id, 'p' + idx)))}</div>
           <div class="hl-card-actions"><button type="button" data-open="${escapeHtml(q.id)}">이 문제 풀어보기</button></div>
         </div>`;
       }).join('')}`;
@@ -4049,6 +4051,52 @@ function initStudent(){
       const q = ALL_QUESTIONS.find(x => x.id === b.dataset.open);
       if(q) openQuestionFrom('p15', q, { onFinishBack: renderThinkerPanel });
     }));
+    // 🖍 형광펜 켜고 끄기 · 제시문 칠하기 (문제 화면과 같은 곳에 저장돼요)
+    applyHlMode(el, 'p15');
+    document.getElementById('p15-hl').addEventListener('click', e=>{
+      if(!loginInfo){ alert('형광펜은 로그인 후 이용할 수 있어요. 상단에서 학번과 닉네임으로 로그인해주세요.'); return; }
+      lsSet('yunsa-hl', hlModeOn() ? '0' : '1');
+      applyHlMode(el, 'p15');
+    });
+    bindReadHighlight(el);
+  }
+  // 사상가별 제시문 읽기: 카드마다 문항이 달라서, 칠한 칸(data-qid)으로 문항을 찾아 칠해요 (패널에 한 번만 연결)
+  function bindReadHighlight(el){
+    if(el.dataset.hlBound) return;
+    el.dataset.hlBound = '1';
+    const qOf = h => ALL_QUESTIONS.find(x => x.id === h.dataset.qid);
+    const later = () => setTimeout(()=>{
+      const sel = window.getSelection();
+      if(!sel || sel.isCollapsed || !sel.rangeCount) return;
+      const n = sel.getRangeAt(0).startContainer, a = n && n.nodeType === 3 ? n.parentElement : n;
+      const h = a && a.closest ? a.closest('[data-hl][data-qid]') : null;
+      if(!h || !el.contains(h)) return;
+      const q = qOf(h); if(q) captureHighlight(h.closest('.read-card') || h, q);
+    }, 0);
+    el.addEventListener('mouseup', later);
+    el.addEventListener('touchend', later);
+    el.addEventListener('click', e=>{
+      if(!hlModeOn() || !loginInfo) return;
+      const t = e.target, holder = t && t.closest ? t.closest('[data-hl][data-qid]') : null;
+      if(!holder) return;
+      const q = qOf(holder); if(!q) return;
+      const part = holder.dataset.hl;
+      // 칠한 곳을 다시 누르면 지우기
+      const m = t.closest('mark.hl');
+      if(m){
+        e.preventDefault(); e.stopPropagation();
+        removeHighlight(q, part, Number(m.dataset.s), Number(m.dataset.e));
+        paintPart(holder, q, part); saveHighlights(); return;
+      }
+      // 드래그 없이 그냥 눌렀으면 그 문장 한 줄을 칠하기
+      const sel = window.getSelection();
+      if(sel && !sel.isCollapsed) return;
+      e.preventDefault(); e.stopPropagation();
+      const text = hlKeyText(q, part); if(!text) return;
+      const pos = caretOffsetAt(holder, e.clientX, e.clientY);
+      const range = sentenceAround(text, pos < 0 ? 0 : pos);
+      if(addHighlight(q, part, range[0], range[1])){ paintPart(holder, q, part); saveHighlights(); }
+    }, true);
   }
   function masterQuestion(qid){
     me.mastered[qid] = true;
