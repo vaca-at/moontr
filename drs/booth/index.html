@@ -17,6 +17,7 @@
     --pix:'Press Start 2P',monospace; --kr:'Do Hyeon','Malgun Gothic',sans-serif;
   }
   *{ box-sizing:border-box; }
+  [hidden]{ display:none !important; }
   body{ background:var(--bg); color:var(--ink); font-family:var(--kr); margin:0; padding-block:18px 20px; padding-left:max(12px, env(safe-area-inset-left, 0px)); padding-right:max(12px, env(safe-area-inset-right, 0px)); }
   button{ font-family:inherit; }
   button:focus-visible, input:focus-visible, textarea:focus-visible{ outline:2px solid var(--pink); outline-offset:2px; }
@@ -158,6 +159,16 @@
   .modal .ok{ background:var(--yellow); color:#000; }
   .modal .no{ background:#222; color:var(--ink); }
 
+  /* 부스 배치도 탭 + 팝업 */
+  .hud .maptab{ border-color:var(--yellow); color:#000; background:var(--yellow); }
+  .mapbox{ width:min(920px, 100%); max-height:calc(100vh - 32px); overflow:auto; background:#000; border:3px solid var(--yellow); padding:14px; position:relative; }
+  .mapbox .mh{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+  .mapbox h3{ margin:0; font-family:'Do Hyeon',sans-serif; font-weight:400; font-size:30px; color:var(--yellow); text-shadow:3px 3px 0 #D7263D; }
+  .mapbox .x{ background:#000; color:var(--ink); border:2px solid #555; font-size:16px; padding:4px 12px; cursor:pointer; }
+  .mapbox svg{ display:block; width:100%; height:auto; }
+  .mapbox .here{ animation:here 1s steps(2) infinite; }
+  @keyframes here{ 50%{ opacity:.25; } }
+  @media (prefers-reduced-motion: reduce){ .mapbox .here{ animation:none; } }
   .policy-foot{ max-width:760px; margin:28px auto 56px; padding:0 16px; font-size:12px; line-height:1.7; color:var(--muted); word-break:keep-all; }
   .policy-foot summary{ cursor:pointer; text-align:center; list-style:none; opacity:.85; }
   .policy-foot summary::-webkit-details-marker{ display:none; }
@@ -180,6 +191,7 @@
     <span>GUEST <span class="y" data-k="guest">0</span></span>
     <span>WAIT <span class="y" data-k="wait">0</span></span>
     <span>TOP3 <span class="y" data-k="capsule">6/6</span></span>
+    <button class="maptab" id="btnMap">🗺 부스 배치도</button>
     <span class="ctl"><button id="btnReal" aria-pressed="true">실제 시간</button><button id="btnFast" aria-pressed="false">빨리 미리 보기</button><button id="btnPause" aria-pressed="false">멈춤</button></span>
   </div>
   <div class="wrap">
@@ -224,6 +236,13 @@
     </div>
   </details>
 </footer>
+
+<div class="modal" id="mapModal" hidden>
+  <div class="mapbox" role="dialog" aria-label="부스 배치도">
+    <div class="mh"><h3>부스 배치도</h3><button class="x" id="mapClose">닫기 ✕</button></div>
+    <div id="mapHolder"></div>
+  </div>
+</div>
 
 <div class="modal" id="loginModal" hidden>
   <form id="loginForm">
@@ -746,6 +765,51 @@ function renderSide(){
     ${['hq','gacha','stone'].map(z=> `<div><span class="r">${ZN[z]}</span>${x[z].map(chip).join('')}</div>`).join('')}</div>`).join('');
 }
 $('timeline').innerHTML = SLOTS.map((s, k)=> s.hide ? '' : `<li data-i="${k}"><span class="tm">${s.t}</span><span>${esc(s.label)}${s.gather ? ' (21명 · 운동장)' : ''}</span></li>`).join('');
+
+// ================================================================
+// 부스 배치도 (연화제 전체) — [부스 배치도] 탭을 누르면 팝업
+// ================================================================
+const MAP = {
+  top:[['CEL','생명','과학반'],['진유','독서','토론부'],['일본','문화','탐구반'],['Bloom','영어','토론부'],['하랑','문예','창작부'],['문화','탐방부'],['PRISM','물리','실험반'],['Pixel','사진부'],['A.O.J','미술부'],['명랑','운동부']],
+  left:[['HAN','역사지리탐방부'],['CPR','과학탐구부'],['Picu','애니 · 만화부'],['연화학생부'],['SUM','창업부'],['M-Square','수학신문부'],['한국사문화','탐구회']],
+  right:[['지구Lab','환경생태부'],['BANS','생명탐구부'],['꽃미녀밴드부'],['DRS','또래상담부'],['Blue Earth'],['Steelo','보컬부'],['Focus','영상매체비평부']],
+  bl:[['Jasmine','영자','신문부'],['MMS','수학','과학부'],['JJ','교지','편집부'],['INUS','인권','더하기부'],['JEBS','방송부'],['Alone','언론시사','탐구부'],['Sciaz','Cosmos','융합과학부']],
+  br:[['Audience','윤리철학','탐구부'],['가온','신문부'],['Dough','제과','제빵부']]
+};
+function boothMap(){
+  const Y = '#FFE14D';
+  const box = (x, y, w, h, lines)=>{
+    const me = lines[0] === 'DRS';
+    const lh = 17, top = y + h/2 - (lines.length - 1) * lh / 2 + 5;
+    return `<g${me ? ' class="here"' : ''}><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${me ? Y : '#000'}" stroke="${Y}" stroke-width="2"/></g>
+      ${lines.map((t, i)=> `<text x="${x + w/2}" y="${top + i*lh}" text-anchor="middle" font-family="'Do Hyeon'" font-size="${i ? 14 : 17}" fill="${me ? '#000' : (i ? '#E8E8E8' : '#fff')}">${esc(i ? (t.startsWith('(') ? t : t) : t)}</text>`).join('')}`;
+  };
+  let s = `<svg viewBox="0 0 1100 900" shape-rendering="crispEdges"><rect width="1100" height="900" fill="#000"/>`;
+  for(let x = 0; x <= 1100; x += 22) s += `<rect x="${x}" y="0" width="6" height="6" fill="${Y}"/><rect x="${x}" y="894" width="6" height="6" fill="${Y}"/>`;
+  for(let y = 0; y <= 900; y += 22) s += `<rect x="0" y="${y}" width="6" height="6" fill="${Y}"/><rect x="1094" y="${y}" width="6" height="6" fill="${Y}"/>`;
+  s += `<rect x="24" y="22" width="1052" height="852" fill="none" stroke="${Y}" stroke-width="2"/>`;
+  MAP.top.forEach((l, i)=> s += box(160 + i*78, 34, 78, 128, l));
+  MAP.left.forEach((l, i)=> s += box(36, 172 + i*70, 120, 70, l));
+  MAP.right.forEach((l, i)=> s += box(944, 172 + i*70, 120, 70, l));
+  MAP.bl.forEach((l, i)=> s += box(120 + i*78, 678, 78, 108, l));
+  MAP.br.forEach((l, i)=> s += box(746 + i*80, 678, 80, 108, l));
+  s += `<rect x="120" y="796" width="546" height="30" fill="none" stroke="${Y}" stroke-width="2"/><text x="393" y="817" text-anchor="middle" font-family="'Do Hyeon'" font-size="16" fill="#fff">화단</text>`;
+  s += `<rect x="746" y="796" width="240" height="30" fill="none" stroke="${Y}" stroke-width="2"/><text x="866" y="817" text-anchor="middle" font-family="'Do Hyeon'" font-size="16" fill="#fff">화단</text>`;
+  s += `<rect x="280" y="836" width="230" height="30" fill="none" stroke="${Y}" stroke-width="2"/><text x="395" y="857" text-anchor="middle" font-family="'Do Hyeon'" font-size="18" fill="#fff">동창회</text>`;
+  s += `<rect x="746" y="836" width="240" height="30" fill="none" stroke="${Y}" stroke-width="2"/><text x="866" y="857" text-anchor="middle" font-family="'Do Hyeon'" font-size="18" fill="#fff">반야회</text>`;
+  ['중','앙','계','단'].forEach((c, i)=> s += `<text x="706" y="${712 + i*28}" text-anchor="middle" font-family="'Do Hyeon'" font-size="24" fill="#fff">${c}</text>`);
+  s += `<text x="550" y="420" text-anchor="middle" font-family="'Do Hyeon'" font-size="34" fill="#fff">운동장</text>`;
+  // 우리 부스 표시: DRS 옆으로 팩맨이 가리켜요
+  const dy = 172 + 3*70 + 35;
+  s += `<g class="here"><text x="930" y="${dy + 7}" text-anchor="end" font-family="'Do Hyeon'" font-size="22" fill="${Y}">우리 부스 ▶</text></g>`;
+  s += `<path d="M640 ${dy} m0 -16 a16 16 0 1 0 0 32 a16 16 0 1 0 0 -32z" fill="${Y}" shape-rendering="auto"/><path d="M640 ${dy} l18 -10 v20z" fill="#000" shape-rendering="auto"/>`;
+  for(let x = 676; x < 800; x += 26) s += `<rect x="${x}" y="${dy - 3}" width="7" height="7" fill="#FFD9B0"/>`;
+  return s + `</svg>`;
+}
+$('btnMap').addEventListener('click', ()=>{ if(!$('mapHolder').innerHTML) $('mapHolder').innerHTML = boothMap(); $('mapModal').hidden = false; $('mapClose').focus(); });
+$('mapClose').addEventListener('click', ()=> $('mapModal').hidden = true);
+$('mapModal').addEventListener('click', e=>{ if(e.target === $('mapModal')) $('mapModal').hidden = true; });
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape'){ $('mapModal').hidden = true; $('loginModal').hidden = true; } });
 
 // ================================================================
 // 시작
