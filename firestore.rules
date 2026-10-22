@@ -245,6 +245,40 @@ service cloud.firestore {
     match /drs_gifts/{id}      { allow read, write: if true; }
     match /drs_counters/{id}   { allow read, write: if true; }
 
+    // ===== 또래상담부 부스 상황판 (/drs/booth) =====
+    // 채팅: 누구나 보기, 부원 21명 이름으로만 새 글 (120자까지), 고치기 · 지우기는 관리자만
+    match /drs_chat/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['name','grade','text','part','at'])
+        && request.resource.data.name in ['수희','수담','유정','지현','유진','시현','유경','주연','지수','정현','하윤','유주','예린','은혜','지민','유빈','다감','채윤','유림','수민','아인']
+        && request.resource.data.grade in [1, 2]
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 120
+        && request.resource.data.at == request.time;
+      allow update, delete: if isTeacher();
+    }
+    // 뽑기 1~3등 남은 개수 (문서 stock 하나): 0 이상 처음 개수 이하로만
+    match /drs_booth/{id} {
+      allow read: if true;
+      allow write: if isTeacher() || (id == 'stock'
+        && request.resource.data.keys().hasOnly(['r1','r2','r3','at'])
+        && request.resource.data.r1 is int && request.resource.data.r1 >= 0 && request.resource.data.r1 <= 1
+        && request.resource.data.r2 is int && request.resource.data.r2 >= 0 && request.resource.data.r2 <= 2
+        && request.resource.data.r3 is int && request.resource.data.r3 >= 0 && request.resource.data.r3 <= 3);
+    }
+    // 대기 손님: 순번 · 전화번호 뒷자리 4자리만. 상태(대기 → 호출 → 입장)만 바꿀 수 있고, 지우기는 관리자만
+    match /drs_wait/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['zone','no','tail','state','by','at'])
+        && request.resource.data.zone in ['stone','gacha']
+        && request.resource.data.no is int && request.resource.data.no > 0 && request.resource.data.no < 1000
+        && request.resource.data.tail is string && request.resource.data.tail.matches('^[0-9]{4}$')
+        && request.resource.data.state == 'wait'
+        && request.resource.data.at == request.time;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state'])
+        && request.resource.data.state in ['wait','call','done'];
+      allow delete: if isTeacher();
+    }
+
     // ===== moontr.site 대문 시간표 =====
     match /moontr_config/{id} {
       allow read: if true;
