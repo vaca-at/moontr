@@ -541,7 +541,17 @@ mark.fill{background:linear-gradient(transparent 12%,#FFE58A 12%,#FFE58A 92%,tra
 .post-panel .field>span small{font-weight:400;color:var(--ink2);font-size:.8125rem}
 .post-panel input{font-size:1.0625rem;padding:.625rem .75rem;border:2px solid color-mix(in srgb,var(--green) 45%,#fff);background:#fff}
 .pnum{display:inline-grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:var(--green);color:#fff;font-style:normal;font-size:.875rem}
-.post-btns{display:flex;gap:.375rem;align-items:center}
+.post-btns{display:flex;gap:.375rem;align-items:center;justify-content:flex-end}
+/* ① 접어 두는 칸: 제목 줄만 보이고, 누르면 펼쳐져요 */
+.vs-mini{padding:.625rem 1.25rem}
+.vs-mini[open]{padding-bottom:1.25rem}
+.vs-mini>summary{list-style:none;cursor:pointer;margin:0}
+.vs-mini>summary::-webkit-details-marker{display:none}
+.vs-mini[open]>summary{margin-bottom:.5rem}
+.vs-tog{margin-left:auto;border:2px solid color-mix(in srgb,var(--c) 45%,#fff);background:color-mix(in srgb,var(--c) 10%,#fff);color:color-mix(in srgb,var(--c) 65%,var(--ink));border-radius:999px;padding:.125rem .875rem;font-size:1rem}
+.vs-tog::after{content:"펼치기 ＋"}
+.vs-mini[open] .vs-tog::after{content:"접기 －"}
+.vs-mini>summary:hover .vs-tog{background:var(--c);color:#fff}
 @media (max-width:760px){.post-row,.post-row.two{grid-template-columns:minmax(0,1fr)}}
 /* ③ 소감 */
 .rf-form{display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end}
@@ -1360,8 +1370,8 @@ const STEPS = [
     note: "🙋 가입과 프로젝트 만들기(1번)는 연수 전에 미리 해 오세요!", render: renderFirestore },
   { t: "꿀팁", sub: "더 좋은 웹앱 만들기", min: 5, c: C.mustard,
     title: "웹앱을 더 좋게 만드는 꿀팁", lead: "꿀팁들을 참고해 웹앱을 고쳐 보세요. AI에게 기존 index.html 파일 하나를 첨부해 주고 고쳐 달라고 한 뒤, 수정된 파일을 받아 깃허브에 올려 보세요", render: renderTips },
-  { t: "수정 · 검증", sub: "고치기 · 서로 의견 · 소감", min: 5, c: C.teal,
-    title: "수정하고, 검증하고, 소감으로 마무리", lead: "성취기준 웹앱을 고쳐 담벼락에 올리고, 서로 의견을 주고받은 뒤 소감을 남겨요", render: renderVerify }
+  { t: "만들기 · 검증", sub: "만들기 · 고치기 · 서로 의견 · 소감", min: 5, c: C.teal,
+    title: "만들고, 수정하고, 검증하고, 소감으로 마무리", lead: "간단한 웹앱을 처음부터 만들어 고치고, 담벼락에 올려 서로 의견을 주고받은 뒤 소감을 남겨요", render: renderVerify }
 ];
 // 단계 옆 시간 글자: "15분" 또는 "수업 전" · "수업 후"
 const dur = s => s.when || s.min + "분";
@@ -1636,8 +1646,8 @@ function renderDeploy() {
         ["moontr.site/vibe", "https://moontr.site/vibe", "#e0698f"],
         ["moontr.site/sonagi", "https://moontr.site/sonagi", "#79b4de"],
         ["moontr.site/110", "https://moontr.site/110", "#7ec49a"],
-        ["moontr.site/c2", "https://moontr.site/c2", "#a893d6"],
-        ["moontr.site/c22", "https://moontr.site/c22", "#d9a548"]
+        ["moontr.site/idea", "https://moontr.site/idea", "#a893d6"],
+        ["moontr.site/app", "https://moontr.site/app", "#d9a548"]
       ].map(([t, u, g, s]) => `<a class="golink" style="--g:${g}" href="${u}" target="_blank" rel="noopener"><span><b>${t}</b>${s ? `<small>${s}</small>` : ""}</span><em>열기 ↗</em></a>`).join("")}</div>
     </article>
 
@@ -1794,15 +1804,24 @@ function updateFb() {
 }
 
 /* 6. 수정 · 검증 · 마무리 */
-// 고칠 때 복사해서 쓰는 부탁 문장 (2단계에서 받아 깃허브에 올린 성취기준 index.html을 고쳐요)
+// 처음부터 만드는 문장 ([ ] 칸만 내 수업에 맞게 바꿔요)
+const MAKE_ASK = `내 수업에서 쓸 간단한 웹앱을 처음부터 만들어 줘.
+- 누가 쓰나요: [중학교 2학년 학생들이 휴대폰으로]
+- 무엇을 하나요: [수업 끝에 오늘 배운 내용 3문제 퀴즈]
+- 어떤 모습인가요: [파스텔 색, 글자는 크게]
+- 꼭 필요한 기능: [1. ] [2. ] [3. ] (3개까지만)
+index.html 파일 하나로 만들어 줘.`;
+// 고칠 때 복사해서 쓰는 부탁 문장 (내가 만든 index.html을 함께 보내요)
 const FIX_ASKS = ["학생들이 닉네임을 입력하도록 고쳐 줘.", "참여하는 학생 수를 수업할 때마다 수정할 수 있도록 고쳐 줘.", "디자인을 3가지로 제안해 줘.", "손글씨와 반듯반듯한 글씨체를 각각 2개씩 보여 줘.", "너무 AI스럽지 않은 디자인으로 고쳐 줘."];
 function renderVerify() {
   const num = (n, c) => `<span class="vs-no" style="--c:${c}">${n}</span>`;
   return `
-    <!-- ① 수정하기 -->
-    <section class="vs" style="--c:var(--mustard)">
-      <h3 class="vs-h">${num("①", "var(--mustard)")} 수정하기 <small>2단계에서 받아 깃허브에 올린 성취기준 웹앱을 고쳐 봐요</small></h3>
-      <p class="vs-lead">아래 문장을 복사해 <b>index.html과 함께</b> AI에게 보내고, 고친 파일을 받아 <b>깃허브에 다시 올려요.</b> 한 번에 하나씩 부탁하는 게 안전해요.</p>
+    <!-- ① 만들고 수정하기 (처음엔 접어 두어 ② 담벼락이 첫 화면에 보이게) -->
+    <details class="vs vs-mini" style="--c:var(--mustard)">
+      <summary class="vs-h">${num("①", "var(--mustard)")} 만들고 수정하기 <small>간단한 웹앱을 처음부터 만들고 고쳐 봐요</small><span class="vs-tog"></span></summary>
+      <p class="vs-lead">아래 문장의 <b>[ ] 칸만 내 수업에 맞게</b> 바꿔 새 채팅에 보내고, 받은 <b>index.html</b>을 3단계처럼 <b>깃허브에 올려요.</b></p>
+      ${P(MAKE_ASK, "🌱 처음부터 만드는 문장")}
+      <p class="vs-lead" style="margin-top:1rem">고칠 때는 아래 문장을 복사해 <b>index.html과 함께</b> AI에게 보내고, 고친 파일을 받아 <b>깃허브에 다시 올려요.</b> 한 번에 하나씩 부탁하는 게 안전해요.</p>
       <ul class="cp-list">${FIX_ASKS.map(s => `<li><span>${s}</span><button type="button" class="copy" data-text="${s}">📋 복사</button></li>`).join("")}</ul>
       <div class="vs-two">
         <div>${P(`[어디에서] 퀴즈 마지막 화면에서
@@ -1812,20 +1831,20 @@ function renderVerify() {
 고친 index.html 전체를 다시 줘.`, "🔧 오류를 고쳐 달라는 말 틀")}<p class="muted" style="margin:0">📸 고치고 싶은 부분을 <b>캡처해서 함께 보내면</b> AI가 훨씬 정확하게 알아들어요!</p></div>
         <div class="vs-check"><b>✅ 고친 뒤 직접 눌러 확인해요</b>${ticks("review", [["웹앱 이름대로 동작해요"], ["처음 보는 사람이 3초 안에 할 일을 알아요"], ["빈칸으로 눌러도 망가지지 않아요"], ["휴대폰에서 잘리지 않아요"], ["새로고침해도 필요한 기록이 남아요", "파이어스토어를 연결했다면"]])}</div>
       </div>
-    </section>
+    </details>
 
     <!-- ② 검증하기 -->
     <section class="vs" style="--c:var(--green)">
-      <h3 class="vs-h">${num("②", "var(--green)")} 검증하기 <small>고친 웹앱 주소를 올리고 서로 써 보며 의견을 나눠요</small></h3>
+      <h3 class="vs-h">${num("②", "var(--green)")} 검증하기 <small>만든 웹앱 주소를 올리고 서로 써 보며 의견을 나눠요</small></h3>
       <p class="vs-lead">고치는 동안에도 <b>계속 올리고, 계속 서로 의견</b>을 주고받아요. <b>강사도 함께</b> 의견을 남겨요! 🙌</p>
       <div class="post-panel">
         <div class="post-h">📌 내 웹앱 올리기</div>
         <div id="pwWho"></div>
-        <div class="post-row">
+        <div class="post-row two">
           <label class="field"><span><i class="pnum">3</i> 웹앱 이름</span><input id="pwTitle" maxlength="40" placeholder="예: 행복 퀴즈"></label>
           <label class="field"><span><i class="pnum">4</i> 웹앱 주소</span><input id="pwUrl" maxlength="200" placeholder="예: https://moontr.site/quiz"></label>
-          <div class="post-btns"><button type="button" class="btn" id="pwPost" style="--c:var(--green)">📌 담벼락에 올리기</button><button type="button" class="btn sm line" id="pwCancel" style="--c:var(--green)" hidden>취소</button></div>
         </div>
+        <div class="post-btns"><button type="button" class="btn" id="pwPost" style="--c:var(--green)">📌 담벼락에 올리기</button><button type="button" class="btn sm line" id="pwCancel" style="--c:var(--green)" hidden>취소</button></div>
         <div id="pwMine"></div>
       </div>
       <h3 class="sec" id="pwSec">🧱 동료 검증 담벼락</h3>
