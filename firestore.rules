@@ -259,6 +259,7 @@ service cloud.firestore {
       allow update, delete: if isTeacher();
     }
     // 뽑기 1~3등 남은 개수 + 전체 남은 뽑기 all(0~200, 중간중간 직접 세어 반영) (문서 stock)
+    // 워리스톤 6자리 사용 여부 (문서 seats): 참/거짓 6개
     // 운동장 공지 (문서 notice): 임원 4명 · 교사 테스트(문샘) 이름으로 2000자까지
     match /drs_booth/{id} {
       allow read: if true;
@@ -269,6 +270,10 @@ service cloud.firestore {
         && request.resource.data.r3 is int && request.resource.data.r3 >= 0 && request.resource.data.r3 <= 3
         && (!('all' in request.resource.data) || (request.resource.data.all is int && request.resource.data.all >= 0 && request.resource.data.all <= 200))
         && (!('allBy' in request.resource.data) || (request.resource.data.allBy is string && request.resource.data.allBy.size() <= 10)))
+        || (id == 'seats'
+        && request.resource.data.keys().hasOnly(['s','by','at'])
+        && request.resource.data.s is list && request.resource.data.s.size() == 6
+        && request.resource.data.by is string && request.resource.data.by.size() <= 10)
         || (id == 'notice'
         && request.resource.data.keys().hasOnly(['text','by','at'])
         && request.resource.data.text is string && request.resource.data.text.size() <= 2000

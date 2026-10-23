@@ -73,6 +73,16 @@
   .stage{ position:relative; width:100%; }
   .stage svg.scene{ display:block; width:100%; height:auto; }
   .layer{ position:absolute; inset:0; pointer-events:none; }
+  /* 워리스톤 6자리: 책상을 누르면 사용 중 ↔ 비어 있음 */
+  .seats{ position:absolute; inset:0; pointer-events:none; z-index:1; }
+  .seat{ position:absolute; pointer-events:auto; background:transparent; border:2px dashed rgba(91,234,111,.55); cursor:pointer; padding:0; }
+  .seat span{ position:absolute; right:2px; bottom:2px; font-size:clamp(9px, .95cqw, 12px); line-height:1; padding:2px 4px; background:#0B0B12; color:var(--green); border:1px solid var(--green); white-space:nowrap; }
+  .seat.on{ border:2px solid #FF3B3B; background:rgba(255,59,59,.12); }
+  .seat.on span{ color:#fff; background:#FF3B3B; border-color:#FF3B3B; }
+  .seat:hover{ box-shadow:0 0 0 2px var(--yellow); }
+  .seatfull{ position:absolute; transform:translateY(-100%); font-size:clamp(10px, 1.05cqw, 14px); background:#FF3B3B; color:#fff; padding:2px 8px; z-index:2; pointer-events:none; animation:here 1s steps(2) infinite; }
+  .stoast{ position:absolute; left:50%; top:46%; transform:translate(-50%,-50%); z-index:6; background:#000; color:var(--yellow); border:2px solid var(--yellow); padding:6px 12px; font-size:15px; pointer-events:none; }
+  @keyframes here{ 50%{ opacity:.35; } }
   /* 운동장 공지: 트랙 안쪽 잔디 위 (사람은 그 위로 지나가요) */
   .stage{ container-type:inline-size; }
   .notice{ position:absolute; left:9%; right:9%; top:73.5%; height:22%; display:flex; flex-direction:column; align-items:stretch; gap:.3cqw; background:rgba(0,0,0,.72); border:.35cqw dashed #FFD400; padding:.8cqw 2cqw; }
@@ -289,6 +299,7 @@
     <span>STAFF <span class="y" data-k="staff">0</span></span>
     <span>GUEST <span class="y" data-k="guest">0</span></span>
     <span>WAIT <span class="y" data-k="wait">0</span></span>
+    <span>STONE <span class="y" data-k="seats">0/6</span></span>
     <span><span style="font-family:var(--kr);font-size:16px">뽑기</span> <span class="y" data-k="left">200/200</span></span>
     <button class="maptab" id="btnMap">🗺 부스 배치도</button>
     <button class="maptab" id="btnRules">📋 부스 운영 룰</button>
@@ -304,7 +315,7 @@
   </div>
   <div class="wrap">
     <div class="left">
-      <div class="stage"><div id="sceneHolder"></div><div class="notice" id="notice" hidden><b>📢 NOTICE</b><p id="noticeText"></p><small id="noticeBy"></small></div><div class="layer" id="layer"></div></div>
+      <div class="stage"><div id="sceneHolder"></div><div class="seats" id="seats"></div><div class="stoast" id="stoast" hidden></div><div class="notice" id="notice" hidden><b>📢 NOTICE</b><p id="noticeText"></p><small id="noticeBy"></small></div><div class="layer" id="layer"></div></div>
       <div class="chat">
         <div class="ttl"><span>CHAT · 부스 채팅</span><span>MSG <span data-k="msgs">0</span></span></div>
         <ol id="chat"><li class="sys"><span class="tm">--:--</span><span class="who">[알림]</span><span>채팅을 불러오는 중이에요…</span></li></ol>
@@ -695,10 +706,8 @@ async function guestLoop(){
     const r = Math.random(), wait = (a, b)=> a + Math.random()*(b - a);
     if(!open){ visit(g, [[strollPoint(), wait(800, 2500)], [strollPoint(), wait(800, 2500)]]); continue; }
     const free = PLAN.chairs.map((_, k)=> k).filter(k=> !taken.has(k));
-    if(r < 0.45 && free.length){
-      const k = pick(free); taken.add(k);
-      visit(g, [[PLAN.chairs[k], wait(8000, 16000)]]).then(()=> taken.delete(k));
-    } else if(r < 0.75){
+    // 워리스톤 자리는 부원이 누른 진짜 사용 여부로만 보여요 (아래 '워리스톤 6자리')
+    if(r < 0.55){
       visit(g, [[pick(GACHA_FRONT), wait(2500, 5000)], ...(Math.random() < 0.5 ? [[PLAN.pickup, wait(1500, 3000)]] : [])]);
     } else {
       visit(g, [[strollPoint(), wait(1000, 3000)], [strollPoint(), wait(500, 2000)]]);
@@ -894,6 +903,40 @@ function renderStock(){
 }
 
 // ================================================================
+// 워리스톤 6자리 (drs_booth/seats) — 부원이 지도에서 책상을 누르면 사용 중 ↔ 비어 있음
+// 워리스톤 대기 손님이 있으면 6자리 모두 찬 것으로 보여요
+// ================================================================
+const DESKS = [[1.0,4.15],[2.8,4.15],[4.6,4.15],[1.0,5.35],[2.8,5.35],[4.6,5.35]];
+let seats = [false,false,false,false,false,false];
+const seatFigs = PLAN.chairs.map((pt, k)=>{ const c = makeChar(k + 11, '', 0, true); place(c, pt); return c; });
+const seatFull = ()=> active('stone').length > 0;
+onSnapshot(doc(db, COL.booth, 'seats'), snap=>{
+  const d = snap.exists() ? snap.data() : {};
+  seats = Array.isArray(d.s) && d.s.length === 6 ? d.s.map(Boolean) : [false,false,false,false,false,false];
+  renderSeats();
+}, err=> console.error(err));
+function renderSeats(){
+  const full = seatFull(), used = full ? 6 : seats.filter(Boolean).length;
+  document.querySelector('[data-k="seats"]').textContent = full ? `6/6 대기${active('stone').length}` : `${used}/6`;
+  $('seats').innerHTML = DESKS.map(([x, y], k)=>{
+    const on = full || seats[k];
+    return `<button class="seat ${on ? 'on' : ''}" data-k="${k}" style="left:${px(x - 0.1) / W * 100}%;top:${px(y - 0.12) / H * 100}%;width:${px(1.6) / W * 100}%;height:${px(1.2) / H * 100}%"
+      aria-label="워리스톤 ${k + 1}번 자리 ${on ? '사용 중' : '비어 있음'}"><span>${k + 1} ${on ? '사용 중' : '비어 있음'}</span></button>`;
+  }).join('') + (full ? `<div class="seatfull" style="left:${px(0.75) / W * 100}%;top:${px(3.5) / H * 100}%">대기 ${active('stone').length}팀 · 6자리 모두 사용 중</div>` : '');
+  seatFigs.forEach((c, k)=>{ const on = full || seats[k]; c.el.style.opacity = on ? 1 : 0; c.hidden = !on; });
+}
+function seatToast(text){ const t = $('stoast'); t.textContent = text; t.hidden = false; clearTimeout(seatToast.t); seatToast.t = setTimeout(()=> t.hidden = true, 1800); }
+$('seats').addEventListener('click', async e=>{
+  const b = e.target.closest('.seat'); if(!b) return;
+  if(!me && !teacher){ seatToast('부원 로그인을 하면 자리를 바꿀 수 있어요'); return; }
+  if(seatFull()){ seatToast('워리스톤 대기 손님이 있어서 6자리 모두 사용 중으로 보여요'); return; }
+  const k = +b.dataset.k, next = seats.slice(); next[k] = !next[k];
+  seats = next; renderSeats();   // 바로 바뀌어 보이게
+  try{ await setDoc(doc(db, COL.booth, 'seats'), { s:next, by: teacher ? '선생님' : me.name, at:serverTimestamp() }); }
+  catch(err){ console.error(err); seatToast('바꾸지 못했어요. 잠시 뒤 다시 눌러 주세요.'); }
+});
+
+// ================================================================
 // 운동장 공지 (drs_booth/notice) — 선생님 · 임원이 쓰고, 지도 운동장 가운데에 크게
 // ================================================================
 let notice = {};
@@ -921,7 +964,7 @@ const active = z => waits.filter(w=> w.zone === z && w.state !== 'done').sort((a
 const ago = w => { const t = w.at && w.at.toDate ? w.at.toDate() : new Date(); return Math.max(0, Math.round((Date.now() - t) / 60000)); };
 onSnapshot(collection(db, COL.wait), snap=>{
   waits = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
-  renderWait(); drawQueue(); renderMine(true);
+  renderWait(); drawQueue(); renderSeats(); renderMine(true);
 }, err=> console.error(err));
 function renderWait(){
   const n = active('stone').length + active('gacha').length;
@@ -1146,7 +1189,7 @@ setInterval(()=>{
   update();
 }, 400);
 if(location.search.includes('demo')){ CLOCK.min = toMin('15:20'); setMode('fast'); }   // 주소 끝 ?demo → 빨리 미리 보기로 시작
-renderStock(); renderSay(); update();
+renderStock(); renderSeats(); renderSay(); update();
 const saved = store.get('drs-booth-me'); if(saved && [...PEOPLE, TESTER].some(p=> p.name === saved)) setMe(saved);
 guestLoop();
 </script>
