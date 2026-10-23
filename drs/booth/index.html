@@ -657,11 +657,11 @@ function update(){
     c.off = z === 'off';
     if(z === 'gather') c.home = PLAN.gather[idx];
     else if(!c.off){ const list = PLAN[z], n = used[z]++; c.home = [list[n % list.length][0], list[n % list.length][1] + Math.floor(n / list.length)*0.7]; }
-    else if(p.name === LEADER && !s.hide){ c.off = false; c.home = PLAN.boss[0]; }   // 부장은 쉬는 시간에 BOSS 자리
+    else if(p.name === LEADER){ c.off = false; c.home = PLAN.boss[0]; }   // 부장은 자기 근무 시간이 아니면 늘 BOSS 자리 (운영 전 · 후에도)
     if(!c.busy) goHome(c);
   });
   const t = chars['선생님'];
-  t.off = !!s.hide; t.home = s.gather ? [8.0, 7.7] : PLAN.boss[1];
+  t.off = false; t.home = s.gather ? [8.0, 7.7] : PLAN.boss[1];   // 선생님은 하루 내내 BOSS 자리 (종례 때만 운동장)
   if(!t.busy) goHome(t);
   document.querySelector('[data-k="part"]').textContent = s.hide ? '-' : s.label;
   document.querySelector('[data-k="staff"]').textContent = PEOPLE.filter(p=> zoneOf(p.name, si) !== 'off').length;
@@ -1102,7 +1102,7 @@ function renderSide(){
   $('slotLabel').textContent = s.hide ? s.label : (s.gather ? '17:10 종례 · 모두 모여요' : s.tidy ? '부스 정리 중' : `${s.label} 운영 중`);
   const nx = SLOTS.slice(si + 1).find(x=> !x.hide);
   $('nextLabel').textContent = nx ? `다음: ${nx.t} ${nx.label}` : '';
-  $('zoneList').innerHTML = (s.hide ? '' : `<div class="zrow"><b>BOSS</b><span class="chip" style="background:var(--yellow)">선생님</span>${LEADER ? `<span class="chip" style="background:var(--purple)">부장 ${esc(LEADER)}</span>` : ''}</div>`) + (s.hq ? ['hq','stone','gacha'].map(z=>
+  $('zoneList').innerHTML = (`<div class="zrow"><b>BOSS</b><span class="chip" style="background:var(--yellow)">선생님</span>${LEADER ? `<span class="chip" style="background:var(--purple)">부장 ${esc(LEADER)}</span>` : ''}</div>`) + (s.hq ? ['hq','stone','gacha'].map(z=>
     `<div class="zrow"><b>${ZN[z]}</b>${s[z].map(chip).join('')}${z === 'hq' ? `<small>INFO · ${HQ_NOTE}</small>` : ''}${z === 'stone' && s.stoneNote ? `<small>${s.stoneNote}</small>` : ''}</div>`).join('')
     : `<div class="zrow" style="color:var(--muted)">${s.gather ? '21명 모두 운동장 종례 자리에 모여요.' : '지금은 부스에 아무도 없어요. (1부 14:00 시작)'}</div>`);
   [...$('timeline').children].forEach(li=> li.classList.toggle('on', li.dataset.i == si));
