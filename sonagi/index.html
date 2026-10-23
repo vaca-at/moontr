@@ -104,6 +104,14 @@ h1 small{font-size:1rem;color:var(--ink2)}
 .tmr-steppers span{flex:1;text-align:center;font-size:1rem}
 .tmr-row{display:flex;align-items:center;gap:.3125rem;flex-wrap:wrap;margin-top:.375rem}
 .tmr-row b{font-weight:400;color:var(--ink2);width:3.25rem}
+/* 끝나면 흔들흔들 + 숫자 깜빡 (움직임 줄이기를 켠 기기에서는 깜빡임만) */
+@keyframes tmr-shake{0%,100%{transform:translateX(0) rotate(0)}15%{transform:translateX(-6px) rotate(-2deg)}30%{transform:translateX(6px) rotate(2deg)}45%{transform:translateX(-5px) rotate(-1.5deg)}60%{transform:translateX(5px) rotate(1.5deg)}75%{transform:translateX(-3px) rotate(-.75deg)}90%{transform:translateX(3px) rotate(.75deg)}}
+@keyframes tmr-flash{0%,100%{background:#fff}50%{background:color-mix(in srgb,var(--tc,var(--rose)) 28%,#fff)}}
+@keyframes tmr-glow{0%,100%{box-shadow:0 14px 40px rgba(91,72,80,.2)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--rose) 35%,transparent),0 14px 40px rgba(91,72,80,.2)}}
+.tmr.ding .tmr-ball{animation:tmr-shake .6s ease-in-out 5;background:var(--rose);color:#fff}
+.tmr.ding .tmr-panel{animation:tmr-shake .6s ease-in-out 5,tmr-glow .6s ease-in-out 5}
+.tmr.ding .tmr-face{animation:tmr-flash .6s ease-in-out 5}
+@media (prefers-reduced-motion:reduce){.tmr.ding .tmr-ball,.tmr.ding .tmr-panel{animation:tmr-glow .6s ease-in-out 5}}
 .total{margin-left:auto;font-family:var(--hand);color:var(--rose);border:2px dashed var(--rose);border-radius:999px;padding:0 .75rem;white-space:nowrap}
 nav.steps{max-width:1240px;margin:0 auto;padding:.375rem 1rem .625rem;display:flex;gap:.5rem;overflow-x:auto;scrollbar-width:none}
 nav.steps::-webkit-scrollbar{display:none}
@@ -783,6 +791,7 @@ dialog.pop::backdrop{background:rgba(91,72,80,.35);backdrop-filter:blur(2px)}
           <div class="tmr-steppers" id="tmrSteppers"></div>
           <div class="tmr-row"><b>끝나면</b><button type="button" class="tmr-pill" data-after="stop">멈춤</button><button type="button" class="tmr-pill" data-after="again">다시 시작</button><button type="button" class="tmr-pill" data-after="over">계속(+ 넘은 시간)</button></div>
           <div class="tmr-row"><b>소리</b><button type="button" class="tmr-pill" data-snd="0">끔</button><button type="button" class="tmr-pill" data-snd="1">한 번</button><button type="button" class="tmr-pill" data-snd="3">세 번</button><button type="button" class="tmr-pill" id="tmrTest">🔊 들어 보기</button></div>
+          <div class="tmr-row"><b>소리 종류</b><button type="button" class="tmr-pill" data-tone="beep">🔔 삐삐</button><button type="button" class="tmr-pill" data-tone="chime">🎐 딩동</button><button type="button" class="tmr-pill" data-tone="xylo">🎵 실로폰</button></div>
         </details>
       </div>
     </div>
@@ -2550,10 +2559,28 @@ go(location.hash.slice(1) || 1, false);
   const fmt = s => { const neg = s < 0; s = Math.abs(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (neg ? "+" : "") + (h ? `${h}:${pad(m)}:${pad(x)}` : `${pad(m)}:${pad(x)}`); };
   const FACES = [["basic", "기본"], ["digital", "디지털"], ["flip", "카드"]];
   let saved = {}; try { saved = JSON.parse(localStorage.getItem("sonagiTimer") || "{}"); } catch (e) {}
-  let face = saved.face || "basic", after = saved.after || "stop", sound = saved.sound ?? 3;
+  let face = saved.face || "basic", after = saved.after || "stop", sound = saved.sound ?? 3, tone = saved.tone || "beep";
   let total = 300, left = 300, tid = null, rang = false, picked = 5;   // picked = 마지막으로 누른 빨리 고르기 단추(분)
-  const keep = () => { try { localStorage.setItem("sonagiTimer", JSON.stringify({ face, after, sound })); } catch (e) {} };
-  function beep(n) { try { const ac = new (window.AudioContext || window.webkitAudioContext)(); for (let i = 0; i < n; i++) { const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * .5; o.frequency.value = 880; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.001, t + .35); o.start(t); o.stop(t + .4); } } catch (e) {} }
+  const keep = () => { try { localStorage.setItem("sonagiTimer", JSON.stringify({ face, after, sound, tone })); } catch (e) {} };
+  // 끝나는 소리 세 가지: [음 높이(Hz) · 시작 시각(초) · 길이(초)] 묶음 하나가 '한 번'이에요
+  const TONES = {
+    beep:  { w: "square",   gap: .5,  v: .12, notes: [[880, 0, .3]] },                                        // 🔔 삐삐
+    chime: { w: "triangle", gap: 1.3, v: .35, notes: [[659, 0, .9], [523, .45, 1.1]] },                        // 🎐 딩동
+    xylo:  { w: "sine",     gap: 1,   v: .3,  notes: [[1047, 0, .35], [1319, .12, .35], [1568, .24, .35], [2093, .36, .6]] }   // 🎵 실로폰 (도 미 솔 도)
+  };
+  function beep(n, kind = tone) {
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)(), T = TONES[kind] || TONES.beep;
+      for (let i = 0; i < n; i++) T.notes.forEach(([f, at, len]) => {
+        const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * T.gap + at;
+        o.type = T.w; o.frequency.value = f; o.connect(g); g.connect(ac.destination);
+        g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(T.v, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + len);
+        o.start(t); o.stop(t + len + .05);
+      });
+    } catch (e) {}
+  }
+  // 끝나면: 타이머 창 · 위쪽 공이 흔들리고 숫자가 깜빡여요 (3초)
+  function ding() { const el = $t("tmr"); el.classList.remove("ding"); void el.offsetWidth; el.classList.add("ding"); clearTimeout(ding.h); ding.h = setTimeout(() => el.classList.remove("ding"), 3000); }
   $t("tmrFaces").innerHTML = FACES.map(([k, l]) => `<button type="button" data-face="${k}">${l}</button>`).join("");
   $t("tmrPresets").innerHTML = [1, 3, 5, 10, 15].map(m => `<button type="button" data-m="${m}">${m}분</button>`).join("");
   $t("tmrSteppers").innerHTML = ["시간", "분", "초"].map((l, i) => `<div><label>${l}</label><div><button type="button" data-d="${i}" data-s="-1">‹</button><span data-u="${i}">00</span><button type="button" data-d="${i}" data-s="1">›</button></div></div>`).join("");
@@ -2573,12 +2600,13 @@ go(location.hash.slice(1) || 1, false);
     document.querySelectorAll("#tmrFaces [data-face]").forEach(b => b.classList.toggle("on", b.dataset.face === face));
     document.querySelectorAll("#tmrPanel [data-after]").forEach(b => b.classList.toggle("on", b.dataset.after === after));
     document.querySelectorAll("#tmrPanel [data-snd]").forEach(b => b.classList.toggle("on", +b.dataset.snd === sound));
+    document.querySelectorAll("#tmrPanel [data-tone]").forEach(b => b.classList.toggle("on", b.dataset.tone === tone));
   }
   const stop = () => { clearInterval(tid); tid = null; };
   const set = s => { stop(); total = left = Math.max(0, Math.min(99 * 3600, s)); rang = false; draw(); };
   function tick() {
     left--;
-    if (left <= 0 && !rang) { rang = true; if (sound) beep(sound); if (after === "stop") { left = 0; stop(); } else if (after === "again") { left = total; rang = false; } }
+    if (left <= 0 && !rang) { rang = true; if (sound) beep(sound); ding(); if (after === "stop") { left = 0; stop(); } else if (after === "again") { left = total; rang = false; } }
     draw();
   }
   const toggle = open => { const p = $t("tmrPanel"); p.hidden = open === undefined ? !p.hidden : !open; $t("tmrBall").setAttribute("aria-expanded", String(!p.hidden)); };
@@ -2592,7 +2620,8 @@ go(location.hash.slice(1) || 1, false);
     else if (b.dataset.d) { set(total + [3600, 60, 1][b.dataset.d] * b.dataset.s); picked = 0; draw(); }
     else if (b.dataset.after) { after = b.dataset.after; keep(); draw(); }
     else if (b.dataset.snd) { sound = +b.dataset.snd; keep(); draw(); }
-    else if (b.id === "tmrTest") beep(sound || 1);
+    else if (b.dataset.tone) { tone = b.dataset.tone; keep(); draw(); beep(1); }   // 고르면 한 번 들려줘요
+    else if (b.id === "tmrTest") { beep(sound || 1); ding(); }
     else if (b.id === "tmrGo") { if (tid) { stop(); return draw(); } if (left <= 0 && after !== "over") { left = total; rang = false; } tid = setInterval(tick, 1000); draw(); }
     else if (b.id === "tmrReset") set(total);
   });
