@@ -67,10 +67,11 @@
   .layer{ position:absolute; inset:0; pointer-events:none; }
   /* 운동장 공지: 트랙 안쪽 잔디 위 (사람은 그 위로 지나가요) */
   .stage{ container-type:inline-size; }
-  .notice{ position:absolute; left:9%; right:9%; top:73.5%; height:22%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.4cqw; text-align:center; background:rgba(0,0,0,.55); border:.35cqw dashed #FFD400; pointer-events:none; padding:0 2cqw; }
-  .notice b{ font-family:var(--pix); font-weight:400; font-size:1.25cqw; color:#FFD400; }
-  .notice p{ margin:0; font-size:2.6cqw; line-height:1.25; color:#fff; white-space:pre-wrap; overflow:hidden; max-height:12cqw; text-shadow:.25cqw .25cqw 0 #000; }
-  .notice small{ font-size:1.3cqw; color:#9BD8A7; }
+  .notice{ position:absolute; left:9%; right:9%; top:73.5%; height:22%; display:flex; flex-direction:column; align-items:stretch; gap:.3cqw; background:rgba(0,0,0,.72); border:.35cqw dashed #FFD400; padding:.8cqw 2cqw; }
+  .notice b{ font-family:var(--pix); font-weight:400; font-size:clamp(8px, 1.1cqw, 12px); color:#FFD400; text-align:center; }
+  /* 공지 글: 공지 칸에 쓸 때와 같은 글씨체, 길면 이 안에서 스크롤 */
+  .notice p{ margin:0; flex:1; min-height:0; overflow-y:auto; font-family:var(--kr); font-size:clamp(12px, 1.55cqw, 19px); line-height:1.5; color:#fff; white-space:pre-wrap; overflow-wrap:anywhere; text-align:left; }
+  .notice small{ font-size:clamp(10px, 1.1cqw, 13px); color:#9BD8A7; text-align:right; }
   .ntx{ display:flex; flex-direction:column; gap:5px; }
   .ntx textarea{ background:#000; color:var(--ink); border:2px solid #444; padding:7px; font-family:var(--kr); font-size:16px; min-height:64px; resize:vertical; }
   .ntx div{ display:flex; gap:5px; }
@@ -111,7 +112,7 @@
   .chat .ttl{ grid-column:1 / -1; font-family:var(--pix); font-size:9px; padding:7px 10px; border-bottom:2px solid #333; color:var(--green); display:flex; justify-content:space-between; }
   .chat ol{ list-style:none; margin:0; padding:8px 10px; height:230px; overflow:auto; font-size:16px; line-height:1.55; min-width:0; }
   .chat li{ display:flex; gap:6px; align-items:baseline; }
-  .chat li > span:last-child{ min-width:0; overflow-wrap:anywhere; }
+  .chat li > span:last-child{ min-width:0; overflow-wrap:anywhere; white-space:pre-wrap; }
   .chat li .who{ white-space:nowrap; }
   .chat li.sys{ color:var(--green); }
   .chat li.mine-msg > span:last-child{ color:var(--yellow); }
@@ -439,6 +440,7 @@ function exits(p){
   if(p[1] > 6.8) return [[GATE, 7.5],[GATE, AY]];
   if(p[0] < 6.5 && p[1] > 4.8){ const l = LANES.reduce((a, b)=> Math.abs(b - p[0]) < Math.abs(a - p[0]) ? b : a); return [[l, p[1]],[l, AY]]; }
   if(p[0] > 11.9 && p[1] > 5.2) return [[GATE, p[1]],[GATE, AY]];   // INFO 책상 앞(손님 쪽)
+  if(p[0] > 6.5 && p[0] < 11 && p[1] > 5.5) return [[GATE, p[1]],[GATE, AY]];   // 뽑기 탁자 앞(손님 쪽)
   return [[p[0], AY]];
 }
 function route(a, b){
@@ -602,23 +604,35 @@ async function actOut(name, text){
   c.busy = false; goHome(c);
 }
 
-// 손님: 입구로 들어와 워리스톤 의자에 앉았다가 나감 (분위기용)
-const guests = Array.from({ length:7 }, (_, i)=> makeChar(i + 3, '', 0, true));
+// 손님 (분위기용): 운영 중에는 워리스톤 의자 · 뽑기 탁자 앞 → INFO · 통로 구경, 운영 전 · 정리 때도 몇 명은 통로를 왔다 갔다
+const guests = Array.from({ length:9 }, (_, i)=> makeChar(i + 3, '', 0, true));
 const taken = new Set();
+const GACHA_FRONT = [[7.75,5.85],[9.35,5.85],[8.55,6.1]];
+const strollPoint = ()=> [1.0 + Math.random()*14.2, AY];
 let gc = 0; function guestCount(d){ gc += d; document.querySelector('[data-k="guest"]').textContent = gc; }
+async function visit(g, plan){
+  g.busy = true; show(g); guestCount(1);
+  for(const [pt, stay] of plan){ await walk(g, pt, ++g.moveId); await sleep(stay); }
+  await walk(g, PLAN.entrance, ++g.moveId); hide(g); g.busy = false; guestCount(-1);
+}
 async function guestLoop(){
   for(;;){
-    await sleep(2200 + Math.random()*2500);
-    const s = SLOTS[si];
-    if(CLOCK.paused || !s.hq || s.tidy) continue;
-    const g = guests.find(x=> x.hidden && !x.busy), free = PLAN.chairs.map((_, k)=> k).filter(k=> !taken.has(k));
-    if(!g || !free.length) continue;
-    const k = pick(free); taken.add(k); g.busy = true;
-    (async ()=>{
-      show(g); guestCount(1);
-      await walk(g, PLAN.chairs[k], ++g.moveId); await sleep(8000 + Math.random()*9000);
-      await walk(g, PLAN.entrance, ++g.moveId); hide(g); taken.delete(k); g.busy = false; guestCount(-1);
-    })();
+    const s = SLOTS[si], open = !!(s.hq && !s.tidy);
+    await sleep(open ? 1400 + Math.random()*1800 : 2500 + Math.random()*3000);
+    if(CLOCK.paused) continue;
+    const g = guests.find(x=> x.hidden && !x.busy);
+    if(!g || gc >= (open ? 8 : 3)) continue;
+    const r = Math.random(), wait = (a, b)=> a + Math.random()*(b - a);
+    if(!open){ visit(g, [[strollPoint(), wait(800, 2500)], [strollPoint(), wait(800, 2500)]]); continue; }
+    const free = PLAN.chairs.map((_, k)=> k).filter(k=> !taken.has(k));
+    if(r < 0.45 && free.length){
+      const k = pick(free); taken.add(k);
+      visit(g, [[PLAN.chairs[k], wait(8000, 16000)]]).then(()=> taken.delete(k));
+    } else if(r < 0.75){
+      visit(g, [[pick(GACHA_FRONT), wait(2500, 5000)], ...(Math.random() < 0.5 ? [[PLAN.pickup, wait(1500, 3000)]] : [])]);
+    } else {
+      visit(g, [[strollPoint(), wait(1000, 3000)], [strollPoint(), wait(500, 2000)]]);
+    }
   }
 }
 // 뽑기 당첨 손님이 INFO 앞으로 상품 받으러 와요
@@ -714,7 +728,7 @@ $('chat').addEventListener('click', async e=>{
   try{ await deleteDoc(doc(db, COL.chat, li.dataset.id)); }catch(err){ console.error(err); sysLine('지우지 못했어요.'); }
 });
 async function send(text){
-  text = text.trim().slice(0, 120);
+  text = text.trim().slice(0, 2100);
   const who = teacher ? { name:'선생님', grade:0 } : me;
   if(!who || !text) return false;
   try{
@@ -822,10 +836,10 @@ onSnapshot(doc(db, COL.booth, 'notice'), snap=>{
   $('noticeBy').textContent = t ? `${ROLES[notice.by] ? ROLES[notice.by].t + ' ' : ''}${notice.by || ''}${at ? ' · ' + fmt(at.getHours()*60 + at.getMinutes()) : ''}` : '';
 }, err=> console.error(err));
 async function saveNotice(text, by){
-  text = text.trim().slice(0, 200);
+  text = text.trim().slice(0, 2000);
   try{
     await setDoc(doc(db, COL.booth, 'notice'), { text, by, at:serverTimestamp() });
-    if(text) await send('📢 공지: ' + text.slice(0, 100));
+    if(text) await send('📢 공지: ' + text);
   }catch(e){ console.error(e); sysLine('공지를 올리지 못했어요. 잠시 뒤 다시 해 주세요.'); }
 }
 
@@ -915,8 +929,8 @@ function renderMine(force){
     <div class="state ${on ? 'on' : ''}">${state}</div>
     ${tasks.length ? `<h5>MY TODO · 할 일</h5>
     <ul class="todo">${tasks.map((t, i)=> `<li><label><input type="checkbox" data-i="${i}" ${done[i] ? 'checked' : ''}><span>${esc(t)}</span></label></li>`).join('')}</ul>` : ''}
-    ${who.teacher || who.test || ROLES[who.name] ? `<h5>NOTICE · 운동장 공지 (200자)</h5>
-      <div class="ntx"><textarea id="ntxIn" maxlength="200" placeholder="예: 16시 3부 교대! 워리스톤 재료 INFO에 있어요">${esc(keep.ntx ?? notice.text ?? '')}</textarea>
+    ${who.teacher || who.test || ROLES[who.name] ? `<h5>NOTICE · 운동장 공지</h5>
+      <div class="ntx"><textarea id="ntxIn" maxlength="2000" placeholder="예: 16시 3부 교대! 워리스톤 재료 INFO에 있어요">${esc(keep.ntx ?? notice.text ?? '')}</textarea>
       <div><button id="ntxSave">공지 올리기</button><button class="clr" id="ntxClear">내리기</button></div></div>` : ''}
     ${who.teacher ? `<h5>재고 바로잡기 (채팅에 안 올라가요)</h5>
       <div class="draw">${PRIZES.map(([r, n])=> `<div class="fix" style="--rc:${RANK_C[r]}"><span>${r}등 ${stock[r]}/${n}</span><button data-fix="${r}" data-d="-1">−</button><button data-fix="${r}" data-d="1">+</button></div>`).join('')}</div>
