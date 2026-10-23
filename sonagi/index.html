@@ -595,6 +595,12 @@ mark.fill{background:linear-gradient(transparent 12%,#FFE58A 12%,#FFE58A 92%,tra
 .pn-tools{position:absolute;top:.375rem;right:.375rem;display:flex;gap:.25rem}
 .pn-form input{font-size:1rem;padding:.5rem .75rem}
 #pwBar .pw-filter{font-family:var(--hand);font-size:1rem}
+/* 📄 교안 PDF 내려받기 */
+.pdf-bar{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:1rem;background:color-mix(in srgb,var(--pink) 8%,#fff);border:2px solid color-mix(in srgb,var(--pink) 35%,#fff);border-radius:1.25rem;padding:.75rem 1rem}
+.pdf-bar>div{flex:1 1 20rem}
+.pdf-bar b{font-family:var(--hand);font-weight:400;font-size:1.25rem}
+.pdf-bar small{display:block;color:var(--ink2);font-size:.875rem}
+.pdf-bar small b{font-family:var(--body);font-size:inherit;font-weight:700}
 /* 자기 검증 · AI 검증: 담벼락 위 접기 · 펼치기 (두 칸 높이를 맞춰요) */
 .vs-fold{--c:var(--green);margin:1.25rem 0 0;background:color-mix(in srgb,var(--c) 5%,#fff);border:2px solid color-mix(in srgb,var(--c) 35%,#fff);border-radius:1.25rem;padding:.625rem 1rem}
 .vs-fold[open]{padding-bottom:1rem}
@@ -1961,6 +1967,10 @@ function renderVerify() {
         <button type="button" class="btn" id="rfSend" style="--c:var(--pink)">💌 소감 남기기</button>
       </div>
       <div class="rf-board"><div class="rf-wall" id="rfWall"></div></div>
+      <div class="pdf-bar">
+        <div><b>📄 오늘 연수 교안 PDF</b><small>오늘 배운 흐름 · <b>내 웹앱과 받은 동료 검증</b> · 선생님들 웹앱 사례 · 소감 모음을 한 파일로 받아요. 닉네임 · 숫자 네 자리로 내 웹앱을 불러온 뒤 누르면 내 내용이 함께 들어가요.</small></div>
+        <button type="button" class="btn" id="pdfBtn" style="--c:var(--pink)">📄 교안 PDF 내려받기</button>
+      </div>
     </section>
     <div id="pwAdmin" class="pw-admin"></div>`;
 }
@@ -2190,6 +2200,103 @@ function drawAdmin() {
       <div class="adm-scroll"><table class="adm-t"><thead><tr><th>#</th><th>소감</th><th>남긴 때</th><th></th></tr></thead>
       <tbody>${PW.reflects.length ? PW.reflects.map((r, i) => `<tr><td>${PW.reflects.length - i}</td><td>${esc(r.text)}</td><td>${pwWhen(r.at)}</td><td>${del("sonagi_reflect", r.id)}</td></tr>`).join("") : empty(4, "아직 남긴 소감이 없어요")}</tbody></table></div></section>`;
 }
+/* ===== 📄 교안 PDF: 선생님마다 다른 내용 (내 웹앱 · 받은 의견) + 모두 같은 내용 (흐름 · 이론 · 웹앱 사례 · 소감 · 꿀팁) =====
+   인쇄용 교안 창을 열고 인쇄 창에서 'PDF로 저장'을 골라요 (한글 그대로 · 주소 링크도 눌려요)
+   의견을 쓴 사람 이름은 넣지 않아요 (익명) */
+const plain = h => { const d = document.createElement("div"); d.innerHTML = h || ""; return d.textContent.replace(/\s+/g, " ").trim(); };
+function handoutHTML() {
+  const now = new Date(), today = ymd(now);
+  const who = PW.me ? PW.me.name : "";
+  const mine = PW.me ? PW.apps.filter(isMine) : [];
+  const apps = PW.apps.slice().sort((a, b) => (a.at?.seconds || 9e9) - (b.at?.seconds || 9e9));
+  const refl = (PW.reflects || []).slice().reverse();
+  const link = u => `<a href="${esc(u)}">${esc(u.replace(/^https?:\/\//, ""))}</a>`;
+  const mySec = !PW.me
+    ? `<p class="box">닉네임 · 숫자 네 자리로 내 웹앱을 불러오지 않아서 이 부분이 비어 있어요. 6단계 <b>📌 내 웹앱 올리기</b>에서 불러온 뒤 다시 내려받으면 내 웹앱과 받은 의견이 들어가요.</p>`
+    : !mine.length ? `<p class="box"><b>${esc(who)}</b> 선생님이 담벼락에 올린 웹앱이 아직 없어요.</p>`
+    : mine.map(a => {
+        const notes = PW.notes.filter(n => n.app === a.id).slice().reverse();
+        return `<div class="app"><h3>📌 ${esc(a.title)}</h3><p class="meta">${link(a.url)} · 올린 때 ${pwWhen(a.at)} · 받은 의견 ${notes.length}개</p>
+          ${notes.length ? `<table><thead><tr><th style="width:2.5em">#</th><th>👍 칭찬</th><th>💡 제안</th></tr></thead><tbody>${notes.map((n, i) => `<tr><td>${i + 1}</td><td>${esc(n.good)}</td><td>${esc(n.idea)}</td></tr>`).join("")}</tbody></table>`
+            : `<p class="muted">아직 받은 의견이 없어요.</p>`}
+          <div class="lines"><b>✏️ 받은 의견으로 고칠 점</b><i></i><i></i><i></i></div></div>`;
+      }).join("");
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>소나기연수_교안${who ? "_" + esc(who) : ""}_${today}</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:'OngleipUnz';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2406-1@1.0/Ownglyph_UNZ-Rg.woff2') format('woff2');size-adjust:125%}
+@page{size:A4;margin:16mm 15mm}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Gowun Dodum','Malgun Gothic',sans-serif;color:#4a3a41;font-size:10.5pt;line-height:1.65;word-break:keep-all;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1,h2,h3{font-family:'OngleipUnz','Gowun Dodum',sans-serif;font-weight:400;margin:0}
+h1{font-size:28pt;line-height:1.2}
+h2{font-size:17pt;margin:0 0 3mm;padding-bottom:1.5mm;border-bottom:2px solid #F2DED6;color:#C9557E}
+h3{font-size:13pt;margin:0 0 1mm}
+section{margin:0 0 8mm}
+.brk{break-before:page}
+.cover{border:2px solid #F7C6D6;border-radius:6mm;padding:10mm;background:#FFF7F2;margin-bottom:8mm}
+.cover .tag{display:inline-block;background:#F291B2;color:#fff;border-radius:99px;padding:0 4mm;font-size:10pt}
+.cover p{margin:2mm 0 0;color:#957F87}
+.cover .me{margin-top:6mm;font-size:13pt;color:#4a3a41}
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm}
+.steps div,.cards div{border:1px solid #F2DED6;border-radius:3mm;padding:2.5mm 3.5mm;break-inside:avoid}
+.steps b,.cards b{display:block;font-size:11pt}
+.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2.5mm}
+.cards div{font-size:9.5pt}
+.app{border:2px solid #CDEBD8;border-radius:4mm;padding:4mm 5mm;margin:0 0 5mm;break-inside:avoid}
+.meta{margin:0 0 3mm;color:#957F87;font-size:9.5pt}
+table{width:100%;border-collapse:collapse;font-size:9.5pt}
+th,td{border:1px solid #F2DED6;padding:1.5mm 2.5mm;text-align:left;vertical-align:top}
+th{background:#FFF7F2}
+tr{break-inside:avoid}
+a{color:#C9557E;word-break:break-all}
+.box{border:1.5px dashed #F2DED6;border-radius:3mm;padding:3mm 4mm;color:#957F87}
+.muted{color:#957F87}
+.lines{margin-top:4mm}
+.lines i{display:block;height:8mm;border-bottom:1px solid #E8D8D0}
+.refl{columns:2;column-gap:5mm}
+.refl p{break-inside:avoid;margin:0 0 2.5mm;padding:2.5mm 3.5mm;background:#FFF7F2;border-radius:3mm}
+.tips{columns:2;column-gap:6mm;padding-left:5mm;margin:0}
+.tips li{break-inside:avoid;margin:0 0 1.5mm}
+.foot{margin-top:6mm;color:#957F87;font-size:8.5pt;text-align:center}
+.bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #eee;padding:8px 12px;display:flex;gap:8px;align-items:center;font-size:14px}
+.bar button{border:0;border-radius:99px;background:#F291B2;color:#fff;padding:6px 16px;font:inherit;cursor:pointer}
+.page{max-width:190mm;margin:0 auto;padding:6mm 0}
+@media print{.bar{display:none}.page{padding:0}}
+</style></head><body>
+<div class="bar"><button onclick="print()">📄 PDF로 저장</button><span>인쇄 창의 대상(프린터)에서 <b>'PDF로 저장'</b>을 고르세요.</span></div>
+<div class="page">
+<div class="cover"><span class="tag">소나기 연수</span><h1>바이브코딩 웹앱 실습 교안</h1>
+  <p>만들고 · 배포하고 · 기록을 모으고 · 함께 검증하기</p>
+  <p class="me">${who ? `<b>${esc(who)}</b> 선생님의 교안` : "선생님용 교안"} · ${today}</p>
+  <p>연수 화면: <a href="https://moontr.site/sonagi/">moontr.site/sonagi</a></p></div>
+
+<section><h2>🧭 오늘 연수 흐름</h2><div class="steps">${STEPS.map((s, i) => `<div><b>${i + 1}. ${esc(s.title)}</b>${esc(plain(s.lead))}</div>`).join("")}</div></section>
+
+<section><h2>📚 이론 한눈에</h2><div class="cards">${THEORY.map(o => `<div><b>${o.e} ${esc(o.t)}</b>${esc(plain(o.key))}</div>`).join("")}</div></section>
+
+<section class="brk"><h2>📌 나의 웹앱과 받은 동료 검증</h2>${mySec}</section>
+
+<section><h2>🧱 선생님들의 웹앱 사례 <small class="muted" style="font-size:10pt">${apps.length}개 · 담벼락에 공개한 웹앱</small></h2>
+  ${apps.length ? `<table><thead><tr><th style="width:2.5em">#</th><th>웹앱 이름</th><th>만든 선생님</th><th>주소</th><th style="width:4em">의견</th></tr></thead><tbody>${apps.map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.title)}</td><td>${esc(a.name)}</td><td>${link(a.url)}</td><td>${pwCnt(a)}</td></tr>`).join("")}</tbody></table>` : `<p class="box">아직 올라온 웹앱이 없어요.</p>`}</section>
+
+<section><h2>💌 연수 소감 모음 <small class="muted" style="font-size:10pt">${refl.length}개 · 이름 없이</small></h2>
+  ${refl.length ? `<div class="refl">${refl.map(r => `<p>${esc(r.text)}</p>`).join("")}</div>` : `<p class="box">아직 남긴 소감이 없어요.</p>`}</section>
+
+<section><h2>💡 수업 후에 해 보면 좋은 꿀팁</h2><ul class="tips">${TIPS.map(o => `<li><b>${esc(o.t)}</b> — ${esc(plain(o.key))}</li>`).join("")}</ul></section>
+
+<p class="foot">소나기 연수 · 바이브코딩 웹앱 실습 · moontr.site/sonagi · ${today} 내려받음 · 동료 의견은 쓴 사람 이름 없이 담았어요</p>
+</div>
+${"<scr" + "ipt>"}document.fonts.ready.then(() => setTimeout(() => print(), 300));${"</scr" + "ipt>"}
+</body></html>`;   // (스크립트 태그를 조각내 써야 이 페이지의 스크립트가 중간에 끊기지 않아요)
+}
+function downloadHandout() {
+  if (PW.db && !PW.me && !confirm("내 웹앱을 아직 불러오지 않았어요.\n\n'📌 내 웹앱 올리기'에 닉네임 · 숫자 네 자리를 넣고 [내 웹앱 불러오기]를 누른 뒤 내려받으면 내 웹앱과 받은 의견이 들어가요.\n\n그래도 지금 내려받을까요?")) return;
+  const w = window.open("", "_blank");
+  if (!w) return toast("새 창이 막혔어요. 주소창 오른쪽에서 팝업을 허용해 주세요");
+  w.document.open(); w.document.write(handoutHTML()); w.document.close();
+  toast("인쇄 창에서 'PDF로 저장'을 고르세요");
+}
 // 대시보드 🗑: 웹앱을 지우면 그 웹앱의 의견도 한꺼번에 지워요
 async function admDelete(key) {
   const [col, id] = key.split(":");
@@ -2396,6 +2503,7 @@ document.addEventListener("click", async e => {
   // 5단계 동료 검증 담벼락
   if (t.closest("#pwPost")) { postApp(); return; }
   if (t.closest("#rfSend")) { sendReflect(); return; }
+  if (t.closest("#pdfBtn")) { downloadHandout(); return; }
   if (t.closest("#pwCancel")) { endEdit(); return; }
   if (t.closest("#pwOpen")) { pwLogin().then(ok => { if (ok) toast(PW.apps.some(isMine) ? "내 웹앱을 불러왔어요" : "아직 이 닉네임 · 네 자리로 올린 웹앱이 없어요"); }); return; }
   if (t.closest("#pwOut")) { pwLogout(); return; }
