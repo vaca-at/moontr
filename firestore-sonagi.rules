@@ -263,13 +263,23 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isTeacher();
     }
-    // 연수 소감 (6단계 ③ 마무리 · 익명 갤러리): 소감 글 · 시각만 (이름 없음), 누구나 보기, 고치기 없음, 관리자만 지우기
+    // 연수 소감 (6단계 ③ 마무리 · 소감 갤러리): 소감 글 · 닉네임 · pin(닉네임+네 자리 해시) · 시각, 누구나 보기
+    // 고치기는 글(text)만 (닉네임 · pin은 못 바꿔요). 로그인이 없어 '내 것'을 규칙으로 완전히 잠글 수는 없어요 (웹앱과 같아요)
+    // 예전 소감(이름 없이 글 · 시각만)도 그대로 읽혀요. 아예 지우기는 관리자만
+    function sonagiRfText(d) {
+      return d.text is string && d.text.size() > 0 && d.text.size() <= 200;
+    }
     match /sonagi_reflect/{id} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['text', 'at'])
-        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 200
+      allow create: if request.resource.data.keys().hasOnly(['text', 'name', 'pin', 'at'])
+        && request.resource.data.keys().hasAll(['text', 'name', 'pin', 'at'])
+        && sonagiRfText(request.resource.data)
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
+        && request.resource.data.pin is string && request.resource.data.pin.matches('^[0-9a-f]{64}$')
         && request.resource.data.at == request.time;
-      allow update: if false;
+      allow update: if 'pin' in resource.data
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text'])
+        && sonagiRfText(request.resource.data);
       allow delete: if isTeacher();
     }
 
