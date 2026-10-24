@@ -679,6 +679,18 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
 .ai-ans .ar{border-radius:.625rem;padding:.3125rem .625rem;font-size:.9rem;line-height:1.55;background:color-mix(in srgb,var(--lav) 8%,#fff)}
 .ai-ans .ar.ok{background:#EBFBEE}.ai-ans .ar.warn{background:#FFF4E6}.ai-ans .ar.top{background:#FFF0F6;font-weight:700}.ai-ans .ar.h{background:none;font-weight:700;padding-left:.125rem}
 .tbl td.tbl-empty{text-align:center;color:var(--ink2);padding:1.25rem .5rem;background:#fff}
+/* ✅ 출석부 */
+.roll-tools{display:flex;gap:.5rem;flex-wrap:wrap;margin:.25rem 0 .75rem}
+table.roll td{vertical-align:middle}
+.roll-st{white-space:nowrap}
+.roll-st button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:.125rem .625rem;margin:0 .1875rem .1875rem 0;font-size:.875rem;cursor:pointer}
+.roll-st button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+table.roll tr.st-출석 td{background:#F0FBF4}
+table.roll tr.st-지각 td,table.roll tr.st-조퇴 td{background:#FFF8E6}
+table.roll tr.st-결석 td{background:#FFF0F0}
+.roll-add{margin-top:1rem}
+.roll-add summary{cursor:pointer;font-weight:700}
+.roll-add textarea{width:100%;box-sizing:border-box;font:inherit;font-size:max(16px,.9375rem);border:2px solid var(--line);border-radius:.75rem;padding:.5rem .6875rem}
 </style>
 </head>
 <body>
@@ -2312,6 +2324,7 @@ function setTeacher(on) {
   if (on) {
     stopAdmin.push(listen(COL_KEYS, list => { people = {}; list.forEach(x => { people[x.planId] = { name: x.name }; }); renderDash(); }));
     stopAdmin.push(listen(COL_WHO, list => { writers = {}; list.forEach(x => { writers[x.id] = { name: x.name }; }); renderDash(); }));
+    stopAdmin.push(listen(COL_ROSTER, l => { roster = l; renderDash(); }));
     stopAdmin.push(listen(COL_VISITS, list => { visits = list; renderDash(); }));
     stopAdmin.push(listen(COL_REFLECT, list => { reflects = list; renderDash(); }));
     stopAdmin.push(listen(COL_WALL_WHO, list => { wallWho = {}; list.forEach(x => { wallWho[x.id] = { name: x.name }; }); }));
@@ -2370,6 +2383,88 @@ async function clearVisits() {
 }
 
 let dashTab = "planA";   // 대시보드에서 보고 있는 탭
+/* ===== ✅ 출석부 (관리자만): 학생 명단은 코드에 적지 않고, 대시보드에서 붙여 넣어 저장소(vibe_roster)에만 둬요 =====
+   문서 이름 = 강좌_반_학번 → { course, ban, sid(학번 5자리), name(이름 두 글자), st(출석 상태), at(체크한 시각) } */
+const COL_ROSTER = "vibe_roster";
+const COURSE = "theory";   // theory = 이론편, lab = 실습편
+const ROLL_ST = [["출석", "✅"], ["지각", "⏰"], ["조퇴", "🚶"], ["결석", "❌"]];
+let roster = [];
+const rollLeft = {};   // 못 읽은 줄 (다시 그려도 칸에 남겨 둬요)
+const rosterOf = b => roster.filter(r => r.course === COURSE && r.ban === b).sort((x, y) => String(x.sid).localeCompare(String(y.sid)));
+const rollId = (b, sid) => `${COURSE}_${b}_${sid}`;
+async function rollSet(id, data) {
+  if (LIVE) return db.collection(COL_ROSTER).doc(id).set(data, { merge: true });
+  const arr = localGet(COL_ROSTER), i = arr.findIndex(x => x.id === id);
+  if (i >= 0) arr[i] = { ...arr[i], ...data }; else arr.push({ ...data, id });
+  localSet(COL_ROSTER, arr); localEmit(COL_ROSTER);
+}
+async function rollDel(id) {
+  if (LIVE) return db.collection(COL_ROSTER).doc(id).delete();
+  localSet(COL_ROSTER, localGet(COL_ROSTER).filter(x => x.id !== id)); localEmit(COL_ROSTER);
+}
+// 한 줄: "11009 애리" 또는 "1 10 9 박애리"(학년 반 번호 이름) → 학번 5자리 + 이름 두 글자(성 빼고)
+function parseRollLine(line) {
+  const t = line.replace(/[,\t|·]/g, " ").trim().split(/\s+/).filter(Boolean);
+  if (!t.length) return null;
+  const name2 = n => { const c = [...String(n || "").replace(/[^가-힣a-zA-Z]/g, "")]; return c.length > 2 ? c.slice(-2).join("") : c.join(""); };
+  if (/^\d{5}$/.test(t[0]) && t[1]) return { sid: t[0], name: name2(t[1]) };
+  const nums = t.filter(x => /^\d+$/.test(x)), nm = t.find(x => /[가-힣]/.test(x));
+  if (nums.length >= 3 && nm) { const [g, c, n] = nums.slice(-3).map(Number); if (g >= 1 && g <= 3 && c >= 1 && c <= 99 && n >= 1 && n <= 99) return { sid: `${g}${String(c).padStart(2, "0")}${String(n).padStart(2, "0")}`, name: name2(nm) }; }
+  return null;
+}
+function rosterHTML(b) {
+  const list = rosterOf(b), cnt = k => list.filter(r => r.st === k).length, none = list.filter(r => !r.st).length;
+  return `<h4>✅ ${b}반 출석부 <span class="muted" style="font-size:.875rem">${list.length}명 · ${ROLL_ST.map(([k, e]) => `${e} ${k} ${cnt(k)}`).join(" · ")} · 미체크 ${none}</span></h4>
+    <div class="roll-tools">
+      <button type="button" class="btn sm" data-roll-all="${b}">✅ 남은 학생 모두 출석</button>
+      <button type="button" class="pill sm" data-roll-reset="${b}">↺ 출석 체크 지우기</button>
+      <button type="button" class="pill sm" data-roll-csv="${b}">⬇️ 엑셀 저장</button>
+    </div>
+    ${list.length ? `<div class="tbl"><table class="roll">
+      <tr><th>번</th><th>학번</th><th>이름</th><th>출석 체크</th><th>체크한 시각</th><th></th></tr>
+      ${list.map((r, i) => `<tr class="${r.st ? "st-" + r.st : ""}"><td>${i + 1}</td><td>${esc(r.sid)}</td><td><b>${esc(r.name)}</b></td>
+        <td class="roll-st">${ROLL_ST.map(([k, e]) => `<button type="button" class="${r.st === k ? "on" : ""}" data-roll-st="${r.id}" data-v="${k}">${e} ${k}</button>`).join("")}</td>
+        <td>${r.at ? fmtTime(r.at) : "-"}</td><td><button type="button" class="del" data-roll-del="${r.id}">빼기</button></td></tr>`).join("")}
+    </table></div>` : `<div class="empty">아직 출석부가 없어요. 아래 [명단 붙여 넣기]로 넣어 주세요.</div>`}
+    <details class="roll-add" ${list.length && !rollLeft[b] ? "" : "open"}><summary>➕ 명단 붙여 넣기 · 학생 더하기</summary>
+      <form class="form" data-roll-bulk="${b}" autocomplete="off">
+        <textarea name="lines" rows="6" placeholder="한 줄에 한 명씩\n11009 애리\n또는 1 10 9 박애리 (학년 반 번호 이름)">${esc(rollLeft[b] || "")}</textarea>
+        <button class="btn sm" type="submit">저장</button>
+        <p class="muted" style="margin:0">학번은 5자리(학년 1 + 반 2 + 번호 2)로, 이름은 성을 빼고 두 글자로 저장돼요. 같은 학번이 있으면 이름만 바뀌고 출석 체크는 그대로예요. 명단은 선생님만 볼 수 있어요.</p>
+      </form></details>`;
+}
+(() => {
+  const box = document.getElementById("dashBox");
+  box.addEventListener("click", async e => {
+    const t = e.target;
+    try {
+      const st = t.closest("[data-roll-st]"); if (st) { const r = roster.find(x => x.id === st.dataset.rollSt); const v = r && r.st === st.dataset.v ? "" : st.dataset.v; await rollSet(st.dataset.rollSt, { st: v, at: v ? Date.now() : 0 }); return; }
+      const all = t.closest("[data-roll-all]"); if (all) { for (const r of rosterOf(all.dataset.rollAll).filter(r => !r.st)) await rollSet(r.id, { st: "출석", at: Date.now() }); toast("남은 학생을 모두 출석으로 했어요"); return; }
+      const rs = t.closest("[data-roll-reset]"); if (rs) { if (!confirm("이 반 출석 체크를 모두 지울까요? (명단은 그대로)")) return; for (const r of rosterOf(rs.dataset.rollReset)) await rollSet(r.id, { st: "", at: 0 }); toast("출석 체크를 지웠어요"); return; }
+      const dl = t.closest("[data-roll-del]"); if (dl) { const r = roster.find(x => x.id === dl.dataset.rollDel); if (r && confirm(`${r.sid} ${r.name} 학생을 출석부에서 뺄까요?`)) { await rollDel(r.id); toast("뺐어요"); } return; }
+      const cv = t.closest("[data-roll-csv]"); if (cv) {
+        const b = cv.dataset.rollCsv, rows = [["강좌", "반", "번", "학번", "이름", "출석", "체크한 시각"]];
+        rosterOf(b).forEach((r, i) => rows.push([COURSE === "lab" ? "실습편" : "이론편", b, i + 1, r.sid, r.name, r.st || "미체크", r.at ? fmtTime(r.at) : ""]));
+        return saveCSV(rows, `출석부_${COURSE === "lab" ? "실습편" : "이론편"}_${b}반.csv`);
+      }
+    } catch (err) { console.error(err); toast("저장하지 못했어요. 관리자 로그인과 보안 규칙을 확인하세요"); }
+  });
+  box.addEventListener("submit", async e => {
+    const f = e.target.closest("[data-roll-bulk]"); if (!f) return;
+    e.preventDefault();
+    const b = f.dataset.rollBulk, lines = f.lines.value.split(/\n/).map(x => x.trim()).filter(Boolean);
+    const ok = [], bad = [];
+    lines.forEach(l => { const p = parseRollLine(l); p && p.name ? ok.push(p) : bad.push(l); });
+    if (!ok.length) { toast("읽을 수 있는 줄이 없어요. '11009 애리'처럼 적어 주세요"); return; }
+    rollLeft[b] = bad.join("\n");
+    try {
+      for (const p of ok) await rollSet(rollId(b, p.sid), { course: COURSE, ban: b, sid: p.sid, name: p.name });
+      renderDash();
+      toast(`${ok.length}명을 저장했어요${bad.length ? ` · 못 읽은 줄 ${bad.length}개는 칸에 남겨 뒀어요` : ""}`);
+    } catch (err) { console.error(err); toast("저장하지 못했어요. 관리자 로그인과 보안 규칙을 확인하세요"); }
+  });
+})();
+
 function renderDash() {
   if (dashTab !== "visit" && dashTab.slice(-1) !== ban) dashTab = dashTab.slice(0, -1) + ban;
   const box = document.getElementById("dashBox");
@@ -2384,9 +2479,10 @@ function renderDash() {
     box.scrollTop = boxTop;
   });
   const ps = plansOfBan(), fs = fbOfBan();
-  const TABS = [["visit", "📱 기기 접속 현황"], ["planA", "📝 A반 계획서"], ["chatA", "💬 A반 채팅방"], ["planB", "📝 B반 계획서"], ["chatB", "💬 B반 채팅방"]];
+  const TABS = [["visit", "📱 기기 접속 현황"], ["rollA", "✅ A반 출석부"], ["planA", "📝 A반 계획서"], ["chatA", "💬 A반 채팅방"], ["rollB", "✅ B반 출석부"], ["planB", "📝 B반 계획서"], ["chatB", "💬 B반 채팅방"]];
   const tabBar = `<div class="dash-tabs" role="tablist">${TABS.map(([k, n]) => `<button type="button" role="tab" class="${dashTab === k ? "on" : ""}" data-dtab="${k}">${n}</button>`).join("")}</div>`;
   if (dashTab === "visit") { box.innerHTML = tabBar + visitStatsHTML(); return; }
+  if (dashTab.startsWith("roll")) { box.innerHTML = tabBar + rosterHTML(ban); setTimeout(() => { box.scrollTop = boxTop; }); return; }
   if (dashTab.startsWith("chat")) {
     box.innerHTML = tabBar + `
     <h4>🗨️ ${ban}반 모둠 채팅방 <button type="button" class="btn sm" data-csv="fb">채팅 기록 저장</button><span class="muted" style="font-size:.875rem">모둠마다 한 방 · 선생님도 말을 보낼 수 있어요 · 피드백 ${fs.length}개</span></h4>
