@@ -699,6 +699,32 @@ html.dash-only #dlgAdmin{width:100vw;max-width:none;height:100vh;height:100dvh;m
 html.dash-only #dlgAdmin::backdrop{background:#fff}
 html.dash-only #dlgAdmin .doc-head{display:none}
 .dash-link{margin-left:auto;font-size:.875rem;color:#fff;text-decoration:underline;white-space:nowrap}
+/* 📄 PDF 교안: 인쇄할 때만 슬라이드 전체를 차례로 (펼침 내용도 모두) */
+#printBook{display:none}
+@media print{
+  @page{size:A4;margin:12mm}
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+  body.printing > :not(#printBook){display:none!important}
+  body.printing #printBook{display:block}
+  #printBook{font-size:11pt;color:#222;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #printBook .pb-cover{text-align:center;padding:30mm 0 0}
+  #printBook .pb-cover h1{font-family:var(--hand);font-weight:var(--hw);font-size:28pt;margin:0 0 4mm}
+  #printBook .pb-slide{break-before:page}
+  #printBook .pb-head{display:flex;align-items:baseline;gap:4mm;border-bottom:2px solid var(--c);padding-bottom:2mm;margin-bottom:4mm}
+  #printBook .pb-head b{font-family:var(--hand);font-size:24pt;color:var(--c)}
+  #printBook .pb-head h2{font-family:var(--hand);font-weight:var(--hw);font-size:18pt;margin:0}
+  #printBook .pb-head p{margin:0;color:#777;font-size:10pt}
+  #printBook .pb-cols{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+  #printBook .pb-col{border:1.5px solid color-mix(in srgb,var(--c) 45%,#fff);border-radius:3mm;break-inside:avoid;overflow:hidden}
+  #printBook .pb-col > h3{margin:0;padding:1.5mm 3mm;background:var(--c);color:#fff;font-family:var(--hand);font-weight:var(--hw);font-size:12pt}
+  #printBook .pb-col > div{padding:2.5mm 3mm}
+  #printBook details > summary{list-style:none;font-weight:700}
+  #printBook details > summary::-webkit-details-marker{display:none}
+  #printBook .pop-panel{position:static!important;display:block!important;transform:none!important;box-shadow:none!important;max-height:none!important;width:auto!important;opacity:1!important;visibility:visible!important}
+  #printBook button,#printBook .copy,#printBook .pop-close,#printBook .pop-title,#printBook form,#printBook input,#printBook textarea{display:none!important}
+  #printBook a{color:inherit;text-decoration:none}
+  #printBook .pb-below{margin-top:4mm}
+}
 </style>
 </head>
 <body>
@@ -725,6 +751,7 @@ html.dash-only #dlgAdmin .doc-head{display:none}
       <button type="button" class="pill me-pill" id="meBtn" data-me-open>🙋 나 확인하기</button>
       <button type="button" class="pill" data-dlg="dlgStyle">🎨 꾸미기</button>
       <button type="button" class="pill" id="reloadBtn">↻ 새로고침</button>
+      <button type="button" class="pill" id="pdfBtn" title="슬라이드 전체를 교안으로 인쇄하거나 PDF로 저장해요">📄 PDF 교안</button>
       <button type="button" class="pill" id="fsBtn">전체화면</button>
     </div>
   </header>
@@ -1280,6 +1307,15 @@ const SLIDES = [
   tab: "핵심 개념", sub: "HTML·배포·권한", color: C.green, time: 15,
   title: "바이브코딩의 핵심 개념", lead: "AI와 대화하려면 몇 가지 단어는 알아 두어야 해요",
   cols: [
+    { t: "두 얼굴을 가진 index.html", c: C.lav, html: `
+      <p class="big">index.html은 <span class="mark">두 얼굴을 가진 마법의 파일</span>이에요.</p>
+      <div class="vs">
+        <div class="old"><h5>📝 메모장으로 열면</h5>꺾쇠(&lt; &gt;)가 가득한 <b>글자(코드)</b>가 보여요.<br><span class="muted">AI가 써 주는 얼굴</span></div>
+        <div class="new"><h5>🌐 브라우저로 열면</h5>버튼과 색깔이 있는 <b>웹 화면</b>이 보여요.<br><span class="muted">친구들이 보는 얼굴</span></div>
+      </div>
+      <div class="box part" style="--c:var(--lav)"><h4><span class="pn">?</span>왜 이름이 index일까?</h4>index는 <b>첫 페이지</b>라는 뜻이에요. 주소로 들어오면 인터넷이 이 파일을 <b>가장 먼저</b> 보여 줘요.</div>
+      <div class="addr">moontr.site/stuvibe/<br>→ <b>stuvibe/index.html</b>을 먼저 보여 줘요</div>
+      <div class="flowbar">AI가 글자 얼굴을 쓰고, 나는 화면 얼굴을 확인해요!</div>` },
     { t: "앱의 세 부분", c: C.green, html: `
       <p class="big md">식당으로 생각해 봐요 🍝</p>
       <div class="box part" style="--c:var(--green)"><h4><span class="pn">1</span>프론트엔드 = 홀</h4>사용자가 <b>보고 입력</b>하는 화면</div>
@@ -1332,14 +1368,7 @@ const SLIDES = [
       <div class="box part" style="--c:var(--lav)"><h4><span class="pn">2</span>인증 = 누구인지 확인</h4>로그인으로 <b>'나'임을 확인</b>하는 단계</div>
       <div class="box part" style="--c:var(--sky)"><h4><span class="pn">3</span>권한 = 할 수 있는 범위</h4>학생은 <b>내 응답만</b>, 선생님은 <b>우리 반만</b></div>
       <div class="flowbar">인증은 문을 여는 열쇠 🔑<br>권한은 들어갈 수 있는 방을 정하는 규칙</div>
-      <p class="muted" style="margin-top:.625rem">로그인했다고 모든 기록이 보여서는 안 돼요. 비밀번호·'API 키' 같은 열쇠는 아무에게나 주지 않아요.</p>` },
-    { t: "꼭 필요한 정보만", c: C.teal, html: `
-      <p class="big">받지 않아도 되는 정보는 <span class="mark">처음부터 받지 않아요.</span></p>
-      <div class="box info ok"><h4>⭕ 받아도 되는 정보</h4>
-        <ul><li><b>별명</b> 진짜 이름 대신</li><li><b>퀴즈 점수</b> 웹앱에 꼭 필요한 기록</li><li><b>한 줄 소감</b> 오늘 느낀 점</li></ul></div>
-      <div class="box info no"><h4>❌ 받지 않는 정보</h4>
-        <ul><li><b>실명, 전화번호</b> 누구인지 알 필요 없어요</li><li><b>주민등록번호, 주소</b> 담을 이유가 없어요</li><li><b>얼굴 사진</b> 한 번 퍼지면 지우기 어려워요</li></ul></div>
-      <p class="muted">내 웹앱에 정말 필요한 정보인지 먼저 생각해 봐요.</p>` }
+      <p class="muted" style="margin-top:.625rem">로그인했다고 모든 기록이 보여서는 안 돼요. 비밀번호·'API 키' 같은 열쇠는 아무에게나 주지 않아요.</p>` }
   ]
 },
 {
@@ -1632,6 +1661,25 @@ async function copyBox(btn) {
   btn._t = setTimeout(() => { btn.innerHTML = ICON_COPY; btn.classList.remove("done"); }, 1500);
   toast("복사했어요");
 }
+
+// 📄 PDF 교안: 슬라이드 전체를 한 문서로 만들어 인쇄 창(→ PDF로 저장)을 열어요
+function printBook() {
+  document.getElementById("printBook")?.remove();
+  const box = document.createElement("div");
+  box.id = "printBook";
+  box.innerHTML = `<section class="pb-cover"><h1>바이브코딩으로 웹앱 만들기</h1><p>진로탐구수업 · 이론편 교안</p><p class="muted">moontr.site/stuvibe</p></section>` +
+    SLIDES.map((sl, n) => `<section class="pb-slide" style="--c:${sl.color}">
+      <div class="pb-head"><b>${n + 1}</b><h2>${sl.title}</h2><p>${sl.lead}</p></div>
+      <div class="pb-cols">${sl.cols.map(c => `<article class="pb-col" style="--c:${c.c}"><h3>${c.t}</h3><div>${c.html}</div></article>`).join("")}</div>
+      ${sl.below ? `<div class="pb-below" style="--c:${sl.color}">${sl.below}</div>` : ""}</section>`).join("");
+  box.querySelectorAll("details").forEach(d => d.open = true);
+  document.body.appendChild(box);
+  document.body.classList.add("printing");
+  const done = () => { document.body.classList.remove("printing"); box.remove(); window.removeEventListener("afterprint", done); };
+  window.addEventListener("afterprint", done);
+  setTimeout(() => window.print(), 300);   // 그림 · 글꼴이 붙을 시간
+}
+document.getElementById("pdfBtn").addEventListener("click", () => { toast("인쇄 창에서 'PDF로 저장'을 고르면 교안 파일이 돼요"); printBook(); });
 
 function renderSlide() {
   const s = SLIDES[cur - 1];
