@@ -85,7 +85,8 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "760377216121",
   appId: "1:760377216121:web:81b25b9af707412d2218a8"
 };
-const ADMIN_EMAIL = "anstjsdud@sen.go.kr";   // 이론편 · 실습편과 같은 관리자 계정
+const ADMIN_EMAILS = ["bellachord@gmail.com", "anstjsdud@sen.go.kr"];   // 관리자 구글 계정 (보안 규칙 isTeacher와 같게)
+const isAdminEmail = e => ADMIN_EMAILS.includes(e);
 // 강좌 · 반 · 수업 날짜 (화면에 보일 이름)
 const CLASSES = [
   { course: "theory", ban: "A", label: "이론편 A반", day: "11/2 월" },
@@ -106,7 +107,7 @@ let teacher = false, roster = [], checkins = [], stops = [], filter = "all";
 
 /* ===== 로그인 ===== */
 auth.onAuthStateChanged(u => {
-  if (u && u.email !== ADMIN_EMAIL) { auth.signOut(); toast("관리자 계정(sen 메일)으로 로그인해 주세요"); return; }
+  if (u && !isAdminEmail(u.email)) { auth.signOut(); toast("관리자 구글 계정으로 로그인해 주세요"); return; }
   teacher = !!u;
   $("whoText").textContent = u ? u.email : "로그인이 필요해요";
   $("authBtn").textContent = u ? "🔓 로그아웃" : "🔒 관리자 로그인";
@@ -121,7 +122,7 @@ $("authBtn").addEventListener("click", async () => {
   if (teacher) { if (confirm("로그아웃할까요?")) await auth.signOut(); return; }
   try {
     const p = new firebase.auth.GoogleAuthProvider();
-    p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAIL });
+    p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAILS[0] });
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     await auth.signInWithPopup(p);
   } catch (e) { console.error(e); toast("로그인하지 못했어요"); }

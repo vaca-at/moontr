@@ -966,7 +966,8 @@ const FIREBASE_CONFIG = {
   appId: "1:760377216121:web:81b25b9af707412d2218a8"
 };
 // 관리자 계정 (sonagi-1cc00 프로젝트의 Authentication 구글 로그인)
-const ADMIN_EMAIL = "anstjsdud@sen.go.kr";
+const ADMIN_EMAILS = ["bellachord@gmail.com", "anstjsdud@sen.go.kr"];   // 관리자 구글 계정 (보안 규칙 isTeacher와 같게)
+const isAdminEmail = e => ADMIN_EMAILS.includes(e);
 // 화면에는 닉네임 대신 '학생 A'처럼 제출 순서로만 보여요.
 const COL_PLANS = "vibe_plans";     // 계획서 (누구나 보기, 닉네임 없음)
 const COL_KEYS = "vibe_plan_keys";  // 문서 이름 = 반·닉네임·학번의 해시 → 계획서 번호·반·닉네임 (관리자만 목록 보기, 학번은 저장 안 함)
@@ -2564,7 +2565,7 @@ function openAdminView() {
 
 if (auth) {
   auth.onAuthStateChanged(u => {
-    if (u && u.email !== ADMIN_EMAIL) { auth.signOut(); toast("관리자 계정(sen 메일)으로 로그인해 주세요"); return; }
+    if (u && !isAdminEmail(u.email)) { auth.signOut(); toast("관리자 구글 계정으로 로그인해 주세요"); return; }
     setTeacher(!!u);
     if (adminIntent) { adminIntent = false; openAdminView(); }
   });
@@ -2587,9 +2588,9 @@ document.getElementById("loginForm").addEventListener("submit", async e => {
   btn.disabled = true; err.textContent = "확인 중...";
   try {
     const p = new firebase.auth.GoogleAuthProvider();
-    p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAIL });
+    p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAILS[0] });
     const r = await auth.signInWithPopup(p);
-    if (!r.user || r.user.email !== ADMIN_EMAIL) { err.textContent = "관리자 계정(sen 메일)으로 로그인해 주세요."; btn.disabled = false; return; }
+    if (!r.user || !isAdminEmail(r.user.email)) { err.textContent = "관리자 구글 계정으로 로그인해 주세요."; btn.disabled = false; return; }
     err.textContent = "";
     document.getElementById("dlgLogin").close();
     toast("관리자 모드를 켰어요");

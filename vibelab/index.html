@@ -828,8 +828,8 @@ html.dash-only #dlgAdmin .doc-head{display:none}
   <div class="doc-head"><h3 id="dlgLoginT">🔒 관리자 로그인</h3><button type="button" data-close>닫기</button></div>
   <div class="doc-body">
     <div class="form" id="loginForm">
-      <p class="muted" style="margin:0">담당 선생님의 학교 구글 계정(sen 메일)으로 로그인하면 대시보드에서 학생들이 올린 웹앱 주소, 검증, 성찰을 닉네임과 함께 볼 수 있어요.</p>
-      <p class="muted" style="margin:0">새 창이 열리면 sen 메일 계정을 골라 주세요. 다른 계정으로는 관리자 모드가 켜지지 않아요.</p>
+      <p class="muted" style="margin:0">관리자 구글 계정으로 로그인하면 대시보드에서 학생들이 올린 웹앱 주소, 검증, 성찰을 닉네임과 함께 볼 수 있어요.</p>
+      <p class="muted" style="margin:0">새 창이 열리면 관리자 구글 계정을 골라 주세요. 다른 계정으로는 관리자 모드가 켜지지 않아요.</p>
       <p class="err" id="loginErr" role="alert"></p>
       <button class="btn" type="button" id="googleLoginBtn">구글 계정으로 로그인</button>
     </div>
@@ -982,7 +982,8 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "760377216121",
   appId: "1:760377216121:web:81b25b9af707412d2218a8"
 };
-const ADMIN_EMAIL = "anstjsdud@sen.go.kr";
+const ADMIN_EMAILS = ["bellachord@gmail.com", "anstjsdud@sen.go.kr"];   // 관리자 구글 계정 (보안 규칙 isTeacher와 같게)
+const isAdminEmail = e => ADMIN_EMAILS.includes(e);
 const THEORY_URL = "https://moontr.site/stuvibe/";
 // 반별 실습 날짜 (비워 두면 표시하지 않아요). 예: { A: "11/9 월", B: "11/11 수" }
 const CLASS_DATES = { A: "", B: "" };
@@ -2560,7 +2561,7 @@ function openAdminView() {
 }
 if (auth) {
   auth.onAuthStateChanged(u => {
-    if (u && u.email !== ADMIN_EMAIL) { auth.signOut(); toast("관리자 계정(sen 메일)으로 로그인해 주세요"); return; }
+    if (u && !isAdminEmail(u.email)) { auth.signOut(); toast("관리자 구글 계정으로 로그인해 주세요"); return; }
     setTeacher(!!u);
     if (adminIntent) { adminIntent = false; openAdminView(); }
   });
@@ -2574,16 +2575,16 @@ $("adminBtn").addEventListener("click", async () => {
   if (!auth) { setTeacher(true); toast("체험 모드: 이 기기에서만 관리자 모드예요"); return; }
   openAdminView();
 });
-// 관리자 로그인: 구글 계정(sen 메일)으로만. 비밀번호는 코드에 두지 않아요
+// 관리자 로그인: 관리자 구글 계정으로만. 비밀번호는 코드에 두지 않아요
 $("googleLoginBtn").addEventListener("click", async () => {
   if (!auth) return;
   const btn = $("googleLoginBtn"), err = $("loginErr");
   btn.disabled = true; err.textContent = "확인 중...";
   try {
     const p = new firebase.auth.GoogleAuthProvider();
-    p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAIL });
+    p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAILS[0] });
     const r = await auth.signInWithPopup(p);
-    if (!r.user || r.user.email !== ADMIN_EMAIL) { err.textContent = "관리자 계정(sen 메일)으로 로그인해 주세요."; }
+    if (!r.user || !isAdminEmail(r.user.email)) { err.textContent = "관리자 구글 계정으로 로그인해 주세요."; }
     else { err.textContent = ""; $("dlgLogin").close(); toast("관리자 모드를 켰어요"); openDlg("dlgAdmin"); renderDash(); }
   } catch (x) {
     console.error(x);
