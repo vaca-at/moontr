@@ -93,6 +93,15 @@ svg{width:16px;height:16px;flex:none}
 
 /* ===== 홈 탭: 웹앱별 방문 현황 ===== */
 #home{padding:1.4rem clamp(16px,2.5vw,32px) 3rem}
+/* 📅 위클리 플래너 (planner.html · 타이쿤 시안 10번 A NEON) */
+.planner{margin:0 auto 1.4rem;max-width:1180px;background:#07070C;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px -14px rgba(0,0,0,.6)}
+.planner-bar{display:flex;align-items:center;gap:.6rem;padding:.45rem .8rem;color:#EDEDF5;font-size:.85rem;background:#0B0B12;border-bottom:1px solid #2A2A3A}
+.planner-bar b{color:#FFD400;font-weight:700}
+.planner-bar .sp{flex:1}
+.planner-bar a,.planner-bar button{color:#EDEDF5;background:transparent;border:1px solid #3A3A55;border-radius:8px;padding:.2rem .6rem;font-size:.8rem;cursor:pointer;text-decoration:none}
+.planner-bar a:hover,.planner-bar button:hover{border-color:#FFD400;color:#FFD400}
+.planner iframe{display:block;width:100%;aspect-ratio:16/9;border:0;background:#07070C}
+.planner.fold iframe{display:none}
 .home-head{display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
 .home-head h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 .home-head p{margin:.3rem 0 0;color:var(--muted);font-size:.9rem}
@@ -278,6 +287,12 @@ body.editing .del{display:inline-block}
   </form>
 
   <section id="home" hidden>
+    <!-- 📅 위클리 플래너: 대문 시간표를 그대로 읽어 지금 어디 · 다음 수업 · 이번 주를 보여 줘요 (planner.html) -->
+    <div class="planner" id="planner">
+      <div class="planner-bar"><b>📅 문쌤 위클리 플래너</b><span>대문 시간표를 그대로 보여 줘요 · 토 · 일에는 다음 주</span><span class="sp"></span>
+        <a href="planner.html" target="_blank" rel="noopener">크게 보기</a><button type="button" id="plannerFold">접기</button></div>
+      <iframe id="plannerFrame" title="위클리 플래너" loading="lazy"></iframe>
+    </div>
     <div class="home-head">
       <div><h1>오늘의 현황</h1><p>웹앱마다 오늘 방문 · 누적 방문 · 최근 20주 잔디입니다. 카드를 누르면 그 관리자 화면이 열립니다.</p></div>
       <button type="button" class="btn" id="homeReload">새로고침</button>
@@ -570,7 +585,7 @@ function show(app, tab){
   $('#edit').hidden = app !== null;
   $('#siteBtn').hidden = $('#newWin').hidden = !isApp;
   if (app !== 'home') renderAlert();
-  if (app === 'home'){ renderHome(); loadWaits(); }
+  if (app === 'home'){ renderHome(); loadWaits(); plannerShow(); }
   else if (isApp){
     const src = tab ? `${app.admin}${app.admin.includes('?') ? '&' : '?'}tab=${tab}` : app.admin;
     if ($('#frame').dataset.src !== src){ $('#frame').dataset.src = src; $('#frame').src = src; }
@@ -884,6 +899,19 @@ $('#homeLinks').addEventListener('click', e => {
   show(ALL_APPS.find(a => a.admin === c.dataset.open));
 });
 $('#homeReload').addEventListener('click', () => renderHome(true));
+
+/* 📅 위클리 플래너: 홈이 보일 때 한 번만 불러와요 · 접기는 이 기기에 기억 */
+function plannerShow(){
+  let fold = false; try { fold = localStorage.getItem('hub-planner-fold') === '1'; } catch {}
+  $('#planner').classList.toggle('fold', fold);
+  $('#plannerFold').textContent = fold ? '펼치기' : '접기';
+  if (!fold && !$('#plannerFrame').getAttribute('src')) $('#plannerFrame').src = 'planner.html';
+}
+$('#plannerFold').addEventListener('click', () => {
+  const fold = !$('#planner').classList.contains('fold');
+  try { localStorage.setItem('hub-planner-fold', fold ? '1' : '0'); } catch {}
+  plannerShow();
+});
 
 /* ============================================================
    즐겨찾기 탭
