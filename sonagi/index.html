@@ -597,6 +597,10 @@ mark.fill{background:linear-gradient(transparent 12%,#FFE58A 12%,#FFE58A 92%,tra
 .rf-wall .pol:nth-child(5n+5) .ph{background:linear-gradient(135deg,#E6DAFF,#CFF5EE)}
 .rf-wall .pol.empty .ph{opacity:.55;font-size:.9375rem;color:#7a6a70}
 .rf-wall .pol small{display:block;margin-top:.5rem;text-align:center;font-size:.9375rem;min-height:1.25rem}
+.rf-wall .pol{position:relative}
+/* 관리자만: 폴라로이드 오른쪽 위 지우기 단추 */
+.rf-del{position:absolute;top:-.625rem;right:-.625rem;z-index:2;border:2px solid #fff;background:var(--rose);color:#fff;border-radius:999px;padding:.0625rem .625rem;font-size:.8125rem;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,.3)}
+.rf-del:hover{filter:brightness(1.1)}
 /* 동료 검증 담벼락: 코르크판 포스트잇 (정렬 단추부터 판 안 글자까지 모두 언즈체) */
 .pw-board{background:#F6E7D6;background-image:radial-gradient(rgba(150,110,80,.12) 1px,transparent 1px);background-size:16px 16px;border-radius:1.25rem;padding:1.75rem 1.25rem}
 .peer-wall{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1.75rem 1.25rem;font-family:var(--hand)}
@@ -2245,6 +2249,42 @@ function drawAdmin() {
    인쇄용 교안 창을 열고 인쇄 창에서 'PDF로 저장'을 골라요 (한글 그대로 · 주소 링크도 눌려요)
    의견을 쓴 사람 이름은 넣지 않아요 (익명) */
 const plain = h => { const d = document.createElement("div"); d.innerHTML = h || ""; return d.textContent.replace(/\s+/g, " ").trim(); };
+// 교안에 넣을 단계 화면: 화면을 그대로 복사해서 → 펼쳐 보기는 모두 펼치고, [더 보기] 작은 창 내용은 그 자리 아래에 붙이고,
+// 누르는 단추 · 입력칸 · 미리보기 창처럼 종이에 필요 없는 것은 빼요
+function popHTML(key) {
+  const [g, i] = key.split(":"), o = POPS[g] && POPS[g](+i); if (!o || !(o.more || o.html)) return "";
+  // 카드 앞면에 이미 있는 핵심 문장(key)은 되풀이하지 않아요
+  return `<div class="popx" style="--c:${o.c || "var(--pink)"}"><h4 class="px-h">＋ ${o.e ? o.e + " " : ""}${o.t} · 자세히</h4>${o.more || o.html}</div>`;
+}
+const HANDOUT_DROP = ".copy,.pager,iframe,input,textarea,select,.more-btn,.foot,.vs-tog,.ai-go,.pw-board,.pw-bar,.pw-admin,.adm,.rf-board,.post-panel,.pdf-bar,#pwInbox,.rf-panel,.dl-row,.pv-btns,.tmr,.gift.g2,.gift.g3,.gift-tag";
+function expandForPrint(el) {
+  const c = el.cloneNode(true);
+  c.removeAttribute("hidden"); c.querySelectorAll("[hidden]").forEach(x => x.removeAttribute("hidden"));
+  // 원래 화면에 있던 [더 보기]만 펼쳐요 (붙인 작은 창 안의 [더 보기]는 한 번 더 펼치지 않아요)
+  // 카드 · 줄 바로 뒤에 한 칸을 통째로 차지하게 붙여서, 좁은 칸에 끼지 않아요
+  const done = new Set();
+  [...c.querySelectorAll("[data-pop]")].forEach(p => {
+    const k = p.dataset.pop; if (done.has(k)) return; done.add(k);
+    const h = popHTML(k); if (!h) return;
+    const host = p.closest(".card,.tl,.vs-check,.ai-list");
+    if (host) host.insertAdjacentHTML("afterend", h);
+    else (p.closest("li") || p.parentElement).insertAdjacentHTML("beforeend", h);
+  });
+  // 접기 칸은 모두 펼쳐요 (맨 바깥 칸 · 작은 창에서 붙여 온 칸까지)
+  [c, ...c.querySelectorAll("details")].forEach(d => d.matches("details") && d.setAttribute("open", ""));
+  c.querySelectorAll(HANDOUT_DROP).forEach(x => x.remove());
+  c.querySelectorAll("[id]").forEach(x => x.removeAttribute("id"));
+  return c.outerHTML;
+}
+function handoutSteps() {
+  return STEPS.map((s, i) => {
+    const p = document.getElementById("p" + (i + 1)); if (!p) return "";
+    // 6단계는 ① 만들고 수정하기 · 자기 검증 · AI 검증만 (담벼락 · 소감은 아래 '나의 웹앱' · '소감 모음'에)
+    const body = i === 5 ? p.querySelector(".page-head").outerHTML + [...p.querySelectorAll(".vs-mini,.vs-fold")].map(expandForPrint).join("")
+      : expandForPrint(p);
+    return `<section class="site brk" style="--c:${s.c}">${body}</section>`;
+  }).join("");
+}
 function handoutHTML() {
   const now = new Date(), today = ymd(now);
   const who = PW.me ? PW.me.name : "";
@@ -2253,8 +2293,8 @@ function handoutHTML() {
   const refl = (PW.reflects || []).slice().reverse();
   const link = u => `<a href="${esc(u)}">${esc(u.replace(/^https?:\/\//, ""))}</a>`;
   const mySec = !PW.me
-    ? `<p class="box">닉네임 · 숫자 네 자리로 내 웹앱을 불러오지 않아서 이 부분이 비어 있어요. 6단계 <b>📌 내 웹앱 올리기</b>에서 불러온 뒤 다시 내려받으면 내 웹앱과 받은 의견이 들어가요.</p>`
-    : !mine.length ? `<p class="box"><b>${esc(who)}</b> 선생님이 담벼락에 올린 웹앱이 아직 없어요.</p>`
+    ? `<p class="hbox">닉네임 · 숫자 네 자리로 내 웹앱을 불러오지 않아서 이 부분이 비어 있어요. 6단계 <b>📌 내 웹앱 올리기</b>에서 불러온 뒤 다시 내려받으면 내 웹앱과 받은 의견이 들어가요.</p>`
+    : !mine.length ? `<p class="hbox"><b>${esc(who)}</b> 선생님이 담벼락에 올린 웹앱이 아직 없어요.</p>`
     : mine.map(a => {
         const notes = PW.notes.filter(n => n.app === a.id).slice().reverse();
         return `<div class="app"><h3>📌 ${esc(a.title)}</h3><p class="meta">${link(a.url)} · 올린 때 ${pwWhen(a.at)} · 받은 의견 ${notes.length}개</p>
@@ -2265,68 +2305,84 @@ function handoutHTML() {
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>소나기연수_교안${who ? "_" + esc(who) + "_참여" : ""}_${today}</title>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
 <style>
-@font-face{font-family:'OngleipUnz';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2406-1@1.0/Ownglyph_UNZ-Rg.woff2') format('woff2');size-adjust:125%}
-@page{size:A4;margin:16mm 15mm}
-*{box-sizing:border-box}
-body{margin:0;font-family:'Gowun Dodum','Malgun Gothic',sans-serif;color:#4a3a41;font-size:10.5pt;line-height:1.65;word-break:keep-all;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-h1,h2,h3{font-family:'OngleipUnz','Gowun Dodum',sans-serif;font-weight:400;margin:0}
-h1{font-size:28pt;line-height:1.2}
-h2{font-size:17pt;margin:0 0 3mm;padding-bottom:1.5mm;border-bottom:2px solid #F2DED6;color:#C9557E}
-h3{font-size:13pt;margin:0 0 1mm}
-section{margin:0 0 8mm}
+/* ① 연수 화면과 똑같은 모양: 이 페이지의 스타일을 그대로 */
+${[...document.querySelectorAll("head style")].map(s => s.textContent).join("\n")}
+/* ② 교안(인쇄)용으로 고쳐 쓰기 */
+@page{size:A4;margin:14mm 13mm}
+html,body{background:#fff!important}
+body{font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{max-width:184mm;margin:0 auto;padding:6mm 0}
 .brk{break-before:page}
+.site .page-head{margin-bottom:.75rem}
+.site .bento,.site .bento.three{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:auto!important}
+.site .card{break-inside:auto}   /* 긴 카드도 쪽을 넘겨 이어지게 (빈칸이 크게 생기지 않게) */
+.site .card .ch,.site .card .key{break-after:avoid}
+.site .card.w2{grid-column:1 / -1!important}
+.site .bento,.site [class*="grid"]{align-items:start!important}
+.site .split,.site .detail-b,.site .vs-two,.site .vflow,.site .gifts{grid-template-columns:minmax(0,1fr)!important}
+.site .gift-col{display:none}
+.site .sticky{position:static!important}
+.site .prompt pre,.site .pw-notes{max-height:none!important;overflow:visible!important}
+.site .code{white-space:pre-wrap!important;word-break:break-all}
+.site .prompt,.site .tl,.site .box,.site table{break-inside:avoid}
+.site details>summary{list-style:none}
+.site .vs-mini,.site .vs-fold{padding:.75rem 1rem}
+/* 작은 창(더 보기)에 있던 내용 */
+.popx{grid-column:1 / -1;break-inside:auto;margin:.25rem 0 .75rem;background:color-mix(in srgb,var(--c,var(--pink)) 5%,#fff);border:2px dashed color-mix(in srgb,var(--c,var(--pink)) 35%,#fff);border-radius:1rem;padding:.625rem .875rem}
+.popx table,.popx .tl{width:100%}
+.popx>h4.px-h{margin:0 0 .25rem;font-family:var(--hand);font-weight:400;font-size:1.125rem;color:color-mix(in srgb,var(--c,var(--pink)) 70%,var(--ink))}
+.popx h4{font-family:var(--hand);font-weight:400;font-size:1.0625rem;margin:.5rem 0 .25rem}
+.popx ul{padding-left:1.25rem;margin:.25rem 0}
+/* 교안에만 있는 칸 (표지 · 나의 웹앱 · 사례 · 소감) */
+.hx h1,.hx h2,.hx h3{font-family:var(--hand);font-weight:400;margin:0}
+.hx h1{font-size:28pt;line-height:1.2}
+.hx h2{font-size:17pt;margin:0 0 3mm;padding-bottom:1.5mm;border-bottom:2px solid #F2DED6;color:#C9557E}
+.hx h3{font-size:13pt;margin:0 0 1mm}
+section.hx{margin:0 0 8mm}
 .cover{border:2px solid #F7C6D6;border-radius:6mm;padding:10mm;background:#FFF7F2;margin-bottom:8mm}
 .cover .tag{display:inline-block;background:#F291B2;color:#fff;border-radius:99px;padding:0 4mm;font-size:10pt}
 .cover p{margin:2mm 0 0;color:#957F87}
 .cover .me{margin-top:6mm;font-size:13pt;color:#4a3a41}
-.steps{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm}
-.steps div,.cards div{border:1px solid #F2DED6;border-radius:3mm;padding:2.5mm 3.5mm;break-inside:avoid}
-.steps b,.cards b{display:block;font-size:11pt}
-.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2.5mm}
-.cards div{font-size:9.5pt}
+.hsteps{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm}
+.hsteps div{border:1px solid #F2DED6;border-radius:3mm;padding:2.5mm 3.5mm;break-inside:avoid}
+.hsteps b{display:block;font-size:11pt}
 .app{border:2px solid #CDEBD8;border-radius:4mm;padding:4mm 5mm;margin:0 0 5mm;break-inside:avoid}
 .meta{margin:0 0 3mm;color:#957F87;font-size:9.5pt}
-table{width:100%;border-collapse:collapse;font-size:9.5pt}
-th,td{border:1px solid #F2DED6;padding:1.5mm 2.5mm;text-align:left;vertical-align:top}
-th{background:#FFF7F2}
-tr{break-inside:avoid}
-a{color:#C9557E;word-break:break-all}
-.box{border:1.5px dashed #F2DED6;border-radius:3mm;padding:3mm 4mm;color:#957F87}
-.muted{color:#957F87}
+.hx table{width:100%;border-collapse:collapse;font-size:9.5pt}
+.hx th,.hx td{border:1px solid #F2DED6;padding:1.5mm 2.5mm;text-align:left;vertical-align:top}
+.hx th{background:#FFF7F2}
+.hx tr{break-inside:avoid}
+.hx a{word-break:break-all}
+.hbox{border:1.5px dashed #F2DED6;border-radius:3mm;padding:3mm 4mm;color:#957F87}
 .lines{margin-top:4mm}
 .lines i{display:block;height:8mm;border-bottom:1px solid #E8D8D0}
 .refl{columns:2;column-gap:5mm}
 .refl p{break-inside:avoid;margin:0 0 2.5mm;padding:2.5mm 3.5mm;background:#FFF7F2;border-radius:3mm}
-.tips{columns:2;column-gap:6mm;padding-left:5mm;margin:0}
-.tips li{break-inside:avoid;margin:0 0 1.5mm}
-.foot{margin-top:6mm;color:#957F87;font-size:8.5pt;text-align:center}
-.bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #eee;padding:8px 12px;display:flex;gap:8px;align-items:center;font-size:14px}
+.hfoot{margin-top:6mm;color:#957F87;font-size:8.5pt;text-align:center}
+.bar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #eee;padding:8px 12px;display:flex;gap:8px;align-items:center;font-size:14px}
 .bar button{border:0;border-radius:99px;background:#F291B2;color:#fff;padding:6px 16px;font:inherit;cursor:pointer}
-.page{max-width:190mm;margin:0 auto;padding:6mm 0}
 @media print{.bar{display:none}.page{padding:0}}
 </style></head><body>
 <div class="bar"><button onclick="print()">📄 PDF로 저장</button><span>인쇄 창의 대상(프린터)에서 <b>'PDF로 저장'</b>을 고르세요.</span></div>
 <div class="page">
-<div class="cover"><span class="tag">소나기 연수</span><h1>바이브코딩 웹앱 실습 교안</h1>
+<div class="cover hx"><span class="tag">소나기 연수</span><h1>바이브코딩 웹앱 실습 교안</h1>
   <p>만들고 · 배포하고 · 기록을 모으고 · 함께 검증하기</p>
   <p class="me">${who ? `연수 참여 · <b>${esc(who)}</b> 선생님` : "연수 참여 선생님용"} · ${today} 내려받음</p>
   <p>연수 화면: <a href="https://moontr.site/sonagi/">moontr.site/sonagi</a></p></div>
 
-<section><h2>🧭 오늘 연수 흐름</h2><div class="steps">${STEPS.map((s, i) => `<div><b>${i + 1}. ${esc(s.title)}</b>${esc(plain(s.lead))}</div>`).join("")}</div></section>
+<section class="hx"><h2>🧭 오늘 연수 흐름</h2><div class="hsteps">${STEPS.map((s, i) => `<div><b>${i + 1}. ${esc(s.title)}</b>${esc(plain(s.lead))}</div>`).join("")}</div></section>
 
-<section><h2>📚 이론 한눈에</h2><div class="cards">${THEORY.map(o => `<div><b>${o.e} ${esc(o.t)}</b>${esc(plain(o.key))}</div>`).join("")}</div></section>
+${handoutSteps()}
 
-<section class="brk"><h2>📌 나의 웹앱과 받은 동료 검증</h2>${mySec}</section>
+<section class="hx brk"><h2>📌 나의 웹앱과 받은 동료 검증</h2>${mySec}</section>
 
-<section><h2>🧱 선생님들의 웹앱 사례 <small class="muted" style="font-size:10pt">${apps.length}개 · 담벼락에 공개한 웹앱</small></h2>
-  ${apps.length ? `<table><thead><tr><th style="width:2.5em">#</th><th>웹앱 이름</th><th>만든 선생님</th><th>주소</th><th style="width:4em">의견</th></tr></thead><tbody>${apps.map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.title)}</td><td>${esc(a.name)}</td><td>${link(a.url)}</td><td>${pwCnt(a)}</td></tr>`).join("")}</tbody></table>` : `<p class="box">아직 올라온 웹앱이 없어요.</p>`}</section>
+<section class="hx"><h2>🧱 선생님들의 웹앱 사례 <small class="muted" style="font-size:10pt">${apps.length}개 · 담벼락에 공개한 웹앱</small></h2>
+  ${apps.length ? `<table><thead><tr><th style="width:2.5em">#</th><th>웹앱 이름</th><th>만든 선생님</th><th>주소</th><th style="width:4em">의견</th></tr></thead><tbody>${apps.map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.title)}</td><td>${esc(a.name)}</td><td>${link(a.url)}</td><td>${pwCnt(a)}</td></tr>`).join("")}</tbody></table>` : `<p class="hbox">아직 올라온 웹앱이 없어요.</p>`}</section>
 
-<section><h2>💌 연수 소감 모음 <small class="muted" style="font-size:10pt">${refl.length}개 · 이름 없이</small></h2>
-  ${refl.length ? `<div class="refl">${refl.map(r => `<p>${esc(r.text)}</p>`).join("")}</div>` : `<p class="box">아직 남긴 소감이 없어요.</p>`}</section>
+<section class="hx"><h2>💌 연수 소감 모음 <small class="muted" style="font-size:10pt">${refl.length}개 · 이름 없이</small></h2>
+  ${refl.length ? `<div class="refl">${refl.map(r => `<p>${esc(r.text)}</p>`).join("")}</div>` : `<p class="hbox">아직 남긴 소감이 없어요.</p>`}</section>
 
-<section><h2>💡 수업 후에 해 보면 좋은 꿀팁</h2><ul class="tips">${TIPS.map(o => `<li><b>${esc(o.t)}</b> — ${esc(plain(o.key))}</li>`).join("")}</ul></section>
-
-<p class="foot">소나기 연수 · 바이브코딩 웹앱 실습 · moontr.site/sonagi · ${today} 내려받음 · 동료 의견은 쓴 사람 이름 없이 담았어요</p>
+<p class="hfoot">소나기 연수 · 바이브코딩 웹앱 실습 · moontr.site/sonagi · ${today} 내려받음 · 동료 의견은 쓴 사람 이름 없이 담았어요</p>
 </div>
 ${"<scr" + "ipt>"}document.fonts.ready.then(() => setTimeout(() => print(), 300));${"</scr" + "ipt>"}
 </body></html>`;   // (스크립트 태그를 조각내 써야 이 페이지의 스크립트가 중간에 끊기지 않아요)
@@ -2399,7 +2455,7 @@ function drawReflect() {
   const n = Math.max(10, list.length);
   w.innerHTML = Array.from({ length: n }, (_, i) => {
     const r = list[i];
-    return r ? `<div class="pol"><div class="ph">${esc(r.text)}</div><small>💌${PW.admin ? ` <button type="button" class="pw-del" data-del-rf="${r.id}">🗑</button>` : ""}</small></div>`
+    return r ? `<div class="pol">${PW.admin ? `<button type="button" class="rf-del" data-del-rf="${r.id}" title="관리자: 이 소감 지우기">🗑 지우기</button>` : ""}<div class="ph">${esc(r.text)}</div><small>💌</small></div>`
       : `<div class="pol empty"><div class="ph">${i === list.length ? (list.length ? "여기에 소감을 남겨 주세요 ✍️" : "여기에 첫 소감을 남겨 주세요 ✍️") : ""}</div><small>&nbsp;</small></div>`;
   }).join("");
 }
@@ -2567,7 +2623,7 @@ document.addEventListener("click", async e => {
   const ea = t.closest("[data-edit-app]"); if (ea) { startEdit(ea.dataset.editApp); return; }
   const da = t.closest("[data-del-app]"); if (da) { deleteApp(da.dataset.delApp); return; }
   const na = t.closest("[data-note-app]"); if (na && !t.closest("a")) { openNote(na.dataset.noteApp); return; }
-  const dr = t.closest("[data-del-rf]"); if (dr && PW.admin && confirm("이 소감을 지울까요?")) { PW.db.collection("sonagi_reflect").doc(dr.dataset.delRf).delete().catch(() => toast("지우지 못했어요")); return; }
+  const dr = t.closest("[data-del-rf]"); if (dr && PW.admin && confirm("이 소감을 지울까요?")) { PW.db.collection("sonagi_reflect").doc(dr.dataset.delRf).delete().then(() => toast("소감을 지웠어요")).catch(e => toast("지우지 못했어요 (" + (e.code || e.message) + ")")); return; }
 });
 document.addEventListener("keydown", e => {
   if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-pop]:not(button),[data-area],[data-act],[data-note-app]")) { e.preventDefault(); e.target.click(); }
