@@ -2038,7 +2038,9 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "760377216121",
   appId: "1:760377216121:web:81b25b9af707412d2218a8"
 };
-const ADMIN_EMAIL = "anstjsdud@sen.go.kr";
+// 관리자 구글 계정 (보안 규칙 isTeacher() 와 같게 맞춰요)
+const ADMIN_EMAILS = ["anstjsdud@sen.go.kr", "bellachord@gmail.com"];
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || "").toLowerCase());
 const PW = { db: null, admin: false, all: [], apps: [], notes: [], reflects: [], visits: null, editing: "", rfEditing: "", me: store.get("peerMe", null) };   // me = { name, h }
 const pwErr = msg => `<p class="pw-empty">${msg}</p>`;
 // 닉네임 + 네 자리 → 64글자 암호(해시)
@@ -2051,7 +2053,7 @@ function initPeerWall() {
   if (typeof firebase === "undefined") { $("#peerWall").innerHTML = pwErr("담벼락을 불러오지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
   firebase.initializeApp(FIREBASE_CONFIG);
   PW.db = firebase.firestore();
-  firebase.auth().onAuthStateChanged(u => { PW.admin = !!u && u.email === ADMIN_EMAIL; if (PW.admin) loadVisits(); drawPeerWall(); drawAdmin(); drawReflect(); });
+  firebase.auth().onAuthStateChanged(u => { PW.admin = !!u && isAdminEmail(u.email); if (PW.admin) loadVisits(); drawPeerWall(); drawAdmin(); drawReflect(); });
   PW.db.collection("sonagi_apps").orderBy("at", "desc").onSnapshot(s => {
     PW.all = s.docs.map(d => ({ id: d.id, ...d.data() }));   // 관리자 표에는 내린 웹앱(gone)까지
     PW.apps = PW.all.filter(a => !a.gone); drawPeerWall(); drawMine(); drawInbox(); drawAdmin();
@@ -2089,13 +2091,13 @@ function pwLogout() { PW.me = null; store.set("peerMe", null); endEdit(); drawWh
 // 담벼락: 웹앱 이름 · 닉네임 · 미리보기 · 의견 남기기
 // 관리자 로그인 (연수용 프로젝트의 Authentication 구글 로그인)
 // (관리자 대시보드 drawAdmin 은 아래 '🔐 관리자 대시보드'에 있어요)
-// 구글 계정(관리자 sen 메일)으로 로그인
+// 관리자 구글 계정으로 로그인
 async function adminLogin() {
   const p = new firebase.auth.GoogleAuthProvider();
-  p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAIL });
+  p.setCustomParameters({ prompt: "select_account" });
   try {
     const r = await firebase.auth().signInWithPopup(p);
-    if (r.user.email !== ADMIN_EMAIL) { await firebase.auth().signOut(); toast("관리자 계정(sen 메일)으로 로그인해 주세요"); return; }
+    if (!isAdminEmail(r.user.email)) { const em = r.user.email; await firebase.auth().signOut(); toast(`${em || "이 계정"}은 관리자 계정이 아니에요. 관리자 구글 계정으로 로그인해 주세요`); return; }
     toast("관리자로 들어왔어요 · 아래 대시보드를 보세요");
     setTimeout(() => $("#pwAdmin").scrollIntoView({ behavior: "smooth", block: "start" }), 400);
   } catch (e) {
