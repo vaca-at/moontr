@@ -692,6 +692,13 @@ table.roll tr.st-결석 td{background:#FFF0F0}
 .roll-add{margin-top:1rem}
 .roll-add summary{cursor:pointer;font-weight:700}
 .roll-add textarea{width:100%;box-sizing:border-box;font:inherit;font-size:max(16px,.9375rem);border:2px solid var(--line);border-radius:.75rem;padding:.5rem .6875rem}
+/* 통합 관리 화면(/vibeadmin) 안: 대시보드만 화면 가득 */
+html.dash-only body > :not(dialog):not(#toast):not(.toast):not(script){display:none!important}
+html.dash-only body{background:#fff}
+html.dash-only #dlgAdmin{width:100vw;max-width:none;height:100vh;height:100dvh;max-height:none;margin:0;border:0;border-radius:0;box-shadow:none}
+html.dash-only #dlgAdmin::backdrop{background:#fff}
+html.dash-only #dlgAdmin .doc-head{display:none}
+.dash-link{margin-left:auto;font-size:.875rem;color:#fff;text-decoration:underline;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -776,7 +783,7 @@ table.roll tr.st-결석 td{background:#FFF0F0}
 
 <!-- 관리자 대시보드 -->
 <dialog class="doc wide" id="dlgAdmin" aria-labelledby="dlgAdminT">
-  <div class="doc-head"><h3 id="dlgAdminT">📋 관리자 대시보드</h3><button type="button" data-close>닫기</button></div>
+  <div class="doc-head"><h3 id="dlgAdminT">📋 관리자 대시보드</h3><a class="dash-link" href="/vibeadmin/">🗂 이론편 · 실습편 통합 관리</a><button type="button" data-close>닫기</button></div>
   <div class="doc-body" id="dashBox"></div>
 </dialog>
 
@@ -2540,6 +2547,13 @@ function renderDash() {
 // 주소 끝이 #admin · ?admin 이면(관리자 허브에서 열 때) 바로 관리자 화면:
 // 이미 로그인돼 있으면 대시보드, 아니면 구글 로그인 창
 let adminIntent = /[?&]admin/.test(location.search) || /^#(admin|teacher)/.test(location.hash);
+const DASH_ONLY = /[?&]dash/.test(location.search);   // 통합 관리 화면 안에서는 대시보드만 보여요
+if (DASH_ONLY) {
+  document.documentElement.classList.add("dash-only");
+  const da = document.getElementById("dlgAdmin");
+  da.addEventListener("cancel", e => e.preventDefault());
+  da.addEventListener("close", () => { if (teacher) setTimeout(() => { if (!da.open) { da.showModal(); renderDash(); } }, 0); });
+}
 function openAdminView() {
   if (teacher) { openDlg("dlgAdmin"); renderDash(); return; }
   if (!auth) return;

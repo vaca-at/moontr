@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>바이브코딩 수업 관리 · 이론편 + 실습편</title>
+<link rel="icon" href="/stuvibe/icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/OngleipUnz.css" onerror="this.remove()">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<style>
+/* 바이브코딩 수업 관리: 이론편(/stuvibe) · 실습편(/vibelab)을 한 화면에서 (관리자만) */
+:root{--bg:#FFF7F2;--ink:#3B2F2A;--ink2:#8A7A72;--line:#F2DDD5;--accent:#E86E99;--soft:#FFFBF8;--ok:#2E9E6A;--warn:#E0A100;--no:#E5484D;
+  --hand:'OngleipUnz','Gowun Dodum',sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--hand);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.625rem 1rem;background:#fff;border-bottom:2px solid var(--line)}
+header h1{margin:0;font-size:1.375rem;font-weight:400}
+header h1 small{font-size:.875rem;color:var(--ink2)}
+.who{margin-left:auto;display:flex;align-items:center;gap:.5rem;font-size:.9375rem;color:var(--ink2)}
+button{font:inherit;cursor:pointer}
+.pill{border:2px solid var(--line);background:#fff;border-radius:999px;padding:.25rem .875rem}
+.pill:hover{border-color:var(--accent)}
+.btn{border:0;border-radius:999px;background:var(--accent);color:#fff;padding:.375rem 1rem;box-shadow:0 3px 0 #C65480}
+.tabs{display:flex;gap:.375rem;flex-wrap:wrap;padding:.625rem 1rem 0}
+.tabs button{border:2px solid var(--line);border-bottom:0;background:#fff;border-radius:1rem 1rem 0 0;padding:.4375rem 1.125rem;font-size:1.0625rem}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+main{flex:1;min-height:0;background:#fff;border-top:2px solid var(--accent);position:relative}
+.pane{position:absolute;inset:0;display:none;overflow:auto}
+.pane.on{display:block}
+.pane iframe{width:100%;height:100%;border:0;display:block}
+#rollPane{padding:1rem}
+.gate{max-width:28rem;margin:4rem auto;text-align:center;font-size:1.0625rem;line-height:1.7}
+.sum{display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .75rem}
+.sum button{border:2px solid var(--line);background:#fff;border-radius:1rem;padding:.375rem .75rem;text-align:left;line-height:1.35}
+.sum button.on{border-color:var(--accent);background:#FFF0F5}
+.sum b{display:block;font-size:1rem}
+.sum small{color:var(--ink2);font-size:.8125rem}
+.tools{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:0 0 .75rem}
+.tools .muted{font-size:.875rem}
+.muted{color:var(--ink2)}
+table{border-collapse:collapse;width:100%;font-size:.9375rem}
+th,td{border:1px solid var(--line);padding:.375rem .5rem;text-align:left;vertical-align:middle}
+th{background:var(--soft);position:sticky;top:0;z-index:1}
+th.c{text-align:center}
+td.course{min-width:15rem}
+.ban{display:inline-block;background:#F4EEF9;color:#6B5BD6;border-radius:999px;padding:0 .5rem;font-size:.8125rem;margin-right:.25rem}
+.nick{font-size:.8125rem;color:#2F6DB5}
+.st{white-space:nowrap;margin-top:.25rem}
+.st button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:0 .5rem;margin:0 .125rem .125rem 0;font-size:.8125rem}
+.st button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+td.s-출석{background:#F0FBF4} td.s-지각,td.s-조퇴{background:#FFF8E6} td.s-결석{background:#FFF0F0}
+.none{color:#C9BDB6}
+.notice{background:#FFF8E6;border:1.5px solid #F2D38A;border-radius:.75rem;padding:.5rem .75rem;font-size:.875rem;margin:.75rem 0 0}
+#toast{position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:999px;padding:.5rem 1.125rem;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>🗂 바이브코딩 수업 관리 <small>이론편 + 실습편</small></h1>
+  <div class="who"><span id="whoText">로그인이 필요해요</span><button class="pill" id="authBtn" type="button">🔒 관리자 로그인</button></div>
+</header>
+<nav class="tabs" role="tablist">
+  <button type="button" class="on" data-tab="roll">✅ 통합 출석부</button>
+  <button type="button" data-tab="theory">📘 이론편 대시보드</button>
+  <button type="button" data-tab="lab">🧪 실습편 대시보드</button>
+</nav>
+<main>
+  <section class="pane on" id="rollPane"></section>
+  <section class="pane" id="theoryPane"></section>
+  <section class="pane" id="labPane"></section>
+</main>
+<div id="toast"></div>
+<script>
+/* ===== 설정: 이론편 · 실습편과 같은 연수용 프로젝트 (sonagi-1cc00) ===== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDEZIz_7wQcWQWO6v_1C5vhoYzAryqo59k",
+  authDomain: "sonagi-1cc00.firebaseapp.com",
+  projectId: "sonagi-1cc00",
+  storageBucket: "sonagi-1cc00.firebasestorage.app",
+  messagingSenderId: "760377216121",
+  appId: "1:760377216121:web:81b25b9af707412d2218a8"
+};
+const ADMIN_EMAIL = "anstjsdud@sen.go.kr";   // 이론편 · 실습편과 같은 관리자 계정
+// 강좌 · 반 · 수업 날짜 (화면에 보일 이름)
+const CLASSES = [
+  { course: "theory", ban: "A", label: "이론편 A반", day: "11/2 월" },
+  { course: "theory", ban: "B", label: "이론편 B반", day: "11/4 수" },
+  { course: "lab", ban: "A", label: "실습편 A반", day: "11/9 월" },
+  { course: "lab", ban: "B", label: "실습편 B반", day: "11/11 수" }
+];
+const ST = [["출석", "✅"], ["지각", "⏰"], ["조퇴", "🚶"], ["결석", "❌"]];
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.firestore(), auth = firebase.auth();
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtTime = ms => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+function toast(m) { const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400); }
+
+let teacher = false, roster = [], checkins = [], stops = [], filter = "all";
+
+/* ===== 로그인 ===== */
+auth.onAuthStateChanged(u => {
+  if (u && u.email !== ADMIN_EMAIL) { auth.signOut(); toast("관리자 계정(sen 메일)으로 로그인해 주세요"); return; }
+  teacher = !!u;
+  $("whoText").textContent = u ? u.email : "로그인이 필요해요";
+  $("authBtn").textContent = u ? "🔓 로그아웃" : "🔒 관리자 로그인";
+  stops.forEach(f => f()); stops = [];
+  if (u) {
+    stops.push(db.collection("vibe_roster").onSnapshot(s => { roster = s.docs.map(d => ({ id: d.id, ...d.data() })); renderRoll(); }, e => { console.error(e); toast("출석부를 불러오지 못했어요. 보안 규칙을 확인하세요"); }));
+    stops.push(db.collection("vibe_checkin").onSnapshot(s => { checkins = s.docs.map(d => ({ id: d.id, ...d.data() })); renderRoll(); }, e => console.error(e)));
+  } else { roster = []; checkins = []; }
+  renderRoll(); openFrames();
+});
+$("authBtn").addEventListener("click", async () => {
+  if (teacher) { if (confirm("로그아웃할까요?")) await auth.signOut(); return; }
+  try {
+    const p = new firebase.auth.GoogleAuthProvider();
+    p.setCustomParameters({ prompt: "select_account", login_hint: ADMIN_EMAIL });
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    await auth.signInWithPopup(p);
+  } catch (e) { console.error(e); toast("로그인하지 못했어요"); }
+});
+
+/* ===== 탭: 통합 출석부 · 이론편 · 실습편 대시보드(각 웹앱의 대시보드를 그대로 불러와요) ===== */
+const FRAMES = { theory: "/stuvibe/?admin&dash", lab: "/vibelab/?admin&dash" };
+let tab = "roll";
+function openFrames() {
+  ["theory", "lab"].forEach(k => {
+    const pane = $(k + "Pane");
+    if (!teacher) { pane.innerHTML = `<div class="gate">🔒 관리자로 로그인하면 ${k === "lab" ? "실습편" : "이론편"} 대시보드가 보여요.</div>`; return; }
+    if (tab === k && !pane.querySelector("iframe")) pane.innerHTML = `<iframe src="${FRAMES[k]}" title="${k === "lab" ? "실습편" : "이론편"} 대시보드"></iframe>`;
+  });
+}
+document.querySelector(".tabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-tab]"); if (!b) return;
+  tab = b.dataset.tab;
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".pane").forEach(p => p.classList.toggle("on", p.id === tab + "Pane"));
+  openFrames();
+});
+
+/* ===== 통합 출석부: 학번 하나에 이론편 · 실습편 출석을 한 줄로 ===== */
+const keyOf = c => c.course + "_" + c.ban;
+const recOf = (course, sid) => roster.find(r => r.course === course && r.sid === sid);
+const inOf = (course, ban, sid) => checkins.find(c => c.course === course && c.ban === ban && c.sid === sid);
+function cellHTML(course, sid) {
+  const r = recOf(course, sid);
+  if (!r) return `<td class="course none">신청 안 함</td>`;
+  const c = inOf(course, r.ban, sid);
+  return `<td class="course ${r.st ? "s-" + r.st : ""}"><span class="ban">${r.ban}반</span>${c ? `<span class="nick">🙋 ${esc(c.name)} · ${fmtTime(c.at)}</span>` : `<span class="muted" style="font-size:.8125rem">로그인 전</span>`}
+    <div class="st">${ST.map(([k, e]) => `<button type="button" class="${r.st === k ? "on" : ""}" data-st="${r.id}" data-v="${k}">${e} ${k}</button>`).join("")}</div></td>`;
+}
+function renderRoll() {
+  const box = $("rollPane");
+  if (!teacher) { box.innerHTML = `<div class="gate">🔒 위쪽 <b>관리자 로그인</b>을 눌러 주세요.<br><span class="muted">이론편 · 실습편과 같은 관리자 계정이에요.</span></div>`; return; }
+  const sel = CLASSES.find(c => keyOf(c) === filter);
+  const sids = [...new Set(roster.filter(r => !sel || (r.course === sel.course && r.ban === sel.ban)).map(r => r.sid))].sort();
+  const nameOf = sid => (roster.find(r => r.sid === sid) || {}).name || "";
+  const stat = c => { const l = roster.filter(r => r.course === c.course && r.ban === c.ban); return { n: l.length, ok: l.filter(r => r.st === "출석" || r.st === "지각").length, in: l.filter(r => inOf(c.course, c.ban, r.sid)).length }; };
+  const strays = checkins.filter(c => !roster.some(r => r.course === c.course && r.ban === c.ban && r.sid === c.sid));
+  box.innerHTML = `
+    <div class="sum">
+      <button type="button" class="${filter === "all" ? "on" : ""}" data-filter="all"><b>👥 전체 학생</b><small>${new Set(roster.map(r => r.sid)).size}명</small></button>
+      ${CLASSES.map(c => { const s = stat(c); return `<button type="button" class="${filter === keyOf(c) ? "on" : ""}" data-filter="${keyOf(c)}"><b>${c.label}</b><small>${c.day} · 출석 ${s.ok}/${s.n} · 로그인 ${s.in}</small></button>`; }).join("")}
+    </div>
+    <div class="tools">
+      ${sel ? `<button type="button" class="btn" data-in="${keyOf(sel)}">🙋 로그인한 학생 출석</button><button type="button" class="pill" data-all="${keyOf(sel)}">✅ 남은 학생 모두 출석</button>` : `<span class="muted">위에서 반을 고르면 [로그인한 학생 출석] · [남은 학생 모두 출석]을 쓸 수 있어요.</span>`}
+      <button type="button" class="pill" data-csv>⬇️ 엑셀 저장</button>
+      <span class="muted">명단 넣기 · 학생 빼기는 이론편 · 실습편 대시보드의 출석부 탭에서 해요.</span>
+    </div>
+    ${sids.length ? `<table>
+      <tr><th>학번</th><th>이름</th><th class="c">📘 이론편 (11/2 · 11/4)</th><th class="c">🧪 실습편 (11/9 · 11/11)</th></tr>
+      ${sids.map(sid => `<tr><td>${esc(sid)}</td><td><b>${esc(nameOf(sid))}</b></td>${cellHTML("theory", sid)}${cellHTML("lab", sid)}</tr>`).join("")}
+    </table>` : `<div class="gate">아직 출석부가 없어요.<br>이론편 · 실습편 대시보드의 <b>출석부</b> 탭에서 명단을 붙여 넣어 주세요.</div>`}
+    ${strays.length ? `<p class="notice">⚠️ 출석부에 없는 학번으로 로그인: ${strays.map(c => `${c.course === "lab" ? "실습" : "이론"} ${c.ban}반 <b>${esc(c.sid)}</b> ${esc(c.name)}`).join(" · ")}</p>` : ""}`;
+}
+$("rollPane").addEventListener("click", async e => {
+  const t = e.target;
+  try {
+    const f = t.closest("[data-filter]"); if (f) { filter = f.dataset.filter; return renderRoll(); }
+    const s = t.closest("[data-st]"); if (s) { const r = roster.find(x => x.id === s.dataset.st); const v = r && r.st === s.dataset.v ? "" : s.dataset.v; await db.collection("vibe_roster").doc(s.dataset.st).set({ st: v, at: v ? Date.now() : 0 }, { merge: true }); return; }
+    const pick = k => { const [course, ban] = k.split("_"); return roster.filter(r => r.course === course && r.ban === ban); };
+    const i = t.closest("[data-in]"); if (i) { const xs = pick(i.dataset.in).filter(r => !r.st && inOf(r.course, r.ban, r.sid)); for (const r of xs) await db.collection("vibe_roster").doc(r.id).set({ st: "출석", at: Date.now() }, { merge: true }); toast(xs.length ? `로그인한 학생 ${xs.length}명을 출석으로 했어요` : "새로 출석할 학생이 없어요"); return; }
+    const a = t.closest("[data-all]"); if (a) { const xs = pick(a.dataset.all).filter(r => !r.st); for (const r of xs) await db.collection("vibe_roster").doc(r.id).set({ st: "출석", at: Date.now() }, { merge: true }); toast(`${xs.length}명을 출석으로 했어요`); return; }
+    if (t.closest("[data-csv]")) {
+      const rows = [["학번", "이름", "이론편 반", "이론편 닉네임", "이론편 출석", "실습편 반", "실습편 닉네임", "실습편 출석"]];
+      [...new Set(roster.map(r => r.sid))].sort().forEach(sid => {
+        const th = recOf("theory", sid), lb = recOf("lab", sid);
+        rows.push([sid, (th || lb || {}).name || "",
+          th ? th.ban : "", th ? (inOf("theory", th.ban, sid) || {}).name || "" : "", th ? th.st || "미체크" : "신청 안 함",
+          lb ? lb.ban : "", lb ? (inOf("lab", lb.ban, sid) || {}).name || "" : "", lb ? lb.st || "미체크" : "신청 안 함"]);
+      });
+      const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+      const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); link.download = "바이브코딩_통합출석부.csv"; link.click();
+    }
+  } catch (err) { console.error(err); toast("저장하지 못했어요. 관리자 로그인과 보안 규칙을 확인하세요"); }
+});
+renderRoll(); openFrames();
+</script>
+<script type="module" src="/visit.js?app=vibeadmin"></script>
+</body>
+</html>
