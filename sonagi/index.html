@@ -589,7 +589,16 @@ mark.fill{background:linear-gradient(transparent 12%,#FFE58A 12%,#FFE58A 92%,tra
 @media (max-width:560px){.rf-wall{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rf-wall .pol{background:#fff;padding:.75rem .75rem 1rem;box-shadow:0 12px 24px rgba(0,0,0,.35)}
 .rf-wall .pol:nth-child(odd){transform:rotate(-2deg)}.rf-wall .pol:nth-child(even){transform:rotate(2deg)}
-.rf-wall .ph{aspect-ratio:1/.8;display:grid;place-items:center;padding:.875rem;text-align:center;font-family:var(--hand);font-size:1.125rem;line-height:1.4;color:#4a3f44;overflow:hidden;word-break:keep-all}
+/* 세로로 긴 포스트잇 모양 · 글이 넘치면 안쪽에서 스크롤 (가운데 정렬은 넘칠 때 위부터 보이게 safe center) */
+.rf-wall .ph{aspect-ratio:3/4;display:flex;flex-direction:column;justify-content:safe center;padding:.875rem .75rem;text-align:center;font-family:var(--hand);font-size:1.125rem;line-height:1.45;color:#4a3f44;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;word-break:keep-all;overflow-wrap:anywhere;white-space:pre-line;
+  scrollbar-width:thin;scrollbar-color:rgba(224,105,143,.55) transparent}
+.rf-wall .ph-wrap{position:relative}
+.rf-wall .ph-more{position:absolute;left:50%;bottom:.375rem;transform:translateX(-50%);font-size:.75rem;font-family:var(--body);color:#fff;background:rgba(224,105,143,.8);border-radius:999px;padding:0 .5rem;pointer-events:none;transition:opacity .2s}
+.rf-wall .ph-wrap:not(.more) .ph-more,.rf-wall .ph-wrap.end .ph-more{opacity:0}
+.rf-wall .ph::-webkit-scrollbar{width:6px}
+.rf-wall .ph::-webkit-scrollbar-track{background:transparent;margin:.5rem 0}
+.rf-wall .ph::-webkit-scrollbar-thumb{background:rgba(224,105,143,.45);border-radius:999px}
+.rf-wall .ph::-webkit-scrollbar-thumb:hover{background:rgba(224,105,143,.75)}
 .rf-wall .pol:nth-child(5n+1) .ph{background:linear-gradient(135deg,#FFD6E5,#FFF0B8)}
 .rf-wall .pol:nth-child(5n+2) .ph{background:linear-gradient(135deg,#C9F0FF,#E0D6FF)}
 .rf-wall .pol:nth-child(5n+3) .ph{background:linear-gradient(135deg,#D4F7D9,#FFF6C2)}
@@ -2018,7 +2027,7 @@ function renderVerify() {
       <div class="post-panel rf-panel">
         <div class="post-h">💌 오늘 연수 소감 남기기</div>
         <div class="pw-me rf-who" id="rfWho"></div>
-        <label class="field"><span><i class="pnum">1</i> 소감 <small>닉네임과 함께 보여요 · 200자까지</small></span><textarea id="rfText" maxlength="200" rows="2" placeholder="예: 내 수업에 맞는 퀴즈를 직접 만들어 보니 자신감이 생겼어요!"></textarea></label>
+        <label class="field"><span><i class="pnum">1</i> 소감 <small>○○(닉네임) 선생님 형식으로 보여요</small></span><textarea id="rfText" rows="3" placeholder="예: 내 수업에 맞는 퀴즈를 직접 만들어 보니 자신감이 생겼어요!"></textarea></label>
         <div class="rf-send">
           <div class="rf-emo" role="group" aria-label="하트 이모지 넣기">${RF_EMO.map(e => `<button type="button" data-emo="${e}" title="${e} 넣기">${e}</button>`).join("")}</div>
           <div class="post-btns"><button type="button" class="btn sm line" id="rfCancel" style="--c:var(--pink)" hidden>취소</button><button type="button" class="btn" id="rfSend" style="--c:var(--pink)">💌 소감 남기기</button></div>
@@ -2080,7 +2089,7 @@ const isMine = a => !!PW.me && a.pin === PW.me.h;
 function drawWho() {
   const box = $("#pwWho"); if (!box) return;
   box.innerHTML = PW.me
-    ? `<div class="pw-me">🔓 <b>${esc(PW.me.name)}</b> 선생님으로 열려 있어요 <button type="button" class="pw-del" id="pwOut">다른 이름으로</button></div>`
+    ? `<div class="pw-me">🔓 <b>${esc(PW.me.name)}</b> 선생님으로 보여요 <button type="button" class="pw-del" id="pwOut">다른 이름으로</button></div>`
     : `<div class="post-row two">
         <label class="field"><span><i class="pnum">1</i> 내 닉네임</span><input id="pwName" maxlength="20" value="${esc(store.get("peerName", ""))}" placeholder="예: 소나기 선생님"></label>
         <label class="field"><span><i class="pnum">2</i> 숫자 네 자리 <small>내 웹앱을 다시 열 때 써요</small></span><input id="pwPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="●●●●"></label></div>
@@ -2483,15 +2492,20 @@ function drawReflect() {
     if (!r) return `<div class="pol empty"><div class="ph">${i === list.length ? (list.length ? "여기에 소감을 남겨 주세요 ✍️" : "여기에 첫 소감을 남겨 주세요 ✍️") : ""}</div><small>&nbsp;</small></div>`;
     const mine = isMyRf(r);
     return `<div class="pol ${mine ? "mine" : ""}">${PW.admin ? `<button type="button" class="rf-del" data-del-rf="${r.id}" title="관리자: 이 소감 지우기">🗑 지우기</button>` : ""}
-      <div class="ph">${esc(r.text)}</div>
+      <div class="ph-wrap"><div class="ph">${esc(r.text)}</div><span class="ph-more">↓ 더 있어요</span></div>
       <small>💌 ${r.name ? `${esc(r.name)} 선생님` : ""}${mine ? ` <button type="button" class="pw-del" data-edit-rf="${r.id}" title="내 소감 고치기">✏️ 고치기</button>` : ""}</small></div>`;
   }).join("");
+  // 글이 넘치는 칸: '↓ 더 있어요' 표시 (끝까지 내리면 사라져요)
+  requestAnimationFrame(() => w.querySelectorAll(".ph-wrap").forEach(b => {
+    const ph = b.firstElementChild, mark = () => b.classList.toggle("end", ph.scrollTop + ph.clientHeight >= ph.scrollHeight - 4);
+    b.classList.toggle("more", ph.scrollHeight > ph.clientHeight + 4); mark(); ph.addEventListener("scroll", mark, { passive: true });
+  }));
   drawRfWho();
 }
 // 소감 칸 맨 위: 지금 누구 이름으로 남기는지
 function drawRfWho() {
   const b = $("#rfWho"); if (!b) return;
-  b.innerHTML = PW.me ? `🔓 <b>${esc(PW.me.name)}</b> 선생님 이름으로 남겨요` : `위 <b>📌 내 웹앱 올리기</b>의 <b>① 닉네임 · ② 숫자 네 자리</b>를 먼저 적어 주세요. 그 이름으로 남고, 나중에 고칠 수 있어요.`;
+  b.innerHTML = PW.me ? `🔓 <b>${esc(PW.me.name)}</b> 선생님으로 보여요` : `위 <b>📌 내 웹앱 올리기</b>의 <b>① 닉네임 · ② 숫자 네 자리</b>를 먼저 적어 주세요. 그 이름으로 남고, 나중에 고칠 수 있어요.`;
 }
 function endRfEdit() {
   PW.rfEditing = ""; if (!$("#rfText")) return;
@@ -2671,9 +2685,8 @@ document.addEventListener("click", async e => {
   if (t.closest("#rfCancel")) { endRfEdit(); return; }
   const er = t.closest("[data-edit-rf]"); if (er) { startRfEdit(er.dataset.editRf); return; }
   const em = t.closest("[data-emo]");
-  if (em) {   // 글 쓰던 자리(커서)에 이모지 넣기, 200자를 넘지 않게
+  if (em) {   // 글 쓰던 자리(커서)에 이모지 넣기
     const ta = $("#rfText"), e = em.dataset.emo, a = ta.selectionStart ?? ta.value.length, b = ta.selectionEnd ?? a;
-    if (ta.value.length - (b - a) + e.length > 200) return toast("200자까지 쓸 수 있어요");
     ta.value = ta.value.slice(0, a) + e + ta.value.slice(b); ta.focus(); ta.setSelectionRange(a + e.length, a + e.length); return;
   }
   if (t.closest("#pdfBtn,[data-pdf]")) { downloadHandout(); return; }
