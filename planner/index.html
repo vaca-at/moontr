@@ -7,7 +7,7 @@
 <title>문쌤 위클리 플래너</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Jua&family=Press+Start+2P&family=Nanum+Pen+Script&family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&family=Noto+Sans+KR:wght@300;500;700&display=swap">
 <style>
-/* 관리자 허브(/admin) 홈에 끼워 넣는 위클리 플래너 (타이쿤 시안 10번 · A NEON). 시간표는 대문 시간표(moontr_config/timetable)를 그대로 읽어요 */
+/* 대문(moontr.site) [플래너]에 끼워 넣는 위클리 플래너 (타이쿤 시안 10번 · A NEON). 시간표는 대문 시간표(moontr_config/timetable)를 그대로 읽어요 */
 :root{
   --bg:#07070C; --ink:#EDEDF5; --muted:#8C8CA6; --panel:#0B0B12; --line:#2A2A3A;
   --accent:#FFD400; --accent2:#2FE3F0; --hi:#FF5FAE; --ok:#5BEA6F;
@@ -160,8 +160,9 @@ function stateAt(d){
   const day = d.getDay(), m = d.getHours()*60 + d.getMinutes() + d.getSeconds()/60;
   if (day === 0 || day === 6) return { place:"home", act:"주말 · 푹 쉬는 날", s:0, e:1440, m, slot:"주말" };
   if (m < mm("07:50")) return { place:"home", act:"출근 준비", s:0, e:mm("07:50"), m, slot:"출근 전" };
-  if (m >= mm("16:50")) return { place:"home", act:"퇴근 후 · 저녁 시간", s:mm("16:50"), e:1440, m, slot:"퇴근 후" };
-  for (const [p, a, b] of BELL){
+  if (m >= mm(OFF)) return { place:"home", act:"퇴근 후 · 저녁 시간", s:mm(OFF), e:1440, m, slot:"퇴근 후" };
+  const DB = dayBell(day);
+  for (const [p, a, b] of DB){
     const s = mm(a), e = mm(b);
     if (m >= s && m < e){
       if (p === "조회" || p === "종례") return { place:"1-10", act:`우리 반 ${p}`, s, e, m, slot:p, p };
@@ -170,9 +171,9 @@ function stateAt(d){
       return r ? { place:r, act:`${p}교시 수업 중`, s, e, m, slot:`${p}교시`, p } : { place:"office", act:`${p}교시 공강 · 업무`, s, e, m, slot:`${p}교시 공강`, p };
     }
   }
-  if (m < dayStart()) return { place:"office", act:"출근 · 하루 준비", s:mm("07:50"), e:dayStart(), m, slot:"출근" };
-  if (m >= dayEnd()) return { place:"office", act:"업무 정리 · 퇴근 준비", s:dayEnd(), e:mm("16:50"), m, slot:"정리" };
-  const nx = BELL.find(([, a]) => mm(a) > m), pv = [...BELL].reverse().find(([, , b]) => mm(b) <= m);
+  if (m < dayStart(day)) return { place:"office", act:"출근 · 하루 준비", s:mm("07:50"), e:dayStart(day), m, slot:"출근" };
+  if (m >= dayEnd(day)) return { place:"office", act:"업무 정리 · 퇴근 준비", s:dayEnd(day), e:mm(OFF), m, slot:"정리" };
+  const nx = DB.find(([, a]) => mm(a) > m), pv = [...DB].reverse().find(([, , b]) => mm(b) <= m);
   const r = nx && (TT[day] || {})[nx[0]], be = nx ? mm(nx[1]) : m + 1, bs = pv ? mm(pv[2]) : m;
   // 쉬는 시간: 먼저 교무실로 돌아왔다가, 종 치기 4분 전에 다음 교실로 가요
   if (r && m >= be - 4) return { place:r, act:`${nx[0]}교시 ${r} 교실로 가요`, s:be - 4, e:be, m, slot:"쉬는 시간", brk:true, go:true };
@@ -214,7 +215,17 @@ async function loadTimetable(){
   } catch (e) { console.warn("시간표를 불러오지 못했어요", e); }
 }
 loadTimetable(); setInterval(loadTimetable, 10*60*1000);   // 대문에서 시간표를 고치면 10분 안에 반영
-const dayStart = () => mm(BELL[0][1]), dayEnd = () => mm(BELL[BELL.length - 1][2]);
+/* ✏️ 요일별 마지막 교시 (월 6 · 화 7 · 수 6 · 목 7 · 금 7) · 교사 퇴근 시각 */
+const LAST = { 1:6, 2:7, 3:6, 4:7, 5:7 };
+const OFF = "16:10";
+/* 그날의 종 시간표: 마지막 교시 다음 교시는 빼고, 종례는 마지막 교시 바로 뒤 10분 (퇴근 시각을 넘지 않게) */
+function dayBell(day){
+  const last = LAST[day] || 7, rows = BELL.filter(([p]) => !/^\d+$/.test(p) || +p <= last).filter(([p]) => p !== "종례");
+  const lp = [...rows].reverse().find(([p]) => /^\d+$/.test(p)), e0 = lp ? mm(lp[2]) : mm(OFF) - 10;
+  rows.push(["종례", hhmm(e0), hhmm(Math.min(e0 + 10, mm(OFF)))]);
+  return rows;
+}
+const dayStart = day => mm(dayBell(day)[0][1]), dayEnd = day => { const b = dayBell(day); return mm(b[b.length - 1][2]); };
 const slotRoom = (day, p) => p === "조회" || p === "종례" ? "1-10" : p === "점심" ? "lunch" : (TT[day] || {})[p] || "";
 
 /* ===================== 확정 색 A · B ===================== */
@@ -1224,7 +1235,9 @@ const S10 = (() => {
       rect(GX - 28, y + RH - 1, W - GX + 20, 1, rule);
       txt(/\d/.test(p) ? p + "교시" : p, GX - 4, y + RH/2, 6, P.ui.muted, "right");
       for (let k = 1; k <= 5; k++){
-        const x = GX + (k - 1)*CWD, rr = slotRoom(k, p), past = !wkend && (k < day || (k === day && st.m >= mm(b2))), now = !wkend && k === day && st.m >= mm(a2) && st.m < mm(b2);
+        const kt = dayBell(k).find(([q]) => q === p), x = GX + (k - 1)*CWD;
+        if (!kt){ txt("—", x + CWD/2, y + RH/2, 7, rule, "center"); continue; }   // 그날은 이 교시 수업이 없어요
+        const ka = kt[1], kb = kt[2], rr = slotRoom(k, p), past = !wkend && (k < day || (k === day && st.m >= mm(kb))), now = !wkend && k === day && st.m >= mm(ka) && st.m < mm(kb);
         if (rr === "lunch") txt("🍚 점심", x + CWD/2, y + RH/2, 6, P.ui.muted, "center");
         else if (rr){
           const c = rr === "1-10" ? P.hr : /^[23]-/.test(rr) ? "#3D8BFF" : P.ui.ok;

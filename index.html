@@ -61,6 +61,10 @@ body[data-v="quote"] {--bg:#DFF3FA;--fg:var(--ink);--bar-fg:var(--ink);--pill:#C
 main{height:calc(100dvh - var(--bar-h)); min-height:520px}
 .view{display:none;height:100%}
 .view.on{display:flex;animation:enter .35s ease-out}
+/* ⑪ 위클리 플래너: 어두운 픽셀 그림을 16:9 액자로 가운데에 */
+#v-planner{align-items:center;justify-content:center;padding:1vh 3vw 4vh}
+#v-planner .pframe{width:min(100%,calc((100vh - 140px)*16/9));aspect-ratio:16/9;background:#07070C;border-radius:16px;overflow:hidden;box-shadow:0 18px 40px -18px rgba(23,50,74,.55)}
+#v-planner iframe{display:block;width:100%;height:100%;border:0}
 @keyframes enter{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.view.on{animation:none}body{transition:none}}
 
@@ -249,6 +253,7 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
     <button type="button" data-go="time">시간표</button>
     <button type="button" data-go="school">학교</button>
     <button type="button" data-go="quote">한마디</button>
+    <button type="button" data-go="planner">플래너</button>
     <button type="button" class="shuffle" id="shuffle" aria-label="다른 대문 보기">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
       <span>다른 대문</span>
@@ -306,6 +311,11 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
       <div class="qwho" id="qwho"></div>
     </div>
     <div class="qlinks" id="qlinks"></div>
+  </section>
+
+  <!-- ⑪ 위클리 플래너형 (문쌤 타이쿤 · 픽셀 그림, 시간표를 그대로 읽어요 → /planner/) -->
+  <section class="view" id="v-planner" aria-label="위클리 플래너">
+    <div class="pframe"><iframe id="plannerFrame" title="문쌤 위클리 플래너"></iframe></div>
   </section>
 </main>
 
@@ -422,7 +432,7 @@ const QUOTE_LINKS = [
 
 // 8) 무작위로 보여 줄 대문 (빼고 싶은 대문은 지우세요)
 //    door=입구, time=시간표, school=학교, quote=한마디
-const RANDOM_POOL = ['door','time','school','quote'];
+const RANDOM_POOL = ['door','time','school','quote','planner'];   // planner=위클리 플래너
 
 /* ============================================================
    아래부터는 작동 코드 (고치지 않아도 됩니다)
@@ -430,11 +440,12 @@ const RANDOM_POOL = ['door','time','school','quote'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const appById = id => APPS.find(a => a.id === id);
-const VIEWS = ['door','time','school','quote'];
+const VIEWS = ['door','time','school','quote','planner'];
 
 /* 대문 바꾸기 */
 function show(v){
   document.body.dataset.v = v;
+  if (v === 'planner' && !$('#plannerFrame').getAttribute('src')) $('#plannerFrame').src = 'planner/index.html';   // 플래너는 처음 볼 때 불러와요
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
   document.querySelectorAll('[data-go]').forEach(b => b.setAttribute('aria-pressed', b.dataset.go === v));
   try { localStorage.setItem('moontr-last', v); } catch(e) {}

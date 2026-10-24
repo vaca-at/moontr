@@ -89,19 +89,12 @@ svg{width:16px;height:16px;flex:none}
 .login h2{margin:0 0 .8rem;font-size:1.2rem}
 .login input{width:100%;padding:.8rem;font-size:1.2rem;letter-spacing:.3em;text-align:center;border-radius:10px;border:1px solid var(--line);margin:.6rem 0}
 .login button{width:100%;min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
+.login .glogin{margin-top:.6rem;background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.login .glogin:hover{border-color:var(--accent)}
 .err{color:#B3261E;min-height:1.4em;margin:.6rem 0 0;font-size:.9rem}
 
 /* ===== 홈 탭: 웹앱별 방문 현황 ===== */
 #home{padding:1.4rem clamp(16px,2.5vw,32px) 3rem}
-/* 📅 위클리 플래너 (planner.html · 타이쿤 시안 10번 A NEON) */
-.planner{margin:0 auto 1.4rem;max-width:1180px;background:#07070C;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px -14px rgba(0,0,0,.6)}
-.planner-bar{display:flex;align-items:center;gap:.6rem;padding:.45rem .8rem;color:#EDEDF5;font-size:.85rem;background:#0B0B12;border-bottom:1px solid #2A2A3A}
-.planner-bar b{color:#FFD400;font-weight:700}
-.planner-bar .sp{flex:1}
-.planner-bar a,.planner-bar button{color:#EDEDF5;background:transparent;border:1px solid #3A3A55;border-radius:8px;padding:.2rem .6rem;font-size:.8rem;cursor:pointer;text-decoration:none}
-.planner-bar a:hover,.planner-bar button:hover{border-color:#FFD400;color:#FFD400}
-.planner iframe{display:block;width:100%;aspect-ratio:16/9;border:0;background:#07070C}
-.planner.fold iframe{display:none}
 .home-head{display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
 .home-head h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 .home-head p{margin:.3rem 0 0;color:var(--muted);font-size:.9rem}
@@ -283,16 +276,11 @@ body.editing .del{display:inline-block}
     <label for="pw">관리자 비밀번호(숫자 6자리)</label>
     <input type="password" id="pw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" autocomplete="current-password" required>
     <button type="submit">로그인</button>
+    <button type="button" class="glogin" id="glogin">G 구글 계정(센메일)으로 로그인</button>
     <p class="err" id="err" role="alert"></p>
   </form>
 
   <section id="home" hidden>
-    <!-- 📅 위클리 플래너: 대문 시간표를 그대로 읽어 지금 어디 · 다음 수업 · 이번 주를 보여 줘요 (planner.html) -->
-    <div class="planner" id="planner">
-      <div class="planner-bar"><b>📅 문쌤 위클리 플래너</b><span>대문 시간표를 그대로 보여 줘요 · 토 · 일에는 다음 주</span><span class="sp"></span>
-        <a href="planner.html" target="_blank" rel="noopener">크게 보기</a><button type="button" id="plannerFold">접기</button></div>
-      <iframe id="plannerFrame" title="위클리 플래너" loading="lazy"></iframe>
-    </div>
     <div class="home-head">
       <div><h1>오늘의 현황</h1><p>웹앱마다 오늘 방문 · 누적 방문 · 최근 20주 잔디입니다. 카드를 누르면 그 관리자 화면이 열립니다.</p></div>
       <button type="button" class="btn" id="homeReload">새로고침</button>
@@ -320,7 +308,7 @@ body.editing .del{display:inline-block}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, getCountFromServer, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -585,7 +573,7 @@ function show(app, tab){
   $('#edit').hidden = app !== null;
   $('#siteBtn').hidden = $('#newWin').hidden = !isApp;
   if (app !== 'home') renderAlert();
-  if (app === 'home'){ renderHome(); loadWaits(); plannerShow(); }
+  if (app === 'home'){ renderHome(); loadWaits(); }
   else if (isApp){
     const src = tab ? `${app.admin}${app.admin.includes('?') ? '&' : '?'}tab=${tab}` : app.admin;
     if ($('#frame').dataset.src !== src){ $('#frame').dataset.src = src; $('#frame').src = src; }
@@ -900,19 +888,6 @@ $('#homeLinks').addEventListener('click', e => {
 });
 $('#homeReload').addEventListener('click', () => renderHome(true));
 
-/* 📅 위클리 플래너: 홈이 보일 때 한 번만 불러와요 · 접기는 이 기기에 기억 */
-function plannerShow(){
-  let fold = false; try { fold = localStorage.getItem('hub-planner-fold') === '1'; } catch {}
-  $('#planner').classList.toggle('fold', fold);
-  $('#plannerFold').textContent = fold ? '펼치기' : '접기';
-  if (!fold && !$('#plannerFrame').getAttribute('src')) $('#plannerFrame').src = 'planner.html';
-}
-$('#plannerFold').addEventListener('click', () => {
-  const fold = !$('#planner').classList.contains('fold');
-  try { localStorage.setItem('hub-planner-fold', fold ? '1' : '0'); } catch {}
-  plannerShow();
-});
-
 /* ============================================================
    즐겨찾기 탭
    ============================================================ */
@@ -1029,7 +1004,9 @@ onAuthStateChanged(auth, user => {
   $('#login').hidden = ok;
   $('#acts').hidden = $('#tabs').hidden = !ok;
   if (ok) show(cur);
-  else { $('#stage').hidden = $('#bm').hidden = $('#home').hidden = true; homeData = null; waits = null; renderAlert(); $('#frame').removeAttribute('src'); delete $('#frame').dataset.src; $('#pw').focus(); }
+  else { $('#stage').hidden = $('#bm').hidden = $('#home').hidden = true; homeData = null; waits = null; renderAlert(); $('#frame').removeAttribute('src'); delete $('#frame').dataset.src; $('#pw').focus();
+    // 다른 웹앱에서 관리자가 아닌 구글 계정으로 로그인해 둔 채라면 알려 줘요 (같은 moontr.site 라 로그인이 이어져요)
+    if (user) $('#err').textContent = `지금 로그인된 ${user.email || '계정'}은 관리자 계정이 아니에요. 비밀번호나 센메일 구글 계정으로 로그인해 주세요.`; }
   if (ok && !unsubHidden) unsubHidden = onSnapshot(HIDDEN_DOC, snap => {
     hidden = (snap.exists() && Array.isArray(snap.data().hidden)) ? snap.data().hidden : [];
     const o = (snap.exists() && snap.data().others) || {};
@@ -1045,6 +1022,19 @@ $('#login').addEventListener('submit', async e => {
   try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $('#pw').value); }
   catch { $('#err').textContent = '로그인 실패: 비밀번호를 확인해 주세요'; }
   $('#pw').value = '';
+});
+/* 구글 계정(센메일)으로 로그인: 부스 · 바이브코딩 관리 화면처럼 */
+$('#glogin').addEventListener('click', async () => {
+  $('#err').textContent = '';
+  const p = new GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account', login_hint: ADMIN_EMAIL });
+  try {
+    const r = await signInWithPopup(auth, p);
+    if (r.user.email !== ADMIN_EMAIL){ await signOut(auth); $('#err').textContent = `${r.user.email}은 관리자 계정이 아니에요. 센메일(${ADMIN_EMAIL})로 골라 주세요.`; }
+  } catch (e){
+    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')
+      $('#err').textContent = e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요' : '구글 로그인을 하지 못했어요 (' + (e.code || e.message) + ')';
+  }
 });
 $('#logout').addEventListener('click', () => { if (confirm('로그아웃할까요?')) signOut(auth); });
 </script>
