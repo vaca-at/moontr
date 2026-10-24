@@ -74,8 +74,18 @@ main{height:calc(100dvh - var(--bar-h)); min-height:520px}
 .view{display:none;height:100%}
 .view.on{display:flex;animation:enter .35s ease-out}
 /* ⑪ 위클리 플래너: 어두운 픽셀 그림을 16:9 액자로 가운데에 */
-#v-planner{align-items:center;justify-content:center;padding:1vh 3vw 4vh}
-#v-planner .pframe{width:min(100%,calc((100vh - 140px)*16/9));aspect-ratio:16/9;background:#07070C;border-radius:16px;overflow:hidden;box-shadow:0 18px 40px -18px rgba(23,50,74,.55)}
+#v-planner{flex-direction:column;align-items:center;justify-content:center;gap:.7rem;padding:1vh 3vw 3vh}
+#v-planner .pframe{width:min(100%,calc((100dvh - var(--bar-h) - 7.6rem)*16/9));aspect-ratio:16/9;background:#07070C;border:2px solid #2A2A3A;overflow:hidden;box-shadow:0 0 0 1px #000,0 0 22px rgba(47,227,240,.14)}
+/* 게임 조작판 (네모 버튼 · 픽셀 글씨 · 고른 칸은 노랗게) */
+.gpanel{width:min(100%,calc((100dvh - var(--bar-h) - 7.6rem)*16/9));min-width:min(100%,640px);display:flex;flex-direction:column;gap:.4rem;padding:.5rem .7rem;background:#0B0B12;border:2px solid #2A2A3A;color:#EDEDF5;font-family:'Do Hyeon',sans-serif}
+.grow{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+.glab{font-family:'Press Start 2P',monospace;font-size:.5rem;color:#2FE3F0;margin-right:.2rem}
+.gsep{width:2px;height:1.4rem;background:#2A2A3A;margin:0 .3rem}
+.gbtn{min-height:34px;padding:0 .65rem;border:2px solid rgba(237,237,245,.3);border-radius:0;background:transparent;color:#EDEDF5;cursor:pointer;font-family:'Do Hyeon',sans-serif;font-size:.85rem;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
+.gbtn b{font-family:'Press Start 2P',monospace;font-size:.5rem;font-weight:400;color:#FFD400}
+.gbtn:hover{border-color:#FFD400}
+.gbtn.on{background:#FFD400;border-color:#FFD400;color:#16131A}
+.gbtn.on b{color:#16131A}
 #v-planner iframe{display:block;width:100%;height:100%;border:0}
 @keyframes enter{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.view.on{animation:none}body{transition:none}}
@@ -231,6 +241,9 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
   main{height:auto;min-height:0}
   .view.on{min-height:calc(100dvh - 7rem)}
 
+  #v-planner{justify-content:flex-start;padding:.6rem .6rem 1.2rem}
+  #v-planner .pframe,.gpanel{width:100%;min-width:0}
+  .gbtn{min-height:32px;padding:0 .5rem;font-size:.82rem}
   #v-door{padding:.5rem 1rem 1.5rem;gap:1rem}
   #v-door h1{font-size:2.1rem}
   .doors{grid-template-columns:1fr;gap:.9rem}
@@ -331,6 +344,29 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
 
   <!-- ⑪ 위클리 플래너형 (문쌤 타이쿤 · 픽셀 그림, 시간표를 그대로 읽어요 → /planner/) -->
   <section class="view" id="v-planner" aria-label="위클리 플래너">
+    <!-- 게임 조작판: 위 줄은 대문이 하던 일(입구 · 즐겨찾기 · 동료 선생님 · 관리자), 아래 줄은 게임 단추 -->
+    <div class="gpanel">
+      <div class="grow"><span class="glab">MENU</span>
+        <button type="button" class="gbtn" data-sheet="student"><b>A</b>🎒 학생 입장</button>
+        <button type="button" class="gbtn" data-sheet="fav"><b>B</b>⭐ 즐겨찾기</button>
+        <button type="button" class="gbtn" data-sheet="peer"><b>C</b>🤝 동료 선생님께</button>
+        <button type="button" class="gbtn" id="gAdmin"><b>D</b>🛠 관리자 도구</button>
+      </div>
+      <div class="grow"><span class="glab">TIME</span>
+        <button type="button" class="gbtn on" data-speed="1">▶ 실시간</button>
+        <button type="button" class="gbtn" data-speed="60">⏩ ×60</button>
+        <button type="button" class="gbtn" data-speed="600">⏩⏩ ×600</button>
+        <span class="gsep"></span><span class="glab">STAGE</span>
+        <button type="button" class="gbtn" data-jump="1,08:05">월 조회</button>
+        <button type="button" class="gbtn" data-jump="2,09:12">쉬는 시간</button>
+        <button type="button" class="gbtn" data-jump="3,12:20">점심</button>
+        <button type="button" class="gbtn" data-jump="5,16:15">퇴근</button>
+        <button type="button" class="gbtn" data-jump="6,10:00">주말</button>
+        <span class="gsep"></span><span class="glab">COLOR</span>
+        <button type="button" class="gbtn on" data-pal="a">A NEON</button>
+        <button type="button" class="gbtn" data-pal="b">B COZY</button>
+      </div>
+    </div>
     <div class="pframe"><iframe id="plannerFrame" title="문쌤 위클리 플래너"></iframe></div>
   </section>
 </main>
@@ -479,7 +515,8 @@ $('#shuffle').addEventListener('click', () => show(pickRandom()));
 /* ② 입구: 목록 창 */
 const SHEETS = {
   student:{ title:'학생 입장', list:APPS.filter(a => !a.hideFromDoor), note:'' },
-  peer:{ title:'동료 선생님께', list:PEER_LINKS, note:'' }
+  peer:{ title:'동료 선생님께', list:PEER_LINKS, note:'' },
+  fav:{ title:'⭐ 즐겨찾기', list:QUOTE_LINKS.map(x => ({ name:x.name, url:x.url, desc:'moontr.site' + x.url })), note:'한마디 대문 아래 바로가기와 같은 목록이에요' }
 };
 let lastFocus = null;
 function openSheet(key){
@@ -584,6 +621,32 @@ function closeAdmin(){ $('#adminSheet').hidden = true; }
 const goHub = () => { location.href = '/admin/'; };
 $('#adminBtn').addEventListener('click', goHub);
 $('#doorAdmin').addEventListener('click', goHub);
+$('#gAdmin').addEventListener('click', goHub);
+
+/* ⑪ 플래너 게임 단추: 플래너(iframe) 안의 시간 · 장면 · 색을 바꿔요 */
+const pw = () => { try { const w = $('#plannerFrame').contentWindow; return w && w.setSpeed ? w : null; } catch { return null; } };   // 플래너가 아직 안 열렸거나 막히면 null
+const markOn = (sel, b) => document.querySelectorAll(sel).forEach(x => x.classList.toggle('on', x === b));
+document.querySelectorAll('#v-planner [data-speed]').forEach(b => b.addEventListener('click', () => {
+  const w = pw(); if (!w || !w.setSpeed) return;
+  if (b.dataset.speed === '1') w.goLive(); else w.setSpeed(+b.dataset.speed);
+  markOn('#v-planner [data-speed]', b);
+}));
+document.querySelectorAll('#v-planner [data-jump]').forEach(b => b.addEventListener('click', () => {
+  const w = pw(); if (!w || !w.jumpTo) return;
+  const [d, t] = b.dataset.jump.split(','); w.jumpTo(+d, t);
+  markOn('#v-planner [data-speed]', null);   // 장면으로 옮기면 '실시간'이 아니에요 (▶ 실시간을 누르면 지금으로)
+}));
+document.querySelectorAll('#v-planner [data-pal]').forEach(b => b.addEventListener('click', () => {
+  const w = pw(); if (!w || !w.setPal) return;
+  w.setPal(b.dataset.pal); markOn('#v-planner [data-pal]', b);
+  try { localStorage.setItem('moontr-pal', b.dataset.pal); } catch {}
+}));
+/* 지난번에 고른 색은 기억해 두었다가, 플래너를 불러오면 다시 칠해요 */
+$('#plannerFrame').addEventListener('load', () => {
+  let v = 'a'; try { v = localStorage.getItem('moontr-pal') || 'a'; } catch {}
+  const w = pw(); if (w && w.setPal) w.setPal(v);
+  markOn('#v-planner [data-pal]', document.querySelector(`#v-planner [data-pal="${v}"]`));
+});
 $('#adminClose').addEventListener('click', closeAdmin);
 $('#adminSheet').addEventListener('click', e => { if (e.target.id === 'adminSheet') closeAdmin(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#adminSheet').hidden) closeAdmin(); });
