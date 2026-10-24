@@ -757,6 +757,12 @@ dialog.pop::backdrop{background:rgba(91,72,80,.35);backdrop-filter:blur(2px)}
 .policy-foot{max-width:760px;margin:1rem auto 3.5rem;padding:0 16px;font-size:12px;line-height:1.7;color:var(--ink2);word-break:keep-all}
 .policy-foot{text-align:center}
 .pol-open{border:0;background:none;padding:0;font-size:12px;color:var(--ink2);opacity:.85;cursor:pointer}
+/* 🔐 관리자 페이지: 로그인 전 가운데 칸 */
+.adm-login{max-width:26rem;margin:2rem auto;text-align:center;background:#fff;border:2px solid var(--line);border-radius:1.5rem;padding:2rem 1.5rem}
+.adm-login .adm-lock{font-size:3rem;line-height:1}
+.adm-login h3{margin:.5rem 0 .25rem;font-family:var(--hand);font-weight:400;font-size:1.625rem}
+.adm-login .btn{margin-top:.75rem}
+#pAdmin .adm{margin-top:0}
 .foot-admin{margin-left:.75rem;border:1px solid var(--line);border-radius:999px;padding:.0625rem .625rem;background:#fff}
 .pol-open b{color:inherit}
 .pol-open:hover{text-decoration:underline}
@@ -2024,7 +2030,7 @@ function renderVerify() {
         <button type="button" class="btn" id="pdfBtn" style="--c:var(--pink)">📄 교안 PDF 내려받기</button>
       </div>
     </section>
-    <div id="pwAdmin" class="pw-admin"></div>`;
+    <div class="pw-admin"><button type="button" class="pw-admin-btn" data-go="admin">🔐 관리자</button></div>`;
 }
 
 /* ===== 동료 검증 담벼락 (연수용 파이어스토어 sonagi-1cc00: sonagi_apps · sonagi_notes) =====
@@ -2102,7 +2108,7 @@ async function adminLogin() {
     const r = await firebase.auth().signInWithPopup(p);
     if (!isAdminEmail(r.user.email)) { const em = r.user.email; await firebase.auth().signOut(); toast(`${em || "이 계정"}은 관리자 계정이 아니에요. 관리자 구글 계정으로 로그인해 주세요`); return; }
     toast("관리자로 들어왔어요 · 아래 대시보드를 보세요");
-    setTimeout(() => $("#pwAdmin").scrollIntoView({ behavior: "smooth", block: "start" }), 400);
+    go("admin");
   } catch (e) {
     // 실패 이유를 쉬운 말로 (모르는 오류는 코드를 그대로 보여 줘서 원인을 찾게)
     const why = { "auth/popup-blocked": "팝업이 막혔어요. 주소창 오른쪽에서 팝업을 허용해 주세요",
@@ -2226,7 +2232,13 @@ function visitChart(v) {
 function drawAdmin() {
   const fa = $("#footAdmin"); if (fa) fa.textContent = PW.admin ? "🔐 관리자 대시보드" : "🔐 관리자";
   const box = $("#pwAdmin"); if (!box) return;
-  if (!PW.admin) { box.className = "pw-admin"; box.innerHTML = `<button type="button" class="pw-admin-btn" id="pwAdminOpen">🔐 관리자</button>`; return; }
+  if (!PW.admin) {   // 로그인 전: 관리자 페이지 가운데 로그인 칸
+    box.className = "adm-login";
+    box.innerHTML = `<div class="adm-lock">🔐</div><h3>관리자만 볼 수 있어요</h3>
+      <p class="muted">관리자 구글 계정으로 로그인하면 대시보드가 열려요.</p>
+      <button type="button" class="btn" id="pwAdminOpen" style="--c:var(--rose)">G 구글 계정으로 로그인</button>`;
+    return;
+  }
   const v = PW.visits, today = v && v.days ? v.days[v.days.length - 1].n : "…";
   const title = id => (PW.all.find(a => a.id === id) || {}).title || "(지운 웹앱)";
   const del = (col, id) => `<button type="button" class="pw-del" data-adm-del="${col}:${id}" title="지우기">🗑</button>`;
@@ -2575,13 +2587,27 @@ function build() {
     <div class="page-head"><span class="page-no">${i + 1}</span><div class="page-title"><h2 id="h${i + 1}">${s.title}</h2><p>${s.lead}</p>${s.note ? `<p class="page-note">${s.note}</p>` : ""}</div><span class="time">${s.when ? "📖" : "⏱"} ${dur(s)}</span></div>
     ${s.render()}
     <div class="pager">${i > 0 ? `<button type="button" class="btn line" data-go="${i}" style="--c:${STEPS[i - 1].c}">← ${STEPS[i - 1].t}</button>` : "<span></span>"}${i < STEPS.length - 1 ? `<button type="button" class="btn" data-go="${i + 2}" style="--c:${STEPS[i + 1].c}">${STEPS[i + 1].t} →</button>` : ""}</div>
-  </section>`).join("");
+  </section>`).join("") +
+  // 🔐 관리자 페이지: 단계 탭에는 없고, 주소 #admin 이나 푸터 🔐 단추로만 들어와요
+  `<section class="page" id="pAdmin" style="--c:var(--ink)" hidden aria-labelledby="hAdmin">
+    <div class="page-head"><span class="page-no">🔐</span><div class="page-title"><h2 id="hAdmin">관리자 대시보드</h2><p>접속 수 · 올린 웹앱 · 동료 의견 · 소감을 한눈에 보고, 지울 수 있어요. 관리자 구글 계정으로만 열려요</p></div></div>
+    <div id="pwAdmin"></div>
+    <div class="pager"><button type="button" class="btn line" data-go="6" style="--c:${STEPS[5].c}">← ${STEPS[5].t}</button><button type="button" class="btn line" data-go="1" style="--c:${STEPS[0].c}">🏠 처음으로</button></div>
+  </section>`;
   renderCaseDetail();
   updateFb();
   loadTemplates();
   initPeerWall();
 }
 function go(n, push = true) {
+  if (n === "admin") {   // 🔐 관리자 페이지
+    cur = 0;
+    if ($("#pop").open) $("#pop").close();
+    document.querySelectorAll(".page").forEach(p => p.hidden = p.id !== "pAdmin");
+    document.querySelectorAll(".st-tab").forEach(t => { t.classList.remove("on"); t.setAttribute("aria-current", "false"); });
+    if (push && location.hash !== "#admin") history.pushState(null, "", "#admin");
+    drawAdmin(); window.scrollTo({ top: 0 }); return;
+  }
   n = Math.min(Math.max(1, +n || 1), STEPS.length);
   if (n === 2 && cur !== 2) { resetCases(); renderCaseDetail(); }   // 2단계로 넘어올 때마다 첫 번째 칩부터
   cur = n;
@@ -2655,13 +2681,7 @@ document.addEventListener("click", async e => {
   if (t.closest("#pwOut")) { pwLogout(); return; }
   if (t.closest("#pwAdminOpen")) { adminLogin(); return; }
   // 푸터 🔐: 관리자면 6단계 대시보드로, 아니면 로그인 (6단계로 옮긴 뒤)
-  if (t.closest("#footAdmin")) {
-    if (typeof firebase === "undefined" || !PW.db) return toast("파이어베이스에 연결되지 않았어요. 새로고침해 주세요");
-    go(6);
-    if (PW.admin) setTimeout(() => $("#pwAdmin").scrollIntoView({ behavior: "smooth", block: "start" }), 300);
-    else adminLogin();
-    return;
-  }
+  if (t.closest("#footAdmin")) { go("admin"); return; }
   if (t.closest("#pwAdminOut")) { firebase.auth().signOut(); return; }
   if (t.closest("#admVisit")) { PW.visits = null; drawAdmin(); loadVisits(); return; }
   const ad = t.closest("[data-adm-del]"); if (ad) { admDelete(ad.dataset.admDel); return; }
