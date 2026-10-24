@@ -24,6 +24,19 @@ service cloud.firestore {
       allow read, write: if isTeacher();
     }
 
+    // 로그인 기록 (출석부 학번 · 이름 ↔ 학생 닉네임 연결): 문서 이름 = 강좌_반_학번
+    // 학생은 자기 기록을 남기기만(정해진 항목만), 학번이 있어 보기 · 지우기는 관리자만
+    match /vibe_checkin/{id} {
+      allow create, update: if request.resource.data.keys().hasOnly(['course','ban','sid','name','at'])
+        && request.resource.data.course in ['theory', 'lab']
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.sid is string && request.resource.data.sid.matches('^[0-9]{5}$')
+        && id == request.resource.data.course + '_' + request.resource.data.ban + '_' + request.resource.data.sid
+        && vibeStudent(request.resource.data)
+        && request.resource.data.at is int;
+      allow read, delete: if isTeacher();
+    }
+
     // 계획서 내용: 누구나 보기(닉네임 없음), 정해진 항목만 쓰기, 관리자만 지우기
     match /vibe_plans/{id} {
       allow read: if true;

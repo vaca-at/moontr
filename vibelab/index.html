@@ -737,6 +737,7 @@ body[data-theme="toss"] .seg,body[data-theme="toss"] .pill,body[data-theme="toss
 .ai-ans .ar.ok{background:#EBFBEE}.ai-ans .ar.warn{background:#FFF4E6}.ai-ans .ar.top{background:#FFF0F6;font-weight:700}.ai-ans .ar.h{background:none;font-weight:700;padding-left:.125rem}
 .tbl td.tbl-empty{text-align:center;color:var(--ink2);padding:1.25rem .5rem;background:#fff}
 /* ✅ 출석부 */
+.real{display:inline-block;margin-left:.25rem;padding:0 .4375rem;border-radius:999px;background:#EAF4FF;color:#2F6DB5;font-size:.8125rem;white-space:nowrap}
 .roll-tools{display:flex;gap:.5rem;flex-wrap:wrap;margin:.25rem 0 .75rem}
 table.roll td{vertical-align:middle}
 .roll-st{white-space:nowrap}
@@ -2266,7 +2267,7 @@ $("meForm").addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target, d = { ban: f.ban.value, sid: f.sid.value.trim(), name: f.name.value.trim() };
   const bad = validMe(d.sid, d.name); if (bad) { toast(bad); (/숫자/.test(bad) ? f.sid : f.name).focus(); return; }
-  setMe(d); $("dlgMe").close();
+  setMe(d); checkIn(d); $("dlgMe").close();
   if (d.ban !== ban) { ban = d.ban; try { localStorage.setItem("vt_ban", ban); } catch (x) {} paintBan(); }
   await resolveMine(); paintMe(); renderSlide();
   toast(myPlanId ? `${d.name}, 계획서를 찾았어요!` : `${d.name}, 반가워요!`);
@@ -2316,6 +2317,7 @@ function setTeacher(on) {
     stopAdmin.push(listen(COL_KEYS, l => { planPeople = l; renderDash(); }));
     stopAdmin.push(listen(COL_REFLECT, l => { reflects = l; renderDash(); }));
     stopAdmin.push(listen(COL_ROSTER, l => { roster = l; renderDash(); }));
+    stopAdmin.push(listen(COL_CHECKIN, l => { checkins = l; renderDash(); }));
     stopAdmin.push(listen(COL_VISITS, l => { visits = l; renderDash(); }));
     stopAdmin.push(listen(COL_FIX, l => { fixes = l; renderDash(); }));
   } else $("dlgAdmin").close();
@@ -2351,6 +2353,27 @@ const COL_ROSTER = "vibe_roster";
 const COURSE = "lab";   // theory = 이론편, lab = 실습편
 const ROLL_ST = [["출석", "✅"], ["지각", "⏰"], ["조퇴", "🚶"], ["결석", "❌"]];
 let roster = [];
+/* 학생이 '나 확인'을 하면 접속 기록을 남겨요 (문서 이름 = 강좌_반_학번 → { course, ban, sid, name(닉네임), at }, 관리자만 보기)
+   → 출석부의 학번 · 이름과 학생이 쓴 닉네임을 이어 줘요 */
+const COL_CHECKIN = "vibe_checkin";
+let checkins = [];
+async function checkIn(m) {
+  if (!m || !/^\d{5}$/.test(String(m.sid || ""))) return;
+  const id = `${COURSE}_${m.ban}_${m.sid}`, data = { course: COURSE, ban: m.ban, sid: m.sid, name: m.name, at: Date.now() };
+  try {
+    if (LIVE) await db.collection(COL_CHECKIN).doc(id).set(data);
+    else { const arr = localGet(COL_CHECKIN).filter(x => x.id !== id); arr.push({ ...data, id }); localSet(COL_CHECKIN, arr); localEmit(COL_CHECKIN); }
+  } catch (e) { console.error("접속 기록 실패", e); }
+}
+const checkinOf = (b, sid) => checkins.find(c => c.course === COURSE && c.ban === b && c.sid === sid);
+// 닉네임 → 학번 · 출석부 이름 (같은 반에서). 대시보드 표에 붙여 보여요
+function realOf(b, nick) {
+  const c = checkins.filter(x => x.ban === b && x.name === nick).sort((x, y) => (y.at || 0) - (x.at || 0))[0];
+  if (!c) return null;
+  const r = roster.find(x => x.ban === b && x.sid === c.sid && x.course === COURSE) || roster.find(x => x.ban === b && x.sid === c.sid);
+  return { sid: c.sid, name: r ? r.name : "" };
+}
+const realTag = (b, nick) => { const r = nick && realOf(b, nick); return r ? ` <span class="real">${esc(r.sid)}${r.name ? " " + esc(r.name) : ""}</span>` : ""; };
 const rollLeft = {};   // 못 읽은 줄 (다시 그려도 칸에 남겨 둬요)
 const rosterOf = b => roster.filter(r => r.course === COURSE && r.ban === b).sort((x, y) => String(x.sid).localeCompare(String(y.sid)));
 const rollId = (b, sid) => `${COURSE}_${b}_${sid}`;
@@ -2378,16 +2401,19 @@ function rosterHTML(b) {
   const list = rosterOf(b), cnt = k => list.filter(r => r.st === k).length, none = list.filter(r => !r.st).length;
   return `<h4>✅ ${b}반 출석부 <span class="muted" style="font-size:.875rem">${list.length}명 · ${ROLL_ST.map(([k, e]) => `${e} ${k} ${cnt(k)}`).join(" · ")} · 미체크 ${none}</span></h4>
     <div class="roll-tools">
-      <button type="button" class="btn sm" data-roll-all="${b}">✅ 남은 학생 모두 출석</button>
+      <button type="button" class="btn sm" data-roll-in="${b}">🙋 로그인한 학생 출석</button>
+      <button type="button" class="pill sm" data-roll-all="${b}">✅ 남은 학생 모두 출석</button>
       <button type="button" class="pill sm" data-roll-reset="${b}">↺ 출석 체크 지우기</button>
       <button type="button" class="pill sm" data-roll-csv="${b}">⬇️ 엑셀 저장</button>
     </div>
     ${list.length ? `<div class="tbl"><table class="roll">
-      <tr><th>번</th><th>학번</th><th>이름</th><th>출석 체크</th><th>체크한 시각</th><th></th></tr>
+      <tr><th>번</th><th>학번</th><th>이름</th><th>로그인한 닉네임</th><th>출석 체크</th><th>체크한 시각</th><th></th></tr>
       ${list.map((r, i) => `<tr class="${r.st ? "st-" + r.st : ""}"><td>${i + 1}</td><td>${esc(r.sid)}</td><td><b>${esc(r.name)}</b></td>
+        <td>${(c => c ? `🙋 ${esc(c.name)} <span class="muted">${fmtTime(c.at)}</span>` : `<span class="muted">-</span>`)(checkinOf(b, r.sid))}</td>
         <td class="roll-st">${ROLL_ST.map(([k, e]) => `<button type="button" class="${r.st === k ? "on" : ""}" data-roll-st="${r.id}" data-v="${k}">${e} ${k}</button>`).join("")}</td>
         <td>${r.at ? fmtTime(r.at) : "-"}</td><td><button type="button" class="del" data-roll-del="${r.id}">빼기</button></td></tr>`).join("")}
     </table></div>` : `<div class="empty">아직 출석부가 없어요. 아래 [명단 붙여 넣기]로 넣어 주세요.</div>`}
+    ${(x => x.length ? `<p class="notice" style="margin-top:.75rem">⚠️ 출석부에 없는 학번으로 로그인: ${x.map(c => `<b>${esc(c.sid)}</b> ${esc(c.name)} <button type="button" class="link" data-roll-addin="${c.id}">출석부에 넣기</button>`).join(" · ")}</p>` : "")(checkins.filter(c => c.course === COURSE && c.ban === b && !list.some(r => r.sid === c.sid)))}
     <details class="roll-add" ${list.length && !rollLeft[b] ? "" : "open"}><summary>➕ 명단 붙여 넣기 · 학생 더하기</summary>
       <form class="form" data-roll-bulk="${b}" autocomplete="off">
         <textarea name="lines" rows="6" placeholder="한 줄에 한 명씩\n11009 애리\n또는 1 10 9 박애리 (학년 반 번호 이름)">${esc(rollLeft[b] || "")}</textarea>
@@ -2401,12 +2427,14 @@ function rosterHTML(b) {
     const t = e.target;
     try {
       const st = t.closest("[data-roll-st]"); if (st) { const r = roster.find(x => x.id === st.dataset.rollSt); const v = r && r.st === st.dataset.v ? "" : st.dataset.v; await rollSet(st.dataset.rollSt, { st: v, at: v ? Date.now() : 0 }); return; }
+      const ri = t.closest("[data-roll-in]"); if (ri) { const b = ri.dataset.rollIn; const xs = rosterOf(b).filter(r => !r.st && checkinOf(b, r.sid)); for (const r of xs) await rollSet(r.id, { st: "출석", at: Date.now() }); toast(xs.length ? `로그인한 학생 ${xs.length}명을 출석으로 했어요` : "새로 출석할 학생이 없어요"); return; }
+      const ai = t.closest("[data-roll-addin]"); if (ai) { const c = checkins.find(x => x.id === ai.dataset.rollAddin); if (c) { await rollSet(rollId(c.ban, c.sid), { course: COURSE, ban: c.ban, sid: c.sid, name: c.name }); toast(`${c.sid} ${c.name}을(를) 출석부에 넣었어요 (이름은 닉네임으로)`); } return; }
       const all = t.closest("[data-roll-all]"); if (all) { for (const r of rosterOf(all.dataset.rollAll).filter(r => !r.st)) await rollSet(r.id, { st: "출석", at: Date.now() }); toast("남은 학생을 모두 출석으로 했어요"); return; }
       const rs = t.closest("[data-roll-reset]"); if (rs) { if (!confirm("이 반 출석 체크를 모두 지울까요? (명단은 그대로)")) return; for (const r of rosterOf(rs.dataset.rollReset)) await rollSet(r.id, { st: "", at: 0 }); toast("출석 체크를 지웠어요"); return; }
       const dl = t.closest("[data-roll-del]"); if (dl) { const r = roster.find(x => x.id === dl.dataset.rollDel); if (r && confirm(`${r.sid} ${r.name} 학생을 출석부에서 뺄까요?`)) { await rollDel(r.id); toast("뺐어요"); } return; }
       const cv = t.closest("[data-roll-csv]"); if (cv) {
-        const b = cv.dataset.rollCsv, rows = [["강좌", "반", "번", "학번", "이름", "출석", "체크한 시각"]];
-        rosterOf(b).forEach((r, i) => rows.push([COURSE === "lab" ? "실습편" : "이론편", b, i + 1, r.sid, r.name, r.st || "미체크", r.at ? fmtTime(r.at) : ""]));
+        const b = cv.dataset.rollCsv, rows = [["강좌", "반", "번", "학번", "이름", "로그인한 닉네임", "출석", "체크한 시각"]];
+        rosterOf(b).forEach((r, i) => rows.push([COURSE === "lab" ? "실습편" : "이론편", b, i + 1, r.sid, r.name, (checkinOf(b, r.sid) || {}).name || "", r.st || "미체크", r.at ? fmtTime(r.at) : ""]));
         return saveCSV(rows, `출석부_${COURSE === "lab" ? "실습편" : "이론편"}_${b}반.csv`);
       }
     } catch (err) { console.error(err); toast("저장하지 못했어요. 관리자 로그인과 보안 규칙을 확인하세요"); }
@@ -2438,7 +2466,7 @@ function renderDash() {
   const b = dashTab, as = appsOfBan(b), cs = checks.filter(c => c.ban === b).sort(byTime), rs = reflects.filter(r => r.ban === b).sort(byName), ws = wall.filter(w => w.ban === b).sort(byTime), fs = fixes.filter(x => x.ban === b).sort(byName);
   const done = new Set(Object.values(appWho).filter(w => w.ban === b).map(w => w.name));
   const missing = planPeople.filter(x => x.ban === b && !done.has(x.name)).sort(byName);
-  const who = w => w ? esc(w.name) : "-";
+  const who = w => w ? esc(w.name) + realTag(b, w.name) : "-";
   const appName = id => { const a = apps.find(x => x.id === id); return a ? esc(a.appName) : "-"; };
   box.innerHTML = bar + `
     <h4>🌐 ${b}반 올린 웹앱 ${as.length}개 <button type="button" class="btn sm" data-csv="apps">엑셀 저장</button></h4>
@@ -2747,6 +2775,8 @@ if (h >= 1 && h <= SLIDES.length) cur = h;
 paintBan(); renderTabs(); renderSlide(); paintMe();
 resolveMine().then(() => renderLive(false));
 // 🙋 나 확인 창은 첫 화면이 아니라, 로그인이 필요한 활동 화면에 처음 들어갔을 때 한 번만 떠요
+// 이미 로그인해 둔 기기도 이 수업에 들어오면 접속 기록을 남겨요 (한 번)
+try { if (getMe() && sessionStorage.getItem("vibe_ci_" + COURSE) !== "1") { sessionStorage.setItem("vibe_ci_" + COURSE, "1"); checkIn(getMe()); } } catch (e) {}
 const NEED_ME = ["plan", "check", "finish"];
 function askMeForSlide() {
   const k = SLIDES[cur - 1].kind; if (!NEED_ME.includes(k)) return;
