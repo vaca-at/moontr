@@ -2710,11 +2710,22 @@ document.addEventListener("keydown", e => {
 const h = parseInt(location.hash.slice(1), 10);
 if (h >= 1 && h <= SLIDES.length) cur = h;
 paintBan(); renderTabs(); renderSlide(); paintMe();
-(() => {
+// 🙋 나 확인 창은 첫 화면이 아니라, 로그인이 필요한 활동 화면에 처음 들어갔을 때 한 번만 떠요
+const NEED_ME = ["plan", "feedback", "reflect"];
+function askMeForSlide() {
+  const k = SLIDES[cur - 1].kind; if (!NEED_ME.includes(k)) return;
   let inHub = false; try { inHub = window.top !== window; } catch (e) { inHub = true; }
-  let asked = false; try { asked = sessionStorage.getItem("vt_me_asked") === "1"; sessionStorage.setItem("vt_me_asked", "1"); } catch (e) {}
-  if (!getMe() && !adminIntent && !inHub && !asked) setTimeout(() => { if (!teacher) openMeDlg(); }, 600);
-})();
+  let asked = false; try { asked = sessionStorage.getItem("vt_me_asked_" + k) === "1"; } catch (e) {}
+  if (getMe() || teacher || adminIntent || inHub || asked) return;
+  setTimeout(() => {
+    if (getMe() || teacher || SLIDES[cur - 1].kind !== k || document.querySelector("dialog[open]")) return;
+    try { sessionStorage.setItem("vt_me_asked_" + k, "1"); } catch (e) {}
+    openMeDlg();
+  }, 600);
+}
+const renderSlideBase = renderSlide;
+renderSlide = function () { renderSlideBase.apply(this, arguments); askMeForSlide(); };
+askMeForSlide();
 listen(COL_PLANS, list => { plans = list; relabel(); refreshLive(); renderDash(); if (getMe() && !myPlanId) resolveMine().then(refreshLive); });
 listen(COL_WALL, list => { wall = list; if (SLIDES[cur - 1].kind === "reflect") { renderWall(); renderMyReflect(); } });
 listen(COL_FB, list => { feedbacks = list; refreshLive(); renderDash(); });
