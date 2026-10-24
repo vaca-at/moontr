@@ -57,6 +57,28 @@ td.s-출석{background:#F0FBF4} td.s-지각,td.s-조퇴{background:#FFF8E6} td.s
 .notice{background:#FFF8E6;border:1.5px solid #F2D38A;border-radius:.75rem;padding:.5rem .75rem;font-size:.875rem;margin:.75rem 0 0}
 #toast{position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:999px;padding:.5rem 1.125rem;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
 #toast.show{opacity:1}
+/* 💬 채팅 · 질문 */
+#talkPane{padding:1rem}
+.tk-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;height:calc(100% - 3.25rem)}
+@media (max-width:900px){.tk-wrap{grid-template-columns:1fr;height:auto}}
+.tk-box{border:2px solid var(--line);border-radius:1rem;display:flex;flex-direction:column;min-height:24rem;overflow:hidden}
+.tk-box h3{margin:0;padding:.5rem .75rem;font-weight:400;font-size:1.0625rem;background:var(--soft);border-bottom:1px solid var(--line)}
+.tk-log{flex:1;overflow:auto;padding:.625rem .75rem;display:flex;flex-direction:column;gap:.5rem}
+.tk{max-width:85%;align-self:flex-start}
+.tk.t{align-self:flex-end;text-align:right}
+.tk small{display:block;font-size:.75rem;color:var(--ink2);margin:0 .25rem .125rem}
+.tk div{display:inline-block;text-align:left;white-space:pre-wrap;word-break:break-word;padding:.375rem .625rem;border-radius:1rem;background:#F3EEEA}
+.tk.t div{background:#FFF4C9;border:1.5px solid #F2D38A}
+.tk .del{border:0;background:none;color:#C9BDB6;cursor:pointer;font-size:.75rem}
+.tk .del:hover{color:var(--no)}
+.tk-form{display:flex;gap:.375rem;padding:.5rem;border-top:1px solid var(--line)}
+.tk-form textarea{flex:1;resize:none;border:2px solid var(--line);border-radius:.75rem;padding:.375rem .5rem;font:inherit}
+.q-list{display:flex;flex-direction:column;gap:.25rem;padding:.5rem;border-bottom:1px solid var(--line);max-height:12rem;overflow:auto}
+.q-list button{display:flex;justify-content:space-between;gap:.5rem;border:1.5px solid var(--line);background:#fff;border-radius:.75rem;padding:.3125rem .625rem;text-align:left}
+.q-list button.on{border-color:var(--accent);background:#FFF0F5}
+.q-list b.new{color:#fff;background:var(--no);border-radius:999px;padding:0 .4375rem;font-size:.75rem}
+.tabs button .cnt[hidden]{display:none}
+.tabs button .cnt{display:inline-block;min-width:1.25rem;margin-left:.25rem;border-radius:999px;background:var(--no);color:#fff;font-size:.75rem;padding:0 .3125rem}
 </style>
 </head>
 <body>
@@ -66,11 +88,13 @@ td.s-출석{background:#F0FBF4} td.s-지각,td.s-조퇴{background:#FFF8E6} td.s
 </header>
 <nav class="tabs" role="tablist">
   <button type="button" class="on" data-tab="roll">✅ 통합 출석부</button>
+  <button type="button" data-tab="talk">💬 채팅 · 질문<span class="cnt" id="askCnt" hidden></span></button>
   <button type="button" data-tab="theory">📘 이론편 대시보드</button>
   <button type="button" data-tab="lab">🧪 실습편 대시보드</button>
 </nav>
 <main>
   <section class="pane on" id="rollPane"></section>
+  <section class="pane" id="talkPane"></section>
   <section class="pane" id="theoryPane"></section>
   <section class="pane" id="labPane"></section>
 </main>
@@ -103,7 +127,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const fmtTime = ms => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 function toast(m) { const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400); }
 
-let teacher = false, roster = [], checkins = [], stops = [], filter = "all";
+let teacher = false, roster = [], checkins = [], stops = [], filter = "all", talks = [], asks = [], talkCls = "theory_A", askSel = "";
 
 /* ===== 로그인 ===== */
 auth.onAuthStateChanged(u => {
@@ -114,9 +138,11 @@ auth.onAuthStateChanged(u => {
   stops.forEach(f => f()); stops = [];
   if (u) {
     stops.push(db.collection("vibe_roster").onSnapshot(s => { roster = s.docs.map(d => ({ id: d.id, ...d.data() })); renderRoll(); }, e => { console.error(e); toast("출석부를 불러오지 못했어요. 보안 규칙을 확인하세요"); }));
-    stops.push(db.collection("vibe_checkin").onSnapshot(s => { checkins = s.docs.map(d => ({ id: d.id, ...d.data() })); renderRoll(); }, e => console.error(e)));
-  } else { roster = []; checkins = []; }
-  renderRoll(); openFrames();
+    stops.push(db.collection("vibe_checkin").onSnapshot(s => { checkins = s.docs.map(d => ({ id: d.id, ...d.data() })); renderRoll(); renderTalk(); }, e => console.error(e)));
+    stops.push(db.collection("vibe_talk").onSnapshot(s => { talks = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.at || 0) - (b.at || 0)); renderTalk(); }, e => { console.error(e); toast("채팅을 불러오지 못했어요. 보안 규칙을 확인하세요"); }));
+    stops.push(db.collection("vibe_ask").onSnapshot(s => { asks = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.at || 0) - (a.at || 0)); renderTalk(); }, e => console.error(e)));
+  } else { roster = []; checkins = []; talks = []; asks = []; }
+  renderRoll(); renderTalk(); openFrames();
 });
 $("authBtn").addEventListener("click", async () => {
   if (teacher) { if (confirm("로그아웃할까요?")) await auth.signOut(); return; }
@@ -143,7 +169,7 @@ document.querySelector(".tabs").addEventListener("click", e => {
   tab = b.dataset.tab;
   document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
   document.querySelectorAll(".pane").forEach(p => p.classList.toggle("on", p.id === tab + "Pane"));
-  openFrames();
+  openFrames(); if (tab === "talk") renderTalk();
 });
 
 /* ===== 통합 출석부: 학번 하나에 이론편 · 실습편 출석을 한 줄로 ===== */
@@ -181,6 +207,60 @@ function renderRoll() {
     </table>` : `<div class="gate">아직 출석부가 없어요.<br>이론편 · 실습편 대시보드의 <b>출석부</b> 탭에서 명단을 붙여 넣어 주세요.</div>`}
     ${strays.length ? `<p class="notice">⚠️ 출석부에 없는 학번으로 로그인: ${strays.map(c => `${c.course === "lab" ? "실습" : "이론"} ${c.ban}반 <b>${esc(c.sid)}</b> ${esc(c.name)}`).join(" · ")}</p>` : ""}`;
 }
+/* ===== 💬 채팅 · 질문: 반 채팅방(선생님도 말하기 · 지우기) + 학생 1:1 질문(답하기) ===== */
+const clsOf = k => CLASSES.find(c => keyOf(c) === k) || CLASSES[0];
+// 닉네임 → 학번 · 출석부 이름 (로그인 기록으로 이어요, 관리자 화면에만)
+function whoOf(course, ban, nick) {
+  const c = checkins.filter(x => x.course === course && x.ban === ban && x.name === nick).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+  if (!c) return "";
+  const r = roster.find(x => x.course === course && x.ban === ban && x.sid === c.sid);
+  return ` <span class="muted">(${esc(c.sid)}${r ? " " + esc(r.name) : ""})</span>`;
+}
+const bubble = (m, course, ban, del) => `<div class="tk ${m.t ? "t" : ""}"><small>${m.t ? "👩‍🏫 선생님" : esc(m.name) + whoOf(course, ban, m.name)} · ${fmtTime(m.at)}${del ? ` <button type="button" class="del" data-del-talk="${m.id}" title="지우기">🗑</button>` : ""}</small><div>${esc(m.text)}</div></div>`;
+function renderTalk() {
+  const cnt = asks.filter(a => a.unread).length, badge = $("askCnt");
+  badge.hidden = !cnt; badge.textContent = cnt;
+  const box = $("talkPane");
+  if (!teacher) { box.innerHTML = `<div class="gate">🔒 위쪽 <b>관리자 로그인</b>을 눌러 주세요.</div>`; return; }
+  const c = clsOf(talkCls);
+  const room = talks.filter(m => m.course === c.course && m.ban === c.ban);
+  const qs = asks.filter(a => a.course === c.course && a.ban === c.ban);
+  const q = qs.find(a => a.id === askSel) || qs[0];
+  const keep = ["tkLog", "qLog"].map(id => { const el = $(id); return el ? el.scrollHeight - el.scrollTop - el.clientHeight < 40 : true; });
+  const drafts = [...box.querySelectorAll("textarea")].map(t => t.value);
+  box.innerHTML = `<div class="sum">${CLASSES.map(x => { const n = asks.filter(a => a.course === x.course && a.ban === x.ban && a.unread).length; return `<button type="button" class="${keyOf(x) === talkCls ? "on" : ""}" data-talk-cls="${keyOf(x)}"><b>${x.label}</b><small>${x.day} · 채팅 ${talks.filter(m => m.course === x.course && m.ban === x.ban).length} · 질문 ${asks.filter(a => a.course === x.course && a.ban === x.ban).length}${n ? ` · <span style="color:var(--no)">새 질문 ${n}</span>` : ""}</small></button>`; }).join("")}</div>
+  <div class="tk-wrap">
+    <section class="tk-box"><h3>👥 ${c.label} 채팅방 <small class="muted">학생에게는 닉네임만 보여요</small></h3>
+      <div class="tk-log" id="tkLog">${room.length ? room.map(m => bubble(m, c.course, c.ban, true)).join("") : `<p class="muted" style="margin:auto">아직 나눈 이야기가 없어요.</p>`}</div>
+      <form class="tk-form" data-talk-send><textarea name="msg" rows="2" maxlength="300" placeholder="${c.label}에 보낼 말 (Enter 보내기)"></textarea><button class="btn" type="submit">보내기</button></form></section>
+    <section class="tk-box"><h3>🙋 ${c.label} 선생님께 질문 <small class="muted">그 학생과 선생님만 봐요</small></h3>
+      <div class="q-list">${qs.length ? qs.map(a => `<button type="button" class="${q && a.id === q.id ? "on" : ""}" data-ask="${a.id}"><span>${esc(a.name)}${whoOf(a.course, a.ban, a.name)}</span><span>${a.unread ? '<b class="new">새 질문</b> ' : ""}<small class="muted">${fmtTime(a.at)}</small></span></button>`).join("") : `<p class="muted" style="margin:.25rem">아직 온 질문이 없어요.</p>`}</div>
+      <div class="tk-log" id="qLog">${q ? (q.msgs || []).map(m => bubble({ ...m, name: q.name }, q.course, q.ban, false)).join("") : ""}</div>
+      ${q ? `<form class="tk-form" data-ask-send="${q.id}"><textarea name="msg" rows="2" maxlength="300" placeholder="${esc(q.name)}에게 답하기 (Enter 보내기)"></textarea><button class="btn" type="submit">답하기</button></form>` : ""}</section>
+  </div>`;
+  box.querySelectorAll("textarea").forEach((t, i) => { t.value = drafts[i] || ""; });
+  ["tkLog", "qLog"].forEach((id, i) => { const el = $(id); if (el && keep[i]) el.scrollTop = el.scrollHeight; });
+  // 열어 본 질문은 읽음으로
+  if (q && q.unread && tab === "talk") db.collection("vibe_ask").doc(q.id).set({ unread: false }, { merge: true }).catch(console.error);
+}
+$("talkPane").addEventListener("click", async e => {
+  const t = e.target;
+  const c = t.closest("[data-talk-cls]"); if (c) { talkCls = c.dataset.talkCls; askSel = ""; return renderTalk(); }
+  const a = t.closest("[data-ask]"); if (a) { askSel = a.dataset.ask; return renderTalk(); }
+  const d = t.closest("[data-del-talk]"); if (d && confirm("이 말을 지울까요? 학생 화면에서도 사라져요.")) { try { await db.collection("vibe_talk").doc(d.dataset.delTalk).delete(); } catch (err) { console.error(err); toast("지우지 못했어요"); } }
+});
+$("talkPane").addEventListener("keydown", e => { if (e.target.matches("textarea") && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); e.target.form.requestSubmit(); } });
+$("talkPane").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, text = f.msg.value.trim(); if (!text) return;
+  const c = clsOf(talkCls), at = Date.now();
+  f.msg.value = "";   // 보내는 동안 화면이 다시 그려져도 글이 남지 않게
+  try {
+    if (f.dataset.talkSend !== undefined) await db.collection("vibe_talk").add({ course: c.course, ban: c.ban, name: "선생님", text, at, t: true });
+    else await db.collection("vibe_ask").doc(f.dataset.askSend).set({ msgs: firebase.firestore.FieldValue.arrayUnion({ t: true, text, at }), unread: false }, { merge: true });
+  } catch (err) { console.error(err); f.msg.value = text; toast("보내지 못했어요. 보안 규칙을 확인하세요"); }
+});
+
 $("rollPane").addEventListener("click", async e => {
   const t = e.target;
   try {

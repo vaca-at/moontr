@@ -757,6 +757,30 @@ html.dash-only #dlgAdmin > *{overflow:visible;max-height:none}
 html.dash-only #dlgAdmin::backdrop{background:#fff}
 html.dash-only #dlgAdmin .doc-head{display:none}
 .dash-link{margin-left:auto;font-size:.875rem;color:#fff;text-decoration:underline;white-space:nowrap}
+/* 💬 채팅 · 질문 (우리 반 채팅방 + 선생님께 1:1 질문) */
+.talk-btn{position:relative}
+.talk-btn i{position:absolute;top:-.25rem;right:-.25rem;width:.625rem;height:.625rem;border-radius:50%;background:#E5484D;border:2px solid #fff}
+.talk{position:fixed;right:1rem;bottom:4.25rem;z-index:40;width:min(24rem,calc(100vw - 2rem));height:min(36rem,calc(100dvh - 6rem));display:flex;flex-direction:column;background:#fff;border-radius:1.25rem;box-shadow:0 1rem 3rem rgba(40,40,50,.28);overflow:hidden;border:2px solid color-mix(in srgb,var(--accent) 35%,#fff)}
+.talk[hidden]{display:none}
+.talk-head{display:flex;align-items:center;gap:.375rem;padding:.5rem .5rem .5rem .625rem;background:var(--accent);color:#fff}
+.talk-tabs{display:flex;gap:.25rem;flex:1}
+.talk-tabs button{flex:1;border:0;border-radius:999px;padding:.3125rem .5rem;background:rgba(255,255,255,.22);color:#fff;font:inherit;font-size:.9375rem;cursor:pointer;position:relative}
+.talk-tabs button.on{background:#fff;color:var(--accent)}
+.talk-tabs button i{position:absolute;top:.125rem;right:.375rem;width:.5rem;height:.5rem;border-radius:50%;background:#E5484D}
+.talk-x{border:0;background:none;color:#fff;font-size:1.25rem;cursor:pointer;padding:0 .375rem}
+.talk-note{margin:0;padding:.375rem .75rem;font-size:.8125rem;color:#8A7A72;background:#FFFBF8;border-bottom:1px solid #F2E8E2}
+.talk-log{flex:1;overflow:auto;padding:.625rem .75rem;display:flex;flex-direction:column;gap:.5rem;background:#FFFDFB}
+.talk-empty{margin:auto;text-align:center;color:#A99A92;font-size:.9375rem;line-height:1.6}
+.tk{max-width:82%;align-self:flex-start}
+.tk.me{align-self:flex-end;text-align:right}
+.tk small{display:block;font-size:.75rem;color:#A99A92;margin:0 .25rem .125rem}
+.tk div{display:inline-block;text-align:left;white-space:pre-wrap;word-break:break-word;padding:.4375rem .6875rem;border-radius:1rem;background:#F3EEEA;font-size:.9375rem;line-height:1.45}
+.tk.me div{background:color-mix(in srgb,var(--accent) 18%,#fff)}
+.tk.t div{background:#FFF4C9;border:1.5px solid #F2D38A}
+.talk-form{display:flex;gap:.375rem;padding:.5rem;border-top:1px solid #F2E8E2;background:#fff}
+.talk-form textarea{flex:1;resize:none;border:2px solid #F2E8E2;border-radius:.875rem;padding:.375rem .625rem;font:inherit;font-size:.9375rem}
+.talk-form textarea:focus{outline:none;border-color:var(--accent)}
+.talk-form button{border:0;border-radius:.875rem;background:var(--accent);color:#fff;font:inherit;padding:0 .875rem;cursor:pointer}
 </style>
 </head>
 <body>
@@ -2553,6 +2577,101 @@ if (DASH_ONLY) {
   da.addEventListener("cancel", e => e.preventDefault());
   da.addEventListener("close", () => { if (teacher) setTimeout(() => { if (!da.open) { da.show(); renderDash(); } }, 0); });
 }
+/* ===== 💬 채팅 · 질문 =====
+   우리 반 채팅방 vibe_talk: { course, ban, name(닉네임), text, at, t(선생님 글이면 true) } → 같은 반 모두 · 선생님이 봐요
+   선생님께 질문 vibe_ask/{강좌_해시}: { course, ban, name, msgs:[{ t, text, at }], at, unread } → 나와 선생님만
+   (문서 이름은 반 · 학번 · 닉네임의 해시라서 알아야만 열려요. 학번은 저장하지 않아요. 목록 · 지우기는 관리자만) */
+const COL_TALK = "vibe_talk", COL_ASK = "vibe_ask";
+let talkTab = "all", talkMsgs = [], askDoc = null, askId = "", talkStops = [], talkFor = "";
+const TALK_SEEN = "vt_talk_seen_" + COURSE;
+document.querySelector(".foot .navbtns").insertAdjacentHTML("afterbegin", `<button type="button" class="talk-btn" id="talkBtn">💬 채팅 · 질문<i id="talkDot" hidden></i></button>`);
+document.body.insertAdjacentHTML("beforeend", `<aside class="talk" id="talkPanel" hidden aria-label="채팅 · 질문">
+  <div class="talk-head"><div class="talk-tabs"><button type="button" data-talk-tab="all">👥 우리 반 채팅</button><button type="button" data-talk-tab="ask">🙋 선생님께 질문<i id="askDot" hidden></i></button></div><button type="button" class="talk-x" data-talk-close aria-label="닫기">✕</button></div>
+  <p class="talk-note" id="talkNote"></p>
+  <div class="talk-log" id="talkLog"></div>
+  <form class="talk-form" id="talkForm" autocomplete="off"><textarea name="msg" rows="2" maxlength="300"></textarea><button type="submit">보내기</button></form>
+</aside>`);
+const talkPanel = document.getElementById("talkPanel");
+const seenGet = () => { try { return JSON.parse(localStorage.getItem(TALK_SEEN) || "{}"); } catch (e) { return {}; } };
+const seenSet = o => { try { localStorage.setItem(TALK_SEEN, JSON.stringify({ ...seenGet(), ...o })); } catch (e) {} };
+// 새 글 표시: 닫혀 있거나 다른 칸을 보는 동안 남이 쓴 글이 오면 빨간 점
+function talkDots() {
+  const s = seenGet(), me = getMe(), open = !talkPanel.hidden;
+  const lastAll = talkMsgs.filter(m => m.t || !me || m.name !== me.name).reduce((a, m) => Math.max(a, m.at || 0), 0);
+  const lastAsk = (askDoc?.msgs || []).filter(m => m.t).reduce((a, m) => Math.max(a, m.at || 0), 0);
+  if (open && talkTab === "all" && lastAll) seenSet({ all: lastAll });
+  if (open && talkTab === "ask" && lastAsk) seenSet({ ask: lastAsk });
+  const s2 = seenGet(), newAll = lastAll > (s2.all || 0), newAsk = lastAsk > (s2.ask || 0);
+  document.getElementById("talkDot").hidden = !(newAll || newAsk);
+  document.getElementById("askDot").hidden = !newAsk;
+}
+async function talkSubscribe() {
+  const me = getMe(); if (!me) return;
+  const k = me.ban + "|" + me.sid + "|" + me.name; if (k === talkFor) return;
+  talkFor = k; talkStops.forEach(f => f()); talkStops = []; talkMsgs = []; askDoc = null;
+  askId = COURSE + "_" + await keyOf(me.ban, me.sid, me.name);
+  const onTalk = l => { talkMsgs = l.filter(m => m.course === COURSE && m.ban === me.ban).sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-150); drawTalk(); };
+  const onAsk = d => { askDoc = d; drawTalk(); };
+  if (LIVE) {
+    talkStops.push(db.collection(COL_TALK).where("course", "==", COURSE).where("ban", "==", me.ban).onSnapshot(s => onTalk(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error("채팅", e)));
+    talkStops.push(db.collection(COL_ASK).doc(askId).onSnapshot(d => onAsk(d.exists ? d.data() : null), e => console.error("질문", e)));
+  } else {
+    talkStops.push(listen(COL_TALK, onTalk));
+    talkStops.push(listen(COL_ASK, l => onAsk(l.find(x => x.id === askId) || null)));
+  }
+}
+function drawTalk() {
+  talkDots();
+  if (talkPanel.hidden) return;
+  const me = getMe();
+  talkPanel.querySelectorAll("[data-talk-tab]").forEach(b => b.classList.toggle("on", b.dataset.talkTab === talkTab));
+  document.getElementById("talkNote").innerHTML = talkTab === "all"
+    ? `👥 ${me ? me.ban + "반" : "우리 반"} 친구들과 선생님이 모두 봐요. 닉네임으로 보여요.`
+    : "🙋 나와 선생님만 봐요. 궁금한 것, 도움이 필요한 것을 편하게 물어봐요.";
+  const list = talkTab === "all" ? talkMsgs : (askDoc?.msgs || []).map(m => ({ ...m, name: me ? me.name : "" }));
+  const log = document.getElementById("talkLog"), atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.innerHTML = list.length ? list.map(m => {
+    const mine = !m.t && me && m.name === me.name;
+    return `<div class="tk ${mine ? "me" : ""} ${m.t ? "t" : ""}"><small>${m.t ? "👩‍🏫 선생님" : mine ? "나" : esc(m.name)} · ${fmtTime(m.at)}</small><div>${esc(m.text)}</div></div>`;
+  }).join("") : `<div class="talk-empty">${talkTab === "all" ? "아직 나눈 이야기가 없어요.<br>먼저 인사해 볼까요? 👋" : "선생님께 궁금한 것을 물어보세요.<br>답이 오면 여기에 보여요."}</div>`;
+  if (atBottom || log._first !== talkTab) { log.scrollTop = log.scrollHeight; log._first = talkTab; }
+  document.querySelector("#talkForm textarea").placeholder = talkTab === "all" ? "우리 반에 보낼 말 (Enter 보내기)" : "선생님께 보낼 질문 (Enter 보내기)";
+}
+function openTalk() {
+  if (!getMe()) { toast("먼저 나 확인(반 · 학번 · 닉네임)을 해 주세요"); openMeDlg(); return; }
+  talkPanel.hidden = false; talkSubscribe(); drawTalk();
+  setTimeout(() => document.querySelector("#talkForm textarea").focus(), 50);
+}
+document.getElementById("talkBtn").addEventListener("click", () => { if (talkPanel.hidden) openTalk(); else talkPanel.hidden = true; });
+talkPanel.addEventListener("click", e => {
+  if (e.target.closest("[data-talk-close]")) { talkPanel.hidden = true; return; }
+  const b = e.target.closest("[data-talk-tab]"); if (b) { talkTab = b.dataset.talkTab; drawTalk(); }
+});
+const talkForm = document.getElementById("talkForm");
+talkForm.msg.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); talkForm.requestSubmit(); } });
+talkForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const me = getMe(), text = talkForm.msg.value.trim();
+  if (!me) { openTalk(); return; }
+  if (!text) return;
+  const at = Date.now();
+  talkForm.msg.value = "";
+  try {
+    await talkSubscribe();
+    if (talkTab === "all") {
+      const d = { course: COURSE, ban: me.ban, name: me.name, text, at, t: false };
+      if (LIVE) await db.collection(COL_TALK).add(d);
+      else { const arr = localGet(COL_TALK); arr.push({ ...d, id: newId() }); localSet(COL_TALK, arr); localEmit(COL_TALK); }
+    } else {
+      const m = { t: false, text, at }, base = { course: COURSE, ban: me.ban, name: me.name, at, unread: true };
+      if (LIVE) await db.collection(COL_ASK).doc(askId).set({ ...base, msgs: firebase.firestore.FieldValue.arrayUnion(m) }, { merge: true });
+      else { const arr = localGet(COL_ASK), i = arr.findIndex(x => x.id === askId); if (i < 0) arr.push({ ...base, id: askId, msgs: [m] }); else arr[i] = { ...arr[i], ...base, msgs: [...(arr[i].msgs || []), m].slice(-100) }; localSet(COL_ASK, arr); localEmit(COL_ASK); }
+    }
+  } catch (err) { console.error(err); talkForm.msg.value = text; toast("보내지 못했어요. 잠시 뒤 다시 해 주세요"); }
+});
+// 이미 나 확인을 한 기기는 처음부터 새 글 표시를 받아요
+if (getMe()) talkSubscribe();
+
 function showDash() {
   if (!DASH_ONLY && LIVE) { location.href = "/vibeadmin/?tab=" + COURSE; return; }
   const da = document.getElementById("dlgAdmin");
