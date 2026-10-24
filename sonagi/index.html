@@ -757,6 +757,7 @@ dialog.pop::backdrop{background:rgba(91,72,80,.35);backdrop-filter:blur(2px)}
 .policy-foot{max-width:760px;margin:1rem auto 3.5rem;padding:0 16px;font-size:12px;line-height:1.7;color:var(--ink2);word-break:keep-all}
 .policy-foot{text-align:center}
 .pol-open{border:0;background:none;padding:0;font-size:12px;color:var(--ink2);opacity:.85;cursor:pointer}
+.foot-admin{margin-left:.75rem;border:1px solid var(--line);border-radius:999px;padding:.0625rem .625rem;background:#fff}
 .pol-open b{color:inherit}
 .pol-open:hover{text-decoration:underline}
 /* 이용약관 · 개인정보 처리방침 작은 창 */
@@ -830,6 +831,8 @@ dialog.pop::backdrop{background:rgba(91,72,80,.35);backdrop-filter:blur(2px)}
 
 <footer class="policy-foot">
   <button type="button" class="pol-open" data-pop="policy:0" aria-haspopup="dialog">소나기 연수 실습 · 이용약관 · <b>개인정보 처리방침</b></button>
+  <!-- 🔐 어느 단계에서든 보이는 관리자 단추 (누르면 6단계 아래 대시보드로) -->
+  <button type="button" class="pol-open foot-admin" id="footAdmin">🔐 관리자</button>
   <template id="policyTpl">
     <div class="pol">
       <h4>이용약관</h4>
@@ -2221,6 +2224,7 @@ function visitChart(v) {
       <tbody>${v.days.slice().reverse().map(x => `<tr><td>${ymd(x.d)}</td><td>${x.n.toLocaleString()}</td></tr>`).join("")}</tbody></table></details>`;
 }
 function drawAdmin() {
+  const fa = $("#footAdmin"); if (fa) fa.textContent = PW.admin ? "🔐 관리자 대시보드" : "🔐 관리자";
   const box = $("#pwAdmin"); if (!box) return;
   if (!PW.admin) { box.className = "pw-admin"; box.innerHTML = `<button type="button" class="pw-admin-btn" id="pwAdminOpen">🔐 관리자</button>`; return; }
   const v = PW.visits, today = v && v.days ? v.days[v.days.length - 1].n : "…";
@@ -2650,6 +2654,14 @@ document.addEventListener("click", async e => {
   if (t.closest("#pwOpen")) { pwLogin().then(ok => { if (ok) toast(PW.apps.some(isMine) ? "내 웹앱을 불러왔어요" : "아직 이 닉네임 · 네 자리로 올린 웹앱이 없어요"); }); return; }
   if (t.closest("#pwOut")) { pwLogout(); return; }
   if (t.closest("#pwAdminOpen")) { adminLogin(); return; }
+  // 푸터 🔐: 관리자면 6단계 대시보드로, 아니면 로그인 (6단계로 옮긴 뒤)
+  if (t.closest("#footAdmin")) {
+    if (typeof firebase === "undefined" || !PW.db) return toast("파이어베이스에 연결되지 않았어요. 새로고침해 주세요");
+    go(6);
+    if (PW.admin) setTimeout(() => $("#pwAdmin").scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    else adminLogin();
+    return;
+  }
   if (t.closest("#pwAdminOut")) { firebase.auth().signOut(); return; }
   if (t.closest("#admVisit")) { PW.visits = null; drawAdmin(); loadVisits(); return; }
   const ad = t.closest("[data-adm-del]"); if (ad) { admDelete(ad.dataset.admDel); return; }
