@@ -2293,12 +2293,12 @@ function expandForPrint(el) {
   c.removeAttribute("hidden"); c.querySelectorAll("[hidden]").forEach(x => x.removeAttribute("hidden"));
   // 원래 화면에 있던 [더 보기]만 펼쳐요 (붙인 작은 창 안의 [더 보기]는 한 번 더 펼치지 않아요)
   // 카드 · 줄 바로 뒤에 한 칸을 통째로 차지하게 붙여서, 좁은 칸에 끼지 않아요
-  const done = new Set();
+  const done = new Set(), lastOf = new Map();   // 한 카드에 '자세히'가 여럿이면 화면 순서대로 차례로 붙여요
   [...c.querySelectorAll("[data-pop]")].forEach(p => {
     const k = p.dataset.pop; if (done.has(k)) return; done.add(k);
     const h = popHTML(k); if (!h) return;
     const host = p.closest(".card,.tl,.vs-check,.ai-list");
-    if (host) host.insertAdjacentHTML("afterend", h);
+    if (host) { (lastOf.get(host) || host).insertAdjacentHTML("afterend", h); lastOf.set(host, (lastOf.get(host) || host).nextElementSibling); }
     else (p.closest("li") || p.parentElement).insertAdjacentHTML("beforeend", h);
   });
   // 접기 칸은 모두 펼쳐요 (맨 바깥 칸 · 작은 창에서 붙여 온 칸까지)
@@ -2307,13 +2307,64 @@ function expandForPrint(el) {
   c.querySelectorAll("[id]").forEach(x => x.removeAttribute("id"));
   return c.outerHTML;
 }
+// 교안 창에서 한 번 돌리는 칸 정리: '자세히' 칸이 여러 단(그리드 · 가로 줄) 안의 좁은 칸에 갇혀 있으면
+// 그 단 밖으로 꺼내 한 줄을 통째로 쓰게 해요 (오른쪽이 비거나 칸이 길게 늘어지지 않게)
+const HANDOUT_FIX = `(() => {
+  const multi = el => { const s = getComputedStyle(el);
+    return (s.display.includes("grid") && s.gridTemplateColumns.trim().split(/\\s+/).length > 1) || (s.display.includes("flex") && !s.flexDirection.startsWith("column") && el.children.length > 1); };
+  document.querySelectorAll(".site .popx").forEach(px => {
+    for (let guard = 0; guard < 8; guard++) {
+      let a = px, p = px.parentElement;
+      while (p && !p.matches("section.site") && !multi(p)) { a = p; p = p.parentElement; }
+      if (!p || p.matches("section.site")) break;
+      if (a !== px) p.insertBefore(px, a.nextSibling);
+      px.style.gridColumn = "1 / -1"; px.style.flex = "1 1 100%"; px.style.width = "100%";
+      if (getComputedStyle(p).display.includes("flex")) p.style.flexWrap = "wrap";
+      if (p.matches(".bento,[class*=grid]") || getComputedStyle(p).display.includes("grid")) break;
+    }
+  });
+  // 아주 긴 칸(쪽의 반이 넘는 칸)은 옆 칸을 비워 두지 않게 한 줄을 통째로
+  document.querySelectorAll(".site *").forEach(g => {
+    if (!multi(g) || !getComputedStyle(g).display.includes("grid")) return;
+    [...g.children].forEach(c => { if (c.getBoundingClientRect().height > 520) c.style.gridColumn = "1 / -1"; });
+  });
+  // 쪽의 반이 넘는 덩어리는 '통째로 다음 쪽'을 풀어서, 앞 쪽 아래가 크게 비지 않게 (안쪽 칸까지 모두)
+  document.querySelectorAll(".site *").forEach(e => {
+    if (e.getBoundingClientRect().height > 560 && getComputedStyle(e).breakInside !== "auto") e.style.breakInside = "auto";
+  });
+  // 아주 긴 칸이 든 바둑판은 한 줄씩 쌓아요 (여러 단 바둑판은 쪽을 넘길 때 통째로 밀려 빈 쪽이 생겨요)
+  document.querySelectorAll(".site *").forEach(g => {
+    if (!getComputedStyle(g).display.includes("grid")) return;
+    if ([...g.children].some(c => c.getBoundingClientRect().height > 700)) { g.style.display = "block"; [...g.children].forEach(c => { c.style.marginBottom = "1rem"; }); }
+  });
+})();`;
+// 2단계 교안: 고르는 칩 대신 영역별 성취기준 22개(전문) · 활동 6가지 · 선물 3종 세트 안내 + 예시 프롬프트 한 개
+function handoutCases() {
+  const areas = AREAS.map(a => {
+    const ss = STDS.filter(s => s.code.startsWith("9도" + a.k));
+    return `<div class="hx-area" style="--c:${a.c}"><h4>${a.e} ${a.no} ${a.t} <small>${a.d} · 성취기준 ${ss.length}개</small></h4>
+      <ul>${ss.map(s => `<li><b>[${s.code}] ${s.t}</b> ${esc(s.text || "")}</li>`).join("")}</ul></div>`;
+  }).join("");
+  const acts = `<div class="bento three">${ACTS.map(a => `<article class="card" style="--c:${a.c}"><div class="ch"><span class="ce">${a.e}</span><h3 class="ct">${a.t}</h3></div>
+    <p class="key">${a.d || ""}</p><div>${(a.tags || []).map(t => `<span class="chip">${t}</span>`).join(" ")}</div></article>`).join("")}</div>`;
+  let ex = ""; try { ex = P(fill(ACTS[0].prompt(STDS[0])) + TAIL, `📋 예시 · [${STDS[0].code}] ${STDS[0].t} × ${ACTS[0].t} 기본 프롬프트`).replace(/<button[^>]*class="copy"[^>]*>.*?<\/button>/, ""); } catch (e) {}
+  return `<h3 class="sec">① 영역 · ② 성취기준</h3>${areas}
+    <h3 class="sec">③ 활동 6가지</h3>${acts}
+    <div class="hx-gift"><b>🎁 선물 3종 세트</b> — 🌱 기본 프롬프트 · 📥 맞춤 index.html · 👀 미리보기
+      <p>성취기준 22개 × 활동 6가지 = <b>132개</b>가 준비되어 있어요. 연수 화면 <b>2단계</b>(moontr.site/sonagi/#2)에서 영역 → 성취기준 → 활동을 고르면 바로 받을 수 있어요. 아래는 예시 한 가지예요.</p>${ex}</div>`;
+}
 function handoutSteps() {
   return STEPS.map((s, i) => {
     const p = document.getElementById("p" + (i + 1)); if (!p) return "";
+    if (i === 1) {   // 2단계: 고르는 화면(칩 · 선물 상자) 대신 목록으로
+      const c = p.cloneNode(true); c.querySelector("#pick3")?.remove(); c.querySelector("#caseDetail")?.insertAdjacentHTML("afterend", '<div data-hx-cases=""></div>'); c.querySelector("#caseDetail")?.remove();
+      const html = expandForPrint(c).replace('<div data-hx-cases=""></div>', handoutCases());
+      return `<section class="site" style="--c:${s.c}">${html}</section>`;
+    }
     // 6단계는 ① 만들고 수정하기 · 자기 검증 · AI 검증만 (담벼락 · 소감은 아래 '나의 웹앱' · '소감 모음'에)
     const body = i === 5 ? p.querySelector(".page-head").outerHTML + [...p.querySelectorAll(".vs-mini,.vs-fold")].map(expandForPrint).join("")
       : expandForPrint(p);
-    return `<section class="site brk" style="--c:${s.c}">${body}</section>`;
+    return `<section class="site" style="--c:${s.c}">${body}</section>`;
   }).join("");
 }
 function handoutHTML() {
@@ -2344,6 +2395,8 @@ html,body{background:#fff!important}
 body{font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .page{max-width:184mm;margin:0 auto;padding:6mm 0}
 .brk{break-before:page}
+section.site{margin-top:10mm}
+section.site .page-head{break-after:avoid}   /* 단계마다 새 쪽 대신 이어서 (빈 쪽이 생기지 않게) */
 .site .page-head{margin-bottom:.75rem}
 .site .bento,.site .bento.three{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:auto!important}
 .site .card{break-inside:auto}   /* 긴 카드도 쪽을 넘겨 이어지게 (빈칸이 크게 생기지 않게) */
@@ -2356,7 +2409,24 @@ body{font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .site .sticky{position:static!important}
 .site .prompt pre,.site .pw-notes{max-height:none!important;overflow:visible!important}
 .site .code{white-space:pre-wrap!important;word-break:break-all}
-.site .prompt,.site .tl,.site .box,.site table{break-inside:avoid}
+/* 큰 덩어리는 쪽을 넘겨 이어지게 (통째로 다음 쪽으로 넘어가 아래가 비지 않게) · 작은 줄만 붙여 둬요 */
+.site .prompt,.site .tl,.site .box,.site table,.site .popx,.site .stack,.site details{break-inside:auto!important}
+.site .card{break-inside:avoid}   /* 보통 카드는 한 쪽에 통째로 (아주 긴 카드는 아래 스크립트가 풀어 줘요) */
+.site .stack{display:contents!important}   /* 세로로 쌓은 카드 묶음도 바둑판 칸에 하나씩 */
+.site tr,.site .prompt-h,.site h3,.site h4,.site li{break-inside:avoid}
+.site h3,.site h4,.site .prompt-h,.site .px-h{break-after:avoid}
+.site .std-t{-webkit-line-clamp:unset!important;display:block!important;overflow:visible!important}
+.site .ai-list,.site .ai-row{flex:none!important}   /* AI 검증 칸: 빈 높이로 늘어나지 않게 */
+.site .vs-two.eq{align-items:start!important}
+/* 2단계 교안 목록 */
+.hx-area{margin:0 0 .75rem;border:2px solid color-mix(in srgb,var(--c) 30%,#fff);border-radius:1rem;padding:.625rem .875rem}
+.hx-area h4{margin:0 0 .25rem;font-family:var(--hand);font-weight:400;font-size:1.25rem;color:color-mix(in srgb,var(--c) 70%,var(--ink))}
+.hx-area h4 small{font-family:var(--body);font-size:.8125rem;color:var(--ink2)}
+.hx-area ul{margin:0;padding-left:1.125rem;font-size:.875rem;line-height:1.6}
+.hx-area li{margin:.125rem 0}
+.hx-gift{margin:.75rem 0;border:2px dashed color-mix(in srgb,var(--lav) 50%,#fff);border-radius:1rem;padding:.75rem .875rem;background:color-mix(in srgb,var(--lav) 5%,#fff)}
+.hx-gift>b{font-family:var(--hand);font-weight:400;font-size:1.25rem}
+.hx-gift p{margin:.25rem 0 .5rem;font-size:.9375rem}
 .site details>summary{list-style:none}
 .site .vs-mini,.site .vs-fold{padding:.75rem 1rem}
 /* 작은 창(더 보기)에 있던 내용 */
@@ -2406,7 +2476,7 @@ section.hx{margin:0 0 8mm}
 
 ${handoutSteps()}
 
-<section class="hx brk"><h2>📌 나의 웹앱과 받은 동료 검증</h2>${mySec}</section>
+<section class="hx"><h2>📌 나의 웹앱과 받은 동료 검증</h2>${mySec}</section>
 
 <section class="hx"><h2>🧱 선생님들의 웹앱 사례 <small class="muted" style="font-size:10pt">${apps.length}개 · 담벼락에 공개한 웹앱</small></h2>
   ${apps.length ? `<table><thead><tr><th style="width:2.5em">#</th><th>웹앱 이름</th><th>만든 선생님</th><th>주소</th><th style="width:4em">의견</th></tr></thead><tbody>${apps.map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.title)}</td><td>${esc(a.name)}</td><td>${link(a.url)}</td><td>${pwCnt(a)}</td></tr>`).join("")}</tbody></table>` : `<p class="hbox">아직 올라온 웹앱이 없어요.</p>`}</section>
@@ -2416,7 +2486,7 @@ ${handoutSteps()}
 
 <p class="hfoot">소나기 연수 · 바이브코딩 웹앱 실습 · moontr.site/sonagi · ${today} 내려받음 · 동료 의견은 쓴 사람 이름 없이 담았어요</p>
 </div>
-${"<scr" + "ipt>"}document.fonts.ready.then(() => setTimeout(() => print(), 300));${"</scr" + "ipt>"}
+${"<scr" + "ipt>"}${HANDOUT_FIX}document.fonts.ready.then(() => setTimeout(() => print(), 300));${"</scr" + "ipt>"}
 </body></html>`;   // (스크립트 태그를 조각내 써야 이 페이지의 스크립트가 중간에 끊기지 않아요)
 }
 function downloadHandout() {
