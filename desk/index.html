@@ -170,6 +170,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .seg button.on{border-color:var(--accent);background:var(--accent);color:var(--on-ink)}
 .bellrow{display:flex;gap:5px;align-items:center;margin-bottom:5px;flex-wrap:wrap}
 .bellrow select{width:6.5em}
+.autobox{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 10px;margin:6px 0;border:2px dashed var(--line);border-radius:var(--box-r);font:13px var(--body)}
+.autobox label{display:flex;gap:4px;align-items:center;white-space:nowrap}
+.autobox input,.autobox select{font:14px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:4px 6px;box-sizing:border-box}
+.autobox input[type=number]{width:4.4em}
+.autobox input[type=time]{width:7.4em}
+.autobox .btn{font-size:14px;padding:5px 10px;border-color:var(--accent)}
 .bellrow input[type=time]{width:7.4em}
 .bellrow .num{width:3.6em;font-size:13px;color:var(--muted)}
 .wk{overflow-x:auto;margin:0 -2px}
@@ -349,7 +355,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
   <div class="pane box wide" role="dialog" aria-modal="true" aria-labelledby="edTitle">
     <header><h2 id="edTitle">✏️ 개인설정</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
     <div class="body" id="edBody"></div>
-    <div class="foot"><span class="msg" id="edMsg"></span><button type="button" class="big ghost" data-close id="edCancel">닫기</button><button type="button" class="big" id="edSave">저장</button></div>
+    <div class="foot"><span class="msg" id="edMsg"></span><button type="button" class="big ghost" data-close id="edCancel">나가기</button><button type="button" class="big" id="edSave">저장</button></div>
   </div>
 </div>
 
@@ -2611,24 +2617,44 @@ const KINDS = ["조회", "수업", "점심", "종례"];
 const SPECIALS = ["과학실", "체육관", "음악실", "미술실", "컴퓨터실", "도서실", "강당", "특별실"];
 let ed = null;
 const clone = o => JSON.parse(JSON.stringify(o));
-function blankCfg(){ return { name:"", level:"high", grades:3, classes:10, hr:"", inT:PRESET.high.inT, outT:PRESET.high.outT, bell:bellOf("high"), week:{} }; }
+function blankCfg(){ return { name:"", level:"high", grades:3, classes:10, hr:"", inT:"", outT:"", bell:bellOf("high"), week:{}, auto:autoOf("high") }; }
 function openEdit(){
   if (!demo && !user){ needLogin("개인설정"); return; }
   setupMode = !demo && !cfg;   // 아직 시간표를 안 넣은 선생님 (예전 책상 열기 칸이 보여요)
   ed = clone(demo ? CFG : cfg || blankCfg());
   ed.realName = demo ? "김예시" : (me && me.realName) || "";   // 실명 · 영문 이름은 시간표가 아니라 책상 정보(desk_users)에 따로 저장해요
   ed.tag = demo ? "KIMTR" : (me && me.tag) || "";
-  $("edMsg").textContent = demo ? "체험 중이라 저장되지 않고, 이 화면에서만 바뀌어요." : setupMode ? "아래 표에 직접 적거나, 사진 · PDF · 엑셀 · 캡처를 올리면 AI가 표를 채워 줘요." : "";
+  ed.auto = { ...autoOf(ed.level || "high"), ...(ed.auto || {}) };   // 종 시간 자동 채우기 규칙 (수업 · 쉬는 시간 · 점심 · 종례)
+  edStart = JSON.stringify(ed);
+  // 저장하지 않고 나갔던 내용이 있으면 이어서 적어요 (이 기기에만 남아요)
+  const dr = draftGet();
+  if (dr){ ed = { ...ed, ...dr }; }
+  $("edMsg").innerHTML = dr ? `저장하지 않고 나갔던 내용을 이어서 적어요. <button type="button" class="ibtn" id="edReset" style="text-decoration:underline">처음 상태로</button>`
+    : demo ? "체험 중이라 저장되지 않고, 이 화면에서만 바뀌어요." : setupMode ? "아래 표에 직접 적거나, 사진 · PDF · 엑셀 · 캡처를 올리면 AI가 표를 채워 줘요. 다 못 적었으면 [나가기] — 적던 내용은 남아 있어요." : "";
   renderEdit(); show("shEdit");
 }
+// 덜 적고 [나가기]·✕·Esc 로 나가도 적던 내용은 이 기기 브라우저에 잠시 남겨 둬요 (저장하면 지워요)
+let edStart = "";
+const draftKey = () => "desk-draft-" + (deskId || "demo");
+const draftGet = () => { if (demo) return null; try { return JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch (e) { return null; } };
+const draftDrop = () => { try { localStorage.removeItem(draftKey()); } catch (e) {} };
+function keepDraft(){
+  if (demo || !ed || !$("eName")) return;
+  readEdit();
+  if (JSON.stringify(ed) === edStart){ draftDrop(); return; }
+  try { localStorage.setItem(draftKey(), JSON.stringify(ed)); $("saved").textContent = "적던 개인설정은 이 기기에 남겨 두었어요. 다시 열면 이어서 적을 수 있어요"; } catch (e) {}
+}
+$("shEdit").addEventListener("click", e => { if (e.target.id === "edReset"){ draftDrop(); openEdit(); } });
 function renderEdit(){
   const lv = ed.level || "high", nPer = ed.bell.filter(b => b.k === "수업").length;
   let n = 0;
-  const bellRows = ed.bell.map((b, i) => `<div class="bellrow" data-i="${i}">
+  const bellRows = ed.bell.map((b, i) => `<div class="bellrow" data-i="${i}" data-p="${b.p ? 1 : 0}" data-pe="${b.pe ? 1 : 0}">
       <select class="bk" aria-label="종류">${KINDS.map(k => `<option ${k === b.k ? "selected" : ""}>${k}</option>`).join("")}</select>
       <input type="time" class="bs" value="${esc(b.s)}" aria-label="시작"> ~ <input type="time" class="be" value="${esc(b.e)}" aria-label="끝">
       <span class="num">${b.k === "수업" ? ++n + "교시" : ""}</span>
+      ${b.p ? `<button type="button" class="ibtn" data-unpin="${i}" title="직접 고친 줄이에요. 누르면 다시 자동으로 맞춰요" aria-label="직접 고친 줄 · 누르면 자동으로">📌</button>` : `<span style="width:26px"></span>`}
       <button type="button" class="ibtn" data-delbell="${i}" aria-label="이 줄 지우기">✕</button></div>`).join("");
+  const A = ed.auto, sel = (id, from, to, v) => `<select id="${id}">${Array.from({ length:to - from + 1 }, (_, i) => from + i).map(x => `<option ${x === +v ? "selected" : ""}>${x}</option>`).join("")}</select>`;
   const opts = [];
   for (let gr = 1; gr <= (ed.grades || 3); gr++) for (let c = 1; c <= (ed.classes || 10); c++) opts.push(`${gr}-${c}`);
   let week = `<table><thead><tr><th></th>${["월","화","수","목","금"].map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>`;
@@ -2645,19 +2671,29 @@ function renderEdit(){
       <label class="f"><span>실명 (필수 · 관리자만 봐요)</span><input id="eReal" maxlength="20" placeholder="예: 김민지" autocomplete="name" value="${esc(ed.realName)}"></label>
       <label class="f"><span>영문 이름 (맨 위 ○○'S DESK)</span><input id="eTagIn" maxlength="12" placeholder="${esc(tagOf(ed.realName) === "TEACHER" ? "예: KIMTR" : tagOf(ed.realName))}" value="${esc(ed.tag)}" autocapitalize="characters" spellcheck="false"></label>
       <label class="f"><span>화면에 나올 내 이름</span><input id="eName" maxlength="12" placeholder="예: 김쌤" value="${esc(ed.name)}"></label>
-      <label class="f"><span>담임 반 (없으면 비워 두기)</span><input id="eHr" maxlength="5" placeholder="예: 2-3" value="${esc(ed.hr)}" list="dlRooms"></label>
+      <label class="f"><span>담임 반 (없으면 비워 두기)</span><input id="eHr" maxlength="10" placeholder="예) 1-1" value="${esc(ed.hr)}" autocomplete="off"></label>
     </div>
     <p class="note" id="eTag">${tagLine(ed.realName)}</p>
-    <div class="f"><span>학교급 (누르면 그 학교급의 보통 종 시간 · 출퇴근 시각이 들어가요)</span>
-      <div class="seg" id="eLv">${["elem","mid","high"].map(k => `<button type="button" data-lv="${k}" class="${k === lv ? "on" : ""}">${PRESET[k].name}</button>`).join("")}</div></div>
     <div class="f2">
       <label class="f"><span>학년 수</span><select id="eGr">${[1,2,3,4,5,6].map(v => `<option ${v === +ed.grades ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <label class="f"><span>한 학년 반 수</span><select id="eCl">${Array.from({ length:15 }, (_, i) => i + 1).map(v => `<option ${v === +ed.classes ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <label class="f"><span>출근 시각</span><input type="time" id="eIn" value="${esc(ed.inT)}"></label>
-      <label class="f"><span>퇴근 시각</span><input type="time" id="eOut" value="${esc(ed.outT)}"></label>
+      <label class="f"><span>출근 시각 (선택 · 비우면 07:50)</span><input type="time" id="eIn" value="${esc(ed.inT)}"></label>
+      <label class="f"><span>퇴근 시각 (선택 · 비우면 16:50)</span><input type="time" id="eOut" value="${esc(ed.outT)}"></label>
     </div>
     <div class="sec">2. 종 시간</div>
-    <p class="note">조회 · 수업 · 점심 · 종례를 시간 순서대로 적어요. '수업' 줄은 위에서부터 1교시, 2교시…가 돼요.</p>
+    <div class="f"><span>학교급을 누르면 그 학교급의 보통 시간으로 아래 줄을 채워요 (초 40분 · 6교시, 중 45분 · 7교시, 고 50분 · 7교시)</span>
+      <div class="seg" id="eLv">${["elem","mid","high"].map(k => `<button type="button" data-lv="${k}" class="${k === lv ? "on" : ""}">${PRESET[k].name}</button>`).join("")}</div></div>
+    <div class="autobox">
+      <label>수업 <input type="number" id="aLen" min="20" max="120" step="5" value="${A.len}"> 분</label>
+      <label>쉬는 시간 <input type="number" id="aBrk" min="0" max="40" step="5" value="${A.brk}"> 분</label>
+      <label>교시 ${sel("aN", 1, 10, A.n)}</label>
+      <label>점심 ${sel("aLa", 1, 9, A.la)}교시 뒤 <input type="number" id="aLl" min="10" max="150" step="5" value="${A.ll}"> 분</label>
+      <label>조회 <input type="time" id="aJs" value="${esc(A.js)}"> ~ <input type="time" id="aJe" value="${esc(A.je)}"></label>
+      <label>1교시 시작 <input type="time" id="aP1" value="${esc(A.p1)}"></label>
+      <label>종례 <input type="number" id="aJr" min="0" max="60" step="5" value="${A.jr}"> 분</label>
+      <button type="button" class="btn" id="aFill">⚡ 자동으로 채우기</button>
+    </div>
+    <p class="note">조회 · 1교시 시작만 적고 [⚡ 자동으로 채우기]를 누르면 나머지 줄이 채워져요. 아래에서 시각을 하나 고치면 그 아래 줄도 같은 규칙으로 따라 바뀌고, 직접 고친 줄은 📌가 붙어 그대로 있어요 (📌를 누르면 다시 자동).</p>
     <div id="eBell">${bellRows}</div>
     <button type="button" class="btn" id="eAddBell">+ 한 줄 더하기</button>
     <div class="sec">3. 요일별 시간표</div>
@@ -2678,18 +2714,26 @@ function renderEdit(){
       <p class="note">다른 로그인(구글 또는 카카오)으로 이미 책상을 만들었다면, 그 계정으로 한 번 확인하고 그 책상을 열어요. 그다음부터는 어느 쪽으로 들어와도 같은 책상이에요.</p>
       <div class="row" style="gap:6px">${["kakao","google"].filter(k => !kindsOf(user).includes(k)).map(k => `<button type="button" class="big ${k === "kakao" ? "kakao" : "google"}" data-join="${k}">${kindName(k)} 계정으로 확인하고 예전 책상 열기</button>`).join("")}</div>` : ""}`;
 }
+// 담임 반: 띄어쓰기를 빼고 '2학년 3반' · '2 - 3' · '203' 도 '2-3'으로 (못 바꾸면 적은 그대로 → 저장할 때 안내)
+const hrNorm = v => { v = String(v || "").replace(/\s+/g, ""); if (!v) return ""; const m = v.match(/^(\d)학년(\d{1,2})반?$/) || v.match(/^(\d)[-–—.·](\d{1,2})$/) || v.match(/^(\d)(\d{2})$/); return m ? `${+m[1]}-${+m[2]}` : v; };
 // 화면에 적힌 값을 ed 에 옮겨요 (다시 그리기 전 · 저장 전)
 function readEdit(){
   if (!$("eName")) return;
-  ed.realName = $("eReal").value.trim(); ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = $("eHr").value.trim();
+  ed.realName = $("eReal").value.trim(); ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = hrNorm($("eHr").value);
   ed.grades = +$("eGr").value; ed.classes = +$("eCl").value; ed.inT = $("eIn").value; ed.outT = $("eOut").value;
-  ed.bell = [...document.querySelectorAll("#eBell .bellrow")].map(r => ({ k:r.querySelector(".bk").value, s:r.querySelector(".bs").value, e:r.querySelector(".be").value }));
+  ed.bell = [...document.querySelectorAll("#eBell .bellrow")].map(r => ({ k:r.querySelector(".bk").value, s:r.querySelector(".bs").value, e:r.querySelector(".be").value, ...(r.dataset.p === "1" ? { p:1 } : {}), ...(r.dataset.pe === "1" ? { pe:1 } : {}) }));
+  const num = (id, d) => { const v = parseInt($(id).value, 10); return Number.isFinite(v) ? v : d; };
+  ed.auto = { len:clamp(num("aLen", 50), 10, 180), brk:clamp(num("aBrk", 10), 0, 60), n:+$("aN").value, la:+$("aLa").value, ll:clamp(num("aLl", 60), 0, 180),
+    js:$("aJs").value, je:$("aJe").value, p1:$("aP1").value, jr:clamp(num("aJr", 15), 0, 60) };
   const w = {}; document.querySelectorAll("#eWeek input").forEach(i => { const v = i.value.trim(); if (v){ (w[i.dataset.d] = w[i.dataset.d] || {})[i.dataset.p] = v.slice(0, 12); } });
   ed.week = w;
 }
 $("edBody").addEventListener("click", e => {
   const lv = e.target.closest("[data-lv]");
-  if (lv){ readEdit(); const P0 = PRESET[lv.dataset.lv]; ed.level = lv.dataset.lv; ed.grades = P0.grades; ed.inT = P0.inT; ed.outT = P0.outT; ed.bell = bellOf(lv.dataset.lv); renderEdit(); $("edMsg").textContent = `${P0.name} 보통 종 시간을 넣었어요. 우리 학교에 맞게 고쳐 주세요.`; return; }
+  if (lv){ readEdit(); const P0 = PRESET[lv.dataset.lv]; ed.level = lv.dataset.lv; ed.grades = P0.grades; ed.auto = autoOf(lv.dataset.lv); autoFill(); renderEdit(); $("edMsg").textContent = `${P0.name} 보통 종 시간을 넣었어요 (${ed.auto.len}분 수업 · ${ed.auto.n}교시). 우리 학교에 맞게 고쳐 주세요.`; return; }
+  if (e.target.closest("#aFill")){ readEdit(); autoFill(); renderEdit(); $("edMsg").textContent = "종 시간을 자동으로 채웠어요. 다른 줄은 아래에서 고치면 그 아래가 따라 바뀌어요."; return; }
+  const up = e.target.closest("[data-unpin]");
+  if (up){ readEdit(); const i = +up.dataset.unpin, b = ed.bell[i]; delete b.p; delete b.pe; if (i > 0) cascade(i - 1); renderEdit(); return; }
   const db0 = e.target.closest("[data-delbell]");
   if (db0){ readEdit(); ed.bell.splice(+db0.dataset.delbell, 1); renderEdit(); return; }
   if (e.target.closest("#eAddBell")){ readEdit(); const l = ed.bell[ed.bell.length - 1]; const s = l ? l.e : "08:40"; ed.bell.push({ k:"수업", s, e:hhmm(Math.min(mm(s) + 50, 1439)) }); renderEdit(); return; }
@@ -2697,6 +2741,44 @@ $("edBody").addEventListener("click", e => {
 });
 // 종류 · 학년 · 반 수가 바뀌면 표를 다시 그려요
 $("edBody").addEventListener("change", e => { if (e.target.matches(".bk, #eGr, #eCl")){ readEdit(); renderEdit(); } });
+/* ---------- ⚡ 종 시간 자동 채우기 ----------
+   규칙: 수업 = 시작 + 수업 시간, 다음 줄 시작 = 앞 줄 끝 + 쉬는 시간. 점심은 정한 교시 바로 뒤, 종례는 마지막 수업 바로 뒤(쉬는 시간 없이) */
+const AUTO = { elem:{ len:40, n:6, js:"08:40", je:"09:00", p1:"09:00" }, mid:{ len:45, n:7, js:"08:30", je:"08:50", p1:"08:50" }, high:{ len:50, n:7, js:"08:20", je:"08:40", p1:"08:40" } };
+const autoOf = lv => ({ ...(AUTO[lv] || AUTO.high), brk:10, la:4, ll:60, jr:15 });
+const tmin = m => hhmm(clamp(Math.round(m), 0, 1439));
+// 자동으로 맞출 때 그 줄의 길이: 수업 · 점심 · 종례는 정한 길이, 조회는 지금 길이 그대로
+const lenOf = b => b.k === "수업" ? ed.auto.len : b.k === "점심" ? ed.auto.ll : b.k === "종례" ? (ed.auto.jr || 15) : Math.max(5, (b.s && b.e ? mm(b.e) - mm(b.s) : 0) || 20);
+const gapOf = (prev, b) => b.k === "점심" || b.k === "종례" || prev.k === "점심" ? 0 : ed.auto.brk;
+function autoFill(){
+  const A = ed.auto, out = [];
+  if (A.js && A.je && mm(A.je) > mm(A.js)) out.push({ k:"조회", s:A.js, e:A.je });
+  let t = mm(A.p1 || A.je || "08:40");
+  for (let p = 1; p <= A.n; p++){
+    out.push({ k:"수업", s:tmin(t), e:tmin(t + A.len) }); t += A.len;
+    if (p === A.la && p < A.n && A.ll > 0){ out.push({ k:"점심", s:tmin(t), e:tmin(t + A.ll) }); t += A.ll; }
+    else if (p < A.n) t += A.brk;
+  }
+  if (A.jr > 0) out.push({ k:"종례", s:tmin(t), e:tmin(t + A.jr) });
+  ed.bell = out;
+}
+// i 번째 줄 아래로, 직접 고치지 않은(📌 없는) 줄을 같은 규칙으로 다시 맞춰요
+function cascade(i){
+  for (let j = i + 1; j < ed.bell.length; j++){
+    const b = ed.bell[j], prev = ed.bell[j - 1]; if (b.p || !prev.e) continue;
+    const s = mm(prev.e) + gapOf(prev, b), len = lenOf(b); b.s = tmin(s); b.e = tmin(s + len);
+  }
+}
+$("edBody").addEventListener("change", e => {
+  if (!e.target.matches(".bs, .be")) return;
+  const row = e.target.closest(".bellrow"); if (!row) return;
+  const i = +row.dataset.i, oldLen = (() => { const s = row.querySelector(".bs").defaultValue, en = row.querySelector(".be").defaultValue; return s && en ? mm(en) - mm(s) : 0; })();
+  readEdit(); const b = ed.bell[i]; if (!b || !b.s) return;
+  b.p = 1;   // 직접 고친 줄 📌
+  if (e.target.matches(".be")) b.pe = 1;
+  else if (!b.pe) b.e = tmin(mm(b.s) + (b.k === "조회" ? Math.max(5, oldLen || 20) : lenOf(b)));   // 시작을 고치면 끝은 길이만큼 따라가요
+  cascade(i); renderEdit();
+  $("edMsg").textContent = "아래 줄도 같은 규칙으로 맞췄어요. 📌 = 직접 고친 줄";
+});
 // 실명을 적으면 영문 이름을 미리 보여 주고, 화면 이름이 비어 있으면 '김쌤'처럼 채워요
 // 영문 이름 칸이 비어 있으면 실명의 성으로 자동 (김 → KIMTR). 표기가 다르면 칸에 직접 적어요 (예: YITR)
 const finalTag = (tagIn, name) => tagIn || tagOf(name);
@@ -2718,8 +2800,8 @@ function checkEdit(){
   if (ed.realName.length < 2) return "실명을 적어 주세요 (예: 김민지)";
   if (ed.tag && !/^[A-Z][A-Z0-9]{1,11}$/.test(ed.tag)) return "영문 이름은 영어 대문자로 시작하고, 영어 · 숫자만 2~12자로 적어 주세요 (비우면 자동)";
   if (!ed.name) return "화면에 나올 이름을 적어 주세요 (예: 김쌤)";
-  if (ed.hr && !isClass(ed.hr)) return "담임 반은 2-3 처럼 학년-반으로 적어 주세요";
-  if (!ed.inT || !ed.outT || mm(ed.outT) <= mm(ed.inT)) return "출근 · 퇴근 시각을 확인해 주세요";
+  if (ed.hr && !isClass(ed.hr)) return "담임 반은 학년-반 으로 적어 주세요 (예: 1-1). 담임이 아니면 비워 두세요";
+  if (ed.inT && ed.outT && mm(ed.outT) <= mm(ed.inT)) return "퇴근 시각이 출근 시각보다 늦어야 해요 (비워 두면 07:50 · 16:50)";
   for (const b of ed.bell){ if (!b.s || !b.e || mm(b.e) <= mm(b.s)) return "종 시간에서 끝나는 시각이 시작보다 늦어야 해요"; }
   if (!ed.bell.some(b => b.k === "수업")) return "종 시간에 '수업' 줄이 한 줄은 있어야 해요";
   return "";
@@ -2728,7 +2810,7 @@ async function saveEdit(){
   readEdit();
   const bad = checkEdit(); if (bad){ $("edMsg").textContent = bad; return; }
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, look:window.DESK.look(), at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), at:Date.now() };
   const realName = ed.realName.slice(0, 20);
   // 영문 이름: 칸에 적은 것, 비었으면 성으로 자동. 예전 자동 이름(KIMTR)은 실명이 바뀌면 같이 바뀌어요
   const tag = ed.tag && !(me && ed.tag === me.tag && me.tag === tagOf(me.realName || "")) ? ed.tag : finalTag("", realName);
@@ -2745,9 +2827,16 @@ async function saveEdit(){
     else if (Object.keys(up).length){ await updateDoc(deskRef(), up); me = { ...me, ...up }; }
     setBrand(me.tag || tagOf(me.realName));
     await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
-    cfg = out; hide("shEdit"); useConfig(); guide();
+    cfg = out; draftDrop(); hide("shEdit"); useConfig(); guide();
     if (first) $("saved").textContent = "내 시간표로 바뀌었어요! 위 1~12 단추로 마음에 드는 화면을 골라 보세요 ✓";
-  } catch (e){ $("edMsg").textContent = "저장하지 못했어요 (" + (e.code || e.message) + ")"; }
+  } catch (e){
+    // 저장이 안 돼도 창은 그대로, 적던 내용은 이 기기에 남겨 둬요 (다시 열어도 이어서)
+    try { localStorage.setItem(draftKey(), JSON.stringify(ed)); } catch (e2) {}
+    const c = String(e.code || "");
+    $("edMsg").textContent = /permission-denied/.test(c) ? "저장 권한이 없어요 · 관리자에게 알려 주세요 (적던 내용은 이 기기에 남겨 두었어요)"
+      : /unavailable|network/.test(c) ? "인터넷 연결을 확인하고 다시 [저장]을 눌러 주세요 (적던 내용은 남겨 두었어요)"
+      : "저장하지 못했어요 (" + (c || e.message) + ") · 적던 내용은 남겨 두었어요";
+  }
   $("edSave").disabled = false;
 }
 $("bEdit").addEventListener("click", () => openEdit());
@@ -3026,11 +3115,11 @@ async function deleteAll(){
 /* ---------- 창 닫기 (✕ · 바깥 · Esc) ---------- */
 document.addEventListener("click", e => {
   const c = e.target.closest("[data-close]"); if (!c) return;
-  const sh = c.closest(".sheet"); hide(sh.id); if (sh.id === "shChat"){ msgUnsub?.(); msgUnsub = null; }
+  const sh = c.closest(".sheet"); if (sh.id === "shEdit") keepDraft(); hide(sh.id); if (sh.id === "shChat"){ msgUnsub?.(); msgUnsub = null; }
 });
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
-  ["shChat", "shSet", "shEdit"].forEach(id => { if (!$(id).hidden){ hide(id); if (id === "shChat"){ msgUnsub?.(); msgUnsub = null; } } });
+  ["shChat", "shSet", "shEdit"].forEach(id => { if (!$(id).hidden){ if (id === "shEdit") keepDraft(); hide(id); if (id === "shChat"){ msgUnsub?.(); msgUnsub = null; } } });
 });
 
 /* ============================================================
