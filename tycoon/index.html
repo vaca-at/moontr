@@ -442,22 +442,36 @@ const S1 = (() => {
     else if (A.f !== B.f){ const s = near((sa.x + sb.x)/2); p.push({ x:s, y:lane(A.f) }, { x:s, y:lane(B.f) }); }
     p.push(sb); return p;
   }
+  // 또래상담부 부스(drs/booth)와 같은 색: 진한 바탕 + 층마다 네온 테두리 (2층 노랑 · 3층 주황 · 4층 분홍, 교무실 하늘색, 1층 보라)
+  const BOOTH = { ...PAL.a, sky:"#0B0B12", base:"#0B0B12", hall:"#14141F", hallLine:"#2A2A3A", edge:"#000000",
+    desk:"#8B5A2B", deskTop:"#B07A4A", board:"#1D4D2C", boardEdge:"#8B6B4A", glass:"#2FE3F0", skin:"#FFCFA8", uni:"#2C3E66", skirt:"#5B4A6E",
+    hr:"#FF5FAE", active:"#FFFFFF", apt:"#12121C", aptWin:"#1D1D2B", yard:"#1D4D2C", tuft:"#215733", path:"#B5553A", tree:"#2A6B3A",
+    roof:"#B07CFF", hA:"#1A1A26", hB:"#12121C", night:"rgba(4,4,20,.25)" };
+  const FLOOR_C = { 1:"#B07CFF", 2:"#FFD400", 3:"#FF8A1F", 4:"#FF5FAE" }, WALL_C = "#3D6BFF", DOT_C = "#FFD9B0";
+  // 부스 이름표: 진한 바탕 + 색 테두리 · 글자 (fill 이면 색으로 꽉 채우고 글자는 진하게)
+  function plate(s, cx, y, c, fill){
+    g.font = `5px ${P.font}`; const w = Math.ceil(g.measureText(s).width) + 6, x = Math.round(cx - w/2);
+    rect(x, y, w, 9, c); rect(x + 1, y + 1, w - 2, 7, fill ? c : "#0B0B12"); txt(s, cx, y + 5, 5, fill ? "#0B0B12" : c, "center");
+  }
   function sideRoom(r){
-    const y0 = r.y, fy = fb(r.f) - 2, cls = isClass(r.id);
-    rect(r.x, y0, r.w, r.h, r.id === "office" ? P.oA : r.id === "gate" ? P.hall : P.wall);
-    rect(r.x, y0, r.w, 3, P.wallTop); rect(r.x, fy - 7, r.w, 7, r.id === "office" ? P.oB : P.fA); rect(r.x + r.w - 1, y0, 1, r.h, P.edge);
+    const y0 = r.y, fy = fb(r.f) - 2, cls = isClass(r.id), c = r.id === "office" ? "#2FE3F0" : FLOOR_C[r.f];
+    rect(r.x, y0, r.w, r.h, "#10101A");
+    g.globalAlpha = .16; rect(r.x + 1, fy - 9, r.w - 2, 6, c); g.globalAlpha = 1;   // 바닥
+    frameBox(r.x + 1, y0 + 1, r.w - 2, r.h - 4, 1, c);
+    g.globalAlpha = .45; frameBox(r.x + 3, y0 + 3, r.w - 6, r.h - 8, 1, c); g.globalAlpha = 1;
     const act = !WK.walking && WK.here === r.id;
     if (cls){
-      rect(r.x + 3, y0 + 9, 13, 9, P.boardEdge); rect(r.x + 4, y0 + 10, 11, 7, P.board); rect(r.x + r.w - 9, y0 + 8, 6, 11, P.glass);
+      rect(r.x + 4, y0 + 12, 13, 9, P.boardEdge); rect(r.x + 5, y0 + 13, 11, 7, P.board); rect(r.x + 6, y0 + 15, 5, 1, "#E8F2EA");
+      rect(r.x + r.w - 10, y0 + 12, 6, 9, "#0B0B12"); rect(r.x + r.w - 9, y0 + 13, 4, 7, "#123A44");
       [[13,0],[20,0],[10,6],[17,6],[24,6]].forEach(([dx, dy], k) => {
         const x = r.x + dx - 2, y = fy - 13 + dy, s = SEATS[(k + r.x) % SEATS.length];
-        if (SCHOOL && s.on && (!BREAK || s.stay)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
-        rect(x - 1, y, 6, 2, P.deskTop); rect(x, y + 2, 1, 3, P.desk); rect(x + 3, y + 2, 1, 3, P.desk);
+        if (SCHOOL && s.on && (!BREAK || s.stay)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x + 1, y - 3 + b, 2, 1, "#D7263D"); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
+        rect(x - 1, y, 6, 2, c); rect(x, y + 2, 1, 3, shade(c, .55)); rect(x + 3, y + 2, 1, 3, shade(c, .55));   // 책상도 층 색
       });
-      if (r.id === "1-10"){ g.globalAlpha = .22; rect(r.x, y0 + 3, r.w - 1, r.h - 5, P.hr); g.globalAlpha = 1; rect(r.x + r.w - 4, y0 - 7, 1, 9, P.edge); rect(r.x + r.w - 3, y0 - 7, 5, 4, P.hr); }
-      if (!TAUGHT.has(r.id)){ g.globalAlpha = .42; rect(r.x, y0, r.w - 1, r.h, P.base); g.globalAlpha = 1; }
+      if (r.id === "1-10"){ g.globalAlpha = .2; rect(r.x + 2, y0 + 2, r.w - 4, r.h - 6, P.hr); g.globalAlpha = 1; rect(r.x + r.w - 4, y0 - 7, 1, 9, "#EDEDF5"); rect(r.x + r.w - 3, y0 - 7, 5, 4, P.hr); }
+      if (!TAUGHT.has(r.id)){ g.globalAlpha = .55; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; }
     } else if (r.id === "office"){
-      for (let i = 0; i < 4; i++) rect(r.x + 3 + i*10, y0 + 8, 7, 9, P.glass);
+      for (let i = 0; i < 4; i++){ rect(r.x + 3 + i*10, y0 + 12, 7, 7, "#0B0B12"); rect(r.x + 4 + i*10, y0 + 13, 5, 5, "#123A44"); }
       // 섬 두 개(뒤 · 앞). 가운데 칸막이를 두고 왼쪽 · 오른쪽 자리가 마주봐요. ★ 내 자리 = 앞 섬 왼쪽
       [-7, 0].forEach((dy, isl) => {
         const ix = r.x + 11, iw = 22, y = fy - 9 + dy;
@@ -474,54 +488,60 @@ const S1 = (() => {
       txt("★", r.x + 8, fy - 24, 6, P.hr, "center");
       if (SCHOOL && BREAK){ girl(r.x + 23, fy - 1, 1, HAIR[1], 2, true); girl(r.x + 41, fy - 1, 1, HAIR[3], 2, true); }
     } else if (r.id === "gate"){
-      rect(r.x + 8, y0 + 12, 28, 34, P.edge); rect(r.x + 9, y0 + 13, 12, 33, P.glass); rect(r.x + 23, y0 + 13, 12, 33, P.glass);
-    } else { rect(r.x + 5, y0 + 8, Math.min(14, r.w - 10), 10, P.glass); if (r.w > 40) rect(r.x + 34, y0 + 8, 14, 10, P.glass); g.globalAlpha = .3; rect(r.x, y0, r.w - 1, r.h, P.base); g.globalAlpha = 1; }
-    if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === "1-10" ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w - 1, r.h - 2); g.globalAlpha = 1; }
+      rect(r.x + 8, y0 + 14, 28, 32, c); rect(r.x + 9, y0 + 15, 12, 31, "#123A44"); rect(r.x + 23, y0 + 15, 12, 31, "#123A44");
+    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; }
+    if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === "1-10" ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w, r.h - 3); g.globalAlpha = 1; }
     const lb = r.id === "office" ? "교무실" : r.id === "gate" ? "현관" : r.id === "1-10" ? "★1-10" : cls || r.id.length > 2 ? r.id : "";
-    if (lb) { g.globalAlpha = cls && !TAUGHT.has(r.id) ? .5 : 1; tag(lb, r.x + 1, y0 + 3, r.id === "1-10" ? P.hr : r.id === "office" ? P.ui.acc2 : "rgba(0,0,0,.55)", r.id === "office" ? "#10131A" : "#fff", 5); g.globalAlpha = 1; }
+    if (lb){ g.globalAlpha = cls && !TAUGHT.has(r.id) ? .5 : 1; plate(lb, r.x + r.w/2, y0 + 2, r.id === "1-10" ? P.hr : c, r.id === "1-10" || r.id === "office"); g.globalAlpha = 1; }
   }
   const STARS = Array.from({ length:70 }, () => [Math.floor(rnd()*W), Math.floor(rnd()*70)]);
   function sky(){
     rect(0, 0, W, H, P.sky);
-    if (V === "a" || NIGHT){
-      STARS.forEach(([x, y], k) => rect(x, y, 1, 1, k % 6 ? (V === "a" ? "#34345E" : "#5A6A9A") : (Math.sin(T*2 + k) > .3 ? "#FFFFFF" : "#8C8CA6")));
-      rect(436, 14, 10, 10, "#F4F1D0"); rect(434, 16, 14, 6, "#F4F1D0"); rect(440, 15, 6, 6, P.sky);   // 초승달
-    } else {
-      rect(28, 12, 14, 14, "#FFE27A"); rect(26, 14, 18, 10, "#FFE27A");   // 해
-      for (let k = 0; k < 4; k++){ const cx = ((k*150 + T*3) % (W + 80)) - 40, cy = 14 + (k % 2)*12; rect(cx, cy, 30, 6, "#FFFFFF"); rect(cx + 6, cy - 4, 14, 5, "#FFFFFF"); rect(cx + 18, cy - 2, 8, 3, "#FFFFFF"); }
-    }
+    STARS.forEach(([x, y], k) => rect(x, y, 1, 1, k % 6 ? "#34345E" : (Math.sin(T*2 + k) > .3 ? "#FFFFFF" : "#8C8CA6")));
+    rect(436, 14, 10, 10, "#F4F1D0"); rect(434, 16, 14, 6, "#F4F1D0"); rect(440, 15, 6, 6, P.sky);   // 초승달
   }
   function draw(){
+    const keep = P; P = BOOTH;   // 이 시안은 A · B 색과 상관없이 늘 부스 색
     sky();
-    for (let i = 0; i < 10; i++){ const x = 2 + i*50, h = 150 + (i % 3)*18, t = GR - h; rect(x, t, 42, h, P.apt); rect(x, t, 42, 2, P.aptWin); for (let y = t + 6; y < GR - 10; y += 7) for (let xx = x + 4; xx < x + 38; xx += 7) rect(xx, y, 4, 3, NIGHT && (xx*7 + y*3) % 5 < 2 ? "#FFE27A" : P.aptWin); }
-    rect(0, GR, W, H - GR, P.yard); TUFTS.forEach(([x, y]) => { if (y > GR + 4) rect(x, y, 2, 1, P.tuft); });
+    for (let i = 0; i < 10; i++){ const x = 2 + i*50, h = 150 + (i % 3)*18, t = GR - h; rect(x, t, 42, h, P.apt); rect(x, t, 42, 1, "#2A2A3A");
+      for (let y = t + 6; y < GR - 10; y += 7) for (let xx = x + 4; xx < x + 38; xx += 7){ const lit = (xx*7 + y*3) % 13; rect(xx, y, 4, 3, lit === 0 ? "#5A4A2A" : lit === 5 ? "#4A2A3A" : P.aptWin); } }
+    // 운동장 (부스처럼 줄무늬 잔디 + 주황 트랙)
+    rect(0, GR, W, H - GR, P.yard); for (let x = 0; x < W; x += 8) rect(x, GR, 4, H - GR, P.tuft);
     rect(GX - 6, GR, 12, OUT - GR + 5, P.path); rect(GX - 6, OUT - 4, HD - GX + 12, 9, P.path); rect(HD - 5, GR, 10, OUT - GR, P.path);
+    for (let x = GX; x < HD; x += 7) rect(x, OUT, 4, 1, "#FFFFFF");
     const top = fb(4) - FH;
-    rect(BX - 5, top - 6, BW + 10, GR - top + 6, P.base); rect(CX - 6, top - 20, CW + 12, 16, P.base); rect(CX - 6, top - 20, CW + 12, 2, P.wallTop);
+    rect(BX - 5, top - 6, BW + 10, GR - top + 6, P.base); rect(CX - 6, top - 20, CW + 12, 16, P.base);
+    // 부스 바깥 미로 벽처럼 파란 두 줄 테두리
+    frameBox(BX - 5, top - 6, BW + 10, GR - top + 6, 1, WALL_C); frameBox(CX - 6, top - 20, CW + 12, 15, 1, WALL_C);
+    g.globalAlpha = .55; frameBox(BX - 3, top - 4, BW + 6, GR - top + 2, 1, WALL_C); g.globalAlpha = 1;
     // 가운데 탑 시계 (지금 시각)
-    const nd = simNow(); rect(GX - 17, top - 17, 34, 11, P.edge); rect(GX - 16, top - 16, 32, 9, "#0B0B12");
-    txt(hhmm(nd.getHours()*60 + nd.getMinutes()), GX, top - 11.5, 5, P.ui.acc === "#E8743B" ? "#FFB27A" : P.ui.acc, "center", true);
+    const nd = simNow(); rect(GX - 17, top - 17, 34, 11, "#FFD400"); rect(GX - 16, top - 16, 32, 9, "#0B0B12");
+    txt(hhmm(nd.getHours()*60 + nd.getMinutes()), GX, top - 11.5, 5, "#FFD400", "center", true);
     R.forEach(r => { if (r.id !== "home") sideRoom(r); });
-    [SL, SR].forEach(sx => { for (let f = 1; f <= 4; f++){ const y0 = fb(f) - FH; rect(sx - SW/2, y0, SW, FH, P.hall); for (let k = 0; k < 9; k++) rect(sx - SW/2 + 1 + (f % 2 ? k : 8 - k), y0 + 6 + k*5, 4, 2, P.hallLine); } });
+    [SL, SR].forEach(sx => { for (let f = 1; f <= 4; f++){ const y0 = fb(f) - FH; rect(sx - SW/2, y0, SW, FH - 2, P.hall); g.globalAlpha = .5; for (let k = 0; k < 9; k++) rect(sx - SW/2 + 1 + (f % 2 ? k : 8 - k), y0 + 6 + k*5, 4, 1, WALL_C); g.globalAlpha = 1; } });
     for (let f = 1; f <= 4; f++){
-      rect(BX - 5, fb(f) - 2, BW + 10, 2, P.edge);
-      txt(f + "F", 11, fb(f) - FH/2 - 5, 6, P.ui.acc, "center", true);
+      rect(BX - 2, fb(f) - 2, BW + 4, 2, "#0B0B12");
+      // 복도 팩맨 점
+      if (f > 1){ g.globalAlpha = .5; for (let x = BX + 4; x < BX + BW - 2; x += 6) rect(x, fb(f) - 7, 1, 1, DOT_C); g.globalAlpha = 1; }
+      txt(f + "F", 11, fb(f) - FH/2 - 5, 6, FLOOR_C[f], "center", true);
       txt(["", "현관", "1학년", "2학년", "3학년"][f], 11, fb(f) - FH/2 + 6, 5, P.ui.muted, "center");
     }
     // 쉬는 시간 · 점심: 층마다 앞쪽 복도를 걷는 학생들
     [2, 3, 4].forEach(f => crowd(f*11, 7, BX + 4, BX + BW - 4, lane(f) + 1, 1));
-    // 집
-    for (let k = 0; k < 7; k++) rect(HOME.x - 4 + k*2, HOME.y - 14 + k*2, HOME.w + 8 - k*4, 2, P.roof);
-    rect(HOME.x, HOME.y, HOME.w, HOME.h, P.hB); rect(HOME.x, GR - 6, HOME.w, 6, P.hA); rect(HD - 4, GR - 16, 8, 16, P.desk);
-    rect(HOME.x + 4, GR - 18, 22, 8, "#4A6FA5"); rect(HOME.x + 8, HOME.y + 7, 16, 9, P.edge); rect(HOME.x + 9, HOME.y + 8, 14, 7, NIGHT ? "#7FE3FF" : "#2A2A3A");
-    if (NIGHT){ g.globalAlpha = .18; rect(HOME.x, HOME.y, HOME.w, HOME.h, "#FFE45C"); g.globalAlpha = 1; }
-    tag("HOME 집", HOME.x + 2, HOME.y + 2, P.hr, "#fff", 5);
+    // 집 (분홍 테두리)
+    for (let k = 0; k < 7; k++) rect(HOME.x - 4 + k*2, HOME.y - 14 + k*2, HOME.w + 8 - k*4, 2, k % 2 ? shade(P.roof, .7) : P.roof);
+    rect(HOME.x, HOME.y, HOME.w, HOME.h, P.hB); frameBox(HOME.x, HOME.y, HOME.w, HOME.h, 1, P.hr);
+    g.globalAlpha = .45; frameBox(HOME.x + 2, HOME.y + 2, HOME.w - 4, HOME.h - 4, 1, P.hr); g.globalAlpha = 1;
+    rect(HD - 4, GR - 16, 8, 15, P.desk); rect(HD + 1, GR - 9, 1, 1, "#FFD400");
+    rect(HOME.x + 5, GR - 15, 20, 7, "#2C3E66"); rect(HOME.x + 8, HOME.y + 12, 16, 9, "#0B0B12"); rect(HOME.x + 9, HOME.y + 13, 14, 7, NIGHT ? "#FFD9B0" : "#123A44");
+    plate("HOME 집", HOME.x + HOME.w/2, HOME.y + 2, P.hr, true);
     for (let x = BX + 4; x < BX + BW; x += 34){ if (Math.abs(x - GX) < 30) continue; rect(x + 3, GR + 8, 2, 5, P.desk); rect(x, GR + 2, 8, 7, P.tree); }
-    [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, P.edge); rect(x + 1, GR - 22, 6, 4, ["#E24C4C","#3C6BD8","#F4F4F4"][i]); });
+    [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, "#EDEDF5"); rect(x + 1, GR - 22, 6, 4, ["#FF5FAE","#FFD400","#FF8A1F"][i]); });
     if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GR); }
+    P = keep;
   }
   return { name:"건물 단면 타워", layout:"bottom", place, route, draw, speed:46,
-    desc:"<b>실제 학교 건물을 앞에서 잘라 본 모습</b>이에요. 2층 1학년 · 가운데 교무실, 3층 2학년, 4층 3학년이 보이고 계단으로 오르내려요. 가운데 탑 시계가 지금 시각이에요. 쉬는 시간에는 학생들이 복도를 오가고 교무실이 꽉 차요. (1층 방 자리는 짐작이에요)" };
+    desc:"<b>실제 학교 건물을 앞에서 잘라 본 모습</b>이에요. 또래상담부 부스와 같은 색으로, 2층 1학년은 노랑 · 3층 2학년은 주황 · 4층 3학년은 분홍 테두리, 가운데 교무실은 하늘색이에요. 계단으로 오르내리고, 가운데 탑 시계가 지금 시각이에요. 쉬는 시간에는 학생들이 복도를 오가고 교무실이 꽉 차요. (1층 방 자리는 짐작이에요)" };
 })();
 
 /* ===== 2. 층별 평면도 (위에서) ===== */
