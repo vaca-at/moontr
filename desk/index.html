@@ -61,7 +61,21 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 /* 본문: 왼쪽 게임 화면 · 오른쪽 NOW · TODAY · 할 일 */
 .main{position:relative;display:grid;gap:8px;min-height:0;grid-template-columns:minmax(0,1fr) 280px;grid-template-areas:"map side"}
 .mapcol{grid-area:map;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
-.frame{position:relative;line-height:0}
+.frame{position:relative;line-height:0;container-type:inline-size}
+/* 게임 화면 위 메모 스티커 (오른쪽 아래, 최대 3장) — 모양은 메모 창 쪽지와 같은 시안별 스티커 */
+.pins{position:absolute;right:1.4cqw;bottom:1.4cqw;display:flex;gap:1.2cqw;align-items:flex-end;z-index:2;line-height:1.35;pointer-events:none}
+.pins .nt.pinnote{pointer-events:auto;width:15.5cqw;max-height:14cqw;overflow:hidden;cursor:pointer;text-align:left;border:none;font:clamp(9px,1.15cqw,13px) var(--body);gap:.3cqw;padding:.9cqw 1.1cqw;margin:0;transition:transform .15s}
+.pins .nt.pinnote:hover{transform:translateY(-3px) rotate(-1deg)}
+.pins .nt.pinnote:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pins .pinnote b{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pins .pinnote span{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;word-break:break-word}
+:root[data-s="9"] .pins .nt.pinnote{padding-left:3.6cqw}
+:root[data-s="9"] .pins .nt.pinnote::before{width:2.4cqw;height:2.4cqw;font-size:1.3cqw;left:.6cqw;top:.8cqw}
+:root[data-s="5"] .pins .nt.pinnote,:root[data-s="7"] .pins .nt.pinnote{padding-top:2.8cqw}
+:root[data-s="5"] .pins .nt.pinnote::before{font-size:1.1cqw;padding:.3cqw .8cqw}
+:root[data-s="10"] .pins .nt.pinnote{padding-top:2.2cqw}
+:root[data-s="15"] .pins .pinnote span,:root[data-s="10"] .pins .pinnote span{font-family:'Nanum Pen Script',cursive;font-size:1.6cqw;line-height:1.15}
+@media (max-width:700px){ .pins .nt.pinnote{width:24cqw;max-height:22cqw} }
 .frame canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
 .side{grid-area:side;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto}
 .card{padding:8px 10px}
@@ -374,7 +388,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
   </header>
   <div class="main" id="main">
     <section class="mapcol" id="mapcol">
-      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas></div>
+      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div></div>
     </section>
     <aside class="side">
       <div class="card box">
@@ -494,7 +508,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
   <div class="pane box wide" role="dialog" aria-modal="true" aria-labelledby="mmTitle">
     <header><h2 id="mmTitle">📝 메모</h2><button type="button" class="big" id="mmAdd" style="min-height:40px;padding:6px 14px">+ 새 메모</button><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
     <div class="body">
-      <p class="note">날짜와 상관없이 적어 두는 쪽지예요. 적으면 바로 저장돼요. <b>📌 고정</b>한 메모가 게임 화면(레트로 PC · 로파이 · 미니멀 위젯 · 3D 학교 · 보드게임 · 위클리 플래너)에 보이고, 고정한 게 없으면 가장 최근 메모가 보여요. 학생 개인정보는 적지 말아 주세요.</p>
+      <p class="note">날짜와 상관없이 적어 두는 쪽지예요. 적으면 바로 저장돼요. <b>📌 고정</b>한 메모가 게임 화면 오른쪽 아래에 스티커로 떠요 — <b>최대 3개</b>, 1 · 2개만 고정하면 그만큼만 떠요. 고정한 게 없으면 가장 최근에 고친 메모 1개가 떠요. 학생 개인정보는 적지 말아 주세요. <span id="pinCount"></span></p>
       <div class="notes" id="noteList"></div>
     </div>
     <div class="foot"><span class="msg" id="mmMsg"></span><button type="button" class="big ghost" data-close>닫기</button></div>
@@ -561,7 +575,8 @@ let TAG = "";     // 영문 이름 (KIMTR 처럼) — 맨 위 'KIMTR TYCOON'
 // 📝 메모 [{ id, title, t, color, pin }] (📌 고정한 것이 맨 앞) · ⭐ 즐겨찾기 [{ id, name, url, icon }] — 위쪽 단추에서 적어요
 let NOTES = [], LINKS = [];
 const MEMO_C = { y:"#FFF07A", p:"#FFC6D9", b:"#C4E4FF", g:"#CDEFC4", w:"#FFFFFF" };   // 메모 종이 색 (노랑 · 분홍 · 하늘 · 연두 · 흰색)
-const memoTop = () => NOTES.find(n => (n.title || n.t || "").trim());   // 게임 화면에 보여 줄 메모 하나
+// 게임 화면 속에 그리던 메모 하나 — 이제 메모는 12개 시안 모두 화면 위 스티커(#pins)로 띄워서, 그림 안에는 그리지 않아요(겹치지 않게)
+const memoTop = () => null;
 // 게임 화면 속 메모 · 즐겨찾기를 누르면 열어요. 시안이 그릴 때마다 누를 자리를 적어 둬요 (논리 480×270 좌표)
 let HOT = [];
 const hot = (x, y, w, h, act) => { HOT.push({ x, y, w, h, act }); };
@@ -2808,7 +2823,18 @@ let notes = [], links = [];
 const noteTimers = {};
 const saveErr = e => /permission/.test((e && e.code) || "") ? "저장하지 못했어요 · 잠시 뒤 다시 해 주세요 (계속 안 되면 💬 관리자에게 묻기)" : "저장하지 못했어요 · 인터넷을 확인해 주세요";
 // 게임 화면으로 보내기: 메모는 📌 고정 먼저, 그다음 최근에 고친 순 · 즐겨찾기는 정한 순서대로
-const pushNotes = () => window.DESK.setNotes([...notes].sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0)));
+const pushNotes = () => { window.DESK.setNotes([...notes].sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0))); renderPins(); };
+// 게임 화면 오른쪽 아래 메모 스티커: 📌 고정한 메모(최대 3개, 고정한 만큼만) · 고정이 없으면 가장 최근에 고친 메모 1개
+const PIN_MAX = 3;
+function renderPins(){
+  const box = $("pins"); if (!box) return;
+  const pinned = noteOrder().filter(n => n.pin).slice(0, PIN_MAX);
+  const list = pinned.length ? pinned : [...notes].filter(n => (n.title || n.t || "").trim()).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 1);
+  box.innerHTML = list.map(n => `<button type="button" class="nt pinnote" data-open="${esc(n.id)}" style="--nc:${NOTE_BG[n.color] || NOTE_BG.y}" title="누르면 메모 창에서 열려요">
+      ${n.title ? `<b>${n.pin ? "📌 " : ""}${esc(n.title)}</b>` : n.pin ? "<b>📌</b>" : ""}<span>${esc((n.t || "").trim())}</span></button>`).join("");
+  const pc = $("pinCount"); if (pc) pc.innerHTML = `<b>지금 고정 ${notes.filter(x => x.pin).length} / ${PIN_MAX}</b>`;
+}
+$("pins").addEventListener("click", e => { const b = e.target.closest("[data-open]"); if (b) openMemo(b.dataset.open); });
 const linkOrder = () => [...links].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 const pushLinks = () => window.DESK.setLinks(linkOrder());
 async function loadExtras(){
@@ -2870,7 +2896,10 @@ $("noteList").addEventListener("click", async e => {
   const card = e.target.closest(".nt"), n = card && notes.find(x => x.id === card.dataset.id); if (!n) return;
   const c = e.target.closest("[data-color]");
   if (c){ n.color = c.dataset.color; card.style.setProperty("--nc", NOTE_BG[n.color]); card.querySelectorAll("[data-color]").forEach(b => b.classList.toggle("on", b === c)); saveNote(n, true); return; }
-  if (e.target.closest("[data-pin]")){ n.pin = !n.pin; n.at = Date.now(); renderNotes(); saveNote(n, true); return; }
+  if (e.target.closest("[data-pin]")){
+    if (!n.pin && notes.filter(x => x.pin).length >= PIN_MAX){ $("mmMsg").textContent = `화면에 띄울 고정 메모는 최대 ${PIN_MAX}개예요. 다른 메모의 📌 고정을 먼저 풀어 주세요.`; return; }
+    n.pin = !n.pin; n.at = Date.now(); renderNotes(); saveNote(n, true); pushNotes(); return;
+  }
   // ◀ ▶ 순서 바꾸기: 옆 쪽지와 자리를 바꾸고, 모든 쪽지에 1부터 차례 번호를 다시 매겨 저장해요
   const mv = e.target.closest("[data-mv]");
   if (mv){
