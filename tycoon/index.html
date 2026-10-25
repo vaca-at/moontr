@@ -172,6 +172,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
   </footer>
 </div>
 
+<!-- 21번 미드나잇 3D 학교 시안에서 쓰는 3D 그리기 도구 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 /* ===================== 시간표 · 하루 상태 ===================== */
 const BELL = [["조회","08:20","08:40"],["1","08:40","09:30"],["2","09:40","10:30"],["3","10:40","11:30"],["4","11:40","12:30"],
@@ -2109,6 +2111,122 @@ const S20 = (() => {
 NEWS.push(S20);
 /* ===== END 20 ===== */
 
+/* ===== 21. 미드나잇 3D 학교 (어두운 유리 대시보드 + three.js 3D 건물) ===== */
+// 가운데 3D 건물은 따로 그린 뒤(WebGL) 이 화면에 옮겨 붙여요. 지금 있는 방이 빛나고, 작은 문쌤이 그 방 앞으로 걸어가요
+const S21 = (() => {
+  const C1 = "#FFD400", C3 = "#FF8A1F", HR = "#FF5FAE", LUNCH = "#5BEA6F", ACC = "#2FE3F0", INK = "#EEF0FF", MUTE = "#8C93B8", FREE = "rgba(255,255,255,.08)";
+  const roomC = r => r === "1-10" ? HR : r === "lunch" ? LUNCH : /^3-/.test(r || "") ? C3 : r ? C1 : FREE;
+  let three = null;
+  function makeThree(){
+    const r = new THREE.WebGLRenderer({ antialias:true, alpha:true }); r.setPixelRatio(1); r.outputEncoding = THREE.sRGBEncoding;
+    const s = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, .1, 200);
+    const std = (c, o = {}) => new THREE.MeshStandardMaterial({ color:c, roughness:o.r ?? .7, emissive:o.e ?? 0, emissiveIntensity:o.ei ?? 1 });
+    s.add(new THREE.AmbientLight(0x8890c0, .55)); const dl = new THREE.DirectionalLight(0xffffff, .7); dl.position.set(-6, 10, 8); s.add(dl);
+    const FL = { 1:0xB07CFF, 2:0xFFD400, 3:0xFF8A1F, 4:0xFF5FAE }, Dp = 1.5, FH = 1.15, cols = [1,1,1,1,1,1,.55,1.7,.55,1,1,1,1,1], total = cols.reduce((a, b) => a + b, 0), rooms = {};
+    const grid = new THREE.GridHelper(40, 40, 0x232a55, 0x161b38); grid.position.y = -.01; s.add(grid);
+    for (let f = 1; f <= 4; f++){
+      let x = -total/2;
+      cols.forEach((w, i) => {
+        const cx = x + w/2; x += w;
+        if (w > .5 && w < 1){ const st = new THREE.Mesh(new THREE.BoxGeometry(w*.9, FH*.96, Dp*.9), std(0x0E1124, { r:.9 })); st.position.set(cx, (f - 1)*FH + FH/2, 0); s.add(st); return; }
+        const id = w > 1.5 ? (f === 2 ? "office" : f === 1 ? "gate" : `c${f}`) : f === 1 ? `f1-${i}` : `${f - 1}-${i < 6 ? 11 - i : 14 - i}`;
+        const c = id === "office" ? 0x2FE3F0 : FL[f], lit = TAUGHT.has(id) || id === "office" || f === 1;
+        const geo = new THREE.BoxGeometry(w*.94, FH*.94, Dp), mat = std(0x101326, { r:.8, e:c, ei:id === "1-10" ? .28 : .05 });
+        const box = new THREE.Mesh(geo, mat); box.position.set(cx, (f - 1)*FH + FH/2, 0); s.add(box);
+        const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:id === "1-10" ? 0xFF5FAE : c, transparent:true, opacity:lit ? 1 : .32 }));
+        edge.position.copy(box.position); s.add(edge);
+        rooms[id] = { mat, base:mat.emissiveIntensity, pos:new THREE.Vector3(cx, (f - 1)*FH, Dp/2 + .35) };
+      });
+    }
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(total + .3, .12, Dp + .3), std(0x151a36)); roof.position.y = 4*FH + .06; s.add(roof);
+    const tower = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2.2, .8, 1.2)), new THREE.LineBasicMaterial({ color:0x3D6BFF })); tower.position.set(0, 4*FH + .5, 0); s.add(tower);
+    // 집
+    const hb = new THREE.BoxGeometry(1.6, 1.1, 1.4), hx = total/2 + 2.6;
+    const hm = new THREE.Mesh(hb, std(0x14102a)); hm.position.set(hx, .55, 1.2); s.add(hm);
+    const he = new THREE.LineSegments(new THREE.EdgesGeometry(hb), new THREE.LineBasicMaterial({ color:0xFF5FAE })); he.position.copy(hm.position); s.add(he);
+    const rf = new THREE.Mesh(new THREE.ConeGeometry(1.25, .7, 4), std(0xB07CFF, { e:0xB07CFF, ei:.35 })); rf.position.set(hx, 1.45, 1.2); rf.rotation.y = Math.PI/4; s.add(rf);
+    rooms.home = { pos:new THREE.Vector3(hx, 0, 2.3) }; rooms.lunch = rooms.gate;
+    // 나 (초록 카디건)
+    const who = new THREE.Group(); s.add(who);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(.16, .2, .42, 24), std(0x3C8C6E, { r:.5 })); body.position.y = .21; who.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.16, 24, 16), std(0xF5CDA6, { r:.6 })); head.position.y = .55; who.add(head);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(.17, 24, 16, 0, Math.PI*2, 0, Math.PI/2), std(0x2B1D16)); hair.position.y = .58; who.add(hair);
+    const glow = new THREE.PointLight(0x2FE3F0, 1.4, 3); glow.position.y = .6; who.add(glow);
+    let cur = "office", target = rooms.office; who.position.copy(target.pos);
+    let sw = 0, sh = 0;
+    return { r,
+      frame(st, t, w, h){
+        const id = st.lunch ? "lunch" : st.place in rooms ? st.place : "office"; if (id !== cur){ cur = id; target = rooms[id]; }
+        Object.entries(rooms).forEach(([k, o]) => { if (o.mat) o.mat.emissiveIntensity = k === cur ? .55 + .3*Math.sin(t*4) : o.base; });
+        who.position.lerp(target.pos, .05); who.position.y = target.pos.y + Math.abs(Math.sin(t*3))*.06;
+        const a = .55 + Math.sin(t*.18)*.28, R = 23; cam.position.set(Math.sin(a)*R, 8, Math.cos(a)*R); cam.lookAt(1, 4.2, 0);
+        if (w !== sw || h !== sh){ sw = w; sh = h; r.setSize(w*2, h*2, false); cam.aspect = w/h; cam.updateProjectionMatrix(); }
+        r.render(s, cam);
+      } };
+  }
+  function card(x, y, w, h, rad = 10){ g.beginPath(); g.roundRect(x, y, w, h, rad); g.fillStyle = "rgba(255,255,255,.05)"; g.fill(); g.strokeStyle = "rgba(255,255,255,.09)"; g.lineWidth = 1; g.stroke(); }
+  function pill(s, x, y, bg, fg, right){ g.font = `500 6px ${fontOf("sans")}`; const w = g.measureText(s).width + 10, x0 = right ? x - w : x; g.beginPath(); g.roundRect(x0, y - 5, w, 10, 5); g.fillStyle = bg; g.fill(); ft(s, x0 + w/2, y + .5, 6, fg, "center", "sans", "500"); }
+  function glow(x, y, rad, c){ const gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, c); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad*2, rad*2); }
+  function draw(st){
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, tt = TT[day] || {}, rows = todayRows(day), hmNow = d.getHours()*60 + d.getMinutes();
+    rect(0, 0, W, H, "#070912"); glow(70, 10, 160, "rgba(91,74,255,.22)"); glow(440, 70, 130, "rgba(47,227,240,.12)");
+    // 가운데: 3D 건물
+    const SX = 130, SY = 10, SW = 216, SH = 204;
+    g.save(); g.beginPath(); g.roundRect(SX, SY, SW, SH, 12); g.clip();
+    const bg = g.createRadialGradient(SX + SW/2, SY + SH, 10, SX + SW/2, SY + SH, SH*1.2); bg.addColorStop(0, "#1A1F45"); bg.addColorStop(.6, "#0B0E20"); bg.addColorStop(1, "#070912"); g.fillStyle = bg; g.fillRect(SX, SY, SW, SH);
+    if (window.THREE){ try { three = three || makeThree(); three.frame(st, T, SW, SH); g.drawImage(three.r.domElement, SX, SY, SW, SH); } catch (e) { three = null; } }
+    else ft("3D를 불러오지 못했어요", SX + SW/2, SY + SH/2, 8, MUTE, "center", "sans");
+    g.restore(); g.beginPath(); g.roundRect(SX, SY, SW, SH, 12); g.strokeStyle = "rgba(255,255,255,.09)"; g.lineWidth = 1; g.stroke();
+    const left = st.e < 1440 ? Math.max(0, Math.ceil(st.e - st.m)) : 0, h = d.getHours();
+    ft(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일 · ${hhmm(hmNow)}`, SX + 12, SY + 14, 6.5, "#B8BEDF", "left", "sans", "500");
+    ft(!wk ? "주말이에요, 푹 쉬어요 문쌤" : h < 9 ? "좋은 아침이에요, 문쌤" : st.place === "home" ? "오늘도 수고했어요, 문쌤" : "오늘도 좋은 하루예요, 문쌤", SX + 12, SY + 29, 11, INK, "left", "sans", "700");
+    ft(!wk ? "월요일 조회는 08:20이에요." : st.place === "home" ? `${st.act}이에요.` : `${st.slot} · ${NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실")} · ${left}분 남았어요`, SX + 12, SY + 43, 6.5, "#B8BEDF", "left", "sans");
+    pill(wk ? `오늘 수업 ${Object.keys(tt).length}개` : "주말", SX + 12, SY + SH - 14, "rgba(255,255,255,.08)", INK);
+    pill("★ 1-10 담임", SX + 66, SY + SH - 14, "rgba(255,95,174,.18)", HR);
+    // 왼쪽 위: 지금
+    card(10, 10, 114, 80); ft("지금", 20, 22, 6.5, MUTE, "left", "sans", "500"); pill(st.slot, 114, 22, "rgba(255,255,255,.07)", MUTE, true);
+    const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s)/Math.max(1, st.e - st.s))) : 0;
+    g.lineCap = "round"; g.lineWidth = 4; g.strokeStyle = FREE; g.beginPath(); g.arc(34, 58, 14, 0, Math.PI*2); g.stroke();
+    g.strokeStyle = ACC; g.beginPath(); g.arc(34, 58, 14, -Math.PI/2, -Math.PI/2 + pr*Math.PI*2); g.stroke();
+    ft(st.e < 1440 ? String(left) : "-", 34, 56, 9, INK, "center", "sans", "700"); ft("분 남음", 34, 65, 4.5, MUTE, "center", "sans");
+    const pl = NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실");
+    ft(pl, 56, 54, pl.length > 5 ? 10 : 14, INK, "left", "sans", "800"); ft(st.act.length > 12 ? st.act.slice(0, 12) + "…" : st.act, 56, 68, 5.5, MUTE, "left", "sans");
+    // 왼쪽 가운데: 다음 수업
+    card(10, 96, 114, 64); ft("다음 수업", 20, 108, 6.5, MUTE, "left", "sans", "500");
+    const nx = nextClass(day, st.m);
+    if (nx){ pill(nx.r.startsWith("3") ? "4층" : "2층", 114, 108, "rgba(255,255,255,.07)", MUTE, true); ft(NAME(nx.r), 20, 128, 13, nx.r === "1-10" ? HR : INK, "left", "sans", "800"); ft(`${nx.p}교시 · ${nx.a} · ${Math.ceil(mm(nx.a) - st.m)}분 뒤`, 20, 146, 5.5, MUTE, "left", "sans"); }
+    else { ft(wk ? "오늘 수업 끝" : "월요일에 만나요", 20, 128, 11, INK, "left", "sans", "800"); ft(wk ? "수고했어요" : "월요일 조회 08:20", 20, 146, 5.5, MUTE, "left", "sans"); }
+    // 왼쪽 아래: 교무실 자리 (그림만)
+    card(10, 166, 114, 48); ft("교무실", 20, 178, 6.5, MUTE, "left", "sans", "500");
+    const seed = Math.floor(st.m / 7);
+    [0, 1].forEach(isl => { const ix = 40 + isl*42; rect(ix + 7, 184, 1, 24, "rgba(255,255,255,.12)"); [0,1,2,3].forEach(k => {
+      const me2 = isl === 1 && k === 0, on = me2 ? st.place === "office" && !st.lunch : SCHOOL && ((seed + isl*5 + k*3) % 4 !== 0), x = ix + (k % 2)*10 - 2, y = 186 + Math.floor(k/2)*11;
+      g.beginPath(); g.roundRect(x, y, 7, 7, 2); g.fillStyle = on ? (me2 ? HR : LUNCH) : FREE; g.fill(); if (me2){ g.strokeStyle = HR; g.lineWidth = 1; g.stroke(); } }); });
+    // 오른쪽: 오늘 시간표
+    card(352, 10, 118, 204); ft("오늘 시간표", 362, 22, 6.5, MUTE, "left", "sans", "500"); pill(`${DAYS[day]}요일`, 460, 22, "rgba(255,255,255,.07)", MUTE, true);
+    if (!wk) ft("주말이라 수업이 없어요", 362, 44, 6, MUTE, "left", "sans");
+    else rows.forEach((rw, k) => {
+      const y = 36 + k*17.6, cur = st.m >= mm(rw.a) && st.m < mm(rw.b), past = st.m >= mm(rw.b);
+      if (cur){ g.beginPath(); g.roundRect(357, y - 7, 108, 15, 6); g.fillStyle = "rgba(255,255,255,.06)"; g.fill(); g.strokeStyle = ACC; g.lineWidth = 1; g.stroke(); }
+      g.globalAlpha = past ? .45 : 1;
+      ft(/\d/.test(rw.p) ? rw.p + "교시" : rw.p, 362, y + .5, 5.5, MUTE, "left", "sans");
+      if (rw.r){ g.beginPath(); g.roundRect(386, y - 2.5, 5, 5, 1.5); g.fillStyle = roomC(rw.r); g.fill(); ft(rw.r === "lunch" ? "점심" : NAME(rw.r), 394, y + .5, 6, INK, "left", "sans", "700"); }
+      else ft("공강", 386, y + .5, 6, MUTE, "left", "sans");
+      ft(rw.a, 460, y + .5, 5.5, MUTE, "right", "sans"); g.globalAlpha = 1;
+    });
+    // 아래: 하루 흐름
+    card(10, 220, 460, 42); ft("하루 흐름", 20, 231, 6.5, MUTE, "left", "sans", "500"); pill(hhmm(hmNow), 460, 231, "rgba(255,255,255,.07)", MUTE, true);
+    const T0 = mm("07:50"), T1 = mm("16:50"), tx = m => 26 + (m - T0)/(T1 - T0)*428;
+    rows.forEach(rw => { const x1 = tx(mm(rw.a)) + 1, x2 = tx(mm(rw.b)) - 1; g.globalAlpha = wk && st.m >= mm(rw.b) ? .45 : 1; g.beginPath(); g.roundRect(x1, 241, Math.max(2, x2 - x1), 6, 3); g.fillStyle = wk ? roomC(rw.r) : FREE; g.fill(); g.globalAlpha = 1; });
+    [8, 10, 12, 14, 16].forEach(hh => ft(`${hh}시`, tx(hh*60), 255, 5, MUTE, "center", "sans"));
+    if (wk && st.m >= T0 && st.m <= T1){ const mx = tx(st.m); rect(mx - .5, 236, 1, 14, INK); g.beginPath(); g.arc(mx, 236, 2.5, 0, Math.PI*2); g.fillStyle = ACC; g.fill(); }
+  }
+  return { name:"미드나잇 3D 학교", layout:"none", custom:true, draw, who:"20~40대 · 세련된 대시보드",
+    desc:"<b>어두운 유리 대시보드 가운데에 3D 학교 건물</b>이 있어요. 층마다 반 색(1학년 노랑 · 3학년 주황 · 1-10 분홍)으로 빛나고, 지금 있는 방이 반짝이며 작은 문쌤이 그 방 앞으로 걸어가요. 카메라가 천천히 돌고, 둘레 카드에 지금 · 다음 수업 · 교무실 자리 · 오늘 시간표 · 하루 흐름이 있어요." };
+})();
+NEWS.push(S21);
+/* ===== END 21 ===== */
+
 /*NEW_STRUCTS*/
 
 /* ===================== NEON 2 · 부스 테두리 (2~12번 시안, 1번 건물은 늘 부스 색) ===================== */
@@ -2203,8 +2321,8 @@ function fit(){ const k = Math.min(col.clientWidth/16, (col.clientHeight || col.
 new ResizeObserver(fit).observe(col);
 // 맨 위 단추 12개 = 마음에 드는 순서. 순서를 바꾸려면 아래 숫자(원래 시안 번호)의 자리만 바꿔요
 // 원래 번호: 1 건물 단면 · 5 보드게임 · 6 횡스크롤 · 7 CCTV · 8 RPG · 9 원형 시계 · 10 위클리 플래너 · 11 레트로 PC · 12 교무수첩 · 15 로파이 · 18 미니멀 위젯 · 20 터미널
-// (2 평면도 · 3 쿼터뷰 · 4 노선도 · 13 몬스터 배틀 · 14 블록 쌓기 · 16 분필 칠판 · 17 공항 · 19 학교 신문은 빼기로 함)
-const TOP = [1, 15, 12, 11, 8, 6, 5, 7, 10, 18, 9, 20];
+// (2 평면도 · 3 쿼터뷰 · 4 노선도 · 12 교무수첩 · 13 몬스터 배틀 · 14 블록 쌓기 · 16 분필 칠판 · 17 공항 · 19 학교 신문은 빼기로 함, 21 = 미드나잇 3D 학교)
+const TOP = [1, 15, 21, 11, 8, 6, 5, 7, 10, 18, 9, 20];   // 3번 자리: 12 교무수첩 → 21 미드나잇 3D 학교
 const okIdx = k => TOP.includes(k + 1);
 const rankOf = k => TOP.indexOf(k + 1) + 1;
 $("structs").innerHTML = TOP.map((n, r) => `<button class="btn" data-s="${n - 1}"><b>${r + 1}</b>${STRUCTS[n - 1].name}</button>`).join("");
