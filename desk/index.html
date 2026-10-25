@@ -1633,7 +1633,8 @@ const S15 = (() => {
     rect(WXL - 6, WYT - 6, WW + 12, 6, wood); rect(WXL - 6, WYT + WH, WW + 12, 9, wood); rect(WXL - 6, WYT, 6, WH, wood); rect(WXL + WW, WYT, 6, WH, wood);
     rect(WXL + WW/2 - 2, WYT, 4, WH, wood); rect(WXL, WYT + WH/2 - 2, WW, 3, wood); rect(WXL - 10, WYT + WH + 7, WW + 20, 4, shade(wood, 1.2));
     rect(WXL + 6, WYT + WH + 1, 14, 6, "#B8734A"); rect(WXL + 8, WYT + WH - 9, 10, 10, "#5A9A4A"); rect(WXL + 4, WYT + WH - 5, 6, 4, "#6AAA5A");   // 창가 화분
-    // 오른쪽 벽: 시계 · 달력 · 코르크판 시간표
+    // 오른쪽 벽: 시계 · 달력 · 코르크판 시간표 (밤에 화면이 어두워져도 글씨가 잘 보이게 한 번 더 그려요)
+    const board = () => {
     const ck = { x:356, y:44, r:20 };
     g.beginPath(); g.arc(ck.x, ck.y, ck.r + 2, 0, Math.PI*2); g.fillStyle = wood; g.fill(); g.beginPath(); g.arc(ck.x, ck.y, ck.r, 0, Math.PI*2); g.fillStyle = "#FFFDF4"; g.fill();
     for (let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; rect(ck.x + Math.cos(a)*16 - .5, ck.y + Math.sin(a)*16 - .5, 1.5, 1.5, "#3A3A4A"); }
@@ -1642,10 +1643,16 @@ const S15 = (() => {
     rect(400, 22, 52, 50, "#FFFFFF"); rect(400, 22, 52, 12, "#D84848"); ft(`${d.getMonth() + 1}월`, 426, 28.5, 8, "#FFFFFF", "center", "sans", "bold"); ft(String(d.getDate()), 426, 50, 18, "#2A2A3A", "center", "sans", "bold"); ft(DAYS[day] + "요일", 426, 65, 6, "#8A8A9A", "center", "sans");
     rect(352, 84, 122, 82, "#C49A68"); rect(355, 87, 116, 76, "#D8B080");
     for (let k = 0; k < 40; k++) rect(356 + (k*37) % 114, 88 + (k*53) % 74, 1, 1, "#B8905A");
-    rect(360, 92, 70, 66, "#FFFDF4"); rect(393, 89, 4, 4, "#D84848");
-    ft("오늘", 364, 99, 6, "#D84848", "left", "sans", "bold");
-    todayRows(day).filter(r => r.r && r.r !== "lunch").slice(0, 6).forEach((r, k) => { const now = st.m >= mm(r.a) && st.m < mm(r.b), past = st.m >= mm(r.b); if (now){ g.globalAlpha = .6; rect(362, 104 + k*8.5, 66, 8, "#FFE48A"); g.globalAlpha = 1; } ft(`${/\d/.test(r.p) ? r.p + "교시" : r.p} ${r.r}`, 364, 108 + k*8.5, 6, past ? "#B0AAB8" : "#2A2A3A", "left", "sans"); });
-    rect(434, 98, 34, 40, "#FFF07A"); rect(449, 95, 4, 4, "#3C78D8"); ["할 일", ...todoLines(3, "✓", "· ", 5, ["아직", "없어요"])].forEach((t, k) => ft(t, 437, 106 + k*9, 6, k ? "#2A2A3A" : "#C8384A", "left", "sans", "700"));   // 작은 쪽지라 짧게
+    rect(360, 92, 56, 66, "#FFFDF4"); rect(386, 89, 4, 4, "#D84848");
+    ft("오늘", 364, 99, 7, "#D84848", "left", "sans", "700");
+    todayRows(day).filter(r => r.r && r.r !== "lunch").slice(0, 6).forEach((r, k) => { const now = st.m >= mm(r.a) && st.m < mm(r.b), past = st.m >= mm(r.b), y = 108 + k*8.8; if (now){ g.globalAlpha = .7; rect(362, y - 4.4, 52, 8.8, "#FFE48A"); g.globalAlpha = 1; } ft(fitW(`${/\d/.test(r.p) ? r.p + "교시" : r.p} ${r.r}`, 50, 6.5, "500"), 364, y, 6.5, past ? "#8A8494" : "#2A2A3A", "left", "sans", "500"); });
+    // 할 일 쪽지: 칸 너비에 맞춰 자르고 '…' (글씨가 쪽지 밖으로 나가지 않게)
+    rect(420, 92, 50, 66, "#FFF07A"); rect(443, 89, 4, 4, "#3C78D8"); ft("할 일", 424, 100, 7, "#C8384A", "left", "sans", "700");
+    (TODOS.length ? TODOS.slice(0, 4).map(x => (x.d ? "✓ " : "· ") + x.t) : ["아직 없어요"]).forEach((t, k) => ft(fitW(t, 44, 7, "700"), 424, 112 + k*11, 7, "#2A2A3A", "left", "sans", "700"));
+    };
+    // 글씨가 w 보다 길면 뒤를 잘라 '…'
+    const fitW = (s, w, size, weight) => { g.font = `${weight} ${size}px ${fontOf("sans")}`; if (g.measureText(s).width <= w) return s; while (s.length > 1 && g.measureText(s + "…").width > w) s = s.slice(0, -1); return s + "…"; };
+    board();
     // 책상 · 의자 · 나
     const mine = st.place === "office" && !st.lunch && wk && h < 17;
     rect(150, 150, 70, 52, "#3A3A4A"); rect(154, 154, 62, 44, "#4A4A5E");   // 의자 등받이
@@ -1667,11 +1674,11 @@ const S15 = (() => {
     // 키보드 · 컵 · 스탠드 · 이름표
     rect(250, 204, 70, 10, "#D8D8E0"); for (let k = 0; k < 9; k++) rect(253 + k*7.5, 206, 6, 2, "#A8A8B4"), rect(253 + k*7.5, 210, 6, 2, "#A8A8B4");
     rect(362, 180, 16, 20, "#FFFFFF"); rect(378, 184, 5, 8, "#FFFFFF"); rect(364, 182, 12, 3, "#8A5A3A");
-    for (let k = 0; k < 3; k++){ g.globalAlpha = .35; rect(366 + k*4 + Math.round(Math.sin(T*2 + k)*2), 170 - ((T*8 + k*5) % 14), 2, 6, "#FFFFFF"); g.globalAlpha = 1; }
     rect(70, 140, 3, 58, "#3A3A4A"); rect(58, 136, 30, 8, "#3A3A4A"); rect(62, 194, 18, 4, "#3A3A4A");
     if (dark || rainy){ g.globalAlpha = .22; g.beginPath(); g.moveTo(60, 144); g.lineTo(40, 198); g.lineTo(104, 198); g.lineTo(86, 144); g.fillStyle = "#FFE48A"; g.fill(); g.globalAlpha = 1; }
     rect(96, 208, 46, 12, "#F4F1E8"); ft("★ " + ME, 119, 214.5, 7, "#C8384A", "center", "sans", "700");
-    if (dark && !mine){ g.globalAlpha = .35; rect(0, 0, W, H, "#05061A"); g.globalAlpha = 1; }
+    if (dark && !mine){ g.globalAlpha = .35; rect(0, 0, W, H, "#05061A"); g.globalAlpha = 1; board(); }   // 밤: 방은 어둡게, 벽의 시간표 · 할 일은 또렷하게
+    for (let k = 0; k < 3; k++){ g.globalAlpha = .35; rect(366 + k*4 + Math.round(Math.sin(T*2 + k)*2), 170 - ((T*8 + k*5) % 14), 2, 6, "#FFFFFF"); g.globalAlpha = 1; }   // 컵 김
     // 로파이 플레이어
     g.fillStyle = "rgba(10,10,20,.62)"; g.beginPath(); g.roundRect(10, 236, 214, 26, 6); g.fill();
     g.beginPath(); g.moveTo(20, 243); g.lineTo(20, 255); g.lineTo(29, 249); g.closePath(); g.fillStyle = "#FFFFFF"; g.fill();
