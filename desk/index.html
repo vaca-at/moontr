@@ -72,8 +72,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .tt .free{color:var(--muted)}
 .chip{display:inline-block;padding:0 5px;border:1.5px solid currentColor;border-radius:var(--box-r);font-size:12px;white-space:nowrap}
 .chip.hr{color:var(--hi)}
-.desc{font-size:13px;line-height:1.4;color:var(--muted);min-height:1.4em}
-.desc b{color:var(--accent);font-weight:400}
+/* 시안 단추에 마우스를 올리면 뜨는 메모 (짧은 소개) */
+.tipnote{position:fixed;z-index:30;max-width:240px;padding:8px 11px 9px;background:#FFF3A6;color:#2A2416;font:13px/1.45 'Noto Sans KR','Malgun Gothic',sans-serif;border-top:6px solid #F2D45C;box-shadow:2px 3px 0 rgba(0,0,0,.35);transform:rotate(-1deg);pointer-events:none;word-break:keep-all}
 /* 할 일 · 메모 */
 .todo{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:14px}
 .todo li{display:flex;gap:6px;align-items:center;min-height:30px}
@@ -122,6 +122,27 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 /* 체험 중 띠 (위쪽 정보 막대 맨 위) */
 .demo-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 10px;margin-right:34px;background:var(--accent);color:var(--on-ink);font-size:14px;border-radius:var(--box-r)}
 .demo-bar span{flex:1}
+/* 처음 온 선생님 안내 띠 + 개인설정 단추 반짝임 */
+.guide-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:7px 10px;margin-right:34px;background:color-mix(in srgb,var(--accent2) 18%,var(--panel));border:2px solid var(--accent2);color:var(--ink);font-size:14px;border-radius:var(--box-r)}
+.guide-bar span{flex:1;min-width:200px}
+.guide-bar b{color:var(--accent)}
+.guide-bar .btn{border-color:var(--accent2)}
+@keyframes deskPulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 70%,transparent);transform:scale(1)}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--accent) 0%,transparent);transform:scale(1.06)}}
+.btn.pulse{background:var(--accent);border-color:var(--accent);color:var(--on-ink);animation:deskPulse 1.4s ease-in-out infinite}
+.btn.pulse::after{content:"여기!";position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);padding:2px 7px;background:var(--accent);color:var(--on-ink);font-size:12px;white-space:nowrap;border-radius:var(--box-r);pointer-events:none;animation:deskBob 1s ease-in-out infinite;z-index:3}
+@keyframes deskBob{0%,100%{margin-top:0}50%{margin-top:4px}}
+@media (prefers-reduced-motion: reduce){ .btn.pulse,.btn.pulse::after{animation:none} }
+/* 시간표 넣는 방법 (사진 · PDF · 엑셀 · 캡처) */
+.imp{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin:6px 0}
+.imp button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border:2px solid var(--line);background:var(--field);color:var(--ink);font:14px var(--body);border-radius:var(--box-r);cursor:pointer}
+.imp button:hover,.imp button:focus-visible{border-color:var(--accent);outline:none}
+.imp button b{font-size:22px;line-height:1}
+.imp button small{color:var(--muted);font-size:11px}
+.pastebox{margin-top:6px;padding:12px;border:2px dashed var(--accent2);color:var(--muted);text-align:center;font:14px var(--body);border-radius:var(--box-r);outline:none}
+.pastebox:focus{border-color:var(--accent);color:var(--ink)}
+.impst{font:14px var(--body);margin:6px 0;min-height:1.3em}
+.impst.busy::before{content:"";display:inline-block;width:12px;height:12px;margin-right:6px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:deskSpin .8s linear infinite;vertical-align:-2px}
+@keyframes deskSpin{to{transform:rotate(360deg)}}
 .demo-bar .btn{border-color:var(--on-ink);color:var(--on-ink)}
 /* 창 (로그인 · 시간표 · 문의 · 설정 · 관리자) */
 .sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(4,4,12,.72)}
@@ -191,6 +212,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 <div class="app">
   <header class="top box">
     <div class="demo-bar" id="demoBar" hidden><span>체험 중 · 예시 선생님이라 저장되지 않아요</span><button type="button" class="btn" id="demoStart">로그인하고 시작</button></div>
+    <div class="guide-bar" id="guideBar" hidden role="status"><span id="guideText">👋 반가워요! 지금 화면은 <b>예시 시간표</b>예요. 둘러보신 뒤 <b>✏️ 개인설정</b>에서 내 시간표를 넣어 주세요.</span><button type="button" class="btn" id="guideGo">개인설정 열기</button></div>
     <div class="row">
       <div class="logo"><span id="brand">TEACHER'S DESK</span><small id="whoName">선생님의 하루</small></div>
       <div class="stat"><span>DATE</span><b id="sDate">--</b></div>
@@ -198,9 +220,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
       <div class="stat"><span>지금</span><b class="k" id="sSlot">--</b></div>
       <div class="sp"></div>
       <div class="tools">
-        <button type="button" class="btn" id="bEdit">✏️ 내 시간표</button>
+        <button type="button" class="btn" id="bEdit">✏️ 개인설정</button>
         <button type="button" class="btn" id="bChat">💬 관리자에게 묻기<i class="dot" id="chatDot" hidden></i></button>
-        <button type="button" class="btn" id="bSet">⚙️ 설정</button>
+        <button type="button" class="btn" id="bSet">⚙️ 계정</button>
       </div>
     </div>
     <div class="picks" id="structs"></div>
@@ -213,7 +235,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
       <span class="lab">색</span>
       <div class="row" style="gap:5px" id="pal"><button type="button" class="btn on" data-v="a">NEON 1</button><button type="button" class="btn" data-v="n2">NEON 2</button><button type="button" class="btn" data-v="b">COZY 1</button><button type="button" class="btn" data-v="c2">COZY 2</button></div>
     </div>
-    <div class="desc" id="desc"></div>
+    <div class="tipnote" id="tipnote" role="tooltip" hidden></div>
   </header>
   <div class="main" id="main">
     <section class="mapcol" id="mapcol">
@@ -323,7 +345,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 <!-- 내 시간표 (처음엔 책상 만들기) -->
 <div class="sheet" id="shEdit" hidden>
   <div class="pane box wide" role="dialog" aria-modal="true" aria-labelledby="edTitle">
-    <header><h2 id="edTitle">✏️ 내 시간표</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+    <header><h2 id="edTitle">✏️ 개인설정</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
     <div class="body" id="edBody"></div>
     <div class="foot"><span class="msg" id="edMsg"></span><button type="button" class="big ghost" data-close id="edCancel">닫기</button><button type="button" class="big" id="edSave">저장</button></div>
   </div>
@@ -341,7 +363,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 <!-- 설정 -->
 <div class="sheet" id="shSet" hidden>
   <div class="pane box" role="dialog" aria-modal="true" aria-labelledby="stTitle">
-    <header><h2 id="stTitle">⚙️ 설정</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+    <header><h2 id="stTitle">⚙️ 계정</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
     <div class="body" id="setBody"></div>
   </div>
 </div>
@@ -1900,7 +1922,6 @@ function rebuild(){
 function pick(k, quiet){
   SI = clamp(+k || 0, 0, STRUCTS.length - 1); resetWalk(); STRUCTS[SI].reset?.();
   document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", +b.dataset.s === SI));
-  $("desc").innerHTML = `${SI + 1}. ${STRUCTS[SI].who ? `<b>추천: ${STRUCTS[SI].who}</b> · ` : ""}${STRUCTS[SI].desc}`;
   requestAnimationFrame(fit);
   try { localStorage.setItem("desk-struct", SI); } catch (e) {}
   if (!quiet) window.DESK.onLook?.();
@@ -1915,6 +1936,34 @@ function renderJumps(){
   $("jumps").innerHTML = J.map(([t, d, h]) => `<button type="button" class="btn" data-jump="${d},${h}">${t}</button>`).join("");
 }
 $("structs").addEventListener("click", e => { const b = e.target.closest("[data-s]"); if (b) pick(+b.dataset.s); });
+// 시안 단추에 마우스를 올리면(또는 Tab 으로 가면) 메모처럼 짧은 소개가 떠요. 원래 시안 번호 → 한 줄 (문쌤 타이쿤과 같아요)
+const TIPS = {
+  1:"학교 건물을 앞에서 잘라 본 모습. 층을 오르내리며 교실로 가요",
+  5:"부루마불 판. 시간표대로 말이 교실 칸을 따라 폴짝 이동해요",
+  6:"하루가 옆으로 흘러가는 거리. 아래 시간 자에 교시가 보여요",
+  7:"교실마다 달린 카메라. 지금 있는 곳을 큰 화면에 비춰요",
+  8:"내 캐릭터를 따라가는 RPG 카메라와 미니맵 · 다음 수업 퀘스트",
+  9:"하루를 둥근 시계판으로. 가운데 창에 지금 있는 방이 보여요",
+  10:"스프링 위클리 플래너에 한 주 수업, 왼쪽엔 오늘 카드와 메모",
+  11:"옛날 컴퓨터 바탕화면. 그림판 · 시간표 엑셀 · 메모장",
+  12:"손글씨 교무수첩. 오늘 일정 · 이번 주 표 · 할 일 포스트잇",
+  15:"잔잔한 로파이 내 자리. 창밖 하늘이 시간 따라 바뀌어요",
+  18:"스마트폰 위젯처럼 깔끔하게. 시계 · 남은 시간 · 다음 수업",
+  20:"옛 터미널 글자 게임. @(나)가 학교 지도를 돌아다녀요",
+  21:"어두운 유리 대시보드에 3D 학교. 지금 있는 방이 빛나요"
+};
+function showTip(b){
+  const t = TIPS[TOP[+b.dataset.s]], el = $("tipnote"); if (!t) return;
+  el.textContent = t; el.hidden = false;
+  const r = b.getBoundingClientRect(), w = el.offsetWidth;
+  el.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width/2 - w/2)) + "px"; el.style.top = (r.bottom + 8) + "px";
+}
+const hideTip = () => { $("tipnote").hidden = true; };
+$("structs").addEventListener("pointerover", e => { const b = e.target.closest("[data-s]"); if (b && e.pointerType === "mouse") showTip(b); });
+$("structs").addEventListener("pointerleave", hideTip);
+$("structs").addEventListener("focusin", e => { const b = e.target.closest("[data-s]"); if (b) showTip(b); });
+$("structs").addEventListener("focusout", hideTip);
+$("structs").addEventListener("click", hideTip);
 $("ctl").addEventListener("click", e => {
   const s = e.target.closest("[data-speed]"); if (s){ setSpeed(+s.dataset.speed); document.querySelectorAll("[data-speed]").forEach(b => b.classList.toggle("on", b === s)); return; }
   const j = e.target.closest("[data-jump]"); if (j){ const [dd, tm] = j.dataset.jump.split(","); jumpTo(+dd, tm); }
