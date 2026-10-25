@@ -789,15 +789,15 @@ service cloud.firestore {
           || (request.resource.data.uids.toSet().difference(resource.data.uids.toSet()).hasOnly([request.resource.data.addUid])
             && get(/databases/$(database)/documents/desk_links/$(request.resource.data.addUid)).data.desk == deskId));
       allow delete: if request.auth != null && request.auth.uid in resource.data.uids;
-      // 시간표(data/main) · 날마다 할 일과 메모(days/{날짜}): 그 책상 주인만 (관리자도 못 봐요)
+      // 시간표(data/main) · 날마다 할 일과 메모(days/{날짜}) · 지난 시간표 기록(hist/{기록}): 그 책상 주인만 (관리자도 못 봐요)
       match /{sub}/{docId} {
-        allow read, write: if (sub == 'data' || sub == 'days') && deskMember(deskId);
+        allow read, write: if (sub == 'data' || sub == 'days' || sub == 'hist') && deskMember(deskId);
       }
-      // 📝 메모(notes/{메모}): 날짜와 상관없이 적어 두는 쪽지. 그 책상 주인만, 글은 5000자까지
+      // 📝 메모(notes/{메모}): 날짜와 상관없이 적어 두는 쪽지. 그 책상 주인만, 글은 5000자까지 (deleted = 휴지통)
       match /notes/{noteId} {
         allow read, delete: if deskMember(deskId);
         allow create, update: if deskMember(deskId)
-          && request.resource.data.keys().hasOnly(['t', 'title', 'color', 'pin', 'order', 'at', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['t', 'title', 'color', 'pin', 'order', 'at', 'createdAt', 'deleted', 'deletedAt'])
           && request.resource.data.get('t', '') is string && request.resource.data.get('t', '').size() <= 5000
           && request.resource.data.get('title', '') is string && request.resource.data.get('title', '').size() <= 60;
       }
@@ -805,7 +805,7 @@ service cloud.firestore {
       match /links/{linkId} {
         allow read, delete: if deskMember(deskId);
         allow create, update: if deskMember(deskId)
-          && request.resource.data.keys().hasOnly(['name', 'url', 'icon', 'order', 'at', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['name', 'url', 'icon', 'order', 'at', 'createdAt', 'deleted', 'deletedAt'])
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
           && request.resource.data.url is string && request.resource.data.url.size() <= 500 && request.resource.data.url.matches('^https?://.+')
           && request.resource.data.get('icon', '') is string && request.resource.data.get('icon', '').size() <= 8;
