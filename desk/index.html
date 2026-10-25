@@ -295,6 +295,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
           <tr><th>정보</th><th>쓰는 곳</th></tr>
           <tr><td>구글 로그인: 이메일 · 이름 · 프로필 사진 주소<br>카카오 로그인: 카카오 회원 번호 · 닉네임</td><td>로그인, 같은 사람인지 확인 (구글 · 카카오 연결)</td></tr>
           <tr><td>닉네임(예: 김쌤)과 영문 이름(예: KIMTR, 개인설정에서 바꿀 수 있음)</td><td>화면에 이름 보여 주기, 문의 답변</td></tr>
+          <tr><td>선생님이 넣은 메모 · 즐겨찾기(이름 · 주소)</td><td>내 화면에 보여 주기 (본인만 봐요)</td></tr>
           <tr><td>선생님이 넣은 것: 학교급 · 학년 수 · 반 수 · 담임 반, 종 시간 · 출퇴근 시각 · 시간표, 할 일 · 메모</td><td>게임 화면과 할 일 보여 주기</td></tr>
           <tr><td>[💬 관리자에게 묻기]에 쓴 글</td><td>문의 답변</td></tr>
           <tr><td>시간표 자료(사진 · PDF · 엑셀 · 캡처)와, 학교 전체 시간표일 때 적은 내 이름 — 선생님이 올릴 때만</td><td>AI가 시간표 칸을 읽어 표를 채워 주기. 읽은 뒤 바로 버리고 저장하지 않아요</td></tr>
@@ -3100,7 +3101,7 @@ async function mergeOther(kind, cred){
 // 책상 하나를 통째로 지워요 (할 일 · 메모 · 시간표 · 문의 → 마지막에 책상)
 async function wipeDesk(dbX, id){
   const refs = [];
-  for (const sub of ["days", "data"]) (await getDocs(collection(dbX, "desk_users", id, sub))).docs.forEach(d => refs.push(d.ref));
+  for (const sub of ["days", "data", "notes", "links"]) (await getDocs(collection(dbX, "desk_users", id, sub))).docs.forEach(d => refs.push(d.ref));   // 할 일 · 시간표 · 메모 · 즐겨찾기
   try { (await getDocs(collection(dbX, "desk_chats", id, "msgs"))).docs.forEach(d => refs.push(d.ref)); refs.push(doc(dbX, "desk_chats", id)); } catch (e) {}
   for (let i = 0; i < refs.length; i += 400){ const b = writeBatch(dbX); refs.slice(i, i + 400).forEach(r => b.delete(r)); await b.commit(); }
   await deleteDoc(doc(dbX, "desk_users", id));
@@ -3108,7 +3109,9 @@ async function wipeDesk(dbX, id){
 async function exportAll(){
   try {
     const days = (await getDocs(collection(db, "desk_users", deskId, "days"))).docs.map(d => ({ 날짜:d.id, 할일:(d.data().todos || []).map(t => (t.d ? "[완료] " : "[ ] ") + t.t), 메모:d.data().memo || "" }));
-    const blob = new Blob([JSON.stringify({ 이름:ME, 시간표:cfg, 할일과메모:days, 내려받은날:new Date().toLocaleString("ko-KR") }, null, 2)], { type:"application/json" });
+    const sub = async n => { try { return (await getDocs(collection(db, "desk_users", deskId, n))).docs.map(d => d.data()); } catch (e2){ return []; } };
+    const notes = (await sub("notes")).map(n => ({ 제목:n.title || "", 내용:n.t || "" })), links = (await sub("links")).map(l => ({ 이름:l.name, 주소:l.url }));
+    const blob = new Blob([JSON.stringify({ 이름:ME, 시간표:cfg, 할일과메모:days, 메모:notes, 즐겨찾기:links, 내려받은날:new Date().toLocaleString("ko-KR") }, null, 2)], { type:"application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `내책상-${dkey(new Date())}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   } catch (e){ say("내려받지 못했어요 (" + (e.code || e.message) + ")"); }
 }

@@ -791,6 +791,23 @@ service cloud.firestore {
       match /{sub}/{docId} {
         allow read, write: if (sub == 'data' || sub == 'days') && deskMember(deskId);
       }
+      // 📝 메모(notes/{메모}): 날짜와 상관없이 적어 두는 쪽지. 그 책상 주인만, 글은 5000자까지
+      match /notes/{noteId} {
+        allow read, delete: if deskMember(deskId);
+        allow create, update: if deskMember(deskId)
+          && request.resource.data.keys().hasOnly(['t', 'title', 'color', 'pin', 'order', 'at', 'createdAt'])
+          && request.resource.data.get('t', '') is string && request.resource.data.get('t', '').size() <= 5000
+          && request.resource.data.get('title', '') is string && request.resource.data.get('title', '').size() <= 60;
+      }
+      // ⭐ 즐겨찾기(links/{링크}): 이름 · 주소(http/https 만). 그 책상 주인만
+      match /links/{linkId} {
+        allow read, delete: if deskMember(deskId);
+        allow create, update: if deskMember(deskId)
+          && request.resource.data.keys().hasOnly(['name', 'url', 'icon', 'order', 'at', 'createdAt'])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+          && request.resource.data.url is string && request.resource.data.url.size() <= 500 && request.resource.data.url.matches('^https?://.+')
+          && request.resource.data.get('icon', '') is string && request.resource.data.get('icon', '').size() <= 8;
+      }
     }
     // desk_links/{로그인}: '이 로그인은 이 책상' 표시 — 그 로그인 본인만 읽고 써요
     match /desk_links/{uid} {
