@@ -94,8 +94,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .todo li.done{color:var(--muted);text-decoration:line-through}
 .todo li.done i{background:var(--ok);border-color:var(--ok)}
 .tag2{font-family:var(--ui);font-size:10px;padding:1px 6px;border-radius:999px;background:color-mix(in srgb,var(--muted) 30%,transparent);color:var(--ink)}
-.desc{font-size:13px;line-height:1.4;color:var(--muted);min-height:1.4em}
-.desc b{color:var(--accent);font-weight:400}
+/* 시안 단추에 마우스를 올리면 뜨는 메모 (짧은 소개) */
+.tipnote{position:fixed;z-index:30;max-width:240px;padding:8px 11px 9px;background:#FFF3A6;color:#2A2416;font:13px/1.45 'Noto Sans KR','Malgun Gothic',sans-serif;border-top:6px solid #F2D45C;box-shadow:2px 3px 0 rgba(0,0,0,.35);transform:rotate(-1deg);pointer-events:none;word-break:keep-all}
 @media (max-width:900px){
   body{overflow:auto} .app{height:auto}
   .main,.main[data-l]{grid-template-columns:1fr;grid-template-rows:auto auto;grid-template-areas:"map" "side"}
@@ -127,7 +127,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
   <header class="top box">
     <div class="picks" id="structs"></div>
     <div class="row">
-      <div class="logo">MOONTR TYCOON<small>문쌤의 하루 · 구조 시안</small></div>
+      <div class="logo">MOONTR TYCOON<small>문쌤의 하루</small></div>
       <div class="stat"><span>DATE</span><b id="sDate">--</b></div>
       <div class="stat"><span>TIME</span><b class="y" id="sTime">--:--</b></div>
       <div class="stat"><span>지금</span><b class="k" id="sSlot">--</b></div>
@@ -140,7 +140,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
       <span class="lab">색</span>
       <div class="row" style="gap:5px" id="pal"><button class="btn on" data-v="a">NEON 1</button><button class="btn" data-v="n2">NEON 2</button><button class="btn" data-v="b">COZY 1</button></div>
     </div>
-    <div class="desc" id="desc"></div>
+    <div class="tipnote" id="tipnote" role="tooltip" hidden></div>
   </header>
   <div class="main" id="main" data-l="side">
     <section class="mapcol" id="mapcol">
@@ -2330,11 +2330,39 @@ function pick(k){
   if (!okIdx(k)) k = TOP[0] - 1;
   SI = k; resetWalk(); STRUCTS[k].reset?.();
   document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", +b.dataset.s === k));
-  $("main").dataset.l = STRUCTS[k].layout; $("desc").innerHTML = `${rankOf(k)}. ${STRUCTS[k].who ? `<b>추천: ${STRUCTS[k].who}</b> · ` : ""}${STRUCTS[k].desc}`;
+  $("main").dataset.l = STRUCTS[k].layout;
   requestAnimationFrame(fit);
   try { localStorage.setItem("tycoon-struct", k); } catch (e) {}
 }
 $("structs").addEventListener("click", e => { const b = e.target.closest("[data-s]"); if (b) pick(+b.dataset.s); });
+// 시안 단추에 마우스를 올리면(또는 Tab 으로 가면) 메모처럼 짧은 소개가 떠요. 원래 시안 번호 → 한 줄
+const TIPS = {
+  1:"학교 건물을 앞에서 잘라 본 모습. 층을 오르내리며 교실로 가요",
+  5:"부루마불 판. 시간표대로 말이 교실 칸을 따라 폴짝 이동해요",
+  6:"하루가 옆으로 흘러가는 거리. 아래 시간 자에 교시가 보여요",
+  7:"교실마다 달린 카메라. 지금 있는 곳을 큰 화면에 비춰요",
+  8:"내 캐릭터를 따라가는 RPG 카메라와 미니맵 · 다음 수업 퀘스트",
+  9:"하루를 둥근 시계판으로. 가운데 창에 지금 있는 방이 보여요",
+  10:"스프링 위클리 플래너에 한 주 수업, 왼쪽엔 오늘 카드와 메모",
+  11:"옛날 컴퓨터 바탕화면. 그림판 · 시간표 엑셀 · 메모장",
+  12:"손글씨 교무수첩. 오늘 일정 · 이번 주 표 · 할 일 포스트잇",
+  15:"잔잔한 로파이 내 자리. 창밖 하늘이 시간 따라 바뀌어요",
+  18:"스마트폰 위젯처럼 깔끔하게. 시계 · 남은 시간 · 다음 수업",
+  20:"옛 터미널 글자 게임. @(나)가 학교 지도를 돌아다녀요",
+  21:"어두운 유리 대시보드에 3D 학교. 지금 있는 방이 빛나요"
+};
+function showTip(b){
+  const t = TIPS[+b.dataset.s + 1], el = $("tipnote"); if (!t) return;
+  el.textContent = t; el.hidden = false;
+  const r = b.getBoundingClientRect(), w = el.offsetWidth;
+  el.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width/2 - w/2)) + "px"; el.style.top = (r.bottom + 8) + "px";
+}
+const hideTip = () => { $("tipnote").hidden = true; };
+$("structs").addEventListener("pointerover", e => { const b = e.target.closest("[data-s]"); if (b && e.pointerType === "mouse") showTip(b); });
+$("structs").addEventListener("pointerleave", hideTip);
+$("structs").addEventListener("focusin", e => { const b = e.target.closest("[data-s]"); if (b) showTip(b); });
+$("structs").addEventListener("focusout", hideTip);
+$("structs").addEventListener("click", hideTip);
 $("ctl").addEventListener("click", e => {
   const s = e.target.closest("[data-speed]"); if (s){ setSpeed(+s.dataset.speed); document.querySelectorAll("[data-speed]").forEach(b => b.classList.toggle("on", b === s)); return; }
   const j = e.target.closest("[data-jump]"); if (j){ const [dd, tm] = j.dataset.jump.split(","); jumpTo(+dd, tm); }
