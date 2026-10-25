@@ -1,0 +1,2466 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>선생님 책상 · 내 시간표가 게임 화면으로 | moontr.site/desk</title>
+<meta name="description" content="내 시간표를 넣으면 하루가 게임 화면으로 움직여요. 날마다 할 일 · 메모도 함께. 전국 선생님 누구나 구글 · 카카오로 무료로 써요.">
+<meta property="og:title" content="선생님 책상 · MOONTR DESK">
+<meta property="og:description" content="내 시간표가 게임 화면으로 움직여요. 할 일 · 메모도 함께.">
+<meta property="og:url" content="https://moontr.site/desk/">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Jua&family=Press+Start+2P&family=Nanum+Pen+Script&family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&family=Noto+Sans+KR:wght@300;500;700&display=swap">
+<style>
+/* 선생님 책상: 문쌤 타이쿤(/tycoon) 화면을 모든 선생님이 자기 시간표로 쓰게 만든 것. 색 A(네온) · B(따뜻한 타이쿤) */
+:root{
+  --bg:#07070C; --ink:#EDEDF5; --muted:#8C8CA6; --panel:#0B0B12; --line:#2A2A3A;
+  --accent:#FFD400; --accent2:#2FE3F0; --hi:#FF5FAE; --ok:#5BEA6F;
+  --ui:'Do Hyeon','Malgun Gothic',sans-serif; --num:'Press Start 2P',monospace; --body:'Noto Sans KR','Malgun Gothic',sans-serif;
+  --box-b:2px solid var(--line); --box-r:0; --box-sh:0 0 0 1px #000, 0 0 14px rgba(47,227,240,.12);
+  --h-ink:var(--accent2); --on-ink:#16131A; --field:#14141E;
+  color-scheme:dark;
+}
+:root[data-v="b"]{
+  --bg:#3E5A3A; --ink:#3B2A1C; --muted:#8A7058; --panel:#FFF4DE; --line:#6B4A2E;
+  --accent:#E8743B; --accent2:#3C8C6E; --hi:#E24C6A; --ok:#3C8C6E;
+  --ui:'Jua','Malgun Gothic',sans-serif;
+  --box-b:3px solid #6B4A2E; --box-r:6px; --box-sh:inset 0 -4px 0 #EAD3AE, 0 4px 0 #2A3A27;
+  --h-ink:#B5532A; --on-ink:#FFF4DE; --field:#FFFBF0; color-scheme:light;
+}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:8px;padding-block:8px;box-sizing:border-box;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.box{background:var(--panel);border:var(--box-b);border-radius:var(--box-r);box-shadow:var(--box-sh)}
+.top{display:flex;flex-direction:column;gap:6px;padding:7px 10px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{font-family:var(--num);font-size:12px;color:var(--accent);white-space:nowrap}
+.logo small{display:block;font-family:var(--ui);font-size:13px;color:var(--muted);margin-top:3px}
+.stat{display:flex;flex-direction:column;gap:2px;padding:0 10px;border-left:2px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.stat span{font-size:11px;color:var(--muted)}
+.stat b{font-family:var(--num);font-size:12px;font-weight:400;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stat b.k{font-family:var(--ui);font-size:16px}
+.stat b.y{color:var(--accent)}
+.sp{flex:1}
+.lab{font-size:12px;color:var(--muted)}
+.btn{font-family:var(--ui);font-size:13px;color:var(--ink);background:transparent;border:2px solid color-mix(in srgb,var(--ink) 30%,transparent);border-radius:var(--box-r);padding:3px 8px;cursor:pointer;white-space:nowrap;position:relative}
+.btn:hover{border-color:var(--accent)}
+.btn.on{background:var(--accent);border-color:var(--accent);color:var(--on-ink)}
+.btn:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+.btn b{font-family:var(--num);font-size:9px;font-weight:400;margin-right:5px}
+.btn:disabled{opacity:.45;cursor:default}
+.tools{display:flex;gap:6px;flex-wrap:wrap;padding-right:34px}   /* 오른쪽은 새로고침 단추 자리 */
+.tools .btn{font-size:14px;padding:5px 10px}
+.dot{position:absolute;top:-5px;right:-5px;width:10px;height:10px;border-radius:50%;background:var(--hi);box-shadow:0 0 0 2px var(--panel)}
+/* 본문: 왼쪽 게임 화면 · 오른쪽 NOW · TODAY · 할 일 */
+.main{position:relative;display:grid;gap:8px;min-height:0;grid-template-columns:minmax(0,1fr) 280px;grid-template-areas:"map side"}
+.mapcol{grid-area:map;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+.frame{position:relative;line-height:0}
+.frame canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
+.side{grid-area:side;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto}
+.card{padding:8px 10px}
+.card h3{margin:0 0 6px;font-family:var(--num);font-size:9px;font-weight:400;color:var(--h-ink);display:flex;justify-content:space-between;align-items:center;gap:6px}
+.card h3 em{font-family:var(--ui);font-style:normal;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.where{font-size:21px;line-height:1.2}
+.act{font-size:14px;color:var(--muted)}
+.bar{height:9px;margin:7px 0 5px;background:color-mix(in srgb,var(--ink) 15%,transparent);border:2px solid color-mix(in srgb,var(--ink) 35%,transparent)}
+.bar i{display:block;height:100%;background:repeating-linear-gradient(90deg,var(--accent) 0 6px,color-mix(in srgb,var(--accent) 70%,#000) 6px 8px)}
+.nx{font-size:13px}
+.nx b{color:var(--accent);font-weight:400}
+.tt{display:grid;grid-template-columns:auto 1fr auto;gap:2px 7px;font-size:13px;align-items:center}
+.tt .p{font-family:var(--num);font-size:8px;color:var(--muted);white-space:nowrap}
+.tt .t{font-size:11px;color:var(--muted)}
+.tt .cur{color:var(--accent)}
+.tt .free{color:var(--muted)}
+.chip{display:inline-block;padding:0 5px;border:1.5px solid currentColor;border-radius:var(--box-r);font-size:12px;white-space:nowrap}
+.chip.hr{color:var(--hi)}
+.desc{font-size:13px;line-height:1.4;color:var(--muted);min-height:1.4em}
+.desc b{color:var(--accent);font-weight:400}
+/* 할 일 · 메모 */
+.todo{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:14px}
+.todo li{display:flex;gap:6px;align-items:center;min-height:30px}
+.todo label{flex:1;display:flex;gap:7px;align-items:center;cursor:pointer;min-width:0;word-break:break-all}
+.todo input[type=checkbox]{appearance:none;width:15px;height:15px;border:2px solid currentColor;flex:none;margin:0;cursor:pointer;border-radius:var(--box-r)}
+.todo input[type=checkbox]:checked{background:var(--ok);border-color:var(--ok)}
+.todo li.done label{color:var(--muted);text-decoration:line-through}
+.todo .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;min-width:30px;min-height:30px}
+.todo .x:hover{color:var(--hi)}
+.todo .none{color:var(--muted);font-size:13px}
+.addrow{display:flex;gap:5px;margin-top:6px}
+.addrow input,.memo textarea,.f input,.f select,.f textarea{font:15px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:6px 8px;box-sizing:border-box;min-width:0}
+.addrow input{flex:1}
+.memo{margin-top:6px}
+.memo summary{cursor:pointer;font-size:13px;color:var(--muted)}
+.memo textarea{width:100%;min-height:90px;margin-top:5px;resize:vertical}
+.saved{display:block;font-size:11px;color:var(--muted);min-height:1.2em;margin-top:3px}
+.ibtn{border:0;background:none;color:var(--muted);font:inherit;cursor:pointer;min-width:26px;min-height:26px}
+.ibtn:hover{color:var(--accent)}
+/* 맨 위 시안 고르기 단추 12개 */
+.picks{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px}
+.picks .btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;white-space:normal;line-height:1.15;font-size:12px;word-break:keep-all}
+.picks .btn b{margin:0;font-size:10px}
+@media (max-width:900px){
+  body{overflow:auto} .app{height:auto}
+  .main{grid-template-columns:1fr;grid-template-rows:auto auto;grid-template-areas:"map" "side"}
+  .picks{grid-template-columns:repeat(6,minmax(0,1fr))}
+}
+@media (max-width:480px){ .picks{grid-template-columns:repeat(4,minmax(0,1fr))} .stat{padding:0 6px} .tools .btn{font-size:13px;padding:5px 8px} }
+/* 이용약관 · 개인정보 처리방침 */
+.policy-foot{font-size:11px;line-height:1.6;color:var(--muted);word-break:keep-all;text-align:center}
+.policy-foot summary{cursor:pointer;list-style:none;opacity:.85}
+.policy-foot summary::-webkit-details-marker{display:none}
+.policy-foot summary:hover{text-decoration:underline}
+.policy-foot .pol{max-width:760px;max-height:50vh;overflow:auto;margin:6px auto 0;padding:10px 14px;text-align:left;background:var(--panel);border:var(--box-b);border-radius:var(--box-r);font-family:var(--body);font-size:12px}
+.policy-foot h4{margin:10px 0 2px;font-size:13px;font-family:var(--ui);font-weight:400;color:var(--accent)}
+.policy-foot h5{margin:8px 0 2px;font-size:12px}
+.policy-foot ul{margin:4px 0;padding-left:1.2em}
+.policy-foot table{border-collapse:collapse;margin:4px 0;font-size:11px}
+.policy-foot td,.policy-foot th{border:1px solid var(--line);padding:3px 6px;text-align:left;vertical-align:top}
+.policy-foot p{margin:4px 0}
+.policy-foot .small{opacity:.7}
+/* 관리자 단추 (오른쪽 아래, 작게) */
+.admin-fab{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:9;padding:.3rem .8rem;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:12px var(--ui);cursor:pointer;opacity:.45}
+.admin-fab:hover,.admin-fab:focus-visible{opacity:1}
+/* 체험 중 띠 (위쪽 정보 막대 맨 위) */
+.demo-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 10px;margin-right:34px;background:var(--accent);color:var(--on-ink);font-size:14px;border-radius:var(--box-r)}
+.demo-bar span{flex:1}
+.demo-bar .btn{border-color:var(--on-ink);color:var(--on-ink)}
+/* 창 (로그인 · 시간표 · 문의 · 설정 · 관리자) */
+.sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(4,4,12,.72)}
+.sheet .pane{width:min(560px,100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;overflow:hidden}
+.sheet .pane.wide{width:min(980px,100%)}
+.pane > header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:var(--box-b)}
+.pane > header h2{margin:0;flex:1;font:400 20px var(--ui);color:var(--accent)}
+.pane .body{padding:12px 14px;overflow:auto;font-family:var(--body);font-size:14px;line-height:1.55}
+.pane .foot{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap;padding:10px 12px;border-top:var(--box-b)}
+.pane .foot .msg{flex:1;font-size:13px;color:var(--muted);font-family:var(--body)}
+.close{min-width:40px;min-height:40px;border:2px solid color-mix(in srgb,var(--ink) 30%,transparent);border-radius:var(--box-r);background:transparent;color:var(--ink);font-size:16px;cursor:pointer}
+.big{font:16px var(--ui);padding:10px 18px;border-radius:var(--box-r);border:2px solid var(--accent);background:var(--accent);color:var(--on-ink);cursor:pointer;min-height:44px}
+.big.ghost{background:transparent;color:var(--ink);border-color:color-mix(in srgb,var(--ink) 35%,transparent)}
+.big.kakao{background:#FEE500;border-color:#FEE500;color:#191919}
+.big.google{background:#fff;border-color:#fff;color:#1F1F1F}
+.big:disabled{opacity:.5;cursor:default}
+.err{color:var(--hi);font-size:13px;min-height:1.2em;margin:6px 0 0}
+.note{color:var(--muted);font-size:13px;margin:6px 0}
+.f{display:grid;gap:4px;margin-bottom:10px}
+.f > span{font-size:13px;color:var(--muted)}
+.f2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.sec{margin:16px 0 6px;font:400 17px var(--ui);color:var(--accent2)}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{font:14px var(--body);padding:6px 12px;border:2px solid var(--line);background:var(--field);color:var(--ink);border-radius:var(--box-r);cursor:pointer}
+.seg button.on{border-color:var(--accent);background:var(--accent);color:var(--on-ink)}
+.bellrow{display:flex;gap:5px;align-items:center;margin-bottom:5px;flex-wrap:wrap}
+.bellrow select{width:6.5em}
+.bellrow input[type=time]{width:7.4em}
+.bellrow .num{width:3.6em;font-size:13px;color:var(--muted)}
+.wk{overflow-x:auto;margin:0 -2px}
+.wk table{border-collapse:collapse;min-width:520px;width:100%}
+.wk th,.wk td{border:1px solid var(--line);padding:3px;font-size:13px;text-align:center}
+.wk th{color:var(--muted);font-weight:400;white-space:nowrap}
+.wk input{width:100%;padding:5px 4px;font-size:14px;text-align:center}
+.wk td.hr input{border-color:var(--hi)}
+.login-hero{text-align:center}
+.login-hero h1{margin:6px 0 4px;font:400 26px var(--ui);color:var(--accent)}
+.login-hero .logo{font-size:13px}
+.login-btns{display:grid;gap:8px;margin:16px auto 6px;max-width:320px}
+.acct{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.acct b{flex:1;font-weight:400}
+.ok{color:var(--ok)}
+/* 문의 (채팅) */
+.chat{display:flex;flex-direction:column;gap:6px;min-height:200px}
+.cm{max-width:80%;padding:7px 10px;border:2px solid var(--line);border-radius:var(--box-r);white-space:pre-wrap;word-break:break-word}
+.cm.me{align-self:flex-end;border-color:var(--accent)}
+.cm.admin{align-self:flex-start;border-color:var(--accent2)}
+.cm small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+@media (max-width:700px){ .sheet{padding-top:58px;align-items:flex-start} .sheet .pane{max-height:calc(100dvh - 74px)} }   /* 휴대폰: 위쪽 새로고침 단추 아래로 */
+.chatin{display:flex;gap:6px;width:100%}
+.chatin textarea{flex:1;font:15px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:6px 8px;min-height:44px;max-height:120px;resize:vertical}
+/* 관리자 화면 */
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.kpi div{border:var(--box-b);padding:8px;text-align:center;font-size:12px;color:var(--muted)}
+.kpi b{display:block;font:400 24px var(--ui);color:var(--accent)}
+.alist{display:flex;flex-direction:column}
+.alist button{display:flex;gap:8px;align-items:center;text-align:left;padding:9px 6px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);font:14px var(--body);cursor:pointer}
+.alist button:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.alist .nm{flex:1;min-width:0}
+.alist small{color:var(--muted)}
+.alist .wait{color:var(--hi);font-size:12px}
+.agrid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,1.6fr);gap:12px}
+@media (max-width:700px){ .agrid{grid-template-columns:1fr} }
+</style>
+</head><body>
+
+<div class="app">
+  <header class="top box">
+    <div class="demo-bar" id="demoBar" hidden><span>체험 중 · 예시 선생님이라 저장되지 않아요</span><button type="button" class="btn" id="demoStart">로그인하고 시작</button></div>
+    <div class="row">
+      <div class="logo">MOONTR DESK<small id="whoName">선생님의 하루</small></div>
+      <div class="stat"><span>DATE</span><b id="sDate">--</b></div>
+      <div class="stat"><span>TIME</span><b class="y" id="sTime">--:--</b></div>
+      <div class="stat"><span>지금</span><b class="k" id="sSlot">--</b></div>
+      <div class="sp"></div>
+      <div class="tools">
+        <button type="button" class="btn" id="bEdit">✏️ 내 시간표</button>
+        <button type="button" class="btn" id="bChat">💬 관리자에게 묻기<i class="dot" id="chatDot" hidden></i></button>
+        <button type="button" class="btn" id="bSet">⚙️ 설정</button>
+      </div>
+    </div>
+    <div class="picks" id="structs"></div>
+    <div class="row">
+      <span class="lab">미리보기 시간</span>
+      <div class="row" style="gap:5px" id="ctl">
+        <button type="button" class="btn on" data-speed="1">실시간</button><button type="button" class="btn" data-speed="60">×60</button><button type="button" class="btn" data-speed="600">×600</button>
+        <span class="row" style="gap:5px" id="jumps"></span>
+      </div>
+      <span class="lab">색</span>
+      <div class="row" style="gap:5px" id="pal"><button type="button" class="btn on" data-v="a">NEON 1</button><button type="button" class="btn" data-v="n2">NEON 2</button><button type="button" class="btn" data-v="b">COZY 1</button><button type="button" class="btn" data-v="c2">COZY 2</button></div>
+    </div>
+    <div class="desc" id="desc"></div>
+  </header>
+  <div class="main" id="main">
+    <section class="mapcol" id="mapcol">
+      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas></div>
+    </section>
+    <aside class="side">
+      <div class="card box">
+        <h3>NOW <em id="nTag"></em></h3>
+        <div class="where" id="nWhere">--</div><div class="act" id="nAct">--</div>
+        <div class="bar"><i id="nBar" style="width:0%"></i></div><div class="nx" id="nNext">--</div>
+      </div>
+      <div class="card box"><h3>TODAY <em id="tDay"></em></h3><div class="tt" id="tt"></div></div>
+      <div class="card box" id="todoCard">
+        <h3>TO DO <em><button type="button" class="ibtn" id="dPrev" aria-label="전날">‹</button><span id="dDay">오늘</span><button type="button" class="ibtn" id="dNext" aria-label="다음 날">›</button></em></h3>
+        <ul class="todo" id="todo"></ul>
+        <form class="addrow" id="todoAdd"><input id="todoIn" maxlength="60" placeholder="할 일 적고 Enter" aria-label="할 일 더하기" autocomplete="off"><button type="submit" class="btn">더하기</button></form>
+        <details class="memo" id="memoBox"><summary>📝 이날 메모</summary><textarea id="memo" maxlength="3000" placeholder="자유롭게 적어 두세요 (학생 이름 · 연락처 같은 개인정보는 적지 말아 주세요)"></textarea></details>
+        <span class="saved" id="saved"></span>
+      </div>
+    </aside>
+  </div>
+  <footer class="policy-foot">
+    <details id="policy">
+      <summary>선생님 책상 · <b>이용약관</b> · <b>개인정보 처리방침</b></summary>
+      <div class="pol">
+        <h4>이용약관</h4>
+        <h5>1. 어떤 서비스인가요</h5>
+        <ul><li>선생님이 직접 넣은 종 시간과 시간표를 게임 화면으로 보여 주고, 날마다 할 일 · 메모를 적을 수 있는 무료 웹앱이에요.</li>
+          <li>moontr.site 를 운영하는 현직 교사(문쌤)가 개인적으로 만들어 운영해요. 학교나 교육청의 공식 서비스가 아니에요.</li></ul>
+        <h5>2. 계정</h5>
+        <ul><li>구글 또는 카카오 계정으로 로그인해요. 둘 다 연결해 두면 어느 쪽으로 들어와도 같은 책상이 열려요.</li>
+          <li>로그인한 기기를 다른 사람과 함께 쓴다면 다 쓴 뒤 [⚙️ 설정 → 로그아웃]을 눌러 주세요.</li></ul>
+        <h5>3. 지켜 주세요</h5>
+        <ul><li><b>학생 개인정보를 적지 마세요.</b> 학생 이름 · 연락처 · 성적 · 상담 · 건강 같은 내용은 시간표 · 할 일 · 메모 · 문의에 적지 않아요. 반은 '1-3'처럼만 적어 주세요.</li>
+          <li>다른 사람 계정으로 들어가거나, 서비스를 일부러 느리게 하거나 망가뜨리는 행동은 하지 않아요. 이런 경우 이용을 멈출 수 있어요.</li></ul>
+        <h5>4. 내가 적은 기록</h5>
+        <ul><li>시간표 · 할 일 · 메모는 적은 선생님의 것이에요. 언제든 고치고, [⚙️ 설정 → 내 기록 내려받기]로 파일로 받고, [내 책상 지우기]로 모두 지울 수 있어요.</li></ul>
+        <h5>5. 서비스가 바뀌거나 멈출 때</h5>
+        <ul><li>무료로 제공하며 기능은 더 좋게 바뀔 수 있어요. 점검이나 사정으로 잠시 멈출 수 있어요.</li>
+          <li>서비스를 끝내야 할 때는 30일 전에 이 화면에 알리고, 그동안 기록을 내려받을 수 있게 해요.</li></ul>
+        <h5>6. 책임의 범위</h5>
+        <ul><li>화면의 시각 · '지금 할 일'은 선생님이 넣은 시간표로 계산한 참고용이에요. 실제 일정은 학교 안내를 따라 주세요.</li>
+          <li>운영자의 고의나 중대한 잘못이 없는 한, 인터넷 · 서버 장애나 기록 손실로 생긴 손해는 책임지기 어려워요. 중요한 내용은 따로도 적어 두세요.</li></ul>
+        <h5>7. 문의</h5>
+        <ul><li>화면 위 [💬 관리자에게 묻기] 또는 메일 anstjsdud@sen.go.kr 로 알려 주세요.</li></ul>
+
+        <h4>개인정보 처리방침</h4>
+        <h5>1. 받는 정보와 쓰는 곳</h5>
+        <table>
+          <tr><th>정보</th><th>쓰는 곳</th></tr>
+          <tr><td>구글 로그인: 이메일 · 이름 · 프로필 사진 주소<br>카카오 로그인: 카카오 회원 번호 · 닉네임</td><td>로그인, 같은 사람인지 확인 (구글 · 카카오 연결)</td></tr>
+          <tr><td>선생님이 넣은 것: 부를 이름(예: 김쌤), 학교급 · 학년 수 · 반 수 · 담임 반, 종 시간 · 출퇴근 시각 · 시간표, 할 일 · 메모</td><td>게임 화면과 할 일 보여 주기</td></tr>
+          <tr><td>[💬 관리자에게 묻기]에 쓴 글</td><td>문의 답변</td></tr>
+          <tr><td>가입일 · 마지막 접속일 · 연결한 로그인 종류(구글/카카오)</td><td>이용 현황 확인</td></tr>
+          <tr><td>방문 수 (오늘 · 누적 횟수, 기기는 이름 없는 무작위 번호로만 구분)</td><td>몇 명이 쓰는지 확인</td></tr>
+        </table>
+        <ul><li>학교 이름 · 전화번호 · 주소는 받지 않아요.</li>
+          <li>고른 화면 모양 · 색은 이 기기 브라우저에만 저장돼요.</li></ul>
+        <h5>2. 운영자가 볼 수 있는 것</h5>
+        <ul><li>운영자 화면에는 부를 이름 · 가입일 · 마지막 접속일 · 로그인 종류 · 문의 대화만 보여요.</li>
+          <li>시간표 · 할 일 · 메모는 보안 규칙으로 <b>그 선생님 본인만</b> 읽고 쓸 수 있어요. 서버 장애 복구처럼 꼭 필요한 때가 아니면 운영자도 열어 보지 않아요.</li></ul>
+        <h5>3. 보관 기간</h5>
+        <ul><li>[⚙️ 설정 → 내 책상 지우기]를 누르면 시간표 · 할 일 · 메모 · 문의가 바로 지워지고 로그인 기록도 지워요.</li>
+          <li>지우지 않으면 서비스를 끝낼 때까지 보관하고, 서비스를 끝내면 모두 지워요.</li></ul>
+        <h5>4. 맡기는 곳 · 국외 이전</h5>
+        <table>
+          <tr><th>받는 곳</th><th>하는 일</th><th>나라 · 방법</th></tr>
+          <tr><td>Google LLC (Firebase)</td><td>로그인 처리 · 기록 저장</td><td>미국 등 구글 서버, 쓸 때마다 인터넷으로 암호화해 보냄. 내 책상을 지울 때까지 보관</td></tr>
+          <tr><td>(주)카카오</td><td>카카오 로그인 확인</td><td>대한민국, 로그인할 때</td></tr>
+        </table>
+        <ul><li>위 경우 말고는 다른 곳에 주거나 팔지 않고, 광고에 쓰지 않아요.</li></ul>
+        <h5>5. 선생님의 권리</h5>
+        <ul><li>내 정보를 보고 · 고치고 · 내려받고 · 지우는 일을 화면에서 직접 할 수 있어요. 어려우면 문의로 요청해 주세요.</li>
+          <li>선생님용 서비스라 만 14세 미만은 가입할 수 없어요.</li></ul>
+        <h5>6. 안전하게 지키는 방법</h5>
+        <ul><li>모든 연결은 https 로 암호화하고, 기록은 본인 계정으로만 읽고 쓰게 막아 두었어요.</li></ul>
+        <h5>7. 개인정보 보호 책임자</h5>
+        <ul><li>운영자 문쌤 (moontr.site) · anstjsdud@sen.go.kr</li></ul>
+        <p class="small">시행일 2026년 10월 25일 · 바뀌면 이 화면에 먼저 알려요. 법률 전문가의 검토를 받은 문서는 아니에요. 고칠 점이 있으면 알려 주세요.</p>
+      </div>
+    </details>
+  </footer>
+</div>
+
+<button type="button" class="admin-fab" id="adminFab">관리자</button>
+
+<!-- 시작 (로그인) -->
+<div class="sheet" id="shLogin" hidden>
+  <div class="pane box" role="dialog" aria-modal="true" aria-labelledby="lgTitle">
+    <div class="body login-hero">
+      <div class="logo">MOONTR DESK</div>
+      <h1 id="lgTitle">선생님 책상</h1>
+      <p style="margin:4px 0">내 시간표를 넣으면 하루가 <b>게임 화면</b>으로 움직여요.<br>날마다 할 일 · 메모도 여기에.</p>
+      <div class="login-btns">
+        <button type="button" class="big google" id="gIn">G&nbsp; 구글로 시작하기</button>
+        <button type="button" class="big kakao" id="kIn">💬&nbsp; 카카오로 시작하기</button>
+        <button type="button" class="big ghost" id="demoIn">먼저 둘러보기</button>
+      </div>
+      <p class="err" id="lgErr" role="alert"></p>
+      <p class="note">시작하면 아래 <a href="#policy" id="lgPolicy" style="color:inherit">이용약관 · 개인정보 처리방침</a>에 동의하는 것으로 봐요.<br>구글로 시작했다가 나중에 카카오도 연결할 수 있어요 (한 책상으로).</p>
+    </div>
+  </div>
+</div>
+
+<!-- 내 시간표 (처음엔 책상 만들기) -->
+<div class="sheet" id="shEdit" hidden>
+  <div class="pane box wide" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+    <header><h2 id="edTitle">✏️ 내 시간표</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+    <div class="body" id="edBody"></div>
+    <div class="foot"><span class="msg" id="edMsg"></span><button type="button" class="big ghost" data-close id="edCancel">닫기</button><button type="button" class="big" id="edSave">저장</button></div>
+  </div>
+</div>
+
+<!-- 관리자에게 묻기 -->
+<div class="sheet" id="shChat" hidden>
+  <div class="pane box" role="dialog" aria-modal="true" aria-labelledby="chTitle">
+    <header><h2 id="chTitle">💬 관리자에게 묻기</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+    <div class="body"><p class="note">쓰다가 불편한 점 · 고장 · 바라는 기능을 편하게 남겨 주세요. 답이 오면 위 단추에 분홍 점이 떠요.</p><div class="chat" id="chatList"></div></div>
+    <div class="foot"><form class="chatin" id="chatForm"><textarea id="chatIn" maxlength="1000" placeholder="여기에 쓰고 [보내기] (학생 개인정보는 적지 말아 주세요)" aria-label="보낼 말"></textarea><button type="submit" class="big">보내기</button></form></div>
+  </div>
+</div>
+
+<!-- 설정 -->
+<div class="sheet" id="shSet" hidden>
+  <div class="pane box" role="dialog" aria-modal="true" aria-labelledby="stTitle">
+    <header><h2 id="stTitle">⚙️ 설정</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+    <div class="body" id="setBody"></div>
+  </div>
+</div>
+
+<!-- 관리자 화면 (주소 끝 ?admin) -->
+<div class="sheet" id="shAdmin" hidden>
+  <div class="pane box wide" role="dialog" aria-modal="true" aria-labelledby="adTitle" style="height:calc(100dvh - 32px)">
+    <header><h2 id="adTitle">🛠 선생님 책상 관리자</h2><a class="btn" href="./">책상으로</a></header>
+    <div class="body" id="adBody"></div>
+  </div>
+</div>
+
+<script>
+/* ===================== 선생님 설정 (로그인하면 내 것으로 바뀌어요) ===================== */
+// 학교급마다 처음 넣어 주는 종 시간 (시간표 창에서 얼마든지 고칠 수 있어요). k = 조회 · 수업 · 점심 · 종례
+const PRESET = {
+  high:{ name:"고등학교", grades:3, inT:"07:50", outT:"16:50", bell:[["조회","08:20","08:40"],["수업","08:40","09:30"],["수업","09:40","10:30"],["수업","10:40","11:30"],["수업","11:40","12:30"],["점심","12:30","13:30"],["수업","13:30","14:20"],["수업","14:30","15:20"],["수업","15:30","16:20"],["종례","16:20","16:35"]] },
+  mid:{ name:"중학교", grades:3, inT:"08:00", outT:"16:30", bell:[["조회","08:30","08:50"],["수업","08:50","09:35"],["수업","09:45","10:30"],["수업","10:40","11:25"],["수업","11:35","12:20"],["점심","12:20","13:10"],["수업","13:10","13:55"],["수업","14:05","14:50"],["수업","15:00","15:45"],["종례","15:45","16:00"]] },
+  elem:{ name:"초등학교", grades:6, inT:"08:20", outT:"16:40", bell:[["조회","08:40","09:00"],["수업","09:00","09:40"],["수업","09:50","10:30"],["수업","10:40","11:20"],["수업","11:30","12:10"],["점심","12:10","13:00"],["수업","13:00","13:40"],["수업","13:50","14:30"],["종례","14:30","14:40"]] }
+};
+const bellOf = lv => PRESET[lv].bell.map(([k, s, e]) => ({ k, s, e }));
+// 둘러보기(로그인 전)에 보여 주는 예시 선생님
+const DEMO_CFG = { name:"김쌤", level:"high", grades:3, classes:10, hr:"1-3", inT:"07:50", outT:"16:50", bell:bellOf("high"),
+  week:{ 1:{1:"1-1",3:"1-3",4:"2-2",6:"1-5"}, 2:{2:"1-2",3:"1-4",5:"과학실"}, 3:{1:"1-6",4:"1-7",6:"2-3"}, 4:{2:"2-1",3:"1-1",5:"1-3"}, 5:{1:"1-5",3:"1-2",6:"과학실"} } };
+let CFG = null, ME = "선생님", HR = "", NGR = 3, NCLS = 10, IN_T = "07:50", OUT_T = "16:50";
+let BELL = [], TT = {}, TAUGHT = new Set(), FLOORS = [1, 2, 3], FLOORS2 = [1, 3], SPECIAL = [], ROOMS = [];
+let TODOS = [];   // 오늘 할 일 [{ t:"글", d:true }] — 오른쪽 TO DO 칸에서 적어요
+const DAYS = ["일","월","화","수","목","금","토"];
+const mm = s => { const [h, m] = String(s).split(":").map(Number); return h*60 + m; };
+const hhmm = m => String(Math.floor(m/60)).padStart(2,"0") + ":" + String(Math.floor(m%60)).padStart(2,"0");
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const isClass = id => /^\d-\d+$/.test(id || "");
+const gradeOf = id => isClass(id) ? +id.split("-")[0] : 0;
+const NAME = id => id === "office" ? "교무실" : id === "home" ? "집" : id === "lunch" ? "급식실" : id === "etc" ? "특별실 · 다른 곳" : HR && id === HR ? `${id} 우리 반` : id;
+const SHORT = id => HR && id === HR ? "★" + id : id;
+const clsCmp = (a, b) => (gradeOf(a) - gradeOf(b)) || (+a.split("-")[1] - +b.split("-")[1]);
+// 선생님 설정을 화면 그리기용으로 바꿔요 (로그인 · 저장할 때마다 불러요)
+function applyConfig(cfg){
+  CFG = cfg; ME = String(cfg.name || "").trim().slice(0, 12) || "선생님";
+  NGR = clamp(+cfg.grades || 3, 1, 6); NCLS = clamp(+cfg.classes || 10, 1, 15);
+  HR = isClass(cfg.hr) ? cfg.hr : "";
+  IN_T = cfg.inT || "07:50"; OUT_T = cfg.outT || "16:50";
+  let n = 0;
+  BELL = (cfg.bell || []).filter(b => b && b.s && b.e && mm(b.e) > mm(b.s)).sort((a, b) => mm(a.s) - mm(b.s))
+    .map(b => [b.k === "수업" ? String(++n) : b.k, b.s, b.e]);
+  const per = new Set(BELL.map(b => b[0]).filter(p => /\d/.test(p)));
+  TT = {};
+  for (let d = 1; d <= 5; d++){ TT[d] = {}; Object.entries((cfg.week || {})[d] || {}).forEach(([p, r]) => { r = String(r || "").trim().slice(0, 12); if (r && per.has(String(p))) TT[d][p] = r; }); }
+  ROOMS = [...new Set(Object.values(TT).flatMap(o => Object.values(o)))];
+  TAUGHT = new Set(ROOMS); if (HR) TAUGHT.add(HR);
+  SPECIAL = ROOMS.filter(id => !isClass(id));
+  // 많이 가는 학년을 층으로 보여 줘요 (건물은 3층 · 평면도와 터미널은 2층까지)
+  const use = {};
+  [...Object.values(TT).flatMap(o => Object.values(o)).filter(isClass), ...(HR ? [HR, HR, HR] : [])].forEach(id => { const gr = gradeOf(id); if (gr >= 1 && gr <= NGR) use[gr] = (use[gr] || 0) + 1; });
+  const pickF = k => { const g0 = Object.keys(use).map(Number).sort((a, b) => use[b] - use[a] || a - b).slice(0, k); for (let gr = 1; gr <= NGR && g0.length < k; gr++) if (!g0.includes(gr)) g0.push(gr); return g0.sort((a, b) => a - b); };
+  FLOORS = pickF(3); FLOORS2 = pickF(2);
+  if (typeof rebuild === "function") rebuild();
+}
+// 하루의 처음 · 끝: 첫 종 · 마지막 종 · 출근 · 퇴근
+function dayEdge(){
+  const f = BELL.length ? mm(BELL[0][1]) : mm(IN_T) + 30, l = BELL.length ? mm(BELL[BELL.length - 1][2]) : Math.max(f + 1, mm(OUT_T) - 15);
+  return { f, l, i:Math.min(mm(IN_T), f), o:Math.max(mm(OUT_T), l) };
+}
+function stateAt(d){
+  const day = d.getDay(), m = d.getHours()*60 + d.getMinutes() + d.getSeconds()/60, E = dayEdge();
+  if (day === 0 || day === 6) return { place:"home", act:"주말 · 푹 쉬는 날", s:0, e:1440, m, slot:"주말" };
+  if (m < E.i) return { place:"home", act:"출근 준비", s:0, e:E.i, m, slot:"출근 전" };
+  if (m >= E.o) return { place:"home", act:"퇴근 후 · 저녁 시간", s:E.o, e:1440, m, slot:"퇴근 후" };
+  for (const [p, a, b] of BELL){
+    const s = mm(a), e = mm(b);
+    if (m >= s && m < e){
+      if (p === "조회" || p === "종례") return HR ? { place:HR, act:`우리 반 ${p}`, s, e, m, slot:p, p } : { place:"office", act:p === "조회" ? "아침 조회 시간 · 교무실" : "종례 시간 · 하루 정리", s, e, m, slot:p, p };
+      if (p === "점심") return { place:"office", act:"점심시간", s, e, m, slot:"점심", p, lunch:true };
+      const r = (TT[day] || {})[p];
+      return r ? { place:r, act:`${p}교시 수업 중`, s, e, m, slot:`${p}교시`, p } : { place:"office", act:`${p}교시 공강 · 업무`, s, e, m, slot:`${p}교시 공강`, p };
+    }
+  }
+  if (m < E.f) return { place:"office", act:"출근 · 하루 준비", s:E.i, e:E.f, m, slot:"출근" };
+  if (m >= E.l) return { place:"office", act:"업무 정리 · 퇴근 준비", s:E.l, e:Math.max(E.l + 1, E.o), m, slot:"정리" };
+  const nx = BELL.find(([, a]) => mm(a) > m), pv = [...BELL].reverse().find(([, , b]) => mm(b) <= m);
+  const r = nx && slotRoom(day, nx[0]), go = r && r !== "lunch" && r !== "office", be = nx ? mm(nx[1]) : m + 1, bs = pv ? mm(pv[2]) : m;
+  // 쉬는 시간: 먼저 교무실로 돌아왔다가, 종 치기 4분 전에 다음 교실로 가요
+  if (go && m >= be - 4) return { place:r, act:`${/\d/.test(nx[0]) ? nx[0] + "교시" : nx[0]} ${r}${isClass(r) ? " 교실" : ""}로 가요`, s:be - 4, e:be, m, slot:"쉬는 시간", brk:true, go:true };
+  return { place:"office", act:go ? `쉬는 시간 · 다음 ${/\d/.test(nx[0]) ? nx[0] + "교시" : nx[0]} ${r}` : "쉬는 시간 · 교무실", s:bs, e:go ? be - 4 : be, m, slot:"쉬는 시간", brk:true };
+}
+const slotRoom = (day, p) => p === "조회" || p === "종례" ? HR : p === "점심" ? "lunch" : (TT[day] || {})[p] || "";
+// 한 층의 방 순서: 큰 반 … | 계단 | 가운데 방(교무실 등) | 계단 | … 1반 (학교마다 다르지만 반 수에 맞춰 그려요)
+const ORDER = (gr, mid, f) => {
+  const nr = Math.floor(NCLS/2), id = k => gr ? `${gr}-${k}` : `_${f}-${k}`, L = [], R = [];
+  for (let k = NCLS; k > nr; k--) L.push(id(k));
+  for (let k = nr; k >= 1; k--) R.push(id(k));
+  return [...L, "|", mid, "|", ...R];
+};
+const midRoom = id => id === "office" || id === "etc" || id.startsWith("_c");
+// 학년 색 (1학년 초록 · 2학년 주황 · 3학년 파랑 …), 담임 반은 분홍, 특별실은 하늘색
+const gradeColor = id => HR && id === HR ? P.hr : isClass(id) ? [P.ui.ok, "#FF9F43", P.c3 || "#3D8BFF", "#B07CFF", "#2FE3F0", "#FF6B6B"][(gradeOf(id) - 1) % 6] : P.ui.acc2;
+// 할 일 몇 줄 (그림 안 메모 · 포스트잇에 써요). max = 한 줄 최대 글자 수
+const todoLines = (n, on = "☑ ", off = "☐ ", max = 14) => TODOS.length
+  ? TODOS.slice(0, n).map(x => (x.d ? on : off) + (x.t.length > max ? x.t.slice(0, max - 1) + "…" : x.t))
+  : ["할 일을 적어 보세요", "(TO DO 칸)"];
+
+/* ===================== 확정 색 A · B ===================== */
+const PAL = {
+  a:{ ground:"#07070C", dot:"#14142A", base:"#101020", hall:"#1A1A2E", hallLine:"#30305A", wall:"#23233A", wallTop:"#3D6BFF", edge:"#000000",
+      fA:"#1D1D3A", fB:"#232345", oA:"#13243A", oB:"#182C46", hA:"#22152A", hB:"#28182F", desk:"#3A3A5C", deskTop:"#5A5A88", board:"#0F5A3A", boardEdge:"#8C8CA6",
+      active:"#FFD400", hr:"#FF5FAE", glass:"#2FE3F0", skin:"#F2C9A0", path:"#1A1A2E", roof:"#B07CFF", night:"rgba(4,4,20,.45)", tuft:"#1E1E3A",
+      uni:"#3B4C86", skirt:"#5A3F7A", sky:"#0B0B1A", apt:"#14142A", aptWin:"#1E1E3A", yard:"#17121F", tree:"#1F6B4A",
+      // 시안마다 따로 쓰던 어두운 색 (운동장 트랙 · 교장실 카펫 · 빈 칸 · 플래너 종이 · 수첩 표지 · 로파이 벽 · 3학년 칸)
+      trackA:"#2A1426", trackIn:"#0E1A12", trackLine:"#5A2A4E", trackMark:"#1E3A26", rug:"#3A1626", empty:"#3A3A52", cell:"#23233A",
+      paper:"#12121C", rule:"#23233A", deep:"#07070C", today:"#1B1B2C", memo:"#3A3420", memoInk:"#FFE27A", cover:"#26304F", room:"#26243A", c3:"#3D8BFF",
+      minAcc:"#8FB4FF", minHr:"#FF8FB8", minOk:"#7BE0B0", minBg1:"#0E0F1E", minBg2:"#1A1C36", table:"#17141C", ring:"#8C8CA6", memoText:"#EDEDF5", wood:"#4A3A2E", deskL:"#5A4232",
+      ui:{ panel:"#0B0B12", ink:"#EDEDF5", muted:"#8C8CA6", acc:"#FFD400", acc2:"#2FE3F0", line:"#2A2A3A", ok:"#5BEA6F" }, font:"'Do Hyeon','Malgun Gothic',sans-serif" },
+  b:{ ground:"#7CB868", dot:"#6AA556", base:"#A88360", hall:"#E9D7B5", hallLine:"#C9AE82", wall:"#F6E7CF", wallTop:"#B5835A", edge:"#6B4A2E",
+      fA:"#CFE8D8", fB:"#C2E0CD", oA:"#D9E6F2", oB:"#CBDCEC", hA:"#E3B985", hB:"#D9AC76", desk:"#B07A4E", deskTop:"#D9A574", board:"#2F6B50", boardEdge:"#8A5A34",
+      active:"#E8743B", hr:"#E24C6A", glass:"#9ED6F0", skin:"#F5CDA6", path:"#D9C29A", roof:"#C2553A", night:"rgba(20,24,60,.42)", tuft:"#5E9A4C",
+      uni:"#4A6FA5", skirt:"#7A5C9A", sky:"#BFE3F2", apt:"#E3DED3", aptWin:"#C9D9E3", yard:"#D9B98C", tree:"#4E9A4A", c3:"#3D8BFF",
+      trackA:"#C8865A", trackIn:"#6FAE5C", trackLine:"#F2D7B8", trackMark:"#9ACB84", rug:"#B5534A", empty:"#E3CFA8", cell:"#EADBBE",
+      paper:"#FFFDF6", rule:"#E8DCC4", deep:"#E9DCC2", table:"#C99A6B", ring:"#B9A98A", today:"#FFF3CF", memo:"#FFF0A8", memoInk:"#8A6A10", memoText:"#3B2A1C", cover:"#7A4A2A", room:"#E8DCC6", wood:"#9A7450", deskL:"#B47E52",
+      minAcc:"#2F6FED", minHr:"#E8487A", minOk:"#1FA36A", minBg1:"#F5F2EC", minBg2:"#EAE6F2",
+      ui:{ panel:"#FFF4DE", ink:"#3B2A1C", muted:"#8A7058", acc:"#E8743B", acc2:"#3C8C6E", line:"#6B4A2E", ok:"#3C8C6E" }, font:"'Jua','Malgun Gothic',sans-serif" }
+};
+let V = "a", P = PAL.a;
+
+/* ===================== 그리기 도구 (논리 480×270, 실제 960×540) ===================== */
+const W = 480, H = 270;
+const cv = document.getElementById("cv"), g = cv.getContext("2d");
+const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+function txt(s, x, y, size, color, align = "left", num = false){
+  g.font = `${size}px ${num ? "'Press Start 2P',monospace" : P.font}`;
+  g.fillStyle = color; g.textAlign = align; g.textBaseline = "middle"; g.fillText(s, x, y);
+}
+function tag(s, x, y, bg, fg, size = 6){
+  g.font = `${size}px ${P.font}`; const w = Math.ceil(g.measureText(s).width) + 5;
+  rect(x, y, w, size + 3, bg); txt(s, x + 2.5, y + (size + 3)/2 + .5, size, fg); return w;
+}
+function pbox(x, y, w, h){ rect(x, y, w, h, P.ui.line); rect(x + 1, y + 1, w - 2, h - 2, P.ui.panel); }
+const rnd = (() => { let s = 7; return () => (s = (s*16807) % 2147483647) / 2147483647; })();
+const TUFTS = Array.from({ length:90 }, () => [Math.floor(rnd()*W), Math.floor(rnd()*H)]);
+const HAIR = ["#2A1E1A","#3B2A20","#1A1A1A","#5A3A22","#2A2030"];
+const SEATS = Array.from({ length:40 }, () => ({ on:rnd() < .82, hair:HAIR[Math.floor(rnd()*5)], ph:rnd()*6, t:rnd() < .5, stay:rnd() < .35 }));
+let T = 0, SCHOOL = false, NIGHT = false, BREAK = false, LUNCH = false;
+
+// ===== 위에서 본 방 하나 (여러 구조가 같이 써요) =====
+// s = 픽셀 한 칸 크기(1~4). 작은 칸은 s=1, 큰 화면은 s=3처럼 같은 그림을 또렷하게 키워요
+const hashId = id => [...String(id)].reduce((n, c) => n + c.charCodeAt(0), 0);
+const roomKind = id => id === "office" ? "office" : id === "home" ? "home" : id === "lunch" ? "lunch" : isClass(id) ? "class" : "plain";
+// 교무실 섬 2개 (책상 2×2, 의자는 섬 왼쪽 · 오른쪽). ★ 내 자리 = 아래 섬 왼쪽 위
+function officeGeo(x, y, w, h, wh, s){
+  const DW = 7*s, DH = 5*s, IW = 2*DW, IH = 2*DH, CH = 3*s, gap = 5*s;
+  const n = h - wh - 4*s >= 2*IH + gap ? 2 : 1, totalH = n*IH + (n - 1)*gap;
+  const ix = Math.round(x + w/2 - IW/2), iy0 = Math.round(y + wh + (h - wh - totalH)/2 + s);
+  const isl = Array.from({ length:n }, (_, k) => ({ x:ix, y:iy0 + k*(IH + gap) })), mine = isl[n - 1];
+  return { DW, DH, IW, IH, CH, isl, mine, spot:{ x:Math.round(ix - s - CH/2), y:mine.y + Math.round(DH/2) + 3*s } };
+}
+function roomGeo(x, y, w, h, id, s){
+  s = s || Math.max(1, Math.min(4, Math.floor(Math.min(w/34, h/26))));
+  const wh = Math.max(4*s, Math.min(8*s, Math.round(h*.16))), k = roomKind(id), cx = Math.round(x + w/2);
+  const ox = Math.round(x + 4*s), oy = Math.round(y + wh + 3*s);
+  const spot = k === "class" ? { x:cx + 9*s, y:y + wh + 8*s } : k === "office" ? officeGeo(x, y, w, h, wh, s).spot
+    : k === "home" ? { x:Math.round(x + w*.34), y:Math.round(y + h*.8) } : { x:cx, y:Math.round(y + h*.62) };
+  return { s, wh, k, cx, ox, oy, door:{ x:cx, y:y + h }, spot };
+}
+function frameBox(x, y, w, h, t, c){ rect(x, y, w, t, c); rect(x, y + h - t, w, t, c); rect(x, y, t, h, c); rect(x + w - t, y, t, h, c); }
+// 학생 한 자리: 위(칠판 쪽)에 책상, 아래에 뒤통수 · 어깨 · 의자 (8s × 10s)
+function seat(x, y, s, st, act, show){
+  rect(x, y, 8*s, 2*s, DESKC || P.deskTop); rect(x, y + 2*s, 8*s, s, DESKC ? shade(DESKC, .55) : P.desk);   // NEON 2: 책상도 반 색
+  if (s >= 2){ rect(x + s, y, 3*s, s, "#F4F1E8"); rect(x + 5*s, y, s, s, P.board); }
+  if (show && st.on && (!BREAK || st.stay)){
+    const b = act ? Math.round(Math.sin(T*4 + st.ph)*.6) * s : 0;
+    rect(x + s, y + 6*s + b, 6*s, 2*s, P.uni); rect(x + 2*s, y + 3*s + b, 4*s, 4*s, st.hair); rect(x + 2*s, y + 7*s + b, 4*s, s, st.hair);
+    if (s >= 2 && st.ph > 3) rect(x + 3*s, y + 5*s + b, 2*s, s, "#D8435A");
+  }
+  rect(x + s, y + 8*s, 6*s, s, P.desk); rect(x + s, y + 9*s, s, s, P.desk); rect(x + 6*s, y + 9*s, s, s, P.desk);
+}
+// 교무실 책상 한 칸: 모니터 · 책상 · 앉은 선생님 (12s × 13s)
+function workDesk(x, y, s, mine, who){
+  rect(x + 3*s, y, 6*s, 4*s, P.edge); rect(x + 4*s, y + s, 4*s, 2*s, mine ? P.active : P.glass); rect(x + 5*s, y + 4*s, 2*s, s, P.edge);
+  rect(x, y + 4*s, 12*s, 3*s, P.deskTop); rect(x, y + 7*s, 12*s, s, P.desk);
+  if (s >= 2){ rect(x + s, y + 5*s, 2*s, s, "#F4F1E8"); if (mine) rect(x + 10*s, y + 4*s, s, 2*s, P.hr); }
+  if (who){ rect(x + 3*s, y + 11*s, 6*s, 2*s, who.shirt); rect(x + 4*s, y + 8*s, 4*s, 4*s, who.hair); }
+  rect(x + 4*s, y + 13*s, 4*s, s, P.desk);
+}
+function topRoom(x, y, w, h, id, o = {}){
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  const G = roomGeo(x, y, w, h, id, o.s), s = G.s, wh = G.wh, k = G.k, cx = G.cx;
+  // 바닥
+  const ts = 4*s, A = k === "office" ? P.oA : k === "home" || k === "lunch" ? P.hA : P.fA, B = k === "office" ? P.oB : k === "home" || k === "lunch" ? P.hB : P.fB;
+  if (k === "home") for (let yy = y + wh; yy < y + h; yy += 3*s) rect(x, yy, w, Math.min(3*s, y + h - yy), ((yy - y - wh) / (3*s)) % 2 ? A : B);
+  else for (let yy = y + wh; yy < y + h; yy += ts) for (let xx = x; xx < x + w; xx += ts)
+    rect(xx, yy, Math.min(ts, x + w - xx), Math.min(ts, y + h - yy), (((xx - x)/ts) + ((yy - y - wh)/ts)) % 2 ? A : B);
+  // NEON 2: 방 색 (책상도 그 색)
+  const rc = roomColor(id), neo = NEO();
+  DESKC = neo && k === "class" ? rc : null;
+  // 뒷벽
+  rect(x, y, w, wh, k === "home" ? P.hB : P.wall); rect(x, y, w, s, P.wallTop); rect(x, y + wh - s, w, s, P.edge);
+  const pane = (px, pw) => { rect(px, y + s*1.5, pw, wh - 3*s, P.edge); rect(px + s/2, y + s*2, pw - s, wh - 4*s, P.glass); };
+  if (k === "class"){
+    const bw = Math.max(8*s, Math.round(w*.42 / s) * s);
+    rect(cx - bw/2 - s, y + s, bw + 2*s, wh - 2*s, P.boardEdge); rect(cx - bw/2, y + 2*s, bw, wh - 4*s, P.board);
+    if (wh - 4*s >= 3*s){ rect(cx - bw/2 + 2*s, y + 3*s, Math.round(bw*.3), s, "#E8F2EA"); rect(cx - bw/2 + 2*s, y + 5*s, Math.round(bw*.45), s, "#E8F2EA"); }
+    if (w >= 34*s) { pane(x + 2*s, 5*s); pane(x + w - 7*s, 5*s); }
+    rect(cx - 6*s, y + wh + 2*s, 12*s, 3*s, P.desk); rect(cx - 6*s, y + wh + 2*s, 12*s, s, P.deskTop);
+    const cols = Math.max(1, Math.min(6, Math.floor((w - 4*s) / (11*s)))), rows = Math.max(0, Math.min(5, Math.floor((h - wh - 9*s - 2*s) / (11*s))));
+    const gx = cx - Math.round((cols*11*s - 3*s)/2), gy = y + wh + 9*s, hid = hashId(id);
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++){
+      const st = SEATS[(r*7 + c*3 + hid) % SEATS.length];
+      seat(gx + c*11*s, gy + r*11*s, s, st, o.act, o.school);
+    }
+    if (o.school && BREAK && rows > 0){ const by = Math.min(gy + rows*11*s - s, y + h - 2*s); girl(x + 5*s, by, s, SEATS[hid % SEATS.length].hair, 2, false); girl(x + 11*s, by, s, SEATS[(hid + 3) % SEATS.length].hair, 2, true); }
+    if (HR && id === HR){ g.globalAlpha = .18; rect(x, y + wh, w, h - wh, P.hr); g.globalAlpha = 1; rect(x + w - 5*s, y + s, s, 5*s, P.edge); rect(x + w - 4*s, y + s, 3*s, 2*s, P.hr); }
+    if (!TAUGHT.has(id)){ g.globalAlpha = .45; rect(x, y, w, h, P.base); g.globalAlpha = 1; }
+  } else if (k === "office"){
+    const n = Math.max(1, Math.floor((w - 6*s) / (6*s)));
+    for (let i = 0; i < n; i++) pane(x + 3*s + i*6*s, 4*s);
+    const O = officeGeo(x, y, w, h, wh, s), hid = hashId(id);
+    O.isl.forEach((I, k2) => {
+      g.globalAlpha = .2; rect(I.x + s, I.y + s, O.IW, O.IH, "#000"); g.globalAlpha = 1;
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++){
+        const dx = I.x + c*O.DW, dy = I.y + r*O.DH, mine = I === O.mine && r === 0 && c === 0;
+        rect(dx, dy, O.DW, O.DH, P.deskTop); rect(dx, dy + O.DH - s, O.DW, s, P.desk);
+        if (mine){ g.globalAlpha = .35; rect(dx, dy, O.DW, O.DH - s, P.active); g.globalAlpha = 1; }
+        const mx = c === 0 ? dx + O.DW - 3*s : dx + s;   // 모니터는 가운데 칸막이 쪽
+        rect(mx, dy + s, 2*s, O.DH - 2*s, P.edge); rect(c === 0 ? mx : mx + s, dy + 2*s, s, Math.max(s, O.DH - 4*s), mine ? P.active : P.glass);
+        if (s >= 2) rect(c === 0 ? dx + s : dx + O.DW - 3*s, dy + 2*s, 2*s, s, "#F4F1E8");
+        // 의자 · 앉은 선생님 (왼쪽 자리는 오른쪽을, 오른쪽 자리는 왼쪽을 봐요)
+        const chx = c === 0 ? I.x - s - O.CH : I.x + O.IW + s, chy = dy + Math.round((O.DH - O.CH)/2);
+        rect(chx, chy, O.CH, O.CH, P.desk);
+        const sv = SEATS[(k2*4 + r*2 + c + hid) % SEATS.length];
+        if (!mine && o.school && (BREAK || sv.t)){
+          rect(c === 0 ? chx - s : chx + O.CH, chy - s, s, O.CH + 2*s, ["#6B7FA8","#A8746B","#6BA88A","#9A6BA8"][(k2*4 + r*2 + c) % 4]);
+          rect(chx, chy, O.CH, O.CH, sv.hair);
+          if (s >= 2){ rect(chx, chy, s, s, P.deskTop); rect(chx + O.CH - s, chy, s, s, P.deskTop); rect(c === 0 ? chx + O.CH - s : chx, chy + s, s, O.CH - 2*s, P.skin); }
+        }
+        if (mine && s >= 2) txt("★", dx + Math.round(O.DW*.35), dy + Math.round(O.DH*.45), 4*s, P.hr, "center");
+      }
+      rect(I.x + O.DW - Math.floor(s/2), I.y - s, Math.max(1, s), O.IH + s, P.edge);   // 가운데 칸막이
+      frameBox(I.x, I.y, O.IW, O.IH, Math.max(1, Math.floor(s/2)), P.desk);
+    });
+    if (w >= 34*s){ const px = x + w - 7*s, py = y + h - 9*s; rect(px, py + 4*s, 4*s, 4*s, P.desk); rect(px - s, py, 6*s, 5*s, P.tree); rect(px + s, py - s, 2*s, s, P.tree); }
+    // 쉬는 시간: 교무실에 학생 몇 명이 찾아와요
+    if (o.school && BREAK){
+      const I0 = O.isl[0];
+      [[I0.x + O.IW + 9*s, I0.y + O.IH + 4*s], [cx + 8*s, y + h - 2*s], [I0.x + O.IW + 5*s, y + h - 3*s]].forEach(([vx, vy], k3) => {
+        if (vx > x + 3*s && vx < x + w - 3*s) girl(vx, Math.min(vy, y + h - s), s, SEATS[(k3*5 + 2) % SEATS.length].hair, 2, k3 !== 1);
+      });
+    }
+  } else if (k === "home"){
+    rect(x + 3*s, y + s, Math.round(w*.32), wh - 2*s, P.edge); rect(x + 4*s, y + 2*s, Math.round(w*.32) - 2*s, wh - 4*s, NIGHT ? "#7FE3FF" : "#2A2A3A");
+    pane(x + w - 9*s, 6*s);
+    const bx = x + Math.round(w*.58), by = y + wh + 2*s, bw = Math.round(w*.36), bh = Math.round((h - wh)*.52);
+    rect(bx, by, bw, bh, "#EDEDED"); rect(bx, by, bw, 3*s, "#FFFFFF"); rect(bx, by + Math.round(bh*.38), bw, bh - Math.round(bh*.38), P.hr); rect(bx, by + bh - s, bw, s, P.edge);
+    const sx = x + 3*s, sy = y + h - Math.round((h - wh)*.34), sw = Math.round(w*.42);
+    rect(sx + 2*s, sy - 9*s, sw - 4*s, 7*s, "#C9B48F");
+    rect(sx, sy, sw, 5*s, "#4A6FA5"); rect(sx, sy - 2*s, sw, 2*s, "#5E86C0"); rect(sx, sy, 2*s, 5*s, "#3E5E90"); rect(sx + sw - 2*s, sy, 2*s, 5*s, "#3E5E90");
+    rect(x + w - 6*s, y + h - 9*s, 4*s, 5*s, P.tree); rect(x + w - 5*s, y + h - 4*s, 2*s, 3*s, P.desk);
+    if (NIGHT){ g.globalAlpha = .16; rect(x, y, w, h, "#FFE45C"); g.globalAlpha = 1; }
+  } else if (k === "lunch"){
+    const rows = Math.max(1, Math.floor((h - wh - 4*s) / (12*s)));
+    for (let r = 0; r < rows; r++){
+      const ty = y + wh + 4*s + r*12*s; rect(x + 4*s, ty, w - 8*s, 3*s, P.deskTop); rect(x + 4*s, ty + 3*s, w - 8*s, s, P.desk);
+      for (let tx = x + 6*s; tx < x + w - 8*s; tx += 7*s){ rect(tx, ty + s, 4*s, s, "#F4F1E8"); if (o.school && SCHOOL) rect(tx, ty + 5*s, 4*s, 3*s, HAIR[(tx + r) % 5]); }
+    }
+  } else {
+    pane(x + 3*s, Math.max(4*s, w - 6*s));
+    g.globalAlpha = .3; rect(x, y, w, h, P.base); g.globalAlpha = 1;
+  }
+  DESKC = null;
+  if (neo){   // 부스처럼 네온 두 줄 테두리
+    frameBox(x, y, w, h, s, rc);
+    if (w > 6*s && h > 6*s){ g.globalAlpha = .45; frameBox(x + 2*s, y + 2*s, w - 4*s, h - 4*s, Math.max(1, Math.floor(s/2)), rc); g.globalAlpha = 1; }
+  } else frameBox(x, y, w, h, s, P.edge);
+  rect(cx - 4*s, y + h - s, 8*s, s, k === "home" ? P.hA : P.hall);
+  if (o.glow){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = HR && id === HR ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(x - 1, y - 1, w + 2, h + 2); g.globalAlpha = 1; }
+  return G;
+}
+
+/* 내 캐릭터 (10×14 픽셀, s배) */
+const SPR = ["...hhhh...","..hhhhhh..",".hhhhhhhh.",".hssssssh.",".hsesseshh",".hssssssh.","..sssmss..","...cccc...","..ccwccc..",".sccwcccs.",".scccccs..","..cccccc.."];
+const LEG = [["..pp..pp..",".bb...bb.."],["...pppp...","..bb..bb.."],["..pp..pp..","..bb..bb.."]];
+const COL = { h:"#2B1D16", s:"#F5CDA6", e:"#1A1622", m:"#C8605A", c:"#3C8C6E", w:"#FFFFFF", p:"#2E3550", b:"#1A1622" };
+function me(x, y, frame = 2, flip = false, s = 1){
+  g.globalAlpha = .35; rect(x - 5*s, y - s, 10*s, 2*s, "#000"); g.globalAlpha = 1;
+  [...SPR, ...LEG[frame]].forEach((line, j) => [...line].forEach((ch, i) => {
+    if (ch !== ".") rect(x + ((flip ? 9 - i : i) - 5) * s, y + (j - 14) * s, s, s, COL[ch]);
+  }));
+}
+/* 여고 학생 (7×12 픽셀: 긴 머리 · 빨간 리본 · 교복 치마) */
+const GIRL = ["..hhh..", ".hhhhh.", ".hsssh.", ".heseh.", ".hsssh.", ".hwrwh.", ".ccccc.", "scccccs", ".kkkkk.", ".kkkkk."];
+const GLEG = [[".s...s.", ".b...b."], ["..s.s..", "..b.b.."], ["..s.s..", "..b.b.."]];
+function girl(x, y, s, hair, frame = 2, flip = false){
+  const col = { h:hair, s:P.skin, e:"#1A1622", w:"#FFFFFF", r:"#D8435A", c:P.uni, k:P.skirt, b:"#1A1622" };
+  g.globalAlpha = .3; rect(x - 3*s, y - s, 7*s, 2*s, "#000"); g.globalAlpha = 1;
+  [...GIRL, ...GLEG[frame]].forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(x + ((flip ? 6 - i : i) - 3)*s, y + (j - 12)*s, s, s, col[ch]); }));
+}
+// 쉬는 시간 · 점심: x0~x1 복도를 오가는 학생들 (몇 명은 서서 수다)
+function crowd(seed, n, x0, x1, y, s = 1){
+  if (!(BREAK || LUNCH)) return;
+  const len = x1 - x0, cnt = LUNCH ? Math.ceil(n/2) : n;
+  for (let k = 0; k < cnt; k++){
+    const sd = SEATS[(seed + k*7) % SEATS.length], sp = 9 + (k*13) % 9;
+    const t = (T*sp + sd.ph*97 + k*53) % (2*len), fwd = t < len, still = k % 4 === 3;
+    const x = still ? x0 + ((k*61 + seed*17) % len) : x0 + (fwd ? t : 2*len - t);
+    girl(Math.round(x), Math.round(y + (k % 3) - 1), s, sd.hair, still ? 2 : Math.floor(T*6 + k) % 2, still ? k % 2 === 0 : !fwd);
+  }
+}
+function bubble(s, x, y, size = 6){
+  g.font = `${size}px ${P.font}`; const w = Math.ceil(g.measureText(s).width) + 8, h = size + 6;
+  const bx = Math.max(2, Math.min(W - w - 2, x - w/2));
+  rect(bx - 1, y - h - 4, w + 2, h + 2, "#1A1622"); rect(bx, y - h - 3, w, h, "#FFFFFF"); rect(x - 2, y - 3, 4, 2, "#1A1622");
+  txt(s, bx + w/2, y - h/2 - 3, size, "#1A1622", "center");
+}
+
+/* ===================== 걸어 다니기 (구조마다 자리 · 길이 달라요) ===================== */
+const WK = { here:null, pos:null, path:[], walking:false, pending:null, flip:false, log:[] };
+function resetWalk(){ WK.here = null; WK.path = []; WK.walking = false; WK.pending = null; }
+function walkTo(S, target, d){
+  if (WK.here === null){ WK.here = target; WK.pos = { ...S.place(target) }; return; }
+  if (target === WK.here && !WK.walking) return;
+  if (WK.walking){ WK.pending = target; return; }
+  WK.path = S.route(WK.here, target).slice(1); WK.walking = true;
+  WK.log.unshift(`${hhmm(d.getHours()*60 + d.getMinutes())} ${NAME(WK.here)} → ${NAME(target)}`); WK.log = WK.log.slice(0, 4);
+  WK.here = target;
+}
+function stepWalk(S, dt){
+  if (!WK.walking) return;
+  let left = dt * (S.speed || 50) * (speed > 1 ? 2.2 : 1);
+  while (left > 0 && WK.path.length){
+    const p = WK.path[0], dx = p.x - WK.pos.x, dy = p.y - WK.pos.y, dist = Math.hypot(dx, dy);
+    if (Math.abs(dx) > .5) WK.flip = dx < 0;
+    if (dist <= left){ WK.pos = { ...p }; WK.path.shift(); left -= dist; } else { WK.pos.x += dx/dist*left; WK.pos.y += dy/dist*left; left = 0; }
+  }
+  if (!WK.path.length){ WK.walking = false; const p = WK.pending; WK.pending = null; if (p && p !== WK.here) walkTo(S, p, simNow()); }
+}
+const frameNo = () => WK.walking ? Math.floor(T*8) % 2 : 2;
+const bubText = st => WK.walking ? "🚶 이동 중" : st.place === "home" ? (st.slot === "주말" ? "🛋 주말" : "🏠 " + st.slot) : st.act.replace(" 중", "");
+
+/* ===================== 시안들 (설정이 바뀌면 makeStructs 로 다시 만들어요) ===================== */
+function makeStructs(){
+/* ===== 1. 건물 단면 타워 ===== */
+const S1 = (() => {
+  // 반 수에 맞춰 교실 너비를 정해요 (반이 많으면 좁게, 적으면 넓게 · 건물은 가운데로)
+  const NL = NCLS - Math.floor(NCLS/2), NR = Math.floor(NCLS/2), FH = 50, GR = 232, RW = clamp(Math.floor(308/NCLS), 18, 34), SW = 14, CW = 44, BW = NCLS*RW + 2*SW + CW, BX = 26 + Math.round((380 - BW)/2);
+  const fb = f => GR - (f - 1)*FH, lane = f => fb(f) - 3;
+  const CX = BX + NL*RW + SW, SL = BX + NL*RW + SW/2, SR = CX + CW + SW/2, RX = CX + CW + SW;
+  const R = [];
+  // 2 · 3 · 4층 = 내가 많이 가는 학년 (맨 아래 2층 가운데가 교무실)
+  [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === 2 ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
+  // 1층: 양쪽 칸에 시간표의 특별실(과학실 · 체육관 …)을 넣어요. 행정실 · 현관 · 교장실은 그대로
+  const sp = [...SPECIAL];
+  const wing = (n, big, bigFirst) => { const out = []; for (let i = 0; i < (n >= 3 ? n - 2 : n); i++) out.push([sp.shift() || `_s${i}${big}`, RW]); if (n >= 3){ if (bigFirst) out.unshift([big, 2*RW]); else out.push([big, 2*RW]); } return out; };
+  [...wing(NL, "행정실", false), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true)].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
+  const HOME = { id:"home", f:0, x:414, y:186, w:60, h:46 }; R.push(HOME);
+  const OUT = 250, HD = HOME.x + 40, GX = CX + CW/2;
+  const room = id => R.find(r => r.id === id);
+  // 건물에 없는 곳(층에 안 나온 학년, 자리가 모자란 특별실)은 1층 빈 칸으로 가요
+  const mapId = id => room(id) ? id : (R.find(r => r.f === 1 && r.id.startsWith("_s")) || { id:"gate" }).id;
+  const place = id => { const r = room(id); return r.id === "home" ? { x:r.x + 16, y:GR - 3 } : { x:r.x + 8, y:lane(r.f) }; };
+  const near = x => Math.abs(x - SL) <= Math.abs(x - SR) ? SL : SR;
+  const toHome = (f, x) => { const o = []; if (f !== 1){ const s = near(x); o.push({ x:s, y:lane(f) }, { x:s, y:lane(1) }); } o.push({ x:GX, y:lane(1) }, { x:GX, y:OUT }, { x:HD, y:OUT }, { x:HD, y:GR - 3 }); return o; };
+  function route(a, b){
+    const A = room(a), B = room(b), sa = place(a), sb = place(b), p = [sa];
+    if (b === "home") p.push(...toHome(A.f, sa.x)); else if (a === "home") p.push(...toHome(B.f, sb.x).reverse());
+    else if (A.f !== B.f){ const s = near((sa.x + sb.x)/2); p.push({ x:s, y:lane(A.f) }, { x:s, y:lane(B.f) }); }
+    p.push(sb); return p;
+  }
+  // 또래상담부 부스(drs/booth)와 같은 색: 진한 바탕 + 층마다 네온 테두리 (2층 노랑 · 3층 주황 · 4층 분홍, 교무실 하늘색, 1층 보라)
+  const BOOTH = { ...PAL.a, sky:"#0B0B12", base:"#0B0B12", hall:"#14141F", hallLine:"#2A2A3A", edge:"#000000",
+    desk:"#8B5A2B", deskTop:"#B07A4A", board:"#1D4D2C", boardEdge:"#8B6B4A", glass:"#2FE3F0", skin:"#FFCFA8", uni:"#2C3E66", skirt:"#5B4A6E",
+    hr:"#FF5FAE", active:"#FFFFFF", apt:"#12121C", aptWin:"#1D1D2B", yard:"#1D4D2C", tuft:"#215733", path:"#B5553A", tree:"#2A6B3A",
+    roof:"#B07CFF", hA:"#1A1A26", hB:"#12121C", night:"rgba(4,4,20,.25)" };
+  const FLOOR_C = { 1:"#B07CFF", 2:"#FFD400", 3:"#FF8A1F", 4:"#FF5FAE" }, WALL_C = "#3D6BFF", DOT_C = "#FFD9B0";
+  // 부스 이름표: 진한 바탕 + 색 테두리 · 글자 (fill 이면 색으로 꽉 채우고 글자는 진하게)
+  function plate(s, cx, y, c, fill){
+    g.font = `5px ${P.font}`; const w = Math.ceil(g.measureText(s).width) + 6, x = Math.round(cx - w/2);
+    rect(x, y, w, 9, c); rect(x + 1, y + 1, w - 2, 7, fill ? c : "#0B0B12"); txt(s, cx, y + 5, 5, fill ? "#0B0B12" : c, "center");
+  }
+  function sideRoom(r){
+    const y0 = r.y, fy = fb(r.f) - 2, cls = isClass(r.id), c = r.id === "office" ? "#2FE3F0" : FLOOR_C[r.f];
+    rect(r.x, y0, r.w, r.h, "#10101A");
+    g.globalAlpha = .16; rect(r.x + 1, fy - 9, r.w - 2, 6, c); g.globalAlpha = 1;   // 바닥
+    frameBox(r.x + 1, y0 + 1, r.w - 2, r.h - 4, 1, c);
+    g.globalAlpha = .45; frameBox(r.x + 3, y0 + 3, r.w - 6, r.h - 8, 1, c); g.globalAlpha = 1;
+    const act = !WK.walking && WK.here === r.id;
+    if (cls){
+      const sc = r.w / 28, bw = Math.round(13*sc);   // 교실이 좁으면 칠판 · 자리도 좁게
+      rect(r.x + 4, y0 + 12, bw, 9, P.boardEdge); rect(r.x + 5, y0 + 13, bw - 2, 7, P.board); rect(r.x + 6, y0 + 15, Math.round(5*sc), 1, "#E8F2EA");
+      if (r.w >= 26){ rect(r.x + r.w - 10, y0 + 12, 6, 9, "#0B0B12"); rect(r.x + r.w - 9, y0 + 13, 4, 7, "#123A44"); }
+      [[13,0],[20,0],[10,6],[17,6],[24,6]].forEach(([dx, dy], k) => {
+        const x = r.x + Math.round(dx*sc) - 2, y = fy - 13 + dy, s = SEATS[(k + r.x) % SEATS.length];
+        if (SCHOOL && s.on && (!BREAK || s.stay)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x + 1, y - 3 + b, 2, 1, "#D7263D"); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
+        rect(x - 1, y, 6, 2, c); rect(x, y + 2, 1, 3, shade(c, .55)); rect(x + 3, y + 2, 1, 3, shade(c, .55));   // 책상도 층 색
+      });
+      if (r.id === HR){ g.globalAlpha = .2; rect(r.x + 2, y0 + 2, r.w - 4, r.h - 6, P.hr); g.globalAlpha = 1; rect(r.x + r.w - 4, y0 - 7, 1, 9, "#EDEDF5"); rect(r.x + r.w - 3, y0 - 7, 5, 4, P.hr); }
+      if (!TAUGHT.has(r.id)){ g.globalAlpha = .55; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; }
+    } else if (r.id === "office"){
+      for (let i = 0; i < 4; i++){ rect(r.x + 3 + i*10, y0 + 12, 7, 7, "#0B0B12"); rect(r.x + 4 + i*10, y0 + 13, 5, 5, "#123A44"); }
+      // 섬 두 개(뒤 · 앞). 가운데 칸막이를 두고 왼쪽 · 오른쪽 자리가 마주봐요. ★ 내 자리 = 앞 섬 왼쪽
+      [-7, 0].forEach((dy, isl) => {
+        const ix = r.x + 11, iw = 22, y = fy - 9 + dy;
+        [[ix - 5, 0], [ix + iw + 1, 1]].forEach(([px, side], n) => {
+          const mine = isl === 1 && side === 0, sv = SEATS[(isl*2 + n + 3) % SEATS.length];
+          rect(px, y + 1, 4, 5, P.desk);
+          if (!mine && SCHOOL && (BREAK || sv.t)){ rect(px - 1, y - 3, 6, 4, ["#6B7FA8","#A8746B"][n]); rect(px, y - 7, 4, 4, P.skin); rect(px, y - 8, 4, 2, sv.hair); }
+        });
+        rect(ix, y, iw, 2, P.deskTop); rect(ix, y + 2, iw, 1, P.desk); rect(ix + 1, y + 3, 1, 4, P.desk); rect(ix + iw - 2, y + 3, 1, 4, P.desk);
+        rect(ix + iw/2 - 1, y - 7, 2, 7, P.edge);
+        rect(ix + iw/2 - 7, y - 5, 5, 4, P.edge); rect(ix + iw/2 - 6, y - 4, 3, 2, isl === 1 ? P.active : P.glass);
+        rect(ix + iw/2 + 2, y - 5, 5, 4, P.edge); rect(ix + iw/2 + 3, y - 4, 3, 2, P.glass);
+      });
+      txt("★", r.x + 8, fy - 24, 6, P.hr, "center");
+      if (SCHOOL && BREAK){ girl(r.x + 23, fy - 1, 1, HAIR[1], 2, true); girl(r.x + 41, fy - 1, 1, HAIR[3], 2, true); }
+    } else if (r.id === "gate"){
+      rect(r.x + 8, y0 + 14, 28, 32, c); rect(r.x + 9, y0 + 15, 12, 31, "#123A44"); rect(r.x + 23, y0 + 15, 12, 31, "#123A44");
+    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (!TAUGHT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
+    if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === HR ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w, r.h - 3); g.globalAlpha = 1; }
+    let lb = r.id === "office" ? "교무실" : r.id === "gate" ? "현관" : r.id === HR ? "★" + HR : r.id[0] === "_" ? "" : r.id;
+    // 좁은 방에 긴 이름(컴퓨터실 …)이면 방 너비에 맞게 줄여요
+    g.font = `5px ${P.font}`;
+    if (!cls) while (lb.length > 1 && g.measureText(lb).width + 6 > r.w - 2) lb = lb.slice(0, -1);
+    if (lb){ g.globalAlpha = cls && !TAUGHT.has(r.id) ? .5 : 1; plate(lb, r.x + r.w/2, y0 + 2, r.id === HR ? P.hr : c, r.id === HR || r.id === "office"); g.globalAlpha = 1; }
+  }
+  const STARS = Array.from({ length:70 }, () => [Math.floor(rnd()*W), Math.floor(rnd()*70)]);
+  function sky(){
+    rect(0, 0, W, H, P.sky);
+    STARS.forEach(([x, y], k) => rect(x, y, 1, 1, k % 6 ? "#34345E" : (Math.sin(T*2 + k) > .3 ? "#FFFFFF" : "#8C8CA6")));
+    rect(436, 14, 10, 10, "#F4F1D0"); rect(434, 16, 14, 6, "#F4F1D0"); rect(440, 15, 6, 6, P.sky);   // 초승달
+  }
+  function draw(){
+    const keep = P; P = BOOTH;   // 이 시안은 A · B 색과 상관없이 늘 부스 색
+    sky();
+    for (let i = 0; i < 10; i++){ const x = 2 + i*50, h = 150 + (i % 3)*18, t = GR - h; rect(x, t, 42, h, P.apt); rect(x, t, 42, 1, "#2A2A3A");
+      for (let y = t + 6; y < GR - 10; y += 7) for (let xx = x + 4; xx < x + 38; xx += 7){ const lit = (xx*7 + y*3) % 13; rect(xx, y, 4, 3, lit === 0 ? "#5A4A2A" : lit === 5 ? "#4A2A3A" : P.aptWin); } }
+    // 운동장 (부스처럼 줄무늬 잔디 + 주황 트랙)
+    rect(0, GR, W, H - GR, P.yard); for (let x = 0; x < W; x += 8) rect(x, GR, 4, H - GR, P.tuft);
+    rect(GX - 6, GR, 12, OUT - GR + 5, P.path); rect(GX - 6, OUT - 4, HD - GX + 12, 9, P.path); rect(HD - 5, GR, 10, OUT - GR, P.path);
+    for (let x = GX; x < HD; x += 7) rect(x, OUT, 4, 1, "#FFFFFF");
+    const top = fb(4) - FH;
+    rect(BX - 5, top - 6, BW + 10, GR - top + 6, P.base); rect(CX - 6, top - 20, CW + 12, 16, P.base);
+    // 부스 바깥 미로 벽처럼 파란 두 줄 테두리
+    frameBox(BX - 5, top - 6, BW + 10, GR - top + 6, 1, WALL_C); frameBox(CX - 6, top - 20, CW + 12, 15, 1, WALL_C);
+    g.globalAlpha = .55; frameBox(BX - 3, top - 4, BW + 6, GR - top + 2, 1, WALL_C); g.globalAlpha = 1;
+    // 가운데 탑 시계 (지금 시각)
+    const nd = simNow(); rect(GX - 17, top - 17, 34, 11, "#FFD400"); rect(GX - 16, top - 16, 32, 9, "#0B0B12");
+    txt(hhmm(nd.getHours()*60 + nd.getMinutes()), GX, top - 11.5, 5, "#FFD400", "center", true);
+    R.forEach(r => { if (r.id !== "home") sideRoom(r); });
+    [SL, SR].forEach(sx => { for (let f = 1; f <= 4; f++){ const y0 = fb(f) - FH; rect(sx - SW/2, y0, SW, FH - 2, P.hall); g.globalAlpha = .5; for (let k = 0; k < 9; k++) rect(sx - SW/2 + 1 + (f % 2 ? k : 8 - k), y0 + 6 + k*5, 4, 1, WALL_C); g.globalAlpha = 1; } });
+    for (let f = 1; f <= 4; f++){
+      rect(BX - 2, fb(f) - 2, BW + 4, 2, "#0B0B12");
+      // 복도 팩맨 점
+      if (f > 1){ g.globalAlpha = .5; for (let x = BX + 4; x < BX + BW - 2; x += 6) rect(x, fb(f) - 7, 1, 1, DOT_C); g.globalAlpha = 1; }
+      txt(f + "F", 11, fb(f) - FH/2 - 5, 6, FLOOR_C[f], "center", true);
+      txt(f === 1 ? "현관" : FLOORS[f - 2] ? FLOORS[f - 2] + "학년" : "", 11, fb(f) - FH/2 + 6, 5, P.ui.muted, "center");
+    }
+    // 쉬는 시간 · 점심: 층마다 앞쪽 복도를 걷는 학생들
+    [2, 3, 4].forEach(f => crowd(f*11, 7, BX + 4, BX + BW - 4, lane(f) + 1, 1));
+    // 집 (분홍 테두리)
+    for (let k = 0; k < 7; k++) rect(HOME.x - 4 + k*2, HOME.y - 14 + k*2, HOME.w + 8 - k*4, 2, k % 2 ? shade(P.roof, .7) : P.roof);
+    rect(HOME.x, HOME.y, HOME.w, HOME.h, P.hB); frameBox(HOME.x, HOME.y, HOME.w, HOME.h, 1, P.hr);
+    g.globalAlpha = .45; frameBox(HOME.x + 2, HOME.y + 2, HOME.w - 4, HOME.h - 4, 1, P.hr); g.globalAlpha = 1;
+    rect(HD - 4, GR - 16, 8, 15, P.desk); rect(HD + 1, GR - 9, 1, 1, "#FFD400");
+    rect(HOME.x + 5, GR - 15, 20, 7, "#2C3E66"); rect(HOME.x + 8, HOME.y + 12, 16, 9, "#0B0B12"); rect(HOME.x + 9, HOME.y + 13, 14, 7, NIGHT ? "#FFD9B0" : "#123A44");
+    plate("HOME 집", HOME.x + HOME.w/2, HOME.y + 2, P.hr, true);
+    for (let x = BX + 4; x < BX + BW; x += 34){ if (Math.abs(x - GX) < 30) continue; rect(x + 3, GR + 8, 2, 5, P.desk); rect(x, GR + 2, 8, 7, P.tree); }
+    [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, "#EDEDF5"); rect(x + 1, GR - 22, 6, 4, ["#FF5FAE","#FFD400","#FF8A1F"][i]); });
+    if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GR); }
+    P = keep;
+  }
+  return { name:"건물 단면 타워", layout:"bottom", place, route, draw, mapId, speed:46,
+    desc:"<b>학교 건물을 앞에서 잘라 본 모습</b>이에요. 내가 많이 가는 학년이 2 · 3 · 4층에, 시간표에 적은 특별실은 1층에 놓여요. 층마다 네온 테두리 색이 다르고, 가운데 교무실은 하늘색이에요. 계단으로 오르내리고, 가운데 탑 시계가 지금 시각이에요. 쉬는 시간에는 학생들이 복도를 오가요. (방 자리는 반 수에 맞춘 짐작이에요)" };
+})();
+
+/* ===== 2. 층별 평면도 (위에서) ===== */
+const S2 = (() => {
+  // 2층 = 많이 가는 학년 + 교무실, 4층 = 그다음 학년 + 특별실 (반 수에 맞춰 교실 너비를 정해요)
+  const NL = NCLS - Math.floor(NCLS/2), RW = clamp(Math.floor(308/NCLS), 18, 34), SW = 12, CW = 40, BWD = NCLS*RW + 2*SW + CW, X0 = 6 + Math.max(0, Math.round((372 - BWD)/2));
+  const GL = FLOORS2[0] || 0, GU = FLOORS2.length > 1 ? FLOORS2[1] : 0;
+  const FL = { 4:{ y:24, h:52 }, 2:{ y:112, h:60 } };
+  FL[4].cy = FL[4].y + FL[4].h + 7; FL[2].cy = FL[2].y + FL[2].h + 7;
+  const R = [], STAIRS = [];
+  [4,2].forEach(f => { let x = X0; ORDER(f === 4 ? GU : GL, f === 4 ? "etc" : "office", f).forEach(id => {
+    if (id === "|"){ STAIRS.push({ f, x, y:FL[f].y, w:SW, h:FL[f].h }); x += SW; return; }
+    const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:FL[f].y, w, h:FL[f].h }); x += w; }); });
+  const SL = X0 + NL*RW + SW/2, SR = X0 + NL*RW + SW + CW + SW/2;
+  const HOME = { id:"home", f:0, x:392, y:192, w:82, h:64 }; R.push(HOME);
+  const PY = 262, HD = { x:HOME.x + HOME.w/2, y:HOME.y + HOME.h };
+  const room = id => R.find(r => r.id === id);
+  const mapId = id => room(id) ? id : "etc";   // 평면도에 없는 곳은 4층 가운데 '특별실'로
+  const dr = r => ({ x:Math.round(r.x + r.w/2), y:r.y + r.h });
+  const place = id => { const r = room(id); return roomGeo(r.x, r.y, r.w, r.h, id).spot; };
+  const exitHome = [{ x:HD.x, y:HD.y }, { x:HD.x, y:PY }, { x:SR, y:PY }, { x:SR, y:FL[2].cy }];
+  function route(a, b){
+    const p = [place(a)]; let f, x;
+    if (a === "home"){ p.push(...exitHome); f = 2; x = SR; }
+    else { const d = dr(room(a)); p.push(d, { x:d.x, y:FL[room(a).f].cy }); f = room(a).f; x = d.x; }
+    const tf = b === "home" ? 2 : room(b).f;
+    if (f !== tf){ const st = Math.abs(x - SL) < Math.abs(x - SR) ? SL : SR; p.push({ x:st, y:FL[f].cy }, { x:st, y:FL[tf].cy }); }
+    if (b === "home") p.push(...exitHome.slice().reverse()); else { const d = dr(room(b)); p.push({ x:d.x, y:FL[tf].cy }, d); }
+    p.push(place(b)); return p;
+  }
+  function track(x, y, w, h){
+    rect(x, y, w, h, P.dot); rect(x + 3, y + 3, w - 6, h - 6, P.trackA);
+    rect(x + 12, y + 12, w - 24, h - 24, P.ground); rect(x + 16, y + 16, w - 32, h - 32, P.trackIn);
+    for (let k = 1; k < 3; k++){ g.strokeStyle = P.trackLine; g.lineWidth = 1; g.strokeRect(x + 3 + k*3 + .5, y + 3 + k*3 + .5, w - 6 - k*6 - 1, h - 6 - k*6 - 1); }
+    rect(x + w/2, y + 16, 1, h - 32, P.trackMark); g.strokeStyle = P.trackMark; g.beginPath(); g.arc(x + w/2 + .5, y + h/2, 7, 0, Math.PI*2); g.stroke();
+  }
+  function world(showLabels = true){
+    rect(0, 0, W, H, P.ground); TUFTS.forEach(([x, y]) => rect(x, y, 2, 1, P.tuft));
+    // 층 바닥 · 복도
+    [4,2].forEach(f => {
+      const L = FL[f]; rect(X0 - 4, L.y - 4, BWD + 8, L.h + 22, P.base);
+      rect(X0, L.y + L.h, BWD, 14, P.hall); rect(X0, L.y + L.h, BWD, 1, P.edge); rect(X0, L.y + L.h + 13, BWD, 1, P.edge);
+      for (let x = X0 + 3; x < X0 + BWD - 3; x += 8) rect(x, L.cy, 4, 1, P.hallLine);
+      if (showLabels){ txt(f + "F", X0 + 1, L.y - 9, 7, P.ui.acc, "left", true); txt(f === 4 ? (GU ? GU + "학년 · 특별실" : "특별실") : (GL ? GL + "학년 · 교무실" : "교무실"), X0 + 20, L.y - 9, 8, P.ui.ink); }
+    });
+    STAIRS.forEach(st => { rect(st.x, st.y, st.w, st.h, P.hall); for (let y = st.y + 3; y < st.y + st.h - 2; y += 4) rect(st.x + 2, y, st.w - 4, 1, P.hallLine); frameBox(st.x, st.y, st.w, st.h, 1, P.edge); });
+    [SL, SR].forEach(x => { rect(x - 5, FL[4].cy + 7, 10, FL[2].y - FL[4].cy - 11, P.hall); for (let y = FL[4].cy + 9; y < FL[2].y - 4; y += 3) rect(x - 4, y, 8, 1, P.hallLine); });
+    if (showLabels){ tag("3F · 계단", (SL + SR)/2 - 14, (FL[4].cy + FL[2].y)/2 - 1, P.base, P.ui.ink, 6); }
+    // 운동장 · 집 가는 길
+    track(X0, 198, 214, 66);
+    if (showLabels) tag("운동장", X0 + 4, 201, "rgba(0,0,0,.55)", "#fff", 6);
+    rect(SR - 5, FL[2].cy + 7, 10, PY - FL[2].cy - 2, P.path); rect(SR - 5, PY - 5, HD.x - SR + 10, 10, P.path); rect(HD.x - 5, HD.y, 10, PY - HD.y, P.path);
+    // 방
+    R.forEach(r => {
+      topRoom(r.x, r.y, r.w, r.h, r.id, { school:SCHOOL, act:!WK.walking && WK.here === r.id, glow:WK.here === r.id });
+      if (!showLabels) return;
+      const lb = r.id === "office" ? "교무실" : r.id === "home" ? "HOME 집" : r.id === "etc" ? "특별실" : r.id[0] === "_" ? "" : r.id === HR ? "★" + HR : r.id;
+      if (!lb) return;
+      g.globalAlpha = isClass(r.id) && !TAUGHT.has(r.id) ? .55 : 1;
+      const fg = r.id === "office" ? "#10131A" : "#fff", bg = r.id === HR || r.id === "home" ? P.hr : r.id === "office" ? P.ui.acc2 : "rgba(0,0,0,.72)";
+      if (r.id === "home") tag(lb, r.x + 2, r.y + 2, bg, fg, 6); else tag(lb, r.x + 1, r.y + r.h - 4, bg, fg, 5);
+      g.globalAlpha = 1;
+    });
+    // 쉬는 시간 · 점심: 복도를 걷는 학생들
+    [4, 2].forEach(f => crowd(f*7, 9, X0 + 6, X0 + BWD - 6, FL[f].cy + 4, 1));
+    // 보는 법
+    if (showLabels){
+      pbox(238, 198, 142, 50);
+      const it = [[P.hr, HR ? `★ ${HR} 우리 반 (담임)` : "HOME 집"], [P.fA, "수업하는 반"], [P.base, "수업 없는 반 (흐리게)"], [P.active, "지금 있는 곳"]];
+      it.forEach(([c, t], k) => { const yy = 206 + k*10; if (k === 3){ g.strokeStyle = c; g.lineWidth = 2; g.strokeRect(245, yy - 3, 8, 6); } else { rect(244, yy - 4, 10, 8, P.edge); rect(245, yy - 3, 8, 6, c); } txt(t, 259, yy, 6, P.ui.ink); });
+    }
+    if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, H); }
+  }
+  return { name:"층별 평면도", layout:"side", place, route, mapId, draw:() => world(true), world, speed:50,
+    desc:"<b>위에서 내려다본 평면도</b>예요. 많이 가는 두 학년을 2층(교무실)과 4층(특별실)에 펼쳐 놓고, 가운데 계단으로 이어요." };
+})();
+
+/* 색을 밝게 · 어둡게 (f < 1 이면 어둡게) */
+const shade = (hex, f) => { const n = parseInt(hex.slice(1, 7), 16), m = v => Math.max(0, Math.min(255, Math.round(v*f))); return "#" + ((1 << 24) + (m(n >> 16) << 16) + (m((n >> 8) & 255) << 8) + m(n & 255)).toString(16).slice(1); };
+/* ===== 5. 보드게임 판 ===== */
+const S5 = (() => {
+  const CW = 72, CH = 54, TWD = (W - 2*CW)/6, THT = (H - 2*CH)/3;
+  // 판 22칸: 네 귀퉁이(집 · 급식실 · 교무실 · 운동장)는 그대로, 나머지 18칸에 내가 가는 교실 · 특별실을 차례로 놓아요
+  // (11곳보다 적으면 같은 학년 다른 반을 흐리게 채우고, 많으면 행정실 · 정문 같은 꾸밈 칸을 줄여요)
+  const mine = [...new Set([...ROOMS.filter(isClass), ...(HR ? [HR] : [])])].sort(clsCmp);
+  const fill = []; FLOORS.forEach(gr => { for (let k = 1; k <= NCLS; k++){ const id = `${gr}-${k}`; if (!mine.includes(id)) fill.push(id); } });
+  const rooms = [...mine, ...SPECIAL].slice(0, 18);
+  let fk = 0; while (rooms.length < 11) rooms.push(fill.length ? fill.shift() : `f${fk++}`);
+  rooms.sort((a, b) => isClass(a) && isClass(b) ? clsCmp(a, b) : isClass(a) ? -1 : isClass(b) ? 1 : 0);
+  const DECO = [[10,"쉼","쉼터"],[15,"행정실"],[16,"🎲","이벤트"],[17,"교장실"],[19,"✉","공지"],[20,"정문"],[21,"🚌","정류장"]];
+  const seq = Array(22);
+  seq[0] = ["home","집 START","c"]; seq[7] = ["lunch","급식실","c"]; seq[11] = ["office","교무실","c"]; seq[18] = ["운동장","운동장","c"];
+  DECO.slice(DECO.length - (18 - rooms.length)).forEach(([i, id, lb]) => { seq[i] = [id, lb]; });
+  { let q = 0; for (let i = 0; i < 22; i++) if (!seq[i]) { const id = rooms[q++]; seq[i] = [id, id[0] === "f" && !isClass(id) && !TAUGHT.has(id) ? "" : SHORT(id)]; } }
+  const ICON = { "쉼":["☕","공강엔 커피 한 잔"], "🎲":["🎲","오늘의 랜덤 이벤트"], "✉":["✉️","가정통신문 확인"], "🚌":["🚌","퇴근 버스"] };
+  const FILLER = [["📚","도서실"], ["🌳","학교 화단"], ["🧃","매점"], ["🎵","음악 한 곡"]];
+  const mapId = id => seq.some(s => s[0] === id) ? id : "office";   // 판에 없는 곳은 교무실 칸으로
+  const TL = [];
+  TL.push({ x:W - CW, y:H - CH, w:CW, h:CH });
+  for (let k = 0; k < 6; k++) TL.push({ x:W - CW - (k + 1)*TWD, y:H - CH, w:TWD, h:CH });
+  TL.push({ x:0, y:H - CH, w:CW, h:CH });
+  for (let k = 0; k < 3; k++) TL.push({ x:0, y:H - CH - (k + 1)*THT, w:CW, h:THT });
+  TL.push({ x:0, y:0, w:CW, h:CH });
+  for (let k = 0; k < 6; k++) TL.push({ x:CW + k*TWD, y:0, w:TWD, h:CH });
+  TL.push({ x:W - CW, y:0, w:CW, h:CH });
+  for (let k = 0; k < 3; k++) TL.push({ x:W - CW, y:CH + k*THT, w:CW, h:THT });
+  const idx = id => seq.findIndex(s => s[0] === id);
+  const place = id => { const t = TL[idx(id)]; return { x:t.x + t.w/2, y:t.y + t.h - 7 }; };
+  function route(a, b){ const p = []; let i = idx(a); const j = idx(b); p.push(place(a)); while (i !== j){ i = (i + 1) % seq.length; p.push(place(seq[i][0])); } return p; }
+  // 교실이 아닌 칸의 작은 그림
+  function scene(id, x, y, w, h){
+    rect(x, y, w, h, P.fB); frameBox(x, y, w, h, 1, P.edge);
+    if (id === "운동장"){
+      rect(x + 3, y + 3, w - 6, h - 6, P.trackA); rect(x + 9, y + 8, w - 18, h - 16, P.trackIn);
+      g.strokeStyle = "#F4F1E8"; g.lineWidth = 1; g.strokeRect(x + 5.5, y + 5.5, w - 11, h - 11); rect(x + w/2, y + 8, 1, h - 16, "#F4F1E8");
+      girl(x + 16 + Math.round(Math.sin(T*1.3)*8), y + h - 6, 1, HAIR[0], Math.floor(T*6) % 2, Math.cos(T*1.3) < 0);
+    } else if (id === "정문"){
+      rect(x, y, w, h, P.ground); rect(x + w/2 - 7, y, 14, h, P.path);
+      rect(x + w/2 - 14, y + 6, 5, h - 9, P.wallTop); rect(x + w/2 + 9, y + 6, 5, h - 9, P.wallTop); rect(x + w/2 - 14, y + 4, 28, 4, P.wall);
+      [["#E24C4C", -24], ["#3C6BD8", 18], ["#F4F4F4", 22]].forEach(([c, dx]) => { rect(x + w/2 + dx, y + 4, 1, h - 6, P.edge); rect(x + w/2 + dx + 1, y + 4, 5, 3, c); });
+    } else if (id === "행정실"){
+      rect(x, y, w, 6, P.wall); rect(x + 4, y + 1, 10, 4, P.glass); rect(x + w - 14, y + 1, 10, 4, P.glass);
+      rect(x + 4, y + h - 13, w - 8, 4, P.deskTop); rect(x + 4, y + h - 9, w - 8, 1, P.desk);
+      [0, 1, 2].forEach(k => { rect(x + 9 + k*14, y + 10, 8, 5, P.desk); rect(x + 11 + k*14, y + 7, 4, 3, P.glass); if (SCHOOL) rect(x + 11 + k*14, y + 16, 4, 4, HAIR[k + 1]); });
+    } else if (id === "교장실"){
+      rect(x + 2, y + 6, w - 4, h - 8, P.rug); rect(x, y, w, 6, P.wall);
+      rect(x + w/2 - 12, y + 9, 24, 6, P.desk); rect(x + w/2 - 12, y + 9, 24, 1, P.deskTop); rect(x + w/2 - 2, y + 4, 1, 6, P.edge); rect(x + w/2 - 1, y + 4, 5, 3, "#E24C4C");
+      rect(x + 6, y + h - 12, 10, 6, "#4A6FA5"); rect(x + w - 16, y + h - 12, 10, 6, "#4A6FA5"); rect(x + w/2 - 6, y + h - 11, 12, 4, P.deskTop);
+    } else {
+      const [e, cap] = ICON[id] || FILLER[(+id.slice(1) || 0) % FILLER.length]; txt(e, x + w/2, y + h/2 - 3, 13, P.ui.ink, "center"); txt(cap, x + w/2, y + h - 5, 5, P.ui.muted, "center");
+    }
+  }
+  const PIP = { 1:[[1,1]], 2:[[0,0],[2,2]], 3:[[0,0],[1,1],[2,2]], 4:[[0,0],[2,0],[0,2],[2,2]], 5:[[0,0],[2,0],[1,1],[0,2],[2,2]], 6:[[0,0],[2,0],[0,1],[2,1],[0,2],[2,2]], 7:[[0,0],[2,0],[0,1],[1,1],[2,1],[0,2],[2,2]] };
+  function draw(st){
+    rect(0, 0, W, H, P.ground); TUFTS.forEach(([x, y]) => rect(x, y, 2, 1, P.tuft));
+    seq.forEach(([id, lb, c], k) => {
+      const t = TL[k], here = WK.here === id;
+      rect(t.x + 1, t.y + 1, t.w - 2, t.h - 2, P.ui.line); rect(t.x + 2, t.y + 2, t.w - 4, t.h - 4, P.ui.panel);
+      const band = isClass(id) || TAUGHT.has(id) ? gradeColor(id) : c ? P.ui.acc : P.ui.muted;
+      let bt = "#10131A";
+      if (NEO()){ frameBox(t.x + 1, t.y + 1, t.w - 2, t.h - 2, 1, band); bt = cellBox(t.x + 2, t.y + 2, t.w - 4, 10, band); }
+      else { rect(t.x + 2, t.y + 2, t.w - 4, 9, band); rect(t.x + 2, t.y + 11, t.w - 4, 1, P.ui.line); }
+      txt(lb ?? id, t.x + t.w/2, t.y + 7, c ? 7 : 6, bt, "center");
+      if (["home","office","lunch"].includes(id) || isClass(id) || TAUGHT.has(id)) topRoom(t.x + 5, t.y + 13, t.w - 10, t.h - 17, id, { school:SCHOOL, act:here && !WK.walking });
+      else scene(id, t.x + 5, t.y + 13, t.w - 10, t.h - 17);
+      if (here){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = P.ui.acc; g.lineWidth = 2; g.strokeRect(t.x + 1, t.y + 1, t.w - 2, t.h - 2); g.globalAlpha = 1; }
+    });
+    // 가운데 판
+    const cx0 = CW + 6, cy0 = CH + 6, cw = W - 2*CW - 12, ch = H - 2*CH - 12;
+    pbox(cx0, cy0, cw, ch);
+    txt(`${ME}의 하루 마블`, cx0 + 10, cy0 + 13, 11, P.ui.acc);
+    txt(NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실"), cx0 + 10, cy0 + 34, 16, P.ui.ink);
+    txt(st.act, cx0 + 10, cy0 + 52, 8, P.ui.muted);
+    const d = simNow(), day = d.getDay(), tt = TT[day] || {};
+    const bw = Math.min(31, (cw - 20) / Math.max(1, BELL.length)), bx = bw - 3;   // 종이 많으면 칸을 좁게
+    BELL.forEach(([p, a, b2], k) => {
+      const r = slotRoom(day, p), x = cx0 + 10 + k*bw, y = cy0 + 64, cur = st.m >= mm(a) && st.m < mm(b2), done = st.m >= mm(b2) && day >= 1 && day <= 5;
+      rect(x, y, bx, 26, cur ? P.ui.acc : P.ui.line); rect(x + 1, y + 1, bx - 2, 24, P.ui.panel);
+      txt(/\d/.test(p) ? p + "교시" : p, x + bx/2, y + 7, 6, P.ui.muted, "center");
+      txt(r === "lunch" ? "🍚" : SHORT(r) || "-", x + bx/2, y + 18, 7, r && r === HR ? P.hr : P.ui.ink, "center");
+      if (done){ g.globalAlpha = .5; rect(x + 1, y + 1, bx - 2, 24, P.ui.panel); g.globalAlpha = 1; txt("✓", x + bx - 5, y + 6, 6, P.ui.ok, "center"); }
+    });
+    // 주사위: 지금(또는 다음) 교시, 이동 중이면 굴러가요
+    const dx = cx0 + cw - 40, dy = cy0 + 8, nxP = BELL.find(([p, a]) => /\d/.test(p) && mm(a) > st.m);
+    const n = WK.walking ? 1 + Math.floor(T*12) % 6 : Number(st.p) || (st.brk && nxP ? Number(nxP[0]) : 0);
+    rect(dx + 2, dy + 2, 30, 30, "rgba(0,0,0,.3)"); rect(dx, dy, 30, 30, P.ui.ink); rect(dx + 2, dy + 2, 26, 26, P.ui.panel);
+    if (n) (PIP[n] || []).forEach(([i, j]) => rect(dx + 6 + i*8, dy + 6 + j*8, 4, 4, P.ui.acc));
+    else txt(st.lunch ? "🍚" : "?", dx + 15, dy + 15, 12, P.ui.acc, "center");
+    txt(WK.walking ? "굴리는 중" : n ? n + "교시" : st.slot, dx + 15, dy + 38, 6, P.ui.muted, "center");
+    // 아래: 이동 기록 · 교무실 자리 · 오늘 진행
+    const ly = cy0 + 98;
+    rect(cx0 + 10, ly, cw*.52, 44, P.ui.line); rect(cx0 + 11, ly + 1, cw*.52 - 2, 42, P.ui.panel);
+    txt("이동 기록", cx0 + 16, ly + 8, 6, P.ui.acc);
+    (WK.log.length ? WK.log.slice(0, 3) : ["아직 이동하지 않았어요"]).forEach((l, k) => txt(l, cx0 + 16, ly + 19 + k*9, 6, k ? P.ui.muted : P.ui.ink));
+    const rx = cx0 + 16 + cw*.52, rw = cw - cw*.52 - 26;
+    rect(rx, ly, rw, 44, P.ui.line); rect(rx + 1, ly + 1, rw - 2, 42, P.ui.panel);
+    txt("교무실 자리", rx + 6, ly + 8, 6, P.ui.acc);
+    for (let k = 0; k < 8; k++){
+      const mine = k === 4, on = mine ? WK.here === "office" && !WK.walking : SCHOOL && (BREAK || SEATS[(k*3 + 5) % SEATS.length].t);
+      const x = rx + 8 + (k % 2)*7, y = ly + 12 + Math.floor(k/2)*6 + (k >= 4 ? 3 : 0);   // 위 섬 · 아래 섬, 왼쪽 · 오른쪽이 마주봐요
+      rect(x, y, 6, 5, mine ? P.hr : P.ui.line); rect(x + 1, y + 1, 4, 3, on ? (mine ? P.hr : P.ui.ok) : P.ui.panel);
+    }
+    rect(rx + 14, ly + 11, 1, 29, P.ui.line);
+    txt("★ 내 자리 (분홍)", rx + 28, ly + 27, 6, P.hr);   // 교무실에 8명만 있는 건 아니라 사람 수는 안 적어요
+    const total = Object.keys(tt).length, doneN = Object.keys(tt).filter(p => mm(BELL.find(x => x[0] === p)[2]) <= st.m).length;
+    txt(`오늘 수업 ${doneN}/${total}`, rx + rw - 6, ly + 8, 6, P.ui.ink, "right");
+    for (let k = 0; k < total; k++) rect(rx + rw - 8 - (total - k)*6, ly + 14, 5, 5, k < doneN ? P.ui.ok : P.ui.line);
+    // 쉬는 시간 · 점심: 판 가장자리를 걷는 학생 말들
+    crowd(9, 7, cx0 + 8, cx0 + cw - 8, cy0 + ch + 3, 1);
+    if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, H); }
+  }
+  return { name:"보드게임 판", layout:"none", place, route, draw, mapId, speed:70, alias:st => st.lunch ? "lunch" : st.place, piece:true,
+    desc:"<b>부루마불 같은 보드게임 판</b>이에요. 칸마다 내가 가는 교실 · 특별실 · 교무실 · 급식실이 있고, 시간표에 맞춰 말이 칸을 따라 폴짝 이동해요(주사위가 굴러가요). 가운데 판에 지금 상황, 오늘 시간표, 이동 기록, 교무실 8자리(★ 내 자리)가 있어요." };
+})();
+
+/* ===== 6. 하루 횡스크롤 ===== */
+const S6 = (() => {
+  const E0 = dayEdge(), K = 3, M0 = E0.i - 20, M1 = E0.o + 70, GY = 200;   // 출근 20분 전 ~ 퇴근 70분 뒤
+  const wx = m => (m - M0) * K;
+  let segKey = "", segVal = null;
+  function segs(day){
+    const base = simNow(), key = base.toDateString(); if (key === segKey) return segVal;
+    if (day === 0 || day === 6) { segKey = key; return segVal = [{ place:"home", s:M0, e:M1, label:"주말" }]; }
+    const out = [];
+    for (let m = M0; m < M1; m += 2){
+      const st = stateAt(new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, m)), pl = st.brk ? "walk" : st.lunch ? "lunch" : st.place;
+      const last = out[out.length - 1]; if (last && last.place === pl) last.e = m + 2; else out.push({ place:pl, s:m, e:m + 2, label:st.slot });
+    }
+    segKey = key; return segVal = out;
+  }
+  // 창문 하나 (안에 학생 · 선생님 머리)
+  function win(x, y, w, h, who){
+    rect(x, y, w, h, P.edge); rect(x + 1, y + 1, w - 2, h - 2, NIGHT ? "#FFE27A" : P.glass); rect(x + 1, y + h/2, w - 2, 1, P.edge);
+    if (who){ const cx = x + w/2 - 3; rect(cx - 1, y + 5, 8, 3, who.hair); rect(cx, y + 7, 6, 4, P.skin); rect(cx - 1, y + 7, 1, 6, who.hair); rect(cx + 6, y + 7, 1, 6, who.hair); rect(cx, y + 11, 6, 2, who.shirt || P.uni); }
+  }
+  function facade(x, w, id, label, cur){
+    x = Math.round(x); w = Math.round(w);
+    const cls = isClass(id), H0 = id === "home" ? 74 : id === "lunch" ? 84 : 104, y = GY - H0;
+    if (id === "home"){
+      const hx = x + Math.max(4, w/2 - 46), hw = Math.min(w - 8, 92);
+      for (let k = 0; k < 9; k++) rect(hx - 6 + k*3, y - 4 + k*3 - 22, hw + 12 - k*6, 3, P.roof);
+      rect(hx, y, hw, H0, P.hB); rect(hx, y, hw, 3, shade(P.hB, .85));
+      win(hx + 10, y + 14, 22, 20, null); win(hx + hw - 32, y + 14, 22, 20, null);
+      if (NIGHT){ g.globalAlpha = .25; rect(hx - 10, y + 10, hw + 20, 40, "#FFE27A"); g.globalAlpha = 1; }
+      rect(hx + hw/2 - 9, GY - 30, 18, 30, P.desk); rect(hx + hw/2 + 5, GY - 16, 2, 2, "#FFE27A");
+      rect(hx - 10, GY - 12, 3, 12, P.edge); rect(hx - 13, GY - 18, 9, 6, P.hr);   // 우편함
+      for (let fx = x + 2; fx < x + w - 2; fx += 6){ if (fx > hx - 14 && fx < hx + hw + 4) continue; rect(fx, GY - 10, 2, 10, P.deskTop); }
+      tag("HOME 집", hx + 4, y + 2, P.hr, "#fff", 7);
+      return;
+    }
+    const wall = id === "office" ? P.oA : id === "lunch" ? P.hA : P.wall;
+    rect(x + 2, y, w - 4, H0, wall); rect(x + 2, y, w - 4, 5, P.wallTop); rect(x + 2, GY - 6, w - 4, 6, shade(wall, .8));
+    for (let k = x + 2; k < x + w - 2; k += 24) rect(k, y + 5, 1, H0 - 11, shade(wall, .9));
+    const cols = Math.max(1, Math.floor((w - 16) / 24));
+    for (let c = 0; c < cols; c++) for (let r = 0; r < 2; r++){
+      const wx0 = x + 10 + c*24, wy0 = y + 22 + r*34, sv = SEATS[(c*2 + r + hashId(id)) % SEATS.length];
+      let who = null;
+      if (SCHOOL && cls && sv.on && (!BREAK || sv.stay)) who = { hair:sv.hair };
+      if (SCHOOL && id === "office" && (BREAK || sv.t)) who = { hair:sv.hair, shirt:["#6B7FA8","#A8746B","#6BA88A"][c % 3] };
+      if (SCHOOL && id === "lunch" && LUNCH && sv.on) who = { hair:sv.hair };
+      win(wx0, wy0, 16, 22, who);
+      if (id === "office" && r === 1) rect(wx0 + 4, wy0 + 15, 8, 4, P.edge);   // 모니터
+    }
+    if (id === "lunch" && LUNCH) for (let k = 0; k < 3; k++){ const sx = x + 20 + k*20; g.globalAlpha = .5; rect(sx + Math.round(Math.sin(T*2 + k)*2), y - 8 - k*3, 4, 6, "#FFFFFF"); g.globalAlpha = 1; }
+    rect(x + w/2 - 10, GY - 26, 20, 26, P.edge); rect(x + w/2 - 9, GY - 25, 8, 25, P.glass); rect(x + w/2 + 1, GY - 25, 8, 25, P.glass);
+    // 간판
+    const hr = HR && id === HR;
+    let lb = id === "office" ? "교무실" : id === "lunch" ? "급식실 🍚" : hr ? `★ ${id} 우리 반` : id;
+    g.font = `8px ${P.font}`; if (Math.ceil(g.measureText(lb).width) + 12 > w - 6) lb = hr ? "★" + id : id === "lunch" ? "급식" : id === "office" ? "교무" : id;
+    const tw = Math.ceil(g.measureText(lb).width) + 12, sx0 = Math.round(x + w/2 - tw/2);
+    rect(sx0 - 1, y + 7, tw + 2, 13, P.edge); rect(sx0, y + 8, tw, 11, hr ? P.hr : cur ? P.ui.acc : "#2A2A3A");
+    txt(lb, x + w/2, y + 13.5, 8, cur && !hr ? "#10131A" : "#FFFFFF", "center");
+    if (hr){ rect(x + w - 12, y - 16, 1, 16, P.edge); rect(x + w - 11, y - 16, 8, 5, P.hr); }
+  }
+  // 거리 소품: 나무 · 가로등 · 벤치 (세상 좌표에 고정)
+  function props(cam, front){
+    const step = front ? 170 : 90, off = front ? 40 : 0;
+    for (let k = Math.floor((cam*(front ? 1.25 : 1) - off) / step) - 1; k < Math.floor((cam*(front ? 1.25 : 1) + W) / step) + 2; k++){
+      const x = k*step + off - cam*(front ? 1.25 : 1);
+      if (front){ rect(x, GY + 22, 3, 30, P.edge); rect(x - 5, GY + 18, 13, 4, P.edge); rect(x - 4, GY + 19, 11, 2, NIGHT ? "#FFE27A" : P.deskTop); continue; }
+      if (k % 3 === 1){ rect(x, GY + 2, 18, 3, P.desk); rect(x + 1, GY + 5, 2, 3, P.edge); rect(x + 15, GY + 5, 2, 3, P.edge); }
+    }
+  }
+  function draw(st){
+    const d = simNow(), sg = segs(d.getDay()), m = Math.max(M0, Math.min(M1, st.m));
+    const cam = wx(m) - 200;
+    rect(0, 0, W, H, P.sky);
+    if (V === "a" || NIGHT){ for (let k = 0; k < 50; k++){ const x = ((k*7919 - cam*.05) % W + W) % W, y = (k*1031) % 95; rect(x, y, 1, 1, k % 5 ? "#3A3A66" : "#FFFFFF"); } }
+    else for (let k = 0; k < 4; k++){ const x = ((k*160 - cam*.15 + T*4) % (W + 80) + W + 80) % (W + 80) - 40, y = 18 + (k % 2)*14; rect(x, y, 32, 7, "#FFFFFF"); rect(x + 7, y - 5, 15, 6, "#FFFFFF"); }
+    for (let i = -2; i < 14; i++){ const x = i*60 - ((cam*.3) % 60 + 60) % 60, h = 112 + (Math.abs(i + Math.floor(cam*.3/60)) % 3)*22; rect(x, GY - h, 46, h, P.apt); for (let y = GY - h + 6; y < GY - 6; y += 8) for (let xx = x + 4; xx < x + 42; xx += 8) rect(xx, y, 4, 3, NIGHT && (xx + y) % 3 === 0 ? "#FFE27A" : P.aptWin); }
+    rect(0, GY, W, H - GY, P.yard); rect(0, GY + 6, W, 13, P.path); for (let x = -(((cam) % 20) + 20) % 20; x < W; x += 20) rect(x, GY + 12, 10, 2, P.hallLine);
+    for (let x = -(((cam) % 12) + 12) % 12; x < W; x += 12) rect(x, GY, 11, 1, shade(P.path, .85));
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    if (weekend) facade(150, 150, "home", "주말", true);
+    else sg.forEach(s => { const x = wx(s.s) - cam, w = wx(s.e) - wx(s.s); if (s.place === "walk" || x + w < -10 || x > W + 10) return; facade(x, w, s.place, s.label, m >= s.s && m < s.e); });
+    // 길(쉬는 시간) 구간 위 나무
+    sg.forEach(s => { if (s.place !== "walk") return; const x = wx(s.s) - cam, w = wx(s.e) - wx(s.s); if (x + w < -20 || x > W + 20) return; const tx = x + w/2; rect(tx - 1, GY - 14, 3, 14, P.desk); rect(tx - 8, GY - 30, 17, 17, P.tree); rect(tx - 5, GY - 34, 11, 5, P.tree); });
+    props(cam, false);
+    crowd(5, 8, 0, W, GY + 12, 1);
+    if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GY); }
+    const mv = st.brk || (st.slot === "출근" && st.m < E0.i + 10) || st.slot === "정리";
+    me(200, GY + 4, mv ? Math.floor(T*8) % 2 : 2, false, 1);
+    bubble(st.act, 200, GY - 12);
+    props(cam, true);
+    // 시간 자
+    pbox(0, H - 44, W, 44);
+    for (let h = Math.ceil(M0/60); h <= Math.floor(M1/60); h++){ const x = wx(h*60) - cam; if (x < -30 || x > W + 30) continue; rect(x, H - 44, 1, 8, P.ui.muted); txt(hhmm(h*60), x + 3, H - 37, 6, P.ui.muted, "left", true); }
+    if (weekend){ rect(0, H - 27, W, 17, P.ui.acc); txt("주말 · 학교는 쉬어요. 푹 쉬는 날!", W/2, H - 18.5, 7, "#10131A", "center"); }
+    else BELL.forEach(([p, a2, b2]) => { const x = wx(mm(a2)) - cam, w = wx(mm(b2)) - wx(mm(a2)); if (x + w < 0 || x > W) return; const r = slotRoom(d.getDay(), p);
+      const cc = r === "lunch" ? P.ui.acc : r ? (NEO() || r === HR ? gradeColor(r) : P.ui.ok) : P.ui.line;
+      let tc = r ? "#10131A" : P.ui.muted;
+      if (NEO() && r) tc = cellBox(x, H - 27, w - 1, 17, cc); else rect(x, H - 27, w - 1, 17, cc);
+      const lab = (/\d/.test(p) ? p + "교시 " : p + " ") + (r === "lunch" ? "" : r || "공강"); g.font = `7px ${P.font}`;
+      if (g.measureText(lab).width + 6 <= w) txt(lab, x + 4, H - 18.5, 7, tc); else txt(r && r !== "lunch" ? r : p, x + 3, H - 18.5, 6, tc); });
+    rect(199, H - 44, 3, 44, P.ui.acc); tag("지금", 203, H - 44, P.ui.acc, "#10131A", 6);
+    txt("SIDE SCROLL · 하루가 흘러가요", 8, 12, 7, P.ui.acc);
+  }
+  return { name:"하루 횡스크롤", layout:"bottom", custom:true, draw,
+    desc:"<b>하루가 옆으로 흘러가는 거리</b>예요. 오늘 갈 교실 · 교무실 · 급식실 · 집이 시간 순서대로 늘어서 있고, 시간이 지나면 화면이 흘러가요. 창문 너머로 학생과 선생님이 보이고, 쉬는 시간에는 거리에 학생들이 다녀요. 아래 시간 자에 교시가 보여요." };
+})();
+
+/* ===== 7. CCTV 관제실 ===== */
+const S7 = (() => {
+  const MX = 10, MY = 10, MW = 306, MH = 192, SC = 3;
+  // 작은 화면 = 교무실 + 내가 가는 곳(많으면 13곳까지, 적으면 같은 학년 다른 반) + 집
+  const FEEDS = (() => {
+    const mine = [...new Set([...ROOMS.filter(isClass), ...(HR ? [HR] : [])])].sort(clsCmp), list = [...mine, ...SPECIAL].slice(0, 13);
+    FLOORS.forEach(gr => { for (let k = 1; k <= NCLS && list.length < 11; k++){ const id = `${gr}-${k}`; if (!list.includes(id)) list.push(id); } });
+    return ["office", ...list.sort((a, b) => isClass(a) && isClass(b) ? clsCmp(a, b) : isClass(a) ? -1 : isClass(b) ? 1 : 0), "home"];
+  })();
+  let shown = null, sw = 0;
+  const place = id => roomGeo(MX, MY, MW, MH, id, SC).spot;
+  const door = { x:MX + MW/2, y:MY + MH - 4 };
+  const route = (a, b) => [place(a), door, { x:door.x, y:door.y - 24 }, place(b)];
+  function draw(st){
+    rect(0, 0, W, H, "#08080D");
+    for (let y = 0; y < H; y += 4){ g.globalAlpha = .25; rect(0, y, W, 1, "#14141E"); g.globalAlpha = 1; }
+    if (shown !== WK.here){ if (shown !== null && WK.walking) WK.pos = { ...door }; shown = WK.here; sw = T; }
+    // 큰 화면 (베젤 · 화면 · 주사선)
+    rect(MX - 6, MY - 6, MW + 12, MH + 12, "#22222C"); rect(MX - 4, MY - 4, MW + 8, MH + 8, "#0A0A0F");
+    topRoom(MX, MY, MW, MH, shown || "office", { school:SCHOOL, act:!WK.walking, s:SC });
+    for (let y = MY; y < MY + MH; y += 3){ g.globalAlpha = .07; rect(MX, y, MW, 1, "#000"); g.globalAlpha = 1; }
+    if (T - sw < .45){ for (let k = 0; k < 260; k++) rect(MX + Math.random()*MW, MY + Math.random()*MH, 3, 2, Math.random() > .5 ? "#FFF" : "#555"); }
+    for (let k = 0; k < 4; k++){ const w0 = 26 - k*6; g.globalAlpha = .06; g.strokeStyle = "#000"; g.lineWidth = w0; g.strokeRect(MX + w0/2, MY + w0/2, MW - w0, MH - w0); g.globalAlpha = 1; }
+    rect(MX, MY, MW, 15, "rgba(0,0,0,.55)"); rect(MX, MY + MH - 14, MW, 14, "rgba(0,0,0,.55)");
+    if (Math.sin(T*4) > 0) { g.beginPath(); g.arc(MX + 10, MY + 7.5, 3.5, 0, Math.PI*2); g.fillStyle = "#FF3B3B"; g.fill(); }
+    txt("REC", MX + 17, MY + 8, 7, "#FF3B3B", "left", true);
+    const cam = FEEDS.indexOf(shown || "office");
+    txt(`CAM ${cam < 0 ? "--" : String(cam + 1).padStart(2, "0")} · ${NAME(shown || "office")}`, MX + MW - 6, MY + 8, 8, "#FFFFFF", "right");
+    const d = simNow();
+    txt(`${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${DAYS[d.getDay()]}`, MX + 8, MY + MH - 7, 6, "#CFCFDA", "left");
+    txt(hhmm(d.getHours()*60 + d.getMinutes()) + ":" + String(d.getSeconds()).padStart(2, "0"), MX + MW - 6, MY + MH - 7, 6, "#FFFFFF", "right", true);
+    // 작은 화면 13개
+    FEEDS.forEach((id, k) => {
+      const c = k % 3, r = Math.floor(k / 3), x = 330 + c*49, y = 8 + r*40, live = id === WK.here;
+      rect(x - 2, y - 2, 49, 39, live ? P.ui.acc : "#22222C"); rect(x - 1, y - 1, 47, 37, "#0A0A0F");
+      topRoom(x, y, 45, 35, id, { school:SCHOOL, s:1 });
+      g.globalAlpha = .22; for (let yy = y; yy < y + 35; yy += 2) rect(x, yy, 45, 1, "#000"); g.globalAlpha = 1;
+      if ((T*3 + k*1.7) % 9 < .12) for (let n = 0; n < 40; n++) rect(x + Math.random()*45, y + Math.random()*35, 2, 1, "#FFF");
+      tag(id === "office" ? "교무실" : id === "home" ? "집" : id, x + 1, y + 26, live ? P.ui.acc : "rgba(0,0,0,.72)", live ? "#10131A" : "#fff", 5);
+      txt(String(k + 1).padStart(2, "0"), x + 43, y + 5, 5, live ? "#FF3B3B" : "#8C8CA6", "right", true);
+    });
+    // 조종대
+    rect(0, 212, W, 58, "#15151D"); rect(0, 212, W, 2, P.ui.acc);
+    txt(NAME(st.place), 12, 226, 13, "#FFFFFF"); txt(st.act, 12, 243, 7, "#B8B8C8");
+    const status = BREAK ? ["쉬는 시간 · 복도 붐빔", "#FFB547"] : LUNCH ? ["점심시간", "#FFD400"] : SCHOOL ? ["수업 중 · 조용", "#5BEA6F"] : ["학교 밖 시간", "#8C8CA6"];
+    g.beginPath(); g.arc(16, 257, 3, 0, Math.PI*2); g.fillStyle = status[1]; g.fill(); txt(status[0], 23, 257, 6, status[1]);
+    const bw = Math.min(32, (W - 154) / Math.max(1, BELL.length)), bx = bw - 3;   // 종이 많으면 단추를 좁게
+    BELL.forEach(([p, a2, b2], k) => { const r = slotRoom(d.getDay(), p), x = 150 + k*bw, cur = st.m >= mm(a2) && st.m < mm(b2);
+      rect(x, 220, bx, 40, cur ? P.ui.acc : "#2A2A36"); rect(x + 1, 221, bx - 2, 38, cur ? P.ui.acc : "#1C1C26"); rect(x + 1, 255, bx - 2, 4, cur ? "#10131A" : "#121219");
+      txt(/\d/.test(p) ? p : p.slice(0, 2), x + bx/2, 230, 6, cur ? "#10131A" : "#8C8CA6", "center", /\d/.test(p));
+      txt(r === "lunch" ? "밥" : r || "-", x + bx/2, 245, 7, cur ? "#10131A" : r && r === HR ? P.hr : "#EDEDF5", "center"); });
+  }
+  return { name:"CCTV 관제실", layout:"none", place, route, draw, speed:70, meScale:SC,
+    desc:"<b>교실마다 카메라가 달린 관제실</b>이에요. 큰 화면은 내가 있는 곳을 크게 비추고, 오른쪽 작은 화면(내가 가는 교실들) 중 지금 있는 곳에 불이 들어와요. 장소가 바뀌면 지지직 화면이 바뀌어요. 아래 조종대에 오늘 시간표와 지금 상태(수업 중 · 쉬는 시간)가 나와요." };
+})();
+
+/* ===== 8. RPG 줌 카메라 + 미니맵 ===== */
+const S8 = (() => {
+  const Z = 3;
+  let camX = null, camY = null;
+  function draw(st){
+    // 카메라: 캐릭터를 부드럽게 따라가요 (학교 건물 밖 빈 땅은 덜 보이게)
+    const maxX = WK.here === "home" ? W - W/Z/2 : 392 - W/Z/2;
+    const tx = Math.max(W/Z/2, Math.min(maxX, WK.pos.x)), ty = Math.max(H/Z/2, Math.min(H - H/Z/2, WK.pos.y - 8));
+    rect(0, 0, W, H, P.ground);
+    if (camX === null){ camX = tx; camY = ty; } camX += (tx - camX)*.12; camY += (ty - camY)*.12;
+    g.save(); g.translate(Math.round(W/2 - camX*Z), Math.round(H/2 - camY*Z)); g.scale(Z, Z); S2.world(false);
+    me(Math.round(WK.pos.x), Math.round(WK.pos.y), frameNo(), WK.flip); g.restore();
+    // 왼쪽 위: 시각 · 퀘스트 · 체력
+    const d = simNow(), tt = TT[d.getDay()] || {}, nx = BELL.find(([p, a2]) => mm(a2) > st.m && tt[p]);
+    pbox(8, 8, 168, 46);
+    txt(hhmm(d.getHours()*60 + d.getMinutes()), 15, 19, 9, P.ui.acc, "left", true); txt(st.slot, 70, 19, 9, P.ui.ink);
+    txt("퀘스트", 15, 32, 6, P.ui.muted); txt(nx ? `${nx[0]}교시 ${NAME(tt[nx[0]])} 수업 · ${nx[1]}` : st.place === "home" ? "푹 쉬기 🌙" : "오늘 수업 모두 끝!", 40, 32, 7, P.ui.ink);
+    const E = dayEdge(), day = d.getDay() >= 1 && d.getDay() <= 5, hp = st.place === "home" ? 1 : day ? Math.max(.25, 1 - Math.max(0, st.m - E.f) / Math.max(1, E.o - E.f) * .7) : 1;
+    txt("체력", 15, 44, 6, P.ui.muted); rect(40, 41, 100, 6, P.ui.line); rect(41, 42, Math.round(98*hp), 4, hp > .5 ? P.ui.ok : hp > .35 ? P.ui.acc : P.hr);
+    txt(Math.round(hp*100) + "%", 146, 44, 6, P.ui.ink, "left", true);
+    // 미니맵
+    const mx = W - 142, my = 8, sc = .28;
+    rect(mx - 3, my - 3, W*sc + 6, H*sc + 6, P.ui.line);
+    g.save(); g.translate(mx, my); g.scale(sc, sc); S2.world(false); g.restore();
+    g.strokeStyle = "#FFFFFF"; g.lineWidth = 1; g.strokeRect(mx + (camX - W/Z/2)*sc + .5, my + (camY - H/Z/2)*sc + .5, W/Z*sc, H/Z*sc);
+    rect(mx + WK.pos.x*sc - 2, my + WK.pos.y*sc - 2, 4, 4, Math.sin(T*8) > 0 ? "#FF3B3B" : "#FFFFFF");
+    txt("MAP", mx, my + H*sc + 9, 6, P.ui.acc, "left", true);
+    // 대화창
+    pbox(10, H - 46, W - 20, 38);
+    tag(ME, 18, H - 52, P.ui.acc, "#10131A", 8);
+    const line = WK.walking ? `${NAME(st.place)}(으)로 가는 중이에요!` : st.act + (st.place === "home" ? " 🌙" : BREAK ? " ☕" : "");
+    const n = Math.min(line.length, Math.floor((T*14) % (line.length + 30)));
+    txt(line.slice(0, n), 22, H - 27, 10, P.ui.ink);
+    if (Math.sin(T*5) > 0) txt("▼", W - 24, H - 16, 7, P.ui.acc, "center", true);
+  }
+  return { name:"RPG 줌 카메라", layout:"none", place:S2.place, route:S2.route, mapId:S2.mapId, draw, speed:44, ownMe:true, reset:() => { camX = null; },
+    desc:"<b>내 캐릭터를 크게 따라가는 RPG 카메라</b>예요. 카메라가 부드럽게 따라가고, 오른쪽 위 미니맵에 지금 보이는 범위가 표시돼요. 왼쪽 위에 다음 수업 퀘스트와 하루 체력 막대, 아래 대화창에 지금 하는 일이 한 글자씩 나와요." };
+})();
+
+/* ===== 9. 원형 하루 시계 ===== */
+const S9 = (() => {
+  const E0 = dayEdge(), CX = 128, CY = 138, R0 = 102, R1 = 80, RW = R1 - 15, A0 = E0.i, A1 = Math.max(E0.o, E0.i + 60);   // 시계 한 바퀴 = 출근 ~ 퇴근
+  const ang = m => -Math.PI/2 + (m - A0) / (A1 - A0) * Math.PI*2;
+  function arc(a1, a2, r0, r1, c){ g.fillStyle = c; g.beginPath(); g.arc(CX, CY, r0, a1, a2); g.arc(CX, CY, r1, a2, a1, true); g.closePath(); g.fill(); }
+  function ring(r, c, w){ g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.arc(CX, CY, r, 0, Math.PI*2); g.stroke(); }
+  function draw(st){
+    rect(0, 0, W, H, P.ui.panel);
+    g.globalAlpha = .35; for (let x = 0; x < W; x += 12) rect(x, 0, 1, H, P.ui.line); for (let y = 0; y < H; y += 12) rect(0, y, W, 1, P.ui.line); g.globalAlpha = 1;
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, inDay = wk && st.m >= A0 && st.m < A1;
+    // 시계판 바탕 · 테두리
+    g.beginPath(); g.arc(CX, CY, R0 + 12, 0, Math.PI*2); g.fillStyle = shade(P.ui.panel, V === "a" ? 1.6 : .94); g.fill();
+    ring(R0 + 12, P.ui.line, 3); ring(R0 + 2, P.ui.line, 1);
+    for (let m = A0 + 10; m < A1; m += 10){ const an = ang(m), hr = m % 60 === 0, r2 = R0 + (hr ? 10 : 6);
+      g.strokeStyle = hr ? P.ui.ink : P.ui.muted; g.lineWidth = hr ? 2 : 1; g.beginPath(); g.moveTo(CX + Math.cos(an)*(R0 + 3), CY + Math.sin(an)*(R0 + 3)); g.lineTo(CX + Math.cos(an)*r2, CY + Math.sin(an)*r2); g.stroke(); }
+    arc(0, Math.PI*2, R0, R1, P.ui.line);
+    // 교시 조각 (지난 칸은 흐리게, 지금 칸은 반짝)
+    BELL.forEach(([p, a2, b2]) => {
+      const r = wk ? slotRoom(day, p) : "", c = r && r === HR ? P.hr : r === "lunch" ? P.ui.acc : r ? P.ui.ok : P.empty;
+      const s0 = ang(mm(a2)) + .012, s1 = ang(mm(b2)) - .012, past = wk && st.m >= mm(b2), cur = wk && st.m >= mm(a2) && st.m < mm(b2);
+      let lc = "#10131A";
+      if (NEO() && r){   // NEON 2: 검은 조각 + 네온 테두리
+        const cc = r === "lunch" ? c : gradeColor(r);
+        g.globalAlpha = past ? .35 : 1; arc(s0, s1, R0 - 1, R1 + 1, "#0B0B12");
+        g.strokeStyle = cc; g.lineWidth = 1.5; g.beginPath(); g.arc(CX, CY, R0 - 2, s0, s1); g.arc(CX, CY, R1 + 2, s1, s0, true); g.closePath(); g.stroke(); lc = cc;
+        g.globalAlpha = 1;
+      } else { g.globalAlpha = past ? .35 : 1; arc(s0, s1, R0 - 1, R1 + 1, c); g.globalAlpha = 1; }
+      if (cur){ g.globalAlpha = .35 + .3*Math.sin(T*5); arc(s0, s1, R0 + 3, R0 - 1, c); g.globalAlpha = 1; }
+      const mid = (s0 + s1)/2, lb = r === "lunch" ? "점심" : r ? r : /\d/.test(p) ? "" : p;
+      if (lb && wk) txt(lb, CX + Math.cos(mid)*(R1 + 11), CY + Math.sin(mid)*(R1 + 11), 6, lc, "center");
+    });
+    for (let h = Math.ceil(A0/60); h <= Math.floor((A1 - 1)/60); h++){ const an = ang(h*60); txt(String(h), CX + Math.cos(an)*(R1 - 6), CY + Math.sin(an)*(R1 - 6), 5, P.ui.muted, "center", true); }
+    // 둥근 창: 지금 있는 방
+    const id = st.lunch ? "lunch" : st.place;
+    g.save(); g.beginPath(); g.arc(CX, CY, RW, 0, Math.PI*2); g.clip();
+    const G = topRoom(CX - RW, CY - RW, RW*2, RW*2, id, { school:SCHOOL, act:!st.brk, s:2 });
+    const mv = !!st.brk, sp = G.spot;
+    me(Math.round(sp.x + (mv ? Math.sin(T*2)*18 : 0)), Math.round(sp.y), mv ? Math.floor(T*8) % 2 : 2, mv && Math.cos(T*2) < 0, 2);
+    if (NIGHT){ g.fillStyle = P.night; g.fillRect(CX - RW, CY - RW, RW*2, RW*2); }
+    g.restore();
+    ring(RW + 1, P.ui.ink, 3);
+    // 바늘 · 링을 걷는 나
+    if (inDay){
+      const an = ang(st.m);
+      g.strokeStyle = P.ui.acc; g.lineWidth = 3; g.beginPath(); g.moveTo(CX + Math.cos(an)*(RW + 3), CY + Math.sin(an)*(RW + 3)); g.lineTo(CX + Math.cos(an)*(R0 + 12), CY + Math.sin(an)*(R0 + 12)); g.stroke();
+      const px = CX + Math.cos(an)*(R0 + 20), py = CY + Math.sin(an)*(R0 + 20);
+      g.beginPath(); g.arc(px, py, 4, 0, Math.PI*2); g.fillStyle = P.ui.acc; g.fill();
+    }
+    { const lb = NAME(id) + " · " + (wk ? st.slot : "주말"); g.font = `8px ${P.font}`; const tw = g.measureText(lb).width + 5; tag(lb, CX - tw/2, CY + R0 + 14, HR && id === HR ? P.hr : P.ui.acc, "#10131A", 8); }
+    // 오른쪽 위: 디지털 시계
+    const X = 258;
+    pbox(X, 8, 214, 40);
+    txt(hhmm(d.getHours()*60 + d.getMinutes()), X + 10, 28, 16, P.ui.acc, "left", true);
+    txt(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일`, X + 112, 21, 8, P.ui.ink);
+    const left = Math.max(0, Math.ceil(st.e - st.m));
+    txt(st.e < 1440 ? `${st.slot} · ${left}분 남음` : st.slot, X + 112, 35, 7, P.ui.muted);
+    // 오른쪽 아래: 이번 주
+    const rowsN = Math.max(1, BELL.filter(([p]) => p !== "점심").length), Y = 56, cw = 38, ch = Math.min(21, 189/rowsN);   // 교시가 많으면 칸을 낮게
+    txt("THIS WEEK", X, Y + 4, 6, P.ui.acc, "left", true);
+    ["월","화","수","목","금"].forEach((dn, k) => { const x = X + 22 + k*cw; if (k + 1 === day) rect(x, Y + 10, cw, ch*rowsN + 14, shade(P.ui.panel, V === "a" ? 2 : .9)); txt(dn, x + cw/2, Y + 17, 8, k + 1 === day ? P.ui.acc : P.ui.muted, "center"); });
+    BELL.filter(([p]) => p !== "점심").forEach(([p, a2, b2], r) => {
+      const y = Y + 24 + r*ch;
+      txt(/\d/.test(p) ? p : p.slice(0, 1), X + 9, y + ch/2 - 1, 6, P.ui.muted, "center", /\d/.test(p));
+      for (let k = 1; k <= 5; k++){
+        const rr = slotRoom(k, p), x = X + 22 + (k - 1)*cw, cur = k === day && st.m >= mm(a2) && st.m < mm(b2);
+        let wc = "#10131A";
+        if (NEO() && rr) wc = cellBox(x + 2, y + 1, cw - 4, ch - 3, gradeColor(rr));
+        else rect(x + 2, y + 1, cw - 4, ch - 3, rr && rr === HR ? P.hr : rr ? P.ui.ok : P.cell);
+        if (k === day && st.m >= mm(b2)){ g.globalAlpha = .45; rect(x + 2, y + 1, cw - 4, ch - 3, P.ui.panel); g.globalAlpha = 1; }
+        if (rr) txt(rr.length > 4 ? rr.slice(0, 3) + "…" : rr, x + cw/2, y + ch/2 - 1, Math.min(7, ch - 4), wc, "center");
+        if (cur){ g.globalAlpha = .6 + .4*Math.sin(T*5); g.strokeStyle = P.ui.acc; g.lineWidth = 2; g.strokeRect(x + 1, y, cw - 2, ch - 1); g.globalAlpha = 1; }
+      }
+    });
+  }
+  return { name:"원형 하루 시계", layout:"side", custom:true, draw,
+    desc:"<b>하루를 둥근 시계판으로</b> 보여 줘요. 교시마다 색 조각이 있고(지난 칸은 흐리게), 바늘이 지금 시각을 가리켜요. 가운데 둥근 창으로 지금 있는 방을 들여다보고, 오른쪽에는 디지털 시계와 이번 주 시간표 칸이 있어요." };
+})();
+
+/* ===== 10. 위클리 플래너 디오라마 ===== */
+const S10 = (() => {
+  const GX = 198, GY = 42, CWD = 55, RH = Math.min(21.2, 212 / Math.max(1, BELL.length)), KX = 8, KY = 18, KW = 150, KH = 244;   // 종이 많으면 줄을 낮게
+  function draw(st){
+    const paper = P.paper, ink = P.ui.ink, rule = P.rule;
+    rect(0, 0, W, H, P.deep);
+    // 플래너 종이 + 스프링
+    rect(GX - 32, 8, W - GX + 28, H - 14, paper); frameBox(GX - 32, 8, W - GX + 28, H - 14, 1, rule);
+    for (let x = GX - 20; x < W - 10; x += 16){ rect(x, 4, 4, 9, P.ring); rect(x + 1, 10, 2, 2, P.deep); }
+    const d = simNow(), day = d.getDay(), mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+    txt("WEEKLY PLANNER", GX - 26, 22, 6, P.ui.acc, "left", true);
+    ["월","화","수","목","금"].forEach((dn, k) => {
+      const x = GX + k*CWD, dt = new Date(mon); dt.setDate(mon.getDate() + k);
+      if (k + 1 === day) rect(x, GY - 12, CWD, RH*BELL.length + 14, P.today);
+      txt(`${dn} ${dt.getMonth() + 1}/${dt.getDate()}`, x + CWD/2, GY - 5, 7, k + 1 === day ? P.ui.acc : ink, "center");
+    });
+    let cur = null;
+    BELL.forEach(([p, a2, b2], r) => {
+      const y = GY + r*RH;
+      rect(GX - 28, y + RH - 1, W - GX + 20, 1, rule);
+      txt(/\d/.test(p) ? p + "교시" : p, GX - 4, y + RH/2, 6, P.ui.muted, "right");
+      for (let k = 1; k <= 5; k++){
+        const x = GX + (k - 1)*CWD, rr = slotRoom(k, p), past = k < day || (k === day && st.m >= mm(b2)), now = k === day && st.m >= mm(a2) && st.m < mm(b2);
+        if (rr === "lunch") txt("🍚 점심", x + CWD/2, y + RH/2, 6, P.ui.muted, "center");
+        else if (rr){
+          const c = gradeColor(rr);
+          let pc = V === "a" ? "#FFFFFF" : "#10131A";
+          if (NEO()) pc = cellBox(x + 3, y + 3, CWD - 6, RH - 6, c);
+          else {
+            rect(x + 3, y + 3, CWD - 6, RH - 6, shade(c, V === "a" ? .45 : 1.0)); rect(x + 3, y + 3, 3, RH - 6, c);
+            g.globalAlpha = V === "a" ? 1 : .35; rect(x + 6, y + 3, CWD - 9, RH - 6, V === "a" ? "transparent" : "#FFFFFF"); g.globalAlpha = 1;
+          }
+          txt(SHORT(rr), x + 9, y + RH/2, Math.min(7, RH - 6), pc);
+        } else txt("·", x + CWD/2, y + RH/2, 7, rule, "center");
+        if (past && rr && rr !== "lunch"){ g.globalAlpha = .5; rect(x + 3, y + 3, CWD - 6, RH - 6, paper); g.globalAlpha = 1; txt("✓", x + CWD - 9, y + RH/2, 7, P.ui.ok, "center"); }
+        if (now) cur = { x, y, rr };
+      }
+    });
+    if (cur){ g.globalAlpha = .6 + .4*Math.sin(T*5); g.strokeStyle = P.ui.acc; g.lineWidth = 2; g.strokeRect(cur.x + 2, cur.y + 2, CWD - 4, RH - 4); g.globalAlpha = 1; tag("NOW", cur.x + CWD - 22, cur.y - 4, P.ui.acc, "#10131A", 5); }
+    // 왼쪽 '오늘' 카드
+    rect(KX + 3, KY + 3, KW, KH, "rgba(0,0,0,.25)"); rect(KX, KY, KW, KH, paper); frameBox(KX, KY, KW, KH, 1, rule);
+    g.globalAlpha = .75; rect(KX + 10, KY - 5, 34, 10, P.hr); rect(KX + KW - 44, KY - 5, 34, 10, P.ui.ok); g.globalAlpha = 1;   // 마스킹 테이프
+    txt("TODAY", KX + 10, KY + 14, 7, P.ui.acc, "left", true); txt(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일`, KX + KW - 10, KY + 14, 7, ink, "right");
+    const id = st.lunch ? "lunch" : st.place, rx = KX + 8, ry = KY + 24, rw = KW - 16, rh = 104;
+    const G = topRoom(rx, ry, rw, rh, id, { school:SCHOOL, act:!st.brk, s:2 });
+    const mv = !!st.brk;
+    me(Math.round(G.spot.x + (mv ? Math.sin(T*2)*22 : 0)), Math.round(G.spot.y), mv ? Math.floor(T*8) % 2 : 2, mv && Math.cos(T*2) < 0, 2);
+    if (NIGHT){ g.fillStyle = P.night; g.fillRect(rx, ry, rw, rh); }
+    frameBox(rx - 1, ry - 1, rw + 2, rh + 2, 1, ink);
+    txt(NAME(id), KX + 10, ry + rh + 16, 15, HR && id === HR ? P.hr : ink);
+    const left = Math.max(0, Math.ceil(st.e - st.m));
+    txt(st.act + (st.e < 1440 ? ` · ${left}분 남음` : ""), KX + 10, ry + rh + 32, 7, P.ui.muted);
+    const tt = TT[day] || {}, nx = BELL.find(([p, a2]) => mm(a2) > st.m && tt[p]);
+    txt(nx ? `다음 ▶ ${nx[0]}교시 ${NAME(tt[nx[0]])} · ${nx[1]}` : "다음 ▶ 오늘 수업 끝!", KX + 10, ry + rh + 45, 7, ink);
+    // 메모 쪽지
+    const mx = KX + 10, my = ry + rh + 54, mw = KW - 20, mh = 48;
+    rect(mx + 2, my + 2, mw, mh, "rgba(0,0,0,.15)"); rect(mx, my, mw, mh, P.memo);
+    txt("오늘 할 일", mx + 6, my + 9, 6, P.memoInk);
+    todoLines(3).forEach((t, k) => txt(t, mx + 6, my + 20 + k*9, 6, P.memoText));
+  }
+  return { name:"위클리 플래너", layout:"none", custom:true, draw,
+    desc:"<b>스프링 위클리 플래너</b>예요. 오른쪽 표에 일주일 수업이 색 칸으로 적혀 있고(지난 칸은 ✓), 지금 칸이 반짝여요. 왼쪽 '오늘' 카드에 지금 있는 방 모형과 캐릭터, 남은 시간, 다음 수업, 할 일 메모가 있어요." };
+})();
+
+/* ===== 새 후보 11~20 (연령대 · 성격별) ===== */
+const NEWS = [];
+const fontOf = f => f === "win" ? "'Gulim','굴림','Dotum','돋움',sans-serif" : f === "pen" ? "'Nanum Pen Script','Gaegu',cursive" : f === "head" ? "'Black Han Sans','Do Hyeon',sans-serif"
+  : f === "serif" ? "'Gowun Batang','Batang',serif" : f === "mono" ? "'Nanum Gothic Coding','D2Coding',monospace" : f === "sans" ? "'Noto Sans KR','Malgun Gothic',sans-serif" : P.font;
+function ft(str, x, y, size, color, align = "left", f = "", weight = ""){ g.font = `${weight ? weight + " " : ""}${size}px ${fontOf(f)}`; g.fillStyle = color; g.textAlign = align; g.textBaseline = "middle"; g.fillText(str, x, y); return g.measureText(str).width; }
+const todayRows = day => BELL.map(([p, a2, b2]) => ({ p, a:a2, b:b2, r:slotRoom(day, p) }));
+const nextClass = (day, m) => { const tt = TT[day] || {}; const n = BELL.find(([p, a2]) => mm(a2) > m && tt[p]); return n ? { p:n[0], a:n[1], r:tt[n[0]] } : null; };
+
+/* ===== 11. 레트로 PC 바탕화면 ===== */
+const S11 = (() => {
+  const TEAL = "#008080", SILV = "#C0C0C0", DK = "#808080", LT = "#FFFFFF", BK = "#000000", NAVY = "#000080";
+  let cur = { x:200, y:150 }, tgt = { x:200, y:150 }, tgtAt = 0;
+  function bevel(x, y, w, h, inset){ rect(x, y, w, h, SILV); rect(x, y, w, 1, inset ? DK : LT); rect(x, y, 1, h, inset ? DK : LT); rect(x, y + h - 1, w, 1, inset ? LT : BK); rect(x + w - 1, y, 1, h, inset ? LT : BK); if (!inset){ rect(x + 1, y + h - 2, w - 2, 1, DK); rect(x + w - 2, y + 1, 1, h - 2, DK); } }
+  function win(x, y, w, h, title, active){
+    bevel(x, y, w, h, false);
+    const gr = g.createLinearGradient(x + 3, 0, x + w - 3, 0); gr.addColorStop(0, active ? NAVY : DK); gr.addColorStop(1, active ? "#1084D0" : "#B5B5B5");
+    g.fillStyle = gr; g.fillRect(x + 3, y + 3, w - 6, 11);
+    ft(title, x + 6, y + 9, 7, LT, "left", "win", "bold");
+    ["_", "□", "×"].forEach((c, k) => { const bx = x + w - 34 + k*10 + (k === 2 ? 1 : 0); bevel(bx, y + 4, 9, 8, false); ft(c, bx + 4.5, y + 8, 6, BK, "center", "win", "bold"); });
+    return { x:x + 4, y:y + 16, w:w - 8, h:h - 20 };
+  }
+  function icon(x, y, kind, label){
+    const c = { pc:["#A8A8A8","#2A6FB0"], xls:["#FFFFFF","#1E7B34"], bmp:["#FFFFFF","#C04040"], dir:["#F2C94C","#B8860B"], bin:["#D8D8D8","#606060"], txt:["#FFFFFF","#2A5DB0"] }[kind];
+    if (kind === "dir"){ rect(x + 2, y + 4, 14, 10, c[0]); rect(x + 2, y + 2, 6, 3, c[0]); rect(x + 2, y + 13, 14, 1, c[1]); }
+    else if (kind === "pc"){ rect(x + 2, y + 1, 14, 10, c[0]); rect(x + 4, y + 3, 10, 6, c[1]); rect(x + 6, y + 12, 6, 2, c[0]); rect(x + 4, y + 14, 10, 1, BK); }
+    else if (kind === "bin"){ rect(x + 4, y + 3, 10, 12, c[0]); rect(x + 3, y + 2, 12, 2, c[1]); for (let k = 0; k < 3; k++) rect(x + 6 + k*3, y + 5, 1, 8, c[1]); }
+    else { rect(x + 3, y + 1, 12, 14, c[0]); rect(x + 3, y + 1, 12, 1, BK); rect(x + 3, y + 15, 12, 1, BK); rect(x + 3, y + 1, 1, 15, BK); rect(x + 14, y + 1, 1, 15, BK);
+      if (kind === "xls") for (let k = 0; k < 4; k++){ rect(x + 5, y + 4 + k*3, 8, 1, c[1]); } else if (kind === "bmp"){ rect(x + 5, y + 4, 8, 7, "#7EC8F0"); rect(x + 5, y + 9, 8, 2, "#3C9A3C"); rect(x + 10, y + 5, 2, 2, "#FFD400"); } else for (let k = 0; k < 4; k++) rect(x + 5, y + 4 + k*3, 7, 1, c[1]); }
+    g.font = `6px ${fontOf("win")}`; const tw = g.measureText(label).width + 4;
+    rect(x + 9 - tw/2, y + 18, tw, 8, TEAL === BK ? BK : "rgba(0,0,0,.0)"); ft(label, x + 9, y + 22, 6, LT, "center", "win");
+  }
+  function draw(st){
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, rows = todayRows(day);
+    rect(0, 0, W, H, V === "a" ? "#0F4D57" : TEAL);
+    if (NIGHT){ g.globalAlpha = .25; rect(0, 0, W, H, "#000020"); g.globalAlpha = 1; }
+    [["pc","내 컴퓨터"],["xls","시간표.xls"],["bmp","교무실.bmp"],["dir", HR ? `${HR} 우리반` : "수업 자료"],["txt","할일.txt"],["bin","휴지통"]].forEach(([k, l], i) => icon(14, 10 + i*38, k, l));
+    // 그림판: 지금 있는 곳
+    const id = st.lunch ? "lunch" : st.place;
+    const A = win(56, 8, 244, 178, `${NAME(id).replace("lunch", "급식실")}.bmp - 그림판`, !BREAK);
+    ft("파일(F)  편집(E)  보기(V)  이미지(I)  옵션(O)  도움말(H)", A.x + 3, A.y + 4, 6, BK, "left", "win");
+    bevel(A.x, A.y + 9, 22, A.h - 30, false);
+    for (let k = 0; k < 12; k++){ const tx = A.x + 3 + (k % 2)*9, ty = A.y + 12 + Math.floor(k/2)*10; bevel(tx, ty, 8, 9, k === 4); rect(tx + 2, ty + 3, 4, 3, ["#555","#B03030","#3060B0","#30A030","#000","#B08030"][k % 6]); }
+    const cv0 = { x:A.x + 25, y:A.y + 10, w:A.w - 27, h:A.h - 32 };
+    bevel(cv0.x - 1, cv0.y - 1, cv0.w + 2, cv0.h + 2, true);
+    const G = topRoom(cv0.x, cv0.y, cv0.w, cv0.h, id, { school:SCHOOL, act:!st.brk, s:2 });
+    me(Math.round(G.spot.x + (st.brk ? Math.sin(T*2)*20 : 0)), Math.round(G.spot.y), st.brk ? Math.floor(T*8) % 2 : 2, st.brk && Math.cos(T*2) < 0, 2);
+    const pal = ["#000","#808080","#800000","#808000","#008000","#008080","#000080","#800080","#FFF","#C0C0C0","#F00","#FF0","#0F0","#0FF","#00F","#F0F"];
+    pal.forEach((c, k) => { const px = A.x + 26 + (k % 8)*9, py = A.y + A.h - 20 + Math.floor(k/8)*8; bevel(px, py, 8, 7, true); rect(px + 1, py + 1, 6, 5, c); });
+    bevel(A.x, A.y + A.h - 4, A.w, 8, true); ft(`${st.act} · ${hhmm(d.getHours()*60 + d.getMinutes())}`, A.x + 3, A.y + A.h, 6, BK, "left", "win");
+    // 엑셀: 오늘 시간표
+    const B = win(306, 8, 168, 134, "시간표.xls - 스프레드시트", false);
+    bevel(B.x, B.y, B.w, 10, true); rect(B.x + 1, B.y + 1, B.w - 2, 8, LT); ft("fx", B.x + 4, B.y + 5, 6, BK, "left", "win", "bold");
+    const curRow = rows.findIndex(r => wk && st.m >= mm(r.a) && st.m < mm(r.b));
+    ft(curRow >= 0 ? `=NOW() → ${rows[curRow].p}${/\d/.test(rows[curRow].p) ? "교시" : ""} ${rows[curRow].r || "공강"}` : wk ? "=쉬는시간()" : "=주말()", B.x + 16, B.y + 5, 6, BK, "left", "win");
+    const gx = B.x, gy = B.y + 12, cw = [14, 36, 62, 50], rh = Math.min(10, 110 / (rows.length + 1));   // 줄이 많으면 낮게
+    rect(gx, gy, B.w, rh*(rows.length + 1), LT);
+    ["", "A 교시", "B 장소", "C 시작"].forEach((h, k) => { const x = gx + cw.slice(0, k).reduce((a, b) => a + b, 0); bevel(x, gy, cw[k], rh, false); ft(h, x + cw[k]/2, gy + rh/2, Math.min(6, rh - 3), BK, "center", "win"); });
+    rows.forEach((r, i) => {
+      const y = gy + rh*(i + 1), sel = i === curRow;
+      bevel(gx, y, cw[0], rh, false); ft(String(i + 1), gx + 7, y + rh/2, Math.min(6, rh - 3), BK, "center", "win");
+      [/\d/.test(r.p) ? r.p + "교시" : r.p, r.r === "lunch" ? "점심" : r.r ? NAME(r.r) : "공강", r.a].forEach((v, k) => {
+        const x = gx + cw.slice(0, k + 1).reduce((a, b) => a + b, 0);
+        rect(x, y, cw[k + 1], rh, sel ? NAVY : LT); rect(x + cw[k + 1] - 1, y, 1, rh, "#D0D0D0"); rect(x, y + rh - 1, cw[k + 1], 1, "#D0D0D0");
+        ft(v, x + 3, y + rh/2, Math.min(6, rh - 3), sel ? LT : r.r && r.r === HR && k === 1 ? "#C00060" : BK, "left", "win");
+      });
+    });
+    if (curRow >= 0){ g.strokeStyle = BK; g.lineWidth = 2; g.strokeRect(gx + cw[0] + 1, gy + rh*(curRow + 1) + 1, B.w - cw[0] - 2, rh - 2); }
+    // 메모장
+    const C = win(306, 146, 168, 98, "할일.txt - 메모장", false);
+    rect(C.x, C.y, C.w, C.h, LT); bevel(C.x, C.y, C.w, C.h, true); rect(C.x + 1, C.y + 1, C.w - 2, C.h - 2, LT);
+    const lines = ["[오늘 할 일]", ...todoLines(3, "- ", "- ").map((t, k) => TODOS[k] && TODOS[k].d ? t + " (완료)" : t), ""];
+    lines.forEach((l, k) => ft(l, C.x + 4, C.y + 7 + k*10, 6, BK, "left", "win"));
+    if (Math.floor(T*2) % 2) rect(C.x + 4, C.y + 43, 1, 8, BK);
+    // 알림 · 복사 창
+    const slotStart = curRow >= 0 ? st.m - mm(rows[curRow].a) : 99;
+    if (BREAK){
+      const D = win(104, 189, 198, 60, st.go ? "이동 중..." : "쉬는 시간", true);
+      const nx = nextClass(day, st.m), from = st.go ? "교무실" : "교실", to = st.go && nx ? NAME(nx.r) : "교무실";
+      ft(`${from} → ${to} · 남은 ${Math.max(0, Math.ceil(st.e - st.m))}분`, D.x + 6, D.y + 6, 7, BK, "left", "win", "bold");
+      rect(D.x + 8, D.y + 13, 14, 10, "#F2C94C"); rect(D.x + 8, D.y + 11, 6, 3, "#F2C94C"); rect(D.x + D.w - 24, D.y + 13, 14, 10, "#F2C94C"); rect(D.x + D.w - 24, D.y + 11, 6, 3, "#F2C94C");
+      const span = D.w - 60, f = (T*.6) % 1, fx = D.x + 26 + f*span; rect(fx, D.y + 13 - Math.sin(f*Math.PI)*5, 7, 9, LT); rect(fx, D.y + 13 - Math.sin(f*Math.PI)*5, 7, 1, DK);
+      const pr = Math.max(0, Math.min(1, (st.m - st.s) / Math.max(1, st.e - st.s)));
+      bevel(D.x + 6, D.y + 27, D.w - 12, 10, true); for (let x = 0; x < (D.w - 16)*pr; x += 7) rect(D.x + 8 + x, D.y + 29, 6, 6, NAVY);
+    } else if (wk && curRow >= 0 && slotStart < 2 && rows[curRow].r && rows[curRow].r !== "lunch"){
+      const D = win(112, 191, 194, 54, "알림", true);
+      g.beginPath(); g.arc(D.x + 13, D.y + 11, 7, 0, Math.PI*2); g.fillStyle = "#1E5AC8"; g.fill(); ft("i", D.x + 13, D.y + 11, 9, LT, "center", "serif", "bold");
+      ft(`${rows[curRow].p}교시 ${NAME(rows[curRow].r)} 수업이 시작되었습니다.`, D.x + 26, D.y + 11, 7, BK, "left", "win");
+      bevel(D.x + D.w/2 - 22, D.y + 21, 44, 12, false); ft("확인", D.x + D.w/2, D.y + 27, 7, BK, "center", "win");
+    }
+    // 마우스 화살표: 가끔 시간표 칸으로 가서 딸깍
+    if (T - tgtAt > 3){ tgtAt = T; const choices = [{ x:300, y:60 + (curRow + 1)*10 + 18 }, { x:180, y:110 }, { x:390, y:190 }, { x:30, y:60 }]; tgt = choices[Math.floor(T) % choices.length]; }
+    cur.x += (tgt.x - cur.x)*.08; cur.y += (tgt.y - cur.y)*.08;
+    const ARW = ["X.........","XX........","X#X.......","X##X......","X###X.....","X####X....","X#####X...","X######X..","X###XXXX..","X#X#X.....","XX.X#X....","X...X#X...","....XX...."];
+    ARW.forEach((l, j) => [...l].forEach((c, i) => { if (c !== ".") rect(Math.round(cur.x) + i, Math.round(cur.y) + j, 1, 1, c === "X" ? BK : LT); }));
+    // 작업 표시줄
+    bevel(0, H - 18, W, 18, false); rect(0, H - 18, W, 1, LT);
+    bevel(3, H - 15, 44, 13, false); rect(7, H - 12, 3, 3, "#E24C4C"); rect(10, H - 12, 3, 3, "#3CB043"); rect(7, H - 9, 3, 3, "#3C6BD8"); rect(10, H - 9, 3, 3, "#F2C94C"); ft("시작", 16, H - 8.5, 7, BK, "left", "win", "bold");
+    [["그림판", !BREAK], ["시간표.xls", false], ["메모장", false]].forEach(([t, on], k) => { bevel(52 + k*72, H - 15, 70, 13, !!on); ft(t, 58 + k*72, H - 8.5, 6, BK, "left", "win"); });
+    bevel(W - 62, H - 15, 59, 13, true); ft("🔊", W - 56, H - 8.5, 6, BK, "left"); ft(hhmm(d.getHours()*60 + d.getMinutes()), W - 8, H - 8.5, 7, BK, "right", "win");
+  }
+  return { name:"레트로 PC", layout:"none", custom:true, draw, who:"40~50대 · 추억, 유머",
+    desc:"<b>옛날 컴퓨터 바탕화면</b>이에요. 그림판 창에 지금 있는 곳이 움직이고, 스프레드시트에 오늘 시간표(지금 칸 선택됨), 메모장에 할 일이 있어요. 쉬는 시간에는 '교실 → 교무실' 파일 복사 창이 뜨고, 수업이 시작되면 알림 창이 떠요." };
+})();
+NEWS.push(S11);
+/* ===== END 11 ===== */
+
+/* ===== 12. 교무수첩 ===== */
+const S12 = (() => {
+  const INK = "#2A2F5C", RED = "#C8384A", PAPER = "#FBF6EA", LINE = "#D9CFB8", HL = "rgba(255,226,72,.6)";
+  function sticker(x, y, s){ for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1],[-1,1],[1,-1]]){ g.save(); g.globalAlpha = 1; g.translate(dx*s, dy*s); g.filter = "brightness(0) invert(1)"; me(x, y, 2, false, s); g.restore(); } g.filter = "none"; me(x, y, 2, false, s); }
+  function rotated(x, y, ang, fn){ g.save(); g.translate(x, y); g.rotate(ang); fn(); g.restore(); }
+  function draw(st){
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, rows = todayRows(day);
+    // 책상 · 가죽 표지
+    rect(0, 0, W, H, P.table);
+    if (V !== "a") for (let y = 0; y < H; y += 7) { g.globalAlpha = .12; rect(0, y + (y % 3), W, 1, "#7A5232"); g.globalAlpha = 1; }
+    const cover = P.cover;
+    rect(14, 10, W - 28, H - 18, cover); rect(14, 10, W - 28, 2, shade(cover, 1.3));
+    // 종이 두 쪽
+    rect(22, 15, 214, H - 28, PAPER); rect(244, 15, 214, H - 28, PAPER);
+    const sp = g.createLinearGradient(222, 0, 258, 0); sp.addColorStop(0, "rgba(0,0,0,0)"); sp.addColorStop(.5, "rgba(0,0,0,.22)"); sp.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = sp; g.fillRect(222, 15, 36, H - 28);
+    rect(238, 228, 5, 34, RED); rect(238, 260, 2, 4, RED); rect(241, 260, 2, 4, RED);   // 가름끈
+    // 왼쪽: 오늘 쪽
+    { const ds = `${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일`; ft(ds, 34, 32, ds.length >= 10 ? 14 : 16, INK, "left", "pen"); }   // 날짜가 길면 작게 (옆 글씨와 안 겹치게)
+    ft(wk ? "오늘도 힘내기!" : "주말 · 푹 쉬기", 226, 33, 12, RED, "right", "pen");
+    rect(30, 43, 198, 1, INK);
+    const NR = Math.max(10, rows.length), top = 50, rh = (H - 30 - top) / NR, fs = rh < 18 ? 10 : 12;   // 줄이 많으면 글씨를 작게
+    for (let k = 0; k <= NR; k++) rect(30, top + k*rh, 198, 1, LINE);
+    rect(64, top - 2, 1, rh*NR + 4, "rgba(200,56,74,.45)");
+    let curK = -1;
+    rows.forEach((r, k) => {
+      const y = top + k*rh + rh/2, past = wk && st.m >= mm(r.b), now = wk && st.m >= mm(r.a) && st.m < mm(r.b);
+      if (now){ curK = k; g.fillStyle = HL; g.beginPath(); g.roundRect(68, y - rh/2 + 3, 150, rh - 6, 4); g.fill(); }
+      ft(r.a, 34, y, fs - 1, past ? "#9A94A8" : INK, "left", "pen");
+      const pl = /\d/.test(r.p) ? r.p + "교시" : r.p, hr = r.r && r.r === HR;
+      const what = !wk ? "" : r.r === "lunch" ? "점심 🍚" : hr ? `${pl} · ${HR} 우리 반 ♥` : r.r ? `${pl} · ${r.r}` : /\d/.test(r.p) ? `${pl} · 공강 (교무실)` : `${pl} · 교무실`;
+      ft(what, 70, y, fs, past ? "#9A94A8" : hr ? RED : r.r ? INK : "#8A86A0", "left", "pen");
+      if (past && r.r && r.r !== "lunch") ft("✓", 214, y, 13, RED, "center", "pen");
+    });
+    // 지금 스티커 · 쉬는 시간 메모
+    if (curK >= 0) sticker(Math.round(200), Math.round(top + curK*rh + rh - 2), 1);
+    if (BREAK){ const k = rows.findIndex(r => mm(r.a) > st.m); const y = top + Math.max(0, k)*rh; rotated(166, y, -.05, () => { rect(-4, -7, 62, 12, "#FFE9A8"); ft("☕ 쉬는 시간!", 0, -1, 11, INK, "left", "pen"); }); sticker(220, Math.round(y + 6), 1); }
+    if (!wk || st.place === "home") ft(st.place === "home" ? "🏠 집에서 쉬는 중" : "", 70, H - 26, 12, INK, "left", "pen");
+    // 오른쪽: 이번 주 표
+    ft("이번 주", 256, 30, 15, INK, "left", "pen");
+    const gx = 256, gy = 40, cw = 37, ch = Math.min(9.6, 87 / Math.max(1, BELL.filter(([p]) => p !== "점심").length));
+    ["월","화","수","목","금"].forEach((dn, k) => { ft(dn, gx + 20 + k*cw + cw/2, gy + 5, 11, k + 1 === day ? RED : INK, "center", "pen"); if (k + 1 === day){ g.strokeStyle = RED; g.lineWidth = 1; g.beginPath(); g.ellipse(gx + 20 + k*cw + cw/2, gy + 5, 8, 6, 0, 0, Math.PI*2); g.stroke(); } });
+    BELL.filter(([p]) => p !== "점심").forEach(([p], r) => {
+      const y = gy + 12 + r*ch; rect(gx, y + ch, 205, 1, LINE);
+      ft(/\d/.test(p) ? p : p.slice(0, 1), gx + 8, y + ch/2 + 1, 10, "#8A86A0", "center", "pen");
+      for (let k = 1; k <= 5; k++){ const rr = slotRoom(k, p); if (rr) ft(rr === HR ? rr + "♥" : rr.length > 4 ? rr.slice(0, 3) + "…" : rr, gx + 20 + (k - 1)*cw + cw/2, y + ch/2 + 1, Math.min(10, ch + 1), rr === HR ? RED : INK, "center", "pen"); }
+    });
+    // 폴라로이드: 지금 장면
+    rotated(318, 198, -.06, () => {
+      rect(-50, -38, 100, 82, "#FFFFFF"); g.globalAlpha = .15; rect(-48, 44, 100, 3, "#000"); g.globalAlpha = 1;
+      const id = st.lunch ? "lunch" : st.place, G = topRoom(-45, -33, 90, 58, id, { school:SCHOOL, act:!st.brk, s:1 });
+      me(Math.round(G.spot.x), Math.round(G.spot.y), st.brk ? Math.floor(T*8) % 2 : 2, false, 1);
+      ft(`지금 · ${NAME(id).replace("lunch", "급식실")}`, 0, 34, 12, INK, "center", "pen");
+      g.globalAlpha = .7; rect(-14, -44, 28, 10, "#9FD3C7"); g.globalAlpha = 1;
+    });
+    // 포스트잇: 할 일
+    rotated(410, 212, .05, () => {
+      rect(-40, -36, 80, 76, "#FFF07A"); g.globalAlpha = .12; rect(-40, 36, 80, 4, "#000"); g.globalAlpha = 1;
+      ft("할 일", -34, -26, 12, INK, "left", "pen");
+      todoLines(4, "☑ ", "☐ ", 7).forEach((t, k) => ft(t, -34, -10 + k*12, 11, INK, "left", "pen"));
+    });
+    // 도장 · 클립 · 펜
+    const done = wk && rows.every(r => !r.r || r.r === "lunch" || st.m >= mm(r.b));
+    rotated(434, 152, -.2, () => { g.scale(.85, .85); g.strokeStyle = done ? RED : "rgba(200,56,74,.35)"; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 18, 0, Math.PI*2); g.stroke(); g.lineWidth = 1; g.beginPath(); g.arc(0, 0, 15, 0, Math.PI*2); g.stroke(); ft(done ? "참 잘했어요" : "오늘도", 0, -3, 7.5, done ? RED : "rgba(200,56,74,.45)", "center", "pen"); ft(done ? "수고!" : "화이팅", 0, 8, 9, done ? RED : "rgba(200,56,74,.45)", "center", "pen"); });
+    g.strokeStyle = "#9AA0A8"; g.lineWidth = 2; g.beginPath(); g.roundRect(288, 8, 12, 28, 6); g.stroke(); g.beginPath(); g.roundRect(291, 12, 6, 18, 3); g.stroke();
+    rotated(150, 250, -.35, () => { rect(0, -2, 70, 5, "#2A2F5C"); rect(70, -2, 8, 5, "#D9C27A"); rect(78, -1, 5, 3, "#555"); });
+  }
+  return { name:"교무수첩", layout:"none", custom:true, draw, who:"30~50대 · 꼼꼼한 기록파",
+    desc:"<b>펼쳐 놓은 손글씨 교무수첩</b>이에요. 왼쪽 쪽에 오늘 일정이 손글씨로 적혀 있고, 지금 칸에 형광펜과 내 스티커가 붙어요(지난 칸은 빨간 ✓). 오른쪽에는 이번 주 표, 지금 장면 폴라로이드, 할 일 포스트잇, 수업이 다 끝나면 '참 잘했어요' 도장이 찍혀요." };
+})();
+NEWS.push(S12);
+/* ===== END 12 ===== */
+
+/* ===== 15. 로파이 교무실 창가 ===== */
+const S15 = (() => {
+  const BACK = ["...hhhh...","..hhhhhh..",".hhhhhhhh.",".hhhhhhhh.",".hhhhhhhh.",".shhhhhhs.","...ssss...","...cccc...","..cccccc..",".sccccccs.",".sccccccs.","..cccccc.."];
+  const WXL = 34, WYT = 16, WW = 262, WH = 136;
+  function skyCols(h){
+    if (h < 5.5 || h >= 19.5) return ["#0B1030", "#1E2656"];
+    if (h < 7) return ["#34407A", "#E8A08E"];
+    if (h < 10) return ["#8EC5F0", "#F6E2C8"];
+    if (h < 15.5) return ["#6CB2EC", "#D4ECFA"];
+    if (h < 17.5) return ["#7AA6D6", "#F3CF94"];
+    return ["#4E4688", "#F08A5A"];
+  }
+  function draw(st){
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, h = d.getHours() + d.getMinutes()/60 + d.getSeconds()/3600;
+    const dark = h < 6.5 || h >= 18.5, rainy = wk && (d.getDate()*7 + d.getMonth()) % 5 === 0;
+    const wall = P.room;
+    rect(0, 0, W, H, wall);
+    for (let x = 0; x < W; x += 16){ g.globalAlpha = .06; rect(x, 0, 1, 190, "#000"); g.globalAlpha = 1; }
+    // 창밖
+    g.save(); g.beginPath(); g.rect(WXL, WYT, WW, WH); g.clip();
+    const [c1, c2] = skyCols(h), sk = g.createLinearGradient(0, WYT, 0, WYT + WH); sk.addColorStop(0, c1); sk.addColorStop(1, c2); g.fillStyle = sk; g.fillRect(WXL, WYT, WW, WH);
+    if (dark){ for (let k = 0; k < 40; k++) rect(WXL + (k*7919) % WW, WYT + (k*131) % 70, 1, 1, k % 4 ? "#8C94C8" : "#FFFFFF"); g.beginPath(); g.arc(WXL + WW*.78, WYT + 26, 9, 0, Math.PI*2); g.fillStyle = "#F4F1D0"; g.fill(); g.beginPath(); g.arc(WXL + WW*.78 + 4, WYT + 23, 8, 0, Math.PI*2); g.fillStyle = c1; g.fill(); }
+    else { const f = Math.max(0, Math.min(1, (h - 7)/11)), sx = WXL + 20 + f*(WW - 40), sy = WYT + 70 - Math.sin(f*Math.PI)*52; g.beginPath(); g.arc(sx, sy, 11, 0, Math.PI*2); g.fillStyle = h > 16.5 ? "#FFB070" : "#FFF2B0"; g.fill(); g.globalAlpha = .25; g.beginPath(); g.arc(sx, sy, 20, 0, Math.PI*2); g.fill(); g.globalAlpha = 1;
+      for (let k = 0; k < 3; k++){ const cx = WXL + ((k*110 + T*3) % (WW + 80)) - 40, cy = WYT + 18 + k*12; g.globalAlpha = .85; rect(cx, cy, 36, 8, "#FFFFFF"); rect(cx + 8, cy - 5, 18, 6, "#FFFFFF"); g.globalAlpha = 1; } }
+    if (rainy){ g.globalAlpha = .25; rect(WXL, WYT, WW, WH, "#3A4A6A"); g.globalAlpha = 1; }
+    for (let i = 0; i < 7; i++){ const x = WXL + i*40 - 6, hh = 30 + (i % 3)*12; rect(x, WYT + 96 - hh, 30, hh + 10, dark ? "#1A1E3A" : shade(c2, .8)); for (let y = WYT + 100 - hh; y < WYT + 100; y += 6) for (let xx = x + 3; xx < x + 27; xx += 6) rect(xx, y, 3, 2, dark && (xx + y) % 3 === 0 ? "#FFE27A" : shade(c2, .9)); }
+    rect(WXL, WYT + 104, WW, WH - 104, dark ? "#2A2A3A" : "#C8A878"); rect(WXL, WYT + 104, WW, 2, dark ? "#3A3A4A" : "#D8BC90");
+    [[60, 1], [150, 1.4], [250, 1.1]].forEach(([tx, ph]) => { const sw = Math.round(Math.sin(T*1.2*ph)*1.5); rect(WXL + tx, WYT + 88, 3, 18, "#6A4A2A"); rect(WXL + tx - 9 + sw, WYT + 70, 21, 20, dark ? "#1E3A2A" : "#5A9A4A"); rect(WXL + tx - 6 + sw, WYT + 64, 15, 8, dark ? "#1E3A2A" : "#6AAA5A"); });
+    if (SCHOOL && (BREAK || LUNCH)) crowd(21, 9, WXL + 10, WXL + WW - 10, WYT + 128, 1);
+    if (rainy) for (let k = 0; k < 70; k++){ const x = WXL + (k*53 + T*30*(1 + k % 3)) % WW, y = WYT + (k*37 + T*140*(1 + k % 2)) % WH; g.globalAlpha = .5; rect(x, y, 1, 5, "#DDEBFF"); g.globalAlpha = 1; }
+    g.restore();
+    // 창틀
+    const wood = P.wood;
+    rect(WXL - 6, WYT - 6, WW + 12, 6, wood); rect(WXL - 6, WYT + WH, WW + 12, 9, wood); rect(WXL - 6, WYT, 6, WH, wood); rect(WXL + WW, WYT, 6, WH, wood);
+    rect(WXL + WW/2 - 2, WYT, 4, WH, wood); rect(WXL, WYT + WH/2 - 2, WW, 3, wood); rect(WXL - 10, WYT + WH + 7, WW + 20, 4, shade(wood, 1.2));
+    rect(WXL + 6, WYT + WH + 1, 14, 6, "#B8734A"); rect(WXL + 8, WYT + WH - 9, 10, 10, "#5A9A4A"); rect(WXL + 4, WYT + WH - 5, 6, 4, "#6AAA5A");   // 창가 화분
+    // 오른쪽 벽: 시계 · 달력 · 코르크판 시간표
+    const ck = { x:356, y:44, r:20 };
+    g.beginPath(); g.arc(ck.x, ck.y, ck.r + 2, 0, Math.PI*2); g.fillStyle = wood; g.fill(); g.beginPath(); g.arc(ck.x, ck.y, ck.r, 0, Math.PI*2); g.fillStyle = "#FFFDF4"; g.fill();
+    for (let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; rect(ck.x + Math.cos(a)*16 - .5, ck.y + Math.sin(a)*16 - .5, 1.5, 1.5, "#3A3A4A"); }
+    const hand = (a, l, w, c) => { g.strokeStyle = c; g.lineWidth = w; g.lineCap = "round"; g.beginPath(); g.moveTo(ck.x, ck.y); g.lineTo(ck.x + Math.cos(a - Math.PI/2)*l, ck.y + Math.sin(a - Math.PI/2)*l); g.stroke(); };
+    hand(((h % 12)/12)*Math.PI*2, 10, 2.2, "#2A2A3A"); hand((d.getMinutes()/60 + d.getSeconds()/3600)*Math.PI*2, 15, 1.4, "#2A2A3A"); hand(d.getSeconds()/60*Math.PI*2, 16, .7, "#D84848");
+    rect(400, 22, 52, 50, "#FFFFFF"); rect(400, 22, 52, 12, "#D84848"); ft(`${d.getMonth() + 1}월`, 426, 28.5, 8, "#FFFFFF", "center", "sans", "bold"); ft(String(d.getDate()), 426, 50, 18, "#2A2A3A", "center", "sans", "bold"); ft(DAYS[day] + "요일", 426, 65, 6, "#8A8A9A", "center", "sans");
+    rect(352, 84, 122, 82, "#C49A68"); rect(355, 87, 116, 76, "#D8B080");
+    for (let k = 0; k < 40; k++) rect(356 + (k*37) % 114, 88 + (k*53) % 74, 1, 1, "#B8905A");
+    rect(360, 92, 70, 66, "#FFFDF4"); rect(393, 89, 4, 4, "#D84848");
+    ft("오늘", 364, 99, 6, "#D84848", "left", "sans", "bold");
+    todayRows(day).filter(r => r.r && r.r !== "lunch").slice(0, 6).forEach((r, k) => { const now = st.m >= mm(r.a) && st.m < mm(r.b), past = st.m >= mm(r.b); if (now){ g.globalAlpha = .6; rect(362, 104 + k*8.5, 66, 8, "#FFE48A"); g.globalAlpha = 1; } ft(`${/\d/.test(r.p) ? r.p + "교시" : r.p} ${r.r}`, 364, 108 + k*8.5, 6, past ? "#B0AAB8" : "#2A2A3A", "left", "sans"); });
+    rect(434, 98, 34, 40, "#FFF07A"); rect(449, 95, 4, 4, "#3C78D8"); ["할 일", ...todoLines(3, "✓", "· ", 5)].forEach((t, k) => ft(t, 437, 106 + k*9, 6, "#2A2A3A", "left", "sans", "700"));
+    // 책상 · 의자 · 나
+    const mine = st.place === "office" && !st.lunch && wk && h < 17;
+    rect(150, 150, 70, 52, "#3A3A4A"); rect(154, 154, 62, 44, "#4A4A5E");   // 의자 등받이
+    if (mine){ const bob = Math.round(Math.sin(T*3.2)); [...BACK, ...LEG[2]].forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(185 + (i - 5)*3, 196 + (j - 14)*3 + bob, 3, 3, COL[ch]); })); rect(166, 152 + bob, 4, 14, "#2A2A3A"); rect(200, 152 + bob, 4, 14, "#2A2A3A"); rect(166, 150 + bob, 38, 4, "#2A2A3A"); }   // 헤드폰
+    const desk = P.deskL;
+    rect(0, 200, W, 70, shade(desk, .8)); rect(0, 196, W, 8, desk); rect(0, 196, W, 2, shade(desk, 1.2));
+    // 모니터
+    rect(238, 128, 108, 66, "#2A2A34"); rect(242, 132, 100, 56, dark ? "#1A2440" : "#22304E"); rect(286, 194, 12, 4, "#2A2A34"); rect(274, 197, 36, 3, "#2A2A34");
+    const tt = TT[day] || {}, nx = nextClass(day, st.m);
+    if (mine){
+      ft(st.slot, 248, 142, 8, "#9FE8C8", "left", "sans", "bold"); ft(st.e < 1440 ? `${Math.max(0, Math.ceil(st.e - st.m))}분 남음` : "", 248, 155, 7, "#DDE6F8", "left", "sans");
+      ft(nx ? `다음 ${nx.p}교시 ${nx.r} · ${nx.a}` : "오늘 수업 끝!", 248, 170, 6, "#AFC0E8", "left", "sans");
+      for (let k = 0; k < 5; k++) rect(250 + k*16, 180, 12, 2, k === Math.floor(T*2) % 5 ? "#9FE8C8" : "#3A4A70");
+    } else {
+      rect(262, 140, 60, 40, "#FFF07A"); g.save(); g.translate(292, 160); g.rotate(-.05);
+      const note = !wk ? "주말 휴무 🌿" : st.place === "home" ? "퇴근했어요 🌙" : st.lunch ? "점심 먹는 중 🍚" : `${NAME(st.place)} 수업 중`;
+      ft("자리 비움", 0, -9, 8, "#2A2A3A", "center", "sans", "700"); ft(note, 0, 6, 7, "#C8384A", "center", "sans", "700"); g.restore();
+    }
+    // 키보드 · 컵 · 스탠드 · 이름표
+    rect(250, 204, 70, 10, "#D8D8E0"); for (let k = 0; k < 9; k++) rect(253 + k*7.5, 206, 6, 2, "#A8A8B4"), rect(253 + k*7.5, 210, 6, 2, "#A8A8B4");
+    rect(362, 180, 16, 20, "#FFFFFF"); rect(378, 184, 5, 8, "#FFFFFF"); rect(364, 182, 12, 3, "#8A5A3A");
+    for (let k = 0; k < 3; k++){ g.globalAlpha = .35; rect(366 + k*4 + Math.round(Math.sin(T*2 + k)*2), 170 - ((T*8 + k*5) % 14), 2, 6, "#FFFFFF"); g.globalAlpha = 1; }
+    rect(70, 140, 3, 58, "#3A3A4A"); rect(58, 136, 30, 8, "#3A3A4A"); rect(62, 194, 18, 4, "#3A3A4A");
+    if (dark || rainy){ g.globalAlpha = .22; g.beginPath(); g.moveTo(60, 144); g.lineTo(40, 198); g.lineTo(104, 198); g.lineTo(86, 144); g.fillStyle = "#FFE48A"; g.fill(); g.globalAlpha = 1; }
+    rect(96, 208, 46, 12, "#F4F1E8"); ft("★ " + ME, 119, 214.5, 7, "#C8384A", "center", "sans", "700");
+    if (dark && !mine){ g.globalAlpha = .35; rect(0, 0, W, H, "#05061A"); g.globalAlpha = 1; }
+    // 로파이 플레이어
+    g.fillStyle = "rgba(10,10,20,.62)"; g.beginPath(); g.roundRect(10, 236, 214, 26, 6); g.fill();
+    g.beginPath(); g.moveTo(20, 243); g.lineTo(20, 255); g.lineTo(29, 249); g.closePath(); g.fillStyle = "#FFFFFF"; g.fill();
+    ft(`♪ lo-fi 교무실 · ${st.slot}${rainy ? " · 비 오는 날" : ""}`, 36, 245, 7, "#FFFFFF", "left", "sans");
+    rect(36, 253, 150, 2, "#55556A"); const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s)/Math.max(1, st.e - st.s))) : 0; rect(36, 253, 150*pr, 2, "#9FE8C8"); rect(36 + 150*pr - 1, 252, 3, 4, "#FFFFFF");
+    for (let k = 0; k < 6; k++){ const hh = 2 + Math.abs(Math.sin(T*4 + k*1.3))*9; rect(194 + k*4, 257 - hh, 3, hh, "#9FE8C8"); }
+  }
+  return { name:"로파이 교무실 창가", layout:"none", custom:true, draw, who:"20~30대 · 감성, 잔잔함",
+    desc:"<b>lo-fi 영상처럼 잔잔한 내 자리</b>예요. 창밖 하늘이 시간에 따라 아침 · 낮 · 노을 · 밤으로 바뀌고, 비 오는 날도 있어요. 교무실에 있으면 헤드폰을 쓰고 일하는 뒷모습이, 수업 가면 '자리 비움' 쪽지가 보여요. 벽시계는 진짜 시각, 코르크판엔 오늘 시간표, 아래엔 음악 재생 막대(지금 교시 진행)가 있어요." };
+})();
+NEWS.push(S15);
+/* ===== END 15 ===== */
+
+/* ===== 18. 미니멀 위젯 ===== */
+const S18 = (() => {
+  function card(x, y, w, h, dark){
+    g.save(); g.shadowColor = dark ? "rgba(0,0,0,.45)" : "rgba(60,50,40,.12)"; g.shadowBlur = 14; g.shadowOffsetY = 4;
+    g.fillStyle = dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.82)"; g.beginPath(); g.roundRect(x, y, w, h, 10); g.fill(); g.restore();
+    g.strokeStyle = dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)"; g.lineWidth = 1; g.beginPath(); g.roundRect(x + .5, y + .5, w - 1, h - 1, 10); g.stroke();
+  }
+  function pill(x, y, w, h, c){ g.fillStyle = c; g.beginPath(); g.roundRect(x, y, w, h, h/2); g.fill(); }
+  function draw(st){
+    const dark = V === "a", d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, rows = todayRows(day);
+    const ink = dark ? "#EEF0FA" : "#1E2230", sub = dark ? "#9CA3C0" : "#7A8094", ACC = P.minAcc, HRC = P.minHr, OK = P.minOk;
+    const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, P.minBg1); bg.addColorStop(1, P.minBg2); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    [[90, 60, 90, dark ? "rgba(90,110,255,.25)" : "rgba(255,170,120,.35)"], [400, 220, 110, dark ? "rgba(255,90,160,.18)" : "rgba(140,170,255,.35)"], [300, 40, 70, dark ? "rgba(60,220,200,.12)" : "rgba(150,230,200,.35)"]].forEach(([x, y, r, c]) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, c); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, r*2, r*2); });
+    const id = st.lunch ? "lunch" : st.place, here = NAME(id).replace("lunch", "급식실");
+    // 1. 시계
+    card(14, 14, 192, 110, dark);
+    ft(hhmm(d.getHours()*60 + d.getMinutes()), 26, 52, 40, ink, "left", "sans", "300");
+    ft(String(d.getSeconds()).padStart(2, "0"), 26 + g.measureText(hhmm(d.getHours()*60 + d.getMinutes())).width + 4, 40, 10, sub, "left", "sans", "300");
+    ft(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일`, 26, 84, 9, sub, "left", "sans", "500");
+    g.font = `500 9px ${fontOf("sans")}`; const chipT = `${st.slot} · ${here}`, cw0 = g.measureText(chipT).width + 18;
+    pill(26, 96, cw0, 16, HR && id === HR ? HRC : ACC); ft(chipT, 26 + cw0/2, 104.5, 9, "#FFFFFF", "center", "sans", "500");
+    // 2. 진행 링
+    card(214, 14, 116, 110, dark);
+    const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s) / Math.max(1, st.e - st.s))) : 0, rc = { x:272, y:62, r:30 };
+    g.lineCap = "round"; g.lineWidth = 7; g.strokeStyle = dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"; g.beginPath(); g.arc(rc.x, rc.y, rc.r, 0, Math.PI*2); g.stroke();
+    g.strokeStyle = HR && id === HR ? HRC : ACC; g.beginPath(); g.arc(rc.x, rc.y, rc.r, -Math.PI/2, -Math.PI/2 + pr*Math.PI*2); g.stroke();
+    ft(st.e < 1440 ? String(Math.max(0, Math.ceil(st.e - st.m))) : "-", rc.x, rc.y - 3, 18, ink, "center", "sans", "500"); ft("분 남음", rc.x, rc.y + 12, 7, sub, "center", "sans");
+    ft(st.act.length > 14 ? st.act.slice(0, 14) + "…" : st.act, rc.x, 112, 8, sub, "center", "sans");
+    // 3. 다음 수업
+    card(338, 14, 128, 110, dark);
+    const nx = nextClass(day, st.m);
+    ft("다음 수업", 350, 30, 8, sub, "left", "sans", "500");
+    if (nx){ ft(`${nx.p}교시`, 350, 52, 11, sub, "left", "sans", "500"); ft(NAME(nx.r), 350, 72, NAME(nx.r).length > 6 ? 13 : 18, nx.r === HR ? HRC : ink, "left", "sans", "700");
+      const left = Math.ceil(mm(nx.a) - st.m); ft(`${nx.a} · ${left}분 후`, 350, 94, 8, sub, "left", "sans");
+      pill(418, 104, 38, 14, dark ? "rgba(255,255,255,.1)" : "#EEF2FF"); ft(isClass(nx.r) ? gradeOf(nx.r) + "학년" : "특별실", 437, 111.5, 8, ACC, "center", "sans", "700"); }
+    else { ft(wk ? "오늘 수업 끝" : "주말", 350, 66, 16, ink, "left", "sans", "700"); ft(wk ? "수고했어요 :)" : "푹 쉬어요", 350, 88, 9, sub, "left", "sans"); }
+    // 4. 교무실 자리 (마주 보는 8자리, ★ 내 자리)
+    card(14, 132, 136, 66, dark);
+    ft("교무실", 26, 147, 8, sub, "left", "sans", "500");
+    for (let k = 0; k < 8; k++){
+      const isl = Math.floor(k/4), r = Math.floor((k % 4)/2), c = k % 2, mine = isl === 1 && r === 0 && c === 0;
+      const on = mine ? id === "office" && !WK.walking : SCHOOL && (BREAK || SEATS[(k*3 + 5) % SEATS.length].t);
+      const x = 34 + c*16 + (c ? 6 : 0), y = 156 + isl*18 + r*8;
+      g.beginPath(); g.arc(x, y + 3, 3.2, 0, Math.PI*2); g.fillStyle = on ? (mine ? HRC : OK) : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"); g.fill();
+    }
+    rect(48, 154, 1, 34, dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)");   // 그림만 (교무실에 8명만 있는 건 아니라 사람 수는 안 적어요)
+    // 5. 오늘 진행
+    card(158, 132, 142, 66, dark);
+    const cls = rows.filter(r => r.r && r.r !== "lunch"), done = cls.filter(r => st.m >= mm(r.b)).length;
+    ft("오늘 일정 (조회·종례 포함)", 170, 147, 8, sub, "left", "sans", "500"); ft(`${done}`, 170, 172, 22, ink, "left", "sans", "300"); ft(`/ ${cls.length}`, 170 + g.measureText(String(done)).width + 3, 176, 9, sub, "left", "sans");
+    cls.forEach((r, k) => { const w = Math.min(14, 96 / Math.max(1, cls.length) - 3); pill(214 + k*(w + 3), 166, w, 6, st.m >= mm(r.b) ? OK : st.m >= mm(r.a) ? ACC : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)")); });
+    ft(wk ? (done === cls.length ? "모두 끝!" : `${cls.length - done}개 남음`) : "주말", 214, 186, 7, sub, "left", "sans");
+    // 6. 할 일
+    card(308, 132, 158, 66, dark);
+    ft("오늘 할 일", 320, 147, 8, sub, "left", "sans", "500");
+    (TODOS.length ? TODOS.slice(0, 3).map(x => [x.t.length > 16 ? x.t.slice(0, 15) + "…" : x.t, x.d]) : [["오른쪽 TO DO 칸에 적어 보세요", false]]).forEach(([t, ok], k) => { const y = 162 + k*12; g.strokeStyle = ok ? OK : sub; g.lineWidth = 1.2; g.beginPath(); g.roundRect(320, y - 4, 8, 8, 2); g.stroke(); if (ok){ pill(320, y - 4, 8, 8, OK); ft("✓", 324, y, 7, "#FFFFFF", "center", "sans", "700"); } ft(t, 334, y, 8, ok ? sub : ink, "left", "sans"); });
+    // 7. 타임라인 (나는 지금 위치에)
+    card(14, 206, 452, 52, dark);
+    const E = dayEdge(), T0 = E.i, T1 = Math.max(E.o, E.i + 60), tx = m => 40 + (m - T0)/(T1 - T0)*408;
+    rows.forEach(r => { const x1 = tx(mm(r.a)), x2 = tx(mm(r.b)); pill(x1 + 1, 228, Math.max(3, x2 - x1 - 2), 8, !wk ? (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)") : r.r && r.r === HR ? HRC : r.r === "lunch" ? (dark ? "#FFD27A" : "#F2B33D") : r.r ? (st.m >= mm(r.b) ? (dark ? "rgba(143,180,255,.45)" : "rgba(47,111,237,.45)") : ACC) : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)")); });
+    for (let hh = Math.ceil(T0/120)*2; hh*60 <= T1; hh += 2) ft(`${hh}시`, tx(hh*60), 246, 7, sub, "center", "sans");
+    const mx = tx(Math.max(T0, Math.min(T1, st.m)));
+    rect(mx - .5, 216, 1, 26, ink);
+    g.save(); g.beginPath(); g.arc(mx, 216, 9, 0, Math.PI*2); g.fillStyle = dark ? "#2A2D50" : "#FFFFFF"; g.fill(); g.strokeStyle = HR && id === HR ? HRC : ACC; g.lineWidth = 1.5; g.stroke(); g.clip();
+    me(Math.round(mx), 225, st.brk ? Math.floor(T*6) % 2 : 2, false, 1); g.restore();
+  }
+  return { name:"미니멀 위젯", layout:"none", custom:true, draw, who:"20~40대 · 깔끔, 미니멀",
+    desc:"<b>스마트폰 위젯처럼 깔끔한 화면</b>이에요. 큰 시계, 지금 교시 진행 링(남은 분), 다음 수업 카드, 교무실 8자리(● 내 자리), 오늘 수업 진행, 할 일, 하루 타임라인 위를 움직이는 내 얼굴까지 한눈에 보여요. 게임 느낌 없이 정보만 담백하게." };
+})();
+NEWS.push(S18);
+/* ===== END 18 ===== */
+
+/* ===== 20. 터미널 탐험 ===== */
+const S20 = (() => {
+  // 위층(4F) = 두 번째로 많이 가는 학년, 아래층(2F) = 가장 많이 가는 학년 + 교무실. 반이 많으면 글자를 작게
+  const GL = FLOORS2[0] || 0, GU = FLOORS2.length > 1 ? FLOORS2[1] : 0;
+  const CW = Math.min(5.6, (W - 32) / (NCLS*5 + 26)), CHh = 9, MX = 22, MY = 30, FS = Math.max(5, Math.round(8*CW/5.6));
+  const UNIT = (gr, off) => { const nr = Math.floor(NCLS/2), id = k => gr ? `${gr}-${k}` : `_${k}`, L = [], R = [];
+    for (let k = NCLS; k > nr; k--) L.push([id(k), 5]);
+    for (let k = nr; k >= 1; k--) R.push([id(k), 5]);
+    return [...L, ["SL",3], [off ? "OFF" : "C",12], ["SR",3], ...R]; };
+  function floorRows(gr, off){
+    const r = ["", "", "", "", ""], pos = {}, lc = {};
+    let col = 0;
+    UNIT(gr, off).forEach(([id, w]) => {
+      pos[id] = col + Math.floor(w/2);
+      const st0 = id[0] === "S", inner = w - 1, lab = id === "OFF" ? "TEACH" : st0 ? "<>" : id === "C" || id[0] === "_" ? "" : id.slice(0);
+      lc[id] = col + 1 + (Math.floor((inner + lab.length)/2) - lab.length);
+      r[0] += "+" + "-".repeat(inner);
+      r[1] += "|" + (st0 ? "<>" : lab.padStart(Math.floor((inner + lab.length)/2)).padEnd(inner));
+      r[2] += "|" + (st0 ? "><" : id === "OFF" ? "  |     |  " : id === "C" ? "           " : ".".repeat(inner));
+      r[3] += "+" + (st0 ? "  " : "-".repeat(Math.floor((inner - 2)/2)) + "  " + "-".repeat(inner - 2 - Math.floor((inner - 2)/2)));
+      col += w;
+    });
+    r[0] += "+"; r[1] += "|"; r[2] += "|"; r[3] += "+";
+    r[4] = " " + ".".repeat(col - 1) + " ";
+    return { rows:r, pos, lc, width:col + 1 };
+  }
+  const F4 = floorRows(GU, false), F2 = floorRows(GL, true);
+  const upper = id => !!GU && gradeOf(id) === GU;   // 위층에 있는 반인지
+  const lunchS = (BELL.find(b => b[0] === "점심") || [0, "12:30"])[1];
+  function draw(st){
+    const amber = V === "b", fg = amber ? "#FFB347" : "#4BFF7A", dim = amber ? "#7A4A18" : "#1C7A3A", mid = amber ? "#C8862E" : "#33C060", bg = amber ? "#140C04" : "#020A04";
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, rows = todayRows(day);
+    rect(0, 0, W, H, bg);
+    const vg = g.createRadialGradient(W/2, H/2, 60, W/2, H/2, 300); vg.addColorStop(0, "rgba(255,255,255,.03)"); vg.addColorStop(1, "rgba(0,0,0,.55)"); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    const put = (str, col, row, c, glow) => { g.font = `bold ${FS}px ${fontOf("mono")}`; g.textAlign = "left"; g.textBaseline = "middle"; g.fillStyle = c; if (glow){ g.shadowColor = c; g.shadowBlur = 6; } [...str].forEach((ch, i) => g.fillText(ch, MX + (col + i)*CW, MY + row*CHh)); g.shadowBlur = 0; };
+    // 상태 줄
+    const E = dayEdge(), hp = st.place === "home" || !wk ? 100 : Math.round(Math.max(25, 100 - Math.max(0, st.m - E.f)/Math.max(1, E.o - E.f)*70));
+    const cls = rows.filter(r => r.r && r.r !== "lunch"), done = cls.filter(r => st.m >= mm(r.b)).length;
+    ft(`${ME}@school:~$  ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${["SUN","MON","TUE","WED","THU","FRI","SAT"][day]} ${hhmm(d.getHours()*60 + d.getMinutes())}`, 14, 13, 8, fg, "left", "mono", "bold");
+    ft(`HP ${hp}/100   LV ${st.p && /\d/.test(st.p) ? st.p : "-"}   EXP ${done}/${cls.length}`, W - 14, 13, 8, mid, "right", "mono", "bold");
+    rect(12, 20, W - 24, 1, dim);
+    // 지도: 4층 · 2층
+    put("4F", -3, 1.5, mid); put("2F", -3, 8.5, mid);
+    const draw4 = (F, top, g2) => F.rows.forEach((line, i) => [...line].forEach((ch, k) => { if (ch === " ") return; const isLab = i === 1 && /[0-9A-Z<>-]/.test(ch); put(ch, k, top + i, isLab ? mid : ch === "." ? dim : ch === "T" ? fg : dim); }));
+    draw4(F4, 0, 3); draw4(F2, 7, 1);
+    ["SL", "SR"].forEach(k => { put("|", F4.pos[k] - 1, 5, mid); put("|", F4.pos[k] + 1, 5, mid); put("|", F4.pos[k] - 1, 6, mid); put("|", F4.pos[k] + 1, 6, mid); put("=", F4.pos[k], 5, dim); put("=", F4.pos[k], 6, dim); });
+    // 수업 반 라벨 밝게, 담임 반 강조
+    [[F4, 0], [F2, 7]].forEach(([F, top]) => Object.keys(F.pos).forEach(id => { if (TAUGHT.has(id)) put(id, F.lc[id], top + 1, id === HR ? (amber ? "#FFF0C8" : "#D8FFE6") : fg, id === HR); }));
+    // 교무실 8자리: 위 · 아래 섬 (TT|TT), T = 자리에 있는 선생님, * = 내 자리
+    { const c0 = F2.pos.OFF - 5; [0, 1, 3, 4, 7, 9, 10].forEach((dc, k) => { const on = SCHOOL && (BREAK || SEATS[(k*3 + 5) % SEATS.length].t); put(on ? "T" : ".", c0 + dc, 9, on ? fg : dim); }); }
+    // 집
+    put("[HOME]", F2.width + 1, 13, mid); put("~~~~~~", F2.width + 1, 14, dim);
+    // 학생들 (쉬는 시간 · 점심엔 복도에)
+    if (BREAK || LUNCH) for (let k = 0; k < (LUNCH ? 6 : 12); k++){ const F = k % 2 ? F4 : F2, top = k % 2 ? 0 : 7, span = F.width - 2, t = (T*(1.5 + k % 4) + k*13) % (span*2), c = t < span ? t : span*2 - t; put("s", 1 + Math.floor(c), top + 4, amber ? "#FFD08A" : "#9CFFB8"); }
+    else if (SCHOOL) [[F4, 0], [F2, 7]].forEach(([F, top]) => Object.keys(F.pos).forEach((id, k) => { if (/^\d-\d+$/.test(id) && (k + Math.floor(T)) % 3 === 0) put("s", F.pos[id] - 1, top + 2, dim); }));
+    // 나 (@)
+    const id = st.lunch ? "OFF" : st.place === "office" ? "OFF" : st.place, nx = nextClass(day, st.m);
+    let col, row;
+    if (id === "home"){ col = F2.width + 3; row = 12; }
+    else { const fl = upper(id) ? F4 : F2, top = upper(id) ? 0 : 7; col = id === "OFF" ? F2.pos.OFF + 1 : fl.pos[id] ?? F2.pos.OFF; row = top + 2;
+      if (st.brk && st.go && nx){ const tf = upper(nx.r) ? F4 : F2, ttop = upper(nx.r) ? 0 : 7, p = Math.min(1, (st.m - st.s)/Math.max(1, st.e - st.s)); col = Math.round(F2.pos.OFF + ((tf.pos[nx.r] ?? F2.pos.OFF) - F2.pos.OFF)*p); row = (p < .5 ? 7 : ttop) + 4; } }
+    if (!(id === "OFF" && !st.brk)) put("*", F2.pos.OFF + 1, 9, amber ? "#FFD08A" : "#9CFFB8");
+    if (Math.sin(T*6) > -.5) put("@", col, row, amber ? "#FFF2D0" : "#E8FFF0", true);
+    // 기록 (로그)
+    rect(12, 158, W - 24, 1, dim);
+    const logs = [];
+    if (wk) rows.forEach(r => { if (mm(r.a) <= st.m) logs.push(`[${r.a}] ${/\d/.test(r.p) ? r.p + "교시" : r.p} — ${r.r === "lunch" ? "급식실에서 점심을 먹었다." : r.r ? `${NAME(r.r)}${isClass(r.r) ? " 교실" : ""}에 들어섰다.` : "교무실에서 업무를 처리했다."}`); });
+    else logs.push("[--:--] 주말이다. 던전(학교)은 문을 닫았다.");
+    const last = logs.slice(-5);
+    last.forEach((l, k) => ft(l, 16, 170 + k*11, 8, k === last.length - 1 ? fg : mid, "left", "mono"));
+    const now = !wk ? "> rest --weekend" : st.place === "home" ? "> logout ... 오늘의 탐험 종료. 수고했다!" : BREAK ? `> 쉬는 시간: 복도에 학생(s)들이 북적인다. 교무실도 선생님(T)들로 붐빈다.` : st.lunch ? "> eat lunch ... HP 회복 중" : `> ${st.act} (${Math.max(0, Math.ceil(st.e - st.m))}분 남음)`;
+    const caret = Math.floor(T*2) % 2 ? "█" : " ";
+    ft(now + caret, 16, 170 + last.length*11, 8, amber ? "#FFF2D0" : "#E8FFF0", "left", "mono", "bold");
+    // 소지품 · 범례
+    const bx = 330; rect(bx, 164, 136, 82, bg); g.strokeStyle = dim; g.lineWidth = 1; g.strokeRect(bx + .5, 164.5, 135, 81);
+    ft("INVENTORY", bx + 8, 174, 7, mid, "left", "mono", "bold");
+    ["분필 x3", "출석부 x1", "커피 x" + (st.m < mm(lunchS) ? 1 : 0), "다음: " + (nx ? `${nx.p}교시 ${nx.r}` : "없음")].forEach((t, k) => ft("- " + t, bx + 8, 186 + k*10, 7, fg, "left", "mono"));
+    ft("@ 나  s 학생  T 선생님  * 내 자리", bx + 8, 236, 6, dim, "left", "mono");
+    // 주사선
+    for (let y = 0; y < H; y += 2){ g.globalAlpha = .12; rect(0, y, W, 1, "#000"); } g.globalAlpha = 1;
+  }
+  return { name:"터미널 탐험", layout:"none", custom:true, draw, who:"20~40대 · 정보·과학, 개그",
+    desc:"<b>옛날 컴퓨터 터미널의 글자 탐험 게임</b>이에요. 많이 가는 두 학년을 그린 4층 · 2층 지도에서 @(나)가 움직이고, 쉬는 시간엔 s(학생)들이 복도를 돌아다녀요. 아래엔 '[10:40] 3교시 — 1-6 교실에 들어섰다.' 같은 기록이 쌓이고, 소지품 창도 있어요. A는 초록 화면, B는 호박색 화면이에요." };
+})();
+NEWS.push(S20);
+/* ===== END 20 ===== */
+
+/*NEW_STRUCTS*/
+  return { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 20:S20 };
+}
+
+/* ===================== NEON 2 · 부스 테두리 (2~12번 시안, 1번 건물은 늘 부스 색) ===================== */
+// 동아리 부스처럼 검은 칸 + 반 색 네온 두 줄 테두리. NEON 1 = 원래 A 네온, COZY = 원래 B (문쌤 타이쿤과 같아요)
+let LOOK = "orig", DESKC = null;   // DESKC = 지금 그리는 교실 책상 색 (NEON 2 일 때만)
+const NEO = () => LOOK === "n2";
+const shade = (hex, f) => { const n = parseInt(hex.slice(1, 7), 16), m = v => Math.max(0, Math.min(255, Math.round(v*f))); return "#" + ((1 << 24) + (m(n >> 16) << 16) + (m((n >> 8) & 255) << 8) + m(n & 255)).toString(16).slice(1); };
+// 방 색: 학년 색 · 담임 반과 집 분홍 · 교무실 하늘색 · 급식실 초록 · 그 밖의 곳은 벽 색
+function roomColor(id){
+  return id === "home" ? P.hr : isClass(id) || (HR && id === HR) ? gradeColor(id) : id === "office" ? P.glass : id === "lunch" ? "#5BEA6F" : TAUGHT.has(id) ? P.ui.acc2 : P.wallTop;
+}
+// 칸 하나 (시간표 칸 · 판 이름표). 글자 색을 돌려줘요
+function cellBox(x, y, w, h, c){
+  rect(x, y, w, h, "#0B0B12"); frameBox(x, y, w, h, 1, c);
+  if (w > 10 && h > 11){ g.globalAlpha = .45; frameBox(x + 2, y + 2, w - 4, h - 4, 1, c); g.globalAlpha = 1; }
+  return c;
+}
+// 바탕 몇 가지 색만 정하면 나머지는 따라가요. y1 = 1학년 칸 · c3 = 3학년 칸 · hr = 담임 반 · now = 지금 · 강조, acc2 = 보조 강조, edgeC = 벽 테두리
+function neonPal(o){
+  return { ...PAL.a, ground:o.bg, dot:o.bg2, base:o.bg2, hall:o.hall, hallLine:o.line, wall:o.wall, wallTop:o.edgeC, edge:"#000000",
+    fA:o.fA, fB:o.fB, oA:o.oA, oB:o.oB, hA:o.hA, hB:o.hB, desk:"#8B5A2B", deskTop:"#B07A4A", board:"#1D4D2C", boardEdge:"#8B6B4A",
+    active:o.now, hr:o.hr, glass:o.glass || "#2FE3F0", skin:"#FFCFA8", uni:"#2C3E66", skirt:"#5B4A6E", path:"#B5553A", night:"rgba(4,4,20,.35)", tuft:o.bg2,
+    sky:o.bg, apt:o.bg2, aptWin:o.hall, yard:"#1D4D2C", tree:"#2A6B3A", roof:o.acc2,
+    trackA:"#B5553A", trackIn:"#1D4D2C", trackLine:"#D9785A", trackMark:"#2A6B3A", rug:shade(o.hr, .3), empty:o.line, cell:o.hall,
+    paper:o.wall, rule:o.line, deep:o.bg, today:shade(o.y1, .16), memo:shade(o.y1, .22), memoInk:o.y1, cover:shade(o.edgeC, .35), room:o.hall, c3:o.c3,
+    minAcc:o.now, minHr:o.hr, minOk:o.y1, minBg1:o.bg, minBg2:o.wall, table:o.bg2, ring:"#8C8CA6", memoText:"#EDEDF5", wood:"#4A3A2E", deskL:"#5A4232",
+    ui:{ panel:o.bg, ink:"#EDEDF5", muted:"#8C8CA6", acc:o.now, acc2:o.acc2, line:o.line, ok:o.y1 }, name:o.name };
+}
+// 부스 색 (진한 바탕 + 1학년 노랑 · 3학년 주황 · 담임 반 분홍 · 지금 하늘색)
+const BOOTH_PAL = neonPal({ name:"부스", bg:"#0B0B12", bg2:"#10101A", hall:"#14141F", line:"#2A2A3A", wall:"#12121C", edgeC:"#3D6BFF", fA:"#10101A", fB:"#14141F", oA:"#0B1A22", oB:"#0E2029", hA:"#160E1C", hB:"#1A1022",
+  y1:"#FFD400", c3:"#FF8A1F", hr:"#FF5FAE", now:"#2FE3F0", acc2:"#B07CFF" });
+PAL.n2 = BOOTH_PAL;
+
+/* ===================== COZY 2 · 숲속 오두막 (밝은 쪽, COZY 1 = 원래 B) ===================== */
+// 바탕 몇 가지 색만 정하면 나머지는 따라가요. ok = 1학년 칸 · c3 = 3학년 칸 · hr = 담임 반 · acc = 지금 · 강조
+function cozyPal(o){
+  return { ...PAL.b, ground:o.grass, dot:shade(o.grass, .9), base:shade(o.wall, .8), hall:shade(o.wall, .92), hallLine:shade(o.wall, .8), wall:o.wall, wallTop:o.line, edge:o.line,
+    fA:o.floorA, fB:o.floorB, oA:o.officeA, oB:o.officeB, hA:shade(o.wood, 1.15), hB:o.wood, desk:shade(o.wood, .78), deskTop:o.wood, board:o.board, boardEdge:shade(o.wood, .7),
+    active:o.acc, hr:o.hr, glass:o.glass, path:o.path, roof:o.roof, tuft:shade(o.grass, .85), uni:o.uni, sky:o.sky, apt:o.apt, aptWin:o.aptWin, yard:o.yard || o.path, tree:o.tree, c3:o.c3,
+    trackA:o.track, trackIn:o.grass, trackLine:shade(o.track, 1.35), trackMark:shade(o.grass, 1.15), rug:shade(o.hr, .85), empty:shade(o.paper, .86), cell:shade(o.paper, .92),
+    paper:o.paper, rule:shade(o.paper, .86), deep:o.bg, table:o.table, ring:o.muted, today:o.today, memo:o.memo, memoInk:o.memoInk, memoText:o.ink, cover:o.cover, room:o.wall, wood:shade(o.wood, .8), deskL:o.wood,
+    minAcc:o.acc2, minHr:o.hr, minOk:o.ok, minBg1:o.bg, minBg2:shade(o.bg, .95),
+    ui:{ panel:o.paper, ink:o.ink, muted:o.muted, acc:o.acc, acc2:o.acc2, line:o.line, ok:o.ok }, font:o.font, name:o.name, r:o.r ?? 6 };
+}
+// COZY 2 = 숲속 오두막 (진한 숲색 바탕 + 크림색 상자 + 나무 바닥 + 등불 주황)
+PAL.c2 = cozyPal({ name:"COZY 2", font:"'Jua','Malgun Gothic',sans-serif", bg:"#22382A", paper:"#F4E8CC", ink:"#2A2416", muted:"#7A6A4E", line:"#4A3420", wall:"#EFE0C0", floorA:"#C9A36E", floorB:"#BD965F", officeA:"#D8C49A", officeB:"#CDB78C",
+  wood:"#8A5A34", grass:"#3F6B3A", path:"#B89A6A", yard:"#4E7A44", track:"#9A5A3A", sky:"#A9CBB6", apt:"#5E7A5A", aptWin:"#88A888", tree:"#2F5A2E", roof:"#7A3A2A", glass:"#C6E3D4", board:"#2F5A40", uni:"#3A5A7A",
+  acc:"#E8922A", acc2:"#4F8A42", ok:"#7AB85A", c3:"#D9763A", hr:"#D9506A", today:"#FBEFD2", memo:"#F7E7A8", memoInk:"#7A5A10", cover:"#4A6A3A", table:"#5A3A22" });
+// 위쪽 글자 · 단추 색 · 상자 모양도 같이 바뀌게
+{ const p = PAL.c2; document.head.insertAdjacentHTML("beforeend", `<style>:root[data-v="c2"]{--bg:${p.deep};--panel:${p.ui.panel};--line:${p.ui.line};--ink:${p.ui.ink};--muted:${p.ui.muted};--accent:${p.ui.acc};--accent2:${p.ui.acc2};--hi:${p.hr};--ok:${p.ui.ok};--ui:${p.font};--box-b:3px solid ${p.ui.line};--box-r:${p.r}px;--box-sh:inset 0 -4px 0 ${shade(p.ui.panel, .9)}, 0 4px 0 ${shade(p.deep, .7)};--h-ink:${p.ui.acc};--on-ink:${p.ui.panel};--field:#FFFBF0;color-scheme:light}</style>`); }
+// 위쪽 글자 · 단추 색도 같이 바뀌게
+{ const p = BOOTH_PAL; document.head.insertAdjacentHTML("beforeend", `<style>:root[data-v="n2"]{--bg:${p.deep};--panel:${p.ui.panel};--line:${p.ui.line};--ink:${p.ui.ink};--muted:${p.ui.muted};--accent:${p.ui.acc};--accent2:${p.ui.acc2};--hi:${p.hr};--ok:${p.ui.ok};--h-ink:${p.ui.acc2};--on-ink:#0B0B12;--box-sh:0 0 0 1px #000,0 0 14px ${p.wallTop}33}</style>`); }
+
+/* ===================== 시계 (미리보기 빨리 감기) ===================== */
+let speed = 1, simAt = Date.now(), realAt = Date.now();
+const simNow = () => new Date(simAt + (Date.now() - realAt) * speed);
+function setSpeed(s){ simAt = simNow().getTime(); realAt = Date.now(); speed = s; }
+function jumpTo(day, time){ const d = new Date(simNow()); d.setHours(...time.split(":").map(Number), 0, 0); d.setDate(d.getDate() + ((day - d.getDay() + 7) % 7)); simAt = d.getTime(); realAt = Date.now(); resetWalk(); }
+
+/* ===================== 오른쪽 NOW · TODAY ===================== */
+const $ = id => document.getElementById(id);
+const escH = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+function panel(d, st){
+  const day = d.getDay(), m = st.m, tt = TT[day] || {};
+  $("sDate").textContent = `${d.getMonth() + 1}/${d.getDate()} ${DAYS[day]}`;
+  $("sTime").textContent = hhmm(d.getHours()*60 + d.getMinutes());
+  $("sSlot").textContent = st.slot;
+  $("nTag").textContent = `${SI + 1}. ${STRUCTS[SI].name}`;
+  $("nWhere").textContent = WK.walking ? `→ ${NAME(st.place)} 가는 중` : NAME(st.place);
+  $("nAct").textContent = st.act;
+  $("nBar").style.width = Math.max(0, Math.min(100, (m - st.s) / Math.max(1, st.e - st.s) * 100)) + "%";
+  const nx = BELL.find(([p, a]) => mm(a) > m && tt[p]);
+  $("nNext").innerHTML = day === 0 || day === 6 ? "다음 수업: 월요일" : nx ? `다음 <b>${nx[0]}교시 ${escH(NAME(tt[nx[0]]))}</b> · ${nx[1]}` : st.p && tt[st.p] ? "오늘 마지막 수업 중이에요" : "오늘 수업 끝! 수고했어요";
+  $("tDay").textContent = `${DAYS[day]}요일`;
+  $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.map(([p, a, b]) => {
+    const cur = m >= mm(a) && m < mm(b) ? "cur" : "", r = slotRoom(day, p);
+    const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH(NAME(r))}</span>` : `<span class="free">${/\d/.test(p) ? "공강" : "교무실"}</span>`;
+    return `<span class="p ${cur}">${/\d/.test(p) ? p + "교시" : p}</span><span class="${cur}">${what}</span><span class="t">${a}</span>`;
+  }).join("");
+}
+
+/* ===================== 화면 맞추기 · 시안 고르기 ===================== */
+const frame = $("frame"), col = $("mapcol");
+function fit(){ const k = Math.min(col.clientWidth/16, (col.clientHeight || col.clientWidth*9/16)/9); frame.style.width = Math.floor(k*16) + "px"; frame.style.height = Math.floor(k*9) + "px"; }
+new ResizeObserver(fit).observe(col);
+// 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 15 로파이 · 12 교무수첩 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 5 보드게임 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 · 20 터미널
+const TOP = [1, 15, 12, 11, 8, 6, 5, 7, 10, 18, 9, 20];
+let D = {}, STRUCTS = [], SI = 0;
+// 선생님 설정이 바뀔 때마다 시안을 새로 만들어요 (교실 수 · 층 · 칸 수가 바뀌니까)
+function rebuild(){
+  D = makeStructs(); STRUCTS = TOP.map(n => D[n]);
+  $("structs").innerHTML = STRUCTS.map((s, r) => `<button type="button" class="btn" data-s="${r}"><b>${r + 1}</b>${s.name}</button>`).join("");
+  renderJumps(); pick(SI, true);
+}
+function pick(k, quiet){
+  SI = clamp(+k || 0, 0, STRUCTS.length - 1); resetWalk(); STRUCTS[SI].reset?.();
+  document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", +b.dataset.s === SI));
+  $("desc").innerHTML = `${SI + 1}. ${STRUCTS[SI].who ? `<b>추천: ${STRUCTS[SI].who}</b> · ` : ""}${STRUCTS[SI].desc}`;
+  requestAnimationFrame(fit);
+  try { localStorage.setItem("desk-struct", SI); } catch (e) {}
+  if (!quiet) window.DESK.onLook?.();
+}
+// 미리보기 단추: 내 종 시간에 맞춰 만들어요
+function renderJumps(){
+  const E = dayEdge(), cls = BELL.filter(b => /\d/.test(b[0])), lunch = BELL.find(b => b[0] === "점심"), J = [];
+  if (BELL.length) J.push(["월 아침", 1, hhmm(mm(BELL[0][1]) + 3)]);
+  if (cls[1]) J.push(["화 쉬는 시간", 2, hhmm(mm(cls[1][2]) + 3)]);
+  if (lunch) J.push(["수 점심", 3, hhmm(mm(lunch[1]) + 10)]);
+  J.push(["금 퇴근", 5, hhmm(Math.max(0, E.o - 5))], ["토요일", 6, "11:00"]);
+  $("jumps").innerHTML = J.map(([t, d, h]) => `<button type="button" class="btn" data-jump="${d},${h}">${t}</button>`).join("");
+}
+$("structs").addEventListener("click", e => { const b = e.target.closest("[data-s]"); if (b) pick(+b.dataset.s); });
+$("ctl").addEventListener("click", e => {
+  const s = e.target.closest("[data-speed]"); if (s){ setSpeed(+s.dataset.speed); document.querySelectorAll("[data-speed]").forEach(b => b.classList.toggle("on", b === s)); return; }
+  const j = e.target.closest("[data-jump]"); if (j){ const [dd, tm] = j.dataset.jump.split(","); jumpTo(+dd, tm); }
+});
+function setPal(key, quiet){
+  key = PAL[key] ? key : "a"; P = PAL[key]; V = key === "b" || key === "c2" ? "b" : "a"; LOOK = key === "n2" ? "n2" : "orig";   // NEON 2 는 어두운 쪽(a), COZY 2 는 밝은 쪽(b)
+  if (key === "a") delete document.documentElement.dataset.v; else document.documentElement.dataset.v = key;
+  document.querySelectorAll("#pal .btn").forEach(x => x.classList.toggle("on", x.dataset.v === key));
+  try { localStorage.setItem("desk-pal", key); } catch (e) {}
+  if (!quiet) window.DESK.onLook?.();
+}
+$("pal").addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (b) setPal(b.dataset.v); });
+
+/* ===================== 그리기 루프 ===================== */
+g.setTransform(2, 0, 0, 2, 0, 0); g.imageSmoothingEnabled = false;
+let last = performance.now(), panelAt = 0;
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function loop(now){
+  const dt = Math.min(.1, (now - last)/1000); last = now; T = reduce ? 0 : now/1000;
+  const d = simNow(), st = stateAt(d), S = STRUCTS[SI], E = dayEdge();
+  const day = d.getDay(), hm = d.getHours()*60 + d.getMinutes();
+  SCHOOL = day >= 1 && day <= 5 && hm >= E.f - 10 && hm < E.l + 5;
+  NIGHT = hm < mm("06:30") || hm >= mm("18:30");
+  BREAK = SCHOOL && !!st.brk; LUNCH = SCHOOL && !!st.lunch;
+  g.setTransform(2, 0, 0, 2, 0, 0);
+  if (!S.custom){ const raw = S.alias ? S.alias(st) : st.place; walkTo(S, S.mapId ? S.mapId(raw) : raw, d); stepWalk(S, dt); }
+  S.draw(st);
+  if (!S.custom && !S.ownMe){
+    const piece = S.piece && WK.walking ? -Math.abs(Math.sin(T*12))*6 : 0;
+    me(Math.round(WK.pos.x), Math.round(WK.pos.y + piece), frameNo(), WK.flip, S.meScale || 1);
+    if (S !== D[7]) bubble(bubText(st), WK.pos.x, WK.pos.y - 16);
+  }
+  if (now - panelAt > 400){ panelAt = now; panel(d, st); }
+  requestAnimationFrame(loop);
+}
+
+/* 아래 파이어베이스 부분과 주고받는 창구 */
+window.DESK = {
+  applyConfig, setTodos(list){ TODOS = Array.isArray(list) ? list : []; },
+  look:() => ({ s:SI, v:V }),
+  setLook(l){ if (!l) return; if (l.v) setPal(l.v, true); if (l.s != null) pick(l.s, true); },
+  onLook:null
+};
+// 시작: 예시 선생님으로 먼저 움직여요 (로그인하면 내 시간표로 바뀌어요)
+try { SI = +(localStorage.getItem("desk-struct") || 0) || 0; } catch (e) {}
+applyConfig(DEMO_CFG);
+{ let v = "a"; try { v = localStorage.getItem("desk-pal") || "a"; } catch (e) {} setPal(v, true); }
+// 주소 끝에 #3 처럼 붙이면 3번째 단추 시안으로 열려요
+{ const n = +(location.hash.match(/^#s?(\d+)$/) || [])[1]; if (n >= 1 && n <= TOP.length) pick(n - 1, true); }
+fit(); requestAnimationFrame(loop);
+</script>
+
+<script type="module">
+/* ============================================================
+   🔥 로그인 · 저장 (파이어베이스 moon-d528d)
+   - desk_users/{책상}             : 부를 이름 · 가입일 · 마지막 접속 · 연결한 로그인 (관리자도 봐요)
+   - desk_users/{책상}/data/main   : 시간표 (본인만)
+   - desk_users/{책상}/days/{날짜}  : 할 일 · 메모 (본인만)
+   - desk_links/{로그인}            : 구글 · 카카오를 하나로 합쳤을 때 '이 로그인은 이 책상'
+   - desk_chats/{책상}(/msgs)      : 관리자에게 묻기
+   ============================================================ */
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, initializeAuth, inMemoryPersistence, browserPopupRedirectResolver, onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, linkWithPopup, signInWithCredential, deleteUser, signOut, GoogleAuthProvider, OAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, addDoc, query, orderBy, limit, where, onSnapshot, arrayUnion, getCountFromServer, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765"
+};
+const fbApp = initializeApp(firebaseConfig), auth = getAuth(fbApp), db = getFirestore(fbApp);
+const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const KAKAO = "oidc.kakao";   // 파이어베이스 로그인 방법 OpenID Connect 'kakao' (아이아이노트와 같은 방식)
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const dkey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const ADMIN_PAGE = /[?&]admin\b/.test(location.search) || location.hash === "#admin";
+const show = id => { $(id).hidden = false; }, hide = id => { $(id).hidden = true; };
+
+let user = null, deskId = null, me = null, cfg = null, demo = false, setupMode = false;
+const deskRef = () => doc(db, "desk_users", deskId);
+
+/* ---------- 앱 안 브라우저(카카오톡 · 네이버 · 인스타 …)에서는 구글 로그인이 막혀요 ---------- */
+const UA = navigator.userAgent;
+const INAPP = /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|\bLine\/|DaumApps|everytimeApp|BAND\/|; wv\)/i.test(UA) ? (/KAKAOTALK/i.test(UA) ? "kakao" : "other") : "";
+function inappHelp(){
+  if (INAPP === "kakao"){ location.href = "kakaotalk://web/openExternal?url=" + encodeURIComponent(location.href); return true; }
+  if (INAPP){ $("lgErr").textContent = "이 앱 안의 브라우저에서는 로그인이 막혀요. 오른쪽 위 ⋮ 메뉴에서 '다른 브라우저로 열기'를 눌러 주세요 (주소: moontr.site/desk)"; return true; }
+  return false;
+}
+
+/* ---------- 로그인 ---------- */
+const gProv = () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); return p; };
+const provOf = kind => kind === "kakao" ? new OAuthProvider(KAKAO) : gProv();
+const kindName = k => k === "kakao" ? "카카오" : "구글";
+const kindsOf = u => (u ? u.providerData : []).map(p => p.providerId === "google.com" ? "google" : p.providerId === KAKAO ? "kakao" : "").filter(Boolean);
+function loginErr(e, kind){
+  const c = (e && e.code) || "";
+  if (/popup-closed|cancelled-popup/.test(c)) return "";
+  if (/popup-blocked/.test(c)) return "팝업이 막혔어요. 브라우저에서 이 사이트의 팝업을 허용해 주세요.";
+  if (kind === "kakao" && /operation-not-allowed|configuration-not-found|invalid-provider-id|admin-restricted|invalid-oauth/.test(c)) return "카카오 로그인은 준비 중이에요. 지금은 구글로 시작해 주세요.";
+  if (/account-exists-with-different-credential/.test(c)) return "같은 이메일로 다른 방법으로 가입되어 있어요. 처음 가입한 방법으로 로그인한 뒤 [⚙️ 설정]에서 연결해 주세요.";
+  if (/network/.test(c)) return "인터넷 연결을 확인해 주세요.";
+  return `로그인하지 못했어요 (${c || (e && e.message) || "알 수 없는 문제"})`;
+}
+async function signIn(kind){
+  if (inappHelp()) return;
+  $("lgErr").textContent = "";
+  try { await signInWithPopup(auth, provOf(kind)); }
+  catch (e){ $("lgErr").textContent = loginErr(e, kind); }
+}
+$("gIn").addEventListener("click", () => signIn("google"));
+$("kIn").addEventListener("click", () => signIn("kakao"));
+$("demoIn").addEventListener("click", startDemo);
+$("lgPolicy").addEventListener("click", e => { e.preventDefault(); startDemo(); $("policy").open = true; setTimeout(() => $("policy").scrollIntoView({ behavior:"smooth" }), 50); });
+$("demoStart").addEventListener("click", () => { hide("demoBar"); show("shLogin"); });
+$("adminFab").addEventListener("click", () => { location.href = "./?admin"; });
+
+/* ---------- 둘러보기 (로그인 없이, 저장 안 됨) ---------- */
+const DEMO_TODOS = [{ t:"가정통신문 걷기", d:true }, { t:"학습지 인쇄", d:false }, { t:"수행평가 채점", d:false }];
+function startDemo(){
+  demo = true; hide("shLogin"); show("demoBar");
+  window.DESK.applyConfig(DEMO_CFG); $("whoName").textContent = `${DEMO_CFG.name}의 하루 (예시)`;
+  dayData = { todos:DEMO_TODOS.map(x => ({ ...x })), memo:"" }; dayKey = dkey(new Date()); renderDayNav(); renderTodo();
+}
+function needLogin(what){
+  if (!demo && user) return false;
+  hide("demoBar"); show("shLogin"); $("lgErr").textContent = `${what}은(는) 로그인한 뒤에 쓸 수 있어요.`; return true;
+}
+
+/* ---------- 로그인 상태가 바뀌면 ---------- */
+onAuthStateChanged(auth, async u => {
+  user = u;
+  if (ADMIN_PAGE){ renderAdmin(); return; }
+  if (!u){ closeDesk(); if (!demo) show("shLogin"); return; }
+  await openDesk();
+});
+function closeDesk(){
+  deskId = null; me = null; cfg = null; chatUnsub?.(); chatUnsub = null; $("chatDot").hidden = true;
+  window.DESK.applyConfig(DEMO_CFG); window.DESK.setTodos([]); $("whoName").textContent = "선생님의 하루";
+  dayData = { todos:[], memo:"" }; renderTodo();
+}
+// 내 책상 찾기: 구글 · 카카오를 합쳤으면 desk_links 가 가리키는 책상, 아니면 내 로그인 번호의 책상
+async function openDesk(){
+  demo = false; hide("demoBar"); hide("shLogin");
+  let id = user.uid, snap = null;
+  try { const l = await getDoc(doc(db, "desk_links", user.uid)); if (l.exists() && l.data().desk) id = l.data().desk; } catch (e) {}
+  try { snap = await getDoc(doc(db, "desk_users", id)); }
+  catch (e){ if (id !== user.uid){ id = user.uid; try { snap = await getDoc(doc(db, "desk_users", id)); } catch (e2) {} } }
+  deskId = id;
+  if (!snap || !snap.exists()){ me = null; cfg = null; openEdit(true); return; }
+  me = snap.data();
+  try { const m = await getDoc(doc(db, "desk_users", id, "data", "main")); cfg = m.exists() ? m.data() : null; } catch (e) { cfg = null; }
+  if (!cfg){ openEdit(true); return; }
+  useConfig();
+  // 오늘 처음 들어왔으면 마지막 접속일 · 로그인 종류를 적어요 (운영 현황용)
+  const today = dkey(new Date());
+  if (me.lastDay !== today || kindsOf(user).some(k => !(me.kinds || []).includes(k))){
+    const kinds = kindsOf(user);
+    updateDoc(deskRef(), { lastAt:Date.now(), lastDay:today, ...(kinds.length ? { kinds:arrayUnion(...kinds) } : {}) }).catch(() => {});
+  }
+  loadDay(today); watchChat();
+}
+function useConfig(){
+  window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look);
+  $("whoName").textContent = `${ME}의 하루`;
+}
+// 화면 모양 · 색을 바꾸면 내 시간표 옆에 같이 저장 (다른 기기에서도 같은 모양)
+let lookTimer = null;
+window.DESK.onLook = () => {
+  if (demo || !cfg || !deskId) return;
+  clearTimeout(lookTimer);
+  lookTimer = setTimeout(() => { cfg.look = window.DESK.look(); updateDoc(doc(db, "desk_users", deskId, "data", "main"), { look:cfg.look }).catch(() => {}); }, 1500);
+};
+
+/* ============================================================
+   📝 날마다 할 일 · 메모 (오른쪽 TO DO 칸)
+   ============================================================ */
+let todayKey = dkey(new Date()), dayKey = todayKey, dayData = { todos:[], memo:"" }, dayTimer = null;
+const shiftKey = (k, n) => { const [y, m, d] = k.split("-").map(Number), t = new Date(y, m - 1, d + n); return dkey(t); };
+function renderDayNav(){
+  const diff = Math.round((new Date(dayKey) - new Date(todayKey)) / 864e5), [, m, d] = dayKey.split("-").map(Number), dw = DAYS[new Date(dayKey + "T00:00").getDay()];
+  $("dDay").textContent = diff === 0 ? "오늘" : diff === -1 ? "어제" : diff === 1 ? "내일" : `${m}/${d} (${dw})`;
+}
+async function loadDay(k){
+  dayKey = k; renderDayNav(); $("saved").textContent = "";
+  if (demo || !deskId){ renderTodo(); return; }
+  try { const s = await getDoc(doc(db, "desk_users", deskId, "days", k)); dayData = s.exists() ? { todos:s.data().todos || [], memo:s.data().memo || "" } : { todos:[], memo:"" }; }
+  catch (e){ dayData = { todos:[], memo:"" }; $("saved").textContent = "불러오지 못했어요. 새로고침해 주세요"; }
+  if (k === dayKey) renderTodo();
+}
+function renderTodo(){
+  $("todo").innerHTML = dayData.todos.length
+    ? dayData.todos.map((t, i) => `<li class="${t.d ? "done" : ""}"><label><input type="checkbox" data-i="${i}" ${t.d ? "checked" : ""}><span>${esc(t.t)}</span></label><button type="button" class="x" data-del="${i}" aria-label="${esc(t.t)} 지우기">×</button></li>`).join("")
+    : `<li class="none">아직 할 일이 없어요</li>`;
+  if (document.activeElement !== $("memo")) $("memo").value = dayData.memo || "";
+  if (dayData.memo && !$("memoBox").open) $("memoBox").open = true;
+  if (dayKey === todayKey) window.DESK.setTodos(dayData.todos);   // 게임 화면에는 오늘 할 일만
+}
+function saveDay(){
+  clearTimeout(dayTimer);
+  if (demo){ $("saved").textContent = "체험 중이라 저장되지 않아요"; return; }
+  if (!deskId) return;
+  $("saved").textContent = "저장 중…";
+  const k = dayKey, data = { todos:dayData.todos.slice(0, 50), memo:(dayData.memo || "").slice(0, 3000), at:Date.now() };
+  dayTimer = setTimeout(async () => {
+    try { await setDoc(doc(db, "desk_users", deskId, "days", k), data); $("saved").textContent = "저장했어요 ✓"; }
+    catch (e){ $("saved").textContent = "저장하지 못했어요 · 인터넷을 확인해 주세요"; }
+  }, 500);
+}
+$("todoAdd").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = $("todoIn").value.trim().slice(0, 60); if (!t) return;
+  if (dayData.todos.length >= 50){ $("saved").textContent = "하루에 50개까지 적을 수 있어요"; return; }
+  dayData.todos.push({ t, d:false }); $("todoIn").value = ""; renderTodo(); saveDay();
+});
+$("todo").addEventListener("change", e => { const c = e.target.closest("input[data-i]"); if (!c) return; dayData.todos[+c.dataset.i].d = c.checked; renderTodo(); saveDay(); });
+$("todo").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; dayData.todos.splice(+b.dataset.del, 1); renderTodo(); saveDay(); });
+$("memo").addEventListener("input", () => { dayData.memo = $("memo").value; saveDay(); });
+$("dPrev").addEventListener("click", () => demo ? null : loadDay(shiftKey(dayKey, -1)));
+$("dNext").addEventListener("click", () => demo ? null : loadDay(shiftKey(dayKey, 1)));
+// 자정이 지나면 '오늘'을 새 날짜로
+setInterval(() => { const k = dkey(new Date()); if (k !== todayKey){ const was = dayKey === todayKey; todayKey = k; if (was && !demo) loadDay(k); else renderDayNav(); } }, 60000);
+
+/* ============================================================
+   ✏️ 내 시간표 (처음엔 '내 책상 만들기')
+   ============================================================ */
+const KINDS = ["조회", "수업", "점심", "종례"];
+const SPECIALS = ["과학실", "체육관", "음악실", "미술실", "컴퓨터실", "도서실", "강당", "특별실"];
+let ed = null;
+const clone = o => JSON.parse(JSON.stringify(o));
+function blankCfg(){ return { name:"", level:"high", grades:3, classes:10, hr:"", inT:PRESET.high.inT, outT:PRESET.high.outT, bell:bellOf("high"), week:{} }; }
+function openEdit(first){
+  setupMode = !!first;
+  if (!first && !demo && !user){ needLogin("내 시간표"); return; }
+  ed = clone(first ? blankCfg() : (demo ? CFG : cfg) || blankCfg());
+  if (first && user && user.displayName && !ed.name) ed.name = "";
+  $("edTitle").textContent = first ? "🎉 내 책상 만들기" : "✏️ 내 시간표";
+  $("edCancel").textContent = first ? "로그아웃" : "닫기";
+  document.querySelector("#shEdit [data-close].close").hidden = first;
+  $("edMsg").textContent = demo ? "체험 중이라 저장되지 않고, 이 화면에서만 바뀌어요." : "";
+  renderEdit(); show("shEdit");
+}
+function renderEdit(){
+  const lv = ed.level || "high", nPer = ed.bell.filter(b => b.k === "수업").length;
+  let n = 0;
+  const bellRows = ed.bell.map((b, i) => `<div class="bellrow" data-i="${i}">
+      <select class="bk" aria-label="종류">${KINDS.map(k => `<option ${k === b.k ? "selected" : ""}>${k}</option>`).join("")}</select>
+      <input type="time" class="bs" value="${esc(b.s)}" aria-label="시작"> ~ <input type="time" class="be" value="${esc(b.e)}" aria-label="끝">
+      <span class="num">${b.k === "수업" ? ++n + "교시" : ""}</span>
+      <button type="button" class="ibtn" data-delbell="${i}" aria-label="이 줄 지우기">✕</button></div>`).join("");
+  const opts = [];
+  for (let gr = 1; gr <= (ed.grades || 3); gr++) for (let c = 1; c <= (ed.classes || 10); c++) opts.push(`${gr}-${c}`);
+  let week = `<table><thead><tr><th></th>${["월","화","수","목","금"].map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>`;
+  for (let p = 1; p <= nPer; p++){
+    week += `<tr><th>${p}교시</th>`;
+    for (let d = 1; d <= 5; d++){ const v = ((ed.week || {})[d] || {})[p] || ""; week += `<td class="${v && v === ed.hr ? "hr" : ""}"><input list="dlRooms" data-d="${d}" data-p="${p}" value="${esc(v)}" maxlength="12" aria-label="${["","월","화","수","목","금"][d]} ${p}교시"></td>`; }
+    week += `</tr>`;
+  }
+  week += `</tbody></table>`;
+  $("edBody").innerHTML = `
+    ${setupMode ? `<p style="margin:0 0 8px">어서 오세요! 아래를 채우면 내 하루가 게임 화면으로 움직여요. 나중에 언제든 고칠 수 있어요.</p>` : ""}
+    <div class="sec">1. 나와 학교</div>
+    <div class="f2">
+      <label class="f"><span>화면에 나올 내 이름</span><input id="eName" maxlength="12" placeholder="예: 김쌤" value="${esc(ed.name)}"></label>
+      <label class="f"><span>담임 반 (없으면 비워 두기)</span><input id="eHr" maxlength="5" placeholder="예: 2-3" value="${esc(ed.hr)}" list="dlRooms"></label>
+    </div>
+    <div class="f"><span>학교급 (누르면 그 학교급의 보통 종 시간 · 출퇴근 시각이 들어가요)</span>
+      <div class="seg" id="eLv">${["elem","mid","high"].map(k => `<button type="button" data-lv="${k}" class="${k === lv ? "on" : ""}">${PRESET[k].name}</button>`).join("")}</div></div>
+    <div class="f2">
+      <label class="f"><span>학년 수</span><select id="eGr">${[1,2,3,4,5,6].map(v => `<option ${v === +ed.grades ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label class="f"><span>한 학년 반 수</span><select id="eCl">${Array.from({ length:15 }, (_, i) => i + 1).map(v => `<option ${v === +ed.classes ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label class="f"><span>출근 시각</span><input type="time" id="eIn" value="${esc(ed.inT)}"></label>
+      <label class="f"><span>퇴근 시각</span><input type="time" id="eOut" value="${esc(ed.outT)}"></label>
+    </div>
+    <div class="sec">2. 종 시간</div>
+    <p class="note">조회 · 수업 · 점심 · 종례를 시간 순서대로 적어요. '수업' 줄은 위에서부터 1교시, 2교시…가 돼요.</p>
+    <div id="eBell">${bellRows}</div>
+    <button type="button" class="btn" id="eAddBell">+ 한 줄 더하기</button>
+    <div class="sec">3. 요일별 시간표</div>
+    <p class="note">반은 <b>1-3</b>처럼 (학년-반), 특별실은 이름으로 적어요 (예: 과학실). 비우면 공강이에요. 학생 이름은 적지 말아 주세요.</p>
+    <div class="wk" id="eWeek">${nPer ? week : `<p class="note">종 시간에 '수업' 줄을 먼저 넣어 주세요.</p>`}</div>
+    <datalist id="dlRooms">${[...opts, ...SPECIALS].map(v => `<option value="${v}">`).join("")}</datalist>
+    ${setupMode ? `<div class="sec">예전에 쓰던 책상이 있나요?</div>
+      <p class="note">다른 로그인(구글 또는 카카오)으로 이미 책상을 만들었다면, 그 계정으로 한 번 확인하고 그 책상을 열어요. 그다음부터는 어느 쪽으로 들어와도 같은 책상이에요.</p>
+      <div class="row" style="gap:6px">${["kakao","google"].filter(k => !kindsOf(user).includes(k)).map(k => `<button type="button" class="big ${k === "kakao" ? "kakao" : "google"}" data-join="${k}">${kindName(k)} 계정으로 확인하고 예전 책상 열기</button>`).join("")}</div>` : ""}`;
+}
+// 화면에 적힌 값을 ed 에 옮겨요 (다시 그리기 전 · 저장 전)
+function readEdit(){
+  if (!$("eName")) return;
+  ed.name = $("eName").value.trim(); ed.hr = $("eHr").value.trim();
+  ed.grades = +$("eGr").value; ed.classes = +$("eCl").value; ed.inT = $("eIn").value; ed.outT = $("eOut").value;
+  ed.bell = [...document.querySelectorAll("#eBell .bellrow")].map(r => ({ k:r.querySelector(".bk").value, s:r.querySelector(".bs").value, e:r.querySelector(".be").value }));
+  const w = {}; document.querySelectorAll("#eWeek input").forEach(i => { const v = i.value.trim(); if (v){ (w[i.dataset.d] = w[i.dataset.d] || {})[i.dataset.p] = v.slice(0, 12); } });
+  ed.week = w;
+}
+$("edBody").addEventListener("click", e => {
+  const lv = e.target.closest("[data-lv]");
+  if (lv){ readEdit(); const P0 = PRESET[lv.dataset.lv]; ed.level = lv.dataset.lv; ed.grades = P0.grades; ed.inT = P0.inT; ed.outT = P0.outT; ed.bell = bellOf(lv.dataset.lv); renderEdit(); $("edMsg").textContent = `${P0.name} 보통 종 시간을 넣었어요. 우리 학교에 맞게 고쳐 주세요.`; return; }
+  const db0 = e.target.closest("[data-delbell]");
+  if (db0){ readEdit(); ed.bell.splice(+db0.dataset.delbell, 1); renderEdit(); return; }
+  if (e.target.closest("#eAddBell")){ readEdit(); const l = ed.bell[ed.bell.length - 1]; const s = l ? l.e : "08:40"; ed.bell.push({ k:"수업", s, e:hhmm(Math.min(mm(s) + 50, 1439)) }); renderEdit(); return; }
+  const j = e.target.closest("[data-join]"); if (j) joinOther(j.dataset.join);
+});
+// 종류 · 학년 · 반 수가 바뀌면 표를 다시 그려요
+$("edBody").addEventListener("change", e => { if (e.target.matches(".bk, #eGr, #eCl")){ readEdit(); renderEdit(); } });
+$("edCancel").addEventListener("click", () => { if (setupMode){ signOut(auth); hide("shEdit"); } });
+$("edSave").addEventListener("click", saveEdit);
+function checkEdit(){
+  if (!ed.name) return "화면에 나올 이름을 적어 주세요 (예: 김쌤)";
+  if (ed.hr && !isClass(ed.hr)) return "담임 반은 2-3 처럼 학년-반으로 적어 주세요";
+  if (!ed.inT || !ed.outT || mm(ed.outT) <= mm(ed.inT)) return "출근 · 퇴근 시각을 확인해 주세요";
+  for (const b of ed.bell){ if (!b.s || !b.e || mm(b.e) <= mm(b.s)) return "종 시간에서 끝나는 시각이 시작보다 늦어야 해요"; }
+  if (!ed.bell.some(b => b.k === "수업")) return "종 시간에 '수업' 줄이 한 줄은 있어야 해요";
+  return "";
+}
+async function saveEdit(){
+  readEdit();
+  const bad = checkEdit(); if (bad){ $("edMsg").textContent = bad; return; }
+  ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, look:window.DESK.look(), at:Date.now() };
+  if (demo){ window.DESK.applyConfig(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; hide("shEdit"); return; }
+  if (!user) return;
+  $("edSave").disabled = true; $("edMsg").textContent = "저장하는 중…";
+  try {
+    if (setupMode){
+      const now = Date.now(); deskId = user.uid;
+      await setDoc(doc(db, "desk_users", deskId), { uids:[user.uid], name:out.name, createdAt:now, lastAt:now, lastDay:dkey(new Date()), kinds:kindsOf(user) });
+    } else if (me && me.name !== out.name) await updateDoc(deskRef(), { name:out.name });
+    await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
+    cfg = out; hide("shEdit");
+    if (setupMode){ setupMode = false; await openDesk(); } else useConfig();
+  } catch (e){ $("edMsg").textContent = "저장하지 못했어요 (" + (e.code || e.message) + ")"; }
+  $("edSave").disabled = false;
+}
+$("bEdit").addEventListener("click", () => openEdit(false));
+
+/* ---------- 다른 로그인 확인용 두 번째 연결 (지금 로그인은 그대로 둬요) ---------- */
+async function otherLogin(kind, cred){
+  const app2 = initializeApp(firebaseConfig, "other" + Date.now());
+  const a2 = initializeAuth(app2, { persistence:inMemoryPersistence, popupRedirectResolver:browserPopupRedirectResolver });
+  try { const r = cred ? await signInWithCredential(a2, cred) : await signInWithPopup(a2, provOf(kind)); return { app2, a2, db2:getFirestore(app2), u2:r.user }; }
+  catch (e){ await deleteApp(app2).catch(() => {}); throw e; }
+}
+const doneOther = async o => { if (!o) return; await signOut(o.a2).catch(() => {}); await deleteApp(o.app2).catch(() => {}); };
+const deskOf = async (dbX, uid) => { try { const l = await getDoc(doc(dbX, "desk_links", uid)); if (l.exists() && l.data().desk) return l.data().desk; } catch (e) {} return uid; };
+// 처음 들어왔는데 예전에 다른 로그인으로 만든 책상이 있을 때: 그 책상에 지금 로그인을 더해요
+async function joinOther(kind){
+  let o = null;
+  try {
+    o = await otherLogin(kind, null);
+    const u2 = o.u2.uid; if (u2 === user.uid) throw new Error("지금과 같은 계정이에요. 위를 채워 새 책상을 만들어 주세요.");
+    const d2 = await deskOf(o.db2, u2), s = await getDoc(doc(o.db2, "desk_users", d2));
+    if (!s.exists()) throw new Error(`${kindName(kind)} 계정으로 만든 책상을 찾지 못했어요. 위를 채워 새 책상을 만들어 주세요.`);
+    await setDoc(doc(db, "desk_links", user.uid), { desk:d2, at:Date.now() });
+    const kinds = kindsOf(user);
+    await updateDoc(doc(o.db2, "desk_users", d2), { uids:arrayUnion(user.uid), addUid:user.uid, ...(kinds.length ? { kinds:arrayUnion(...kinds) } : {}) });
+  } catch (e){ $("edMsg").textContent = e.code ? loginErr(e, kind) : e.message; return; }
+  finally { await doneOther(o); }
+  hide("shEdit"); setupMode = false; await openDesk();
+  $("saved").textContent = "예전 책상을 열었어요. 이제 어느 쪽으로 로그인해도 같은 책상이에요 ✓";
+}
+
+/* ============================================================
+   💬 관리자에게 묻기
+   ============================================================ */
+let chatUnsub = null, msgUnsub = null, chatMeta = null;
+function watchChat(){
+  chatUnsub?.();
+  chatUnsub = onSnapshot(doc(db, "desk_chats", deskId), s => { chatMeta = s.exists() ? s.data() : null; $("chatDot").hidden = !(chatMeta && chatMeta.unread); }, () => {});
+}
+const when = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const msgHtml = (m, mine) => `<div class="cm ${m.by === mine ? "me" : "admin"}">${esc(m.t)}<small>${m.by === "admin" ? "관리자" : "나"} · ${when(m.at)}</small></div>`;
+function openChat(){
+  if (needLogin("관리자에게 묻기")) return;
+  if (!deskId || !cfg) return;
+  show("shChat"); $("chatList").innerHTML = `<p class="note">불러오는 중…</p>`;
+  msgUnsub?.();
+  msgUnsub = onSnapshot(query(collection(db, "desk_chats", deskId, "msgs"), orderBy("at"), limit(200)), s => {
+    $("chatList").innerHTML = s.empty ? `<p class="note">아직 주고받은 말이 없어요.</p>` : s.docs.map(d => msgHtml(d.data(), "me")).join("");
+    const b = $("chatList").closest(".body"); b.scrollTop = b.scrollHeight;
+  }, () => { $("chatList").innerHTML = `<p class="err">대화를 불러오지 못했어요.</p>`; });
+  if (chatMeta && chatMeta.unread) updateDoc(doc(db, "desk_chats", deskId), { unread:false }).catch(() => {});
+}
+$("bChat").addEventListener("click", openChat);
+$("chatForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const t = $("chatIn").value.trim().slice(0, 1000); if (!t || !deskId) return;
+  $("chatIn").value = "";
+  try {
+    await setDoc(doc(db, "desk_chats", deskId), { name:ME, last:t.slice(0, 80), at:Date.now(), waiting:true, unread:false });
+    await addDoc(collection(db, "desk_chats", deskId, "msgs"), { by:"me", t, at:Date.now() });
+  } catch (e2){ $("chatIn").value = t; alert("보내지 못했어요 (" + (e2.code || e2.message) + ")"); }
+});
+$("chatIn").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("chatForm").requestSubmit(); });
+
+/* ============================================================
+   ⚙️ 설정: 로그인 연결 · 내려받기 · 로그아웃 · 내 책상 지우기
+   ============================================================ */
+let pendingMerge = null, setMsg = "";
+function renderSet(){
+  const linked = k => kindsOf(user).includes(k) || (me && (me.kinds || []).includes(k));
+  $("setBody").innerHTML = `
+    <div class="sec" style="margin-top:0">내 정보</div>
+    <p style="margin:4px 0">화면 이름: <b>${esc(ME)}</b> · <button type="button" class="btn" data-go="edit">✏️ 내 시간표에서 바꾸기</button></p>
+    <div class="sec">로그인 연결</div>
+    <p class="note">구글 · 카카오를 둘 다 연결하면 어느 쪽으로 들어와도 같은 책상이 열려요. 따로 만든 책상이 있으면 하나로 합쳐 드려요.</p>
+    ${["google","kakao"].map(k => `<div class="acct"><b>${kindName(k)}</b>${linked(k) ? `<span class="ok">✓ 연결됨</span>` : `<button type="button" class="big ${k} " data-link="${k}">${kindName(k)}도 연결하기</button>`}</div>`).join("")}
+    ${pendingMerge ? `<p class="note">${kindName(pendingMerge)} 계정으로 만든 책상이 따로 있어요.</p><button type="button" class="big" data-merge="${pendingMerge}">${kindName(pendingMerge)} 계정 확인하고 하나로 합치기</button>` : ""}
+    <p class="err" id="setErr">${esc(setMsg)}</p>
+    <div class="sec">내 기록</div>
+    <div class="row" style="gap:6px"><button type="button" class="big ghost" data-go="export">내 기록 내려받기 (파일)</button><button type="button" class="big ghost" data-go="logout">로그아웃</button></div>
+    <div class="sec">탈퇴</div>
+    <p class="note">시간표 · 할 일 · 메모 · 문의를 모두 지우고 로그인 정보도 지워요. 되돌릴 수 없어요.</p>
+    <button type="button" class="big ghost" data-go="delete" style="border-color:var(--hi);color:var(--hi)">내 책상 지우기</button>`;
+}
+$("bSet").addEventListener("click", () => { if (needLogin("설정")) return; setMsg = ""; renderSet(); show("shSet"); });
+$("setBody").addEventListener("click", e => {
+  const l = e.target.closest("[data-link]"); if (l) return connect(l.dataset.link);
+  const m = e.target.closest("[data-merge]"); if (m) return mergeOther(m.dataset.merge, null);
+  const go = e.target.closest("[data-go]"); if (!go) return;
+  if (go.dataset.go === "edit"){ hide("shSet"); openEdit(false); }
+  if (go.dataset.go === "export") exportAll();
+  if (go.dataset.go === "logout" && confirm("로그아웃할까요?")){ hide("shSet"); signOut(auth); }
+  if (go.dataset.go === "delete") deleteAll();
+});
+const say = t => { setMsg = t; const el = $("setErr"); if (el) el.textContent = t; };
+async function connect(kind){
+  if (inappHelp()) return;
+  say("");
+  try {
+    await linkWithPopup(auth.currentUser, provOf(kind));
+    await updateDoc(deskRef(), { kinds:arrayUnion(kind) }).catch(() => {});
+    me = { ...me, kinds:[...new Set([...(me.kinds || []), kind])] };
+    say(`${kindName(kind)}도 연결했어요. 이제 어느 쪽으로 들어와도 이 책상이에요 ✓`); renderSet();
+  } catch (e){
+    const c = e.code || "";
+    if (/popup-closed|cancelled-popup/.test(c)) return;
+    if (/provider-already-linked/.test(c)){ say("이미 연결되어 있어요"); return; }
+    if (/credential-already-in-use|account-exists|email-already-in-use/.test(c)){
+      const cred = kind === "kakao" ? OAuthProvider.credentialFromError(e) : GoogleAuthProvider.credentialFromError(e);
+      return mergeOther(kind, cred);
+    }
+    say(loginErr(e, kind));
+  }
+}
+// 이미 따로 만든 계정이 있을 때: 그 계정을 확인하고, 그 책상의 할 일 · 메모를 지금 책상으로 옮긴 뒤 하나로 합쳐요
+async function mergeOther(kind, cred){
+  let o = null;
+  try { o = await otherLogin(kind, cred); }
+  catch (e){ if (cred){ pendingMerge = kind; renderSet(); say(`${kindName(kind)} 계정을 한 번 더 확인해야 해요. 아래 단추를 눌러 주세요.`); } else say(loginErr(e, kind)); return; }
+  try {
+    const u2 = o.u2.uid;
+    if (u2 === user.uid){ say("지금과 같은 계정이에요"); return; }
+    const d2 = await deskOf(o.db2, u2);
+    if (d2 === deskId){ say("이미 하나로 합쳐져 있어요 ✓"); return; }
+    let old = null, oldDays = [];
+    try { const s = await getDoc(doc(o.db2, "desk_users", d2)); if (s.exists()){ old = s.data(); oldDays = (await getDocs(collection(o.db2, "desk_users", d2, "days"))).docs.map(x => ({ id:x.id, ...x.data() })); } } catch (e) {}
+    const ok = confirm(old
+      ? `${kindName(kind)}로 따로 만든 책상('${old.name || "이름 없음"}', 할 일 · 메모 ${oldDays.length}일치)이 있어요.\n\n지금 책상으로 하나로 합칠까요?\n· 할 일 · 메모는 날짜별로 합쳐져요.\n· 시간표는 지금 책상 것을 써요.\n· ${kindName(kind)} 쪽 예전 책상은 지워져요.\n· 앞으로 구글 · 카카오 어느 쪽으로 들어와도 같은 책상이에요.`
+      : `${kindName(kind)}로 들어와도 지금 책상이 열리게 할까요?`);
+    if (!ok) return;
+    await setDoc(doc(o.db2, "desk_links", u2), { desk:deskId, at:Date.now() });
+    await updateDoc(deskRef(), { uids:arrayUnion(u2), addUid:u2, kinds:arrayUnion(kind) });
+    for (const x of oldDays){
+      const ref = doc(db, "desk_users", deskId, "days", x.id), cur = await getDoc(ref), c = cur.exists() ? cur.data() : { todos:[], memo:"" };
+      const todos = [...(c.todos || []), ...(x.todos || []).filter(t => !(c.todos || []).some(y => y.t === t.t))].slice(0, 50);
+      await setDoc(ref, { todos, memo:[c.memo, x.memo].filter(Boolean).join("\n\n").slice(0, 3000), at:Date.now() });
+    }
+    if (old && d2 === u2 && (old.uids || []).length <= 1) await wipeDesk(o.db2, d2).catch(() => {});
+    me = (await getDoc(deskRef())).data(); pendingMerge = null;
+    say("하나로 합쳤어요. 이제 구글 · 카카오 어느 쪽으로 들어와도 이 책상이에요 ✓"); renderSet(); loadDay(dayKey);
+  } catch (e){ say("합치지 못했어요 (" + (e.code || e.message) + ")"); }
+  finally { await doneOther(o); }
+}
+// 책상 하나를 통째로 지워요 (할 일 · 메모 · 시간표 · 문의 → 마지막에 책상)
+async function wipeDesk(dbX, id){
+  const refs = [];
+  for (const sub of ["days", "data"]) (await getDocs(collection(dbX, "desk_users", id, sub))).docs.forEach(d => refs.push(d.ref));
+  try { (await getDocs(collection(dbX, "desk_chats", id, "msgs"))).docs.forEach(d => refs.push(d.ref)); refs.push(doc(dbX, "desk_chats", id)); } catch (e) {}
+  for (let i = 0; i < refs.length; i += 400){ const b = writeBatch(dbX); refs.slice(i, i + 400).forEach(r => b.delete(r)); await b.commit(); }
+  await deleteDoc(doc(dbX, "desk_users", id));
+}
+async function exportAll(){
+  try {
+    const days = (await getDocs(collection(db, "desk_users", deskId, "days"))).docs.map(d => ({ 날짜:d.id, 할일:(d.data().todos || []).map(t => (t.d ? "[완료] " : "[ ] ") + t.t), 메모:d.data().memo || "" }));
+    const blob = new Blob([JSON.stringify({ 이름:ME, 시간표:cfg, 할일과메모:days, 내려받은날:new Date().toLocaleString("ko-KR") }, null, 2)], { type:"application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `내책상-${dkey(new Date())}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e){ say("내려받지 못했어요 (" + (e.code || e.message) + ")"); }
+}
+async function deleteAll(){
+  const w = prompt("내 책상(시간표 · 할 일 · 메모 · 문의)을 모두 지우고 탈퇴해요. 되돌릴 수 없어요.\n\n계속하려면 '지우기'라고 써 주세요.");
+  if (w === null) return;
+  if (w.trim() !== "지우기"){ alert("'지우기'라고 써야 지워져요."); return; }
+  try {
+    await wipeDesk(db, deskId);
+    await deleteDoc(doc(db, "desk_links", user.uid)).catch(() => {});
+    try { await deleteUser(auth.currentUser); alert("모두 지웠어요. 그동안 써 주셔서 고마워요."); }
+    catch (e){ await signOut(auth); alert(/requires-recent-login/.test(e.code || "") ? "기록은 모두 지웠어요. 로그인 정보까지 지우려면 다시 로그인한 뒤 [내 책상 지우기]를 한 번 더 눌러 주세요." : "기록은 모두 지웠어요."); }
+    location.reload();
+  } catch (e){ alert("지우지 못했어요 (" + (e.code || e.message) + ")"); }
+}
+
+/* ---------- 창 닫기 (✕ · 바깥 · Esc) ---------- */
+document.addEventListener("click", e => {
+  const c = e.target.closest("[data-close]"); if (!c || c.id === "edCancel" && setupMode) return;
+  const sh = c.closest(".sheet"); hide(sh.id); if (sh.id === "shChat"){ msgUnsub?.(); msgUnsub = null; }
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  ["shChat", "shSet", "shEdit"].forEach(id => { if (!$(id).hidden && !(id === "shEdit" && setupMode)){ hide(id); if (id === "shChat"){ msgUnsub?.(); msgUnsub = null; } } });
+});
+
+/* ============================================================
+   🛠 관리자 화면 (/desk/?admin, 센메일 로그인)
+   - 가입 · 접속 숫자, 문의에 답하기. 선생님들의 시간표 · 할 일 · 메모는 볼 수 없어요
+   ============================================================ */
+let admUnsub = null, admMsgUnsub = null, admSel = null;
+function renderAdmin(){
+  hide("shLogin"); show("shAdmin"); $("adminFab").hidden = true;
+  admUnsub?.(); admUnsub = null; admMsgUnsub?.(); admMsgUnsub = null;
+  if (!user || user.email !== ADMIN_EMAIL){
+    $("adBody").innerHTML = `<form id="admLogin" style="max-width:340px;margin:8vh auto;text-align:center">
+        <p>관리자 비밀번호(숫자 6자리)를 넣어 주세요.</p>
+        <input type="password" id="admPw" inputmode="numeric" maxlength="6" autocomplete="current-password" style="width:100%;font-size:20px;text-align:center;letter-spacing:.3em;padding:10px" class="f" aria-label="관리자 비밀번호">
+        <button type="submit" class="big" style="width:100%;margin-top:8px">로그인</button>
+        <button type="button" class="big google" id="admG" style="width:100%;margin-top:8px">G 구글 계정(센메일)으로 로그인</button>
+        <p class="err" id="admErr">${user ? `지금 로그인된 ${esc(user.email || "계정")}은 관리자 계정이 아니에요.` : ""}</p></form>`;
+    $("admLogin").addEventListener("submit", async e => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $("admPw").value); } catch (e2){ $("admErr").textContent = "로그인 실패: 비밀번호를 확인해 주세요"; } });
+    $("admG").addEventListener("click", async () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account", login_hint:ADMIN_EMAIL }); try { const r = await signInWithPopup(auth, p); if (r.user.email !== ADMIN_EMAIL){ await signOut(auth); $("admErr").textContent = "센메일 계정으로 골라 주세요."; } } catch (e){ $("admErr").textContent = loginErr(e, "google"); } });
+    return;
+  }
+  $("adBody").innerHTML = `<div class="kpi" id="admKpi"><div><b>…</b>가입한 선생님</div></div>
+    <div class="agrid"><div><div class="sec" style="margin-top:0">💬 문의</div><div class="alist" id="admChats"><p class="note">불러오는 중…</p></div></div>
+      <div><div class="sec" style="margin-top:0" id="admTh">대화를 고르세요</div><div class="chat" id="admMsgs"></div>
+        <form class="chatin" id="admForm" hidden style="margin-top:8px"><textarea id="admIn" maxlength="1000" placeholder="답장 쓰기" aria-label="답장"></textarea><button type="submit" class="big">보내기</button></form></div></div>
+    <div class="sec">🆕 최근 가입</div><div class="alist" id="admNew"><p class="note">불러오는 중…</p></div>
+    <p class="note" style="margin-top:14px"><button type="button" class="btn" id="admOut">로그아웃</button></p>`;
+  $("admOut").addEventListener("click", () => signOut(auth));
+  loadAdminStats();
+  admUnsub = onSnapshot(query(collection(db, "desk_chats"), orderBy("at", "desc"), limit(100)), s => {
+    $("admChats").innerHTML = s.empty ? `<p class="note">아직 문의가 없어요.</p>` : s.docs.map(d => { const c = d.data(); return `<button type="button" data-th="${esc(d.id)}" data-nm="${esc(c.name)}"><span class="nm"><b>${esc(c.name || "이름 없음")}</b> ${c.waiting ? `<span class="wait">● 답 기다림</span>` : ""}<br><small>${esc(c.last || "")}</small></span><small>${when(c.at)}</small></button>`; }).join("");
+  }, e => { $("admChats").innerHTML = `<p class="err">문의를 불러오지 못했어요 (${esc(e.code)}) · Firestore 규칙을 게시했는지 확인해 주세요</p>`; });
+  $("admChats").addEventListener("click", e => { const b = e.target.closest("[data-th]"); if (b) openThread(b.dataset.th, b.dataset.nm); });
+  $("admForm").addEventListener("submit", async e => {
+    e.preventDefault(); const t = $("admIn").value.trim().slice(0, 1000); if (!t || !admSel) return; $("admIn").value = "";
+    try { await addDoc(collection(db, "desk_chats", admSel, "msgs"), { by:"admin", t, at:Date.now() }); await updateDoc(doc(db, "desk_chats", admSel), { waiting:false, unread:true, last:t.slice(0, 80), at:Date.now() }); loadAdminStats(); }
+    catch (e2){ $("admIn").value = t; alert("보내지 못했어요 (" + (e2.code || e2.message) + ")"); }
+  });
+}
+function openThread(id, nm){
+  admSel = id; $("admTh").textContent = `💬 ${nm || "이름 없음"} 선생님`; $("admForm").hidden = false;
+  admMsgUnsub?.();
+  admMsgUnsub = onSnapshot(query(collection(db, "desk_chats", id, "msgs"), orderBy("at"), limit(200)), s => {
+    $("admMsgs").innerHTML = s.docs.map(d => msgHtml(d.data(), "admin")).join("") || `<p class="note">메시지가 없어요.</p>`;
+  }, () => {});
+}
+async function loadAdminStats(){
+  const cnt = async q => { try { return (await getCountFromServer(q)).data().count; } catch (e){ return "-"; } };
+  const users = collection(db, "desk_users"), today = dkey(new Date());
+  const [all, td, wk, wait] = await Promise.all([cnt(users), cnt(query(users, where("lastDay", "==", today))), cnt(query(users, where("lastAt", ">=", Date.now() - 7*864e5))), cnt(query(collection(db, "desk_chats"), where("waiting", "==", true)))]);
+  $("admKpi").innerHTML = `<div><b>${all}</b>가입한 선생님</div><div><b>${td}</b>오늘 들어온 선생님</div><div><b>${wk}</b>최근 7일</div><div><b>${wait}</b>답 기다리는 문의</div>`;
+  try {
+    const s = await getDocs(query(users, orderBy("createdAt", "desc"), limit(30)));
+    $("admNew").innerHTML = s.empty ? `<p class="note">아직 가입한 선생님이 없어요.</p>` : s.docs.map(d => { const u = d.data(); return `<button type="button" tabindex="-1"><span class="nm"><b>${esc(u.name || "이름 없음")}</b> <small>${(u.kinds || []).map(kindName).join(" · ")}</small></span><small>가입 ${when(u.createdAt)} · 최근 ${u.lastDay || "-"}</small></button>`; }).join("");
+  } catch (e){ $("admNew").innerHTML = `<p class="err">불러오지 못했어요 (${esc(e.code)})</p>`; }
+}
+</script>
+<!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
+<script type="module" src="/visit.js?app=desk"></script>
+<!-- 🔄 위쪽 새로고침 단추 (모든 웹앱 공용, /refresh.js) -->
+<script src="/refresh.js" data-bg="#0B0B12" data-fg="#FFD400" defer></script>
+</body></html>

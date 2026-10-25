@@ -758,6 +758,55 @@ service cloud.firestore {
       allow delete: if (request.auth != null && resource.data.owner == request.auth.uid) || isTeacher();
     }
 
+    // ===== 🕹 선생님 책상 (moontr.site/desk · 전국 선생님 누구나 구글 · 카카오 로그인) =====
+    // desk_users/{책상}: uids = 이 책상을 쓰는 로그인들 (구글 · 카카오를 합치면 둘). 본인과 관리자(이름 · 날짜만 있음)만 읽어요
+    function deskMember(deskId) {
+      return request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/desk_users/$(deskId)).data.uids;
+    }
+    match /desk_users/{deskId} {
+      allow read: if (request.auth != null && request.auth.uid in resource.data.uids) || isTeacher();
+      allow create: if request.auth != null && deskId == request.auth.uid
+        && request.resource.data.uids == [request.auth.uid]
+        && request.resource.data.keys().hasOnly(['uids', 'name', 'createdAt', 'lastAt', 'lastDay', 'kinds'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20;
+      // 로그인을 더할 때(addUid)는 그 로그인이 먼저 desk_links 에 '이 책상'이라고 적어 둔 경우만. 빼는 건 안 돼요
+      allow update: if request.auth != null && request.auth.uid in resource.data.uids
+        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'createdAt', 'lastAt', 'lastDay', 'kinds'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20
+        && request.resource.data.uids.toSet().hasAll(resource.data.uids)
+        && (request.resource.data.uids.size() == resource.data.uids.size()
+          || (request.resource.data.uids.toSet().difference(resource.data.uids.toSet()).hasOnly([request.resource.data.addUid])
+            && get(/databases/$(database)/documents/desk_links/$(request.resource.data.addUid)).data.desk == deskId));
+      allow delete: if request.auth != null && request.auth.uid in resource.data.uids;
+      // 시간표(data/main) · 날마다 할 일과 메모(days/{날짜}): 그 책상 주인만 (관리자도 못 봐요)
+      match /{sub}/{docId} {
+        allow read, write: if (sub == 'data' || sub == 'days') && deskMember(deskId);
+      }
+    }
+    // desk_links/{로그인}: '이 로그인은 이 책상' 표시 — 그 로그인 본인만 읽고 써요
+    match /desk_links/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['desk', 'at'])
+        && request.resource.data.desk is string && request.resource.data.desk.size() <= 128;
+    }
+    // desk_chats/{책상}: 관리자에게 묻기 (그 책상 주인과 관리자만)
+    match /desk_chats/{deskId} {
+      allow read, delete: if deskMember(deskId) || isTeacher();
+      allow create, update: if (deskMember(deskId) || isTeacher())
+        && request.resource.data.keys().hasOnly(['name', 'last', 'at', 'waiting', 'unread'])
+        && request.resource.data.get('last', '') is string && request.resource.data.get('last', '').size() <= 200;
+      match /msgs/{id} {
+        allow read, delete: if deskMember(deskId) || isTeacher();
+        allow create: if request.resource.data.keys().hasOnly(['by', 't', 'at'])
+          && request.resource.data.t is string && request.resource.data.t.size() > 0 && request.resource.data.t.size() <= 1000
+          && request.resource.data.at is number
+          && ((request.resource.data.by == 'me' && deskMember(deskId)) || (request.resource.data.by == 'admin' && isTeacher()));
+        allow update: if false;
+      }
+    }
+
     match /{document=**} { allow read, write: if false; }
   }
 }
