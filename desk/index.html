@@ -291,6 +291,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
           <tr><td>실명, 실명의 성으로 만든 영문 이름(예: KIMTR, 설정에서 바꿀 수 있음)</td><td>선생님 본인 확인, 문의 답변, 화면 맨 위 이름 표시</td></tr>
           <tr><td>선생님이 넣은 것: 부를 이름(예: 김쌤), 학교급 · 학년 수 · 반 수 · 담임 반, 종 시간 · 출퇴근 시각 · 시간표, 할 일 · 메모</td><td>게임 화면과 할 일 보여 주기</td></tr>
           <tr><td>[💬 관리자에게 묻기]에 쓴 글</td><td>문의 답변</td></tr>
+          <tr><td>시간표 자료(사진 · PDF · 엑셀 · 캡처)와 실명 — 선생님이 올릴 때만</td><td>AI가 시간표 칸을 읽어 표를 채워 주기. 읽은 뒤 바로 버리고 저장하지 않아요</td></tr>
           <tr><td>가입일 · 마지막 접속일 · 연결한 로그인 종류(구글/카카오)</td><td>이용 현황 확인</td></tr>
           <tr><td>방문 수 (오늘 · 누적 횟수, 기기는 이름 없는 무작위 번호로만 구분)</td><td>몇 명이 쓰는지 확인</td></tr>
         </table>
@@ -307,6 +308,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
           <tr><th>받는 곳</th><th>하는 일</th><th>나라 · 방법</th></tr>
           <tr><td>Google LLC (Firebase)</td><td>로그인 처리 · 기록 저장</td><td>미국 등 구글 서버, 쓸 때마다 인터넷으로 암호화해 보냄. 내 책상을 지울 때까지 보관</td></tr>
           <tr><td>(주)카카오</td><td>카카오 로그인 확인</td><td>대한민국, 로그인할 때</td></tr>
+          <tr><td>Cloudflare, Inc. · Anthropic PBC</td><td>올린 시간표 자료를 AI(Claude)로 읽기 (중계 · 읽기)</td><td>미국 등, 자료를 올릴 때만 암호화해 보냄. 읽은 뒤 저장하지 않음</td></tr>
         </table>
         <ul><li>위 경우 말고는 다른 곳에 주거나 팔지 않고, 광고에 쓰지 않아요.</li></ul>
         <h5>5. 선생님의 권리</h5>
@@ -316,7 +318,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
         <ul><li>모든 연결은 https 로 암호화하고, 기록은 본인 계정으로만 읽고 쓰게 막아 두었어요.</li></ul>
         <h5>7. 개인정보 보호 책임자</h5>
         <ul><li>운영자 문쌤 (moontr.site) · anstjsdud@sen.go.kr</li></ul>
-        <p class="small">시행일 2026년 10월 25일 (같은 날 실명 · 영문 이름 항목 추가) · 바뀌면 이 화면에 먼저 알려요. 법률 전문가의 검토를 받은 문서는 아니에요. 고칠 점이 있으면 알려 주세요.</p>
+        <p class="small">시행일 2026년 10월 25일 (같은 날 실명 · 영문 이름, AI 시간표 읽기 항목 추가) · 바뀌면 이 화면에 먼저 알려요. 법률 전문가의 검토를 받은 문서는 아니에요. 고칠 점이 있으면 알려 주세요.</p>
       </div>
     </details>
   </footer>
@@ -2108,7 +2110,7 @@ onAuthStateChanged(auth, async u => {
   await openDesk();
 });
 function closeDesk(){
-  deskId = null; me = null; cfg = null; chatUnsub?.(); chatUnsub = null; $("chatDot").hidden = true;
+  deskId = null; me = null; cfg = null; chatUnsub?.(); chatUnsub = null; $("chatDot").hidden = true; $("guideBar").hidden = true; $("bEdit").classList.remove("pulse");
   window.DESK.applyConfig(DEMO_CFG); window.DESK.setTodos([]); $("whoName").textContent = "선생님의 하루"; setBrand("");
   dayData = { todos:[], memo:"" }; renderTodo();
 }
@@ -2120,14 +2122,16 @@ async function openDesk(){
   try { snap = await getDoc(doc(db, "desk_users", id)); }
   catch (e){ if (id !== user.uid){ id = user.uid; try { snap = await getDoc(doc(db, "desk_users", id)); } catch (e2) {} } }
   deskId = id;
-  if (!snap || !snap.exists()){ me = null; cfg = null; openEdit(true); return; }
-  me = snap.data();
+  if (!snap || !snap.exists()){
+    // 처음 온 선생님: 빈 책상을 바로 만들어 두고(할 일 · 문의를 바로 쓸 수 있게) 예시 시간표로 먼저 둘러보게 해요
+    const now = Date.now(); deskId = user.uid;
+    me = { uids:[user.uid], name:"", createdAt:now, lastAt:now, lastDay:dkey(new Date()), kinds:kindsOf(user) };
+    try { await setDoc(deskRef(), me); } catch (e) { $("saved").textContent = "책상을 만들지 못했어요. 새로고침해 주세요 (" + (e.code || e.message) + ")"; }
+  } else me = snap.data();
   setBrand(me.tag || (me.realName ? tagOf(me.realName) : ""));
-  try { const m = await getDoc(doc(db, "desk_users", id, "data", "main")); cfg = m.exists() ? m.data() : null; } catch (e) { cfg = null; }
-  if (!cfg){ openEdit(true); return; }
-  useConfig();
-  // 실명 받기 전에 가입한 선생님: 한 번만 물어봐요
-  if (!me.realName){ openEdit(false); $("edMsg").textContent = "실명을 넣어 주세요. 영문 이름(KIMTR 처럼)을 만들 때 써요."; setTimeout(() => $("eReal")?.focus(), 50); }
+  try { const m = await getDoc(doc(db, "desk_users", deskId, "data", "main")); cfg = m.exists() ? m.data() : null; } catch (e) { cfg = null; }
+  if (cfg) useConfig(); else { window.DESK.applyConfig(DEMO_CFG); $("whoName").textContent = "예시 시간표로 둘러보는 중"; }
+  guide();
   // 오늘 처음 들어왔으면 마지막 접속일 · 로그인 종류를 적어요 (운영 현황용)
   const today = dkey(new Date());
   if (me.lastDay !== today || kindsOf(user).some(k => !(me.kinds || []).includes(k))){
@@ -2140,6 +2144,15 @@ function useConfig(){
   window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look);
   $("whoName").textContent = `${ME}의 하루`;
 }
+// 시간표 · 실명을 아직 안 넣었으면 위쪽 안내 띠 + ✏️ 개인설정 단추를 반짝여요 (억지로 창을 열지는 않아요)
+function guide(){
+  const need = !!user && !demo && (!cfg || !(me && me.realName));
+  $("guideBar").hidden = !need; $("bEdit").classList.toggle("pulse", need);
+  if (need) $("guideText").innerHTML = !cfg
+    ? "👋 반가워요! 지금 화면은 <b>예시 시간표</b>예요. 둘러보신 뒤 <b>✏️ 개인설정</b>에서 내 시간표를 넣어 주세요. (사진 · PDF · 엑셀 · 화면 캡처로도 넣을 수 있어요)"
+    : "<b>✏️ 개인설정</b>에서 실명을 넣어 주세요. 화면 맨 위 영문 이름(KIMTR 처럼)을 만들 때 써요.";
+}
+$("guideGo").addEventListener("click", () => openEdit(false));
 // 화면 모양 · 색을 바꾸면 내 시간표 옆에 같이 저장 (다른 기기에서도 같은 모양)
 let lookTimer = null;
 window.DESK.onLook = () => {
@@ -2198,22 +2211,21 @@ $("dNext").addEventListener("click", () => demo ? null : loadDay(shiftKey(dayKey
 setInterval(() => { const k = dkey(new Date()); if (k !== todayKey){ const was = dayKey === todayKey; todayKey = k; if (was && !demo) loadDay(k); else renderDayNav(); } }, 60000);
 
 /* ============================================================
-   ✏️ 내 시간표 (처음엔 '내 책상 만들기')
+   ✏️ 개인설정: 실명 · 영문 이름 · 학교 · 종 시간 · 시간표
+   (직접 입력 · 사진 · PDF · 엑셀 · 화면 캡처 붙여넣기)
    ============================================================ */
 const KINDS = ["조회", "수업", "점심", "종례"];
 const SPECIALS = ["과학실", "체육관", "음악실", "미술실", "컴퓨터실", "도서실", "강당", "특별실"];
 let ed = null;
 const clone = o => JSON.parse(JSON.stringify(o));
 function blankCfg(){ return { name:"", level:"high", grades:3, classes:10, hr:"", inT:PRESET.high.inT, outT:PRESET.high.outT, bell:bellOf("high"), week:{} }; }
-function openEdit(first){
-  setupMode = !!first;
-  if (!first && !demo && !user){ needLogin("내 시간표"); return; }
-  ed = clone(first ? blankCfg() : (demo ? CFG : cfg) || blankCfg());
-  ed.realName = demo ? "김예시" : (me && me.realName) || "";   // 실명은 시간표가 아니라 책상 정보(desk_users)에 따로 저장해요
-  $("edTitle").textContent = first ? "🎉 내 책상 만들기" : "✏️ 내 시간표";
-  $("edCancel").textContent = first ? "로그아웃" : "닫기";
-  document.querySelector("#shEdit [data-close].close").hidden = first;
-  $("edMsg").textContent = demo ? "체험 중이라 저장되지 않고, 이 화면에서만 바뀌어요." : "";
+function openEdit(){
+  if (!demo && !user){ needLogin("개인설정"); return; }
+  setupMode = !demo && !cfg;   // 아직 시간표를 안 넣은 선생님 (예전 책상 열기 칸이 보여요)
+  ed = clone(demo ? CFG : cfg || blankCfg());
+  ed.realName = demo ? "김예시" : (me && me.realName) || "";   // 실명 · 영문 이름은 시간표가 아니라 책상 정보(desk_users)에 따로 저장해요
+  ed.tag = demo ? "KIMTR" : (me && me.tag) || "";
+  $("edMsg").textContent = demo ? "체험 중이라 저장되지 않고, 이 화면에서만 바뀌어요." : setupMode ? "아래 표에 직접 적거나, 사진 · PDF · 엑셀 · 캡처를 올리면 AI가 표를 채워 줘요." : "";
   renderEdit(); show("shEdit");
 }
 function renderEdit(){
@@ -2237,7 +2249,8 @@ function renderEdit(){
     ${setupMode ? `<p style="margin:0 0 8px">어서 오세요! 아래를 채우면 내 하루가 게임 화면으로 움직여요. 나중에 언제든 고칠 수 있어요.</p>` : ""}
     <div class="sec">1. 나와 학교</div>
     <div class="f2">
-      <label class="f"><span>실명 (필수)</span><input id="eReal" maxlength="20" placeholder="예: 김민지" autocomplete="name" value="${esc(ed.realName)}"></label>
+      <label class="f"><span>실명 (필수 · 관리자만 봐요)</span><input id="eReal" maxlength="20" placeholder="예: 김민지" autocomplete="name" value="${esc(ed.realName)}"></label>
+      <label class="f"><span>영문 이름 (맨 위 ○○'S DESK)</span><input id="eTagIn" maxlength="12" placeholder="${esc(tagOf(ed.realName) === "TEACHER" ? "예: KIMTR" : tagOf(ed.realName))}" value="${esc(ed.tag)}" autocapitalize="characters" spellcheck="false"></label>
       <label class="f"><span>화면에 나올 내 이름</span><input id="eName" maxlength="12" placeholder="예: 김쌤" value="${esc(ed.name)}"></label>
       <label class="f"><span>담임 반 (없으면 비워 두기)</span><input id="eHr" maxlength="5" placeholder="예: 2-3" value="${esc(ed.hr)}" list="dlRooms"></label>
     </div>
@@ -2255,7 +2268,17 @@ function renderEdit(){
     <div id="eBell">${bellRows}</div>
     <button type="button" class="btn" id="eAddBell">+ 한 줄 더하기</button>
     <div class="sec">3. 요일별 시간표</div>
-    <p class="note">반은 <b>1-3</b>처럼 (학년-반), 특별실은 이름으로 적어요 (예: 과학실). 비우면 공강이에요. 학생 이름은 적지 말아 주세요.</p>
+    <p class="note">시간표 자료를 올리면 AI가 읽어서 아래 표를 채워 줘요 (하루 5번까지 · 자료는 저장하지 않아요). 채운 뒤 틀린 칸만 고치고 [저장]하세요.</p>
+    <div class="imp">
+      <button type="button" data-imp="photo"><b>📷</b>사진<small>찍은 시간표</small></button>
+      <button type="button" data-imp="pdf"><b>📄</b>PDF<small>시간표 파일</small></button>
+      <button type="button" data-imp="xlsx"><b>📊</b>엑셀<small>xlsx · xls · csv</small></button>
+      <button type="button" data-imp="paste"><b>📋</b>캡처 붙여넣기<small>Ctrl+V</small></button>
+    </div>
+    <div class="pastebox" id="pasteBox" contenteditable="true" hidden aria-label="캡처한 그림을 여기에 붙여 넣기">여기를 누르고 붙여 넣으세요 (Ctrl+V · 휴대폰은 길게 눌러 '붙여넣기')</div>
+    <p class="impst" id="impSt" role="status"></p>
+    <input type="file" id="fPhoto" accept="image/*" hidden><input type="file" id="fPdf" accept="application/pdf,.pdf" hidden><input type="file" id="fXlsx" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
+    <p class="note">✍️ <b>직접 입력</b>: 반은 <b>1-3</b>처럼 (학년-반), 특별실은 이름으로 적어요 (예: 과학실). 비우면 공강이에요. 학생 이름은 적지 말아 주세요.</p>
     <div class="wk" id="eWeek">${nPer ? week : `<p class="note">종 시간에 '수업' 줄을 먼저 넣어 주세요.</p>`}</div>
     <datalist id="dlRooms">${[...opts, ...SPECIALS].map(v => `<option value="${v}">`).join("")}</datalist>
     ${setupMode ? `<div class="sec">예전에 쓰던 책상이 있나요?</div>
@@ -2265,7 +2288,7 @@ function renderEdit(){
 // 화면에 적힌 값을 ed 에 옮겨요 (다시 그리기 전 · 저장 전)
 function readEdit(){
   if (!$("eName")) return;
-  ed.realName = $("eReal").value.trim(); ed.name = $("eName").value.trim(); ed.hr = $("eHr").value.trim();
+  ed.realName = $("eReal").value.trim(); ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = $("eHr").value.trim();
   ed.grades = +$("eGr").value; ed.classes = +$("eCl").value; ed.inT = $("eIn").value; ed.outT = $("eOut").value;
   ed.bell = [...document.querySelectorAll("#eBell .bellrow")].map(r => ({ k:r.querySelector(".bk").value, s:r.querySelector(".bs").value, e:r.querySelector(".be").value }));
   const w = {}; document.querySelectorAll("#eWeek input").forEach(i => { const v = i.value.trim(); if (v){ (w[i.dataset.d] = w[i.dataset.d] || {})[i.dataset.p] = v.slice(0, 12); } });
@@ -2282,21 +2305,25 @@ $("edBody").addEventListener("click", e => {
 // 종류 · 학년 · 반 수가 바뀌면 표를 다시 그려요
 $("edBody").addEventListener("change", e => { if (e.target.matches(".bk, #eGr, #eCl")){ readEdit(); renderEdit(); } });
 // 실명을 적으면 영문 이름을 미리 보여 주고, 화면 이름이 비어 있으면 '김쌤'처럼 채워요
+// 영문 이름 칸이 비어 있으면 실명의 성으로 자동 (김 → KIMTR). 표기가 다르면 칸에 직접 적어요 (예: YITR)
+const finalTag = (tagIn, name) => tagIn || tagOf(name);
 function tagLine(name){
-  const keep = me && me.tag && me.tag !== tagOf(me.realName || "");   // 설정에서 직접 바꾼 영문 이름은 그대로
-  return name ? `맨 위 영문 이름: <b>${esc(keep ? me.tag : tagOf(name))}'S DESK</b> · 영문 표기가 다르면 ⚙️ 설정에서 바꿀 수 있어요` : "실명을 적으면 성으로 영문 이름(예: 김 → KIMTR)을 만들어 화면 맨 위에 보여 줘요. 실명은 관리자만 볼 수 있어요.";
+  return name ? `맨 위에 <b>${esc(finalTag(($("eTagIn") && $("eTagIn").value.trim().toUpperCase()) || (ed && ed.tag) || "", name))}'S DESK</b>로 나와요. 영문 표기가 다르면 '영문 이름' 칸에 직접 적어 주세요 (예: 이 → YITR).`
+    : "실명을 적으면 성으로 영문 이름(예: 김 → KIMTR)을 만들어 화면 맨 위에 보여 줘요. 실명은 관리자만 볼 수 있어요.";
 }
 let autoNick = "";
 $("edBody").addEventListener("input", e => {
+  if (e.target.id === "eTagIn"){ $("eTag").innerHTML = tagLine($("eReal").value.trim()); return; }
   if (e.target.id !== "eReal") return;
   const v = e.target.value.trim(), sn = surnameOf(v), nick = sn ? sn + "쌤" : "";
   if ($("eName").value.trim() === "" || $("eName").value.trim() === autoNick){ $("eName").value = nick; autoNick = nick; }
+  $("eTagIn").placeholder = v ? tagOf(v) : "예: KIMTR";
   $("eTag").innerHTML = tagLine(v);
 });
-$("edCancel").addEventListener("click", () => { if (setupMode){ signOut(auth); hide("shEdit"); } });
 $("edSave").addEventListener("click", saveEdit);
 function checkEdit(){
   if (ed.realName.length < 2) return "실명을 적어 주세요 (예: 김민지)";
+  if (ed.tag && !/^[A-Z][A-Z0-9]{1,11}$/.test(ed.tag)) return "영문 이름은 영어 대문자로 시작하고, 영어 · 숫자만 2~12자로 적어 주세요 (비우면 자동)";
   if (!ed.name) return "화면에 나올 이름을 적어 주세요 (예: 김쌤)";
   if (ed.hr && !isClass(ed.hr)) return "담임 반은 2-3 처럼 학년-반으로 적어 주세요";
   if (!ed.inT || !ed.outT || mm(ed.outT) <= mm(ed.inT)) return "출근 · 퇴근 시각을 확인해 주세요";
@@ -2310,27 +2337,121 @@ async function saveEdit(){
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
   const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, look:window.DESK.look(), at:Date.now() };
   const realName = ed.realName.slice(0, 20);
-  if (demo){ window.DESK.applyConfig(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tagOf(realName)); hide("shEdit"); return; }
-  if (!user) return;
+  // 영문 이름: 칸에 적은 것, 비었으면 성으로 자동. 예전 자동 이름(KIMTR)은 실명이 바뀌면 같이 바뀌어요
+  const tag = ed.tag && !(me && ed.tag === me.tag && me.tag === tagOf(me.realName || "")) ? ed.tag : finalTag("", realName);
+  if (demo){ window.DESK.applyConfig(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
+  if (!user || !deskId) return;
+  const first = !cfg;
   $("edSave").disabled = true; $("edMsg").textContent = "저장하는 중…";
   try {
-    if (setupMode){
-      const now = Date.now(); deskId = user.uid;
-      await setDoc(doc(db, "desk_users", deskId), { uids:[user.uid], name:out.name, realName, tag:tagOf(realName), createdAt:now, lastAt:now, lastDay:dkey(new Date()), kinds:kindsOf(user) });
-    } else if (me){
-      // 실명이 바뀌면 영문 이름도 따라 바꿔요 (설정에서 직접 바꾼 영문 이름은 그대로)
-      const up = {}, autoTag = !me.tag || me.tag === tagOf(me.realName || "");
-      if (me.name !== out.name) up.name = out.name;
-      if (me.realName !== realName){ up.realName = realName; if (autoTag) up.tag = tagOf(realName); }
-      if (Object.keys(up).length){ await updateDoc(deskRef(), up); me = { ...me, ...up }; setBrand(me.tag || tagOf(me.realName)); }
-    }
+    const up = {};
+    if (!me || me.name !== out.name) up.name = out.name;
+    if (!me || me.realName !== realName) up.realName = realName;
+    if (!me || me.tag !== tag) up.tag = tag;
+    if (!me){ const now = Date.now(); await setDoc(deskRef(), { uids:[user.uid], createdAt:now, lastAt:now, lastDay:dkey(new Date()), kinds:kindsOf(user), name:out.name, realName, tag }); me = { uids:[user.uid], name:out.name, realName, tag }; }
+    else if (Object.keys(up).length){ await updateDoc(deskRef(), up); me = { ...me, ...up }; }
+    setBrand(me.tag || tagOf(me.realName));
     await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
-    cfg = out; hide("shEdit");
-    if (setupMode){ setupMode = false; await openDesk(); } else useConfig();
+    cfg = out; hide("shEdit"); useConfig(); guide();
+    if (first) $("saved").textContent = "내 시간표로 바뀌었어요! 위 1~12 단추로 마음에 드는 화면을 골라 보세요 ✓";
   } catch (e){ $("edMsg").textContent = "저장하지 못했어요 (" + (e.code || e.message) + ")"; }
   $("edSave").disabled = false;
 }
-$("bEdit").addEventListener("click", () => openEdit(false));
+$("bEdit").addEventListener("click", () => openEdit());
+
+/* ---------- 📷 사진 · 📄 PDF · 📊 엑셀 · 📋 캡처 → AI 가 읽어서 표 채우기 ----------
+   자료는 family-spell 워커(Cloudflare)를 거쳐 AI(Claude)가 읽고 바로 버려요. 선생님마다 하루 5번까지 */
+const AI_URL = "https://family-spell.bellachord.workers.dev";
+let impBusy = false;
+const impSay = (t, busy) => { const el = $("impSt"); if (el){ el.textContent = t; el.classList.toggle("busy", !!busy); } };
+const readURL = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsDataURL(f); });
+// 사진은 긴 쪽 1800px · JPEG 로 줄여서 보내요 (빠르고 싸게)
+async function shrinkImage(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("그림을 열지 못했어요")); i.src = url; });
+    const k = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", .88);
+  } finally { URL.revokeObjectURL(url); }
+}
+// 엑셀은 이 브라우저에서 글자(쉼표로 나눈 표)로 바꿔서 보내요 (SheetJS 는 그때만 불러와요)
+async function sheetText(file){
+  if (/\.csv$/i.test(file.name) || file.type === "text/csv") return (await file.text()).slice(0, 20000);
+  if (!window.XLSX) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; s.onload = ok; s.onerror = () => no(new Error("엑셀 읽기 도구를 불러오지 못했어요")); document.head.appendChild(s); });
+  const wb = window.XLSX.read(await file.arrayBuffer(), { type:"array" });
+  return wb.SheetNames.slice(0, 3).map(n => `## ${n}\n` + window.XLSX.utils.sheet_to_csv(wb.Sheets[n], { blankrows:false })).join("\n\n").slice(0, 20000);
+}
+async function importFile(kind, file){
+  if (!file || impBusy) return;
+  if (demo || !user){ impSay("시간표 자료 읽기는 로그인한 뒤에 쓸 수 있어요. 체험 중에는 아래 표에 직접 적어 보세요."); return; }
+  readEdit();
+  impBusy = true;
+  try {
+    let payload;
+    if (kind === "xlsx"){ impSay("엑셀을 읽는 중…", true); payload = { text:await sheetText(file) }; if (!payload.text.trim()) throw new Error("엑셀에 글자가 없어요"); }
+    else if (kind === "pdf"){ if (file.size > 6e6) throw new Error("PDF 가 너무 커요 (6MB 까지). 시간표 쪽만 캡처해서 붙여 넣어 주세요"); payload = { pdf:await readURL(file) }; }
+    else { if (!/^image\//.test(file.type)) throw new Error("그림 파일이 아니에요"); payload = { image:await shrinkImage(file) }; }
+    impSay("AI가 시간표를 읽는 중이에요… (10~40초)", true);
+    const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"desktt", name:ed.realName || (me && me.realName) || "", ...payload }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.msg || (r.status === 429 ? "AI가 바빠요. 조금 뒤에 다시 해 주세요" : `읽지 못했어요 (${j.error || r.status})`));
+    if (!j.ok || !(j.rows || []).length) throw new Error(j.note || "시간표를 찾지 못했어요. 시간표가 잘 보이게 다시 올려 주세요");
+    applyImport(j);
+  } catch (e){ impSay("⚠️ " + (e.message || e)); }
+  impBusy = false;
+}
+// 반 이름을 '학년-반'으로 맞춰요 (1학년 3반 · 1-3 · 103 → 1-3)
+function normRoom(v){
+  v = String(v || "").trim(); if (!v) return "";
+  let m = v.match(/(\d)\s*학년\s*(\d{1,2})\s*반/) || v.match(/^(\d)\s*[-–—.·]\s*(\d{1,2})$/) || v.match(/^(\d)(\d{2})$/);
+  return m ? `${+m[1]}-${+m[2]}` : v.slice(0, 12);
+}
+function applyImport(j){
+  const kindOf = t => /조회|아침/.test(t) ? "조회" : /점심/.test(t) ? "점심" : /종례/.test(t) ? "종례" : "수업";
+  const rows = j.rows, cls = rows.filter(r => kindOf(r.t) === "수업"), timed = rows.filter(r => r.s && r.e && mm(r.e) > mm(r.s));
+  // 수업 시각이 대부분 보이면 종 시간도 바꿔요
+  let bellNew = false;
+  if (cls.length && timed.filter(r => kindOf(r.t) === "수업").length >= Math.ceil(cls.length * .6)){
+    ed.bell = timed.map(r => ({ k:kindOf(r.t), s:r.s, e:r.e })).sort((a, b) => mm(a.s) - mm(b.s)); bellNew = true;
+  }
+  // 종 시간에 수업 줄이 모자라면 50분씩 늘려요
+  let nPer = ed.bell.filter(b => b.k === "수업").length;
+  while (nPer < cls.length){ const l = ed.bell[ed.bell.length - 1], s = l ? hhmm(Math.min(mm(l.e) + 10, 1380)) : "08:40"; ed.bell.push({ k:"수업", s, e:hhmm(Math.min(mm(s) + 50, 1439)) }); nPer++; }
+  const w = {}; let maxG = +ed.grades || 1, maxC = +ed.classes || 1;
+  cls.forEach((r, i) => r.c.forEach((v, d) => { v = normRoom(v); if (!v) return; (w[d + 1] = w[d + 1] || {})[i + 1] = v; if (isClass(v)){ maxG = Math.max(maxG, gradeOf(v)); maxC = Math.max(maxC, +v.split("-")[1]); } }));
+  ed.week = w; ed.grades = Math.min(6, maxG); ed.classes = Math.min(15, maxC);
+  if (j.hr && !ed.hr) ed.hr = j.hr;
+  const filled = Object.values(w).reduce((s, o) => s + Object.keys(o).length, 0);
+  renderEdit();
+  impSay(`✅ 수업 ${filled}칸을 표에 넣었어요${bellNew ? " (종 시간도 함께)" : ""}. 틀린 칸만 고친 뒤 [저장]을 눌러 주세요.${j.note ? " · " + j.note : ""}`);
+  $("eWeek").scrollIntoView({ behavior:"smooth", block:"center" });
+}
+$("edBody").addEventListener("click", async e => {
+  const b = e.target.closest("[data-imp]"); if (!b) return;
+  const k = b.dataset.imp;
+  if (k === "photo") $("fPhoto").click(); else if (k === "pdf") $("fPdf").click(); else if (k === "xlsx") $("fXlsx").click();
+  else {
+    // 캡처 붙여넣기: 먼저 클립보드에서 바로 꺼내 보고, 안 되면 붙여 넣을 칸을 보여 줘요
+    try {
+      for (const it of await navigator.clipboard.read()){ const t = it.types.find(x => x.startsWith("image/")); if (t){ const blob = await it.getType(t); return importFile("paste", new File([blob], "capture.png", { type:t })); } }
+      impSay("클립보드에 그림이 없어요. 시간표를 캡처(윈도우: Win+Shift+S)한 뒤 다시 눌러 주세요.");
+    } catch (e2){ $("pasteBox").hidden = false; $("pasteBox").focus(); impSay("아래 칸을 누르고 Ctrl+V(휴대폰은 길게 눌러 붙여넣기) 해 주세요."); }
+  }
+});
+$("edBody").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const k = e.target.id === "fPdf" ? "pdf" : e.target.id === "fXlsx" ? "xlsx" : e.target.id === "fPhoto" ? "photo" : ""; if (!k) return;
+  importFile(k, f); e.target.value = "";
+});
+// 개인설정 창이 열려 있을 때 어디서든 Ctrl+V 로 캡처를 붙여 넣으면 바로 읽어요
+document.addEventListener("paste", e => {
+  if ($("shEdit").hidden) return;
+  const it = [...(e.clipboardData ? e.clipboardData.items : [])].find(x => x.type.startsWith("image/"));
+  if (it){ e.preventDefault(); importFile("paste", it.getAsFile()); }
+  else if (e.target && e.target.id === "pasteBox"){ e.preventDefault(); impSay("그림이 아니라 글이 붙여졌어요. 시간표를 그림으로 캡처해서 붙여 넣어 주세요."); }
+});
 
 /* ---------- 다른 로그인 확인용 두 번째 연결 (지금 로그인은 그대로 둬요) ---------- */
 async function otherLogin(kind, cred){
@@ -2348,10 +2469,20 @@ async function joinOther(kind){
     o = await otherLogin(kind, null);
     const u2 = o.u2.uid; if (u2 === user.uid) throw new Error("지금과 같은 계정이에요. 위를 채워 새 책상을 만들어 주세요.");
     const d2 = await deskOf(o.db2, u2), s = await getDoc(doc(o.db2, "desk_users", d2));
-    if (!s.exists()) throw new Error(`${kindName(kind)} 계정으로 만든 책상을 찾지 못했어요. 위를 채워 새 책상을 만들어 주세요.`);
+    if (!s.exists() || d2 === deskId) throw new Error(`${kindName(kind)} 계정으로 만든 책상을 찾지 못했어요. 위를 채워 새 책상을 만들어 주세요.`);
     await setDoc(doc(db, "desk_links", user.uid), { desk:d2, at:Date.now() });
     const kinds = kindsOf(user);
     await updateDoc(doc(o.db2, "desk_users", d2), { uids:arrayUnion(user.uid), addUid:user.uid, ...(kinds.length ? { kinds:arrayUnion(...kinds) } : {}) });
+    // 처음 들어올 때 저절로 만든 빈 책상(시간표 없음)은 지워요. 그동안 적은 할 일 · 메모는 예전 책상으로 옮겨요
+    if (deskId === user.uid && !cfg){
+      try {
+        for (const x of (await getDocs(collection(db, "desk_users", user.uid, "days"))).docs){
+          const ref = doc(o.db2, "desk_users", d2, "days", x.id), cur = await getDoc(ref), c = cur.exists() ? cur.data() : { todos:[], memo:"" };
+          await setDoc(ref, { todos:[...(c.todos || []), ...(x.data().todos || [])].slice(0, 50), memo:[c.memo, x.data().memo].filter(Boolean).join("\n\n").slice(0, 3000), at:Date.now() });
+        }
+        await wipeDesk(db, user.uid);
+      } catch (e2) {}
+    }
   } catch (e){ $("edMsg").textContent = e.code ? loginErr(e, kind) : e.message; return; }
   finally { await doneOther(o); }
   hide("shEdit"); setupMode = false; await openDesk();
@@ -2399,10 +2530,8 @@ function renderSet(){
   const linked = k => kindsOf(user).includes(k) || (me && (me.kinds || []).includes(k));
   $("setBody").innerHTML = `
     <div class="sec" style="margin-top:0">내 정보</div>
-    <p style="margin:4px 0">실명: <b>${esc((me && me.realName) || "-")}</b> · 화면 이름: <b>${esc(ME)}</b> · <button type="button" class="btn" data-go="edit">✏️ 내 시간표에서 바꾸기</button></p>
-    <form class="f" id="tagForm" style="margin-top:10px"><span>영문 이름 (맨 위 '○○'S DESK'에 나와요 · 영어 대문자와 숫자, 12자까지)</span>
-      <div class="addrow" style="margin-top:0"><input id="tagIn" maxlength="12" value="${esc(TAG)}" placeholder="${esc(tagOf((me && me.realName) || ""))}" autocapitalize="characters" spellcheck="false" aria-label="영문 이름"><button type="submit" class="btn">바꾸기</button></div>
-      <small class="note">예: 성이 'LEE' 대신 'YI'라면 YITR. 비우고 [바꾸기]를 누르면 실명으로 다시 만들어요.</small></form>
+    <p style="margin:4px 0">실명: <b>${esc((me && me.realName) || "-")}</b> · 영문 이름: <b>${esc(TAG || "-")}</b> · 화면 이름: <b>${esc(ME)}</b></p>
+    <p style="margin:4px 0"><button type="button" class="btn" data-go="edit">✏️ 개인설정에서 바꾸기</button></p>
     <div class="sec">로그인 연결</div>
     <p class="note">구글 · 카카오를 둘 다 연결하면 어느 쪽으로 들어와도 같은 책상이 열려요. 따로 만든 책상이 있으면 하나로 합쳐 드려요.</p>
     ${["google","kakao"].map(k => `<div class="acct"><b>${kindName(k)}</b>${linked(k) ? `<span class="ok">✓ 연결됨</span>` : `<button type="button" class="big ${k} " data-link="${k}">${kindName(k)}도 연결하기</button>`}</div>`).join("")}
@@ -2425,16 +2554,6 @@ $("setBody").addEventListener("click", e => {
   if (go.dataset.go === "delete") deleteAll();
 });
 const say = t => { setMsg = t; const el = $("setErr"); if (el) el.textContent = t; };
-// 영문 이름 바꾸기
-$("setBody").addEventListener("submit", async e => {
-  if (e.target.id !== "tagForm") return;
-  e.preventDefault();
-  let v = $("tagIn").value.trim().toUpperCase().replace(/\s+/g, "");
-  if (!v) v = tagOf((me && me.realName) || "");
-  if (!/^[A-Z][A-Z0-9]{1,11}$/.test(v)){ say("영문 이름은 영어 대문자로 시작하고, 영어 · 숫자만 2~12자로 적어 주세요."); return; }
-  try { await updateDoc(deskRef(), { tag:v }); me = { ...me, tag:v }; setBrand(v); $("tagIn").value = v; say(`맨 위가 '${v}'S DESK'로 바뀌었어요 ✓`); }
-  catch (e2){ say("바꾸지 못했어요 (" + (e2.code || e2.message) + ")"); }
-});
 async function connect(kind){
   if (inappHelp()) return;
   say("");
@@ -2513,12 +2632,12 @@ async function deleteAll(){
 
 /* ---------- 창 닫기 (✕ · 바깥 · Esc) ---------- */
 document.addEventListener("click", e => {
-  const c = e.target.closest("[data-close]"); if (!c || c.id === "edCancel" && setupMode) return;
+  const c = e.target.closest("[data-close]"); if (!c) return;
   const sh = c.closest(".sheet"); hide(sh.id); if (sh.id === "shChat"){ msgUnsub?.(); msgUnsub = null; }
 });
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
-  ["shChat", "shSet", "shEdit"].forEach(id => { if (!$(id).hidden && !(id === "shEdit" && setupMode)){ hide(id); if (id === "shChat"){ msgUnsub?.(); msgUnsub = null; } } });
+  ["shChat", "shSet", "shEdit"].forEach(id => { if (!$(id).hidden){ hide(id); if (id === "shChat"){ msgUnsub?.(); msgUnsub = null; } } });
 });
 
 /* ============================================================
