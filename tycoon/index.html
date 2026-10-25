@@ -137,7 +137,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
         <button class="btn on" data-speed="1">실시간</button><button class="btn" data-speed="60">×60</button><button class="btn" data-speed="600">×600</button>
         <button class="btn" data-jump="1,08:25">월 조회</button><button class="btn" data-jump="2,10:33">화 쉬는 시간</button><button class="btn" data-jump="3,12:40">수 점심</button><button class="btn" data-jump="5,16:45">금 퇴근</button><button class="btn" data-jump="6,11:00">토요일</button>
       </div>
-      <span class="lab">색 (N1~N5 = 네온 다시 고르기 시안)</span>
+      <span class="lab">색 (L1~L5 = 원래 · 부스 · 네온 조합 시안)</span>
       <div class="row" style="gap:5px" id="pal"><button class="btn on" data-v="a">A NEON</button><button class="btn" data-v="b">B COZY</button></div>
     </div>
     <div class="desc" id="desc"></div>
@@ -269,7 +269,7 @@ function roomGeo(x, y, w, h, id, s){
 function frameBox(x, y, w, h, t, c){ rect(x, y, w, t, c); rect(x, y + h - t, w, t, c); rect(x, y, t, h, c); rect(x + w - t, y, t, h, c); }
 // 학생 한 자리: 위(칠판 쪽)에 책상, 아래에 뒤통수 · 어깨 · 의자 (8s × 10s)
 function seat(x, y, s, st, act, show){
-  rect(x, y, 8*s, 2*s, P.deskTop); rect(x, y + 2*s, 8*s, s, P.desk);
+  rect(x, y, 8*s, 2*s, DESK || P.deskTop); rect(x, y + 2*s, 8*s, s, DESK ? shade(DESK, .55) : P.desk);   // 조합 시안: 책상도 반 색
   if (s >= 2){ rect(x + s, y, 3*s, s, "#F4F1E8"); rect(x + 5*s, y, s, s, P.board); }
   if (show && st.on && (!BREAK || st.stay)){
     const b = act ? Math.round(Math.sin(T*4 + st.ph)*.6) * s : 0;
@@ -294,6 +294,10 @@ function topRoom(x, y, w, h, id, o = {}){
   if (k === "home") for (let yy = y + wh; yy < y + h; yy += 3*s) rect(x, yy, w, Math.min(3*s, y + h - yy), ((yy - y - wh) / (3*s)) % 2 ? A : B);
   else for (let yy = y + wh; yy < y + h; yy += ts) for (let xx = x; xx < x + w; xx += ts)
     rect(xx, yy, Math.min(ts, x + w - xx), Math.min(ts, y + h - yy), (((xx - x)/ts) + ((yy - y - wh)/ts)) % 2 ? A : B);
+  // 조합 시안: 방 색 (꽉 찬 네온이면 바닥에 살짝 칠하고, 책상도 그 색)
+  const rc = roomColor(id), neo = NEO();
+  if (neo && MODE() === "fill"){ g.globalAlpha = .22; rect(x, y + wh, w, h - wh, rc); g.globalAlpha = 1; }
+  DESK = neo && k === "class" ? rc : null;
   // 뒷벽
   rect(x, y, w, wh, k === "home" ? P.hB : P.wall); rect(x, y, w, s, P.wallTop); rect(x, y + wh - s, w, s, P.edge);
   const pane = (px, pw) => { rect(px, y + s*1.5, pw, wh - 3*s, P.edge); rect(px + s/2, y + s*2, pw - s, wh - 4*s, P.glass); };
@@ -367,7 +371,13 @@ function topRoom(x, y, w, h, id, o = {}){
     pane(x + 3*s, Math.max(4*s, w - 6*s));
     g.globalAlpha = .3; rect(x, y, w, h, P.base); g.globalAlpha = 1;
   }
-  frameBox(x, y, w, h, s, P.edge);
+  DESK = null;
+  if (neo){   // 부스처럼 네온 두 줄 테두리
+    if (MODE() === "glow"){ g.save(); g.shadowColor = rc; g.shadowBlur = 8; }
+    frameBox(x, y, w, h, s, rc);
+    if (MODE() === "glow") g.restore();
+    if (w > 6*s && h > 6*s){ g.globalAlpha = .45; frameBox(x + 2*s, y + 2*s, w - 4*s, h - 4*s, Math.max(1, Math.floor(s/2)), rc); g.globalAlpha = 1; }
+  } else frameBox(x, y, w, h, s, P.edge);
   rect(cx - 4*s, y + h - s, 8*s, s, k === "home" ? P.hA : P.hall);
   if (o.glow){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = id === "1-10" ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(x - 1, y - 1, w + 2, h + 2); g.globalAlpha = 1; }
   return G;
@@ -898,8 +908,10 @@ const S5 = (() => {
       const t = TL[k], here = WK.here === id;
       rect(t.x + 1, t.y + 1, t.w - 2, t.h - 2, P.ui.line); rect(t.x + 2, t.y + 2, t.w - 4, t.h - 4, P.ui.panel);
       const band = id === "1-10" ? P.hr : /^1-/.test(id) ? P.ui.ok : /^3-/.test(id) ? P.c3 : c ? P.ui.acc : P.ui.muted;
-      rect(t.x + 2, t.y + 2, t.w - 4, 9, band); rect(t.x + 2, t.y + 11, t.w - 4, 1, P.ui.line);
-      txt(lb || id, t.x + t.w/2, t.y + 7, c ? 7 : 6, "#10131A", "center");
+      let bt = "#10131A";
+      if (NEO()){ frameBox(t.x + 1, t.y + 1, t.w - 2, t.h - 2, 1, band); bt = cellBox(t.x + 2, t.y + 2, t.w - 4, 10, band, { now:here, hr:id === "1-10" }); }
+      else { rect(t.x + 2, t.y + 2, t.w - 4, 9, band); rect(t.x + 2, t.y + 11, t.w - 4, 1, P.ui.line); }
+      txt(lb || id, t.x + t.w/2, t.y + 7, c ? 7 : 6, bt, "center");
       if (["home","office","lunch"].includes(id) || isClass(id)) topRoom(t.x + 5, t.y + 13, t.w - 10, t.h - 17, id, { school:SCHOOL, act:here && !WK.walking });
       else scene(id, t.x + 5, t.y + 13, t.w - 10, t.h - 17);
       if (here){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = P.ui.acc; g.lineWidth = 2; g.strokeRect(t.x + 1, t.y + 1, t.w - 2, t.h - 2); g.globalAlpha = 1; }
@@ -1046,9 +1058,11 @@ const S6 = (() => {
     for (let h = 8; h <= 17; h++){ const x = wx(h*60) - cam; if (x < -30 || x > W + 30) continue; rect(x, H - 44, 1, 8, P.ui.muted); txt(hhmm(h*60), x + 3, H - 37, 6, P.ui.muted, "left", true); }
     if (weekend){ rect(0, H - 27, W, 17, P.ui.acc); txt("주말 · 학교는 쉬어요. 푹 쉬는 날!", W/2, H - 18.5, 7, "#10131A", "center"); }
     else BELL.forEach(([p, a2, b2]) => { const x = wx(mm(a2)) - cam, w = wx(mm(b2)) - wx(mm(a2)); if (x + w < 0 || x > W) return; const r = slotRoom(d.getDay(), p);
-      rect(x, H - 27, w - 1, 17, r === "1-10" ? P.hr : r === "lunch" ? P.ui.acc : r ? P.ui.ok : P.ui.line);
+      const cc = r === "1-10" ? P.hr : r === "lunch" ? P.ui.acc : /^3-/.test(r) ? (NEO() ? P.c3 : P.ui.ok) : r ? P.ui.ok : P.ui.line;
+      let tc = r ? "#10131A" : P.ui.muted;
+      if (NEO() && r) tc = cellBox(x, H - 27, w - 1, 17, cc, { now:st.m >= mm(a2) && st.m < mm(b2), hr:r === "1-10" }); else rect(x, H - 27, w - 1, 17, cc);
       const lab = (/\d/.test(p) ? p + "교시 " : p + " ") + (r === "lunch" ? "" : r || "공강"); g.font = `7px ${P.font}`;
-      if (g.measureText(lab).width + 6 <= w) txt(lab, x + 4, H - 18.5, 7, r ? "#10131A" : P.ui.muted); else txt(r && r !== "lunch" ? r : p, x + 3, H - 18.5, 6, r ? "#10131A" : P.ui.muted); });
+      if (g.measureText(lab).width + 6 <= w) txt(lab, x + 4, H - 18.5, 7, tc); else txt(r && r !== "lunch" ? r : p, x + 3, H - 18.5, 6, tc); });
     rect(199, H - 44, 3, 44, P.ui.acc); tag("지금", 203, H - 44, P.ui.acc, "#10131A", 6);
     txt("SIDE SCROLL · 하루가 흘러가요", 8, 12, 7, P.ui.acc);
   }
@@ -1164,10 +1178,16 @@ const S9 = (() => {
     BELL.forEach(([p, a2, b2]) => {
       const r = wk ? slotRoom(day, p) : "", c = r === "1-10" ? P.hr : r === "lunch" ? P.ui.acc : r ? P.ui.ok : (V === "a" ? P.empty : "#E3CFA8");
       const s0 = ang(mm(a2)) + .012, s1 = ang(mm(b2)) - .012, past = wk && st.m >= mm(b2), cur = wk && st.m >= mm(a2) && st.m < mm(b2);
-      g.globalAlpha = past ? .35 : 1; arc(s0, s1, R0 - 1, R1 + 1, c); g.globalAlpha = 1;
+      let lc = "#10131A";
+      if (NEO() && r){   // 조합 시안: 검은 조각 + 네온 테두리 (꽉 찬 네온이면 채움)
+        const m = MODE(), solid = m === "fill" || (m === "half" && (cur || r === "1-10")), cc = /^3-/.test(r) ? P.c3 : c;
+        g.globalAlpha = past ? .35 : 1; arc(s0, s1, R0 - 1, R1 + 1, solid ? cc : m === "hybrid" ? shade(cc, .45) : "#0B0B12");
+        if (!solid){ g.save(); if (m === "glow"){ g.shadowColor = cc; g.shadowBlur = 8; } g.strokeStyle = cc; g.lineWidth = 1.5; g.beginPath(); g.arc(CX, CY, R0 - 2, s0, s1); g.arc(CX, CY, R1 + 2, s1, s0, true); g.closePath(); g.stroke(); g.restore(); lc = m === "hybrid" ? "#FFFFFF" : cc; }
+        g.globalAlpha = 1;
+      } else { g.globalAlpha = past ? .35 : 1; arc(s0, s1, R0 - 1, R1 + 1, c); g.globalAlpha = 1; }
       if (cur){ g.globalAlpha = .35 + .3*Math.sin(T*5); arc(s0, s1, R0 + 3, R0 - 1, c); g.globalAlpha = 1; }
       const mid = (s0 + s1)/2, lb = r === "lunch" ? "점심" : r ? r : /\d/.test(p) ? "" : p;
-      if (lb && wk) txt(lb, CX + Math.cos(mid)*(R1 + 11), CY + Math.sin(mid)*(R1 + 11), 6, "#10131A", "center");
+      if (lb && wk) txt(lb, CX + Math.cos(mid)*(R1 + 11), CY + Math.sin(mid)*(R1 + 11), 6, lc, "center");
     });
     for (let h = 8; h <= 16; h++){ const an = ang(h*60); txt(String(h), CX + Math.cos(an)*(R1 - 6), CY + Math.sin(an)*(R1 - 6), 5, P.ui.muted, "center", true); }
     // 둥근 창: 지금 있는 방
@@ -1204,9 +1224,11 @@ const S9 = (() => {
       txt(/\d/.test(p) ? p : p.slice(0, 1), X + 9, y + ch/2 - 1, 6, P.ui.muted, "center", /\d/.test(p));
       for (let k = 1; k <= 5; k++){
         const rr = slotRoom(k, p), x = X + 22 + (k - 1)*cw, cur = k === day && st.m >= mm(a2) && st.m < mm(b2);
-        rect(x + 2, y + 1, cw - 4, ch - 3, rr === "1-10" ? P.hr : rr ? P.ui.ok : (V === "a" ? P.cell : "#EADBBE"));
+        let wc = "#10131A";
+        if (NEO() && rr) wc = cellBox(x + 2, y + 1, cw - 4, ch - 3, rr === "1-10" ? P.hr : /^3-/.test(rr) ? P.c3 : P.ui.ok, { now:cur, hr:rr === "1-10" });
+        else rect(x + 2, y + 1, cw - 4, ch - 3, rr === "1-10" ? P.hr : rr ? P.ui.ok : (V === "a" ? P.cell : "#EADBBE"));
         if (k === day && st.m >= mm(b2)){ g.globalAlpha = .45; rect(x + 2, y + 1, cw - 4, ch - 3, P.ui.panel); g.globalAlpha = 1; }
-        if (rr) txt(rr, x + cw/2, y + ch/2 - 1, 7, "#10131A", "center");
+        if (rr) txt(rr, x + cw/2, y + ch/2 - 1, 7, wc, "center");
         if (cur){ g.globalAlpha = .6 + .4*Math.sin(T*5); g.strokeStyle = P.ui.acc; g.lineWidth = 2; g.strokeRect(x + 1, y, cw - 2, ch - 1); g.globalAlpha = 1; }
       }
     });
@@ -1241,9 +1263,13 @@ const S10 = (() => {
         if (rr === "lunch") txt("🍚 점심", x + CWD/2, y + RH/2, 6, P.ui.muted, "center");
         else if (rr){
           const c = rr === "1-10" ? P.hr : /^3-/.test(rr) ? P.c3 : P.ui.ok;
-          rect(x + 3, y + 3, CWD - 6, RH - 6, shade(c, V === "a" ? .45 : 1.0)); rect(x + 3, y + 3, 3, RH - 6, c);
-          g.globalAlpha = V === "a" ? 1 : .35; rect(x + 6, y + 3, CWD - 9, RH - 6, V === "a" ? "transparent" : "#FFFFFF"); g.globalAlpha = 1;
-          txt(rr === "1-10" ? "★1-10" : rr === "3-2" ? "3-2 미도약" : rr, x + 9, y + RH/2, 7, V === "a" ? "#FFFFFF" : "#10131A");
+          let pc = V === "a" ? "#FFFFFF" : "#10131A";
+          if (NEO()) pc = cellBox(x + 3, y + 3, CWD - 6, RH - 6, c, { now, hr:rr === "1-10" });
+          else {
+            rect(x + 3, y + 3, CWD - 6, RH - 6, shade(c, V === "a" ? .45 : 1.0)); rect(x + 3, y + 3, 3, RH - 6, c);
+            g.globalAlpha = V === "a" ? 1 : .35; rect(x + 6, y + 3, CWD - 9, RH - 6, V === "a" ? "transparent" : "#FFFFFF"); g.globalAlpha = 1;
+          }
+          txt(rr === "1-10" ? "★1-10" : rr === "3-2" ? "3-2 미도약" : rr, x + 9, y + RH/2, 7, pc);
         } else txt("·", x + CWD/2, y + RH/2, 7, rule, "center");
         if (past && rr && rr !== "lunch"){ g.globalAlpha = .5; rect(x + 3, y + 3, CWD - 6, RH - 6, paper); g.globalAlpha = 1; txt("✓", x + CWD - 9, y + RH/2, 7, P.ui.ok, "center"); }
         if (now) cur = { x, y, rr };
@@ -2089,7 +2115,28 @@ NEWS.push(S20);
 
 /*NEW_STRUCTS*/
 
-/* ===================== NEON 다시 고르기 시안 N1~N5 (2~12번 시안에 쓰여요, 1번 건물은 늘 부스 색) ===================== */
+/* ===================== 조합 시안 L1~L5: 원래 시안 × 동아리 부스 × 네온 색 (2~12번 시안, 1번 건물은 늘 부스 색) ===================== */
+// mode: line = 부스처럼 검은 칸 + 네온 테두리 · hybrid = 원래 흐린 채움 + 네온 테두리 · fill = 네온 색으로 꽉 채움 · glow = 테두리에 빛 · half = 테두리, 지금 칸과 우리 반만 채움
+let LOOK = "orig", DESK = null;
+const MODE = () => (LOOKS[LOOK] || {}).mode;
+const NEO = () => LOOK !== "orig" && V === "a";
+// 방 색: 1학년 노랑 · 3학년 주황 · 1-10 우리 반과 집 분홍 · 교무실 하늘색 · 급식실 초록
+function roomColor(id){
+  return id === "1-10" || id === "home" ? P.hr : /^1-/.test(id) ? P.ui.ok : /^3-/.test(id) ? P.c3 : id === "office" ? P.glass : id === "lunch" ? "#5BEA6F" : P.wallTop;
+}
+// 칸 하나 (시간표 칸 · 판 이름표). 글자 색을 돌려줘요
+function cellBox(x, y, w, h, c, o = {}){
+  const m = MODE(), solid = m === "fill" || (m === "half" && (o.now || o.hr));
+  if (solid){ rect(x, y, w, h, c); return "#0B0B12"; }
+  rect(x, y, w, h, m === "hybrid" ? shade(c, .45) : "#0B0B12");
+  if (m === "glow"){ g.save(); g.shadowColor = c; g.shadowBlur = 8; }
+  frameBox(x, y, w, h, 1, c);
+  if (m === "glow") g.restore();
+  if (w > 10 && h > 11){ g.globalAlpha = .45; frameBox(x + 2, y + 2, w - 4, h - 4, 1, c); g.globalAlpha = 1; }
+  return m === "hybrid" ? "#FFFFFF" : c;
+}
+
+/* (아래 N 팔레트 만드는 함수는 조합 시안이 같이 써요) */
 // 바탕 몇 가지 색만 정하면 나머지는 따라가요. y1 = 1학년 칸 · c3 = 3학년 칸 · hr = 1-10 우리 반 · now = 지금 · 강조, acc2 = 보조 강조, edgeC = 벽 테두리
 function neonPal(o){
   return { ...PAL.a, ground:o.bg, dot:o.bg2, base:o.bg2, hall:o.hall, hallLine:o.line, wall:o.wall, wallTop:o.edgeC, edge:"#000000",
@@ -2101,23 +2148,22 @@ function neonPal(o){
     minAcc:o.now, minHr:o.hr, minOk:o.y1, minBg1:o.bg, minBg2:o.wall,
     ui:{ panel:o.bg, ink:"#EDEDF5", muted:"#8C8CA6", acc:o.now, acc2:o.acc2, line:o.line, ok:o.y1 }, name:o.name };
 }
-const NEONS = {
-  n1:neonPal({ name:"N1 부스", bg:"#0B0B12", bg2:"#10101A", hall:"#14141F", line:"#2A2A3A", wall:"#12121C", edgeC:"#3D6BFF", fA:"#16162A", fB:"#1A1A30", oA:"#0E2230", oB:"#12293A", hA:"#1E1426", hB:"#241830",
-    y1:"#FFD400", c3:"#FF8A1F", hr:"#FF5FAE", now:"#2FE3F0", acc2:"#B07CFF" }),
-  n2:neonPal({ name:"N2 노을", bg:"#120A10", bg2:"#1A0E18", hall:"#24121F", line:"#3A2030", wall:"#1E1019", edgeC:"#FF8A1F", fA:"#2A1424", fB:"#30182A", oA:"#2A1A10", oB:"#33200F", hA:"#2A1020", hB:"#321428",
-    y1:"#FFC83D", c3:"#FF6A3D", hr:"#FF4F9A", now:"#FFF06A", acc2:"#FF8A1F", glass:"#FFB27A" }),
-  n3:neonPal({ name:"N3 남색", bg:"#090D24", bg2:"#0E1430", hall:"#141C40", line:"#25305E", wall:"#101736", edgeC:"#FF5FAE", fA:"#141E4A", fB:"#182352", oA:"#0E2A40", oB:"#12334C", hA:"#1E1838", hB:"#241C42",
-    y1:"#FFD400", c3:"#FF8A1F", hr:"#FF5FAE", now:"#5BEA6F", acc2:"#2FE3F0" }),
-  n4:neonPal({ name:"N4 보라밤", bg:"#100820", bg2:"#170C2C", hall:"#211338", line:"#36245A", wall:"#1A0F30", edgeC:"#B07CFF", fA:"#22133E", fB:"#281746", oA:"#16203E", oB:"#1A2648", hA:"#2A1236", hB:"#30163E",
-    y1:"#FFE14D", c3:"#FF9A3C", hr:"#FF6EC7", now:"#2FE3F0", acc2:"#B07CFF" }),
-  n5:neonPal({ name:"N5 원색", bg:"#050505", bg2:"#0C0C0C", hall:"#161616", line:"#2E2E2E", wall:"#111111", edgeC:"#D7263D", fA:"#181818", fB:"#1E1E1E", oA:"#0A1A22", oB:"#0E222C", hA:"#1E1012", hB:"#241416",
-    y1:"#FFD000", c3:"#FF6B00", hr:"#FF2E88", now:"#FFFFFF", acc2:"#00C2FF", glass:"#00C2FF" })
+// 부스 색 (진한 바탕 + 1학년 노랑 · 3학년 주황 · 우리 반 분홍 · 지금 하늘색)
+const BOOTH_PAL = neonPal({ name:"부스", bg:"#0B0B12", bg2:"#10101A", hall:"#14141F", line:"#2A2A3A", wall:"#12121C", edgeC:"#3D6BFF", fA:"#10101A", fB:"#14141F", oA:"#0B1A22", oB:"#0E2029", hA:"#160E1C", hB:"#1A1022",
+  y1:"#FFD400", c3:"#FF8A1F", hr:"#FF5FAE", now:"#2FE3F0", acc2:"#B07CFF" });
+// 원래 A 네온 바탕 그대로, 반 색만 부스 색으로
+const HYB_PAL = { ...PAL.a, c3:"#FF8A1F", hr:"#FF5FAE", active:"#2FE3F0", ui:{ ...PAL.a.ui, ok:"#FFD400", acc:"#2FE3F0" } };
+const LOOKS = {
+  l1:{ name:"L1 부스 테두리", pal:BOOTH_PAL, mode:"line" },
+  l2:{ name:"L2 원래+네온 테두리", pal:HYB_PAL, mode:"hybrid" },
+  l3:{ name:"L3 꽉 찬 네온", pal:BOOTH_PAL, mode:"fill" },
+  l4:{ name:"L4 네온 빛", pal:BOOTH_PAL, mode:"glow" },
+  l5:{ name:"L5 테두리+지금만 채움", pal:BOOTH_PAL, mode:"half" }
 };
-Object.assign(PAL, NEONS);
 // 위쪽 글자 · 단추 색도 같이 바뀌게
-document.head.insertAdjacentHTML("beforeend", "<style>" + Object.entries(NEONS).map(([k, p]) =>
+document.head.insertAdjacentHTML("beforeend", "<style>" + Object.entries(LOOKS).map(([k, { pal:p }]) =>
   `:root[data-v="${k}"]{--bg:${p.deep};--panel:${p.ui.panel};--line:${p.ui.line};--ink:${p.ui.ink};--muted:${p.ui.muted};--accent:${p.ui.acc};--accent2:${p.ui.acc2};--hi:${p.hr};--ok:${p.ui.ok};--h-ink:${p.ui.acc2};--on-ink:#0B0B12;--box-sh:0 0 0 1px #000,0 0 14px ${p.wallTop}33}`).join("") + "</style>");
-document.querySelector('#pal [data-v="a"]').insertAdjacentHTML("afterend", Object.entries(NEONS).map(([k, p]) => `<button class="btn" data-v="${k}">${p.name}</button>`).join(""));
+document.querySelector('#pal [data-v="a"]').insertAdjacentHTML("afterend", Object.entries(LOOKS).map(([k, l]) => `<button class="btn" data-v="${k}">${l.name}</button>`).join(""));
 
 const STRUCTS = [S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, ...NEWS];
 let SI = 0;
@@ -2175,7 +2221,7 @@ $("ctl").addEventListener("click", e => {
 });
 $("pal").addEventListener("click", e => {
   const b = e.target.closest("[data-v]"); if (!b) return;
-  const key = b.dataset.v; P = PAL[key]; V = key === "b" ? "b" : "a";   // N1~N5 도 어두운 네온이라 V는 "a"
+  const key = b.dataset.v; LOOK = LOOKS[key] ? key : "orig"; P = LOOKS[key] ? LOOKS[key].pal : PAL[key]; V = key === "b" ? "b" : "a";   // L1~L5 도 어두운 네온이라 V는 "a"
   if (key === "a") delete document.documentElement.dataset.v; else document.documentElement.dataset.v = key;
   document.querySelectorAll("#pal .btn").forEach(x => x.classList.toggle("on", x === b));
 });
