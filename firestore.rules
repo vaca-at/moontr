@@ -764,16 +764,24 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.uid in get(/databases/$(database)/documents/desk_users/$(deskId)).data.uids;
     }
+    // 실명은 20자까지, 영문 이름은 영어 대문자로 시작하는 영어 · 숫자 2~12자 (예전에 가입해 아직 없는 책상도 괜찮아요)
+    function deskPerson(d) {
+      return (!('realName' in d) || (d.realName is string && d.realName.size() <= 20))
+        && (!('tag' in d) || (d.tag is string && d.tag.matches('^[A-Z][A-Z0-9]{1,11}$')));
+    }
     match /desk_users/{deskId} {
       allow read: if (request.auth != null && request.auth.uid in resource.data.uids) || isTeacher();
+      // realName = 실명 (관리자만 봐요), tag = 성으로 만든 영문 이름 (KIMTR 처럼, 영어 대문자 · 숫자 2~12자)
       allow create: if request.auth != null && deskId == request.auth.uid
         && request.resource.data.uids == [request.auth.uid]
-        && request.resource.data.keys().hasOnly(['uids', 'name', 'createdAt', 'lastAt', 'lastDay', 'kinds'])
-        && request.resource.data.name is string && request.resource.data.name.size() <= 20;
+        && request.resource.data.keys().hasOnly(['uids', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20
+        && deskPerson(request.resource.data);
       // 로그인을 더할 때(addUid)는 그 로그인이 먼저 desk_links 에 '이 책상'이라고 적어 둔 경우만. 빼는 건 안 돼요
       allow update: if request.auth != null && request.auth.uid in resource.data.uids
-        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'createdAt', 'lastAt', 'lastDay', 'kinds'])
+        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 20
+        && deskPerson(request.resource.data)
         && request.resource.data.uids.toSet().hasAll(resource.data.uids)
         && (request.resource.data.uids.size() == resource.data.uids.size()
           || (request.resource.data.uids.toSet().difference(resource.data.uids.toSet()).hasOnly([request.resource.data.addUid])
