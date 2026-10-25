@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>대문 관리자 · moontr.site</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gowun+Dodum&display=swap">
+<style>
+/* ============================================================
+   대문(moontr.site) 관리자 화면
+   - 방문 기록 보기, 종 시간표 · 요일별 시간표 고치기
+   - 예전에는 대문 위에 뜨는 작은 창이었는데, 이 페이지로 따로 나왔어요
+   ============================================================ */
+:root{ --ink:#17324A; --muted:#4A6275; --cream:#F7F4EC; --line:#E1E9ED; --card:#fff; --accent:#1E6FA8; --bad:#c0392b }
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+body{margin:0;min-height:100vh;min-height:100dvh;background:var(--cream);color:var(--ink);font-family:'Gowun Dodum',sans-serif;font-size:16px;line-height:1.5}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.6rem;padding:.7rem 60px .7rem max(16px,env(safe-area-inset-left));   /* 오른쪽 60px = 새로고침 단추 자리 */background:rgba(247,244,236,.94);border-bottom:1px solid var(--line);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.top h1{margin:0;font-family:'Do Hyeon',sans-serif;font-weight:400;font-size:1.5rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top a,.top button{min-height:40px;display:inline-flex;align-items:center;padding:0 .9rem;border-radius:999px;border:1px solid #d6d0c0;background:#fff;color:var(--ink);text-decoration:none;font:inherit;font-size:.88rem;cursor:pointer;white-space:nowrap}
+main{max-width:860px;margin:0 auto;padding:1rem 16px 6rem}
+.card{background:var(--card);border-radius:1.1rem;padding:1.2rem;margin-bottom:1rem;box-shadow:0 1px 0 rgba(23,50,74,.06)}
+.card h2{margin:0 0 .7rem;font-family:'Do Hyeon',sans-serif;font-weight:400;font-size:1.3rem}
+.note{margin:.6rem 0 0;font-size:.85rem;color:var(--muted)}
+.err{color:var(--bad)}
+
+/* 로그인 */
+.login{max-width:380px;margin:12vh auto 0}
+.login input{width:100%;padding:.8rem;font-size:1.2rem;border-radius:.6rem;border:1px solid #ccc;margin:.6rem 0;letter-spacing:.3em;text-align:center}
+.login button{width:100%;min-height:48px;border:0;border-radius:.6rem;background:var(--ink);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.login .glogin{margin-top:.6rem;background:#fff;color:var(--ink);border:1px solid #ccc;font-weight:400}
+
+/* 📊 방문 기록 */
+.adm-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin:.2rem 0 .8rem}
+.adm-kpi div{background:#f3f5f8;border-radius:.7rem;padding:.6rem .3rem;text-align:center;font-size:.8rem;color:#5f6b7a}
+.adm-kpi b{display:block;font-size:1.4rem;color:var(--ink)}
+.adm-visit{width:100%;border-collapse:collapse;font-size:.9rem}
+.adm-visit th,.adm-visit td{padding:.3rem .4rem;border-bottom:1px solid #eef0f3;text-align:center;white-space:nowrap}
+.adm-visit td:last-child{width:40%}
+.adm-visit i{display:block;height:.6rem;border-radius:.3rem;background:#7aa7d9;min-width:2px}
+.adm-recent{list-style:none;padding:0;margin:0;font-size:.88rem}
+.adm-recent li{display:flex;gap:.6rem;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid #eef0f3;flex-wrap:wrap}
+.adm-recent small{color:#8a94a3}
+@media (max-width:480px){ .adm-kpi{grid-template-columns:repeat(2,1fr)} }
+
+/* 시간표 편집 */
+.adm-bell-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.adm-bell-row span:first-child{flex:none;width:3.2rem;white-space:nowrap}
+.adm-bell-row input[type=time]{flex:1 1 0;min-width:0;max-width:9rem;padding:.4rem;border-radius:.5rem;border:1px solid #ccc;font:inherit}
+.adm-bell-row button{flex:none;margin-left:auto;border:0;background:#f3d9d9;border-radius:.5rem;padding:.3rem .7rem;cursor:pointer;font:inherit;white-space:nowrap}
+#admAddPeriod{border:1px dashed #999;background:none;border-radius:.5rem;padding:.4rem .8rem;cursor:pointer;font:inherit}
+.weekwrap{overflow-x:auto}
+table.adm-week{border-collapse:collapse;width:100%;min-width:620px}
+table.adm-week th,table.adm-week td{border:1px solid var(--line);padding:.4rem;font-size:.85rem;vertical-align:top}
+table.adm-week tbody th{white-space:nowrap}
+table.adm-week input[type=text]{width:100%;padding:.3rem;border:1px solid #ccc;border-radius:.4rem;margin-bottom:.3rem;font:inherit;font-size:.85rem}
+table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radius:.4rem;font:inherit;font-size:.8rem}
+
+/* 아래에 붙어 있는 저장 막대 */
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;gap:.8rem;justify-content:center;padding:.7rem 16px calc(.7rem + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.96);border-top:1px solid var(--line)}
+.savebar button{flex:none;white-space:nowrap;min-height:46px;border:0;background:var(--ink);color:#fff;font:inherit;font-weight:700;padding:0 2rem;border-radius:.6rem;cursor:pointer}
+.savebar button:disabled{opacity:.45;cursor:default}
+.savebar span{font-size:.88rem;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>대문 관리자</h1>
+  <a href="/">← 대문</a>
+  <button type="button" id="logout" hidden>로그아웃</button>
+</header>
+
+<!-- 로그인 (관리자 비밀번호 = 센메일 비밀번호, 숫자 6자리) -->
+<form class="card login" id="login" hidden>
+  <h2>관리자 로그인</h2>
+  <p class="note">관리자 비밀번호(숫자 6자리)를 입력하세요.</p>
+  <input type="password" id="pw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" autocomplete="current-password" required>
+  <button type="submit">로그인</button>
+  <button type="button" class="glogin" id="glogin">G 구글 계정(센메일)으로 로그인</button>
+  <p class="note err" id="err"></p>
+</form>
+
+<main id="admin" hidden>
+  <section class="card">
+    <h2>📊 대문 방문 기록</h2>
+    <div id="admStats"><p class="note">불러오는 중…</p></div>
+  </section>
+  <section class="card">
+    <h2>🔔 종 시간표</h2>
+    <div id="admBellList"></div>
+    <button type="button" id="admAddPeriod">+ 교시 추가</button>
+    <p class="note">교시를 지우면 그 교시의 요일별 수업도 함께 지워져요.</p>
+  </section>
+  <section class="card">
+    <h2>📅 요일별 시간표</h2>
+    <div class="weekwrap" id="admWeek"></div>
+    <p class="note">과목명을 비우면 공강이에요. 앱을 고르면 대문 [시간표]에 그 앱 바로가기 단추가 나와요.</p>
+  </section>
+</main>
+
+<div class="savebar" id="savebar" hidden>
+  <button type="button" id="admSave">저장</button>
+  <span id="admMsg">고친 뒤 [저장]을 눌러야 대문에 반영돼요.</span>
+</div>
+
+<script type="module">
+/* ============================================================
+   🔥 파이어베이스 (대문과 같은 moon-d528d)
+   ============================================================ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const fbApp = initializeApp({
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765"
+});
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const TIMETABLE_DOC = doc(db, 'moontr_config', 'timetable');
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dayNames = ['일','월','화','수','목','금','토'];
+
+/* 앱 목록(APPS)과 기본 시간표(BELL · WEEK)는 대문(/index.html)에 적힌 것을 그대로 읽어 와요.
+   그래서 앱을 추가할 때는 대문 index.html 의 APPS 만 고치면 여기도 저절로 바뀌어요. */
+let APPS = [], BELL = [], WEEK = {};
+async function loadDoorLists(){
+  try {
+    const src = await (await fetch('/index.html', { cache: 'no-store' })).text();
+    const grab = name => { const m = src.match(new RegExp('const ' + name + ' = ([\\[{][\\s\\S]*?\\n[\\]}]);')); return m ? new Function('return ' + m[1])() : null; };
+    APPS = grab('APPS') || [];
+    BELL = grab('BELL') || [];
+    WEEK = grab('WEEK') || {};
+  } catch {}
+}
+
+/* Firestore에 저장된 시간표가 있으면 그걸로 덮어써요 (없으면 대문의 기본값) */
+async function loadTimetable(){
+  try {
+    const snap = await getDoc(TIMETABLE_DOC);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (Array.isArray(data.bell)) BELL = data.bell.map(b => [b.s, b.e]);
+    if (data.week) WEEK = Object.fromEntries(Object.entries(data.week).map(([k, v]) => [k, Array.isArray(v) ? v : []]));
+  } catch (e){ $('#admMsg').textContent = '저장된 시간표를 불러오지 못했어요: ' + (e.code || e.message); }
+}
+
+/* ============================================================
+   시간표 편집
+   ============================================================ */
+/* 화면에 적어 둔 값을 BELL · WEEK 에 옮겨 담아요 (교시 추가 · 삭제 · 저장 전에) */
+function readForm(){
+  document.querySelectorAll('.adm-bell-row').forEach(row => {
+    BELL[+row.dataset.i] = [row.querySelector('.adm-start').value, row.querySelector('.adm-end').value];
+  });
+  document.querySelectorAll('.adm-c').forEach(inp => {
+    const d = inp.dataset.d, i = +inp.dataset.i;
+    WEEK[d] = WEEK[d] || [];
+    const app = document.querySelector(`.adm-app[data-d="${d}"][data-i="${i}"]`).value;
+    const c = inp.value.trim();
+    WEEK[d][i] = c ? { c, app } : '';
+  });
+}
+
+function renderEditor(){
+  $('#admBellList').innerHTML = BELL.map(([s, e], i) => `
+    <div class="adm-bell-row" data-i="${i}">
+      <span>${i+1}교시</span>
+      <input type="time" class="adm-start" value="${esc(s)}" aria-label="${i+1}교시 시작">
+      <span>~</span>
+      <input type="time" class="adm-end" value="${esc(e)}" aria-label="${i+1}교시 끝">
+      <button type="button" class="adm-del-period" data-i="${i}">삭제</button>
+    </div>`).join('') || '<p class="note">교시가 없어요. [+ 교시 추가]를 눌러 주세요.</p>';
+
+  let t = `<table class="adm-week"><thead><tr><th></th>${[1,2,3,4,5].map(d => `<th>${dayNames[d]}</th>`).join('')}</tr></thead><tbody>`;
+  BELL.forEach((_, i) => {
+    t += `<tr><th>${i+1}교시</th>`;
+    [1,2,3,4,5].forEach(d => {
+      const cell = (WEEK[d] && WEEK[d][i]) || '';
+      const c = cell ? cell.c : '', app = cell ? cell.app : '';
+      t += `<td>
+        <input type="text" class="adm-c" data-d="${d}" data-i="${i}" value="${esc(c || '')}" placeholder="과목명" aria-label="${dayNames[d]} ${i+1}교시 과목">
+        <select class="adm-app" data-d="${d}" data-i="${i}" aria-label="${dayNames[d]} ${i+1}교시 앱">
+          <option value="">(앱 없음)</option>
+          ${APPS.map(a => `<option value="${esc(a.id)}" ${a.id === app ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+        </select>
+      </td>`;
+    });
+    t += `</tr>`;
+  });
+  $('#admWeek').innerHTML = t + `</tbody></table>`;
+
+  document.querySelectorAll('.adm-del-period').forEach(btn => btn.addEventListener('click', () => {
+    const i = +btn.dataset.i;
+    if (!confirm(`${i+1}교시를 지울까요? (요일별 ${i+1}교시 수업도 함께 지워져요)`)) return;
+    readForm();
+    BELL.splice(i, 1);
+    Object.keys(WEEK).forEach(d => WEEK[d].splice(i, 1));
+    renderEditor(); dirty();
+  }));
+}
+const dirty = () => { $('#admMsg').textContent = '고친 내용이 있어요. [저장]을 눌러 주세요.'; };
+
+$('#admAddPeriod').addEventListener('click', () => {
+  readForm();
+  const last = BELL[BELL.length - 1];
+  BELL.push(last ? [last[1], last[1]] : ['08:40', '09:30']);
+  renderEditor(); dirty();
+});
+$('#admin').addEventListener('input', e => { if (e.target.closest('#admBellList, #admWeek')) dirty(); });
+
+$('#admSave').addEventListener('click', async () => {
+  readForm();
+  const btn = $('#admSave'); btn.disabled = true;
+  $('#admMsg').textContent = '저장하는 중…';
+  try {
+    await setDoc(TIMETABLE_DOC, {
+      bell: BELL.map(([s, e]) => ({ s, e })),
+      week: Object.fromEntries(Object.entries(WEEK).map(([k, v]) => [String(k), v]))
+    });
+    const d = new Date(), p2 = n => String(n).padStart(2, '0');
+    $('#admMsg').textContent = `저장했어요 (${p2(d.getHours())}:${p2(d.getMinutes())}). 대문에 바로 반영돼요.`;
+  } catch (err){
+    $('#admMsg').textContent = '저장 실패: ' + (err.code || err.message);
+  }
+  btn.disabled = false;
+});
+
+/* ============================================================
+   📊 방문 기록: 날짜별 방문 수(site_counts) · 들어온 기기 수 · 최근 접속 (site_devices, /visit.js 가 남겨요)
+   ============================================================ */
+const KIND = { phone:'📱 휴대폰', tablet:'📲 태블릿', pc:'💻 컴퓨터' };
+const pad2 = n => String(n).padStart(2, '0');
+const dkey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+async function loadVisitStats(){
+  const box = $('#admStats');
+  const days = [...Array(14)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return d; });
+  const counts = {}; let total = 0, devs = [], devErr = '';
+  try {
+    (await getDocs(collection(db, 'site_counts'))).docs.forEach(d => {
+      if (d.id === 'home__total') total = d.data().n || 0;
+      const m = d.id.match(/^home__d(\d{4}-\d{2}-\d{2})$/); if (m) counts[m[1]] = d.data().n || 0;
+    });
+  } catch {}
+  try { devs = (await getDocs(query(collection(db, 'site_devices'), where('app', '==', 'home')))).docs.map(d => ({ id: d.id.split('__')[1], ...d.data() })); }
+  catch (e){ devErr = e.code === 'permission-denied' ? '기기 기록을 읽을 권한이 없어요 (Firestore 규칙에 site_devices 를 넣어 주세요)' : '기기 기록을 불러오지 못했어요'; }
+  const byDay = {}; devs.forEach(x => Object.keys(x.days || {}).forEach(k => { byDay[k] = (byDay[k] || 0) + 1; }));
+  let me = ''; try { me = localStorage.getItem('moontr-dev') || ''; } catch {}
+  const wk = days.slice(0, 7).map(dkey), weekDevs = devs.filter(x => wk.some(k => (x.days || {})[k])).length;
+  const max = Math.max(1, ...days.map(d => counts[dkey(d)] || 0));
+  const t = x => { const d = new Date(x); return `${d.getMonth()+1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+  const ago = x => { const m = Math.round((Date.now() - x) / 60000); return m < 1 ? '방금' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.floor(m/60)}시간 전` : `${Math.floor(m/1440)}일 전`; };
+  const recent = devs.filter(x => x.last).sort((a, b) => b.last - a.last).slice(0, 15);
+  box.innerHTML = `
+    <div class="adm-kpi"><div><b>${(counts[dkey(days[0])] || 0).toLocaleString()}</b>오늘 방문</div><div><b>${(byDay[dkey(days[0])] || 0).toLocaleString()}</b>오늘 기기</div><div><b>${weekDevs.toLocaleString()}</b>최근 7일 기기</div><div><b>${total.toLocaleString()}</b>누적 방문</div></div>
+    <table class="adm-visit"><thead><tr><th>날짜</th><th>방문</th><th>기기</th><th></th></tr></thead><tbody>
+    ${days.map(d => { const k = dkey(d), c = counts[k] || 0; return `<tr><td>${d.getMonth()+1}/${d.getDate()} (${dayNames[d.getDay()]})</td><td>${c}</td><td>${byDay[k] || '-'}</td><td><i style="width:${Math.round(c / max * 100)}%"></i></td></tr>`; }).join('')}
+    </tbody></table>
+    <h3 style="margin:1rem 0 .4rem;font-size:1rem">🕒 최근 접속한 기기</h3>
+    ${devErr ? `<p class="note err">${devErr}</p>` : recent.length ? `<ul class="adm-recent">${recent.map(x => `<li><span>${t(x.last)} <small>(${ago(x.last)})</small></span><span>${KIND[x.kind] || esc(x.kind || '')}${x.id === me ? ' · <b>이 기기</b>' : ''}</span><span>${x.n || 1}번 · ${Object.keys(x.days || {}).length}일</span></li>`).join('')}</ul>` : '<p class="note">기기 기록은 오늘부터 쌓여요. (관리자 화면에서 연 것은 세지 않아요)</p>'}
+    <p class="note">기기는 이름 없이 무작위 번호로만 구분해요. 같은 사람이 다른 기기나 다른 브라우저로 들어오면 다른 기기로 세요.</p>`;
+}
+
+/* ============================================================
+   🔐 로그인: 같은 moontr.site 앱에서 이미 관리자로 로그인했으면 비밀번호 없이 바로 열려요
+   ============================================================ */
+let opened = false;
+onAuthStateChanged(auth, async user => {
+  const ok = !!user && user.email === ADMIN_EMAIL;
+  $('#login').hidden = ok;
+  $('#admin').hidden = $('#savebar').hidden = $('#logout').hidden = !ok;
+  if (!ok){
+    opened = false;
+    $('#pw').focus();
+    if (user) $('#err').textContent = `지금 로그인된 ${user.email || '계정'}은 관리자 계정이 아니에요. 비밀번호나 센메일 구글 계정으로 로그인해 주세요.`;
+    return;
+  }
+  if (opened) return;
+  opened = true;
+  loadVisitStats();
+  await loadDoorLists();
+  await loadTimetable();
+  renderEditor();
+});
+$('#login').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('#err').textContent = '';
+  try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $('#pw').value); }
+  catch { $('#err').textContent = '로그인 실패: 비밀번호를 확인해 주세요'; }
+  $('#pw').value = '';
+});
+/* 구글 계정(센메일)으로 로그인 */
+$('#glogin').addEventListener('click', async () => {
+  $('#err').textContent = '';
+  const p = new GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account', login_hint: ADMIN_EMAIL });
+  try {
+    const r = await signInWithPopup(auth, p);
+    if (r.user.email !== ADMIN_EMAIL){ await signOut(auth); $('#err').textContent = `${r.user.email}은 관리자 계정이 아니에요. 센메일(${ADMIN_EMAIL})로 골라 주세요.`; }
+  } catch (e){
+    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')
+      $('#err').textContent = e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요' : '구글 로그인을 하지 못했어요 (' + (e.code || e.message) + ')';
+  }
+});
+$('#logout').addEventListener('click', () => { if (confirm('로그아웃할까요?')) signOut(auth); });
+</script>
+<!-- 🔄 위쪽 새로고침 단추 (모든 웹앱 공용, /refresh.js · 관리자 허브 안에서는 저절로 숨어요) -->
+<script src="/refresh.js" data-bg="rgba(255,255,255,.92)" data-fg="#17324A" defer></script>
+</body>
+</html>

@@ -228,31 +228,6 @@ body[data-v="planner"] .panel .note{margin:0;padding:.5rem .9rem .8rem;color:#8C
   font-size:.72rem;cursor:pointer;opacity:.4;transition:opacity .15s}
 .admin-fab:hover,.admin-fab:focus-visible{opacity:1}
 
-/* 관리자 모드 */
-.adm-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin:.4rem 0 .8rem}
-.adm-kpi div{background:#f3f5f8;border-radius:.7rem;padding:.6rem .3rem;text-align:center;font-size:.8rem;color:#5f6b7a}
-.adm-kpi b{display:block;font-size:1.4rem;color:var(--ink)}
-.adm-visit{width:100%;border-collapse:collapse;font-size:.9rem}
-.adm-visit th,.adm-visit td{padding:.3rem .4rem;border-bottom:1px solid #eef0f3;text-align:center;white-space:nowrap}
-.adm-visit td:last-child{width:40%}
-.adm-visit i{display:block;height:.6rem;border-radius:.3rem;background:#7aa7d9;min-width:2px}
-.adm-recent{list-style:none;padding:0;margin:0;font-size:.88rem}
-.adm-recent li{display:flex;gap:.6rem;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid #eef0f3;flex-wrap:wrap}
-.adm-recent small{color:#8a94a3}
-#adminBody h3{margin:1.2rem 0 .5rem;font-size:1.05rem}
-#adminBody h3:first-child{margin-top:0}
-.adm-bell-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
-.adm-bell-row span:first-child{width:3.4rem}
-.adm-bell-row input[type=time]{padding:.4rem;border-radius:.5rem;border:1px solid #ccc}
-.adm-bell-row button{margin-left:auto;border:0;background:#f3d9d9;border-radius:.5rem;padding:.3rem .7rem;cursor:pointer}
-#admAddPeriod{border:1px dashed #999;background:none;border-radius:.5rem;padding:.4rem .8rem;cursor:pointer;margin-bottom:1rem}
-table.adm-week{border-collapse:collapse;width:100%}
-table.adm-week th,table.adm-week td{border:1px solid #e1e9ed;padding:.4rem;font-size:.85rem;vertical-align:top}
-table.adm-week input[type=text]{width:100%;padding:.3rem;border:1px solid #ccc;border-radius:.4rem;margin-bottom:.3rem;box-sizing:border-box}
-table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radius:.4rem;box-sizing:border-box}
-#admSave{border:0;background:var(--ink);color:#fff;font-weight:700;padding:.7rem 1.2rem;border-radius:.6rem;cursor:pointer}
-#admLogout{border:1px solid #ccc;background:#fff;padding:.7rem 1.2rem;border-radius:.6rem;cursor:pointer}
-#loginPw{letter-spacing:.3em;text-align:center}
 
 /* ============================================================
    세로 화면 (스마트폰, 세로로 든 아이패드)
@@ -410,21 +385,18 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
   </div>
 </div>
 
-<!-- 관리자 모드 (로그인 · 방문 기록 · 시간표 편집) -->
-<div class="sheet" id="adminSheet" hidden>
-  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
-    <header><h2 id="adminTitle">관리자 모드</h2><button type="button" class="close" id="adminClose" aria-label="닫기">✕</button></header>
-    <div id="adminBody"></div>
-  </div>
-</div>
+<!-- 관리자 모드(방문 기록 · 시간표 편집)는 따로 된 페이지예요: /home-admin/ -->
+<script>
+/* 예전 주소(moontr.site/#admin, ?admin)로 들어오면 대문 관리자 페이지로 옮겨 줘요 */
+if (location.hash === '#admin' || /[?&]admin\b/.test(location.search)) location.replace('/home-admin/');
+</script>
 
 <script type="module">
 /* ============================================================
-   🔥 파이어베이스 (관리자 모드 · 시간표 저장용)
+   🔥 파이어베이스 (저장된 시간표 읽기용 · 고치는 곳은 /home-admin/)
    ============================================================ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
@@ -436,9 +408,7 @@ const firebaseConfig = {
   measurementId: "G-57BJWS6C9J"
 };
 const fbApp = initializeApp(firebaseConfig);
-const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
-const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
 const TIMETABLE_DOC = doc(db, 'moontr_config', 'timetable');
 
 /* ============================================================
@@ -642,18 +612,9 @@ function renderQuote(){
   $('#qlinks').innerHTML = QUOTE_LINKS.map(a => `<a href="${esc(a.url)}">${esc(a.name)}</a>`).join('');
 }
 
-/* ============================================================
-   관리자 모드: 로그인 + 시간표 편집
-   ============================================================ */
-let currentUser = null;
 const dayNames = ['일','월','화','수','목','금','토'];
 
-function openAdmin(){
-  $('#adminSheet').hidden = false;
-  renderAdmin();
-}
-function closeAdmin(){ $('#adminSheet').hidden = true; }
-/* 관리자 버튼은 관리자 허브(/admin/)로 갑니다. 시간표 편집은 허브에서 /#admin 으로 들어옵니다. */
+/* 관리자 버튼은 관리자 허브(/admin/)로 갑니다. 방문 기록 · 시간표 편집은 따로 된 페이지 /home-admin/ 에서 해요 (허브 [대문 관리자]). */
 const goHub = () => { location.href = '/admin/'; };
 $('#adminBtn').addEventListener('click', goHub);
 $('#doorAdmin').addEventListener('click', goHub);
@@ -683,152 +644,6 @@ $('#plannerFrame').addEventListener('load', () => {
   const w = pw(); if (w && w.setPal) w.setPal(v);
   markOn('#v-planner [data-pal]', document.querySelector(`#v-planner [data-pal="${v}"]`));
 });
-$('#adminClose').addEventListener('click', closeAdmin);
-$('#adminSheet').addEventListener('click', e => { if (e.target.id === 'adminSheet') closeAdmin(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#adminSheet').hidden) closeAdmin(); });
-
-function renderAdmin(){
-  const body = $('#adminBody');
-  if (!currentUser){
-    body.innerHTML = `
-      <p class="note">관리자 비밀번호(숫자 6자리)를 입력하세요.</p>
-      <form id="loginForm">
-        <input type="password" id="loginPw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" required
-          style="width:100%;padding:.8rem;font-size:1.2rem;border-radius:.6rem;border:1px solid #ccc;margin:.6rem 0;box-sizing:border-box">
-        <button type="submit" style="width:100%;padding:.8rem;border:0;border-radius:.6rem;background:var(--ink);color:#fff;font-weight:700;cursor:pointer">로그인</button>
-      </form>
-      <p class="note" id="loginError" style="color:#c0392b"></p>`;
-    $('#loginForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const pw = $('#loginPw').value;
-      try {
-        await signInWithEmailAndPassword(auth, ADMIN_EMAIL, pw);
-      } catch (err){
-        $('#loginError').textContent = '로그인 실패: 비밀번호를 확인해 주세요';
-      }
-    });
-    return;
-  }
-
-  const bellRows = BELL.map(([s,e], i) => `
-    <div class="adm-bell-row" data-i="${i}">
-      <span>${i+1}교시</span>
-      <input type="time" class="adm-start" value="${s}">
-      <span>~</span>
-      <input type="time" class="adm-end" value="${e}">
-      <button type="button" class="adm-del-period" data-i="${i}">삭제</button>
-    </div>`).join('');
-
-  let weekTable = `<table class="adm-week"><thead><tr><th></th>${[1,2,3,4,5].map(d=>`<th>${dayNames[d]}</th>`).join('')}</tr></thead><tbody>`;
-  BELL.forEach((_, i) => {
-    weekTable += `<tr><th>${i+1}교시</th>`;
-    [1,2,3,4,5].forEach(d => {
-      const cell = (WEEK[d] && WEEK[d][i]) || '';
-      const c = cell ? cell.c : '';
-      const app = cell ? cell.app : '';
-      weekTable += `<td>
-        <input type="text" class="adm-c" data-d="${d}" data-i="${i}" value="${esc(c)}" placeholder="과목명">
-        <select class="adm-app" data-d="${d}" data-i="${i}">
-          <option value="">(앱 없음)</option>
-          ${APPS.map(a=>`<option value="${a.id}" ${a.id===app?'selected':''}>${esc(a.name)}</option>`).join('')}
-        </select>
-      </td>`;
-    });
-    weekTable += `</tr>`;
-  });
-  weekTable += `</tbody></table>`;
-
-  body.innerHTML = `
-    <h3>📊 이 웹 방문 기록</h3>
-    <div id="admStats"><p class="note">불러오는 중…</p></div>
-    <h3>종 시간표</h3>
-    <div id="admBellList">${bellRows}</div>
-    <button type="button" id="admAddPeriod">+ 교시 추가</button>
-    <h3>요일별 시간표</h3>
-    <div style="overflow-x:auto">${weekTable}</div>
-    <div style="display:flex;gap:.6rem;margin-top:1rem">
-      <button type="button" id="admSave">저장</button>
-      <button type="button" id="admLogout">로그아웃</button>
-    </div>
-    <p class="note" id="admMsg"></p>`;
-
-  loadVisitStats();
-  $('#admAddPeriod').addEventListener('click', () => {
-    BELL.push(['00:00','00:00']);
-    renderAdmin();
-  });
-  body.querySelectorAll('.adm-del-period').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = +btn.dataset.i;
-      BELL.splice(i, 1);
-      Object.keys(WEEK).forEach(d => WEEK[d].splice(i, 1));
-      renderAdmin();
-    });
-  });
-  $('#admSave').addEventListener('click', async () => {
-    body.querySelectorAll('.adm-bell-row').forEach(row => {
-      const i = +row.dataset.i;
-      BELL[i] = [row.querySelector('.adm-start').value, row.querySelector('.adm-end').value];
-    });
-    body.querySelectorAll('.adm-c').forEach(inp => {
-      const d = inp.dataset.d, i = +inp.dataset.i;
-      WEEK[d] = WEEK[d] || [];
-      const app = body.querySelector(`.adm-app[data-d="${d}"][data-i="${i}"]`).value;
-      const c = inp.value.trim();
-      WEEK[d][i] = c ? { c, app } : '';
-    });
-    try {
-      await setDoc(TIMETABLE_DOC, {
-        bell: BELL.map(([s, e]) => ({ s, e })),
-        week: Object.fromEntries(Object.entries(WEEK).map(([k, v]) => [String(k), v]))
-      });
-      $('#admMsg').textContent = '저장했습니다.';
-      renderTime();
-    } catch (err){
-      $('#admMsg').textContent = '저장 실패: ' + err.message;
-    }
-  });
-  $('#admLogout').addEventListener('click', () => signOut(auth));
-}
-
-/* 📊 방문 기록: 날짜별 방문 수(site_counts) · 들어온 기기 수 · 최근 접속 (site_devices, /visit.js 가 남겨요) */
-const KIND = { phone:'📱 휴대폰', tablet:'📲 태블릿', pc:'💻 컴퓨터' };
-const pad2 = n => String(n).padStart(2, '0');
-const dkey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-async function loadVisitStats(){
-  const box = $('#admStats'); if (!box) return;
-  const days = [...Array(14)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return d; });
-  const counts = {}; let total = 0, devs = [], devErr = '';
-  try {
-    (await getDocs(collection(db, 'site_counts'))).docs.forEach(d => {
-      if (d.id === 'home__total') total = d.data().n || 0;
-      const m = d.id.match(/^home__d(\d{4}-\d{2}-\d{2})$/); if (m) counts[m[1]] = d.data().n || 0;
-    });
-  } catch {}
-  try { devs = (await getDocs(query(collection(db, 'site_devices'), where('app', '==', 'home')))).docs.map(d => ({ id: d.id.split('__')[1], ...d.data() })); }
-  catch (e){ devErr = e.code === 'permission-denied' ? '기기 기록을 읽을 권한이 없어요 (Firestore 규칙에 site_devices 를 넣어 주세요)' : '기기 기록을 불러오지 못했어요'; }
-  const byDay = {}; devs.forEach(x => Object.keys(x.days || {}).forEach(k => { byDay[k] = (byDay[k] || 0) + 1; }));
-  let me = ''; try { me = localStorage.getItem('moontr-dev') || ''; } catch {}
-  const wk = days.slice(0, 7).map(dkey), weekDevs = devs.filter(x => wk.some(k => (x.days || {})[k])).length;
-  const max = Math.max(1, ...days.map(d => counts[dkey(d)] || 0));
-  const t = x => { const d = new Date(x); return `${d.getMonth()+1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
-  const ago = x => { const m = Math.round((Date.now() - x) / 60000); return m < 1 ? '방금' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.floor(m/60)}시간 전` : `${Math.floor(m/1440)}일 전`; };
-  const recent = devs.filter(x => x.last).sort((a, b) => b.last - a.last).slice(0, 15);
-  box.innerHTML = `
-    <div class="adm-kpi"><div><b>${(counts[dkey(days[0])] || 0).toLocaleString()}</b>오늘 방문</div><div><b>${(byDay[dkey(days[0])] || 0).toLocaleString()}</b>오늘 기기</div><div><b>${weekDevs.toLocaleString()}</b>최근 7일 기기</div><div><b>${total.toLocaleString()}</b>누적 방문</div></div>
-    <table class="adm-visit"><thead><tr><th>날짜</th><th>방문</th><th>기기</th><th></th></tr></thead><tbody>
-    ${days.map(d => { const k = dkey(d), c = counts[k] || 0; return `<tr><td>${d.getMonth()+1}/${d.getDate()} (${dayNames[d.getDay()]})</td><td>${c}</td><td>${byDay[k] || '-'}</td><td><i style="width:${Math.round(c / max * 100)}%"></i></td></tr>`; }).join('')}
-    </tbody></table>
-    <h4 style="margin:1rem 0 .4rem">🕒 최근 접속한 기기</h4>
-    ${devErr ? `<p class="note" style="color:#c0392b">${devErr}</p>` : recent.length ? `<ul class="adm-recent">${recent.map(x => `<li><span>${t(x.last)} <small>(${ago(x.last)})</small></span><span>${KIND[x.kind] || x.kind}${x.id === me ? ' · <b>이 기기</b>' : ''}</span><span>${x.n || 1}번 · ${Object.keys(x.days || {}).length}일</span></li>`).join('')}</ul>` : '<p class="note">기기 기록은 오늘부터 쌓여요. (관리자 화면에서 연 것은 세지 않아요)</p>'}
-    <p class="note">기기는 이름 없이 무작위 번호로만 구분해요. 같은 사람이 다른 기기나 다른 브라우저로 들어오면 다른 기기로 세요.</p>`;
-}
-
-onAuthStateChanged(auth, user => {
-  currentUser = (user && user.email === ADMIN_EMAIL) ? user : null;
-  if (!$('#adminSheet').hidden) renderAdmin();
-});
-
 /* Firestore에 저장된 시간표가 있으면 그걸로 덮어씁니다 (없으면 위 기본값 사용) */
 onSnapshot(TIMETABLE_DOC, snap => {
   if (!snap.exists()) return;
@@ -865,7 +680,6 @@ function renderBar(){
 renderBar(); setInterval(renderBar, 15000);
 const fixed = location.hash.slice(1);
 show(VIEWS.includes(fixed) ? fixed : pickRandom());
-if (fixed === 'admin') openAdmin();
 </script>
 <!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
 <script type="module" src="/visit.js?app=home&policy=/policy/"></script>
