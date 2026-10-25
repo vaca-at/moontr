@@ -10,6 +10,7 @@
 - 모든 앱의 관리자·교사 화면은 **Firebase 이메일 로그인**으로 들어갑니다.
   - 계정: `anstjsdud@sen.go.kr` (센메일), 비밀번호는 숫자 6자리 — 비밀번호는 코드에 적지 않습니다.
   - 코드에 `ADMIN_EMAIL` 상수를 두고 `signInWithEmailAndPassword(auth, ADMIN_EMAIL, 입력값)`로 로그인합니다.
+  - 구글 로그인은 센메일과 `bellachord@gmail.com` 둘 다 관리자예요. 관리자인지 볼 때는 `user.email === ADMIN_EMAIL` 대신 `ADMIN_EMAILS` · `isAdminEmail(user.email)`을 씁니다 (보안 규칙 `isTeacher()`와 같게).
 - `1212`, `1234` 같은 앱별 암호나 해시 암호를 **새로 만들지 않습니다.**
 - 같은 주소(moontr.site)의 앱끼리는 로그인이 공유됩니다. 페이지를 열 때 이미 관리자 계정으로 로그인돼 있으면 비밀번호 창 없이 바로 관리자 화면을 엽니다.
 - 관리자 화면은 주소로 바로 열 수 있게 합니다: `#admin`(또는 `?admin`)으로 들어오면 관리자 화면(로그인 전이면 비밀번호 창)을 엽니다.

@@ -2451,6 +2451,8 @@ const firebaseConfig = {
 };
 const fbApp = initializeApp(firebaseConfig), auth = getAuth(fbApp), db = getFirestore(fbApp);
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
 const KAKAO = "oidc.kakao";   // 파이어베이스 로그인 방법 OpenID Connect 'kakao' (아이아이노트와 같은 방식)
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -3154,7 +3156,7 @@ let admUnsub = null, admMsgUnsub = null, admSel = null;
 function renderAdmin(){
   hide("shLogin"); show("shAdmin"); $("adminFab").hidden = true;
   admUnsub?.(); admUnsub = null; admMsgUnsub?.(); admMsgUnsub = null;
-  if (!user || user.email !== ADMIN_EMAIL){
+  if (!user || !isAdminEmail(user.email)){
     $("adBody").innerHTML = `<form id="admLogin" style="max-width:340px;margin:8vh auto;text-align:center">
         <p>관리자 비밀번호(숫자 6자리)를 넣어 주세요.</p>
         <input type="password" id="admPw" inputmode="numeric" maxlength="6" autocomplete="current-password" style="width:100%;font-size:20px;text-align:center;letter-spacing:.3em;padding:10px" class="f" aria-label="관리자 비밀번호">
@@ -3162,7 +3164,7 @@ function renderAdmin(){
         <button type="button" class="big google" id="admG" style="width:100%;margin-top:8px">G 구글 계정(센메일)으로 로그인</button>
         <p class="err" id="admErr">${user ? `지금 로그인된 ${esc(user.email || "계정")}은 관리자 계정이 아니에요.` : ""}</p></form>`;
     $("admLogin").addEventListener("submit", async e => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $("admPw").value); } catch (e2){ $("admErr").textContent = "로그인 실패: 비밀번호를 확인해 주세요"; } });
-    $("admG").addEventListener("click", async () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account", login_hint:ADMIN_EMAIL }); try { const r = await signInWithPopup(auth, p); if (r.user.email !== ADMIN_EMAIL){ await signOut(auth); $("admErr").textContent = "센메일 계정으로 골라 주세요."; } } catch (e){ $("admErr").textContent = loginErr(e, "google"); } });
+    $("admG").addEventListener("click", async () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); try { const r = await signInWithPopup(auth, p); if (!isAdminEmail(r.user.email)){ await signOut(auth); $("admErr").textContent = "관리자 구글 계정(센메일 · bellachord)으로 골라 주세요."; } } catch (e){ $("admErr").textContent = loginErr(e, "google"); } });
     return;
   }
   $("adBody").innerHTML = `<div class="kpi" id="admKpi"><div><b>…</b>가입한 선생님</div></div>

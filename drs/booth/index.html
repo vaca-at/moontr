@@ -399,6 +399,8 @@ const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
 // 담당 선생님은 구글 로그인 (센메일 계정만 선생님 화면이 열려요)
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
 let teacher = false;
 // 다른 웹앱과 섞이지 않게 drs_ 를 붙인 컬렉션 (규칙은 저장소의 firestore.rules)
 const COL = { chat:'drs_chat', booth:'drs_booth', wait:'drs_wait' };
@@ -748,14 +750,14 @@ async function tryLogin(){
 // 선생님: 구글 로그인 (이미 moontr.site 에서 로그인했으면 저절로 선생님 화면)
 async function teacherLogin(){
   const p = new GoogleAuthProvider();
-  p.setCustomParameters({ prompt:'select_account', login_hint:ADMIN_EMAIL });
+  p.setCustomParameters({ prompt:'select_account' });
   try{ await signInWithPopup(auth, p); }
   catch(e){ if(e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') sysLine('선생님 로그인을 하지 못했어요: ' + e.message); }
 }
 onAuthStateChanged(auth, u=>{
   const was = teacher;
-  teacher = !!(u && u.email === ADMIN_EMAIL);
-  if(u && !teacher){ sysLine('선생님 계정(센메일)이 아니라서 로그아웃했어요.'); signOut(auth); }
+  teacher = !!(u && isAdminEmail(u.email));
+  if(u && !teacher){ sysLine('선생님 계정(센메일 · bellachord)이 아니라서 로그아웃했어요.'); signOut(auth); }
   if(teacher !== was || teacher){ loginOpen = false; $('chat').classList.toggle('teach', teacher); renderSay(); renderMine(true); }
 });
 

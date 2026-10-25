@@ -126,6 +126,8 @@ const fbApp = initializeApp({
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
 const TIMETABLE_DOC = doc(db, 'moontr_config', 'timetable');
 
 const $ = s => document.querySelector(s);
@@ -277,7 +279,7 @@ async function loadVisitStats(){
    ============================================================ */
 let opened = false;
 onAuthStateChanged(auth, async user => {
-  const ok = !!user && user.email === ADMIN_EMAIL;
+  const ok = !!user && isAdminEmail(user.email);
   $('#login').hidden = ok;
   $('#admin').hidden = $('#savebar').hidden = $('#logout').hidden = !ok;
   if (!ok){
@@ -304,10 +306,10 @@ $('#login').addEventListener('submit', async e => {
 $('#glogin').addEventListener('click', async () => {
   $('#err').textContent = '';
   const p = new GoogleAuthProvider();
-  p.setCustomParameters({ prompt: 'select_account', login_hint: ADMIN_EMAIL });
+  p.setCustomParameters({ prompt: 'select_account' });
   try {
     const r = await signInWithPopup(auth, p);
-    if (r.user.email !== ADMIN_EMAIL){ await signOut(auth); $('#err').textContent = `${r.user.email}은 관리자 계정이 아니에요. 센메일(${ADMIN_EMAIL})로 골라 주세요.`; }
+    if (!isAdminEmail(r.user.email)){ await signOut(auth); $('#err').textContent = `${r.user.email}은 관리자 계정이 아니에요. 센메일(${ADMIN_EMAIL}) 또는 bellachord 구글 계정으로 골라 주세요.`; }
   } catch (e){
     if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')
       $('#err').textContent = e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요' : '구글 로그인을 하지 못했어요 (' + (e.code || e.message) + ')';

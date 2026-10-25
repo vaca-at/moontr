@@ -927,6 +927,8 @@ async function clearCollection(name) {
 /* ===================== 관리자 로그인 ===================== */
 // moontr.site 의 다른 앱과 같은 관리자 계정. 비밀번호는 코드에 적지 않아요
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
+const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
 const auth = firebase.auth();
 
 /* ===================== 설정 (공지) ===================== */
@@ -1253,7 +1255,7 @@ async function ad_checkAdminPw() {
 // 구글 계정으로 로그인 (관리자 센메일 계정만 들어갈 수 있어요)
 async function ad_googleLogin() {
   const p = new firebase.auth.GoogleAuthProvider();
-  p.setCustomParameters({ prompt: 'select_account', login_hint: ADMIN_EMAIL });
+  p.setCustomParameters({ prompt: 'select_account' });
   try {
     await auth.signInWithPopup(p);
   } catch (e) {
@@ -2333,8 +2335,8 @@ if (CURRENT_PAGE === 'student') {
   // 관리자 허브 등에서 이미 로그인돼 있으면 비밀번호 창 없이 바로 열어요
   auth.onAuthStateChanged(u => {
     if (!u) return;
-    if (u.email === ADMIN_EMAIL) ad_openAdmin();
-    else { auth.signOut(); ad_showMsg('관리자 계정(센메일)으로 로그인해 주세요.'); }
+    if (isAdminEmail(u.email)) ad_openAdmin();
+    else { auth.signOut(); ad_showMsg('관리자 계정(센메일 · bellachord)으로 로그인해 주세요.'); }
   });
 } else {
   document.body.style.background = '#12306B';   // 뽑기 화면은 끝까지 남색
