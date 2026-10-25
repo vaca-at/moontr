@@ -31,17 +31,13 @@
 - **새 웹앱에는 위쪽 새로고침 단추도 넣습니다**: `</body>` 바로 위에 `<script src="/refresh.js" defer></script>` (색은 `data-bg` · `data-fg`, 왼쪽은 `data-side="left"`). 관리자 허브 안에서는 저절로 숨어요. 아래 관리자 단추(`.admin-fab`)와 이용약관 · 개인정보처리방침도 꼭 있는지 확인합니다.
 - 학생용 입구에도 보여야 하면 대문 `index.html`의 `APPS` 목록에도 추가합니다.
 
-## 타이쿤(`/tycoon`)과 교무실 타이쿤(`/desk`, 예전 이름 '선생님 책상')은 시안을 같이 고칩니다
-- `tycoon/index.html` = 문쌤 한 사람의 하루 화면, `desk/index.html` = 같은 시안을 전국 선생님이 자기 시간표로 쓰는 웹앱입니다. **시안(그림 · 색 · 글씨 · 단추 목록 `TOP` · 한 줄 소개 `TIPS`)을 한쪽에서 고치면 다른 쪽도 같이 고치고, 두 파일을 각각 커밋 · 푸시합니다.**
-- desk 는 문쌤 학교에 맞춘 글자를 선생님 설정으로 바꿔 둡니다. tycoon 에서 옮겨 올 때 그대로 붙이지 말고 아래처럼 바꿉니다.
-  - `"1-10"`(담임 반) → `HR` (없을 수 있음, `HR && id === HR`), `"3-2 미도약"` 같은 이름 → `NAME(id)` · `SHORT(id)`
-  - `"문쌤"` → `ME`(닉네임), 영문 `moonssam` → `TAG`
-  - 11반 · 2층 1학년 · 4층 3학년 같은 층 배치 → `NCLS` · `FLOORS`(3층) · `FLOORS2`(2층) · `ORDER()` · `SPECIAL`(특별실), 학년 색은 `gradeColor(id)`
-  - `07:50` · `16:50` · `08:20` 같은 시각 → `dayEdge()`(출근 · 첫 종 · 마지막 종 · 퇴근), `BELL` · `TT`
-  - 예시 할 일 → `todoLines()` (선생님이 적은 오늘 할 일)
-  - 📝 메모 · ⭐ 즐겨찾기는 desk 에만 있어요 (`NOTES` · `LINKS` · `memoTop()` · 누르는 자리 `hot()`). 레트로 PC · 로파이 · 미니멀 위젯 · 3D 학교 · 보드게임 · 위클리 플래너 시안을 tycoon 에서 옮겨 올 때 이 부분은 지우지 말고 남겨 둡니다.
-  - desk 의 시안은 `makeStructs()` 안에서 만들어져 설정이 바뀔 때마다 다시 만들어지고, 3D 시안의 그림판은 `window.__desk3d` · `window.__desk3o` 하나씩만 씁니다.
-- 두 파일을 다른 에이전트(세션)가 동시에 고칠 수 있으니, 고치기 전에 `git pull`, 남이 고치던 파일은 건드리지 않고 고친 커밋 번호를 알려 줍니다.
+## 교무실 타이쿤은 `/tycoon` 하나입니다 (2026-10-26 desk 와 합침)
+- 예전에는 `tycoon`(문쌤 시간표가 박힌 시안판)과 `desk`(전국 선생님용 완성본) 두 파일이었는데, **desk 완성본을 그대로 `tycoon/index.html` 로 옮기고 주소만 `/tycoon` 으로 바꿨습니다.** 이제 고칠 곳은 `tycoon/index.html` 하나뿐입니다.
+- `desk/index.html` 은 예전 주소로 들어온 사람을 `/tycoon/`(뒤쪽 `?admin` · `#admin` 포함)으로 넘겨 주는 짧은 페이지만 남겨 둡니다. 지우지 마세요 (예전 링크 · 홈 화면 아이콘).
+- 이름은 예전 그대로 둡니다: Firestore `desk_users` · `desk_chats` 등, 브라우저 저장 `desk-struct` · `desk-pal` 등, 방문 수 `visit.js?app=desk`, 3D 그림판 `window.__desk3d` · `window.__desk3o`. 바꾸면 선생님들의 데스크탑 · 설정 · 방문 수가 끊겨요.
+- 문쌤도 로그인해서 자기 시간표를 넣어 씁니다 (코드에 시간표를 박지 않아요). 시안은 `makeStructs()` 안에서 만들어져 설정이 바뀔 때마다 다시 만들어지고, 담임 반 `HR` · 닉네임 `ME` · 영문 `TAG` · 층 배치 `NCLS` · `FLOORS` · `ORDER()` · 시각 `dayEdge()` · `BELL` · `TT` · 할 일 `todoLines()` 를 씁니다.
+- 📝 메모는 12개 시안 모두 게임 화면 오른쪽 아래 스티커(`#pins`, 📌 고정 최대 3개)로 띄우고, 메모 쪽지 모양은 시안 번호(`:root[data-s]`)를 따라 바뀝니다. 그림 안에는 메모를 그리지 않아요(`memoTop()` 은 null).
+- 다른 에이전트(세션)가 동시에 고칠 수 있으니, 고치기 전에 `git pull`, 고친 커밋 번호를 알려 줍니다.
 
 ## Firebase
 - 프로젝트: `moon-d528d` (moontr.site와 jinseon50th.com이 함께 씁니다).
