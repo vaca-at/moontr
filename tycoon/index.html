@@ -590,6 +590,14 @@ html.hudoff .hudb{opacity:0;pointer-events:none}
 .talk:focus-visible p{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:700px){ .talk{max-width:70cqw} .talk .tav{width:6cqw} }
 @media (prefers-reduced-motion: reduce){ .talk{transition:none} }
+/* 📄 PDF 뽑기 창 */
+.pdprev{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000;border:var(--box-b);border-radius:var(--box-r);margin:8px 0 4px}
+.pdopts{display:flex;flex-direction:column;gap:6px;font:14px var(--body)}
+.pdopts label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#pdBody .ap-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+#pdBody .ap-grid button{min-height:44px}
+@media (max-width:480px){ #pdBody .ap-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+.pdopts select{font:14px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:3px 6px}
 /* 🗓 학사일정 읽기 (⚙️ 설정 › 학교 일정) */
 .calimp{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 .calimp .btn{font-size:14px;padding:5px 10px}
@@ -864,6 +872,7 @@ const DRAW = {
         <button type="button" class="btn" id="bEdit">🕘 시간표</button>
         <button type="button" class="btn" id="bMemo">📝 메모</button>
         <button type="button" class="btn" id="bLinks">⭐ 즐겨찾기</button>
+        <button type="button" class="btn" id="bPdf">📄 PDF</button>
         <button type="button" class="btn" id="bChat">💬 관리자에게 묻기<i class="dot" id="chatDot" hidden></i></button>
         <button type="button" class="btn" id="bSet">⚙️ 설정<i class="dot" id="setDot" hidden></i></button>
         <button type="button" class="btn" id="bWall">🖥 바탕화면으로 쓰기</button>
@@ -1009,6 +1018,15 @@ const DRAW = {
   </div>
 </div>
 
+<!-- 📄 PDF 뽑기: 좋아하는 시안을 표지로 고르고 → 넣을 것 고르고 → 인쇄 창에서 'PDF로 저장' -->
+<div class="sheet" id="shPdf" hidden>
+  <div class="pane box" role="dialog" aria-modal="true" aria-labelledby="pdTitle">
+    <header><h2 id="pdTitle">📄 PDF로 뽑기</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+    <div class="body" id="pdBody"></div>
+    <div class="foot"><span class="note" id="pdMsg" role="status" style="margin:0;flex:1"></span><button type="button" class="big" id="pdGo">📄 PDF 만들기</button></div>
+  </div>
+</div>
+
 <!-- 로그인한 뒤 처음: 내 설정 넣기 (단계별) 또는 계속 둘러보기 -->
 <div class="sheet" id="shStart" hidden>
   <div class="pane box" role="dialog" aria-modal="true" aria-labelledby="ssTitle">
@@ -1123,7 +1141,7 @@ const DRAW = {
       <ol class="mstart"><li><b>로그인</b> 구글 또는 카카오로 시작해요. 둘 다 연결하면 어느 쪽으로 들어와도 같은 데스크탑이에요.</li><li><b>🕘 시간표</b> 요일별 시간표와 종 시간을 넣어요. 사진 · PDF · 엑셀 · 캡처를 올리면 AI가 표를 채워 줘요.</li><li><b>화면 고르기</b> 위 1~12 단추 가운데 마음에 드는 화면을 골라요.</li></ol>
 
       <h3>🎮 화면</h3>
-      <ul><li><b>1~12 단추</b> 화면 모양 12가지. 단추에 마우스를 올리면 짧은 소개가 떠요.</li><li><b>미리보기 시간</b> ×60 · ×600 으로 하루를 빨리 돌려 보거나, 월 아침 · 수 점심 같은 시각으로 건너뛰어요.</li><li><b>색</b> NEON 1 · 2, COZY 1 · 2</li><li><b>오른쪽 칸</b> NOW(지금) · TODAY(오늘 시간표) · FRIENDS(친한 선생님 위치) · SCHEDULE(학교 일정) · TO DO</li><li>게임 화면 왼쪽 위 = D-day, 오른쪽 아래 = 📌 고정 메모</li></ul>
+      <ul><li><b>1~12 단추</b> 화면 모양 12가지. 단추에 마우스를 올리면 짧은 소개가 떠요.</li><li><b>미리보기 시간</b> ×60 · ×600 으로 하루를 빨리 돌려 보거나, 월 아침 · 수 점심 같은 시각으로 건너뛰어요.</li><li><b>색</b> NEON 1 · 2, COZY 1 · 2</li><li><b>오른쪽 칸</b> NOW(지금) · TODAY(오늘 시간표) · FRIENDS(친한 선생님 위치) · SCHEDULE(학교 일정) · TO DO</li><li>위 줄 '지금' 옆 = D-day, 게임 화면 오른쪽 아래 = 📌 고정 메모</li><li><b>TO DO 순서</b> 할 일 왼쪽 ⠿ 를 잡고 위아래로 끌어요 (⠿ 에서 ↑ ↓ 키도 돼요)</li><li><b>📄 PDF</b> 좋아하는 시안을 표지로 골라 시간표 · TO DO 기록(오늘 · 이번 주 · 이번 달 · 전체) · 메모 · 학교 일정을 PDF로 저장하거나 인쇄해요. '전체'로 뽑으면 백업으로도 써요.</li></ul>
 
       <h3>🕘 시간표</h3>
       <ul><li><b>1. 요일별 시간표</b> 반은 1-3처럼, 특별실은 이름으로. 비우면 공강.</li><li><b>2. 종 시간</b> 조회 · 1교시 시작만 적고 [⚡ 자동으로 채우기]</li><li><b>3. 하루만 바꾸기</b> 보강 · 시험 · 행사일처럼 그날만 바뀌는 시간표</li><li><b>[+ 시간표 추가]</b> 친한 선생님 · 부장님 시간표를 탭으로 더해요. 그 선생님이 수업 중일 때 그 교실에 캐릭터로 보여요 (교무실은 빼요).</li><li>[저장]할 때마다 지난 시간표가 기록으로 남아요.</li></ul>
@@ -5798,6 +5816,112 @@ function ttTable(s){
   return h + `</table>`;
 }
 let ttHist = [], dayHist = [], histQ = "";
+
+/* ----- 📄 PDF 뽑기: 좋아하는 시안 그림을 표지로 + 시간표 · TO DO 기록 · 메모 · 학교 일정 → 인쇄 창에서 'PDF로 저장' ----- */
+// 시안마다 PDF 제목 · 줄 색 (원래 시안 번호 → 색). 없으면 파랑
+const PDF_ACC = { 1:"#3D6BFF", 22:"#B5835A", 5:"#E8743B", 15:"#4E9A4A", 21:"#6A4CE0", 11:"#008080", 8:"#3C8C4A", 6:"#E0663A", 7:"#2A9A6A", 10:"#C2553A", 18:"#0097B2", 9:"#E24C6A" };
+const PDF_OPT = { cover:true, tt:true, todo:true, span:"week", memo:true, ev:true };
+let pdfShot = "";
+// 고른 시안을 실제 화면에 띄우고, 한숨 돌린 뒤(3D 도 그려지게) 그 그림을 찍어 미리보기에 둬요
+function pdfSnap(){
+  pdfShot = ""; $("pdPrev") && ($("pdPrev").removeAttribute("src"));
+  clearTimeout(pdfSnap.t); pdfSnap.t = setTimeout(() => { try { pdfShot = cv.toDataURL("image/png"); if ($("pdPrev")) $("pdPrev").src = pdfShot; } catch (e) { pdfShot = ""; } }, 900);
+}
+function renderPdf(){
+  const o = shownOrder(), sp = PDF_OPT.span;
+  $("pdBody").innerHTML = `<div class="ap-sec">1. 표지로 쓸 시안</div>
+    <div class="ap-grid">${o.map(i => `<button type="button" class="${i === SI ? "on" : ""}" data-pdpick="${i}"><b>${i + 1}</b>${esc(STRUCTS[i].name)}</button>`).join("")}</div>
+    <img class="pdprev" id="pdPrev" alt="고른 시안 미리보기">
+    <p class="note" style="margin-top:0">지금 시각 그대로 찍혀요. 마음에 드는 순간에 [PDF 만들기]를 눌러 주세요.</p>
+    <div class="ap-sec">2. 넣을 것</div>
+    <div class="pdopts">
+      <label><input type="checkbox" data-pdo="cover" ${PDF_OPT.cover ? "checked" : ""}> 🎨 고른 시안 그림 (맨 앞 표지)</label>
+      <label><input type="checkbox" data-pdo="tt" ${PDF_OPT.tt ? "checked" : ""}> 🕘 내 시간표 (요일별 · 종 시간)</label>
+      <label><input type="checkbox" data-pdo="todo" ${PDF_OPT.todo ? "checked" : ""}> ✅ TO DO 기록
+        <select id="pdSpan" aria-label="TO DO 기간">${[["today", "오늘"], ["week", "이번 주"], ["month", "이번 달"], ["all", "전체 (백업용)"]].map(([k, t]) => `<option value="${k}" ${sp === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label><input type="checkbox" data-pdo="memo" ${PDF_OPT.memo ? "checked" : ""}> 📝 메모 (전부)</label>
+      <label><input type="checkbox" data-pdo="ev" ${PDF_OPT.ev ? "checked" : ""}> 🗓 학교 일정 · D-day</label>
+    </div>
+    <p class="note">인쇄 창이 뜨면 대상(프린터)을 <b>'PDF로 저장'</b>으로 바꾸면 파일로 남아요. 그대로 종이에 뽑아도 돼요.${NATIVE ? "<br>📱 앱에서는 인쇄 창이 안 열릴 수 있어요. 컴퓨터나 휴대폰 크롬에서 moontr.site/tycoon 으로 들어와 뽑아 주세요." : ""}</p>`;
+  pdfSnap();
+}
+$("bPdf").addEventListener("click", () => { $("pdMsg").textContent = demo ? "체험 중이에요 · 예시 선생님 내용으로 뽑혀요" : ""; renderPdf(); show("shPdf"); });
+$("pdBody").addEventListener("click", e => {
+  const b = e.target.closest("[data-pdpick]"); if (!b) return;
+  pick(+b.dataset.pdpick); $("pdBody").querySelectorAll("[data-pdpick]").forEach(x => x.classList.toggle("on", x === b)); pdfSnap();
+});
+$("pdBody").addEventListener("change", e => {
+  if (e.target.dataset.pdo) PDF_OPT[e.target.dataset.pdo] = e.target.checked;
+  if (e.target.id === "pdSpan"){ PDF_OPT.span = e.target.value; const c = $("pdBody").querySelector('[data-pdo="todo"]'); if (c && !c.checked){ c.checked = true; PDF_OPT.todo = true; } }
+});
+// TO DO 기록: 고른 기간의 날짜들 (오늘 칸은 지금 화면에 있는 그대로)
+async function pdfDays(span){
+  const t = new Date(), today = dkey(t);
+  const from = span === "today" ? today : span === "week" ? dkey(new Date(t.getFullYear(), t.getMonth(), t.getDate() - ((t.getDay() + 6) % 7))) : span === "month" ? today.slice(0, 8) + "01" : "";
+  let list = [];
+  if (demo || !deskId) list = dayKey === todayKey ? [{ k:today, todos:dayData.todos, memo:dayData.memo }] : [];
+  else list = (await getDocs(collection(db, "desk_users", deskId, "days"))).docs.map(d => ({ k:d.id, todos:d.data().todos || [], memo:d.data().memo || "" }));
+  if (dayKey === todayKey && !list.some(x => x.k === today)) list.push({ k:today, todos:dayData.todos, memo:dayData.memo });
+  return list.map(x => x.k === today && dayKey === todayKey ? { k:today, todos:dayData.todos, memo:dayData.memo } : x)
+    .filter(x => (x.todos.length || x.memo) && x.k >= from && (span === "all" || x.k <= today)).sort((a, b) => a.k.localeCompare(b.k));
+}
+function pdfTimetable(){
+  const days = [1, 2, 3, 4, 5], tt = typeof BASE_TT === "object" ? BASE_TT : {};
+  if (!BELL.length) return `<p class="muted">시간표가 아직 없어요.</p>`;
+  return `<table><tr><th>교시</th><th>시간</th>${days.map(d => `<th>${DOW[d]}</th>`).join("")}</tr>${BELL.map(([p, a, b]) => {
+    const cls = /\d/.test(p);
+    return `<tr><th>${cls ? p + "교시" : esc(p)}</th><td class="tm">${a}~${b}</td>${days.map(d => {
+      const r = cls ? (tt[d] || {})[p] || "" : p === "조회" || p === "종례" ? HR : "";
+      return `<td class="${r && r === HR ? "hr" : ""}">${esc(r ? (cls ? NAME(r) : r) : "")}</td>`; }).join("")}</tr>`; }).join("")}</table>`;
+}
+$("pdGo").addEventListener("click", async () => {
+  const O = PDF_OPT, msg = $("pdMsg");
+  if (!O.cover && !O.tt && !O.todo && !O.memo && !O.ev){ msg.textContent = "넣을 것을 하나 이상 골라 주세요"; return; }
+  msg.textContent = "만드는 중…";
+  if (O.cover && !pdfShot){ try { pdfShot = cv.toDataURL("image/png"); } catch (e) {} }
+  let days = [];
+  if (O.todo){ try { days = await pdfDays(O.span); } catch (e){ msg.textContent = "TO DO 기록을 불러오지 못했어요 · 인터넷을 확인해 주세요"; return; } }
+  const acc = PDF_ACC[TOP[SI]] || "#3D6BFF", nm = ME || "선생님", now = new Date(), stamp = `${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}.`;
+  const spanName = { today:"오늘", week:"이번 주", month:"이번 달", all:"전체" }[O.span];
+  const evs = ((cfg && cfg.events) || []).filter(e => e.d >= dkey(now)).sort((a, b) => a.d.localeCompare(b.d));
+  const dd = cfg && cfg.dday && cfg.dday.d && cfg.dday.t ? cfg.dday : null;
+  const parts = [];
+  if (O.cover && pdfShot) parts.push(`<section class="cover"><img src="${pdfShot}" alt=""><p class="cap">${SI + 1}. ${esc(STRUCTS[SI].name)} · ${stamp} ${hhmm(now.getHours()*60 + now.getMinutes())}</p></section>`);
+  if (O.tt) parts.push(`<section><h2>🕘 내 시간표</h2>${pdfTimetable()}${HR ? `<p class="muted">색 글씨 = 우리 반 ${esc(HR)}</p>` : ""}</section>`);
+  if (O.todo) parts.push(`<section><h2>✅ TO DO 기록 · ${spanName}</h2>${days.length ? days.map(x => `<div class="day"><div class="dh"><b>${dayLabel(x.k)}</b><span>${x.todos.filter(t => t.d).length} / ${x.todos.length} 끝냄</span></div>
+      ${x.todos.length ? `<ul>${x.todos.map(t => `<li class="${t.d ? "done" : ""}"><i>${t.d ? "☑" : "☐"}</i>${esc(t.t)}</li>`).join("")}</ul>` : ""}${x.memo ? `<p class="dm">${esc(x.memo)}</p>` : ""}</div>`).join("") : `<p class="muted">이 기간에 적은 할 일이 없어요.</p>`}</section>`);
+  if (O.memo) parts.push(`<section><h2>📝 메모</h2>${notes.length ? `<div class="notes">${notes.map(n => `<div class="nt" style="background:${NOTE_BG[n.color] || NOTE_BG.y}">${n.pin ? "📌 " : ""}<b>${esc(n.title || "")}</b><p>${esc(n.t || "")}</p></div>`).join("")}</div>` : `<p class="muted">메모가 없어요.</p>`}</section>`);
+  if (O.ev) parts.push(`<section><h2>🗓 학교 일정</h2>${dd ? `<p><b>D-day</b> ${esc(dd.t)} · ${esc(dd.d)}</p>` : ""}${evs.length ? `<table class="ev">${evs.map(e => `<tr><td class="tm">${esc(e.d)}</td><td style="text-align:left">${esc(e.t)}</td></tr>`).join("")}</table>` : `<p class="muted">앞으로 남은 일정이 없어요.</p>`}</section>`);
+  const title = `교무실 타이쿤 - ${nm} - ${dkey(now)}`;
+  const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+    @page{size:A4;margin:14mm 13mm}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+    body{margin:0;font:10.5pt/1.55 'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#1E1E28;word-break:keep-all}
+    header{display:flex;align-items:baseline;gap:10px;border-bottom:3px solid ${acc};padding-bottom:3mm;margin-bottom:5mm}
+    header h1{margin:0;font-size:19pt;color:${acc}} header span{color:#666;font-size:10pt} header .sp{flex:1}
+    .cover{margin-bottom:6mm} .cover img{display:block;width:100%;border-radius:2.5mm;border:1px solid #CCD} .cap{margin:1.5mm 0 0;color:#777;font-size:9pt;text-align:right}
+    h2{font-size:13pt;margin:7mm 0 3mm;padding-left:3mm;border-left:5px solid ${acc};break-after:avoid}
+    table{border-collapse:collapse;width:100%;font-size:10pt;break-inside:avoid;table-layout:fixed} table:not(.ev) tr>:first-child{width:11%} table:not(.ev) tr>:nth-child(2){width:17%} table.ev td:first-child{width:24%} th,td{border:1px solid #C9CDD8;padding:1.6mm 2mm;text-align:center}
+    th{background:${acc}1F} td.tm{color:#666;white-space:nowrap;font-size:9pt} td.hr{color:${acc};font-weight:700}
+    .day{break-inside:avoid;border:1px solid #D8DBE4;border-radius:2mm;padding:2.5mm 3.5mm;margin-bottom:3mm}
+    .dh{display:flex;justify-content:space-between;border-bottom:1px dashed #D8DBE4;padding-bottom:1mm;margin-bottom:1.5mm} .dh span{color:#777;font-size:9pt}
+    ul{list-style:none;margin:0;padding:0} li{padding:.4mm 0} li i{font-style:normal;color:${acc};margin-right:2mm} li.done{color:#888;text-decoration:line-through}
+    .dm{margin:1.5mm 0 0;padding:1.5mm 2.5mm;background:#F4F5F8;border-radius:1.5mm;white-space:pre-wrap;font-size:9.5pt}
+    .notes{display:grid;grid-template-columns:1fr 1fr;gap:3mm} .nt{break-inside:avoid;border-radius:2mm;padding:3mm;border:1px solid rgba(0,0,0,.08)} .nt p{margin:1mm 0 0;white-space:pre-wrap;font-size:9.5pt}
+    .muted{color:#888}
+    footer{margin-top:8mm;color:#AAA;font-size:8pt;text-align:center}
+  </style></head><body><header><h1>${esc(nm)} 선생님의 하루</h1><span class="sp"></span><span>교무실 타이쿤 · ${stamp}</span></header>${parts.join("")}<footer>moontr.site/tycoon</footer></body></html>`;
+  // 숨은 틀에 문서를 만들어 그 틀만 인쇄해요 (그림이 다 뜬 뒤에)
+  document.getElementById("pdFrame")?.remove();
+  const fr = document.createElement("iframe"); fr.id = "pdFrame"; fr.setAttribute("aria-hidden", "true"); fr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(fr);
+  const fd = fr.contentDocument; fd.open(); fd.write(html); fd.close();
+  await Promise.all([...fd.images].map(i => i.decode ? i.decode().catch(() => {}) : null));
+  const keep = document.title; document.title = title;   // 저장할 때 파일 이름이 이 제목으로
+  try { fr.contentWindow.focus(); fr.contentWindow.print(); msg.textContent = "인쇄 창에서 'PDF로 저장'을 골라 주세요 ✓"; }
+  catch (e){ msg.textContent = "인쇄 창을 열지 못했어요. 컴퓨터 크롬 · 엣지에서 다시 해 주세요"; }
+  setTimeout(() => { document.title = keep; }, 1500);
+});
 const sure = (b, label, again) => { if (b.dataset.sure === "1") return true; b.dataset.sure = "1"; const was = b.textContent; b.textContent = again || "한 번 더 누르면 지워요"; setTimeout(() => { if (b.isConnected){ b.dataset.sure = ""; b.textContent = was; } }, 3000); return false; };
 async function renderHist(){
   const box = $("setBody");
