@@ -536,6 +536,20 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
 .alist .wait{color:var(--hi);font-size:12px}
 .agrid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,1.6fr);gap:12px}
 @media (max-width:700px){ .agrid{grid-template-columns:1fr} }
+/* 💬 캐릭터 한마디: 게임 화면 왼쪽 아래 말풍선 (잠깐 떴다가 사라져요, 누르면 다음 말) */
+.talk{position:absolute;left:1.4cqw;bottom:1.4cqw;z-index:3;display:flex;align-items:flex-end;gap:.6cqw;max-width:46cqw;line-height:1.35;cursor:pointer;transition:opacity .4s,transform .4s}
+.talk.off{opacity:0;transform:translateY(6px);pointer-events:none}
+.talk .tav{flex:none;width:3.4cqw;min-width:22px;filter:drop-shadow(0 1px 0 rgba(0,0,0,.5))}
+.talk .tav svg{display:block;width:100%;height:auto}
+.talk p{position:relative;margin:0 0 1.2cqw;padding:.7cqw 1.1cqw;background:#FFFFFF;color:#1E1E28;border:2px solid #1E1E28;border-radius:1cqw;font:700 clamp(11px,1.25cqw,15px)/1.4 'Noto Sans KR','Malgun Gothic',sans-serif;box-shadow:0 2px 0 rgba(0,0,0,.35);word-break:keep-all}
+.talk p::before{content:"";position:absolute;left:-7px;bottom:7px;border:6px solid transparent;border-right-color:#1E1E28;border-left:0}
+.talk p::after{content:"";position:absolute;left:-4px;bottom:8px;border:5px solid transparent;border-right-color:#FFFFFF;border-left:0}
+.talk:focus-visible p{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:700px){ .talk{max-width:70cqw} .talk .tav{width:6cqw} }
+@media (prefers-reduced-motion: reduce){ .talk{transition:none} }
+/* 🗓 학사일정 읽기 (⚙️ 설정 › 학교 일정) */
+.calimp{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.calimp .btn{font-size:14px;padding:5px 10px}
 </style>
 </head><body>
 
@@ -578,7 +592,7 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
   </header>
   <div class="main" id="main">
     <section class="mapcol" id="mapcol">
-      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div></div>
+      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div><div class="talk off" id="talk" role="status" aria-live="polite" tabindex="0" title="누르면 다른 말"><span class="tav" id="talkAv"></span><p id="talkT"></p></div></div>
       <button type="button" class="bigbtn" id="bBig" aria-label="게임 화면 크게 보기">⛶ 크게 보기</button>
       <p class="padtip" id="padTip">📱 아이패드는 <b>가로로</b> 돌리면 게임 화면이 더 크게 보여요</p>
     </section>
@@ -638,6 +652,8 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
           <tr><td>선생님이 넣은 것: 학교급 · 학년 수 · 반 수 · 담임 반, 종 시간 · 출퇴근 시각 · 시간표, 할 일 · 메모</td><td>게임 화면과 할 일 보여 주기</td></tr>
           <tr><td>[💬 관리자에게 묻기]에 쓴 글</td><td>문의 답변</td></tr>
           <tr><td>시간표 자료(사진 · PDF · 엑셀 · 캡처)와, 학교 전체 시간표일 때 적은 내 이름 — 선생님이 올릴 때만</td><td>AI가 시간표 칸을 읽어 표를 채워 주기. 읽은 뒤 바로 버리고 저장하지 않아요</td></tr>
+          <tr><td>학사일정 자료(사진 · PDF · 엑셀 · 캡처) — 선생님이 올릴 때만</td><td>AI가 날짜 · 행사를 읽어 학교 일정 목록에 더해 주기. 읽은 뒤 바로 버리고 저장하지 않아요</td></tr>
+          <tr><td>💬 캐릭터 한마디를 켜 두면 하루 한 번: 요일 · 교시별 수업 반 · 날씨 · D-day 이름 · 남은 할 일 개수 (할 일 글 · 이름 · 메모는 보내지 않아요)</td><td>AI가 오늘 하루에 맞는 짧은 말을 만들기. 만든 말은 이 기기에만 두고, 보낸 내용은 저장하지 않아요. ⚙️ 설정에서 끌 수 있어요</td></tr>
           <tr><td>가입일 · 마지막 접속일 · 연결한 로그인 종류(구글/카카오)</td><td>이용 현황 확인</td></tr>
           <tr><td>방문 수 (오늘 · 누적 횟수, 기기는 이름 없는 무작위 번호로만 구분)</td><td>몇 명이 쓰는지 확인</td></tr>
         </table>
@@ -654,7 +670,7 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
           <tr><th>받는 곳</th><th>하는 일</th><th>나라 · 방법</th></tr>
           <tr><td>Google LLC (Firebase)</td><td>로그인 처리 · 기록 저장</td><td>미국 등 구글 서버, 쓸 때마다 인터넷으로 암호화해 보냄. 내 데스크탑을 지울 때까지 보관</td></tr>
           <tr><td>(주)카카오</td><td>카카오 로그인 확인</td><td>대한민국, 로그인할 때</td></tr>
-          <tr><td>Cloudflare, Inc. · Anthropic PBC</td><td>올린 시간표 자료를 AI(Claude)로 읽기 (중계 · 읽기)</td><td>미국 등, 자료를 올릴 때만 암호화해 보냄. 읽은 뒤 저장하지 않음</td></tr>
+          <tr><td>Cloudflare, Inc. · Anthropic PBC</td><td>올린 시간표 · 학사일정 자료를 AI(Claude)로 읽기, 캐릭터 한마디 만들기 (중계 · 읽기)</td><td>미국 등, 자료를 올릴 때와 하루 한 번 한마디를 만들 때만 암호화해 보냄. 읽은 뒤 저장하지 않음</td></tr>
         </table>
         <ul><li>위 경우 말고는 다른 곳에 주거나 팔지 않고, 광고에 쓰지 않아요.</li></ul>
         <h5>5. 선생님의 권리</h5>
@@ -664,7 +680,7 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
         <ul><li>모든 연결은 https 로 암호화하고, 기록은 본인 계정으로만 읽고 쓰게 막아 두었어요.</li></ul>
         <h5>7. 개인정보 보호 책임자</h5>
         <ul><li>운영자 문쌤 (moontr.site) · anstjsdud@sen.go.kr</li></ul>
-        <p class="small">시행일 2026년 10월 25일 (같은 날 영문 이름 · AI 시간표 읽기 항목 추가, 실명은 받지 않기로 바꿈) · 바뀌면 이 화면에 먼저 알려요. 법률 전문가의 검토를 받은 문서는 아니에요. 고칠 점이 있으면 알려 주세요.</p>
+        <p class="small">시행일 2026년 10월 25일 (같은 날 영문 이름 · AI 시간표 읽기 항목 추가, 실명은 받지 않기로 바꿈 · 10월 26일 AI 학사일정 읽기 · 캐릭터 한마디 추가) · 바뀌면 이 화면에 먼저 알려요. 법률 전문가의 검토를 받은 문서는 아니에요. 고칠 점이 있으면 알려 주세요.</p>
       </div>
     </details>
   </footer>
@@ -4463,6 +4479,155 @@ document.addEventListener("paste", e => {
   else if (e.target && e.target.id === "pasteBox"){ e.preventDefault(); impSay("그림이 아니라 글이 붙여졌어요. 시간표를 그림으로 캡처해서 붙여 넣어 주세요."); }
 });
 
+/* ---------- 🗓 학사일정 한 번에 넣기 (⚙️ 설정 › 학교 일정) ----------
+   학사일정표(사진 · PDF · 엑셀 · 캡처)를 family-spell 워커로 보내면 AI(Claude)가 날짜 · 행사만 읽어 아래 일정 목록에 더해요.
+   자료는 읽고 바로 버려요. 선생님마다 하루 5번까지. 더한 뒤 [나와 학교 · 일정 저장]을 눌러야 저장돼요 */
+let calBusy = false, calMsg = "";
+const calSay = (t, busy) => { calMsg = t; const el = $("calSt"); if (el){ el.textContent = t; el.classList.toggle("busy", !!busy); } };
+async function calImport(kind, file){
+  if (!file || calBusy || !sEv) return;
+  if (demo || !user){ calSay("학사일정 읽기는 로그인한 뒤에 쓸 수 있어요. 체험 중에는 아래에 직접 적어 보세요."); return; }
+  calBusy = true;
+  try {
+    let payload;
+    if (kind === "xlsx"){ calSay("엑셀을 읽는 중…", true); payload = { text:await sheetText(file) }; if (!payload.text.trim()) throw new Error("엑셀에 글자가 없어요"); }
+    else if (kind === "pdf"){ if (file.size > 6e6) throw new Error("PDF 가 너무 커요 (6MB 까지). 학사일정 쪽만 캡처해서 붙여 넣어 주세요"); payload = { pdf:await readURL(file) }; }
+    else { if (!/^image\//.test(file.type)) throw new Error("그림 파일이 아니에요"); payload = { image:await shrinkImage(file) }; }
+    calSay("AI가 학사일정을 읽는 중이에요… (10~40초)", true);
+    const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"deskcal", ...payload }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.msg || (r.status === 429 ? "AI가 바빠요. 조금 뒤에 다시 해 주세요" : `읽지 못했어요 (${j.error || r.status})`));
+    if (!j.ok || !(j.events || []).length) throw new Error(j.note || "학사일정을 찾지 못했어요. 날짜가 잘 보이게 다시 올려 주세요");
+    // 지금 목록과 합쳐요: 지난 일정 · 이미 있는 것(같은 날 같은 이름)은 빼고, 날짜 순서로 60개까지
+    const today = dkey(new Date()), seen = new Set(sEv.map(e => e.d + "|" + e.t));
+    const add = j.events.filter(e => e.d >= today && !seen.has(e.d + "|" + e.t));
+    sEv = [...sEv.filter(e => e.d || e.t), ...add].sort((a, b) => (a.d || "9").localeCompare(b.d || "9")).slice(0, 60);
+    calMsg = add.length ? `✓ ${add.length}개를 아래 목록에 더했어요. 날짜를 확인하고 [나와 학교 · 일정 저장]을 눌러 주세요.${j.note ? " (" + j.note + ")" : ""}` : "새로 더할 일정이 없어요 (모두 지난 일정이거나 이미 있어요).";
+    renderSet();
+  } catch (e){ calSay("⚠️ " + (e.message || e)); }
+  calBusy = false;
+}
+$("setBody").addEventListener("click", async e => {
+  const b = e.target.closest("[data-cal]"); if (!b) return;
+  const k = b.dataset.cal;
+  if (k === "photo") $("cPhoto").click(); else if (k === "pdf") $("cPdf").click(); else if (k === "xlsx") $("cXlsx").click();
+  else {
+    // 캡처 붙여넣기: 먼저 클립보드에서 바로 꺼내 보고, 안 되면 붙여 넣을 칸을 보여 줘요
+    try {
+      for (const it of await navigator.clipboard.read()){ const t = it.types.find(x => x.startsWith("image/")); if (t){ const blob = await it.getType(t); return calImport("paste", new File([blob], "capture.png", { type:t })); } }
+      calSay("클립보드에 그림이 없어요. 학사일정을 캡처(윈도우: Win+Shift+S)한 뒤 다시 눌러 주세요.");
+    } catch (e2){ $("calPaste").hidden = false; $("calPaste").focus(); calSay("아래 칸을 누르고 Ctrl+V(휴대폰은 길게 눌러 붙여넣기) 해 주세요."); }
+  }
+});
+$("setBody").addEventListener("change", e => {
+  if (e.target.id === "talkOn"){ try { localStorage.setItem("desk-talk", e.target.checked ? "1" : "0"); } catch (e2) {} if (e.target.checked) talkShow(true); else $("talk").classList.add("off"); return; }
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const k = e.target.id === "cPdf" ? "pdf" : e.target.id === "cXlsx" ? "xlsx" : e.target.id === "cPhoto" ? "photo" : ""; if (!k) return;
+  calImport(k, f); e.target.value = "";
+});
+// ⚙️ 설정 › 계정이 열려 있을 때 캡처를 붙여 넣으면 학사일정으로 읽어요 (글을 붙여 넣는 칸은 그대로)
+document.addEventListener("paste", e => {
+  if ($("shSet").hidden || !$("calPaste")) return;
+  const it = [...(e.clipboardData ? e.clipboardData.items : [])].find(x => x.type.startsWith("image/"));
+  if (it){ e.preventDefault(); calImport("paste", it.getAsFile()); }
+  else if (e.target && e.target.id === "calPaste"){ e.preventDefault(); calSay("그림이 아니라 글이 붙여졌어요. 학사일정을 그림으로 캡처해서 붙여 넣어 주세요."); }
+});
+
+/* ---------- 💬 캐릭터 한마디 ----------
+   게임 화면 왼쪽 아래 말풍선. 지금 상황(출근 · 곧 수업 · 수업 중 · 공강 · 쉬는 시간 · 점심 · 연속 수업 · 마지막 · 퇴근 · 주말 · 비 · D-day · 할 일)에 맞는 말을 12초 띄워요.
+   상황이 바뀔 때와 12분마다 새 말, 누르면 다른 말. 로그인한 선생님은 하루 한 번 AI(Claude Haiku)가 오늘 하루에 맞춘 말을 만들어 이 기기에 둬요
+   (보내는 것: 요일 · 교시별 반 · 날씨 · D-day 이름 · 남은 할 일 개수. 할 일 글 · 이름은 안 보내요). AI가 안 되면 아래 기본 말을 써요. ⚙️ 설정 › 내 캐릭터에서 끄고 켜요 */
+const TALK_BASE = {
+  arrive:["좋은 아침이에요! 오늘도 같이 가 봐요", "커피 한 잔 하고 시작해요 ☕", "오늘 수업 {n}개, 천천히 해 봐요"],
+  beforeClass:["{next} 가요! 출석부 챙기셨죠?", "곧 종 쳐요, {next}로 출발!", "다음은 {next}, 화이팅!"],
+  inClass:["수업 중… 목 아끼면서 해요", "지금 {room}에서 열일 중!", "{left}분만 더 힘내요"],
+  free:["공강이에요. 숨 한 번 돌려요", "공강엔 미뤄 둔 일 하나만!", "물 한 잔 마시고 와요"],
+  brk:["쉬는 시간! 잠깐 기지개 켜요", "10분의 평화… 소중해요", "교무실 의자가 반가워요"],
+  lunch:["점심시간! 맛있게 드세요 🍚", "오늘 급식 뭐예요?", "밥 먹고 잠깐 산책 어때요?"],
+  streak:["{k}시간 연속 수업, 대단해요!", "목소리 괜찮아요? 물 꼭 마셔요", "연속 수업 버텼다! 잠깐 쉬어요"],
+  last:["마지막까지 왔어요, 거의 다 했어요!", "조금만 더 하면 끝이에요", "오늘도 고생 많았어요"],
+  after:["퇴근! 오늘도 수고했어요", "집에서는 일 생각 금지예요", "푹 쉬고 내일 만나요 🌙"],
+  weekend:["주말이에요, 푹 쉬어요", "이번 주도 정말 고생했어요", "월요일 일은 월요일에 생각해요"],
+  dday:["{dday}까지 D-{dn}!", "{dday} 얼마 안 남았어요", "D-{dn}, 차근차근 준비해요"],
+  rain:["비 와요, 우산 챙겼어요? ☔", "비 오는 날엔 교실이 조금 들떠요", "창밖에 비, 수업은 차분하게"],
+  todo:["할 일 {todo}개 남았어요, 하나만 해 볼까요?", "체크리스트 {todo}개! 거의 다 왔어요", "남은 할 일 {todo}개, 할 수 있어요"]
+};
+const TALK_KEY = "desk-talk-lines", talkOn = () => { try { return localStorage.getItem("desk-talk") !== "0"; } catch (e) { return true; } };
+let talkAI = null, talkLoading = false, talkTried = "", talkLast = "", talkShownAt = 0, talkKeyNow = "", talkHide = null, talkI = 0;
+const talkWet = () => WEATHER && WEATHER.code >= 51;
+const talkLeftTodo = () => (TODOS || []).filter(x => !x.d).length;
+// 지금까지 연달아 한 수업 수 (점심이나 공강이 끼면 끊겨요)
+function talkStreak(d){
+  const day = d.getDay(), m = d.getHours()*60 + d.getMinutes(), tt = TT[day] || {}; let k = 0;
+  for (const [p, , b] of [...BELL].reverse()){ if (mm(b) > m) continue; if (p === "점심") break; if (!/\d/.test(p)) continue; if (tt[p]) k++; else break; }
+  return k;
+}
+function talkSituation(st, d){
+  const day = d.getDay(), tt = TT[day] || {};
+  if (day === 0 || day === 6) return "weekend";
+  if (st.place === "home") return st.slot === "퇴근 후" ? "after" : "arrive";
+  if (st.slot === "출근" || st.p === "조회") return "arrive";
+  if (st.lunch) return "lunch";
+  if (st.p === "종례" || st.slot === "정리") return "last";
+  if (st.brk) return st.go ? "beforeClass" : talkStreak(d) >= 3 ? "streak" : "brk";
+  if (st.p && /\d/.test(st.p)){ if (!tt[st.p]) return "free"; return BELL.some(([p, a]) => /\d/.test(p) && mm(a) > st.m && tt[p]) ? "inClass" : "last"; }
+  return "brk";
+}
+// 오늘 하루 모양 (AI 에게 보내는 것 — 학생 · 할 일 글은 빼요)
+function talkDay(){
+  const d = new Date(), day = d.getDay(), tt = TT[day] || {};
+  const per = BELL.filter(([p]) => /\d/.test(p)).map(([p]) => `${p}교시 ${tt[p] ? tt[p] : "공강"}`).join(", ");
+  const wx = WEATHER ? `${WEATHER.code >= 71 && WEATHER.code <= 86 ? "눈" : WEATHER.code >= 51 ? "비" : WEATHER.code >= 45 ? "안개" : WEATHER.code >= 2 ? "흐림" : "맑음"} ${WEATHER.temp}도` : "";
+  return [`${DAYS[day]}요일`, day === 0 || day === 6 ? "주말" : `수업 ${Object.keys(tt).length}개 (${per})`, HR ? "담임 반 있음" : "", wx ? "날씨: " + wx : "", DDAY && DDAY.n >= 0 ? `D-day: ${DDAY.t} D-${DDAY.n}` : "", `남은 할 일 ${talkLeftTodo()}개`].filter(Boolean).join("\n");
+}
+async function talkLoad(){
+  const k = (deskId || "") + "|" + dkey(new Date());
+  if (talkTried === k || talkLoading) return;
+  talkTried = k;
+  try { const c = JSON.parse(localStorage.getItem(TALK_KEY) || "null"); if (c && c.k === k && c.lines){ talkAI = c.lines; return; } } catch (e) {}
+  talkLoading = true;
+  try {
+    const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"deskline", day:talkDay() }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.lines && Object.values(j.lines).some(a => a.length)){ talkAI = j.lines; try { localStorage.setItem(TALK_KEY, JSON.stringify({ k, lines:j.lines })); } catch (e) {} }
+  } catch (e) {}
+  talkLoading = false;
+}
+function talkLine(key, st, d){
+  const tt = TT[d.getDay()] || {}, nx = BELL.find(([p, a]) => /\d/.test(p) && mm(a) > st.m && tt[p]);
+  const v = { n:String(Object.keys(tt).length), next:nx ? `${nx[0]}교시 ${tt[nx[0]]}` : "", room:st.place && st.place !== "office" && st.place !== "home" ? st.place : "",
+    left:st.e < 1440 ? String(Math.max(1, Math.ceil(st.e - st.m))) : "", k:String(talkStreak(d)), dday:DDAY ? DDAY.t : "", dn:DDAY ? String(DDAY.n) : "", todo:String(talkLeftTodo()) };
+  const fill = s => s.replace(/\{(\w+)\}/g, (_, x) => v[x] || "\u0000");
+  // AI 말이 있으면 그걸 먼저 쓰고, 기본 말은 지금 정보(다음 교실 · 남은 분 …)가 들어가는 것만 섞어요
+  const ai = (talkAI && talkAI[key]) || [], base = (TALK_BASE[key] || []).filter(s => !ai.length || /\{\w+\}/.test(s));
+  const pool = [...ai, ...base].map(fill).filter(s => !s.includes("\u0000"));
+  if (!pool.length) return "오늘도 화이팅!";
+  const left = pool.filter(s => s !== talkLast);
+  return (left.length ? left : pool)[talkI++ % (left.length || pool.length)];
+}
+function talkShow(next){
+  const el = $("talk"); if (!el) return;
+  if (!talkOn()){ el.classList.add("off"); return; }
+  const d = simNow(), st = stateAt(d); let key = talkSituation(st, d);
+  // 가끔은 날씨 · D-day · 할 일 이야기 (그 상황일 때만)
+  const extra = [talkWet() && key !== "after" && "rain", DDAY && DDAY.n >= 0 && DDAY.n <= 7 && "dday", talkLeftTodo() && ["free", "brk", "after"].includes(key) && "todo"].filter(Boolean);
+  if (extra.length && (next || Math.random() < .35)) key = extra[Math.floor(Math.random()*extra.length)];
+  talkLast = talkLine(key, st, d);
+  $("talkT").textContent = talkLast;
+  $("talkAv").innerHTML = window.DESK.avatarSvg((cfg && cfg.avatar) || 0);
+  el.classList.remove("off"); talkShownAt = Date.now();
+  clearTimeout(talkHide); talkHide = setTimeout(() => { if (!el.matches(":hover")) el.classList.add("off"); }, 12000);
+}
+$("talk").addEventListener("click", () => talkShow(true));
+$("talk").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); talkShow(true); } });
+$("talk").addEventListener("mouseleave", () => { if (Date.now() - talkShownAt > 12000) $("talk").classList.add("off"); });
+// 2초마다 상황을 보고, 바뀌었거나 12분이 지났으면 새 말 (처음은 화면이 열리고 3초 뒤)
+setTimeout(() => setInterval(() => {
+  if (user && deskId && cfg && !demo) talkLoad();
+  const d = simNow(), key = talkSituation(stateAt(d), d);
+  if (key !== talkKeyNow || Date.now() - talkShownAt > 12*60000){ talkKeyNow = key; talkShow(false); }
+}, 2000), 3000);
+
 /* ---------- 다른 로그인 확인용 두 번째 연결 (지금 로그인은 그대로 둬요) ---------- */
 async function otherLogin(kind, cred){
   const app2 = initializeApp(firebaseConfig, "other" + Date.now());
@@ -4624,6 +4789,11 @@ function schoolForm(){
     <div class="sec">학교 위치 · 진짜 날씨</div>    <p class="note">교실 창가 책상 화면의 창밖이 이 동네의 진짜 날씨(비 · 눈 · 흐림 · 기온)로 바뀌어요. 시 · 군 이름과 대략 위치만 저장해요.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><select id="sLoc" aria-label="학교 위치">${locOpts(c.loc)}</select><button type="button" class="btn" id="sLocGps">📍 지금 있는 곳으로</button><span class="note" id="sLocMsg" style="margin:0">${c.loc ? `지금: ${esc(c.loc.name)}` : "아직 안 골랐어요"}</span></div>
     <div class="sec">학교 일정 · D-day</div>    <p class="note">D-day 하나는 게임 화면 왼쪽 위에, 일정은 오른쪽 SCHEDULE 칸에 앞으로 남은 것만 보여요.</p>
+    <p class="note" style="margin-bottom:0"><b>🗓 학사일정 한 번에 넣기</b> — 학교 학사일정표(사진 · PDF · 엑셀 · 화면 캡처)를 올리면 AI가 날짜와 행사를 읽어 아래 목록에 더해요. 확인하고 [저장]을 눌러 주세요. (하루 5번까지)</p>
+    <div class="calimp"><button type="button" class="btn" data-cal="photo">📷 사진</button><button type="button" class="btn" data-cal="pdf">📄 PDF</button><button type="button" class="btn" data-cal="xlsx">📊 엑셀</button><button type="button" class="btn" data-cal="paste">📋 캡처 붙여넣기</button>
+      <input type="file" id="cPhoto" accept="image/*" hidden><input type="file" id="cPdf" accept="application/pdf,.pdf" hidden><input type="file" id="cXlsx" accept=".xlsx,.xls,.csv" hidden></div>
+    <div class="pastebox" id="calPaste" contenteditable="true" hidden aria-label="캡처한 학사일정을 여기에 붙여 넣기">여기를 누르고 붙여 넣으세요 (Ctrl+V · 휴대폰은 길게 눌러 '붙여넣기')</div>
+    <p class="impst" id="calSt" role="status">${esc(calMsg)}</p>
     <div class="evrow"><input type="date" id="sDdD" value="${esc(sDd.d || "")}" aria-label="D-day 날짜"><input id="sDdT" maxlength="20" placeholder="D-day 이름 (예: 기말고사)" value="${esc(sDd.t || "")}"><button type="button" class="ibtn" id="sDdX" aria-label="D-day 지우기">✕</button></div>
     <div id="sEvList">${sEv.map((e, i) => `<div class="evrow"><input type="date" data-sevd="${i}" value="${esc(e.d || "")}" aria-label="일정 날짜"><input data-sevt="${i}" maxlength="30" value="${esc(e.t || "")}" placeholder="일정 (예: 체육대회)"><button type="button" class="ibtn" data-sevdel="${i}" aria-label="이 일정 지우기">✕</button></div>`).join("")}</div>
     <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn" id="sEvAdd">+ 일정 더하기</button><span class="sp"></span><button type="button" class="big" id="sSave">나와 학교 · 일정 저장</button></div>
@@ -4726,6 +4896,7 @@ function renderSet(){  document.querySelectorAll("#setTabs [data-tab]").forEach(
     <div class="sec">내 캐릭터</div>
     <p class="note">게임 화면 속 내 모습이에요. 남자 10 · 여자 10 가운데 골라요 (누르면 바로 저장).</p>
     ${window.DESK.avatarGrid("av", (cfg && cfg.avatar) || 0)}
+    <label class="row" style="gap:8px;margin-top:8px;cursor:pointer"><input type="checkbox" id="talkOn" ${talkOn() ? "checked" : ""}> 💬 캐릭터 한마디 — 게임 화면 왼쪽 아래에 지금 상황에 맞는 말이 잠깐 떠요 (하루 한 번 AI가 오늘에 맞춰 만들어요)</label>
     <div class="sec">로그인 연결</div>
     <p class="note">구글 · 카카오를 둘 다 연결하면 어느 쪽으로 들어와도 같은 데스크탑이 열려요. 따로 만든 데스크탑이 있으면 하나로 합쳐 드려요.</p>
     ${["google","kakao"].map(k => { const p = L.of(k === "google" ? "google.com" : KAKAO); return `<div class="acct"><b>${kindName(k)}${L.kind === k ? ` <span class="chip" style="color:var(--accent)">지금 사용 중</span>` : ""}${p && L.label(p) ? `<small style="display:block;color:var(--muted);font-size:12px">${esc(L.label(p))}</small>` : ""}</b>${linked(k) ? `<span class="ok">✓ 연결됨</span>` : `<button type="button" class="big ${k} " data-link="${k}">${kindName(k)}도 연결하기</button>`}</div>`; }).join("")}
