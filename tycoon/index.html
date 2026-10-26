@@ -110,6 +110,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .todo .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;min-width:30px;min-height:30px}
 .todo .x:hover{color:var(--hi)}
 .todo .none{color:var(--muted);font-size:13px}
+/* ⠿ 잡고 위아래로 끌어 순서 바꾸기 */
+.todo .grip{flex:none;border:0;background:none;color:var(--muted);font-size:15px;line-height:1;min-width:22px;min-height:30px;padding:0;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.todo .grip:hover,.todo .grip:focus-visible{color:var(--accent)}
+.todo li.drag{background:color-mix(in srgb,var(--accent) 14%,transparent);border-radius:var(--box-r);box-shadow:0 0 0 2px var(--accent) inset}
+.todo li.drag .grip{cursor:grabbing;color:var(--accent)}
 .addrow{display:flex;gap:5px;margin-top:6px}
 .addrow input,.memo textarea,.f input,.f select,.f textarea{font:15px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:6px 8px;box-sizing:border-box;min-width:0}
 .addrow input{flex:1}
@@ -4511,7 +4516,7 @@ async function loadDay(k){
 }
 function renderTodo(){
   $("todo").innerHTML = dayData.todos.length
-    ? dayData.todos.map((t, i) => `<li class="${t.d ? "done" : ""}"><label><input type="checkbox" data-i="${i}" ${t.d ? "checked" : ""}><span>${esc(t.t)}</span></label><button type="button" class="x" data-del="${i}" aria-label="${esc(t.t)} 지우기">×</button></li>`).join("")
+    ? dayData.todos.map((t, i) => `<li class="${t.d ? "done" : ""}">${dayData.todos.length > 1 ? `<button type="button" class="grip" data-grip="${i}" aria-label="${esc(t.t)} 순서 바꾸기 (끌거나 ↑ ↓ 키)" title="끌어서 순서 바꾸기">⠿</button>` : ""}<label><input type="checkbox" data-i="${i}" ${t.d ? "checked" : ""}><span>${esc(t.t)}</span></label><button type="button" class="x" data-del="${i}" aria-label="${esc(t.t)} 지우기">×</button></li>`).join("")
     : `<li class="none">아직 할 일이 없어요</li>`;
   if (document.activeElement !== $("memo")) $("memo").value = dayData.memo || "";
   if (dayData.memo && !$("memoBox").open) $("memoBox").open = true;
@@ -4536,6 +4541,38 @@ $("todoAdd").addEventListener("submit", e => {
 });
 $("todo").addEventListener("change", e => { const c = e.target.closest("input[data-i]"); if (!c) return; dayData.todos[+c.dataset.i].d = c.checked; renderTodo(); saveDay(); });
 $("todo").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; dayData.todos.splice(+b.dataset.del, 1); renderTodo(); saveDay(); });
+// ⠿ 를 잡고 위아래로 끌면 순서가 바뀌어요 (손가락도 돼요). ⠿ 에 Tab 으로 가서 ↑ ↓ 키로도 옮겨요. 바뀐 순서는 바로 저장 · 게임 화면에도 그 순서로
+function moveTodos(ord){
+  if (ord.length !== dayData.todos.length || ord.every((v, k) => v === k)){ renderTodo(); return; }
+  dayData.todos = ord.map(i => dayData.todos[i]); renderTodo(); saveDay();
+}
+let tdDrag = null;
+$("todo").addEventListener("pointerdown", e => {
+  const h = e.target.closest("[data-grip]"); if (!h) return;
+  e.preventDefault(); h.setPointerCapture(e.pointerId);
+  tdDrag = { li:h.closest("li"), id:e.pointerId }; tdDrag.li.classList.add("drag");
+});
+$("todo").addEventListener("pointermove", e => {
+  if (!tdDrag || e.pointerId !== tdDrag.id) return;
+  const ul = $("todo"), li = tdDrag.li;
+  const over = [...ul.children].find(x => { const r = x.getBoundingClientRect(); return x !== li && e.clientY >= r.top && e.clientY <= r.bottom; });
+  if (!over) return;
+  const r = over.getBoundingClientRect();
+  ul.insertBefore(li, e.clientY < r.top + r.height/2 ? over : over.nextSibling);
+});
+const tdDrop = e => {
+  if (!tdDrag || e.pointerId !== tdDrag.id) return;
+  tdDrag = null; moveTodos([...$("todo").querySelectorAll("[data-grip]")].map(x => +x.dataset.grip));
+};
+$("todo").addEventListener("pointerup", tdDrop);
+$("todo").addEventListener("pointercancel", tdDrop);
+$("todo").addEventListener("keydown", e => {
+  const h = e.target.closest("[data-grip]"); if (!h || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+  e.preventDefault();
+  const i = +h.dataset.grip, j = i + (e.key === "ArrowUp" ? -1 : 1); if (j < 0 || j >= dayData.todos.length) return;
+  const ord = dayData.todos.map((_, k) => k); [ord[i], ord[j]] = [ord[j], ord[i]];
+  moveTodos(ord); $("todo").querySelector(`[data-grip="${j}"]`)?.focus();
+});
 $("memo").addEventListener("input", () => { dayData.memo = $("memo").value; saveDay(); });
 $("dPrev").addEventListener("click", () => demo ? null : loadDay(shiftKey(dayKey, -1)));
 $("dNext").addEventListener("click", () => demo ? null : loadDay(shiftKey(dayKey, 1)));
