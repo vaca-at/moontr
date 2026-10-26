@@ -2392,71 +2392,63 @@ NEWS.push(S15);
 
 /* ===== 18. 미니멀 위젯 ===== */
 const S18 = (() => {
-  // E안 메탈 계기판: 금속 테두리 카드 · 빛나는 숫자 · 움푹 파인 홈
-  const INK = "#EAF6FF", SUB = "#AEB8C8", WELL = "#0B0C10", CY = "#7CF4FF", AMB = "#FFB547", PINK = "#FF7AA3", GRN = "#3EE69A";
+  // W1 블랙 + 쨍한 네온 테두리: 새까만 바탕, 카드마다 다른 형광 테두리, 글씨는 흰색으로 진하게 (흐린 회색 안 써요)
+  const INK = "#FFFFFF", SUB = "#D2D2DC", DIM = "#A8A8B8", WELL = "#23232C", CY = "#00E5FF", AMB = "#FFB000", PINK = "#FF2E88", GRN = "#00E676", LIME = "#C6FF00", VIO = "#B388FF";
   function rr(x, y, w, h, r){ g.beginPath(); g.roundRect(x, y, w, h, r); }
-  function card(x, y, w, h){
-    g.save(); g.shadowColor = "rgba(0,0,0,.8)"; g.shadowBlur = 24; g.shadowOffsetY = 12; g.fillStyle = "#000"; rr(x - 2, y - 2, w + 4, h + 4, 10); g.fill(); g.restore();
-    g.fillStyle = "#2A2E37"; rr(x - 1.5, y - 1.5, w + 3, h + 3, 9.5); g.fill();   // 금속 테두리
-    g.fillStyle = "#000"; rr(x - .5, y - .5, w + 1, h + 1, 8.5); g.fill();
-    const bg = g.createLinearGradient(0, y, 0, y + h); bg.addColorStop(0, "#2E323C"); bg.addColorStop(.55, "#17191F"); bg.addColorStop(1, "#121419");
-    g.fillStyle = bg; rr(x, y, w, h, 8); g.fill();
-    g.save(); rr(x, y, w, h, 8); g.clip();
-    const sh = g.createLinearGradient(x, y, x + w*.6, y + h); sh.addColorStop(0, "rgba(255,255,255,.07)"); sh.addColorStop(.5, "rgba(255,255,255,0)"); g.fillStyle = sh; g.fillRect(x, y, w, h);
-    g.fillStyle = "rgba(255,255,255,.22)"; g.fillRect(x, y, w, .6);   // 윗면 빛
-    g.restore();
+  function card(x, y, w, h, c = CY){   // c = 이 카드의 형광 테두리 색
+    g.fillStyle = "#0B0B10"; rr(x, y, w, h, 10); g.fill();
+    g.save(); g.shadowColor = c; g.shadowBlur = 10; g.strokeStyle = c; g.lineWidth = 1.6; rr(x, y, w, h, 10); g.stroke(); g.restore();
   }
-  function well(x, y, w, h, r){ g.fillStyle = WELL; rr(x, y, w, h, r); g.fill(); g.strokeStyle = "rgba(255,255,255,.08)"; g.lineWidth = .6; rr(x, y + .5, w, h, r); g.stroke(); }
+  function well(x, y, w, h, r){ g.fillStyle = WELL; rr(x, y, w, h, r); g.fill(); }
   function grad(y, h, a, b){ const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, a); gr.addColorStop(1, b); return gr; }
   function pill(x, y, w, h, fill, glow){ g.save(); if (glow){ g.shadowColor = glow; g.shadowBlur = 10; } g.fillStyle = fill; rr(x, y, w, h, h/2); g.fill(); g.restore(); }
   function glow(str, x, y, size, color, gc, align = "left", f = "dial", weight = "600"){
     g.save(); g.shadowColor = gc; g.shadowBlur = 22; ft(str, x, y, size, color, align, f, weight); g.shadowBlur = 6; const w = ft(str, x, y, size, color, align, f, weight); g.restore(); return w;
   }
   function ball(x, y, r, c){   // 불 켜진 자리 (빛나는 구슬)
-    if (!c){ g.fillStyle = WELL; g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fill(); g.strokeStyle = "rgba(255,255,255,.08)"; g.lineWidth = .6; g.stroke(); return; }
+    if (!c){ g.fillStyle = WELL; g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fill(); return; }
     const gr = g.createRadialGradient(x - r*.3, y - r*.35, 0, x, y, r); gr.addColorStop(0, c[0]); gr.addColorStop(.55, c[1]); gr.addColorStop(1, c[2]);
     g.save(); g.shadowColor = c[1]; g.shadowBlur = 12; g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fill(); g.restore();
   }
   const ON = ["#D5FFEA", GRN, "#0F7A4A"], MINE = ["#FFE0EB", "#FF5C8A", "#9E1F4A"];
   function draw(st){
     const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, rows = todayRows(day);
-    const bg = g.createRadialGradient(240, 110, 0, 240, 110, 320); bg.addColorStop(0, "#1A1D24"); bg.addColorStop(1, "#07080A"); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
     const id = st.lunch ? "lunch" : st.place, here = NAME(id).replace("lunch", "급식실"), inHR = HR && id === HR;
     // 1. 시계
-    card(14, 14, 192, 110);
-    const tm = hhmm(d.getHours()*60 + d.getMinutes()), tw = glow(tm, 25, 54, 44, CY, "rgba(92,242,255,.85)");
-    ft(String(d.getSeconds()).padStart(2, "0"), 25 + tw + 5, 38, 12, SUB, "left", "dial", "600");
-    ft(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일`, 26, 86, 10.5, "#C9D2E0", "left", "sans", "500");
+    card(14, 14, 192, 110, CY);
+    const tm = hhmm(d.getHours()*60 + d.getMinutes()), tw = glow(tm, 25, 54, 46, CY, "rgba(0,229,255,.9)");
+    ft(String(d.getSeconds()).padStart(2, "0"), 25 + tw + 5, 38, 12, SUB, "left", "dial", "700");
+    ft(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일`, 26, 86, 11, INK, "left", "sans", "700");
     g.font = `700 9.5px ${fontOf("sans")}`; const chipT = `${st.slot} · ${here}`, cw0 = g.measureText(chipT).width + 20;
     pill(26, 97, cw0, 18, inHR ? grad(97, 18, "#FFA3C0", "#FF4F86") : grad(97, 18, "#FFCB6B", "#E59A1E"), inHR ? "rgba(255,92,138,.6)" : "rgba(255,180,70,.5)");
     g.fillStyle = "rgba(255,255,255,.55)"; g.fillRect(26 + 9, 97.5, cw0 - 18, .6);
     ft(chipT, 26 + cw0/2, 106.5, 9.5, inHR ? "#3A0016" : "#2A1700", "center", "sans", "700");
     // 2. 진행 링 (눈금 + 빛나는 호)
-    card(214, 14, 116, 110);
-    const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s) / Math.max(1, st.e - st.s))) : 0, rc = { x:272, y:58, r:31 }, RC = inHR ? "#FF5C8A" : AMB;
-    g.fillStyle = "#1D2028"; g.beginPath(); g.arc(rc.x, rc.y, 38, 0, Math.PI*2); g.fill();
-    g.fillStyle = WELL; g.beginPath(); g.arc(rc.x, rc.y, 36.5, 0, Math.PI*2); g.fill();
-    g.strokeStyle = "#2A2F3A"; g.lineWidth = 1.6; g.lineCap = "butt";
+    card(214, 14, 116, 110, AMB);
+    const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s) / Math.max(1, st.e - st.s))) : 0, rc = { x:272, y:58, r:31 }, RC = inHR ? PINK : AMB;
+    g.fillStyle = "#14141A"; g.beginPath(); g.arc(rc.x, rc.y, 37, 0, Math.PI*2); g.fill();
+    g.strokeStyle = "#34343F"; g.lineWidth = 1.6; g.lineCap = "butt";
     for (let k = 0; k < 48; k++){ const a = k/48*Math.PI*2; g.beginPath(); g.moveTo(rc.x + Math.cos(a)*(rc.r - 3), rc.y + Math.sin(a)*(rc.r - 3)); g.lineTo(rc.x + Math.cos(a)*(rc.r + 3), rc.y + Math.sin(a)*(rc.r + 3)); g.stroke(); }
     if (pr > 0){ g.save(); g.shadowColor = RC; g.shadowBlur = 14; g.lineCap = "round"; g.lineWidth = 6; g.strokeStyle = RC; g.beginPath(); g.arc(rc.x, rc.y, rc.r, -Math.PI/2, -Math.PI/2 + pr*Math.PI*2); g.stroke(); g.restore(); }
-    glow(st.e < 1440 ? String(Math.max(0, Math.ceil(st.e - st.m))) : "-", rc.x, rc.y - 4, 25, inHR ? "#FFC2D6" : "#FFD08A", inHR ? "rgba(255,92,138,.8)" : "rgba(255,181,71,.8)", "center");
-    ft("분 남음", rc.x, rc.y + 13, 7.5, SUB, "center", "sans", "500");
-    ft(fitLine(st.act, 104, 8, "sans", "500"), rc.x, 111, 8, SUB, "center", "sans", "500");
+    glow(st.e < 1440 ? String(Math.max(0, Math.ceil(st.e - st.m))) : "-", rc.x, rc.y - 4, 27, INK, inHR ? "rgba(255,46,136,.9)" : "rgba(255,176,0,.9)", "center", "dial", "700");
+    ft("분 남음", rc.x, rc.y + 14, 8, SUB, "center", "sans", "700");
+    ft(fitLine(st.act, 104, 8.5, "sans", "700"), rc.x, 111, 8.5, INK, "center", "sans", "700");
     // 3. 다음 수업
-    card(338, 14, 128, 110);
+    card(338, 14, 128, 110, PINK);
     const nx = nextClass(day, st.m);
-    ft("다음 수업", 350, 30, 8.5, SUB, "left", "sans", "700");
+    ft("다음 수업", 350, 30, 9, SUB, "left", "sans", "700");
     if (nx){
-      ft(`${nx.p}교시`, 350, 50, 11, SUB, "left", "sans", "700");
-      const rn = NAME(nx.r), rs = rn.length > 6 ? 14 : 19;
-      if (nx.r === HR) glow(rn, 350, 72, rs, PINK, "rgba(255,90,140,.7)", "left", "sans", "700"); else ft(rn, 350, 72, rs, INK, "left", "sans", "700");
-      const left = Math.ceil(mm(nx.a) - st.m); ft(`${nx.a} · ${left}분 후`, 350, 94, 9, SUB, "left", "sans", "500");
-      well(420, 103, 38, 14, 7); g.strokeStyle = "#3A3F4A"; g.lineWidth = .6; rr(420, 103, 38, 14, 7); g.stroke();
-      ft(isClass(nx.r) ? gradeOf(nx.r) + "학년" : "특별실", 439, 110.5, 8, CY, "center", "sans", "700");
-    } else { ft(wk ? "오늘 수업 끝" : "주말", 350, 64, 17, INK, "left", "sans", "700"); ft(wk ? "수고했어요 :)" : "푹 쉬어요", 350, 86, 9.5, SUB, "left", "sans", "500"); }
+      ft(`${nx.p}교시`, 350, 50, 12, SUB, "left", "sans", "700");
+      const rn = NAME(nx.r), rs = rn.length > 6 ? 15 : 22;
+      if (nx.r === HR) glow(rn, 350, 73, rs, PINK, "rgba(255,46,136,.8)", "left", "sans", "900"); else glow(rn, 350, 73, rs, INK, "rgba(255,46,136,.6)", "left", "sans", "900");
+      const left = Math.ceil(mm(nx.a) - st.m); ft(`${nx.a} · ${left}분 후`, 350, 95, 9, SUB, "left", "sans", "700");
+      well(418, 103, 40, 14, 7);
+      ft(isClass(nx.r) ? gradeOf(nx.r) + "학년" : "특별실", 438, 110.5, 8.5, PINK, "center", "sans", "900");
+    } else { ft(wk ? "오늘 수업 끝" : "주말", 350, 64, 18, INK, "left", "sans", "900"); ft(wk ? "수고했어요 :)" : "푹 쉬어요", 350, 86, 10, SUB, "left", "sans", "700"); }
     // 4. 메모 위젯 (📌 고정한 메모) — 메모가 없으면 교무실 자리 (마주 보는 8자리, 분홍 = 내 자리)
     const nt = memoTop();
-    card(14, 132, 136, 66);
+    card(14, 132, 136, 66, GRN);
     if (nt){
       g.fillStyle = MEMO_C[nt.color] || MEMO_C.y; rr(26, 142, 6, 6, 2); g.fill();
       ft(nt.title ? fitLine(nt.title, 100, 8.5, "sans", "700") : "메모", 36, 145.5, 8.5, nt.title ? INK : SUB, "left", "sans", "700");
@@ -2469,61 +2461,61 @@ const S18 = (() => {
         const on = mine ? id === "office" && !WK.walking : SCHOOL && (BREAK || SEATS[(k*3 + 5) % SEATS.length].t);
         ball(31 + isl*32 + c*12, 164 + r*12, 4.5, on ? (mine ? MINE : ON) : null);
       }
-      rect(53, 157, 1, 26, "#3A3F4A");
-      ball(92, 164, 2.6, ON); ft("자리에 있음", 98, 164.5, 7.5, SUB, "left", "sans", "500");
-      ball(92, 176, 2.6, MINE); ft("내 자리", 98, 176.5, 7.5, SUB, "left", "sans", "500");
+      rect(53, 157, 1.5, 26, WELL);
+      ball(92, 164, 2.8, ON); ft("자리에 있음", 98, 164.5, 8, INK, "left", "sans", "700");
+      ball(92, 176, 2.8, MINE); ft("내 자리", 98, 176.5, 8, INK, "left", "sans", "700");
     }
     // 5. 오늘 진행
-    card(158, 132, 142, 66);
+    card(158, 132, 142, 66, LIME);
     const cls = rows.filter(r => r.r && r.r !== "lunch"), done = cls.filter(r => st.m >= mm(r.b)).length;
-    const lw = ft("오늘 일정", 170, 146, 8.5, SUB, "left", "sans", "700"); ft("(조회·종례 포함)", 170 + lw + 4, 146.5, 7, "#7D8698", "left", "sans", "500");
-    const dw = glow(String(done), 170, 175, 27, "#B6FFD9", "rgba(110,255,180,.7)"); ft(`/ ${cls.length}`, 170 + dw + 4, 179, 11, SUB, "left", "dial", "600");
-    const bw = Math.min(9, 76 / Math.max(1, cls.length) - 3);
+    const lw = ft("오늘 일정", 170, 146, 9, SUB, "left", "sans", "700"); ft("(조회·종례 포함)", 170 + lw + 4, 146.5, 7, DIM, "left", "sans", "700");
+    const dw = glow(String(done), 170, 176, 30, LIME, "rgba(198,255,0,.75)"); ft(`/ ${cls.length}`, 170 + dw + 4, 180, 12, SUB, "left", "dial", "700");
+    const bw = Math.min(10, 76 / Math.max(1, cls.length) - 3);
     cls.forEach((r, k) => { const x = 216 + k*(bw + 3);
-      if (st.m >= mm(r.b)) pill(x, 165, bw, 6, GRN, "rgba(62,230,154,.7)"); else if (st.m >= mm(r.a)) pill(x, 165, bw, 6, AMB, "rgba(255,181,71,.7)"); else well(x, 165, bw, 6, 3); });
-    ft(wk ? (done === cls.length ? "모두 끝!" : `${cls.length - done}개 남음`) : "주말", 216, 184, 8, SUB, "left", "sans", "500");
+      if (st.m >= mm(r.b)) pill(x, 165, bw, 7, LIME, "rgba(198,255,0,.7)"); else if (st.m >= mm(r.a)) pill(x, 165, bw, 7, AMB, "rgba(255,176,0,.7)"); else well(x, 165, bw, 7, 3.5); });
+    ft(wk ? (done === cls.length ? "모두 끝!" : `${cls.length - done}개 남음`) : "주말", 216, 184, 8.5, INK, "left", "sans", "700");
     // 6. 할 일
-    card(308, 132, 158, 66);
-    ft("오늘 할 일", 320, 146, 8.5, SUB, "left", "sans", "700");
+    card(308, 132, 158, 66, VIO);
+    ft("오늘 할 일", 320, 146, 9, SUB, "left", "sans", "700");
     (TODOS.length ? TODOS.slice(0, 3).map(x => [x.t, x.d]) : [["오른쪽 TO DO 칸에 적어 보세요", false]]).forEach(([t, ok], k) => {
-      const y = 162 + k*12.5, s = fitLine(t, 124, 8.5, "sans", "500");
-      if (ok){ pill(320, y - 4.5, 9, 9, GRN, "rgba(62,230,154,.6)"); ft("✓", 324.5, y, 7.5, "#062615", "center", "sans", "700"); }
-      else { well(320, y - 4.5, 9, 9, 2.5); g.strokeStyle = "#5A6070"; g.lineWidth = 1; rr(320, y - 4.5, 9, 9, 2.5); g.stroke(); }
-      const w = ft(s, 334, y, 8.5, ok ? "#7D8698" : INK, "left", "sans", "500");
-      if (ok) rect(334, y, w, .8, "#7D8698");
+      const y = 162 + k*12.5, s = fitLine(t, 124, 9, "sans", "700");
+      if (ok){ pill(320, y - 4.5, 9, 9, VIO, "rgba(179,136,255,.7)"); ft("✓", 324.5, y + .3, 7.5, "#0B0B10", "center", "sans", "900"); }
+      else { g.strokeStyle = INK; g.lineWidth = 1.2; rr(320.5, y - 4, 8, 8, 2.5); g.stroke(); }
+      const w = ft(s, 334, y, 9, ok ? DIM : INK, "left", "sans", "700");
+      if (ok) rect(334, y, w, 1, DIM);
     });
     // 7. 타임라인 (나는 지금 위치에) — ⭐ 즐겨찾기가 있으면 오른쪽에 앱 아이콘 위젯 (4개까지, 누르면 새 창)
     const fav = LINKS.slice(0, 4), TLW = fav.length ? 330 : 452;
     if (fav.length){
-      card(352, 206, 114, 52);
-      ft("즐겨찾기", 362, 216, 7.5, SUB, "left", "sans", "700");
+      card(352, 206, 114, 52, AMB);
+      ft("즐겨찾기", 362, 216, 8, SUB, "left", "sans", "700");
       fav.forEach((l, k) => {
         const ax = 362 + k*25, ay = 223, c = [CY, PINK, GRN, AMB][k % 4];
         g.save(); g.shadowColor = c; g.shadowBlur = 8; g.fillStyle = grad(ay, 20, "#FFFFFF", c); rr(ax, ay, 20, 20, 6); g.fill(); g.restore();
         g.fillStyle = c; rr(ax + 1, ay + 3, 18, 16, 5); g.fill();
         if (l.icon) ft(l.icon, ax + 10, ay + 11, 11, WELL, "center"); else ft([...l.name][0] || "?", ax + 10, ay + 11, 10, WELL, "center", "sans", "700");
-        ft(fitLine(l.name, 24, 5.5, "sans"), ax + 10, ay + 27, 5.5, SUB, "center", "sans");
+        ft(fitLine(l.name, 24, 5.5, "sans", "700"), ax + 10, ay + 27, 5.5, INK, "center", "sans", "700");
         hot(ax - 2, ay - 2, 24, 32, { url:l.url });
       });
     }
-    card(14, 206, TLW, 52);
+    card(14, 206, TLW, 52, CY);
     const E = dayEdge(), T0 = E.i, T1 = Math.max(E.o, E.i + 60), tx = m => 40 + (m - T0)/(T1 - T0)*(TLW - 44);
     well(34, 222, TLW - 32, 12, 6);
     rows.forEach(r => { const x1 = tx(mm(r.a)), x2 = tx(mm(r.b)), w = Math.max(4, x2 - x1 - 2);
-      if (!wk || !r.r){ g.fillStyle = "rgba(255,255,255,.07)"; rr(x1 + 1, 224, w, 8, 4); g.fill(); return; }
-      if (r.r === HR) pill(x1 + 1, 224, w, 8, grad(224, 8, "#FFA3C0", "#FF4F86"), "rgba(255,92,138,.6)");
-      else if (r.r === "lunch") pill(x1 + 1, 224, w, 8, grad(224, 8, "#FFD99A", AMB), "rgba(255,181,71,.5)");
-      else if (st.m >= mm(r.b)) pill(x1 + 1, 224, w, 8, "#2B5960");
-      else pill(x1 + 1, 224, w, 8, grad(224, 8, "#9CF8FF", "#2FC6D6"), "rgba(92,242,255,.55)"); });
-    for (let hh = Math.ceil(T0/120)*2; hh*60 <= T1; hh += 2) ft(`${hh}시`, tx(hh*60), 247, 8, SUB, "center", "sans", "600");
+      if (!wk || !r.r){ g.fillStyle = "rgba(255,255,255,.14)"; rr(x1 + 1, 224, w, 8, 4); g.fill(); return; }
+      if (r.r === HR) pill(x1 + 1, 224, w, 8, PINK, "rgba(255,46,136,.7)");
+      else if (r.r === "lunch") pill(x1 + 1, 224, w, 8, AMB, "rgba(255,176,0,.6)");
+      else if (st.m >= mm(r.b)) pill(x1 + 1, 224, w, 8, "#0D5F6A");
+      else pill(x1 + 1, 224, w, 8, CY, "rgba(0,229,255,.6)"); });
+    for (let hh = Math.ceil(T0/120)*2; hh*60 <= T1; hh += 2) ft(`${hh}시`, tx(hh*60), 247, 8.5, INK, "center", "sans", "700");
     const mx = tx(Math.max(T0, Math.min(T1, st.m)));
-    g.save(); g.shadowColor = CY; g.shadowBlur = 8; rect(mx - .5, 216, 1, 24, "#FFFFFF"); g.restore();
-    g.save(); g.shadowColor = "rgba(92,242,255,.8)"; g.shadowBlur = 14; g.beginPath(); g.arc(mx, 216, 9.5, 0, Math.PI*2); g.fillStyle = WELL; g.fill(); g.strokeStyle = CY; g.lineWidth = 1.5; g.stroke(); g.restore();
+    g.save(); g.shadowColor = CY; g.shadowBlur = 8; rect(mx - .6, 216, 1.2, 24, "#FFFFFF"); g.restore();
+    g.save(); g.shadowColor = "rgba(0,229,255,.9)"; g.shadowBlur = 14; g.beginPath(); g.arc(mx, 216, 9.5, 0, Math.PI*2); g.fillStyle = WELL; g.fill(); g.strokeStyle = CY; g.lineWidth = 1.5; g.stroke(); g.restore();
     g.save(); g.beginPath(); g.arc(mx, 216, 8.5, 0, Math.PI*2); g.clip();
     me(Math.round(mx), 225, Math.floor(T*4) % 2, false, 1, true); g.restore();
   }
   return { name:"미니멀 위젯", layout:"none", custom:true, draw, who:"20~40대 · 깔끔, 미니멀",
-    desc:"<b>스마트폰 위젯처럼 깔끔한 화면</b>이에요. 큰 시계, 지금 교시 진행 링(남은 분), 다음 수업 카드, 교무실 8자리(● 내 자리), 오늘 수업 진행, 할 일, 하루 타임라인 위를 움직이는 내 얼굴까지 한눈에 보여요. 자동차 계기판처럼 금속 테두리 카드에 숫자가 빛나서 어두운 교실 TV에서도 잘 보여요." };
+    desc:"<b>스마트폰 위젯처럼 깔끔한 화면</b>이에요. 큰 시계, 지금 교시 진행 링(남은 분), 다음 수업 카드, 교무실 8자리(● 내 자리), 오늘 수업 진행, 할 일, 하루 타임라인 위를 움직이는 내 얼굴까지 한눈에 보여요. 새까만 바탕에 카드마다 다른 형광 테두리(하늘 · 주황 · 분홍 · 초록 · 연두 · 보라)와 흰 글씨라 교실 TV에서도 또렷해요." };
 })();
 NEWS.push(S18);
 /* ===== END 18 ===== */
