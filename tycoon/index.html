@@ -3808,8 +3808,12 @@ document.getElementById("bBig").addEventListener("click", () => {
   fit();
 });
 new ResizeObserver(fit).observe(col);
-// 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 22 3D 교무실 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 5 보드게임 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
-const TOP = [1, 15, 21, 22, 11, 8, 6, 5, 7, 10, 18, 9];   // 3번 자리: 12 교무수첩 → 21 미드나잇 3D 학교 (문쌤 타이쿤과 같아요)
+// 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
+// 2026-10-27 문쌤이 제일 좋아하는 순서로 1 건물 단면 · 2 3D 교무실 · 3 보드게임 판. 새 시안은 늘 맨 뒤에 붙여요 (앞 번호가 밀리지 않게)
+const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9];
+// 예전 단추 순서 — 예전 번호로 저장된 '고른 화면 · 순서 · 📌 고정'을 새 번호로 옮길 때만 써요
+const OLD_TOP = [1, 15, 21, 22, 11, 8, 6, 5, 7, 10, 18, 9];
+const fromOld = i => Number.isInteger(i) && i >= 0 && i < OLD_TOP.length ? TOP.indexOf(OLD_TOP[i]) : i;
 let D = {}, STRUCTS = [], SI = 0;
 // 선생님 설정이 바뀔 때마다 시안을 새로 만들어요 (교실 수 · 층 · 칸 수가 바뀌니까)
 function rebuild(){
@@ -3839,13 +3843,21 @@ function renderJumps(){
 // 📌 마음에 드는 화면 고정(맨 앞으로) · 순서 바꾸기(⚙️ 설정 > 화면 순서). 단추 번호는 원래 번호 그대로예요
 let SORD = [], SPIN = [];
 try { SORD = JSON.parse(localStorage.getItem("desk-sord") || "[]"); SPIN = JSON.parse(localStorage.getItem("desk-spin") || "[]"); } catch (e) {}
+// 이 기기에 예전 번호로 저장돼 있으면 한 번만 새 번호로 옮겨요 (desk-sv = 2 이면 이미 옮김)
+try {
+  if (localStorage.getItem("desk-sv") !== "2"){
+    SORD = SORD.map(fromOld); SPIN = SPIN.map(fromOld);
+    const s0 = localStorage.getItem("desk-struct"); if (s0 !== null) localStorage.setItem("desk-struct", fromOld(+s0 || 0));
+    localStorage.setItem("desk-sord", JSON.stringify(SORD)); localStorage.setItem("desk-spin", JSON.stringify(SPIN)); localStorage.setItem("desk-sv", "2");
+  }
+} catch (e) {}
 const shownOrder = () => { const o = SORD.filter(i => Number.isInteger(i) && i >= 0 && i < STRUCTS.length); STRUCTS.forEach((_, i) => { if (!o.includes(i)) o.push(i); }); return [...o.filter(i => SPIN.includes(i)), ...o.filter(i => !SPIN.includes(i))]; };
 function renderStructs(){
   $("structs").innerHTML = shownOrder().map(r => { const pin = SPIN.includes(r); return `<button type="button" class="btn ${pin ? "pinned" : ""} ${r === SI ? "on" : ""}" data-s="${r}"><b>${r + 1}</b>${STRUCTS[r].name}<span class="spin" data-spin="${r}" role="button" aria-label="${pin ? "고정 풀기" : "맨 앞에 고정"}">📌</span></button>`; }).join("");
 }
 function setOrder(ord, pin){
-  if (Array.isArray(ord)) SORD = ord.filter(i => Number.isInteger(i) && i >= 0 && i < 12);
-  if (Array.isArray(pin)) SPIN = pin.filter(i => Number.isInteger(i) && i >= 0 && i < 12);
+  if (Array.isArray(ord)) SORD = ord.filter(i => Number.isInteger(i) && i >= 0 && i < TOP.length);
+  if (Array.isArray(pin)) SPIN = pin.filter(i => Number.isInteger(i) && i >= 0 && i < TOP.length);
   try { localStorage.setItem("desk-sord", JSON.stringify(SORD)); localStorage.setItem("desk-spin", JSON.stringify(SPIN)); } catch (e) {}
   renderStructs();
 }
@@ -4027,8 +4039,9 @@ window.DESK = {
   setDday(x){ DDAY = x || null; }, setEvents(list){ EVENTS = Array.isArray(list) ? list : []; }, setWeather(w){ WEATHER = w || null; },
   setWEvents(list){ WEV = Array.isArray(list) ? list : []; },
   onMenu:null, poke:null,
-  look:() => ({ s:SI, v:V, ord:SORD, pin:SPIN }),
-  setLook(l){ if (!l) return; if (l.v) setPal(l.v, true); if (Array.isArray(l.ord) || Array.isArray(l.pin)) setOrder(l.ord, l.pin); if (l.s != null) pick(l.s, true); },
+  look:() => ({ s:SI, v:V, ord:SORD, pin:SPIN, sv:2 }),   // sv:2 = 새 단추 순서(2026-10-27) 번호
+  setLook(l){ if (!l) return; if (l.sv !== 2) l = { ...l, s:l.s != null ? fromOld(+l.s) : l.s, ord:Array.isArray(l.ord) ? l.ord.map(fromOld) : l.ord, pin:Array.isArray(l.pin) ? l.pin.map(fromOld) : l.pin };   // 예전 번호로 저장된 계정
+    if (l.v) setPal(l.v, true); if (Array.isArray(l.ord) || Array.isArray(l.pin)) setOrder(l.ord, l.pin); if (l.s != null) pick(l.s, true); },
   order:() => ({ ord:shownOrder(), pin:[...SPIN], names:STRUCTS.map(s => s.name) }), setOrder(ord, pin){ setOrder(ord, pin); window.DESK.onLook?.(); },
   onLook:null, onNote:null
 };
