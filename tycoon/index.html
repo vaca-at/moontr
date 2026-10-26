@@ -1298,12 +1298,12 @@ const S1 = (() => {
   const R = [];
   // 2 · 3 · 4층 = 내가 많이 가는 학년 (교무실은 🕘 시간표에서 고른 층 가운데, 기본 2층)
   [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
-  // 1층: 음악실 · 미술실 · 특별교실 · 도서실 · 보건실 · 컴퓨터실 (행정실 · 현관 · 교장실은 그대로). 체육은 운동장, 그 밖의 교과 · 선택 과목 교실은 특별교실로 가요
-  const sp = ["계발", "동아리실", "음악실", "미술실", "특별교실", "도서실", "보건실", "컴퓨터실"];
-  const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /계발/.test(id) ? "계발" : /동아리|창체|자율/.test(id) ? "동아리실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "도서실" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : "특별교실";
+  // 1층: 계발 · 동아리실 · 음악실 · 미술실 · 행정실 | 현관 | 교장실 · 특별교실 · 도서실 · 보건실 · 컴퓨터실 · 가사실. 체육은 운동장, 그 밖의 교과 · 선택 과목 교실은 특별교실로 가요
+ const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /계발/.test(id) ? "계발" : /동아리|창체|자율/.test(id) ? "동아리실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "도서실" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : /가사|가정|기술|조리/.test(id) ? "가사실" : "특별교실";
   const LIT = new Set([...TAUGHT].map(roomFor));
-  const wing = (n, big, bigFirst) => { const out = []; for (let i = 0; i < (n >= 3 ? n - 1 : n); i++) out.push([sp.shift() || `_s${i}${big}`, RW]); if (n >= 3){ if (bigFirst) out.unshift([big, RW]); else out.push([big, RW]); } return out; };
-  [...wing(NL, "행정실", false), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true)].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
+  // 날개 너비(반 수 × 교실 너비)를 방 수로 나눠 써요. 너무 좁아지면(16 아래) 끝에서부터 빼요
+  const wing = (n, big, bigFirst, items) => { const tot = n*RW, list = [...items]; while (list.length && tot/(list.length + 1) < 16) list.pop(); const all = bigFirst ? [big, ...list] : [...list, big]; return all.map(id => [id, tot/all.length]); };
+  [...wing(NL, "행정실", false, ["계발", "동아리실", "음악실", "미술실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true, ["특별교실", "도서실", "보건실", "컴퓨터실", "가사실"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
   const HOME = { id:"home", f:0, x:432, y:GR - 44, w:46, h:44 }; R.push(HOME);
   const YARD = { id:"yard", f:0, x:BX + 4, y:GR + 4, w:Math.max(60, NL*RW - 10), h:18 }; R.push(YARD);   // 운동장 (체육 수업)
   const OUT = GR + 12, HD = HOME.x + 30, GX = CX + CW/2;
