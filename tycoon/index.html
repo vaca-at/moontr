@@ -123,6 +123,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .picks{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px}
 .picks .btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;white-space:normal;line-height:1.15;font-size:12px;word-break:keep-all}
 .picks .btn b{margin:0;font-size:10px}
+.picks .btn{position:relative}
+.picks .spin{position:absolute;top:2px;right:3px;font-size:10px;line-height:1;cursor:pointer;opacity:0;filter:grayscale(1);transition:opacity .15s}
+.picks .btn:hover .spin{opacity:.6}.picks .btn .spin:hover{opacity:1;filter:none}
+.picks .btn.pinned .spin{opacity:1;filter:none}
+.picks .btn.pinned{box-shadow:inset 0 -3px 0 var(--accent2)}
+.sord{display:flex;flex-direction:column;gap:4px;max-width:520px}
+.sord .r{display:flex;align-items:center;gap:8px;padding:6px 10px;border:2px solid var(--line);border-radius:var(--box-r);font:14px var(--body)}
+.sord .r.pinned{border-color:var(--accent2)}
+.sord .r b{width:26px;color:var(--accent)}.sord .r span{flex:1}
 @media (max-width:900px){
   body{overflow:auto} .app{height:auto}
   .main{grid-template-columns:1fr;grid-template-rows:auto auto;grid-template-areas:"map" "side"}
@@ -733,6 +742,7 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
       <button type="button" data-tab="memo" role="tab">📝 메모 기록</button>
       <button type="button" data-tab="link" role="tab">⭐ 즐겨찾기 기록</button>
       <button type="button" data-tab="friend" role="tab">👥 친구 · 채팅</button>
+      <button type="button" data-tab="screens" role="tab">🎮 화면 순서</button>
     </div>
     <div class="body" id="setBody"></div>
   </div>
@@ -3071,7 +3081,7 @@ let D = {}, STRUCTS = [], SI = 0;
 function rebuild(){
   ['__desk3d', '__desk3o'].forEach(k => { if (window[k]){ try { window[k].r.forceContextLoss(); window[k].r.dispose(); } catch (e) {} window[k] = null; } });   // 3D 그림판(21 · 22번)은 새로 만들기 전에 지워요
   D = makeStructs(); STRUCTS = TOP.map(n => D[n]);
-  $("structs").innerHTML = STRUCTS.map((s, r) => `<button type="button" class="btn" data-s="${r}"><b>${r + 1}</b>${s.name}</button>`).join("");
+  renderStructs();
   renderJumps(); pick(SI, true);
 }
 function pick(k, quiet){
@@ -3091,7 +3101,24 @@ function renderJumps(){
   J.push(["금 퇴근", 5, hhmm(Math.max(0, E.o - 5))], ["토요일", 6, "11:00"]);
   $("jumps").innerHTML = J.map(([t, d, h]) => `<button type="button" class="btn" data-jump="${d},${h}">${t}</button>`).join("");
 }
-$("structs").addEventListener("click", e => { const b = e.target.closest("[data-s]"); if (b) pick(+b.dataset.s); });
+// 📌 마음에 드는 화면 고정(맨 앞으로) · 순서 바꾸기(⚙️ 설정 > 화면 순서). 단추 번호는 원래 번호 그대로예요
+let SORD = [], SPIN = [];
+try { SORD = JSON.parse(localStorage.getItem("desk-sord") || "[]"); SPIN = JSON.parse(localStorage.getItem("desk-spin") || "[]"); } catch (e) {}
+const shownOrder = () => { const o = SORD.filter(i => Number.isInteger(i) && i >= 0 && i < STRUCTS.length); STRUCTS.forEach((_, i) => { if (!o.includes(i)) o.push(i); }); return [...o.filter(i => SPIN.includes(i)), ...o.filter(i => !SPIN.includes(i))]; };
+function renderStructs(){
+  $("structs").innerHTML = shownOrder().map(r => { const pin = SPIN.includes(r); return `<button type="button" class="btn ${pin ? "pinned" : ""} ${r === SI ? "on" : ""}" data-s="${r}"><b>${r + 1}</b>${STRUCTS[r].name}<span class="spin" data-spin="${r}" role="button" aria-label="${pin ? "고정 풀기" : "맨 앞에 고정"}">📌</span></button>`; }).join("");
+}
+function setOrder(ord, pin){
+  if (Array.isArray(ord)) SORD = ord.filter(i => Number.isInteger(i) && i >= 0 && i < 12);
+  if (Array.isArray(pin)) SPIN = pin.filter(i => Number.isInteger(i) && i >= 0 && i < 12);
+  try { localStorage.setItem("desk-sord", JSON.stringify(SORD)); localStorage.setItem("desk-spin", JSON.stringify(SPIN)); } catch (e) {}
+  renderStructs();
+}
+$("structs").addEventListener("click", e => {
+  const p = e.target.closest("[data-spin]");
+  if (p){ const i = +p.dataset.spin; setOrder(null, SPIN.includes(i) ? SPIN.filter(x => x !== i) : [...SPIN, i]); window.DESK.onLook?.(); return; }
+  const b = e.target.closest("[data-s]"); if (b) pick(+b.dataset.s);
+});
 // 시안 단추에 마우스를 올리면(또는 Tab 으로 가면) 메모처럼 짧은 소개가 떠요. 원래 시안 번호 → 한 줄 (문쌤 타이쿤과 같아요)
 const TIPS = {
   1:"학교 건물을 앞에서 잘라 본 모습. 층을 오르내리며 교실로 가요",
@@ -3185,8 +3212,9 @@ window.DESK = {
   setFriends(list){ FRIENDS = Array.isArray(list) ? list.filter(f => f && f.name) : []; frKey = ""; },
   setNotes(list){ NOTES = Array.isArray(list) ? list : []; }, setLinks(list){ LINKS = Array.isArray(list) ? list : []; },
   setDday(x){ DDAY = x || null; }, setEvents(list){ EVENTS = Array.isArray(list) ? list : []; }, setWeather(w){ WEATHER = w || null; },
-  look:() => ({ s:SI, v:V }),
-  setLook(l){ if (!l) return; if (l.v) setPal(l.v, true); if (l.s != null) pick(l.s, true); },
+  look:() => ({ s:SI, v:V, ord:SORD, pin:SPIN }),
+  setLook(l){ if (!l) return; if (l.v) setPal(l.v, true); if (Array.isArray(l.ord) || Array.isArray(l.pin)) setOrder(l.ord, l.pin); if (l.s != null) pick(l.s, true); },
+  order:() => ({ ord:shownOrder(), pin:[...SPIN], names:STRUCTS.map(s => s.name) }), setOrder(ord, pin){ setOrder(ord, pin); window.DESK.onLook?.(); },
   onLook:null, onNote:null
 };
 // 시작: 예시 선생님으로 먼저 움직여요 (로그인하면 내 시간표로 바뀌어요)
@@ -3910,13 +3938,6 @@ $("shEdit").addEventListener("click", e => {
     const wd = new Date(v + "T00:00:00").getDay(); if (wd === 0 || wd === 6){ $("edMsg").textContent = "주말은 바꿀 수 없어요 (평일만)"; return; }
     readEdit(); ed.dayTT = ed.dayTT || {}; ed.dayKind = ed.dayKind || {}; if (!ed.dayTT[v]) ed.dayTT[v] = { ...((ed.week || {})[wd] || {}) }; dtPick = v; renderEdit(); return;
   }
-  if (b.id === "dtRepeat" && dtPick){
-    const u = $("dtUntil").value; if (!u || u <= dtPick){ $("edMsg").textContent = "되풀이를 끝낼 날짜를 고른 날보다 뒤로 골라 주세요"; return; }
-    readEdit(); let n = 0; const d0 = new Date(dtPick + "T00:00:00");
-    for (let w = 1; w <= 26; w++){ const d = new Date(d0); d.setDate(d.getDate() + 7*w); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; if (k > u) break;
-      ed.dayTT[k] = { ...ed.dayTT[dtPick] }; ed.dayKind = ed.dayKind || {}; if (ed.dayKind[dtPick]) ed.dayKind[k] = { ...ed.dayKind[dtPick] }; n++; }
-    renderEdit(); $("edMsg").textContent = n ? `${n}주를 더 넣었어요. [저장]하면 반영돼요` : "되풀이할 날이 없어요 (끝 날짜를 확인해 주세요)"; return;
-  }
   if (b.dataset.dtedit){ readEdit(); dtPick = b.dataset.dtedit; renderEdit(); return; }
   if (b.dataset.dtdel){ readEdit(); delete ed.dayTT[b.dataset.dtdel]; if (ed.dayKind) delete ed.dayKind[b.dataset.dtdel]; if (dtPick === b.dataset.dtdel) dtPick = ""; renderEdit(); return; }
   if (b.id === "evAdd"){ readEdit(); (ed.events = ed.events || []).push({ d:"", t:"" }); renderEdit(); $("evList").lastElementChild?.querySelector("input")?.focus(); return; }
@@ -4015,12 +4036,11 @@ function renderEdit(){
     const ch = Object.keys({ ...o, ...kk }).sort((a, b) => a - b).filter(p => kk[p] || (o[p] || "") !== (base[p] || "")).map(p => `${p}교시 ${kk[p] ? kk[p] + " " : ""}${o[p] || "공강"}`); return ch.join(" · ") || "바뀐 칸 없음"; };
   const daySec = `
     <div class="sec">3. 미리 바꾸기 (보강 · 행사 · 동아리 · 계발 · 시험)</div>
-    <p class="note">앞으로 정해진 날을 미리 넣어 둬요. 날짜를 고르면 그 요일 시간표가 채워지고, 바뀌는 교시에 <b>종류</b>와 <b>들어갈 반(장소)</b>을 적은 뒤 [저장]하면 <b>그날</b> 그 시간표로 움직여요. 동아리 · 계발처럼 매주 같은 요일이면 [매주 되풀이]를 눌러요. 반을 비우면 공강이에요.</p>
+    <p class="note">앞으로 정해진 날을 미리 넣어 둬요. 날짜를 고르면 그 요일 시간표가 채워지고, 바뀌는 교시에 <b>종류</b>와 <b>들어갈 반(장소)</b>을 적은 뒤 [저장]하면 <b>그날</b> 그 시간표로 움직여요. 반을 비우면 공강이에요.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap"><input type="date" id="dtDate" value="${esc(dtPick || "")}" aria-label="바꿀 날짜"><button type="button" class="btn" id="dtLoad">이 날 시간표 불러오기</button></div>
     ${dtPick && ed.dayTT && ed.dayTT[dtPick] ? `<p class="note" style="margin:8px 0 4px"><b>${dtPick.slice(5).replace("-", "/")} (${"일월화수목금토"[new Date(dtPick + "T00:00:00").getDay()]})</b> — 바뀌는 교시만 고쳐요</p>
       <div class="dtgrid dtgrid2" id="dtGrid">${Array.from({ length:nPer }, (_, i) => i + 1).map(p => { const base = (((ed.week || {})[new Date(dtPick + "T00:00:00").getDay()] || {})[p]) || "", v = ed.dayTT[dtPick][p] ?? base, kd = (DK[dtPick] || {})[p] || "";
-        return `<label class="${v !== base || kd ? "chg" : ""}"><span>${p}교시</span><select data-dtk="${p}" aria-label="${p}교시 종류"><option value="">${base ? "평소 수업" : "공강"}</option>${DKINDS.map(x => `<option ${x === kd ? "selected" : ""}>${x}</option>`).join("")}</select><input list="dlRooms" data-dtp="${p}" value="${esc(v)}" maxlength="12" placeholder="반 · 장소" class="${v !== base ? "chg" : ""}"></label>`; }).join("")}</div>
-      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center"><span class="note" style="margin:0">매주 같은 요일에 되풀이 —</span><input type="date" id="dtUntil" aria-label="되풀이 끝 날짜"><span class="note" style="margin:0">까지</span><button type="button" class="btn" id="dtRepeat">🔁 매주 되풀이</button></div>` : ""}
+        return `<label class="${v !== base || kd ? "chg" : ""}"><span>${p}교시</span><select data-dtk="${p}" aria-label="${p}교시 종류"><option value="">${base ? "평소 수업" : "공강"}</option>${DKINDS.map(x => `<option ${x === kd ? "selected" : ""}>${x}</option>`).join("")}</select><input list="dlRooms" data-dtp="${p}" value="${esc(v)}" maxlength="12" placeholder="반 · 장소" class="${v !== base ? "chg" : ""}"></label>`; }).join("")}</div>` : ""}
     ${Object.keys(ed.dayTT || {}).length ? `<div class="dtlist">${Object.keys(ed.dayTT).sort().map(k => `<div class="dtitem ${k === dtPick ? "on" : ""}"><b>${k.slice(5).replace("-", "/")} (${"일월화수목금토"[new Date(k + "T00:00:00").getDay()]})</b><span>${esc(dkSum(k))}</span><button type="button" class="ibtn" data-dtedit="${k}" aria-label="${k} 고치기">✎</button><button type="button" class="ibtn" data-dtdel="${k}" aria-label="${k} 바꾼 시간표 지우기">✕</button></div>`).join("")}</div>` : ""}`;
   // 순서: (처음 온 선생님만 '나와 학교') → 1. 요일별 시간표 → 2. 종 시간 → 3. 하루만 바꾸기. 평소 '나와 학교' · 학교 일정은 ⚙️ 설정 > 계정에서
   $("edBody").innerHTML = tabs + `
@@ -4516,9 +4536,31 @@ $("setBody").addEventListener("change", e => { const key = { sGr:"grades", sCl:"
 
 // ⚙️ 설정 탭: 계정 · 내 정보 / 시간표 기록 / TO DO 기록 / 메모 기록 / 즐겨찾기 기록
 let setTab = "acct";
-function renderSet(){
-  document.querySelectorAll("#setTabs [data-tab]").forEach(b => { const on = b.dataset.tab === setTab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+// ⚙️ 설정 > 🎮 화면 순서: ↑ ↓ 로 순서, 📌 로 맨 앞에 고정 (위 단추 줄에 바로 반영 · 내 계정에 저장)
+function renderScreens(){
+  const o = window.DESK.order();
+  $("setBody").innerHTML = `<div class="sec">🎮 화면 순서</div>
+    <p class="note">마음에 드는 화면을 위로 올리거나 📌 고정하면, 위쪽 1~12 단추 줄 맨 앞에 와요. 홈 화면 단추에 마우스를 올려 📌를 눌러도 고정돼요. 단추 번호는 원래 번호 그대로예요.</p>
+    <div class="sord">${o.ord.map((i, k) => `<div class="r ${o.pin.includes(i) ? "pinned" : ""}"><b>${i + 1}</b><span>${esc(o.names[i])}</span>
+      <label class="note" style="margin:0"><input type="checkbox" data-pins="${i}" ${o.pin.includes(i) ? "checked" : ""}> 📌 고정</label>
+      <button type="button" class="ibtn" data-sup="${k}" ${k ? "" : "disabled"} aria-label="위로">↑</button><button type="button" class="ibtn" data-sdn="${k}" ${k < o.ord.length - 1 ? "" : "disabled"} aria-label="아래로">↓</button></div>`).join("")}</div>
+    <div class="row" style="margin-top:8px"><button type="button" class="btn" id="sordReset">처음 순서로</button></div>`;
+}
+$("setBody").addEventListener("click", e => {
+  if (setTab !== "screens") return;
+  const o = window.DESK.order(), b = e.target.closest("button"); if (!b) return;
+  if (b.id === "sordReset"){ window.DESK.setOrder([], []); renderScreens(); return; }
+  const up = b.dataset.sup, dn = b.dataset.sdn, k = up !== undefined ? +up : dn !== undefined ? +dn : -1; if (k < 0) return;
+  const j = up !== undefined ? k - 1 : k + 1, ord = [...o.ord]; [ord[k], ord[j]] = [ord[j], ord[k]];
+  window.DESK.setOrder(ord, o.pin.filter(i => ord.indexOf(i) >= 0)); renderScreens();
+});
+$("setBody").addEventListener("change", e => {
+  if (setTab !== "screens" || e.target.dataset.pins === undefined) return;
+  const o = window.DESK.order(), i = +e.target.dataset.pins; window.DESK.setOrder(o.ord, e.target.checked ? [...o.pin, i] : o.pin.filter(x => x !== i)); renderScreens();
+});
+function renderSet(){  document.querySelectorAll("#setTabs [data-tab]").forEach(b => { const on = b.dataset.tab === setTab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
   if (setTab === "friend") return renderFriendTab();
+  if (setTab === "screens") return renderScreens();
   if (setTab !== "acct") return renderHist();
   const linked = k => kindsOf(user).includes(k) || (me && (me.kinds || []).includes(k));
   const L = loginInfo(), icon = { google:"G", kakao:"💬", password:"✉" }[L.kind] || "?";
