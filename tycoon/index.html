@@ -166,9 +166,22 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 body.bigview{overflow:hidden}
 body.bigview .mapcol{position:fixed;inset:0;z-index:50;background:#000;display:block}
 body.bigview .frame{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
-body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top:auto;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:rotate(90deg);transform-origin:left bottom;z-index:51}
-@media (orientation:landscape){ body.bigview .frame{transform:translate(-50%,-50%)} body.bigview .bigbtn{transform:none} }
-body.bigview.portview .frame{transform:translate(-50%,-50%)} body.bigview.portview .bigbtn{transform:none}   /* 📱 세로 그림은 돌리지 않아요 */
+body.bigview .bigbtn{display:none!important}   /* 크게 보기 안에서는 그림 위 단추(나가기 · 화면 번호)를 써요 */
+@media (orientation:landscape){ body.bigview .frame{transform:translate(-50%,-50%)} }
+body.bigview.portview .frame{transform:translate(-50%,-50%)}   /* 📱 세로 그림은 돌리지 않아요 */
+/* ⛶ 크게 보기 단추: 그림(.frame) 안에 있어서 그림과 같이 돌아가요. 3.5초 안 만지면 숨고, 톡 치면 다시 나와요 */
+.bigui{display:none;transition:opacity .4s}
+body.bigview .bigui{display:block}
+body.bigview.bigidle .bigui{opacity:0;pointer-events:none}
+.bigx{position:absolute;right:1.4cqw;top:1.4cqw;z-index:6;line-height:1.2;font:700 clamp(14px,2cqw,18px) var(--ui);padding:clamp(6px,.9cqw,10px) clamp(12px,1.8cqw,18px);background:var(--accent);color:var(--on-ink);border:2px solid #fff;border-radius:999px;box-shadow:0 2px 12px rgba(0,0,0,.55);cursor:pointer}
+.bigpick{position:absolute;left:50%;bottom:1.4cqw;transform:translateX(-50%);z-index:6;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:clamp(3px,.5cqw,6px);max-width:94%;padding:clamp(4px,.6cqw,7px) clamp(8px,1cqw,12px);line-height:1;background:rgba(10,8,22,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1.5px solid rgba(255,255,255,.3);border-radius:999px;box-sizing:border-box}
+.bigpick .nm{color:#fff;font:700 clamp(11px,1.4cqw,14px) var(--ui);padding:0 clamp(3px,.5cqw,6px);white-space:nowrap}
+.bigpick button{width:clamp(24px,3.2cqw,32px);height:clamp(24px,3.2cqw,32px);padding:0;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);background:transparent;color:#fff;font:700 clamp(11px,1.4cqw,14px) var(--ui);cursor:pointer}
+.bigpick button:hover{border-color:var(--accent)}
+.bigpick button.on{background:var(--accent);border-color:var(--accent);color:var(--on-ink)}
+/* 🖥 컴퓨터: 게임 화면에 마우스를 올리면 '누르면 크게' 안내 */
+@media (hover:hover){ html:not(.appmode) body:not(.bigview) .frame::after{content:"⛶ 누르면 크게 보기";position:absolute;right:8px;top:8px;z-index:4;padding:5px 10px;line-height:1.2;font:13px var(--ui);color:#fff;background:rgba(0,0,0,.6);border-radius:var(--box-r);opacity:0;transition:opacity .2s;pointer-events:none}
+  html:not(.appmode) body:not(.bigview) .frame:hover::after{opacity:1} }
 /* 📱 아이패드를 세로로 들었을 때: 가로로 돌리라는 한 줄 */
 @media (min-width:701px) and (max-width:1100px) and (orientation:portrait){ .padtip{display:block;position:absolute;left:0;right:0;bottom:-26px;margin:0;text-align:center;font:13px var(--ui);color:var(--muted)} }
 /* 이용약관 · 개인정보 처리방침 */
@@ -894,7 +907,7 @@ const DRAW = {
   </header>
   <div class="main" id="main">
     <section class="mapcol" id="mapcol">
-      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div><div class="talk off" id="talk" role="status" aria-live="polite" tabindex="0" title="누르면 다른 말"><span class="tav" id="talkAv"></span><p id="talkT"></p></div></div>
+      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div><div class="talk off" id="talk" role="status" aria-live="polite" tabindex="0" title="누르면 다른 말"><span class="tav" id="talkAv"></span><p id="talkT"></p></div><div class="bigui" id="bigUi"><button type="button" class="bigx" id="bigX" aria-label="크게 보기 나가기">✕ 나가기</button><div class="bigpick" id="bigPick" aria-label="화면 바꾸기"></div></div></div>
       <button type="button" class="bigbtn" id="bBig" aria-label="게임 화면 크게 보기">⛶ 크게 보기</button>
       <p class="padtip" id="padTip">📱 아이패드는 <b>가로로</b> 돌리면 게임 화면이 더 크게 보여요</p>
     </section>
@@ -3824,12 +3837,26 @@ function fit(){
   frame.style.width = Math.floor(k*AW) + "px"; frame.style.height = Math.floor(k*AH) + "px";
 }
 addEventListener("resize", fit);
-document.getElementById("bBig").addEventListener("click", () => {
-  const on = document.body.classList.toggle("bigview");
-  document.getElementById("bBig").textContent = on ? "✕ 작게 보기" : "⛶ 크게 보기";
-  document.getElementById("bBig").setAttribute("aria-label", on ? "게임 화면 작게 보기" : "게임 화면 크게 보기");
+// ⛶ 크게 보기: 휴대폰은 [⛶ 크게 보기] 단추, 컴퓨터는 게임 화면을 누르면 (컴퓨터는 화면 전체로). 나가기 = ✕ 단추 · Esc
+const bigOn = () => document.body.classList.contains("bigview");
+let bigFs = false, bigT = null;
+function setBig(on){
+  document.body.classList.toggle("bigview", on);
+  if (on){ renderBigPick(); bigPoke(); if (matchMedia("(hover:hover)").matches) document.documentElement.requestFullscreen?.().then(() => { bigFs = true; }).catch(() => {}); }
+  else { clearTimeout(bigT); document.body.classList.remove("bigidle"); if (document.fullscreenElement){ bigFs = false; document.exitFullscreen?.().catch(() => {}); } }
   fit();
-});
+}
+function bigPoke(){ document.body.classList.remove("bigidle"); clearTimeout(bigT); bigT = setTimeout(() => document.body.classList.add("bigidle"), 3500); }
+function renderBigPick(){
+  $("bigPick").innerHTML = `<span class="nm">${escH(STRUCTS[SI]?.name || "")}</span>` + shownOrder().map(i => `<button type="button" class="${i === SI ? "on" : ""}" data-bp="${i}" aria-label="${i + 1}. ${escH(STRUCTS[i].name)}" title="${i + 1}. ${escH(STRUCTS[i].name)}">${i + 1}</button>`).join("");
+}
+document.getElementById("bBig").addEventListener("click", () => setBig(true));
+$("bigX").addEventListener("click", () => setBig(false));
+$("bigPick").addEventListener("click", e => { const b = e.target.closest("[data-bp]"); if (b){ pick(+b.dataset.bp); bigPoke(); } });
+col.addEventListener("pointerdown", () => { if (bigOn()) bigPoke(); });
+col.addEventListener("pointermove", e => { if (bigOn() && e.pointerType === "mouse") bigPoke(); });
+addEventListener("keydown", e => { if (e.key === "Escape" && bigOn()) setBig(false); });
+document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && bigFs){ bigFs = false; if (bigOn()) setBig(false); } });   // 브라우저 Esc 로 전체 화면이 풀리면 같이 나가요
 new ResizeObserver(fit).observe(col);
 // 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
 // 2026-10-27 문쌤이 제일 좋아하는 순서로 1 건물 단면 · 2 3D 교무실 · 3 보드게임 판. 새 시안은 늘 맨 뒤에 붙여요 (앞 번호가 밀리지 않게)
@@ -3850,6 +3877,7 @@ function pick(k, quiet){
   document.documentElement.dataset.s = TOP[SI];   // 메모 스티커 모양이 시안을 따라가요
   $("hudName").textContent = `${SI + 1} · ${STRUCTS[SI].name}`;   // 📱 앱 아래 단추의 시안 이름
   document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", +b.dataset.s === SI));
+  if (bigOn()) renderBigPick();
   requestAnimationFrame(fit);
   try { localStorage.setItem("desk-struct", SI); } catch (e) {}
   if (!quiet) window.DESK.onLook?.();
@@ -4040,7 +4068,8 @@ if (NATIVE){
 
 // 게임 화면 속 메모 · 즐겨찾기 누르기 (즐겨찾기 = 새 창, 메모 = 메모 창)
 const hotAt = e => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.left)/r.width*W, y = (e.clientY - r.top)/r.height*H; return [...HOT].reverse().find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); };
-cv.addEventListener("click", e => { const h = hotAt(e); if (!h) return; if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
+// 누를 곳이 아닌 데를 누르면 크게 보기
+cv.addEventListener("click", e => { const h = hotAt(e); if (!h){ if (!APP && !bigOn()) setBig(true); return; } if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
 // 3D 교무실 물건을 누르면: 칠판 = 할 일 칸 · 게시판 = 메모 · 책장 = 즐겨찾기 · TV = 시간표 · 달력 = 설정(학교 일정) · 우편함 = 친구 채팅
 function openThing(k){
   if (STRUCTS[SI]?.act?.(k)) return;   // 화면 안에서 처리하는 것 (스탠드 · 턴테이블 · 어항)
@@ -4050,7 +4079,7 @@ function openThing(k){
   const btn = { memo:"bMemo", links:"bLinks", edit:"bEdit", dday:"bSet", friend:"bSet" }[k]; by(btn)?.click();
   if (k === "friend") setTimeout(() => document.querySelector('#setTabs [data-tab="friend"]')?.click(), 60);
 }
-cv.addEventListener("pointermove", e => { cv.style.cursor = hotAt(e) ? "pointer" : ""; });
+cv.addEventListener("pointermove", e => { cv.style.cursor = hotAt(e) ? "pointer" : APP || bigOn() ? "" : "zoom-in"; });
 
 /* 아래 파이어베이스 부분과 주고받는 창구 */
 window.DESK = {
