@@ -1185,8 +1185,9 @@ function avatarDef(i){
   return { spr:AV_SPR[(f ? "f" : "m") + style], leg:f ? AV_LEG_F : LEG, col:{ ...COL, c, h:AV_HAIR[k % 5], k:"#3A3F5C", r:"#D8435A" },
     name:`${f ? "여" : "남"} · ${f ? (style ? "단발" : "긴 머리") : (style ? "조금 긴 머리" : "짧은 머리")} · ${cn}` };
 }
-let AV = avatarDef(0);
-function me(x, y, frame = 2, flip = false, s = 1){
+let AV = avatarDef(0), MEAV = AV;
+function me(x, y, frame = 2, flip = false, s = 1, still = false){
+  if (!still && !WK.walking && AV === MEAV) x += IDLE.dx*s;   // 내 캐릭터만 제자리에서 오가요 (친구 · 그림 속 작은 나는 그대로)
   g.globalAlpha = .35; rect(x - 5*s, y - s, 10*s, 2*s, "#000"); g.globalAlpha = 1;
   [...AV.spr, ...AV.leg[frame]].forEach((line, j) => [...line].forEach((ch, i) => {
     if (ch !== ".") rect(x + ((flip ? 9 - i : i) - 5) * s, y + (j - 14) * s, s, s, AV.col[ch]);
@@ -1208,6 +1209,7 @@ function avatarGrid(attr, sel){
 const GIRL = ["..hhh..", ".hhhhh.", ".hsssh.", ".heseh.", ".hsssh.", ".hwrwh.", ".ccccc.", "scccccs", ".kkkkk.", ".kkkkk."];
 const GLEG = [[".s...s.", ".b...b."], ["..s.s..", "..b.b.."], ["..s.s..", "..b.b.."]];
 function girl(x, y, s, hair, frame = 2, flip = false){
+  if (frame === 2){ const ph = Math.sin(T*1.3 + x*.41 + y*.17); if (ph > .8) y -= s; if (Math.sin(T*.5 + x*.3) > .85) flip = !flip; }   // 가만히 있어도 가끔 콩 · 두리번
   const col = { h:hair, s:P.skin, e:"#1A1622", w:"#FFFFFF", r:"#D8435A", c:P.uni, k:P.skirt, b:"#1A1622" };
   g.globalAlpha = .3; rect(x - 3*s, y - s, 7*s, 2*s, "#000"); g.globalAlpha = 1;
   [...GIRL, ...GLEG[frame]].forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(x + ((flip ? 6 - i : i) - 3)*s, y + (j - 12)*s, s, s, col[ch]); }));
@@ -1251,7 +1253,15 @@ function stepWalk(S, dt){
   }
   if (!WK.path.length){ WK.walking = false; const p = WK.pending; WK.pending = null; if (p && p !== WK.here) walkTo(S, p, simNow()); }
 }
-const frameNo = () => WK.walking ? Math.floor(T*8) % 2 : 2;
+const frameNo = () => WK.walking || IDLE.move ? Math.floor(T*(WK.walking ? 8 : 6)) % 2 : 2;
+// 가만히 있을 때도 교실 · 교무실 안을 천천히 오가요 (3초 걷고 1초 쉬고, 다시 반대로) — 모든 화면이 늘 움직이게
+const IDLE = { dx:0, move:false };
+function idleStep(){
+  if (WK.walking){ IDLE.dx = 0; IDLE.move = false; return; }
+  const p = T % 8, a = 5;
+  IDLE.dx = Math.round(p < 3 ? a*(-1 + 2*p/3) : p < 4 ? a : p < 7 ? a - 2*a*(p - 4)/3 : -a);
+  IDLE.move = p < 3 || (p >= 4 && p < 7); WK.flip = p >= 4;
+}
 const bubText = st => WK.walking ? "🚶 이동 중" : st.place === "home" ? (st.slot === "주말" ? "🛋 주말" : "🏠 " + st.slot) : st.act.replace(" 중", "");
 
 /* ===================== 시안들 (설정이 바뀌면 makeStructs 로 다시 만들어요) ===================== */
@@ -1652,7 +1662,8 @@ const S6 = (() => {
     if (hr){ rect(x + w - 12, y - 16, 1, 16, P.edge); rect(x + w - 11, y - 16, 8, 5, P.hr); }
   }
   // 거리 소품: 나무 · 가로등 · 벤치 (세상 좌표에 고정)
-  function props(cam, front){
+  function props(cam0, front){
+    const cam = front ? cam0 + T*16 : cam0;
     const step = front ? 170 : 90, off = front ? 40 : 0;
     for (let k = Math.floor((cam*(front ? 1.25 : 1) - off) / step) - 1; k < Math.floor((cam*(front ? 1.25 : 1) + W) / step) + 2; k++){
       const x = k*step + off - cam*(front ? 1.25 : 1);
@@ -1661,14 +1672,18 @@ const S6 = (() => {
     }
   }
   function draw(st){
-    const d = simNow(), sg = segs(d.getDay()), m = Math.max(M0, Math.min(M1, st.m));
-    const cam = wx(m) - 200;
+    // 초 단위까지 부드럽게 흘러가요. 길 · 가로등은 내가 걷는 만큼 더 빨리 지나가요 (run)
+    const d = simNow(), sg = segs(d.getDay()), m = Math.max(M0, Math.min(M1, d.getHours()*60 + d.getMinutes() + d.getSeconds()/60 + d.getMilliseconds()/60000));
+    const cam = wx(m) - 200, run = cam + T*16;
     rect(0, 0, W, H, P.sky);
     if (V === "a" || NIGHT){ for (let k = 0; k < 50; k++){ const x = ((k*7919 - cam*.05) % W + W) % W, y = (k*1031) % 95; rect(x, y, 1, 1, k % 5 ? "#3A3A66" : "#FFFFFF"); } }
     else for (let k = 0; k < 4; k++){ const x = ((k*160 - cam*.15 + T*4) % (W + 80) + W + 80) % (W + 80) - 40, y = 18 + (k % 2)*14; rect(x, y, 32, 7, "#FFFFFF"); rect(x + 7, y - 5, 15, 6, "#FFFFFF"); }
     for (let i = -2; i < 14; i++){ const x = i*60 - ((cam*.3) % 60 + 60) % 60, h = 112 + (Math.abs(i + Math.floor(cam*.3/60)) % 3)*22; rect(x, GY - h, 46, h, P.apt); for (let y = GY - h + 6; y < GY - 6; y += 8) for (let xx = x + 4; xx < x + 42; xx += 8) rect(xx, y, 4, 3, NIGHT && (xx + y) % 3 === 0 ? "#FFE27A" : P.aptWin); }
-    rect(0, GY, W, H - GY, P.yard); rect(0, GY + 6, W, 13, P.path); for (let x = -(((cam) % 20) + 20) % 20; x < W; x += 20) rect(x, GY + 12, 10, 2, P.hallLine);
-    for (let x = -(((cam) % 12) + 12) % 12; x < W; x += 12) rect(x, GY, 11, 1, shade(P.path, .85));
+    rect(0, GY, W, H - GY, P.yard); rect(0, GY + 6, W, 13, P.path); for (let x = -(((run) % 20) + 20) % 20; x < W; x += 20) rect(x, GY + 12, 10, 2, P.hallLine);
+    for (let x = -(((run) % 12) + 12) % 12; x < W; x += 12) rect(x, GY, 11, 1, shade(P.path, .85));
+    // 하늘을 지나가는 새 · 길을 달리는 자전거
+    for (let k = 0; k < 3; k++){ const bx = ((T*(12 + k*4) + k*170) % (W + 60)) - 30, by = 30 + k*14 + Math.sin(T*2 + k)*3, wg = Math.sin(T*10 + k) > 0 ? 1 : -1; rect(bx, by, 2, 1, "#2A2A3A"); rect(bx - 2, by - wg, 2, 1, "#2A2A3A"); rect(bx + 2, by - wg, 2, 1, "#2A2A3A"); }
+    { const bx = W + 30 - ((T*38) % (W + 80)), by = GY + 14; g.strokeStyle = P.edge; g.lineWidth = 1.2; g.beginPath(); g.arc(bx, by, 4, 0, Math.PI*2); g.arc(bx + 14, by, 4, 0, Math.PI*2); g.stroke(); rect(bx, by - 6, 14, 2, P.hr); rect(bx + 5, by - 14, 4, 8, P.uni); rect(bx + 5, by - 18, 4, 4, P.skin); }
     const weekend = d.getDay() === 0 || d.getDay() === 6;
     if (weekend) facade(150, 150, "home", "주말", true);
     else sg.forEach(s => { const x = wx(s.s) - cam, w = wx(s.e) - wx(s.s); if (s.place === "walk" || x + w < -10 || x > W + 10) return; facade(x, w, s.place, s.label, m >= s.s && m < s.e); });
@@ -1677,8 +1692,7 @@ const S6 = (() => {
     props(cam, false);
     crowd(5, 8, 0, W, GY + 12, 1);
     if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GY); }
-    const mv = st.brk || (st.slot === "출근" && st.m < E0.i + 10) || st.slot === "정리";
-    me(200, GY + 4, mv ? Math.floor(T*8) % 2 : 2, false, 1);
+    me(200, GY + 4, Math.floor(T*8) % 2, false, 1, true);   // 하루를 걸어가요 (늘 걷는 모습)
     bubble(st.act, 200, GY - 12);
     props(cam, true);
     // 시간 자
@@ -2470,7 +2484,7 @@ const S18 = (() => {
     g.save(); g.shadowColor = CY; g.shadowBlur = 8; rect(mx - .5, 216, 1, 24, "#FFFFFF"); g.restore();
     g.save(); g.shadowColor = "rgba(92,242,255,.8)"; g.shadowBlur = 14; g.beginPath(); g.arc(mx, 216, 9.5, 0, Math.PI*2); g.fillStyle = WELL; g.fill(); g.strokeStyle = CY; g.lineWidth = 1.5; g.stroke(); g.restore();
     g.save(); g.beginPath(); g.arc(mx, 216, 8.5, 0, Math.PI*2); g.clip();
-    me(Math.round(mx), 225, st.brk ? Math.floor(T*6) % 2 : 2, false, 1); g.restore();
+    me(Math.round(mx), 225, Math.floor(T*4) % 2, false, 1, true); g.restore();
   }
   return { name:"미니멀 위젯", layout:"none", custom:true, draw, who:"20~40대 · 깔끔, 미니멀",
     desc:"<b>스마트폰 위젯처럼 깔끔한 화면</b>이에요. 큰 시계, 지금 교시 진행 링(남은 분), 다음 수업 카드, 교무실 8자리(● 내 자리), 오늘 수업 진행, 할 일, 하루 타임라인 위를 움직이는 내 얼굴까지 한눈에 보여요. 자동차 계기판처럼 금속 테두리 카드에 숫자가 빛나서 어두운 교실 TV에서도 잘 보여요." };
@@ -3101,7 +3115,7 @@ g.setTransform(2, 0, 0, 2, 0, 0); g.imageSmoothingEnabled = false;
 let last = performance.now(), panelAt = 0;
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 function loop(now){
-  const dt = Math.min(.1, (now - last)/1000); last = now; T = reduce ? 0 : now/1000;
+  const dt = Math.min(.1, (now - last)/1000); last = now; T = now/1000;   // 컴퓨터가 "움직임 줄이기"여도 화면은 늘 움직여요 (멈춰 보이지 않게)
   patchDayTT(simNow());   // 오늘(또는 미리보기 날짜)에 하루만 바꾼 시간표가 있으면 그걸로
   const d = simNow(), st = stateAt(d), S = STRUCTS[SI], E = dayEdge();
   const day = d.getDay(), hm = d.getHours()*60 + d.getMinutes();
@@ -3110,7 +3124,7 @@ function loop(now){
   BREAK = SCHOOL && !!st.brk; LUNCH = SCHOOL && !!st.lunch;
   g.setTransform(2, 0, 0, 2, 0, 0);
   if (!S.custom){ const raw = S.alias ? S.alias(st) : st.place; walkTo(S, S.mapId ? S.mapId(raw) : raw, d); stepWalk(S, dt); }
-  HOT = []; S.draw(st);
+  idleStep(); HOT = []; S.draw(st);
   // 친한 선생님: 수업 중일 때만 그 교실에 서 있어요 (교무실은 선생님마다 달라서 넣지 않아요)
   if (!S.custom && S.place) FRIENDS.forEach((f, k) => {
     if (!f.show) return; const r = friendRoom(f, d); if (!r) return;
@@ -3143,7 +3157,7 @@ cv.addEventListener("pointermove", e => { cv.style.cursor = hotAt(e) ? "pointer"
 /* 아래 파이어베이스 부분과 주고받는 창구 */
 window.DESK = {
   applyConfig, setTodos(list){ TODOS = Array.isArray(list) ? list : []; },
-  setAvatar(i){ AV = avatarDef(i); }, avatarSvg, avatarGrid, avatarName:i => avatarDef(i).name,
+  setAvatar(i){ AV = MEAV = avatarDef(i); }, avatarSvg, avatarGrid, avatarName:i => avatarDef(i).name,
   setDayTT(map){ DAYTT = map && typeof map === "object" ? map : {}; patchedKey = ""; },
   setFriends(list){ FRIENDS = Array.isArray(list) ? list.filter(f => f && f.name) : []; frKey = ""; },
   setNotes(list){ NOTES = Array.isArray(list) ? list : []; }, setLinks(list){ LINKS = Array.isArray(list) ? list : []; },
