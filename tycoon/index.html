@@ -37,7 +37,7 @@
 }
 [hidden]{display:none !important}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden;word-break:keep-all;overflow-wrap:break-word}   /* 한글 낱말이 중간에서 줄 바뀌지 않게 */
 .app{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:8px;padding-block:8px;box-sizing:border-box;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .box{background:var(--panel);border:var(--box-b);border-radius:var(--box-r);box-shadow:var(--box-sh)}
@@ -4305,10 +4305,34 @@ async function loadWeather(force){
     if (c) window.DESK.setWeather({ code:c.weather_code, temp:Math.round(c.temperature_2m), day:!!c.is_day, name:loc.name }); } catch (e) { wxAt = 0; }
 }
 setInterval(() => loadWeather(), 20*60000);
-let sEv = null, sDd = null, sF = null, sTagDraft = null;function schoolForm(){
+// 🏫 우리 학교 찾기: 나이스 공개 학교 정보(키 없이)로 학교를 고르면 학교 위치(진짜 날씨)와 즐겨찾기(학교 홈페이지 · 교육청 · 업무포털 · 나이스)가 저절로 들어가요
+const OFC = { B10:["서울","sen"], C10:["부산","pen"], D10:["대구","dge"], E10:["인천","ice"], F10:["광주","gen"], G10:["대전","dje"], H10:["울산","use"], I10:["세종","sje"], J10:["경기","goe"], K10:["강원","gwe"], M10:["충북","cbe"], N10:["충남","cne"], P10:["전북","jbe"], Q10:["전남","jne"], R10:["경북","gbe"], S10:["경남","gne"], T10:["제주","jje"] };
+const ofcHome = c => c === "R10" ? "https://www.gbe.kr" : `https://www.${OFC[c][1]}.go.kr`;
+let schHits = [], schMsg = "", schQ = "";
+async function findSchool(q){
+  const r = await fetch(`https://open.neis.go.kr/hub/schoolInfo?Type=json&pIndex=1&pSize=8&SCHUL_NM=${encodeURIComponent(q)}`), j = await r.json();
+  return ((j.schoolInfo && j.schoolInfo[1] && j.schoolInfo[1].row) || []).map(x => ({ name:x.SCHUL_NM, code:x.SD_SCHUL_CODE, kind:x.SCHUL_KND_SC_NM || "", ofc:x.ATPT_OFCDC_SC_CODE, ofcName:x.ATPT_OFCDC_SC_NM || "", home:x.HMPG_ADRES || "", addr:x.ORG_RDNMA || "" }));
+}
+const REG = [[/^(서울|인천|경기)/, 0], [/^강원/, 1], [/^(대전|세종|충청|충북|충남)/, 2], [/^(광주|전라|전북|전남)/, 3], [/^(대구|경상북|경북)/, 4], [/^(부산|울산|경상남|경남)/, 5], [/^제주/, 6]];
+function locOfAddr(a){ const g = REG.find(([re]) => re.test(a)); if (!g) return null; const list = LOCS[g[1]][1], hit = list.find(([n]) => a.startsWith(n) || a.includes(` ${n}시`) || a.includes(` ${n}군`)) || list[0]; return { name:hit[0], lat:hit[1], lon:hit[2] }; }
+async function addSchoolLinks(s){
+  const want = [];
+  if (s.home) want.push(["🏫", s.name, s.home]);
+  if (OFC[s.ofc]){ const [area, k] = OFC[s.ofc]; want.push(["🏛", s.ofcName || `${area}교육청`, ofcHome(s.ofc)], ["💼", `${area} 업무포털`, `https://${k}.eduptl.kr`], ["📋", `나이스 (${area})`, `https://${k}.neis.go.kr`]); }
+  let added = 0;
+  for (const [icon, name, raw] of want){
+    const url = normUrl(raw); if (!url || links.some(l => hostOf(l.url) === hostOf(url))) continue; if (links.length >= 30) break;
+    const now = Date.now() + added, id = demo || !deskId ? "l" + now : doc(collection(db, "desk_users", deskId, "links")).id;
+    const l = { id, name:name.slice(0, 40), url, icon, order:links.length ? Math.max(...links.map(x => x.order || 0)) + 1 : 0, createdAt:now };
+    links.push(l); await saveLink(l); added++;
+  }
+  return added;
+}
+let sEv = null, sDd = null, sF = null, sTagDraft = null;
+function schoolForm(){
   if (!cfg) return `<div class="sec">나와 학교</div><p class="note">먼저 🕘 시간표 창에서 처음 설정을 저장하면 여기서 고칠 수 있어요.</p>`;
   if (!sEv){ sEv = (cfg.events || []).map(e => ({ ...e })); sDd = cfg.dday ? { ...cfg.dday } : { d:"", t:"" }; sF = null; }
-  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, officeF:cfg.officeF || 2, inT:cfg.inT || "", outT:cfg.outT || "", loc:cfg.loc || null };
+  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, officeF:cfg.officeF || 2, inT:cfg.inT || "", outT:cfg.outT || "", loc:cfg.loc || null, school:cfg.school || null };
   const c = sF;
   return `<div class="sec">나와 학교</div>
     <div class="f2">
@@ -4323,8 +4347,13 @@ let sEv = null, sDd = null, sF = null, sTagDraft = null;function schoolForm(){
       <label class="f"><span>출근 시각 (비우면 08:10)</span><input type="time" id="sIn" value="${esc(c.inT || "")}"></label>
       <label class="f"><span>퇴근 시각 (비우면 16:10)</span><input type="time" id="sOut" value="${esc(c.outT || "")}"></label>
     </div>
-    <div class="sec">학교 위치 · 진짜 날씨</div>
-    <p class="note">로파이 창가 화면의 창밖이 이 동네의 진짜 날씨(비 · 눈 · 흐림 · 기온)로 바뀌어요. 시 · 군 이름과 대략 위치만 저장해요.</p>
+    <div class="sec">우리 학교</div>
+    <p class="note">학교 이름으로 찾아 고르면 <b>학교 위치(진짜 날씨)</b>와 <b>즐겨찾기(학교 홈페이지 · 교육청 · 업무포털 · 나이스)</b>가 저절로 들어가요. 나이스 공개 학교 정보를 써요.</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><input id="sSchQ" maxlength="30" placeholder="예) 진선여자고등학교" value="${esc(schQ)}" style="flex:1;min-width:160px" aria-label="학교 이름"><button type="button" class="btn" id="sSchFind">🔍 학교 찾기</button></div>
+    ${c.school ? `<p class="note" style="margin:6px 0 0">지금 학교: <b>${esc(c.school.name)}</b> · ${esc(c.school.ofcName || "")}</p>` : ""}
+    <div id="sSchList">${schHits.map((s, i) => `<button type="button" class="btn" data-sch="${i}" style="display:block;width:100%;text-align:left;margin-top:4px">🏫 <b>${esc(s.name)}</b> <small>${esc(s.kind)} · ${esc(s.addr)}</small></button>`).join("")}</div>
+    <p class="note" id="sSchMsg" style="margin:4px 0 0">${esc(schMsg)}</p>
+    <div class="sec">학교 위치 · 진짜 날씨</div>    <p class="note">로파이 창가 화면의 창밖이 이 동네의 진짜 날씨(비 · 눈 · 흐림 · 기온)로 바뀌어요. 시 · 군 이름과 대략 위치만 저장해요.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><select id="sLoc" aria-label="학교 위치">${locOpts(c.loc)}</select><button type="button" class="btn" id="sLocGps">📍 지금 있는 곳으로</button><span class="note" id="sLocMsg" style="margin:0">${c.loc ? `지금: ${esc(c.loc.name)}` : "아직 안 골랐어요"}</span></div>
     <div class="sec">학교 일정 · D-day</div>    <p class="note">D-day 하나는 게임 화면 왼쪽 위에, 일정은 오른쪽 SCHEDULE 칸에 앞으로 남은 것만 보여요.</p>
     <div class="evrow"><input type="date" id="sDdD" value="${esc(sDd.d || "")}" aria-label="D-day 날짜"><input id="sDdT" maxlength="20" placeholder="D-day 이름 (예: 기말고사)" value="${esc(sDd.t || "")}"><button type="button" class="ibtn" id="sDdX" aria-label="D-day 지우기">✕</button></div>
@@ -4337,7 +4366,7 @@ async function saveSchool(){
   const bad = !name ? "닉네임을 적어 주세요" : tagIn && !/^[A-Z][A-Z0-9]{1,11}$/.test(tagIn) ? "영문 이름은 영어 대문자로 시작, 영어 · 숫자 2~12자예요" : hr && !isClass(hr) ? "담임 반은 학년-반 으로 적어 주세요 (예: 1-1)" : "";
   if (bad){ $("sMsg").textContent = bad; return; }
   const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:+$("sCl").value, officeF:+$("sOff").value || 2, inT:$("sIn").value, outT:$("sOut").value,
-    loc:sF.loc || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
+    loc:sF.loc || null, school:sF.school || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
   const tag = finalTag(tagIn, out.name);
   if (demo){ cfg = out; useConfig(); loadWeather(true); $("sMsg").textContent = "체험 중이라 이 화면에서만 바뀌어요"; return; }
   $("saved").textContent = "저장 중…";
@@ -4355,6 +4384,8 @@ $("setBody").addEventListener("click", e => {
   else if (b.dataset.sevdel !== undefined){ sEv.splice(+b.dataset.sevdel, 1); renderSet(); }
   else if (b.id === "sDdX"){ sDd = { d:"", t:"" }; renderSet(); }
   else if (b.id === "sSave") saveSchool();
+  else if (b.id === "sSchFind") schFind();
+  else if (b.dataset.sch !== undefined) schPick(schHits[+b.dataset.sch]);
   else if (b.id === "sLocGps"){
     if (!navigator.geolocation){ $("sLocMsg").textContent = "이 브라우저는 위치를 못 찾아요. 목록에서 골라 주세요"; return; }
     $("sLocMsg").textContent = "위치 찾는 중…";
@@ -4362,13 +4393,29 @@ $("setBody").addEventListener("click", e => {
       () => { $("sLocMsg").textContent = "위치를 못 찾았어요. 목록에서 골라 주세요"; }, { timeout:10000, maximumAge:600000 });
   }
 });
+async function schFind(){
+  schQ = ($("sSchQ").value || "").trim(); if (schQ.length < 2){ schMsg = "학교 이름을 두 글자 넘게 적어 주세요"; renderSet(); return; }
+  schMsg = "찾는 중…"; schHits = []; renderSet();
+  try { schHits = await findSchool(schQ); schMsg = schHits.length ? "우리 학교를 눌러 고르세요" : "못 찾았어요. 학교 이름을 정확히 적어 주세요 (예: ○○중학교)"; }
+  catch (e){ schMsg = "학교 정보를 불러오지 못했어요. 잠시 뒤 다시 해 주세요"; }
+  renderSet();
+}
+async function schPick(s){
+  if (!s || !sF) return;
+  sF.school = { name:s.name, code:s.code, ofc:s.ofc, ofcName:s.ofcName, home:s.home };
+  const loc = locOfAddr(s.addr); if (loc) sF.loc = loc;
+  schHits = []; schMsg = "즐겨찾기 넣는 중…"; renderSet();
+  const n = await addSchoolLinks(s);
+  schMsg = `${s.name}을(를) 골랐어요. ${n ? `즐겨찾기 ${n}개를 넣었어요 ⭐` : "즐겨찾기는 이미 있어요"}${loc ? ` · 위치: ${loc.name}` : ""}. 아래 [저장]을 누르면 학교 · 위치가 저장돼요`; renderSet();
+}
+$("setBody").addEventListener("keydown", e => { if (e.target.id === "sSchQ" && e.key === "Enter"){ e.preventDefault(); schFind(); } });
 $("setBody").addEventListener("input", e => {
   const t = e.target; if (!sEv) return;
   if (t.dataset.sevd !== undefined) sEv[+t.dataset.sevd].d = t.value;
   if (t.dataset.sevt !== undefined) sEv[+t.dataset.sevt].t = t.value;
   if (t.id === "sDdD") sDd.d = t.value; if (t.id === "sDdT") sDd.t = t.value;
   const key = { sName:"name", sHr:"hr", sGr:"grades", sCl:"classes", sOff:"officeF", sIn:"inT", sOut:"outT" }[t.id];
-  if (key && sF) sF[key] = t.value; if (t.id === "sTag") sTagDraft = t.value;
+  if (key && sF) sF[key] = t.value; if (t.id === "sTag") sTagDraft = t.value; if (t.id === "sSchQ") schQ = t.value;
 });
 $("setBody").addEventListener("change", e => { const key = { sGr:"grades", sCl:"classes", sOff:"officeF" }[e.target.id]; if (key && sF) sF[key] = e.target.value;
   if (e.target.id === "sLoc" && sF){ const [n, la, lo] = e.target.value.split("|"); sF.loc = n ? { name:n, lat:+la, lon:+lo } : null; $("sLocMsg").textContent = n ? `${n} · [저장]을 눌러 주세요` : "아직 안 골랐어요"; } });
