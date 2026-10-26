@@ -138,6 +138,27 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .policy-foot td,.policy-foot th{border:1px solid var(--line);padding:3px 6px;text-align:left;vertical-align:top}
 .policy-foot p{margin:4px 0}
 .policy-foot .small{opacity:.7}
+.policy-foot details > .pol{display:none}   /* 접고 펴지 않고 팝업(#shPolicy)으로 보여요 */
+.policy-pop{font:13px/1.7 var(--body);word-break:keep-all}
+.policy-pop h4{margin:12px 0 2px;font:400 16px var(--ui);color:var(--accent)}
+.policy-pop h5{margin:8px 0 2px;font-size:13px}
+.policy-pop ul{margin:4px 0;padding-left:1.2em}
+.policy-pop table{border-collapse:collapse;margin:4px 0;font-size:12px}
+.policy-pop td,.policy-pop th{border:1px solid var(--line);padding:3px 6px;text-align:left;vertical-align:top}
+.policy-pop .small{opacity:.7}
+/* 내 캐릭터 고르기 */
+.avgrid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px;max-width:560px}
+.avgrid .av{aspect-ratio:10/14;padding:5px;background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);cursor:pointer}
+.avgrid .av svg{display:block;width:100%;height:100%;image-rendering:pixelated}
+.avgrid .av:hover{border-color:var(--accent2)}
+.avgrid .av.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+@media (max-width:560px){ .avgrid{grid-template-columns:repeat(5,minmax(0,1fr))} }
+/* 저장 상태 알약 (위쪽) */
+.savest{font:13px var(--ui);padding:3px 10px;border-radius:999px;white-space:nowrap;border:2px solid currentColor}
+.savest.busy{color:var(--accent)}
+.savest.busy::before{content:"";display:inline-block;width:10px;height:10px;margin-right:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:deskSpin .8s linear infinite;vertical-align:-1px}
+.savest.ok{color:var(--ok)}
+.savest.err{color:var(--hi)}
 /* 관리자 단추 (오른쪽 아래, 작게) */
 .admin-fab{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:9;padding:.3rem .8rem;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:12px var(--ui);cursor:pointer;opacity:.45}
 .admin-fab:hover,.admin-fab:focus-visible{opacity:1}
@@ -417,6 +438,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
       <div class="logo"><span id="brand">TEACHER TYCOON</span><small id="whoName">선생님의 하루</small></div>
       <div class="stat"><span>DATE</span><b id="sDate">--</b></div>
       <div class="stat"><span>TIME</span><b class="y" id="sTime">--:--</b></div>
+      <span class="savest" id="saveSt" role="status" aria-live="polite" hidden></span>
       <div class="stat"><span>지금</span><b class="k" id="sSlot">--</b></div>
       <div class="sp"></div>
       <div class="tools">
@@ -605,6 +627,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
       <button type="button" data-tab="link" role="tab">⭐ 즐겨찾기 기록</button>
     </div>
     <div class="body" id="setBody"></div>
+  </div>
+</div>
+
+<!-- 이용약관 · 개인정보 처리방침 (맨 아래 글을 누르면 팝업) -->
+<div class="sheet" id="shPolicy" hidden>
+  <div class="pane box wide" role="dialog" aria-modal="true" aria-labelledby="polTitle">
+    <header><h2 id="polTitle">이용약관 · 개인정보 처리방침</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+    <div class="body policy-pop" id="polBody"></div>
+    <div class="foot"><span class="msg"></span><button type="button" class="big ghost" data-close>닫기</button></div>
   </div>
 </div>
 
@@ -943,11 +974,34 @@ function topRoom(x, y, w, h, id, o = {}){
 const SPR = ["...hhhh...","..hhhhhh..",".hhhhhhhh.",".hssssssh.",".hsesseshh",".hssssssh.","..sssmss..","...cccc...","..ccwccc..",".sccwcccs.",".scccccs..","..cccccc.."];
 const LEG = [["..pp..pp..",".bb...bb.."],["...pppp...","..bb..bb.."],["..pp..pp..","..bb..bb.."]];
 const COL = { h:"#2B1D16", s:"#F5CDA6", e:"#1A1622", m:"#C8605A", c:"#3C8C6E", w:"#FFFFFF", p:"#2E3550", b:"#1A1622" };
+// 내 캐릭터 고르기 (⚙️ 설정): 0~9 남자 · 10~19 여자 — 머리 길이 2가지 × 옷 색 5가지
+const AV_COLS = [["초록","#3C8C6E"],["남색","#2E4A8C"],["빨강","#C0473A"],["겨자","#D9A23A"],["보라","#7A4FA8"]];
+const AV_HAIR = ["#2B1D16","#4A2E1C","#1A1A22","#6B4430","#3B2A20"];
+const AV_SPR = {
+  m0: SPR,   // 짧은 머리
+  m1: ["..hhhhhh..",".hhhhhhhh.","hhhhhhhhhh","hhsssssshh",".hsesseshh",".hssssssh.","..sssmss..","...cccc...","..ccwccc..",".sccwcccs.",".scccccs..","..cccccc.."],   // 조금 긴 머리
+  f0: ["..hhhhhh..",".hhhhhhhh.","hhhhhhhhhh","hhsssssshh","hhsesseshh","hhsssssshh","hhsssmsshh","hh.crrc.hh","hhccwccchh","hsccwcccsh",".scccccs..","..cccccc.."],   // 긴 머리
+  f1: ["..hhhhhh..",".hhhhhhhh.","hhhhhhhhhh","hhsssssshh","hhsesseshh","hhsssssshh",".hsssmssh.","...crrc...","..ccwccc..",".sccwcccs.",".scccccs..","..cccccc.."]    // 단발
+};
+const AV_LEG_F = [["..kkkkkk..","..b....b.."],["..kkkkkk..","...b..b..."],["..kkkkkk..","..b....b.."]];
+function avatarDef(i){
+  i = Math.max(0, Math.min(19, +i || 0));
+  const f = i >= 10, k = i % 10, style = k >= 5 ? 1 : 0, [cn, c] = AV_COLS[k % 5];
+  return { spr:AV_SPR[(f ? "f" : "m") + style], leg:f ? AV_LEG_F : LEG, col:{ ...COL, c, h:AV_HAIR[k % 5], k:"#3A3F5C", r:"#D8435A" },
+    name:`${f ? "여" : "남"} · ${f ? (style ? "단발" : "긴 머리") : (style ? "조금 긴 머리" : "짧은 머리")} · ${cn}` };
+}
+let AV = avatarDef(0);
 function me(x, y, frame = 2, flip = false, s = 1){
   g.globalAlpha = .35; rect(x - 5*s, y - s, 10*s, 2*s, "#000"); g.globalAlpha = 1;
-  [...SPR, ...LEG[frame]].forEach((line, j) => [...line].forEach((ch, i) => {
-    if (ch !== ".") rect(x + ((flip ? 9 - i : i) - 5) * s, y + (j - 14) * s, s, s, COL[ch]);
+  [...AV.spr, ...AV.leg[frame]].forEach((line, j) => [...line].forEach((ch, i) => {
+    if (ch !== ".") rect(x + ((flip ? 9 - i : i) - 5) * s, y + (j - 14) * s, s, s, AV.col[ch]);
   }));
+}
+// 고르는 칸에 보여 줄 작은 그림 (SVG)
+function avatarSvg(i){
+  const a = avatarDef(i), rows = [...a.spr, ...a.leg[2]]; let r = "";
+  rows.forEach((line, y) => [...line].forEach((ch, x) => { if (ch !== ".") r += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${a.col[ch]}"/>`; }));
+  return `<svg viewBox="0 0 10 14" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
 }
 /* 여고 학생 (7×12 픽셀: 긴 머리 · 빨간 리본 · 교복 치마) */
 const GIRL = ["..hhh..", ".hhhhh.", ".hsssh.", ".heseh.", ".hsssh.", ".hwrwh.", ".ccccc.", "scccccs", ".kkkkk.", ".kkkkk."];
@@ -2683,6 +2737,7 @@ cv.addEventListener("pointermove", e => { cv.style.cursor = hotAt(e) ? "pointer"
 /* 아래 파이어베이스 부분과 주고받는 창구 */
 window.DESK = {
   applyConfig, setTodos(list){ TODOS = Array.isArray(list) ? list : []; },
+  setAvatar(i){ AV = avatarDef(i); }, avatarSvg, avatarName:i => avatarDef(i).name,
   setNotes(list){ NOTES = Array.isArray(list) ? list : []; }, setLinks(list){ LINKS = Array.isArray(list) ? list : []; },
   look:() => ({ s:SI, v:V }),
   setLook(l){ if (!l) return; if (l.v) setPal(l.v, true); if (l.s != null) pick(l.s, true); },
@@ -2719,7 +2774,9 @@ const firebaseConfig = {
   messagingSenderId: "126636401536",
   appId: "1:126636401536:web:25b8a8296ec42b86f99765"
 };
-const fbApp = initializeApp(firebaseConfig), auth = getAuth(fbApp), db = getFirestore(fbApp);
+// 교무실 타이쿤은 로그인을 따로 써요 (이름 붙은 앱 "tycoon"): moontr.site 다른 앱의 센메일 관리자 로그인이 여기로 넘어오지 않고,
+// 여기서 구글 · 카카오로 로그인 · 로그아웃해도 다른 앱 로그인이 바뀌지 않아요. 로그인은 구글 · 카카오 두 가지만.
+const fbApp = initializeApp(firebaseConfig, "tycoon"), auth = getAuth(fbApp), db = getFirestore(fbApp);
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
 const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
 const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
@@ -2766,7 +2823,23 @@ async function signIn(kind){
 $("gIn").addEventListener("click", () => signIn("google"));
 $("kIn").addEventListener("click", () => signIn("kakao"));
 $("demoIn").addEventListener("click", startDemo);
-$("lgPolicy").addEventListener("click", e => { e.preventDefault(); startDemo(); $("policy").open = true; setTimeout(() => $("policy").scrollIntoView({ behavior:"smooth" }), 50); });
+$("lgPolicy").addEventListener("click", e => { e.preventDefault(); openPolicy(); });
+// 맨 아래 이용약관 · 개인정보 처리방침: 접고 펴지 않고 팝업 창으로
+function openPolicy(){ $("polBody").innerHTML = document.querySelector("#policy .pol").innerHTML; show("shPolicy"); $("shPolicy").querySelector(".close").focus(); }
+document.querySelector("#policy summary").addEventListener("click", e => { e.preventDefault(); openPolicy(); });
+
+// 저장 상태를 위쪽 한곳에: 창마다 뜨는 '저장 중… · 저장했어요' 글을 따라 위쪽 알약도 바꿔요
+{
+  const pill = $("saveSt"); let t = null;
+  const set = (cls, txt) => { clearTimeout(t); pill.className = "savest " + cls; pill.textContent = txt; pill.hidden = false; if (cls === "ok") t = setTimeout(() => { pill.hidden = true; }, 3500); };
+  const watch = el => new MutationObserver(() => {
+    const s = el.textContent || "";
+    if (/저장 ?중|저장하는 중/.test(s)) set("busy", "저장 중…");
+    else if (/못했어요|권한이 없어요|확인해 주세요/.test(s) && /저장|지우|바꾸|반영/.test(s)) set("err", "저장 못 했어요");
+    else if (/저장했어요|되돌렸어요|옮겼어요|되살렸어요|지웠어요|비웠어요|영구 삭제했어요/.test(s)) set("ok", "저장했어요 ✓");
+  }).observe(el, { childList:true, characterData:true, subtree:true });
+  ["saved", "mmMsg", "lkMsg", "edMsg"].forEach(id => $(id) && watch($(id)));
+}
 $("demoStart").addEventListener("click", () => { hide("demoBar"); show("shLogin"); });
 $("adminFab").addEventListener("click", () => { location.href = "./?admin"; });
 
@@ -2789,6 +2862,8 @@ function needLogin(what){
 onAuthStateChanged(auth, async u => {
   user = u;
   if (ADMIN_PAGE){ renderAdmin(); return; }
+  // 구글 · 카카오가 아닌 로그인(이메일 등)은 쓰지 않아요 → 로그아웃하고 로그인 화면으로
+  if (u && !kindsOf(u).length){ await signOut(auth); return; }
   if (!u){ closeDesk(); if (!demo) show("shLogin"); return; }
   await openDesk();
 });
@@ -2824,8 +2899,17 @@ async function openDesk(){
   loadDay(today); loadExtras(); watchChat();
 }
 function useConfig(){
-  window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look);
+  window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look); window.DESK.setAvatar(cfg.avatar || 0);
   $("whoName").textContent = `${ME}의 하루`;
+}
+// 내 캐릭터 저장 (시간표 문서 data/main 에 avatar 번호만 더해요)
+async function saveAvatar(i){
+  window.DESK.setAvatar(i);
+  if (demo || !deskId){ return; }
+  if (!cfg){ $("saved").textContent = "먼저 🗓 시간표를 저장하면 캐릭터도 저장돼요"; return; }
+  cfg.avatar = i; $("saved").textContent = "저장 중…";
+  try { await setDoc(doc(db, "desk_users", deskId, "data", "main"), { avatar:i }, { merge:true }); $("saved").textContent = "캐릭터를 저장했어요 ✓"; }
+  catch (e){ $("saved").textContent = saveErr(e); }
 }
 // 시간표 · 닉네임을 아직 안 넣었으면 위쪽 안내 띠 + ✏️ 개인설정 단추를 반짝여요 (억지로 창을 열지는 않아요)
 function guide(){
@@ -3348,7 +3432,7 @@ async function saveEdit(){
   readEdit();
   const bad = checkEdit(); if (bad){ $("edMsg").textContent = bad; return; }
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   // 영문 이름: 칸에 적은 것, 비었으면 닉네임의 성으로 자동 (칸은 닉네임을 바꿀 때 이미 따라 바뀌어요)
   const tag = finalTag(ed.tag, out.name);
   if (demo){ window.DESK.applyConfig(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
@@ -3574,10 +3658,12 @@ function renderSet(){
     <div class="sec">내 정보</div>
     <p style="margin:4px 0">닉네임: <b>${esc((me && me.name) || "-")}</b> · 영문 이름: <b>${esc(TAG || "-")}</b></p>
     <p style="margin:4px 0"><button type="button" class="btn" data-go="edit">🗓 시간표 창에서 바꾸기</button></p>
+    <div class="sec">내 캐릭터</div>
+    <p class="note">게임 화면 속 내 모습이에요. 남자 10 · 여자 10 가운데 골라요 (누르면 바로 저장).</p>
+    <div class="avgrid">${Array.from({ length:20 }, (_, i) => `<button type="button" class="av ${i === ((cfg && cfg.avatar) || 0) ? "on" : ""}" data-av="${i}" aria-label="${esc(window.DESK.avatarName(i))}" aria-pressed="${i === ((cfg && cfg.avatar) || 0)}">${window.DESK.avatarSvg(i)}</button>`).join("")}</div>
     <div class="sec">로그인 연결</div>
     <p class="note">구글 · 카카오를 둘 다 연결하면 어느 쪽으로 들어와도 같은 데스크탑이 열려요. 따로 만든 데스크탑이 있으면 하나로 합쳐 드려요.</p>
     ${["google","kakao"].map(k => { const p = L.of(k === "google" ? "google.com" : KAKAO); return `<div class="acct"><b>${kindName(k)}${L.kind === k ? ` <span class="chip" style="color:var(--accent)">지금 사용 중</span>` : ""}${p && L.label(p) ? `<small style="display:block;color:var(--muted);font-size:12px">${esc(L.label(p))}</small>` : ""}</b>${linked(k) ? `<span class="ok">✓ 연결됨</span>` : `<button type="button" class="big ${k} " data-link="${k}">${kindName(k)}도 연결하기</button>`}</div>`; }).join("")}
-    ${L.kind === "password" ? `<div class="acct"><b>이메일 <span class="chip" style="color:var(--accent)">지금 사용 중</span><small style="display:block;color:var(--muted);font-size:12px">${esc(L.who)}</small></b><span class="ok">✓ 연결됨</span></div>` : ""}
     ${pendingMerge ? `<p class="note">${kindName(pendingMerge)} 계정으로 만든 데스크탑이 따로 있어요.</p><button type="button" class="big" data-merge="${pendingMerge}">${kindName(pendingMerge)} 계정 확인하고 하나로 합치기</button>` : ""}
     <p class="err" id="setErr">${esc(setMsg)}</p>
     <div class="sec">내 기록</div>
@@ -3755,6 +3841,8 @@ $("setBody").addEventListener("click", async e => {
   }
 });
 $("setBody").addEventListener("click", e => {
+  const av = e.target.closest("[data-av]");
+  if (av){ const i = +av.dataset.av; saveAvatar(i); document.querySelectorAll("#setBody [data-av]").forEach(b => { const on = b === av; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); }); return; }
   const l = e.target.closest("[data-link]"); if (l) return connect(l.dataset.link);
   const m = e.target.closest("[data-merge]"); if (m) return mergeOther(m.dataset.merge, null);
   const go = e.target.closest("[data-go]"); if (!go) return;
