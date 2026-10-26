@@ -4033,8 +4033,117 @@ const newTab = port => (() => {
 const S33 = newTab(false);
 /* ===== END 33 ===== */
 
+// 노란 오리: 뒤뚱뒤뚱 (step = 걸음 흔들림)
+function duck(x, y, s = 1, flip = false, step = 0){
+  const d = flip ? -1 : 1;
+  g.save(); g.translate(x, y); g.rotate(Math.sin(step)*.12);
+  g.globalAlpha = .2; g.fillStyle = "#000"; g.beginPath(); g.ellipse(0, 0, 7*s, 1.4*s, 0, 0, Math.PI*2); g.fill(); g.globalAlpha = 1;
+  g.fillStyle = "#FF9F1C"; g.fillRect(-3*s, -1.5*s, 2.2*s, 1.5*s); g.fillRect(1*s, -1.5*s, 2.2*s, 1.5*s);   // 발
+  g.fillStyle = "#FFD93D"; g.beginPath(); g.ellipse(-d*1*s, -6*s, 7*s, 5*s, 0, 0, Math.PI*2); g.fill();   // 몸
+  g.beginPath(); g.moveTo(-d*7*s, -8*s); g.lineTo(-d*10*s, -11*s); g.lineTo(-d*6*s, -5*s); g.fill();   // 꼬리
+  g.fillStyle = "#F7C523"; g.beginPath(); g.ellipse(-d*2*s, -6*s, 3.6*s, 2.3*s, -d*.3, 0, Math.PI*2); g.fill();   // 날개
+  g.fillStyle = "#FFD93D"; g.beginPath(); g.arc(d*4*s, -12*s, 4*s, 0, Math.PI*2); g.fill();   // 머리
+  g.fillStyle = "#1E1E28"; g.beginPath(); g.arc(d*5.4*s, -13*s, .9*s, 0, Math.PI*2); g.fill();
+  g.fillStyle = "#FF9F1C"; g.beginPath(); g.ellipse(d*8*s, -11.3*s, 2.6*s, 1.2*s, 0, 0, Math.PI*2); g.fill();   // 부리
+  g.fillStyle = "rgba(255,120,120,.5)"; g.beginPath(); g.arc(d*3.6*s, -10.6*s, 1*s, 0, Math.PI*2); g.fill();
+  g.restore();
+}
+
+/* ===== 34. 맥 바탕화면 ===== */
+const macDesk = port => (() => {
+  // 시간대별 바탕 (아침 · 낮 · 노을 · 밤)
+  const SKY = { am:["#FDE2C8", "#B8D8F2", "#7FB0E0"], pm:["#BFE3FF", "#8EC5F0", "#5C93D6"], set:["#FFB88A", "#E87C8C", "#6D5BA8"], night:["#2A2F5C", "#1A1D3E", "#0E1028"] };
+  function draw(st){
+    const t = today0(st), h = t.d.getHours(), sky = h < 6 || h >= 19 ? SKY.night : h < 11 ? SKY.am : h < 17 ? SKY.pm : SKY.set, dark = sky === SKY.night;
+    const bg = g.createLinearGradient(0, 0, 0, H); sky.forEach((c, k) => bg.addColorStop(k/(sky.length - 1), c)); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    // 언덕 세 겹
+    [["rgba(255,255,255,.18)", 180, 18, .7], ["rgba(255,255,255,.12)", 205, 22, 1.1], ["rgba(0,0,0,.10)", 228, 16, 1.6]].forEach(([c, y0, a, f]) => {
+      g.fillStyle = dark ? c.replace("255,255,255", "120,140,255") : c; g.beginPath(); g.moveTo(0, H);
+      for (let x = 0; x <= W; x += 8) g.lineTo(x, y0 + Math.sin(x/W*Math.PI*2*f + f)*a); g.lineTo(W, H); g.fill(); });
+    const GL = dark ? "rgba(40,44,72,.72)" : "rgba(255,255,255,.62)", INK = dark ? "#F2F3F8" : "#1D1D1F", SUB = dark ? "#B4B8CC" : "#6E6E73";
+    // 메뉴 막대
+    g.fillStyle = dark ? "rgba(20,22,40,.5)" : "rgba(255,255,255,.45)"; g.fillRect(0, 0, W, 13);
+    ft("◆", 10, 7, 7, INK, "center", "sans", "900"); ft("교무실", 20, 7, 7, INK, "left", "sans", "900");
+    ["파일", "편집", "보기", "시간표", "도움말"].forEach((m, k) => ft(m, 50 + k*24, 7, 6.5, INK, "left", "sans", "500"));
+    ft(`${DAYS[t.day]} ${t.d.getMonth() + 1}월 ${t.d.getDate()}일  ${t.tm}`, W - 8, 7, 6.5, INK, "right", "sans", "700");
+    if (WEATHER) ft(`${WEATHER.code >= 51 ? "🌧" : WEATHER.code >= 2 ? "⛅" : dark ? "🌙" : "☀"} ${WEATHER.temp}°`, W - 90, 7, 6.5, INK, "right", "sans", "700");
+    // 위젯: 시계 · 달력
+    card0(12, 22, 70, 70, 14, GL);
+    const cx = 47, cy = 57, R = 27;
+    g.fillStyle = dark ? "#1C1E34" : "#FFFFFF"; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI*2); g.fill();
+    for (let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; ft(String(k || 12), cx + Math.sin(a)*(R - 6), cy - Math.cos(a)*(R - 6) + .5, 5, INK, "center", "sans", "700"); }
+    const hm = t.d.getHours() % 12 + t.d.getMinutes()/60, mi = t.d.getMinutes() + t.d.getSeconds()/60, se = t.d.getSeconds();
+    const hand = (a, l, w, c) => { g.strokeStyle = c; g.lineWidth = w; g.lineCap = "round"; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.sin(a)*l, cy - Math.cos(a)*l); g.stroke(); };
+    hand(hm/12*Math.PI*2, 12, 2.2, INK); hand(mi/60*Math.PI*2, 18, 1.6, INK); hand(se/60*Math.PI*2, 20, .7, "#FF9500");
+    g.fillStyle = "#FF9500"; g.beginPath(); g.arc(cx, cy, 1.5, 0, Math.PI*2); g.fill();
+    card0(88, 22, 70, 70, 14, GL);
+    ft(`${DAYS[t.day]}요일`, 98, 34, 7, "#FF3B30", "left", "sans", "900"); ft(String(t.d.getDate()), 98, 52, 22, INK, "left", "sans", "300");
+    const ev = EVENTS.find(e => e.n >= 0);
+    ft(fitLine(ev ? `${ev.n === 0 ? "오늘" : "D-" + ev.n} ${ev.t}` : DDAY ? `D-${DDAY.n} ${DDAY.t}` : "다가오는 일정 없음", 54, 6.5, "sans", "700"), 98, 73, 6.5, SUB, "left", "sans", "700");
+    ft(fitLine(nextLine(t), 54, 6.5, "sans", "700"), 98, 83, 6.5, INK, "left", "sans", "700");
+    // 위젯: 미리 알림(할 일)
+    card0(12, 98, 146, 84, 14, GL);
+    ft("미리 알림", 22, 110, 8, "#007AFF", "left", "sans", "900"); ft(String(TODOS.filter(x => !x.d).length), 148, 110, 9, INK, "right", "sans", "700");
+    (TODOS.length ? TODOS.slice(0, 4) : [{ t:"오른쪽 TO DO 칸에 적어 보세요", d:false }]).forEach((x, k) => {
+      const y = 126 + k*14;
+      g.strokeStyle = x.d ? "#007AFF" : SUB; g.lineWidth = 1; g.beginPath(); g.arc(26, y, 4, 0, Math.PI*2); g.stroke();
+      if (x.d){ g.fillStyle = "#007AFF"; g.beginPath(); g.arc(26, y, 2.6, 0, Math.PI*2); g.fill(); }
+      ft(fitLine(x.t, 112, 7.5, "sans", "500"), 35, y + .5, 7.5, x.d ? SUB : INK, "left", "sans", "500");
+    });
+    hot(12, 98, 146, 84, { open:"todo" });
+    // 위젯: 지금
+    card0(12, 188, 146, 36, 14, GL);
+    fillRR(20, 196, 20, 20, 6, t.hr ? "#FF2D55" : "#34C759"); ft(st.place === "home" ? "🏠" : st.lunch ? "🍚" : "📚", 30, 206.5, 9, "#FFFFFF", "center");
+    ft(fitLine(t.here, 106, 8.5, "sans", "900"), 46, 201, 8.5, INK, "left", "sans", "900");
+    ft(fitLine(`${st.act}${t.left !== null && t.wk ? ` · ${t.left}분` : ""}`, 106, 6.5, "sans", "500"), 46, 212, 6.5, SUB, "left", "sans", "500");
+    // 창: 이번 주 시간표
+    const X = 168, Y = 22, WW = 300, WH = 196;
+    card0(X, Y, WW, WH, 10, dark ? "rgba(30,32,54,.94)" : "rgba(255,255,255,.95)", .28);
+    fillRR(X, Y, WW, 18, [10, 10, 0, 0], dark ? "rgba(48,50,78,.95)" : "rgba(244,244,247,.95)");
+    ["#FF5F57", "#FEBC2E", "#28C840"].forEach((c, k) => { g.fillStyle = c; g.beginPath(); g.arc(X + 10 + k*9, Y + 9, 3, 0, Math.PI*2); g.fill(); });
+    ft("이번 주 시간표", X + WW/2, Y + 9.5, 7.5, INK, "center", "sans", "700");
+    const per = BELL.filter(b => /\d/.test(b[0])), GX = X + 34, GY = Y + 34, CW = (WW - 44)/5, RH = Math.min(19, (WH - 44)/Math.max(1, per.length));
+    for (let d = 1; d <= 5; d++){
+      const x = GX + (d - 1)*CW, today = d === t.day;
+      if (today) fillRR(x + 1, GY - 12, CW - 2, per.length*RH + 12, 6, dark ? "rgba(0,122,255,.18)" : "rgba(0,122,255,.08)");
+      ft(DAYS[d], x + CW/2, GY - 6, 7, today ? "#007AFF" : SUB, "center", "sans", "900");
+    }
+    per.forEach(([p, a, b], k) => {
+      const y = GY + k*RH; ft(p, X + 14, y + RH/2 + 1, 7, SUB, "center", "sans", "700"); ft(a, X + 25, y + RH/2 + 1, 5, SUB, "center", "sans");
+      for (let d = 1; d <= 5; d++){
+        const r = (TT[d] || {})[p]; if (!r) continue;
+        const x = GX + (d - 1)*CW, cur = d === t.day && st.m >= mm(a) && st.m < mm(b), hr = HR && r === HR;
+        const c = hr ? "#FF2D55" : isClass(r) ? ["#34C759", "#FF9500", "#007AFF", "#AF52DE", "#5AC8FA", "#FFCC00"][(gradeOf(r) - 1) % 6] : "#8E8E93";
+        g.globalAlpha = cur ? 1 : .22; fillRR(x + 3, y + 1.5, CW - 6, RH - 3, 4, c); g.globalAlpha = 1;
+        fillRR(x + 3, y + 1.5, 2.2, RH - 3, 1, c);
+        ft(fitLine(NAME(r).replace(" 우리 반", ""), CW - 14, 7, "sans", "700"), x + 9, y + RH/2 + 1, 7, cur ? "#FFFFFF" : INK, "left", "sans", "700");
+        if (cur){ g.save(); g.strokeStyle = "#FFFFFF"; g.lineWidth = 1.2; rr0(x + 3, y + 1.5, CW - 6, RH - 3, 4); g.stroke(); g.restore(); }
+      }
+    });
+    hot(X, Y, WW, WH, { open:"edit" });
+    // 독
+    const apps = [["📅", "#FFFFFF", { open:"edit" }], ["✅", "#FFFFFF", { open:"todo" }], ["📝", "#FFE97A", { open:"memo" }], ...LINKS.slice(0, 3).map((l, k) => [l.icon || [...l.name][0], ["#E8F0FE", "#FCE8E6", "#E6F4EA"][k], { url:l.url }]), ["⭐", "#FFF4D6", { open:"links" }]];
+    const IS = 18, DW = apps.length*(IS + 5) + 9, DX = W/2 - DW/2, DY = H - 27;
+    fillRR(DX, DY, DW, 24, 8, dark ? "rgba(40,44,72,.55)" : "rgba(255,255,255,.4)");
+    apps.forEach(([ic, c, act], k) => {
+      const x = DX + 7 + k*(IS + 5), y = DY + 3;
+      card0(x, y, IS, IS, 5, c, .12); ft(ic, x + IS/2, y + IS/2 + .5, /^[가-힣A-Za-z0-9]/.test(ic) ? 8 : 10, "#1A73E8", "center", "sans", "700");
+      if (k === 0) { g.fillStyle = INK; g.beginPath(); g.arc(x + IS/2, DY + 22.5, .9, 0, Math.PI*2); g.fill(); }
+      hot(x, y, IS, IS, act);
+    });
+    // 귀여운 것: 독 위를 오리가 뒤뚱뒤뚱
+    const L = DW - 20, P = 2*L + 60, tt = (T*9) % P; let ox, fl = false, walking = true;
+    if (tt < L) ox = DX + 10 + tt; else if (tt < L + 30){ ox = DX + 10 + L; walking = false; } else if (tt < 2*L + 30){ ox = DX + 10 + L - (tt - L - 30); fl = true; } else { ox = DX + 10; walking = false; fl = true; }
+    duck(ox, DY, 1.3, fl, walking ? T*9 : 0);
+  }
+  return { name:"맥 바탕화면", layout:"none", custom:true, draw, port, who:"전 연령 · 무난, 깔끔한 컴퓨터 화면",
+    desc:"<b>깔끔한 맥 컴퓨터 같은 바탕화면</b>이에요. 시간대(아침 · 낮 · 노을 · 밤)에 따라 바탕색이 바뀌고, 왼쪽 위젯(시계 · 달력 · 미리 알림 · 지금), 가운데 이번 주 시간표 창(지금 칸이 진하게), 아래 독에 시간표 · 할 일 · 메모 · 즐겨찾기가 있어요. 독 위를 노란 오리가 뒤뚱뒤뚱 걸어가요." };
+})();
+const S34 = macDesk(false);
+/* ===== END 34 ===== */
+
 /*NEW_STRUCTS*/
-  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32, 33:S33 };
+  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32, 33:S33, 34:S34 };
   // 📱 세로 그림: 270×480 크기로 따로 만들어 원래 시안에 .portS 로 붙여요 (아직 없는 시안은 가로 그림 그대로)
   setDims(true);
   const PORTS = { 1:tower(true), 15:deskWin(true), 21:hud3d(true), 22:toyOffice(true), 11:retroPC(true), 8:rpg(true), 6:sideScroll(true), 5:board(true), 7:cctv(true), 10:planner(true), 9:dayClock(true), 18:widget(true) };
@@ -4160,7 +4269,7 @@ new ResizeObserver(fit).observe(col);
 // 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
 // 2026-10-27 문쌤이 제일 좋아하는 순서로 1 건물 단면 · 2 3D 교무실 · 3 보드게임 판. 새 시안은 늘 맨 뒤에 붙여요 (앞 번호가 밀리지 않게)
 // 13번부터: 무난한 바탕화면 (31 윈도우 …)
-const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32, 33];
+const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32, 33, 34];
 // 예전 단추 순서 — 예전 번호로 저장된 '고른 화면 · 순서 · 📌 고정'을 새 번호로 옮길 때만 써요
 const OLD_TOP = [1, 15, 21, 22, 11, 8, 6, 5, 7, 10, 18, 9];
 const fromOld = i => Number.isInteger(i) && i >= 0 && i < OLD_TOP.length ? TOP.indexOf(OLD_TOP[i]) : i;
@@ -4234,7 +4343,8 @@ const TIPS = {
   22:"나무 바닥 3D 교무실. 선생님들이 커피 · 프린터 · 회의로 오가고, 쉬는 시간엔 학생이 찾아와요",
   31:"늘 보던 컴퓨터 바탕화면. 아이콘 · 시간표 창 · 위젯, 작업 표시줄 위를 내 캐릭터가 오가요",
   32:"파일 탐색기 창. 오늘 일정이 파일처럼 줄지어 있고, 창 위를 고양이가 걸어 다녀요",
-  33:"인터넷 새 탭 시작 화면. 검색창 자리에 지금 상태, 즐겨찾기 바로가기, 새가 콩콩 뛰어다녀요"
+  33:"인터넷 새 탭 시작 화면. 검색창 자리에 지금 상태, 즐겨찾기 바로가기, 새가 콩콩 뛰어다녀요",
+  34:"깔끔한 맥 컴퓨터 바탕화면. 위젯 · 이번 주 시간표 창 · 독, 오리가 독 위를 뒤뚱뒤뚱"
 };
 function showTip(b){
   const t = TIPS[TOP[+b.dataset.s]], el = $("tipnote"); if (!t) return;
