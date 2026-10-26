@@ -538,9 +538,9 @@ var FIREBASE_CONFIG = {
   messagingSenderId: "126636401536",
   appId: "1:126636401536:web:25b8a8296ec42b86f99765"
 };
-// 관리자는 구글 계정 bellachord 로 로그인합니다 (관리자 허브에서 로그인했으면 바로 열립니다)
+// 관리자는 관리자 구글 계정으로 로그인합니다 (관리자 허브에서 로그인했으면 바로 열립니다)
 var ADMIN_EMAIL = "anstjsdud@sen.go.kr";
-var ADMIN_EMAILS = [ADMIN_EMAIL, "bellachord@gmail.com"];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
+var ADMIN_EMAILS = [ADMIN_EMAIL, "bellachord@gmail.com"];   // 관리자 구글 계정으로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
 var isAdminEmail = e => ADMIN_EMAILS.includes(String(e || "").toLowerCase());
 </script>
 
@@ -1710,21 +1710,21 @@ function authUser(){
   });
 }
 
-// 관리자 로그인은 구글 bellachord 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
+// 관리자 로그인은 관리자 구글 계정 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
 function PwModal({ onOk, onClose }){
   const [e,setE]=useState('');
   // 관리자 허브 등에서 이미 관리자로 로그인돼 있으면 바로 엽니다.
   // 관리자가 아닌 계정이 공용 로그인에 남아 있으면 알려 주고 로그아웃해요 (남겨 두면 다른 앱 관리자 화면도 막혀요)
   useEffect(()=>{ authUser().then(u=>{ if(!u) return;
     if(isAdminEmail(u.email)) onOk();
-    else { firebase.auth().signOut().catch(()=>{}); setE(`${u.email||'관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. bellachord 구글 계정으로 다시 로그인해 주세요.`); }
+    else { firebase.auth().signOut().catch(()=>{}); setE(`${u.email||'관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. 관리자 구글 계정으로 다시 로그인해 주세요.`); }
   }); },[]);
   const go=async()=>{ setE('');
     try{
       const p=new firebase.auth.GoogleAuthProvider();
-      p.setCustomParameters({ login_hint:'bellachord@gmail.com' });   // 구글이 bellachord 를 먼저 골라 둬요
+      p.setCustomParameters({ prompt:'select_account' });   // 구글 계정 고르는 창을 보여 줘요 (관리자 주소는 화면에 보이지 않게)
       const r=await firebase.auth().signInWithPopup(p);
-      if(!isAdminEmail(r.user.email)){ await firebase.auth().signOut(); setE('관리자 구글 계정(bellachord)으로 골라 주세요.'); return; }
+      if(!isAdminEmail(r.user.email)){ await firebase.auth().signOut(); setE('관리자 구글 계정으로 골라 주세요.'); return; }
       onOk();
     }catch(err){
       if(err.code==='auth/popup-closed-by-user'||err.code==='auth/cancelled-popup-request') return;
@@ -1735,8 +1735,8 @@ function PwModal({ onOk, onClose }){
     <div className="sheet" style={{maxWidth:400}} onClick={ev=>ev.stopPropagation()}>
       <div className="sheet-h"><h3 className="sheet-t">진도 현황 보기</h3><button className="x" onClick={onClose}>{I.x()}</button></div>
       <div className="sheet-b">
-        <p className="sheet-s" style={{marginTop:0}}>관리자 구글 계정(bellachord)으로 들어와요. 관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
-        <button type="button" className="btn" onClick={go}>G 구글 계정(bellachord)으로 로그인</button>
+        <p className="sheet-s" style={{marginTop:0}}>관리자 구글 계정으로 들어와요. 관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
+        <button type="button" className="btn" onClick={go}>G 구글 계정으로 로그인</button>
         {e&&<p className="err">{e}</p>}
         <button type="button" className="btn ghost" onClick={onClose}>그만두기</button>
       </div></div></div>;

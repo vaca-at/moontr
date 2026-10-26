@@ -74,11 +74,11 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
   <button type="button" id="logout" hidden>로그아웃</button>
 </header>
 
-<!-- 로그인 (관리자 구글 계정 bellachord 하나 · 관리자 허브에서 로그인했으면 바로 열려요) -->
+<!-- 로그인 (관리자 구글 계정 하나 · 관리자 허브에서 로그인했으면 바로 열려요) -->
 <form class="card login" id="login" hidden>
   <h2>관리자 로그인</h2>
-  <p class="note">관리자 구글 계정(bellachord)으로 들어와요. 관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
-  <button type="button" id="glogin">G 구글 계정(bellachord)으로 로그인</button>
+  <p class="note">관리자 구글 계정으로 들어와요. 관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
+  <button type="button" id="glogin">G 구글 계정으로 로그인</button>
   <p class="note err" id="err"></p>
 </form>
 
@@ -124,7 +124,7 @@ const fbApp = initializeApp({
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
-const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
+const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 관리자 구글 계정으로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
 const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
 const TIMETABLE_DOC = doc(db, 'moontr_config', 'timetable');
 
@@ -284,7 +284,7 @@ onAuthStateChanged(auth, async user => {
     opened = false;
     $('#glogin').focus();
     // 관리자가 아닌 계정이 공용 로그인에 남아 있으면 알려 주고 바로 로그아웃해요 (남겨 두면 다른 앱 관리자 화면도 막혀요)
-    if (user){ $('#err').textContent = `${user.email || '관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. bellachord 구글 계정으로 다시 로그인해 주세요.`; signOut(auth).catch(() => {}); }
+    if (user){ $('#err').textContent = `${user.email || '관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. 관리자 구글 계정으로 다시 로그인해 주세요.`; signOut(auth).catch(() => {}); }
     return;
   }
   if (opened) return;
@@ -294,16 +294,16 @@ onAuthStateChanged(auth, async user => {
   await loadTimetable();
   renderEditor();
 });
-// 관리자 로그인은 구글 bellachord 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
+// 관리자 로그인은 관리자 구글 계정 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
 $('#login').addEventListener('submit', e => e.preventDefault());
-/* 구글 계정(bellachord)으로 로그인 */
+/* 관리자 구글 계정으로 로그인 */
 $('#glogin').addEventListener('click', async () => {
   $('#err').textContent = '';
   const p = new GoogleAuthProvider();
-  p.setCustomParameters({ login_hint: 'bellachord@gmail.com' });   // 구글이 bellachord 를 먼저 골라 둬요
+  p.setCustomParameters({ prompt:'select_account' });   // 구글 계정 고르는 창을 보여 줘요 (관리자 주소는 화면에 보이지 않게)
   try {
     const r = await signInWithPopup(auth, p);
-    if (!isAdminEmail(r.user.email)){ await signOut(auth); $('#err').textContent = '관리자 구글 계정(bellachord)으로 골라 주세요.'; }
+    if (!isAdminEmail(r.user.email)){ await signOut(auth); $('#err').textContent = '관리자 구글 계정으로 골라 주세요.'; }
   } catch (e){
     if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')
       $('#err').textContent = e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요' : '구글 로그인을 하지 못했어요 (' + (e.code || e.message) + ')';

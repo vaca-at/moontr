@@ -8,7 +8,8 @@
 
 ## 관리자 로그인 (가장 중요) — 2026-10-26 부터 구글 bellachord 하나
 - 모든 앱의 관리자·교사 화면은 **Firebase 구글 로그인, 계정 `bellachord@gmail.com`** 으로 들어갑니다.
-  - 버튼은 `G 구글 계정(bellachord)으로 로그인` 하나. `GoogleAuthProvider` 에 `setCustomParameters({ login_hint:'bellachord@gmail.com' })` 를 줍니다.
+  - 버튼은 `G 구글 계정으로 로그인` 하나. `GoogleAuthProvider` 에는 `setCustomParameters({ prompt:'select_account' })` 만 줍니다.
+  - ⚠️ **관리자 계정 주소(이름)를 화면에 절대 쓰지 않습니다**: 버튼 · 안내 글 · 오류 글에 'bellachord' 같은 계정 이름을 넣지 말고 '관리자 구글 계정'이라고만 씁니다. `login_hint` 도 쓰지 않습니다 (누구나 관리자 단추를 누르면 구글 창에 관리자 주소가 미리 채워져 보여요). 계정 주소는 관리자인지 확인하는 코드(`ADMIN_EMAILS`) 안에만 둡니다.
   - **비밀번호 칸 · 센메일 로그인 화면을 새로 만들지 않습니다.** Firebase 콘솔(moon-d528d)에서 이메일/비밀번호 로그인은 꺼 두었어요. 이용약관의 연락처 메일(센메일)은 로그인과 상관없어요.
   - 관리자인지 볼 때는 `ADMIN_EMAILS` · `isAdminEmail(user.email)` 을 씁니다 (보안 규칙 `isTeacher()`와 같게, 예전 센메일도 목록에 남아 있어도 괜찮아요).
   - 구글로 로그인했는데 관리자가 아닌 계정이면 **바로 `signOut`** 합니다. 남겨 두면 moontr.site 공용 로그인에 그 계정이 남아 다른 앱 관리자 화면이 모두 막혀요.
