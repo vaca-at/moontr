@@ -1269,27 +1269,37 @@ function makeStructs(){
 /* ===== 1. 건물 단면 타워 ===== */
 const S1 = (() => {
   // 반 수에 맞춰 교실 너비를 정해요 (반이 많으면 좁게, 적으면 넓게 · 건물은 가운데로)
-  const NL = NCLS - Math.floor(NCLS/2), NR = Math.floor(NCLS/2), FH = 50, GR = 232, RW = clamp(Math.floor(308/NCLS), 18, 34), SW = 14, CW = 44, BW = NCLS*RW + 2*SW + CW, BX = 26 + Math.round((380 - BW)/2);
+  // 화면을 가로 · 세로로 꽉 채워요 (층 높이 56, 건물 너비 최대 400)
+  const NL = NCLS - Math.floor(NCLS/2), NR = Math.floor(NCLS/2), FH = 56, GR = 246, RW = clamp(Math.floor(336/NCLS), 18, 40), SW = 14, CW = 46, BW = NCLS*RW + 2*SW + CW, BX = 24 + Math.round((400 - BW)/2);
   const fb = f => GR - (f - 1)*FH, lane = f => fb(f) - 3;
   const CX = BX + NL*RW + SW, SL = BX + NL*RW + SW/2, SR = CX + CW + SW/2, RX = CX + CW + SW;
   const R = [];
   // 2 · 3 · 4층 = 내가 많이 가는 학년 (교무실은 🕘 시간표에서 고른 층 가운데, 기본 2층)
   [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
-  // 1층: 양쪽 칸에 시간표의 특별실(과학실 · 체육관 …)을 넣어요. 행정실 · 현관 · 교장실은 그대로
-  const sp = [...SPECIAL];
-  const wing = (n, big, bigFirst) => { const out = []; for (let i = 0; i < (n >= 3 ? n - 2 : n); i++) out.push([sp.shift() || `_s${i}${big}`, RW]); if (n >= 3){ if (bigFirst) out.unshift([big, 2*RW]); else out.push([big, 2*RW]); } return out; };
+  // 1층: 음악실 · 미술실 · 특별교실 · 도서실 · 보건실 · 컴퓨터실 (행정실 · 현관 · 교장실은 그대로). 체육은 운동장, 그 밖의 교과 · 선택 과목 교실은 특별교실로 가요
+  const sp = ["계발", "동아리실", "음악실", "미술실", "특별교실", "도서실", "보건실", "컴퓨터실"];
+  const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /계발/.test(id) ? "계발" : /동아리|창체|자율/.test(id) ? "동아리실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "도서실" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : "특별교실";
+  const LIT = new Set([...TAUGHT].map(roomFor));
+  const wing = (n, big, bigFirst) => { const out = []; for (let i = 0; i < (n >= 3 ? n - 1 : n); i++) out.push([sp.shift() || `_s${i}${big}`, RW]); if (n >= 3){ if (bigFirst) out.unshift([big, RW]); else out.push([big, RW]); } return out; };
   [...wing(NL, "행정실", false), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true)].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
-  const HOME = { id:"home", f:0, x:414, y:186, w:60, h:46 }; R.push(HOME);
-  const OUT = 250, HD = HOME.x + 40, GX = CX + CW/2;
+  const HOME = { id:"home", f:0, x:432, y:GR - 44, w:46, h:44 }; R.push(HOME);
+  const YARD = { id:"yard", f:0, x:BX + 4, y:GR + 4, w:Math.max(60, NL*RW - 10), h:18 }; R.push(YARD);   // 운동장 (체육 수업)
+  const OUT = GR + 12, HD = HOME.x + 30, GX = CX + CW/2;
   const room = id => R.find(r => r.id === id);
   // 건물에 없는 곳(층에 안 나온 학년, 자리가 모자란 특별실)은 1층 빈 칸으로 가요
-  const mapId = id => room(id) ? id : (R.find(r => r.f === 1 && r.id.startsWith("_s")) || { id:"gate" }).id;
-  const place = id => { const r = room(id); return r.id === "home" ? { x:r.x + 16, y:GR - 3 } : { x:r.x + 8, y:lane(r.f) }; };
+  const spare = () => (R.find(r => r.f === 1 && r.id.startsWith("_s")) || { id:"gate" }).id;
+  const mapId = id => room(id) ? id : id === "lunch" || id === "etc" || isClass(id) ? spare() : room(roomFor(id)) ? roomFor(id) : spare();
+  const place = id => { const r = room(id); return r.id === "home" ? { x:r.x + 16, y:GR - 3 } : r.id === "yard" ? { x:r.x + r.w/2, y:GR + 15 } : { x:r.x + 8, y:lane(r.f) }; };
   const near = x => Math.abs(x - SL) <= Math.abs(x - SR) ? SL : SR;
   const toHome = (f, x) => { const o = []; if (f !== 1){ const s = near(x); o.push({ x:s, y:lane(f) }, { x:s, y:lane(1) }); } o.push({ x:GX, y:lane(1) }, { x:GX, y:OUT }, { x:HD, y:OUT }, { x:HD, y:GR - 3 }); return o; };
+  const toYard = (f, x) => { const o = []; if (f !== 1){ const s = near(x); o.push({ x:s, y:lane(f) }, { x:s, y:lane(1) }); } o.push({ x:GX, y:lane(1) }, { x:GX, y:OUT }); return o; };
   function route(a, b){
     const A = room(a), B = room(b), sa = place(a), sb = place(b), p = [sa];
-    if (b === "home") p.push(...toHome(A.f, sa.x)); else if (a === "home") p.push(...toHome(B.f, sb.x).reverse());
+    if (a === "yard" && b === "home") p.push({ x:GX, y:OUT }, { x:HD, y:OUT }, { x:HD, y:GR - 3 });
+    else if (a === "home" && b === "yard") p.push({ x:HD, y:OUT }, { x:GX, y:OUT });
+    else if (b === "yard") p.push(...toYard(A.f, sa.x));
+    else if (a === "yard") p.push(...toYard(B.f, sb.x).reverse());
+    else if (b === "home") p.push(...toHome(A.f, sa.x)); else if (a === "home") p.push(...toHome(B.f, sb.x).reverse());
     else if (A.f !== B.f){ const s = near((sa.x + sb.x)/2); p.push({ x:s, y:lane(A.f) }, { x:s, y:lane(B.f) }); }
     p.push(sb); return p;
   }
@@ -1341,7 +1351,7 @@ const S1 = (() => {
       if (SCHOOL && BREAK){ girl(r.x + 23, fy - 1, 1, HAIR[1], 2, true); girl(r.x + 41, fy - 1, 1, HAIR[3], 2, true); }
     } else if (r.id === "gate"){
       rect(r.x + 8, y0 + 14, 28, 32, c); rect(r.x + 9, y0 + 15, 12, 31, "#123A44"); rect(r.x + 23, y0 + 15, 12, 31, "#123A44");
-    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (!TAUGHT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
+    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (r.id === "음악실"){ rect(r.x + 4, fy - 12, 10, 6, "#0B0B12"); for (let k = 0; k < 4; k++) rect(r.x + 5 + k*2, fy - 11, 1, 3, "#EDEDF5"); txt("♪", r.x + r.w - 7, y0 + 16 + Math.sin(T*3)*1.5, 6, c, "center"); } if (r.id === "미술실"){ rect(r.x + r.w - 11, fy - 16, 7, 9, "#EDEDF5"); rect(r.x + r.w - 10, fy - 15, 5, 4, ["#FF5FAE", "#FFD400", "#2FE3F0"][Math.floor(T/2) % 3]); rect(r.x + r.w - 9, fy - 7, 1, 5, "#8B5A2B"); } if (!LIT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
     if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === HR ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w, r.h - 3); g.globalAlpha = 1; }
     let lb = r.id === "office" ? "교무실" : r.id === "gate" ? "현관" : r.id === HR ? "★" + HR : r.id[0] === "_" ? "" : r.id;
     // 좁은 방에 긴 이름(컴퓨터실 …)이면 방 너비에 맞게 줄여요
@@ -1372,7 +1382,7 @@ const S1 = (() => {
     // 가운데 탑 시계 (지금 시각)
     const nd = simNow(); rect(GX - 17, top - 17, 34, 11, "#FFD400"); rect(GX - 16, top - 16, 32, 9, "#0B0B12");
     txt(hhmm(nd.getHours()*60 + nd.getMinutes()), GX, top - 11.5, 5, "#FFD400", "center", true);
-    R.forEach(r => { if (r.id !== "home") sideRoom(r); });
+    R.forEach(r => { if (r.id !== "home" && r.id !== "yard") sideRoom(r); });
     [SL, SR].forEach(sx => { for (let f = 1; f <= 4; f++){ const y0 = fb(f) - FH; rect(sx - SW/2, y0, SW, FH - 2, P.hall); g.globalAlpha = .5; for (let k = 0; k < 9; k++) rect(sx - SW/2 + 1 + (f % 2 ? k : 8 - k), y0 + 6 + k*5, 4, 1, WALL_C); g.globalAlpha = 1; } });
     for (let f = 1; f <= 4; f++){
       rect(BX - 2, fb(f) - 2, BW + 4, 2, "#0B0B12");
@@ -1390,7 +1400,10 @@ const S1 = (() => {
     rect(HD - 4, GR - 16, 8, 15, P.desk); rect(HD + 1, GR - 9, 1, 1, "#FFD400");
     rect(HOME.x + 5, GR - 15, 20, 7, "#2C3E66"); rect(HOME.x + 8, HOME.y + 12, 16, 9, "#0B0B12"); rect(HOME.x + 9, HOME.y + 13, 14, 7, NIGHT ? "#FFD9B0" : "#123A44");
     plate("HOME 집", HOME.x + HOME.w/2, HOME.y + 2, P.hr, true);
-    for (let x = BX + 4; x < BX + BW; x += 34){ if (Math.abs(x - GX) < 30) continue; rect(x + 3, GR + 8, 2, 5, P.desk); rect(x, GR + 2, 8, 7, P.tree); }
+    for (let x = BX + 4; x < BX + BW; x += 34){ if (Math.abs(x - GX) < 30 || (x > YARD.x - 10 && x < YARD.x + YARD.w)) continue; rect(x + 3, GR + 8, 2, 5, P.desk); rect(x, GR + 2, 8, 7, P.tree); }
+    // 운동장: 체육 수업이면 학생들이 트랙을 돌아요
+    frameBox(YARD.x, YARD.y, YARD.w, YARD.h, 1, "#FF8A1F"); plate("운동장", YARD.x + 18, YARD.y - 4, "#FF8A1F", WK.here === "yard");
+    if (SCHOOL && !BREAK && WK.here === "yard") for (let k = 0; k < 7; k++){ const a = T*1.4 + k*.9, sx = YARD.x + YARD.w/2 + Math.cos(a)*(YARD.w/2 - 8), sy = YARD.y + YARD.h/2 + Math.sin(a)*4 + 4; girl(Math.round(sx), Math.round(sy), 1, HAIR[k % HAIR.length], Math.floor(T*8 + k) % 2, Math.sin(a) > 0); }
     [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, "#EDEDF5"); rect(x + 1, GR - 22, 6, 4, ["#FF5FAE","#FFD400","#FF8A1F"][i]); });
     if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GR); }
     P = keep;
