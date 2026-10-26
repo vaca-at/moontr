@@ -233,6 +233,16 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
 .dtgrid label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
 .dtgrid input{width:76px;font:14px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:5px 6px}
 .dtgrid input.chg{border-color:var(--accent)}
+.dtgrid2 label{padding:6px;border:2px solid var(--line);border-radius:var(--box-r);background:var(--panel)}
+.dtgrid2 label.chg{border-color:var(--accent)}
+.dtgrid2 label > span{font-weight:700;color:var(--ink)}
+.dtgrid2 select{font:13px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:4px;width:84px}
+.dtgrid2 input{width:84px}
+.dtlist{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.dtitem{display:flex;align-items:center;gap:8px;padding:6px 10px;border:2px solid var(--line);border-radius:var(--box-r);font:13px var(--body)}
+.dtitem.on{border-color:var(--accent)}
+.dtitem b{flex:none;color:var(--accent)}
+.dtitem span{flex:1;min-width:0;color:var(--ink)}
 /* 저장 상태 알약 (위쪽) */
 .savest{font:13px var(--ui);padding:3px 10px;border-radius:999px;white-space:nowrap;border:2px solid currentColor}
 .savest.busy{color:var(--accent)}
@@ -930,7 +940,7 @@ function stateAt(d){
       if (p === "조회" || p === "종례") return HR ? { place:HR, act:`우리 반 ${p}`, s, e, m, slot:p, p } : { place:"office", act:p === "조회" ? "아침 조회 시간 · 교무실" : "종례 시간 · 하루 정리", s, e, m, slot:p, p };
       if (p === "점심") return { place:"office", act:"점심시간", s, e, m, slot:"점심", p, lunch:true };
       const r = (TT[day] || {})[p];
-      return r ? { place:r, act:`${p}교시 수업 중`, s, e, m, slot:`${p}교시`, p } : { place:"office", act:`${p}교시 공강 · 업무`, s, e, m, slot:`${p}교시 공강`, p };
+      return r ? { place:r, act:KIND[p] ? `${p}교시 ${KIND[p]} 중` : `${p}교시 수업 중`, s, e, m, slot:KIND[p] ? `${p}교시 ${KIND[p]}` : `${p}교시`, p } : { place:"office", act:`${p}교시 공강 · 업무`, s, e, m, slot:`${p}교시 공강`, p };
     }
   }
   if (m < E.f) return { place:"office", act:"출근 · 하루 준비", s:E.i, e:E.f, m, slot:"출근" };
@@ -966,12 +976,12 @@ function friendsCard(d){
   if (html !== frKey){ frKey = html; document.getElementById("frList").innerHTML = html; }
 }
 // 하루만 바꾸기 (보강 · 시험 · 행사): 그 날짜가 되면 그 요일 시간표 대신 이 시간표를 써요
-let BASE_TT = {}, DAYTT = {}, patchedKey = "";
+let BASE_TT = {}, DAYTT = {}, DAYKIND = {}, KIND = {}, patchedKey = "";   // DAYKIND: 미리 바꾼 날의 종류 { "2026-11-03": { "5":"보강" } } · KIND: 오늘 것
 function patchDayTT(d){
   const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   if (k === patchedKey) return; patchedKey = k;
   TT = {}; for (const w in BASE_TT) TT[w] = { ...BASE_TT[w] };
-  const o = DAYTT[k], wd = d.getDay();
+  const o = DAYTT[k], wd = d.getDay(); KIND = (wd >= 1 && wd <= 5 && DAYKIND[k]) || {};
   if (o && wd >= 1 && wd <= 5){ TT[wd] = {}; Object.entries(o).forEach(([p, r]) => { r = String(r || "").trim().slice(0, 12); if (r){ TT[wd][p] = r; TAUGHT.add(r); } }); }
 }
 // 한 층의 방 순서: 큰 반 … | 계단 | 가운데 방(교무실 등) | 계단 | … 1반 (학교마다 다르지만 반 수에 맞춰 그려요)
@@ -3031,7 +3041,7 @@ function panel(d, st){
   $("tDay").textContent = `${DAYS[day]}요일`;
   $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.map(([p, a, b]) => {
     const cur = m >= mm(a) && m < mm(b) ? "cur" : "", r = slotRoom(day, p);
-    const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH(NAME(r))}</span>` : `<span class="free">${/\d/.test(p) ? "공강" : "교무실"}</span>`;
+    const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH((KIND[p] ? KIND[p] + " · " : "") + NAME(r))}</span>` : `<span class="free">${/\d/.test(p) ? "공강" : "교무실"}</span>`;
     return `<span class="p ${cur}">${/\d/.test(p) ? p + "교시" : p}</span><span class="${cur}">${what}</span><span class="t">${a}</span>`;
   }).join("");
 }
@@ -3171,7 +3181,7 @@ cv.addEventListener("pointermove", e => { cv.style.cursor = hotAt(e) ? "pointer"
 window.DESK = {
   applyConfig, setTodos(list){ TODOS = Array.isArray(list) ? list : []; },
   setAvatar(i){ AV = MEAV = avatarDef(i); }, avatarSvg, avatarGrid, avatarName:i => avatarDef(i).name,
-  setDayTT(map){ DAYTT = map && typeof map === "object" ? map : {}; patchedKey = ""; },
+  setDayTT(map, kinds){ DAYTT = map && typeof map === "object" ? map : {}; DAYKIND = kinds && typeof kinds === "object" ? kinds : {}; patchedKey = ""; },
   setFriends(list){ FRIENDS = Array.isArray(list) ? list.filter(f => f && f.name) : []; frKey = ""; },
   setNotes(list){ NOTES = Array.isArray(list) ? list : []; }, setLinks(list){ LINKS = Array.isArray(list) ? list : []; },
   setDday(x){ DDAY = x || null; }, setEvents(list){ EVENTS = Array.isArray(list) ? list : []; }, setWeather(w){ WEATHER = w || null; },
@@ -3344,7 +3354,7 @@ async function openDesk(){
   loadDay(today); loadExtras(); watchChat();
 }
 function useConfig(){
-  window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look); window.DESK.setAvatar(cfg.avatar || 0); window.DESK.setDayTT(cfg.dayTT); pushFriends(); loadWeather();
+  window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look); window.DESK.setAvatar(cfg.avatar || 0); window.DESK.setDayTT(cfg.dayTT, cfg.dayKind); pushFriends(); loadWeather();
   $("whoName").textContent = `${ME}의 하루`;
   renderSched();
 }
@@ -3853,6 +3863,13 @@ const cleanFriends = L => (L || []).filter(f => f && (f.name || "").trim()).slic
 
 // 하루만 바꾸기: 원래 요일 시간표와 같은 칸은 빼고 저장 (지난 날짜는 지워요)
 let dtPick = "";
+// 미리 바꾼 날의 종류 (보강 · 행사 · 동아리 · 계발 · 시험 · 기타): 지난 날짜 · 없는 날은 빼요
+const DKINDS = ["보강", "행사", "동아리", "계발", "시험", "기타"];
+function cleanDayKind(k, tt){
+  const out = {}, today = new Date(); today.setHours(0, 0, 0, 0);
+  Object.entries(k || {}).forEach(([d, o]) => { if (!tt || !tt[d] || new Date(d + "T00:00:00") < today || !o) return; const v = Object.fromEntries(Object.entries(o).filter(([, x]) => DKINDS.includes(x))); if (Object.keys(v).length) out[d] = v; });
+  return out;
+}
 function cleanDayTT(m){
   const out = {}, today = new Date(); today.setHours(0, 0, 0, 0);
   Object.entries(m || {}).forEach(([k, o]) => { if (new Date(k + "T00:00:00") >= today && o && typeof o === "object") out[k] = Object.fromEntries(Object.entries(o).map(([p, r]) => [p, String(r || "").trim().slice(0, 12)])); });
@@ -3891,13 +3908,29 @@ $("shEdit").addEventListener("click", e => {
   if (b.id === "dtLoad"){
     const v = $("dtDate").value; if (!v){ $("edMsg").textContent = "바꿀 날짜를 먼저 골라 주세요"; return; }
     const wd = new Date(v + "T00:00:00").getDay(); if (wd === 0 || wd === 6){ $("edMsg").textContent = "주말은 바꿀 수 없어요 (평일만)"; return; }
-    readEdit(); ed.dayTT = ed.dayTT || {}; if (!ed.dayTT[v]) ed.dayTT[v] = { ...((ed.week || {})[wd] || {}) }; dtPick = v; renderEdit(); return;
+    readEdit(); ed.dayTT = ed.dayTT || {}; ed.dayKind = ed.dayKind || {}; if (!ed.dayTT[v]) ed.dayTT[v] = { ...((ed.week || {})[wd] || {}) }; dtPick = v; renderEdit(); return;
+  }
+  if (b.id === "dtRepeat" && dtPick){
+    const u = $("dtUntil").value; if (!u || u <= dtPick){ $("edMsg").textContent = "되풀이를 끝낼 날짜를 고른 날보다 뒤로 골라 주세요"; return; }
+    readEdit(); let n = 0; const d0 = new Date(dtPick + "T00:00:00");
+    for (let w = 1; w <= 26; w++){ const d = new Date(d0); d.setDate(d.getDate() + 7*w); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; if (k > u) break;
+      ed.dayTT[k] = { ...ed.dayTT[dtPick] }; ed.dayKind = ed.dayKind || {}; if (ed.dayKind[dtPick]) ed.dayKind[k] = { ...ed.dayKind[dtPick] }; n++; }
+    renderEdit(); $("edMsg").textContent = n ? `${n}주를 더 넣었어요. [저장]하면 반영돼요` : "되풀이할 날이 없어요 (끝 날짜를 확인해 주세요)"; return;
   }
   if (b.dataset.dtedit){ readEdit(); dtPick = b.dataset.dtedit; renderEdit(); return; }
-  if (b.dataset.dtdel){ readEdit(); delete ed.dayTT[b.dataset.dtdel]; if (dtPick === b.dataset.dtdel) dtPick = ""; renderEdit(); return; }
+  if (b.dataset.dtdel){ readEdit(); delete ed.dayTT[b.dataset.dtdel]; if (ed.dayKind) delete ed.dayKind[b.dataset.dtdel]; if (dtPick === b.dataset.dtdel) dtPick = ""; renderEdit(); return; }
   if (b.id === "evAdd"){ readEdit(); (ed.events = ed.events || []).push({ d:"", t:"" }); renderEdit(); $("evList").lastElementChild?.querySelector("input")?.focus(); return; }
   if (b.dataset.evdel !== undefined){ readEdit(); ed.events.splice(+b.dataset.evdel, 1); renderEdit(); return; }
   if (b.id === "ddClear"){ readEdit(); ed.dday = null; renderEdit(); }
+});
+$("shEdit").addEventListener("change", e => {
+  const t = e.target; if (!ed || !t.dataset.dtk || !dtPick) return;
+  ed.dayKind = ed.dayKind || {}; const o = ed.dayKind[dtPick] = ed.dayKind[dtPick] || {}, p = t.dataset.dtk;
+  if (t.value) o[p] = t.value; else delete o[p];
+  // 종류를 고르면 반 칸이 비어 있을 때 알맞은 곳을 넣어 줘요
+  const inp = document.querySelector(`#dtGrid [data-dtp="${p}"]`), def = { "동아리":"동아리실", "계발":"계발", "행사":"강당" }[t.value];
+  if (inp && def && !inp.value.trim()){ inp.value = def; ed.dayTT[dtPick][p] = def; }
+  t.closest("label")?.classList.toggle("chg", !!t.value || inp?.classList.contains("chg"));
 });
 $("shEdit").addEventListener("input", e => {
   const t = e.target; if (!ed) return;
@@ -3978,12 +4011,17 @@ function renderEdit(){
     <p class="note">✍️ <b>직접 입력</b>: 반은 <b>1-3</b>처럼 (학년-반), 특별실은 이름으로 적어요 (예: 과학실). 비우면 공강이에요. 학생 이름은 적지 말아 주세요.</p>
     <div class="wk" id="eWeek">${nPer ? week : `<p class="note">아래 2. 종 시간에 '수업' 줄을 먼저 넣어 주세요.</p>`}</div>
     <datalist id="dlRooms">${[...opts, ...SPECIALS].map(v => `<option value="${v}">`).join("")}</datalist>`;
+  const DK = ed.dayKind || {}, dkSum = k => { const base = (ed.week || {})[new Date(k + "T00:00:00").getDay()] || {}, o = ed.dayTT[k] || {}, kk = DK[k] || {};
+    const ch = Object.keys({ ...o, ...kk }).sort((a, b) => a - b).filter(p => kk[p] || (o[p] || "") !== (base[p] || "")).map(p => `${p}교시 ${kk[p] ? kk[p] + " " : ""}${o[p] || "공강"}`); return ch.join(" · ") || "바뀐 칸 없음"; };
   const daySec = `
-    <div class="sec">3. 하루만 바꾸기 (보강 · 시험 · 행사일)</div>
-    <p class="note">날짜를 고르면 그 요일 시간표가 채워져요. 바뀐 칸만 고치고 [저장]하면 <b>그날 하루만</b> 이 시간표로 움직여요. 비우면 공강이에요.</p>
-    <div class="row" style="gap:6px"><input type="date" id="dtDate" value="${esc(dtPick || "")}" aria-label="바꿀 날짜"><button type="button" class="btn" id="dtLoad">이 날 시간표 불러오기</button></div>
-    ${dtPick && ed.dayTT && ed.dayTT[dtPick] ? `<div class="dtgrid" id="dtGrid">${Array.from({ length:nPer }, (_, i) => i + 1).map(p => { const base = (((ed.week || {})[new Date(dtPick + "T00:00:00").getDay()] || {})[p]) || "", v = ed.dayTT[dtPick][p] ?? base; return `<label>${p}교시<input list="dlRooms" data-dtp="${p}" value="${esc(v)}" maxlength="12" class="${v !== base ? "chg" : ""}"></label>`; }).join("")}</div>` : ""}
-    ${Object.keys(ed.dayTT || {}).length ? `<div class="note">바꿔 둔 날: ${Object.keys(ed.dayTT).sort().map(k => `<span class="chip" style="margin:2px">${k.slice(5).replace("-", "/")} <button type="button" class="ibtn" data-dtedit="${k}" aria-label="${k} 고치기">✎</button><button type="button" class="ibtn" data-dtdel="${k}" aria-label="${k} 바꾼 시간표 지우기">✕</button></span>`).join("")}</div>` : ""}`;
+    <div class="sec">3. 미리 바꾸기 (보강 · 행사 · 동아리 · 계발 · 시험)</div>
+    <p class="note">앞으로 정해진 날을 미리 넣어 둬요. 날짜를 고르면 그 요일 시간표가 채워지고, 바뀌는 교시에 <b>종류</b>와 <b>들어갈 반(장소)</b>을 적은 뒤 [저장]하면 <b>그날</b> 그 시간표로 움직여요. 동아리 · 계발처럼 매주 같은 요일이면 [매주 되풀이]를 눌러요. 반을 비우면 공강이에요.</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><input type="date" id="dtDate" value="${esc(dtPick || "")}" aria-label="바꿀 날짜"><button type="button" class="btn" id="dtLoad">이 날 시간표 불러오기</button></div>
+    ${dtPick && ed.dayTT && ed.dayTT[dtPick] ? `<p class="note" style="margin:8px 0 4px"><b>${dtPick.slice(5).replace("-", "/")} (${"일월화수목금토"[new Date(dtPick + "T00:00:00").getDay()]})</b> — 바뀌는 교시만 고쳐요</p>
+      <div class="dtgrid dtgrid2" id="dtGrid">${Array.from({ length:nPer }, (_, i) => i + 1).map(p => { const base = (((ed.week || {})[new Date(dtPick + "T00:00:00").getDay()] || {})[p]) || "", v = ed.dayTT[dtPick][p] ?? base, kd = (DK[dtPick] || {})[p] || "";
+        return `<label class="${v !== base || kd ? "chg" : ""}"><span>${p}교시</span><select data-dtk="${p}" aria-label="${p}교시 종류"><option value="">${base ? "평소 수업" : "공강"}</option>${DKINDS.map(x => `<option ${x === kd ? "selected" : ""}>${x}</option>`).join("")}</select><input list="dlRooms" data-dtp="${p}" value="${esc(v)}" maxlength="12" placeholder="반 · 장소" class="${v !== base ? "chg" : ""}"></label>`; }).join("")}</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center"><span class="note" style="margin:0">매주 같은 요일에 되풀이 —</span><input type="date" id="dtUntil" aria-label="되풀이 끝 날짜"><span class="note" style="margin:0">까지</span><button type="button" class="btn" id="dtRepeat">🔁 매주 되풀이</button></div>` : ""}
+    ${Object.keys(ed.dayTT || {}).length ? `<div class="dtlist">${Object.keys(ed.dayTT).sort().map(k => `<div class="dtitem ${k === dtPick ? "on" : ""}"><b>${k.slice(5).replace("-", "/")} (${"일월화수목금토"[new Date(k + "T00:00:00").getDay()]})</b><span>${esc(dkSum(k))}</span><button type="button" class="ibtn" data-dtedit="${k}" aria-label="${k} 고치기">✎</button><button type="button" class="ibtn" data-dtdel="${k}" aria-label="${k} 바꾼 시간표 지우기">✕</button></div>`).join("")}</div>` : ""}`;
   // 순서: (처음 온 선생님만 '나와 학교') → 1. 요일별 시간표 → 2. 종 시간 → 3. 하루만 바꾸기. 평소 '나와 학교' · 학교 일정은 ⚙️ 설정 > 계정에서
   $("edBody").innerHTML = tabs + `
     ${setupMode ? `<p style="margin:0 0 8px">어서 오세요! 아래를 채우면 내 하루가 게임 화면으로 움직여요. 나중에 언제든 고칠 수 있어요.</p>` + school : ""}
@@ -4122,10 +4160,10 @@ async function saveEdit(){
   readEdit();
   const notes = fixEdit();
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, dayTT:cleanDayTT(ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   ["loc", "school"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치는 그대로
   let tag = finalTag(ed.tag, out.name); if (!/^[A-Z][A-Z0-9]{1,11}$/.test(tag)) tag = "TEACHER";
-  if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
+  if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT, out.dayKind); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
   if (!user){ $("edMsg").textContent = "로그인이 풀렸어요. 다시 로그인한 뒤 [저장]해 주세요 (적은 내용은 남겨 두었어요)"; try { localStorage.setItem(draftKey(), JSON.stringify(ed)); } catch (e) {} return; }
   if (loadFailed){ $("edMsg").textContent = "아까 내 데스크탑을 불러오지 못해서, 있던 시간표를 덮지 않게 저장을 멈췄어요. 새로고침한 뒤 다시 [저장]해 주세요 (적은 내용은 남겨 두었어요)"; try { localStorage.setItem(draftKey(), JSON.stringify(ed)); } catch (e) {} return; }
   if (!deskId) deskId = user.uid;
