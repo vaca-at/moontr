@@ -113,6 +113,19 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // 계획서 미리보기: AI가 만든 index.html 코드 (문서 이름 = 계획서 번호). 누구나 보기,
+    // 그 계획서가 있을 때만 쓰기(30만 글자까지), 관리자만 지우기
+    match /vibe_preview/{planId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['ban','html','updatedAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.html is string
+        && request.resource.data.html.size() > 0 && request.resource.data.html.size() <= 300000
+        && request.resource.data.updatedAt is int
+        && exists(/databases/$(database)/documents/vibe_plans/$(planId));
+      allow delete: if isTeacher();
+    }
+
     // 피드백 쓴 학생의 닉네임: 피드백과 함께만 만들기, 관리자만 보기·지우기
     match /vibe_fb_who/{id} {
       allow create: if request.resource.data.keys().hasOnly(['name'])
