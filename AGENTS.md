@@ -42,6 +42,17 @@
 - 📝 메모는 12개 시안 모두 게임 화면 오른쪽 아래 스티커(`#pins`, 📌 고정 최대 3개)로 띄우고, 메모 쪽지 모양은 시안 번호(`:root[data-s]`)를 따라 바뀝니다. 그림 안에는 메모를 그리지 않아요(`memoTop()` 은 null).
 - 다른 에이전트(세션)가 동시에 고칠 수 있으니, 고치기 전에 `git pull`, 고친 커밋 번호를 알려 줍니다.
 
+### 📱 교무실 타이쿤 안드로이드 앱 (2026-10-26~, 패키지 `site.moontr.tycoon`)
+- 앱은 껍데기(Capacitor, 이 저장소 밖 `Downloads/tycoon-app` 폴더)이고, 켤 때마다 **`https://moontr.site/tycoon/?app=1` 을 그대로 불러와요.** 그래서 `tycoon/index.html` 을 고쳐 푸시하면 앱에도 바로(깃허브 페이지 기준 길어야 10분) 반영돼요.
+- 앱 모드는 `APP`(앱 안이거나 주소 끝 `?app`) · `NATIVE`(진짜 안드로이드 앱) 로 판단해요. **웹 화면은 앱 모드와 상관없이 예전 그대로**여야 해요 (세로 그림 · 단추 3개 · 단계별 첫 설정 · 로딩 화면은 앱에서만).
+- 지우거나 이름을 바꾸면 앱이 깨지는 것:
+  - 단추 3개 `#appHud`(☰ `#hudMenu` · ☑👥 `#hudFr` · ◀ ▶ `#hudPick`), ☰ 한 창 `#shApp` · 할 일 창 `#shTodo` · 로그인 뒤 고르기 `#shStart`, 맨 위 로딩 화면 스크립트(`window.bootDone`)
+  - 앱 로그인: `appCreds` · `appSignIn` (휴대폰 로그인 창 `Capacitor.Plugins.FirebaseAuthentication` → `signInWithCredential`). 앱 안에서는 팝업 로그인이 안 돼요
+  - 홈 화면 위젯 연결: `Capacitor.Plugins.Tycoon` 의 `setData` · `setShots` · `getLaunch` (`widgetData()` 가 넘기는 글 모양 { days, todos, events, inT, outT } 를 바꾸면 위젯 Java 코드도 같이 바꿔야 해요)
+  - 방문 수: 웹 = `visit.js?app=desk`, 앱 = `visit.js?app=deskapp` (관리자 화면 '📊 접속 현황 · 웹과 앱 따로')
+- 세로 그림(270×480)은 시안마다 `xxx(true)` 로 만들어 `makeStructs()` 끝의 `PORTS` 에 붙어 있어요. 가로 그림을 고치면 세로 그림도 `?port` 로 열어 같이 확인해 주세요.
+- 위젯 모양 · 앱 아이콘 · 권한 · 플러그인을 바꿀 때만 새 AAB 가 필요해요 (`tycoon-app` 에서 `npm run aab`).
+
 ## Firebase
 - 프로젝트: `moon-d528d` (moontr.site와 jinseon50th.com이 함께 씁니다).
 - 보안 규칙은 이 저장소의 `firestore.rules` 하나에 모두 들어 있습니다. 새 컬렉션을 쓰면 여기에 규칙을 추가하고, 관리자만 써야 하는 곳은 `isTeacher()`를 씁니다.
