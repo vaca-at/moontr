@@ -827,7 +827,32 @@ service cloud.firestore {
         && request.resource.data.uids is list && request.resource.data.uids.size() <= 4;
       allow delete: if request.auth != null && deskMember(resource.data.desk);
     }
-    // 👥 친구 채팅방 desk_dm/{책상A_책상B}: 두 선생님 로그인(uids)만 읽고 쓰기 (수락 없이, 코드를 넣으면 바로 친구)
+    // 📧 이메일로 친구 찾기 desk_email/{이메일 SHA-256}: 이메일 전체를 아는 사람만 하나 읽기(목록 X).
+    // 만들기 · 지우기는 그 이메일로 로그인한 본인만 (문서 이름 = 내 로그인 이메일을 바꾼 값)
+    match /desk_email/{h} {
+      allow get: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.token.email is string
+        && h == hashing.sha256(request.auth.token.email.lower()).toHexString().lower()
+        && request.resource.data.keys().hasOnly(['desk', 'uids', 'name', 'avatar', 'at'])
+        && request.resource.data.desk is string && deskMember(request.resource.data.desk)
+        && request.resource.data.uids is list && request.resource.data.uids.size() <= 4
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20;
+      allow delete: if request.auth != null && request.auth.token.email is string
+        && h == hashing.sha256(request.auth.token.email.lower()).toHexString().lower();
+    }
+    // 👥 친구 신청 desk_req/{보낸책상_받는책상}: 보낸 사람 · 받는 사람만 읽기 · 지우기(수락 · 거절 · 취소)
+    match /desk_req/{rid} {
+      allow read, delete: if request.auth != null && (request.auth.uid in resource.data.fromUids || request.auth.uid in resource.data.toUids);
+      allow create: if request.auth != null && request.auth.uid in request.resource.data.fromUids
+        && request.resource.data.keys().hasOnly(['from', 'to', 'fromUids', 'toUids', 'fromPub', 'toName', 'at'])
+        && request.resource.data.from is string && request.resource.data.to is string && request.resource.data.from != request.resource.data.to
+        && rid == request.resource.data.from + '_' + request.resource.data.to
+        && deskMember(request.resource.data.from)
+        && request.resource.data.fromUids is list && request.resource.data.fromUids.size() <= 4
+        && request.resource.data.toUids is list && request.resource.data.toUids.size() <= 4;
+    }
+    // 👥 친구 채팅방 desk_dm/{책상A_책상B}: 두 선생님 로그인(uids)만 읽고 쓰기
+    // 새로 만드는 건 친구 신청이 있을 때만(받은 사람이 [수락]) — 예전에 코드로 맺은 방은 그대로
     // pub = 서로 보여 주는 이름 · 캐릭터 · 요일별 시간표 (게임 화면에 친구 위치로)
     match /desk_dm/{room} {
       allow read, delete: if request.auth != null && request.auth.uid in resource.data.uids;
@@ -835,7 +860,9 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['members', 'uids', 'pub', 'last', 'at'])
         && request.resource.data.members is list && request.resource.data.members.size() == 2
         && room == request.resource.data.members[0] + '_' + request.resource.data.members[1]
-        && request.resource.data.uids is list && request.resource.data.uids.size() <= 8;
+        && request.resource.data.uids is list && request.resource.data.uids.size() <= 8
+        && (exists(/databases/$(database)/documents/desk_req/$(request.resource.data.members[0] + '_' + request.resource.data.members[1]))
+          || exists(/databases/$(database)/documents/desk_req/$(request.resource.data.members[1] + '_' + request.resource.data.members[0])));
       allow update: if request.auth != null && request.auth.uid in resource.data.uids
         && request.resource.data.keys().hasOnly(['members', 'uids', 'pub', 'last', 'at'])
         && request.resource.data.members == resource.data.members
