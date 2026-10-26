@@ -3255,7 +3255,9 @@ const firebaseConfig = {
 // 여기서 구글 · 카카오로 로그인 · 로그아웃해도 다른 앱 로그인이 바뀌지 않아요. 로그인은 구글 · 카카오 두 가지만.
 // 학교 인터넷(방화벽)에서도 잘 되게: 연결 방식을 저절로 골라요 (long polling)
 // 이 기기(브라우저)에 먼저 보관해요: 학교망이 막혀도 이 PC에서는 바로 보이고, 인터넷이 통할 때 서버로 저절로 올라가요
-const fbApp = initializeApp(firebaseConfig, "tycoon"), auth = getAuth(fbApp);
+// 단, 관리자 화면(?admin · #admin)만은 moontr.site 공용 로그인을 같이 써요 → 관리자 허브에서 bellachord 로 한 번 로그인해 두면 여기도 저절로 열려요
+const ADMIN_PAGE = /[?&]admin\b/.test(location.search) || location.hash === "#admin";
+const fbApp = ADMIN_PAGE ? initializeApp(firebaseConfig) : initializeApp(firebaseConfig, "tycoon"), auth = getAuth(fbApp);
 let db; try { db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling:true, localCache:persistentLocalCache({ tabManager:persistentMultipleTabManager() }) }); }
 catch (e) { db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling:true }); }
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
@@ -3266,7 +3268,6 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const pad = n => String(n).padStart(2, "0");
 const dkey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const ADMIN_PAGE = /[?&]admin\b/.test(location.search) || location.hash === "#admin";
 const show = id => { $(id).hidden = false; }, hide = id => { $(id).hidden = true; };
 
 let user = null, deskId = null, me = null, cfg = null, demo = false, setupMode = false, loadFailed = false, deskMissing = false;   // loadFailed: 인터넷 문제로 내 데스크탑을 못 읽음 (그땐 덮어쓰지 않게 저장을 막아요)
@@ -4929,14 +4930,13 @@ function renderAdmin(){
   hide("shLogin"); show("shAdmin"); $("adminFab").hidden = true;
   admUnsub?.(); admUnsub = null; admMsgUnsub?.(); admMsgUnsub = null;
   if (!user || !isAdminEmail(user.email)){
-    $("adBody").innerHTML = `<form id="admLogin" style="max-width:340px;margin:8vh auto;text-align:center">
-        <p>관리자 비밀번호(숫자 6자리)를 넣어 주세요.</p>
-        <input type="password" id="admPw" inputmode="numeric" maxlength="6" autocomplete="current-password" style="width:100%;font-size:20px;text-align:center;letter-spacing:.3em;padding:10px" class="f" aria-label="관리자 비밀번호">
-        <button type="submit" class="big" style="width:100%;margin-top:8px">로그인</button>
-        <button type="button" class="big google" id="admG" style="width:100%;margin-top:8px">G 구글 계정(센메일)으로 로그인</button>
-        <p class="err" id="admErr">${user ? `지금 로그인된 ${esc(user.email || "계정")}은 관리자 계정이 아니에요.` : ""}</p></form>`;
-    $("admLogin").addEventListener("submit", async e => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $("admPw").value); } catch (e2){ $("admErr").textContent = "로그인 실패: 비밀번호를 확인해 주세요"; } });
-    $("admG").addEventListener("click", async () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); try { const r = await signInWithPopup(auth, p); if (!isAdminEmail(r.user.email)){ await signOut(auth); $("admErr").textContent = "관리자 구글 계정(센메일 · bellachord)으로 골라 주세요."; } } catch (e){ $("admErr").textContent = loginErr(e, "google"); } });
+    // 관리자 로그인은 구글 bellachord 하나 (관리자 허브에서 한 번 로그인해 두면 여기도 저절로 열려요)
+    $("adBody").innerHTML = `<div style="max-width:340px;margin:8vh auto;text-align:center">
+        <p>관리자 구글 계정(bellachord)으로 로그인해 주세요.<br><small class="note">관리자 허브에서 한 번 로그인해 두면 다음부터는 저절로 열려요.</small></p>
+        <button type="button" class="big google" id="admG" style="width:100%;margin-top:8px">G 구글 계정(bellachord)으로 로그인</button>
+        <p class="err" id="admErr">${user ? `지금 로그인된 ${esc(user.email || "계정")}은 관리자 계정이 아니에요.` : ""}</p></div>`;
+    if (user) signOut(auth).catch(() => {});   // 관리자가 아닌 계정이 공용 로그인에 남지 않게
+    $("admG").addEventListener("click", async () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ login_hint:"bellachord@gmail.com" }); try { const r = await signInWithPopup(auth, p); if (!isAdminEmail(r.user.email)){ await signOut(auth); $("admErr").textContent = "관리자 구글 계정(bellachord)으로 골라 주세요."; } } catch (e){ $("admErr").textContent = loginErr(e, "google"); } });
     return;
   }
   $("adBody").innerHTML = `<div class="kpi" id="admKpi"><div><b>…</b>가입한 선생님</div></div>

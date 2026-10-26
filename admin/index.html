@@ -91,6 +91,10 @@ svg{width:16px;height:16px;flex:none}
 .login button{width:100%;min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
 .login .glogin{margin-top:.6rem;background:var(--surface);color:var(--ink);border:1px solid var(--line)}
 .login .glogin:hover{border-color:var(--accent)}
+.login .lead{margin:0 0 1rem;font-size:.92rem;line-height:1.6;color:var(--muted, #667)}
+.login .other{margin-top:1rem;font-size:.85rem}
+.login .other summary{cursor:pointer;color:var(--muted, #667);text-align:center}
+.login .other[open] summary{margin-bottom:.4rem}
 .err{color:#B3261E;min-height:1.4em;margin:.6rem 0 0;font-size:.9rem}
 
 /* ===== 홈 탭: 웹앱별 방문 현황 ===== */
@@ -273,10 +277,8 @@ body.editing .del{display:inline-block}
 <main>
   <form class="login" id="login" hidden>
     <h2>관리자 로그인</h2>
-    <label for="pw">관리자 비밀번호(숫자 6자리)</label>
-    <input type="password" id="pw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" autocomplete="current-password" required>
-    <button type="submit">로그인</button>
-    <button type="button" class="glogin" id="glogin">G 구글 계정(센메일)으로 로그인</button>
+    <p class="lead">구글 계정 <b>bellachord</b>로 한 번만 로그인하면, 다음부터는 moontr.site 관리자 화면이 모두 저절로 열려요.</p>
+    <button type="button" id="glogin">G 구글 계정(bellachord)으로 로그인</button>
     <p class="err" id="err" role="alert"></p>
   </form>
 
@@ -1011,10 +1013,10 @@ onAuthStateChanged(auth, user => {
   $('#login').hidden = ok;
   $('#acts').hidden = $('#tabs').hidden = !ok;
   if (ok) show(cur);
-  else { $('#stage').hidden = $('#bm').hidden = $('#home').hidden = true; homeData = null; waits = null; renderAlert(); $('#frame').removeAttribute('src'); delete $('#frame').dataset.src; $('#pw').focus();
+  else { $('#stage').hidden = $('#bm').hidden = $('#home').hidden = true; homeData = null; waits = null; renderAlert(); $('#frame').removeAttribute('src'); delete $('#frame').dataset.src; $('#glogin').focus();
     // 다른 웹앱에서 관리자가 아닌 구글 계정으로 로그인해 둔 채라면 알려 주고 바로 로그아웃해요
     // (같은 moontr.site 라 로그인이 이어져서, 남겨 두면 다른 앱 관리자 화면도 계속 '관리자 아님'이 돼요)
-    if (user){ $('#err').textContent = `${user.email || '관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. 비밀번호나 센메일 구글 계정으로 다시 로그인해 주세요.`; signOut(auth).catch(() => {}); } }
+    if (user){ $('#err').textContent = `${user.email || '관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. bellachord 구글 계정으로 다시 로그인해 주세요.`; signOut(auth).catch(() => {}); } }
   if (ok && !unsubHidden) unsubHidden = onSnapshot(HIDDEN_DOC, snap => {
     hidden = (snap.exists() && Array.isArray(snap.data().hidden)) ? snap.data().hidden : [];
     const o = (snap.exists() && snap.data().others) || {};
@@ -1024,21 +1026,16 @@ onAuthStateChanged(auth, user => {
   }, () => {});
   if (!ok && unsubHidden){ unsubHidden(); unsubHidden = null; }
 });
-$('#login').addEventListener('submit', async e => {
-  e.preventDefault();
-  $('#err').textContent = '';
-  try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $('#pw').value); }
-  catch { $('#err').textContent = '로그인 실패: 비밀번호를 확인해 주세요'; }
-  $('#pw').value = '';
-});
-/* 구글 계정(센메일)으로 로그인: 부스 · 바이브코딩 관리 화면처럼 */
+// 관리자 로그인은 구글 bellachord 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
+$('#login').addEventListener('submit', e => e.preventDefault());
+/* 구글 계정(bellachord)으로 로그인: 한 번 로그인하면 moontr.site 의 다른 관리자 화면도 저절로 열려요 */
 $('#glogin').addEventListener('click', async () => {
   $('#err').textContent = '';
   const p = new GoogleAuthProvider();
-  p.setCustomParameters({ prompt: 'select_account' });
+  p.setCustomParameters({ login_hint: 'bellachord@gmail.com' });   // 구글이 bellachord 를 먼저 골라 둬요 (이미 로그인돼 있으면 바로 넘어가요)
   try {
     const r = await signInWithPopup(auth, p);
-    if (!isAdminEmail(r.user.email)){ await signOut(auth); $('#err').textContent = `${r.user.email}은 관리자 계정이 아니에요. 센메일(${ADMIN_EMAIL}) 또는 bellachord 구글 계정으로 골라 주세요.`; }
+    if (!isAdminEmail(r.user.email)){ await signOut(auth); $('#err').textContent = `${r.user.email}은 관리자 계정이 아니에요. bellachord 구글 계정으로 골라 주세요.`; }
   } catch (e){
     if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')
       $('#err').textContent = e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요' : '구글 로그인을 하지 못했어요 (' + (e.code || e.message) + ')';
