@@ -837,7 +837,7 @@ const MEMO_C = { y:"#FFF07A", p:"#FFC6D9", b:"#C4E4FF", g:"#CDEFC4", w:"#FFFFFF"
 // 게임 화면 속에 그리던 메모 하나 — 이제 메모는 12개 시안 모두 화면 위 스티커(#pins)로 띄워서, 그림 안에는 그리지 않아요(겹치지 않게)
 const memoTop = () => null;
 // 게임 화면 속 메모 · 즐겨찾기를 누르면 열어요. 시안이 그릴 때마다 누를 자리를 적어 둬요 (논리 480×270 좌표)
-let HOT = [];
+let HOT = [], DDAY = null;   // DDAY: 학교 일정 D-day { n:남은 날, t:이름 } (3D 교무실 달력)
 const hot = (x, y, w, h, act) => { HOT.push({ x, y, w, h, act }); };
 
 /* ===================== 닉네임 → 영문 이름 (성 + TR, 문쌤 = MOONTR 처럼) ===================== */
@@ -2538,212 +2538,295 @@ const S21 = (() => {
 NEWS.push(S21);
 /* ===== END 21 ===== */
 
-/* ===== 22. 3D 교무실 (나무 바닥 · 책상 섬 · 벽 TV · 돌아다니는 선생님들, three.js) ===== */
+/* ===== 22. 3D 교무실 (장난감 디오라마 · 꼬마 선생님들 · 누르는 물건들, three.js) ===== */
 // 선생님들이 커피 · 프린터 · 회의 탁자로 오가고, 쉬는 시간엔 학생들이 질문하러 와요. ★ 내 자리 = 오른쪽 섬 앞줄 왼쪽
 // 색 단추마다: NEON 1 밤 교무실 · NEON 2 검은 벽 + 네온 줄 · COZY 1 하얀 벽 낮 · COZY 2 나무 벽 오두막
 const S22 = (() => {
-  const lookKey = () => LOOK === "n2" ? "n2" : V === "a" ? "a" : PAL.c2 && P === PAL.c2 ? "c2" : "b";
-  const OLOOK = {
-    a:{ wall:0x23284A, bg:"#0B0E20", hemi:[0xB8C4FF, 0x2A2F55, .55], dir:.55, lamp:1.2, tag:"rgba(16,20,44,.88)", ink:"#EEF0FF", sub:"#9AA3D0", line:"rgba(255,255,255,.12)", me:"#FF5FAE", acc:"#2FE3F0" },
-    n2:{ wall:0x101018, bg:"#0B0B12", hemi:[0xA0A0C0, 0x1A1A26, .45], dir:.45, lamp:1.4, tag:"#0B0B12", ink:"#EDEDF5", sub:"#8C8CA6", line:"#B07CFF", me:"#FF5FAE", acc:"#FFD400", neon:true },
-    b:{ wall:0xF3F2EE, bg:"#F5F4F0", hemi:[0xFFFFFF, 0xD8CFC0, .75], dir:.85, lamp:.6, tag:"#FFFFFF", ink:"#1E1E22", sub:"#6E6E78", line:"rgba(0,0,0,.08)", me:"#EC5C9A", acc:"#E2513A" },
-    c2:{ wall:0x8A6A44, bg:"#22382A", hemi:[0xFFE2B0, 0x3A2A1A, .6], dir:.6, lamp:1.3, tag:"#F4E8CC", ink:"#2A2416", sub:"#7A6A4E", line:"#4A3420", me:"#D9506A", acc:"#E8922A" }
-  };
-  let C = OLOOK.b;
-  function makeOffice(k){
-    const cf = OLOOK[k];
-    const r = new THREE.WebGLRenderer({ antialias:true, alpha:true }); r.setPixelRatio(1); r.outputEncoding = THREE.sRGBEncoding;
+  // 장난감 디오라마 교무실 (색 단추와 상관없이 한 모양): 파랑 · 흰 체크 바닥, 빨간 벽, 노란 책상, 머리 큰 꼬마 선생님들
+  // 교무실 곳곳 물건을 누르면: 칠판 = 오늘 할 일 · 게시판 = 메모 · 책장 = 즐겨찾기 · 달력 = 학교 일정 · 우편함 = 친구 채팅 · TV = 시간표
+  const UI = { ink:"#1A1F4A", sub:"#4A3A00", card:"#FFCF33", me:"#E8483F", acc:"#3B5BDB", tag:"#FFFFFF", line:"#1A1F4A" };
+  const RED = 0xE8483F, BLUE = 0x3B5BDB, YEL = 0xFFCF33, GRN = 0x33C27A, PINK = 0xFF7AA8, NAVY = 0x2B3A8F;
+  const SKIN = 0xF5CDA6;
+  function makeOffice(){
+    const r = new THREE.WebGLRenderer({ antialias:true }); r.setPixelRatio(1); r.outputEncoding = THREE.sRGBEncoding; r.setClearColor(new THREE.Color("#3B5BDB"));
     r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
     const s = new THREE.Scene(), cam = new THREE.OrthographicCamera(-12, 12, 6.8, -6.8, .1, 200);
-    const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color:c, roughness:o.r ?? .75, emissive:o.e ?? 0, emissiveIntensity:o.ei ?? 1, map:o.map || null });
-    const put = (geo, mat, x, y, z, o = {}) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (o.ry) m.rotation.y = o.ry; if (o.rx) m.rotation.x = o.rx; m.castShadow = o.cast !== false; m.receiveShadow = true; (o.to || s).add(m); return m; };
-    s.add(new THREE.HemisphereLight(cf.hemi[0], cf.hemi[1], cf.hemi[2]));
-    const dl = new THREE.DirectionalLight(k === "c2" ? 0xFFD9A0 : 0xffffff, cf.dir); dl.position.set(-7, 14, 9); dl.castShadow = true; dl.shadow.mapSize.set(2048, 2048);
+    const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color:c, roughness:o.r ?? .55, emissive:o.e ?? 0, emissiveIntensity:o.ei ?? 1, map:o.map || null });
+    const put = (geo, mat, x, y, z, o = {}) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (o.ry) m.rotation.y = o.ry; if (o.rx) m.rotation.x = o.rx; if (o.rz) m.rotation.z = o.rz; m.castShadow = o.cast !== false; m.receiveShadow = true; (o.to || s).add(m); return m; };
+    const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+    const tex = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return { c, x:c.getContext("2d"), t }; };
+    s.add(new THREE.HemisphereLight(0xffffff, 0x8FA8FF, .8));
+    const dl = new THREE.DirectionalLight(0xffffff, 1.0); dl.position.set(-7, 14, 9); dl.castShadow = true; dl.shadow.mapSize.set(2048, 2048);
     Object.assign(dl.shadow.camera, { left:-14, right:14, top:14, bottom:-14 }); s.add(dl);
-    // 바닥 · 벽
-    const tc = document.createElement("canvas"); tc.width = tc.height = 512; const x2 = tc.getContext("2d");
-    const planks = k === "a" || k === "n2" ? ["#7A5A3C","#735436","#80603F"] : ["#C9925C","#C28B55","#CF9A65"];
-    for (let i = 0; i < 16; i++){ x2.fillStyle = planks[i % 3]; x2.fillRect(0, i*32, 512, 32); x2.fillStyle = "rgba(60,30,10,.25)"; x2.fillRect(0, i*32, 512, 2); for (let j = 0; j < 3; j++) x2.fillRect((i*137 + j*211) % 512, i*32, 2, 32); }
-    const wood = new THREE.CanvasTexture(tc); wood.wrapS = wood.wrapT = THREE.RepeatWrapping; wood.repeat.set(2.2, 2.2); wood.encoding = THREE.sRGBEncoding;
-    put(new THREE.BoxGeometry(17, .4, 12.4), M(0xffffff, { map:wood }), 0, -.2, 0, { cast:false });
-    const wall = M(cf.wall, { r:.95 });
-    put(new THREE.BoxGeometry(17, 4.4, .25), wall, 0, 2.2, -6.32, { cast:false });
-    put(new THREE.BoxGeometry(.25, 4.4, 12.4), wall, -8.62, 2.2, 0, { cast:false });
-    if (k === "c2") for (let i = 0; i < 9; i++) put(new THREE.BoxGeometry(.04, 4.4, .02), M(0x6A4A2A), -7.5 + i*1.9, 2.2, -6.18, { cast:false });
-    if (cf.neon){ [[0xFF5FAE, 3.9], [0xFFD400, .5]].forEach(([c, y]) => { put(new THREE.BoxGeometry(17, .05, .05), M(c, { e:c, ei:1.2 }), 0, y, -6.17, { cast:false }); put(new THREE.BoxGeometry(.05, .05, 12.4), M(c, { e:c, ei:1.2 }), -8.47, y, 0, { cast:false }); }); }
-    put(new THREE.BoxGeometry(.06, 1.7, 3.4), M(0xCFE3EE, { r:.2, e:k === "a" || k === "n2" ? 0x1A2A55 : 0xBFDDEB, ei:.3 }), -8.48, 2.5, -2.4, { cast:false });
-    put(new THREE.BoxGeometry(.6, 2.2, 2.6), M(k === "c2" ? 0x6A4A2A : 0xFFFFFF), -8.2, 1.1, 3.4);
-    [0xE2513A, 0x3F8FD8, 0xE9B91F, 0x3FAE7A, 0x7C6BF2].forEach((c, i) => put(new THREE.BoxGeometry(.4, .5, .16), M(c), -8.05, 1.62, 2.5 + i*.22));
-    // 문 · 프린터 · 커피
-    put(new THREE.BoxGeometry(1.5, 2.6, .08), M(k === "b" ? 0xC9A27A : 0x5A3A22), 7.2, 1.3, -6.17, { cast:false });
-    put(new THREE.BoxGeometry(1.1, .9, .8), M(0xE8E6E0), 5.4, .45, -5.6); put(new THREE.BoxGeometry(1.0, .35, .7), M(0x55555E), 5.4, 1.07, -5.6);
-    put(new THREE.BoxGeometry(1.4, .9, .7), M(k === "c2" ? 0x6A4A2A : 0xFFFFFF), 2.6, .45, -5.75); put(new THREE.BoxGeometry(.45, .6, .4), M(0x2A2A30, { r:.4 }), 2.4, 1.2, -5.75); put(new THREE.CylinderGeometry(.08, .07, .14, 16), M(0xFFFFFF), 2.95, .97, -5.6);
-    // 벽 TV (지금 · 다음)
-    put(new THREE.BoxGeometry(4.8, 2.6, .14), M(0x15151A, { r:.4 }), -.6, 2.55, -6.1);
-    const tv = document.createElement("canvas"); tv.width = 1024; tv.height = 540; const tvx = tv.getContext("2d");
-    const tvTex = new THREE.CanvasTexture(tv); tvTex.encoding = THREE.sRGBEncoding;
-    put(new THREE.PlaneGeometry(4.56, 2.38), new THREE.MeshBasicMaterial({ map:tvTex }), -.6, 2.55, -6.02, { cast:false });
-    // 벽시계
-    const ck = new THREE.Group(); ck.position.set(4.0, 3.2, -6.15); s.add(ck);
-    put(new THREE.CylinderGeometry(.5, .5, .08, 48), M(0xFFFFFF), 0, 0, 0, { rx:Math.PI/2, to:ck, cast:false });
+    // 바깥 땅 · 체크 바닥 · 벽
+    put(new THREE.PlaneGeometry(120, 120), M(0x2F4BC2, { r:1 }), 0, -.42, 0, { rx:-Math.PI/2, cast:false });
+    const fl = tex(512, 512); for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++){ fl.x.fillStyle = (i + j) % 2 ? "#7FA6FF" : "#FFFFFF"; fl.x.fillRect(i*64, j*64, 64, 64); }
+    fl.t.wrapS = fl.t.wrapT = THREE.RepeatWrapping; fl.t.repeat.set(2.2, 2.2);
+    put(B(17, .4, 12.4), M(0xffffff, { map:fl.t, r:.6 }), 0, -.2, 0, { cast:false });
+    const wall = M(RED, { r:.85 });
+    put(B(17, 4.4, .25), wall, 0, 2.2, -6.32, { cast:false }); put(B(.25, 4.4, 12.4), wall, -8.62, 2.2, 0, { cast:false });
+    put(B(17, .22, .05), M(0xFFFFFF), 0, .11, -6.17, { cast:false }); put(B(.05, .22, 12.4), M(0xFFFFFF), -8.47, .11, 0, { cast:false });
+    // 창문 (하늘색이 시간 따라 바뀌어요)
+    put(B(.1, 2.1, 3.8), M(0xFFFFFF), -8.5, 2.4, -2.4, { cast:false });
+    const winM = M(0xBFE8FF, { r:.2, e:0xBFE8FF, ei:.6 }); put(B(.06, 1.8, 3.5), winM, -8.45, 2.4, -2.4, { cast:false });
+    put(B(.08, 1.8, .08), M(0xFFFFFF), -8.42, 2.4, -2.4, { cast:false }); put(B(.08, .08, 3.5), M(0xFFFFFF), -8.42, 2.4, -2.4, { cast:false });
+    // 📋 칠판 (오늘 할 일)
+    const wb = tex(512, 320); put(B(.12, 1.5, 2.3), M(0xFFFFFF), -8.46, 1.75, 1.0, { cast:false });
+    const wbM = new THREE.MeshBasicMaterial({ map:wb.t }), wbP = put(new THREE.PlaneGeometry(2.1, 1.3), wbM, -8.39, 1.75, 1.0, { ry:Math.PI/2, cast:false });
+    // ⭐ 책장 (즐겨찾기) — 책 한 권 = 즐겨찾기 하나 (10권까지)
+    const shelf = put(B(.6, 2.2, 2.6), M(0xFFFFFF), -8.2, 1.1, 3.4);
+    [1.62, .92].forEach(y => put(B(.5, .05, 2.4), M(0xE6E9F5), -8.15, y - .3, 3.4, { cast:false }));
+    const BOOKC = [RED, BLUE, YEL, GRN, PINK, 0xFF8A2B, 0x9B5CFF, 0x2BB5C9, NAVY, 0xFFB21E];
+    const books = BOOKC.map((c, i) => put(B(.4, .48 + (i % 3)*.06, .16), M(c), -8.05, (i < 5 ? 1.58 : .88) + (i % 3)*.03, 2.5 + (i % 5)*.24 + (i < 5 ? 0 : .3)));
+    // 🗓 달력 (D-day · 오늘 날짜)
+    const calT = tex(256, 256); put(B(1.5, 1.6, .08), M(0xFFFFFF), -5.2, 2.7, -6.14, { cast:false });
+    const calP = put(new THREE.PlaneGeometry(1.36, 1.46), new THREE.MeshBasicMaterial({ map:calT.t }), -5.2, 2.7, -6.09, { cast:false });
+    // 📺 벽 TV (지금 · 다음, 누르면 시간표)
+    put(B(4.8, 2.6, .14), M(0x15151A, { r:.4 }), -.6, 2.55, -6.1);
+    const tv = tex(1024, 540), tvP = put(new THREE.PlaneGeometry(4.56, 2.38), new THREE.MeshBasicMaterial({ map:tv.t }), -.6, 2.55, -6.02, { cast:false });
+    // 📌 게시판 (메모) + 위에 벽시계
+    put(B(1.8, 1.25, .08), M(0xC98A45, { r:.9 }), 4.0, 2.5, -6.14, { cast:false });
+    const cork = tex(320, 220), corkP = put(new THREE.PlaneGeometry(1.64, 1.1), new THREE.MeshBasicMaterial({ map:cork.t }), 4.0, 2.5, -6.09, { cast:false });
+    const ck = new THREE.Group(); ck.position.set(4.0, 3.7, -6.15); s.add(ck);
+    put(new THREE.CylinderGeometry(.4, .4, .08, 40), M(0xFFFFFF), 0, 0, 0, { rx:Math.PI/2, to:ck, cast:false });
+    put(new THREE.TorusGeometry(.4, .05, 8, 40), M(BLUE), 0, 0, .02, { to:ck, cast:false });
     const hH = new THREE.Group(), hM = new THREE.Group(); hH.position.z = hM.position.z = .06; ck.add(hH, hM);
-    const hg = new THREE.BoxGeometry(.06, .26, .02); hg.translate(0, .13, 0); put(hg, M(0x1E1E22), 0, 0, 0, { to:hH, cast:false });
-    const mg = new THREE.BoxGeometry(.04, .4, .02); mg.translate(0, .2, 0); put(mg, M(0xE2513A), 0, 0, .01, { to:hM, cast:false });
-    // 책상 섬 두 개
-    const desk = M(k === "c2" ? 0xD8C49A : 0xFFFFFF, { r:.6 }), dark = M(0x26262C, { r:.5 }), seats = [];
-    [[-3.4, .2], [1.5, .2]].forEach(([cx, cz], isl) => {
-      put(new THREE.BoxGeometry(3.1, .5, .06), M(0xDCDAD4), cx, 1.06, cz);
-      [-1, 1].forEach(sz => [-1, 1].forEach(sx => {
-        const dx = cx + sx*.78, dz = cz + sz*.52, mine = isl === 1 && sx === -1 && sz === 1;
-        put(new THREE.BoxGeometry(1.5, .08, .98), mine ? M(0xFFD6E6, { r:.6 }) : desk, dx, .8, dz);
-        [-1, 1].forEach(lx => put(new THREE.BoxGeometry(.06, .76, .9), desk, dx + lx*.68, .38, dz));
-        put(new THREE.BoxGeometry(.72, .46, .05), dark, dx, 1.2, cz + sz*.16); put(new THREE.BoxGeometry(.08, .2, .08), dark, dx, .92, cz + sz*.16);
-        const scr = put(new THREE.PlaneGeometry(.64, .38), M(0x0E1B2A, { e:0x4A8AD8, ei:.35 }), dx, 1.2, cz + sz*.19, { ry:sz > 0 ? 0 : Math.PI, cast:false });
-        const chz = cz + sz*1.4;
-        put(new THREE.BoxGeometry(.62, .08, .58), dark, dx, .5, chz); put(new THREE.BoxGeometry(.62, .6, .08), dark, dx, .84, chz + sz*.28); put(new THREE.CylinderGeometry(.04, .04, .46, 8), dark, dx, .24, chz);
-        seats.push({ x:dx, z:cz + sz*1.3, face:sz > 0 ? Math.PI : 0, mine, scr });
-      }));
-      put(new THREE.CylinderGeometry(.01, .01, 1.1, 6), dark, cx, 3.95, cz, { cast:false });
-      put(new THREE.ConeGeometry(.38, .34, 24, 1, true), M(0x26262C, { r:.4 }), cx, 3.25, cz, { cast:false });
-      put(new THREE.SphereGeometry(.1, 12, 8), M(0xFFF3C4, { e:0xFFE7A0, ei:cf.lamp }), cx, 3.12, cz, { cast:false });
-      if (cf.lamp > 1){ const pl = new THREE.PointLight(0xFFE2A8, .6, 6); pl.position.set(cx, 3, cz); s.add(pl); }
-    });
-    // 둥근 회의 탁자 + 이번 주 수업 막대 · 소파 · 화분
+    const hg = B(.06, .2, .02); hg.translate(0, .1, 0); put(hg, M(0x1E1E22), 0, 0, 0, { to:hH, cast:false });
+    const mg = B(.04, .32, .02); mg.translate(0, .16, 0); put(mg, M(RED), 0, 0, .01, { to:hM, cast:false });
+    // 커피 · 프린터 · 문 · 📮 우편함 (친구 채팅)
+    put(B(1.4, .9, .7), M(0xFFFFFF), 2.6, .45, -5.75); put(B(.45, .6, .4), M(0x2A2A30, { r:.4 }), 2.4, 1.2, -5.75); put(new THREE.CylinderGeometry(.08, .07, .14, 16), M(0xFFFFFF), 2.95, .97, -5.6);
+    const steam = [0, 1, 2].map(i => put(new THREE.SphereGeometry(.07, 10, 8), new THREE.MeshBasicMaterial({ color:0xFFFFFF, transparent:true, opacity:.6 }), 2.4, 1.6, -5.65, { cast:false }));
+    put(B(1.1, .9, .8), M(0xE8E6E0), 5.4, .45, -5.6); put(B(1.0, .35, .7), M(0x55555E), 5.4, 1.07, -5.6);
+    const prL = put(new THREE.SphereGeometry(.05, 8, 6), M(GRN, { e:GRN, ei:1 }), 5.75, 1.26, -5.25, { cast:false });
+    put(B(1.5, 2.6, .08), M(NAVY), 7.2, 1.3, -6.17, { cast:false }); put(new THREE.SphereGeometry(.07, 10, 8), M(YEL), 6.65, 1.3, -6.08, { cast:false });
+    const mail = new THREE.Group(); mail.position.set(6.1, 1.75, -6.0); s.add(mail);
+    put(B(.5, .42, .3), M(RED), 0, 0, 0, { to:mail }); put(new THREE.CylinderGeometry(.15, .15, .5, 16, 1, false, 0, Math.PI), M(RED), 0, .21, 0, { rz:Math.PI/2, to:mail });
+    const flag = put(B(.04, .3, .04), M(YEL), .28, .08, .05, { to:mail }); const env = put(B(.34, .02, .24), M(0xFFFFFF), 0, .3, .1, { to:mail, rx:-.4 });
+    // 책상 8개: 모두 화면 쪽을 보고 앉아요 (얼굴이 보이게). ★ 내 자리 = 오른쪽 앞줄 왼쪽
+    const desk = M(YEL, { r:.5 }), dark = M(NAVY, { r:.5 }), seats = [];
+    [-1.4, 1.6].forEach((dz, row) => [-4.2, -2.6, .7, 2.3].forEach((dx, col) => {
+      const mine = row === 1 && col === 2, i = seats.length;
+      put(B(1.44, .1, .92), mine ? M(PINK, { r:.5 }) : desk, dx, .7, dz);
+      [-1, 1].forEach(lx => put(B(.08, .66, .84), mine ? M(PINK, { r:.5 }) : desk, dx + lx*.64, .33, dz));
+      // 노트북 (화면은 앉은 사람 쪽)
+      put(B(.6, .03, .42), dark, dx, .77, dz - .1);
+      const lid = put(B(.6, .4, .03), M(0xDDE3F5), dx, .97, dz - .32, { rx:.18 });
+      const scr = put(new THREE.PlaneGeometry(.54, .34), M(0x111A3A, { e:0x6BE0FF, ei:.6 }), dx, .97, dz - .34, { ry:Math.PI, rx:-.18, cast:false });
+      // 책상 위 소품: 컵 · 책 · 선인장 · 서류
+      const k = i % 4;
+      if (k === 0) put(new THREE.CylinderGeometry(.08, .07, .16, 14), M([RED, BLUE, GRN][i % 3]), dx + .5, .83, dz + .2);
+      if (k === 1){ put(B(.34, .08, .24), M(BLUE), dx - .45, .79, dz + .15); put(B(.3, .07, .22), M(RED), dx - .45, .86, dz + .15, { ry:.2 }); }
+      if (k === 2){ put(new THREE.CylinderGeometry(.09, .08, .12, 12), M(0xFFFFFF), dx + .5, .81, dz + .2); put(new THREE.SphereGeometry(.09, 10, 8), M(GRN), dx + .5, .94, dz + .2); }
+      if (k === 3) put(B(.3, .02, .4), M(0xFFFFFF), dx - .45, .76, dz + .18, { ry:-.3 });
+      // 의자
+      const chz = dz - 1.0;
+      put(B(.56, .08, .52), dark, dx, .36, chz); put(B(.56, .5, .08), dark, dx, .62, chz - .26); put(new THREE.CylinderGeometry(.04, .04, .32, 8), dark, dx, .16, chz);
+      seats.push({ x:dx, z:dz - .82, dz, face:0, mine, scr });
+    }));
+    // ★ 내 책상 위: 오늘 수업 블록 (수업 하나 = 블록 하나, 끝난 수업은 회색, 지금 수업은 콩콩)
+    const my = seats.find(se => se.mine), myBlocks = Array.from({ length:9 }, (_, i) => { const m = put(B(.13, .13, .13), M(BLUE, { r:.4 }), my.x - .5 + i*.125, .82, my.dz + .32); m.visible = false; return m; });
+    // 회의 탁자 + 이번 주 수업 막대 · 소파 · 화분
     const tx = 4.7, tz = 3.3;
-    put(new THREE.CylinderGeometry(1.55, 1.55, .1, 48), desk, tx, .78, tz); put(new THREE.CylinderGeometry(.12, .12, .74, 12), desk, tx, .4, tz);
-    for (let i = 0; i < 6; i++){ const a = i/6*Math.PI*2 + .3; put(new THREE.BoxGeometry(.5, .5, .5), dark, tx + Math.cos(a)*2.05, .25, tz + Math.sin(a)*2.05, { ry:-a }); }
-    const BC = [0x7C6BF2, 0xE9B91F, 0x3FAE7A, 0xF08A3C, 0xEC5C9A], bars = BC.map((c, i) => put(new THREE.BoxGeometry(.24, 1, .24), M(c, { r:.5 }), tx - .64 + i*.32, .83, tz));
-    put(new THREE.CylinderGeometry(2.3, 2.3, .02, 48), M(k === "c2" ? 0xE9D9B5 : 0xFFFFFF, { r:.95 }), -5.6, .01, 3.9, { cast:false });
-    const sofa = M(k === "c2" ? 0x5A7A4A : 0x2A2A30, { r:.85 });
-    put(new THREE.BoxGeometry(3.1, .45, 1.15), sofa, -5.6, .32, 3.5); put(new THREE.BoxGeometry(3.1, .62, .26), sofa, -5.6, .78, 3.0);
-    [-1, 1].forEach(sx => put(new THREE.BoxGeometry(.26, .58, 1.15), sofa, -5.6 + sx*1.42, .58, 3.5));
-    put(new THREE.CylinderGeometry(.55, .55, .36, 32), desk, -5.6, .18, 4.95);
-    [[7.6, -5.0], [-7.9, -5.5], [2.9, 5.4], [-1.2, 5.6], [7.6, 5.4]].forEach(([px, pz]) => { put(new THREE.CylinderGeometry(.32, .25, .55, 20), M(0xFFFFFF), px, .28, pz); put(new THREE.SphereGeometry(.55, 20, 14), M(0x4E9A4A, { r:.8 }), px, .95, pz); put(new THREE.SphereGeometry(.38, 16, 12), M(0x5DAE58, { r:.8 }), px + .25, 1.3, pz - .1); });
-    // 사람: 몸 · 머리 · 머리카락 · 팔 · 다리 (걸으면 팔다리가 흔들려요)
+    put(new THREE.CylinderGeometry(1.55, 1.55, .1, 48), M(0xFFFFFF, { r:.5 }), tx, .7, tz); put(new THREE.CylinderGeometry(.12, .12, .66, 12), M(0xFFFFFF), tx, .35, tz);
+    for (let i = 0; i < 6; i++){ const a = i/6*Math.PI*2 + .3; put(B(.5, .44, .5), M([RED, YEL, GRN, BLUE, PINK, 0xFF8A2B][i]), tx + Math.cos(a)*2.05, .22, tz + Math.sin(a)*2.05, { ry:-a }); }
+    const BC = [0x9B5CFF, YEL, GRN, 0xFF8A2B, PINK], bars = BC.map((c, i) => put(B(.24, 1, .24), M(c, { r:.45 }), tx - .64 + i*.32, .75, tz));
+    put(new THREE.CylinderGeometry(2.3, 2.3, .03, 48), M(GRN, { r:.95 }), -5.6, .015, 3.9, { cast:false });
+    const sofa = M(NAVY, { r:.8 });
+    put(B(3.1, .45, 1.15), sofa, -5.6, .32, 3.5); put(B(3.1, .62, .26), sofa, -5.6, .78, 3.0);
+    [-1, 1].forEach(sx => put(B(.26, .58, 1.15), sofa, -5.6 + sx*1.42, .58, 3.5));
+    put(new THREE.CylinderGeometry(.55, .55, .36, 32), M(0xFFFFFF), -5.6, .18, 4.95);
+    [[7.6, -5.0], [-7.9, -5.5], [2.9, 5.4], [-1.2, 5.6], [7.6, 5.4]].forEach(([px, pz]) => { put(new THREE.CylinderGeometry(.32, .25, .55, 20), M(RED), px, .28, pz); put(new THREE.SphereGeometry(.55, 20, 14), M(0x22B35A, { r:.8 }), px, .95, pz); put(new THREE.SphereGeometry(.38, 16, 12), M(0x3FD178, { r:.8 }), px + .25, 1.3, pz - .1); });
+    // 꼬마 선생님 · 학생: 아주 큰 머리, 반짝이는 큰 눈, 볼터치. 머리(head)는 따로 돌아서 화면 쪽을 봐요
+    let pn = 0;
     function person(shirt, hair, opt = {}){
-      const gp = new THREE.Group(), leg = M(opt.student ? 0x222230 : 0x2E3550), arm = M(opt.student ? 0x2C3E66 : shirt);
-      const body = put(new THREE.CylinderGeometry(.24, opt.student ? .34 : .3, .62, 18), M(opt.student ? 0x2C3E66 : shirt, { r:.6 }), 0, 1.0, 0, { to:gp });
-      if (opt.student) put(new THREE.CylinderGeometry(.34, .4, .26, 18), M(0x5B4A6E), 0, .62, 0, { to:gp });
-      put(new THREE.SphereGeometry(.23, 22, 16), M(0xF5CDA6, { r:.6 }), 0, 1.52, 0, { to:gp });
-      put(new THREE.SphereGeometry(.245, 22, 16, 0, Math.PI*2, 0, Math.PI/1.9), M(hair), 0, 1.56, 0, { to:gp });
-      if (opt.student) put(new THREE.BoxGeometry(.4, .4, .12), M(hair), 0, 1.36, -.14, { to:gp });
-      const legs = [-1, 1].map(sx => { const p = new THREE.Group(); p.position.set(sx*.11, .7, 0); gp.add(p); const lg = new THREE.BoxGeometry(.13, .62, .14); lg.translate(0, -.31, 0); put(lg, leg, 0, 0, 0, { to:p }); return p; });
-      const arms = [-1, 1].map(sx => { const p = new THREE.Group(); p.position.set(sx*.3, 1.26, 0); gp.add(p); const ag = new THREE.BoxGeometry(.1, .5, .12); ag.translate(0, -.25, 0); put(ag, arm, 0, 0, 0, { to:p }); return p; });
-      if (opt.cup) put(new THREE.CylinderGeometry(.07, .06, .14, 12), M(0xFFFFFF), .33, .82, .18, { to:gp });
-      if (opt.paper) put(new THREE.BoxGeometry(.3, .02, .4), M(0xFFFFFF), 0, 1.0, .32, { to:gp });
-      s.add(gp); return { gp, legs, arms };
+      const gp = new THREE.Group(), stu = opt.student, long = opt.long ?? (pn++ % 2 === 1), top = stu ? 0x2C3E66 : shirt, pants = stu ? 0x3A3A4A : 0x2E3550;
+      const P = (geo, c, x, y, z, o = {}) => put(geo, M(c, { r:o.r ?? .45 }), x, y, z, { to:o.to || gp, rx:o.rx });
+      const limb = (x, y, make) => { const p = new THREE.Group(); p.position.set(x, y, 0); gp.add(p); make(p); return p; };
+      const legs = [-1, 1].map(sx => limb(sx*.1, .42, p => { const g2 = new THREE.CylinderGeometry(.08, .09, .4, 12); g2.translate(0, -.2, 0); P(g2, pants, 0, 0, 0, { to:p }); P(new THREE.SphereGeometry(.1, 12, 8), 0x2A2A30, 0, -.4, .03, { to:p }); }));
+      P(new THREE.CylinderGeometry(.2, .26, .46, 22), top, 0, .66, 0);
+      if (stu || long) P(new THREE.CylinderGeometry(.24, .32, .2, 22), stu ? 0x5B4A6E : top, 0, .48, 0);
+      const head = new THREE.Group(); head.position.y = 1.28; gp.add(head);
+      P(new THREE.SphereGeometry(.42, 32, 24), SKIN, 0, 0, 0, { to:head, r:.4 });
+      [-1, 1].forEach(sx => { P(new THREE.SphereGeometry(.07, 16, 12), 0x1A1A22, sx*.15, -.02, .37, { to:head, r:.15 }).scale.set(.8, 1.15, .5);
+        P(new THREE.SphereGeometry(.025, 8, 6), 0xFFFFFF, sx*.15 + .02, .02, .405, { to:head, r:.1 }); P(new THREE.SphereGeometry(.06, 12, 8), 0xFF8FA3, sx*.25, -.14, .33, { to:head, r:.6 }).scale.set(1, .6, .4); });
+      P(new THREE.TorusGeometry(.045, .012, 6, 12, Math.PI), 0xC0504A, 0, -.13, .4, { to:head, rx:Math.PI });
+      P(new THREE.SphereGeometry(.45, 32, 18, 0, Math.PI*2, 0, Math.PI/2.15), hair, 0, .05, -.06, { to:head, r:.45, rx:-.42 });   // 앞머리 선을 올려서 위에서 봐도 눈이 보여요
+      P(new THREE.SphereGeometry(.2, 16, 10), hair, -.18, .27, .26, { to:head, r:.45 }); P(new THREE.SphereGeometry(.17, 16, 10), hair, .12, .3, .28, { to:head, r:.45 });
+      // 긴 머리: 얼굴 앞은 비우고 옆 · 뒤만 덮어요 (수염처럼 보이지 않게)
+      if (long){ const lh = new THREE.Mesh(new THREE.CylinderGeometry(.4, .46, .62, 28, 1, true, Math.PI*.36, Math.PI*1.28), new THREE.MeshStandardMaterial({ color:hair, roughness:.45, side:THREE.DoubleSide })); lh.position.set(0, -.2, -.03); lh.castShadow = true; head.add(lh); }
+      const arms = [-1, 1].map(sx => limb(sx*.25, .84, p => { p.rotation.z = sx*.15; const g2 = new THREE.CylinderGeometry(.06, .06, .3, 10); g2.translate(0, -.15, 0); P(g2, top, 0, 0, 0, { to:p }); P(new THREE.SphereGeometry(.07, 10, 8), SKIN, 0, -.32, 0, { to:p }); }));
+      if (opt.cup) P(new THREE.CylinderGeometry(.07, .06, .14, 12), 0xFFFFFF, .3, .6, .2);
+      if (opt.paper) P(B(.3, .02, .4), 0xFFFFFF, 0, .82, .3);
+      s.add(gp); return { gp, legs, arms, head, look:0 };
     }
-    const SHIRT = [0x6B7FA8, 0xA8746B, 0x6BA88A, 0x9A6BA8, 0xD9A441, 0x5B8FC9, 0xC96B8A, 0x3C8C6E], HAIRS = [0x2A1E1A, 0x3B2A20, 0x1A1A1A, 0x5A3A22];
-    const sitters = seats.map((se, i) => { const p = person(se.mine ? 0x3C8C6E : SHIRT[i % 8], se.mine ? 0x2B1D16 : HAIRS[i % 4]); p.gp.position.set(se.x, -.18, se.z); p.gp.rotation.y = se.face; p.legs.forEach(l => l.rotation.x = -1.35); p.arms.forEach(a => a.rotation.x = -.9); return p; });
+    const SHIRT = [RED, BLUE, YEL, GRN, 0xFF8A2B, 0x9B5CFF, PINK, 0x2BB5C9], HAIRS = [0x2A1E1A, 0x5A3A22, 0x1A1A1A, 0x8A5A2E];
+    const sitters = seats.map((se, i) => { const p = person(se.mine ? 0x3C8C6E : SHIRT[i % 8], se.mine ? 0x2B1D16 : HAIRS[i % 4], se.mine ? { long:false } : {}); p.gp.position.set(se.x, -.08, se.z); p.legs.forEach(l => l.rotation.x = -1.45); p.arms.forEach(a => a.rotation.x = -1.1); return p; });
     // 걷는 길 (닫힌 고리)
     const ROUTES = {
       coffee:[[-.95, 3.2], [-.95, -3.6], [2.6, -4.7], [-.95, -3.6], [-.95, 3.2], [-3.4, 2.9]],
       printer:[[6.3, 1.0], [6.3, -4.5], [5.4, -4.7], [3.6, -3.2], [3.6, 1.0]],
-      lap:[[-6.9, -4.3], [6.8, -4.3], [7.0, 1.0], [2.6, 5.0], [-3.6, 5.0], [-7.0, 1.0]],
+      lap:[[-7.0, -4.3], [6.8, -4.3], [7.1, .4], [6.8, -4.3]],
+      board:[[-7.3, -1.0], [-7.3, 1.9], [-6.0, 1.9], [-7.3, -1.0]],
       student:[[7.2, -5.3], [6.2, -3.4], [3.6, 2.6], [1.0, 2.6], [3.6, 2.6], [6.2, -3.4]],
-      student2:[[7.2, -5.3], [6.6, -3.0], [-.95, -2.6], [-3.0, -1.6], [-.95, -2.6], [6.6, -3.0]]
+      student2:[[7.2, -5.3], [6.6, -3.0], [-.95, -3.0], [-3.0, -3.2], [-.95, -3.0], [6.6, -3.0]]
     };
     const routeLen = pts => pts.reduce((a, p, i) => a + Math.hypot(...[0, 1].map(j => pts[(i + 1) % pts.length][j] - p[j])), 0);
     function along(pts, d){ const L2 = routeLen(pts); d = ((d % L2) + L2) % L2; for (let i = 0; i < pts.length; i++){ const a = pts[i], b = pts[(i + 1) % pts.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (d <= l){ const f = d/l; return { x:a[0] + (b[0] - a[0])*f, z:a[1] + (b[1] - a[1])*f, ang:Math.atan2(b[0] - a[0], b[1] - a[1]) }; } d -= l; } return { x:pts[0][0], z:pts[0][1], ang:0 }; }
     const walkers = [
-      { p:person(0xC96B8A, 0x3B2A20, { cup:true }), route:"coffee", sp:.9, off:0, tag:"☕ 커피 타러" },
-      { p:person(0x5B8FC9, 0x1A1A1A, { paper:true }), route:"printer", sp:.8, off:4, tag:"🖨 인쇄하러" },
-      { p:person(0xD9A441, 0x5A3A22), route:"lap", sp:1.0, off:9, tag:"" },
-      { p:person(0x9A6BA8, 0x2A1E1A, { cup:true }), route:"lap", sp:1.0, off:26, tag:"" },
+      { p:person(PINK, 0x3B2A20, { cup:true }), route:"coffee", sp:.9, off:0, tag:"☕ 커피 타러" },
+      { p:person(0x2BB5C9, 0x1A1A1A, { paper:true }), route:"printer", sp:.8, off:4, tag:"🖨 인쇄하러" },
+      { p:person(0xFF8A2B, 0x5A3A22), route:"lap", sp:1.0, off:9, tag:"" },
+      { p:person(0x9B5CFF, 0x8A5A2E, { paper:true }), route:"board", sp:.6, off:2, tag:"📋 칠판 보러" },
       { p:person(0x2C3E66, 0x2A1E1A, { student:true }), route:"student", sp:1.1, off:0, tag:"질문하러 왔어요", student:true },
       { p:person(0x2C3E66, 0x3B2A20, { student:true }), route:"student", sp:1.1, off:1.2, tag:"", student:true },
       { p:person(0x2C3E66, 0x5A3A22, { student:true }), route:"student2", sp:1.0, off:3, tag:"출석부 가지러", student:true }
     ];
-    // 회의 탁자 옆에 서서 이야기하는 두 사람
-    const talkers = [[tx - 2.1, tz - 1.1, .9], [tx - 1.2, tz - 2.1, 2.6]].map(([x, z, a], i) => { const p = person(i ? 0x6BA88A : 0xA8746B, HAIRS[i + 1]); p.gp.position.set(x, 0, z); p.gp.rotation.y = a; return p; });
-    let sw = 0, sh = 0, st0 = null, tvSec = -1;
-    const vv = new THREE.Vector3();
+    const talkers = [[tx - 2.1, tz - 1.1, .9], [tx - 1.2, tz - 2.1, 2.6]].map(([x, z, a], i) => { const p = person(i ? GRN : RED, HAIRS[i + 1]); p.gp.position.set(x, 0, z); p.gp.rotation.y = a; return p; });
+    // 고개: 화면(카메라) 쪽으로 살짝 돌려요 — 뒤통수만 보이지 않게
+    const lookCam = (p, camA, extra = 0) => { let d2 = camA - p.gp.rotation.y; d2 = Math.atan2(Math.sin(d2), Math.cos(d2)); const want = Math.max(-1.7, Math.min(1.7, d2)) + extra; p.look += (want - p.look)*.08; p.head.rotation.y = p.look; };
+    // 그림판 내용 (바뀔 때만 다시 그려요)
+    const R = (x2, x, y, w, h, rr2, c) => { x2.beginPath(); x2.roundRect(x, y, w, h, rr2); x2.fillStyle = c; x2.fill(); };
+    let kTodo = null, kNote = null, kCal = null, tvSec = -1, kBlocks = null;   // null = 처음엔 꼭 한 번 그려요
+    function drawBoard(){
+      const x2 = wb.x; x2.fillStyle = "#FFFFFF"; x2.fillRect(0, 0, 512, 320);
+      x2.fillStyle = "#1A1F4A"; x2.font = "800 40px 'Noto Sans KR',sans-serif"; x2.fillText("오늘 할 일", 30, 58);
+      x2.fillStyle = "#E8483F"; x2.fillRect(30, 72, 200, 6);
+      const list = TODOS.slice(0, 4);
+      if (!list.length){ x2.fillStyle = "#8A8FB0"; x2.font = "600 30px 'Noto Sans KR',sans-serif"; x2.fillText("오른쪽 TO DO 칸에 적어요", 30, 140); }
+      list.forEach((td, i) => { const y = 120 + i*50; x2.strokeStyle = "#1A1F4A"; x2.lineWidth = 4; x2.strokeRect(32, y - 26, 30, 30);
+        if (td.d){ x2.strokeStyle = "#33C27A"; x2.lineWidth = 7; x2.beginPath(); x2.moveTo(36, y - 12); x2.lineTo(46, y); x2.lineTo(66, y - 32); x2.stroke(); }
+        x2.fillStyle = td.d ? "#9AA0C0" : "#1A1F4A"; x2.font = "700 32px 'Noto Sans KR',sans-serif"; let t2 = td.t; while (x2.measureText(t2).width > 400 && t2.length > 1) t2 = t2.slice(0, -1); if (t2 !== td.t) t2 += "…"; x2.fillText(t2, 80, y);
+        if (td.d){ const w2 = x2.measureText(t2).width; x2.fillRect(80, y - 11, w2, 3); } });
+      wb.t.needsUpdate = true;
+    }
+    function drawCork(){
+      const x2 = cork.x; x2.fillStyle = "#D9A86A"; x2.fillRect(0, 0, 320, 220); for (let i = 0; i < 160; i++){ x2.fillStyle = i % 2 ? "rgba(120,70,20,.25)" : "rgba(255,240,200,.25)"; x2.fillRect((i*73) % 320, (i*41) % 220, 3, 3); }
+      const list = NOTES.filter(n => !n.deleted && (n.title || n.t)), C2 = { y:"#FFE27A", p:"#FFB3C7", b:"#A8D8FF", g:"#B5EBA8", o:"#FFC58A", v:"#D4B8FF" };
+      list.slice(0, 6).forEach((n, i) => { const x = 18 + (i % 3)*100, y = 16 + Math.floor(i/3)*98; x2.save(); x2.translate(x + 42, y + 40); x2.rotate(((i*37) % 9 - 4)/40);
+        x2.fillStyle = "rgba(0,0,0,.2)"; x2.fillRect(-38, -34, 80, 76); x2.fillStyle = C2[n.color] || C2.y; x2.fillRect(-40, -38, 80, 76);
+        x2.fillStyle = "#E8483F"; x2.beginPath(); x2.arc(0, -30, 6, 0, Math.PI*2); x2.fill();
+        x2.fillStyle = "#2A2A3A"; x2.font = "700 15px 'Noto Sans KR',sans-serif"; const s2 = (n.title || n.t || "").trim(); x2.fillText(s2.slice(0, 5), -32, -4); x2.fillText(s2.slice(5, 10), -32, 16); x2.restore(); });
+      if (!list.length){ x2.fillStyle = "#FFFFFF"; x2.fillRect(80, 60, 160, 100); x2.fillStyle = "#1A1F4A"; x2.font = "800 26px 'Noto Sans KR',sans-serif"; x2.textAlign = "center"; x2.fillText("메모", 160, 108); x2.font = "600 18px 'Noto Sans KR',sans-serif"; x2.fillText("눌러서 쓰기", 160, 138); x2.textAlign = "left"; }
+      cork.t.needsUpdate = true;
+    }
+    function drawCal(d){
+      const x2 = calT.x; x2.fillStyle = "#FFFFFF"; x2.fillRect(0, 0, 256, 256); x2.fillStyle = "#E8483F"; x2.fillRect(0, 0, 256, 62);
+      x2.textAlign = "center"; x2.fillStyle = "#FFFFFF";
+      if (DDAY){ x2.font = "800 30px 'Noto Sans KR',sans-serif"; x2.fillText("학교 일정", 128, 44);
+        x2.fillStyle = "#1A1F4A"; x2.font = "900 84px 'Noto Sans KR',sans-serif"; x2.fillText(DDAY.n === 0 ? "D-DAY" : DDAY.n > 0 ? "D-" + DDAY.n : "D+" + (-DDAY.n), 128, 160);
+        x2.font = "700 28px 'Noto Sans KR',sans-serif"; let t2 = DDAY.t; while (x2.measureText(t2).width > 230 && t2.length > 1) t2 = t2.slice(0, -1); x2.fillText(t2, 128, 214); }
+      else { x2.font = "800 32px 'Noto Sans KR',sans-serif"; x2.fillText(`${d.getMonth() + 1}월`, 128, 44);
+        x2.fillStyle = "#1A1F4A"; x2.font = "900 110px 'Noto Sans KR',sans-serif"; x2.fillText(String(d.getDate()), 128, 178);
+        x2.fillStyle = d.getDay() === 0 ? "#E8483F" : d.getDay() === 6 ? "#3B5BDB" : "#4A4F70"; x2.font = "800 30px 'Noto Sans KR',sans-serif"; x2.fillText(DAYS[d.getDay()] + "요일", 128, 226); }
+      x2.textAlign = "left"; calT.t.needsUpdate = true;
+    }
     const tvDraw = (st, d) => {
-      const g2 = tvx, W2 = 1024, H2 = 540; g2.fillStyle = "#101014"; g2.fillRect(0, 0, W2, H2);
-      const gr = g2.createLinearGradient(0, 0, W2, H2); gr.addColorStop(0, "rgba(226,81,58,.25)"); gr.addColorStop(1, "rgba(124,107,242,.18)"); g2.fillStyle = gr; g2.fillRect(0, 0, W2, H2);
-      g2.fillStyle = "#9A9AA6"; g2.font = "500 34px 'Noto Sans KR',sans-serif"; g2.fillText("지금", 60, 92);
-      g2.fillStyle = "#FFFFFF"; g2.font = "800 104px 'Noto Sans KR',sans-serif"; g2.fillText(NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실"), 60, 210);
-      g2.fillStyle = "#D8D8E0"; g2.font = "500 40px 'Noto Sans KR',sans-serif"; g2.fillText(st.act, 60, 272);
+      const g2 = tv.x, W2 = 1024, H2 = 540; g2.fillStyle = "#1A2A6B"; g2.fillRect(0, 0, W2, H2);
+      g2.fillStyle = "#FFCF33"; g2.font = "800 34px 'Noto Sans KR',sans-serif"; g2.fillText("지금", 60, 92);
+      g2.fillStyle = "#FFFFFF"; g2.font = "900 104px 'Noto Sans KR',sans-serif"; g2.fillText(NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실"), 60, 210);
+      g2.fillStyle = "#DDE3FF"; g2.font = "700 40px 'Noto Sans KR',sans-serif"; g2.fillText(st.act, 60, 272);
       const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s)/Math.max(1, st.e - st.s))) : 0;
-      g2.fillStyle = "rgba(255,255,255,.12)"; g2.fillRect(60, 310, 900, 14); g2.fillStyle = "#E2513A"; g2.fillRect(60, 310, 900*pr, 14);
+      g2.fillStyle = "rgba(255,255,255,.15)"; g2.fillRect(60, 310, 900, 16); g2.fillStyle = "#FFCF33"; g2.fillRect(60, 310, 900*pr, 16);
       const nx = nextClass(d.getDay(), st.m);
-      g2.fillStyle = "#9A9AA6"; g2.font = "500 34px 'Noto Sans KR',sans-serif"; g2.fillText("다음", 60, 400);
-      g2.fillStyle = "#FFFFFF"; g2.font = "700 52px 'Noto Sans KR',sans-serif"; g2.fillText(nx ? `${nx.p}교시 ${NAME(nx.r)} · ${nx.a}` : "오늘 수업 끝", 60, 470);
-      g2.textAlign = "right"; g2.font = "700 64px 'Noto Sans KR',sans-serif"; g2.fillText(hhmm(d.getHours()*60 + d.getMinutes()), W2 - 60, 110); g2.textAlign = "left";
-      tvTex.needsUpdate = true;
+      g2.fillStyle = "#FFCF33"; g2.font = "800 34px 'Noto Sans KR',sans-serif"; g2.fillText("다음", 60, 400);
+      g2.fillStyle = "#FFFFFF"; g2.font = "800 52px 'Noto Sans KR',sans-serif"; g2.fillText(nx ? `${nx.p}교시 ${NAME(nx.r)} · ${nx.a}` : "오늘 수업 끝", 60, 470);
+      g2.textAlign = "right"; g2.font = "800 64px 'Noto Sans KR',sans-serif"; g2.fillText(hhmm(d.getHours()*60 + d.getMinutes()), W2 - 60, 110); g2.textAlign = "left";
+      tv.t.needsUpdate = true;
     };
-    return { r, k, cam,
+    let sw = 0, sh = 0;
+    const vv = new THREE.Vector3(), bb = new THREE.Box3();
+    return { r, k:"toy", cam,
       frame(st, t, w, h){
-        const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, seed = Math.floor(st.m/7), brk = BREAK, open = SCHOOL;
+        const d = simNow(), day = d.getDay(), seed = Math.floor(st.m/7), brk = BREAK, open = SCHOOL, hr = d.getHours() + d.getMinutes()/60;
         if (d.getSeconds() !== tvSec){ tvSec = d.getSeconds(); tvDraw(st, d); const hh = d.getHours() % 12, mi = d.getMinutes() + d.getSeconds()/60; hH.rotation.z = -(hh + mi/60)/12*Math.PI*2; hM.rotation.z = -mi/60*Math.PI*2;
-          let all = 0; bars.forEach((b, i) => { const n = Object.keys(TT[i + 1] || {}).length, hg2 = .15 + n*.28; all += n; b.scale.y = hg2; b.position.y = .83 + hg2/2; b.material.emissive.setHex(i + 1 === day ? 0x444444 : 0); }); }
-        // 앉은 사람: 손이 키보드 위에서 톡톡
+          bars.forEach((b, i) => { const n = Object.keys(TT[i + 1] || {}).length, hg2 = .15 + n*.28; b.scale.y = hg2; b.position.y = .75 + hg2/2; b.material.emissive.setHex(i + 1 === day ? 0x444444 : 0); });
+          books.forEach((b, i) => b.visible = i < Math.min(10, LINKS.length || 0) || (!LINKS.length && i < 3));
+          const sky = hr < 6 || hr >= 19 ? 0x1A2A6B : hr < 9 ? 0xA8DCFF : hr < 16 ? 0xBFE8FF : hr < 17.5 ? 0xFFC58A : 0xFF8A5B; winM.color.setHex(sky); winM.emissive.setHex(sky);
+          const rows = todayRows(day).filter(r2 => r2.r && r2.r !== "lunch"), kb = rows.map(r2 => r2.a + (st.m >= mm(r2.b) ? 1 : st.m >= mm(r2.a) ? 2 : 0)).join();
+          if (kb !== kBlocks){ kBlocks = kb; myBlocks.forEach((m, i) => { const r2 = rows[i]; m.visible = !!r2; if (!r2) return; const done = st.m >= mm(r2.b), now2 = st.m >= mm(r2.a) && !done;
+            m.material.color.setHex(done ? 0xB8BED6 : r2.r === HR ? RED : now2 ? YEL : BLUE); m.userData.now = now2; }); }
+          const kc = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}|${DDAY ? DDAY.n + DDAY.t : ""}`; if (kc !== kCal){ kCal = kc; drawCal(d); } }
+        const kt = JSON.stringify(TODOS.slice(0, 4)); if (kt !== kTodo){ kTodo = kt; drawBoard(); }
+        const kn = NOTES.map(n => n.id + (n.t || "").length + (n.color || "") + (n.deleted ? 1 : 0)).join(); if (kn !== kNote){ kNote = kn; drawCork(); }
+        myBlocks.forEach(m => { m.position.y = .82 + (m.userData.now ? Math.abs(Math.sin(t*5))*.08 : 0); });
+        steam.forEach((p, i) => { const f = (t*.5 + i/3) % 1; p.position.set(2.4 + Math.sin(t*2 + i)*.05, 1.55 + f*.7, -5.65); p.material.opacity = .6*(1 - f); p.scale.setScalar(.7 + f*.8); });
+        prL.material.emissiveIntensity = walkers[1].p.gp.position.distanceTo(new THREE.Vector3(5.4, 0, -4.7)) < 1.4 ? (Math.sin(t*12) > 0 ? 1.5 : .2) : .6;
+        const unread = !document.getElementById("setDot")?.hidden; flag.rotation.z = unread ? 0 : Math.PI/2; flag.position.y = unread ? .22 : .08; env.visible = unread; env.position.y = .3 + (unread ? Math.abs(Math.sin(t*4))*.1 : 0);
+        const camA = .62 + Math.sin(t*.1)*.04;
+        // 앉은 사람: 손이 키보드 위에서 톡톡, 가끔 옆자리를 봐요
         seats.forEach((se, i) => { const on = se.mine ? st.place === "office" && !st.lunch : open && ((seed + (i < 4 ? 0 : 5) + (i % 4)*3) % 4 !== 0);
-          const p = sitters[i]; p.gp.visible = on; se.scr.material.emissiveIntensity = on ? .55 : .08;
-          if (on){ p.gp.position.y = -.18 + Math.abs(Math.sin(t*2 + i))*.02; p.arms[0].rotation.x = -.9 + Math.sin(t*9 + i)*.12; p.arms[1].rotation.x = -.9 + Math.sin(t*9 + i + 1.6)*.12; p.gp.rotation.y = se.face + Math.sin(t*.5 + i*2)*.25; } });
-        // 걷는 사람
+          const p = sitters[i]; p.gp.visible = on; se.scr.material.emissiveIntensity = on ? .7 : .08;
+          if (on){ p.gp.position.y = -.08 + Math.abs(Math.sin(t*2 + i))*.015; p.arms[0].rotation.x = -1.1 + Math.sin(t*9 + i)*.12; p.arms[1].rotation.x = -1.1 + Math.sin(t*9 + i + 1.6)*.12; lookCam(p, camA, Math.sin(t*.4 + i*2) > .6 ? Math.sin(t*.4 + i)*.9 : 0); } });
+        // 걷는 사람: 선생님은 늘 움직이고, 학생은 쉬는 시간에 와요
         walkers.forEach((wkr, i) => {
-          const show = wkr.student ? brk : open && (!LUNCH || i % 2 === 0);
+          const show = wkr.student ? brk : true;
           wkr.p.gp.visible = show; if (!show) return;
           const pos = along(ROUTES[wkr.route], t*wkr.sp + wkr.off*3);
           wkr.p.gp.position.set(pos.x, Math.abs(Math.sin(t*wkr.sp*7))*.05, pos.z); wkr.p.gp.rotation.y = pos.ang;
-          const sw2 = Math.sin(t*wkr.sp*7)*.55; wkr.p.legs[0].rotation.x = sw2; wkr.p.legs[1].rotation.x = -sw2;
-          wkr.p.arms[0].rotation.x = -sw2*.8; wkr.p.arms[1].rotation.x = sw2*.8;
+          const sw2 = Math.sin(t*wkr.sp*7)*.6; wkr.p.legs[0].rotation.x = sw2; wkr.p.legs[1].rotation.x = -sw2; wkr.p.arms[0].rotation.x = -sw2*.8; wkr.p.arms[1].rotation.x = sw2*.8;
+          lookCam(wkr.p, camA);
         });
-        // 이야기하는 두 사람: 고개 끄덕 · 손짓
-        talkers.forEach((p, i) => { p.gp.visible = open; p.gp.position.y = Math.abs(Math.sin(t*1.5 + i))*.02; p.arms[1].rotation.x = -.6 + Math.sin(t*3 + i*2)*.5; p.arms[1].rotation.z = .3; p.gp.rotation.y += Math.sin(t*.8 + i)*.002; });
-        const a = Math.PI/4 + Math.sin(t*.1)*.06; cam.position.set(Math.sin(a)*20, 15, Math.cos(a)*20); cam.lookAt(-.2, .5, .4);
-        if (w !== sw || h !== sh){ sw = w; sh = h; r.setSize(w*2, h*2, false); const asp = w/h, half = 7.2; cam.left = -half*asp; cam.right = half*asp; cam.top = half; cam.bottom = -half; cam.updateProjectionMatrix(); }
+        talkers.forEach((p, i) => { p.gp.visible = true; p.gp.position.y = Math.abs(Math.sin(t*1.5 + i))*.02; p.arms[1].rotation.x = -.6 + Math.sin(t*3 + i*2)*.5; p.arms[1].rotation.z = .3; lookCam(p, camA, Math.sin(t*.7 + i)*.4); });
+        // 카메라: 가깝게 · 정면에 가깝게 (방이 화면을 가득 채워요)
+        cam.position.set(Math.sin(camA)*22, 17, Math.cos(camA)*22); cam.lookAt(.2, .9, -1.0);
+        if (w !== sw || h !== sh){ sw = w; sh = h; r.setSize(w*2, h*2, false); const asp = w/h, half = 6.0; cam.left = -half*asp; cam.right = half*asp; cam.top = half; cam.bottom = -half; cam.updateProjectionMatrix(); }
         cam.updateMatrixWorld(); r.render(s, cam);
-        // 이름표 자리 (2D 화면 좌표로)
+        // 이름표 · 누르는 자리 (2D 화면 좌표로)
         const proj = (x, y, z) => { vv.set(x, y, z).project(cam); return [(vv.x + 1)/2*w, (1 - vv.y)/2*h]; };
-        const tags = [];
-        seats.forEach((se, i) => { if (se.mine) tags.push({ at:proj(se.x, 2.3, se.z), me:true, on:sitters[i].gp.visible }); });
-        walkers.forEach(wkr => { if (wkr.p.gp.visible && wkr.tag) tags.push({ at:proj(wkr.p.gp.position.x, 2.2, wkr.p.gp.position.z), text:wkr.tag, student:wkr.student }); });
-        if (open) tags.push({ at:proj(tx - 1.65, 2.3, tz - 1.6), text:"💬 회의 중" });
-        tags.push({ at:proj(tx, 2.2, tz), text:"이번 주 수업", soft:true });
-        return tags;
+        const box2 = obj => { bb.setFromObject(obj); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; [bb.min, bb.max].forEach(a => [bb.min, bb.max].forEach(b2 => [bb.min, bb.max].forEach(c2 => { const [px, py] = proj(a.x, b2.y, c2.z); x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py); }))); return [x0, y0, x1 - x0, y1 - y0]; };
+        const tags = [], hots = [[box2(wbP), "todo"], [box2(corkP), "memo"], [box2(shelf), "links"], [box2(calP), "dday"], [box2(mail), "friend"], [box2(tvP), "edit"]];
+        seats.forEach((se, i) => { if (se.mine) tags.push({ at:proj(se.x, 2.1, se.z), me:true, on:sitters[i].gp.visible }); });
+        walkers.forEach(wkr => { if (wkr.p.gp.visible && wkr.tag) tags.push({ at:proj(wkr.p.gp.position.x, 2.05, wkr.p.gp.position.z), text:wkr.tag, student:wkr.student }); });
+        tags.push({ at:proj(tx - 1.65, 2.1, tz - 1.6), text:"💬 회의 중" });
+        tags.push({ at:proj(tx, 2.1, tz), text:"이번 주 수업", soft:true });
+        tags.push({ at:proj(my.x, 1.25, my.dz + .32), text:"오늘 수업", soft:true });
+        if (unread) tags.push({ at:proj(6.1, 2.4, -6.0), text:"📮 새 채팅", student:true });
+        return { tags, hots };
       } };
   }
   let placed = [];   // 이번 화면에 이미 그린 이름표 (겹치면 위로 비켜요)
-  function tag(x, y, s, bg, fg, border){
-    g.font = `700 6px ${fontOf("sans")}`; const w = g.measureText(s).width + 10, x0 = Math.round(x - w/2); let y0 = Math.round(y - 11);
-    for (let n = 0; n < 6 && placed.some(([px, py, pw]) => x0 < px + pw + 2 && px < x0 + w + 2 && Math.abs(py - y0) < 11); n++) y0 -= 11;
+  function block(x, y, w, h, fill, r = 5){ g.beginPath(); g.roundRect(x, y + 2, w, h, r); g.fillStyle = UI.line; g.fill(); g.beginPath(); g.roundRect(x, y, w, h, r); g.fillStyle = fill; g.fill(); g.strokeStyle = UI.line; g.lineWidth = 1.2; g.stroke(); }
+  function tag(x, y, s, bg, fg){
+    g.font = `800 6.5px ${fontOf("sans")}`; const w = g.measureText(s).width + 11, x0 = Math.round(x - w/2); let y0 = Math.round(y - 13);
+    for (let n = 0; n < 6 && placed.some(([px, py, pw]) => x0 < px + pw + 2 && px < x0 + w + 2 && Math.abs(py - y0) < 13); n++) y0 -= 13;
     placed.push([x0, y0, w]);
-    g.beginPath(); g.roundRect(x0, y0, w, 10, C.neon ? 0 : 5); g.fillStyle = bg; g.fill(); if (border){ g.strokeStyle = border; g.lineWidth = 1; g.stroke(); }
-    ft(s, x0 + w/2, y0 + 5.5, 6, fg, "center", "sans", "700");
+    block(x0, y0, w, 11, bg, 5.5); ft(s, x0 + w/2, y0 + 6, 6.5, fg, "center", "sans", "800");
   }
   function draw(st){
-    const k = lookKey(); C = OLOOK[k];
     const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, tt = TT[day] || {}, hmNow = d.getHours()*60 + d.getMinutes();
-    rect(0, 0, W, H, C.bg);
-    let tags = [];
-    if (window.THREE){ try { let three = window.__desk3o; if (!three || three.k !== k){ if (three){ three.r.forceContextLoss(); three.r.dispose(); } three = window.__desk3o = makeOffice(k); } tags = three.frame(st, T, W, H); g.drawImage(three.r.domElement, 0, 0, W, H); } catch (e) { window.__desk3o = null; } }
-    else ft("3D를 불러오지 못했어요", W/2, H/2, 8, C.sub, "center", "sans");
+    rect(0, 0, W, H, "#3B5BDB");
+    let out = { tags:[], hots:[] };
+    if (window.THREE){ try { let three = window.__desk3o; if (!three || three.k !== "toy"){ if (three){ three.r.forceContextLoss(); three.r.dispose(); } three = window.__desk3o = makeOffice(); } out = three.frame(st, T, W, H); g.drawImage(three.r.domElement, 0, 0, W, H); } catch (e) { window.__desk3o = null; } }
+    else ft("3D를 불러오지 못했어요", W/2, H/2, 8, "#FFFFFF", "center", "sans");
+    out.hots.forEach(([[x, y, w, h], k]) => hot(x, y, w, h, { open:k }));
     // 머리 위 이름표 (내 자리 먼저, 나머지는 겹치면 비켜요)
     placed = [];
-    tags.sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0)).forEach(t2 => {
+    out.tags.sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0)).forEach(t2 => {
       const [x, y] = t2.at;
-      if (t2.me) tag(x, y, t2.on ? `★ ${ME} · ${st.slot}` : `★ 내 자리 · ${st.place === "home" ? (wk ? st.slot : "주말") : NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실") + (st.act.includes("수업") ? " 수업 중" : "")}`, C.me, "#FFFFFF");
-      else if (t2.soft) tag(x, y, t2.text, C.tag, C.sub, C.neon ? C.line : null);
-      else tag(x, y, t2.text, t2.student ? (C.neon ? "#0B0B12" : "#2C3E66") : C.tag, t2.student ? (C.neon ? "#2FE3F0" : "#FFFFFF") : C.ink, C.neon ? (t2.student ? "#2FE3F0" : C.line) : null);
+      if (t2.me) tag(x, y, t2.on ? `★ ${ME} · ${st.slot}` : `★ 내 자리 · ${st.place === "home" ? (wk ? st.slot : "주말") : NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실") + (st.act.includes("수업") ? " 수업 중" : "")}`, UI.me, "#FFFFFF");
+      else if (t2.soft) tag(x, y, t2.text, UI.card, UI.ink);
+      else tag(x, y, t2.text, t2.student ? UI.acc : UI.tag, t2.student ? "#FFFFFF" : UI.ink);
     });
     // 왼쪽 위 인사 카드
     const left = st.e < 1440 ? Math.max(0, Math.ceil(st.e - st.m)) : 0, h = d.getHours();
-    g.beginPath(); g.roundRect(10, 10, 168, 54, C.neon ? 0 : 9); g.fillStyle = C.tag; g.fill(); g.strokeStyle = C.neon ? C.line : C.line; g.lineWidth = 1; g.stroke();
-    ft(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일 · ${hhmm(hmNow)}`, 20, 21, 5.5, C.sub, "left", "sans", "500");
-    ft(!wk ? `주말이에요, 푹 쉬어요 ${ME}` : h < 9 ? `좋은 아침이에요, ${ME}` : st.place === "home" ? `오늘도 수고했어요, ${ME}` : `오늘도 좋은 하루예요, ${ME}`, 20, 34, 9, C.ink, "left", "sans", "800");
-    ft(!wk ? "교무실이 조용해요" : st.place === "home" ? st.act : `${st.slot} · ${NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실")} · ${left}분 남음`, 20, 47, 5.5, C.sub, "left", "sans");
-    g.beginPath(); g.arc(23, 56, 2, 0, Math.PI*2); g.fillStyle = SCHOOL ? "#3FAE7A" : "#9A9AA6"; g.fill();
-    ft(SCHOOL ? (BREAK ? "쉬는 시간 · 학생들이 찾아와요" : LUNCH ? "점심시간" : "선생님들이 일하는 중") : "학교 밖 시간", 28, 56.5, 5, C.sub, "left", "sans");
+    block(10, 10, 176, 58, UI.card, 8);
+    ft(`${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일 · ${hhmm(hmNow)}`, 20, 21, 6.5, UI.sub, "left", "sans", "700");
+    ft(!wk ? `주말이에요, 푹 쉬어요 ${ME}` : h < 9 ? `좋은 아침이에요, ${ME}` : st.place === "home" ? `오늘도 수고했어요, ${ME}` : `오늘도 좋은 하루예요, ${ME}`, 20, 35, 11, UI.ink, "left", "head", "400");
+    ft(!wk ? "교무실이 조용해요" : st.place === "home" ? st.act : `${st.slot} · ${NAME(st.lunch ? "lunch" : st.place).replace("lunch", "급식실")} · ${left}분 남음`, 20, 49, 6.5, UI.sub, "left", "sans", "700");
+    g.beginPath(); g.arc(22.5, 59, 2.2, 0, Math.PI*2); g.fillStyle = SCHOOL ? "#33C27A" : "#9A9AA6"; g.fill();
+    ft(SCHOOL ? (BREAK ? "쉬는 시간 · 학생들이 찾아와요" : LUNCH ? "점심시간" : "선생님들이 일하는 중") : "학교 밖 시간", 28, 59.5, 6, UI.sub, "left", "sans", "700");
     // 오른쪽 위 작은 표
-    const chip = (s, xr, y, c) => { g.font = `700 6px ${fontOf("sans")}`; const w = g.measureText(s).width + 12; g.beginPath(); g.roundRect(xr - w, y, w, 12, C.neon ? 0 : 6); g.fillStyle = C.tag; g.fill(); g.strokeStyle = c || C.line; g.lineWidth = 1; g.stroke(); ft(s, xr - w/2, y + 6.5, 6, c || C.ink, "center", "sans", "700"); return w; };
-    let xr = 470; if (HR) xr -= chip(`★ ${HR} 담임`, xr, 10, C.me) + 4;
-    xr -= chip(wk ? `오늘 수업 ${Object.keys(tt).length}개` : "주말", xr, 10) + 4;
-    const nx = nextClass(day, st.m); if (nx) chip(`다음 ${nx.p}교시 ${NAME(nx.r)}`, xr, 10, C.acc);
+    const chip = (s, xr, fill, fg) => { g.font = `800 6.5px ${fontOf("sans")}`; const w = g.measureText(s).width + 13; block(xr - w, 10, w, 13, fill, 6.5); ft(s, xr - w/2, 17, 6.5, fg, "center", "sans", "800"); return w; };
+    let xr = 470; if (HR) xr -= chip(`★ ${HR} 담임`, xr, UI.me, "#FFFFFF") + 5;
+    xr -= chip(wk ? `오늘 수업 ${Object.keys(tt).length}개` : "주말", xr, "#FFFFFF", UI.ink) + 5;
+    const nx = nextClass(day, st.m); if (nx) xr -= chip(`다음 ${nx.p}교시 ${NAME(nx.r)}`, xr, UI.acc, "#FFFFFF") + 5;
+    if (DDAY) chip(`🗓 ${DDAY.n === 0 ? "D-DAY" : DDAY.n > 0 ? "D-" + DDAY.n : "D+" + (-DDAY.n)} ${DDAY.t.slice(0, 8)}`, xr, "#FFFFFF", UI.me);
+    // 아래 안내 (처음 보는 선생님용)
+    g.font = `700 6px ${fontOf("sans")}`; const hint = "칠판 · 게시판 · 책장 · 달력 · 우편함 · TV를 눌러 보세요", hw = g.measureText(hint).width + 14;
+    block(W - hw - 10, H - 22, hw, 12, "#FFFFFF", 6); ft(hint, W - 10 - hw/2, H - 15.5, 6, UI.ink, "center", "sans", "700");
   }
   return { name:"3D 교무실", layout:"none", custom:true, draw, who:"전 연령 · 귀엽고 생생한 3D",
-    desc:"<b>나무 바닥 위 3D 교무실</b>이에요. 선생님들이 커피 · 프린터 · 회의 탁자로 오가고, 쉬는 시간엔 학생들이 질문하러 와요. 벽 TV에 지금 · 다음 수업, 회의 탁자 위엔 이번 주 수업 막대, 내 자리엔 분홍 이름표가 떠요." };
+    desc:"<b>장난감 디오라마 같은 3D 교무실</b>이에요. 머리 큰 꼬마 선생님들이 커피 · 프린터 · 칠판으로 늘 오가고, 쉬는 시간엔 학생들이 찾아와요. 물건을 누르면 기능이 열려요: 칠판 = 오늘 할 일 · 게시판 = 메모 · 책장 = 즐겨찾기 · 달력 = D-day · 우편함 = 친구 채팅 · TV = 시간표. 회의 탁자엔 이번 주 수업 막대, 내 책상엔 오늘 수업 블록이 있어요." };
 })();
 NEWS.push(S22);
 /* ===== END 22 ===== */
@@ -2951,7 +3034,14 @@ function loop(now){
 
 // 게임 화면 속 메모 · 즐겨찾기 누르기 (즐겨찾기 = 새 창, 메모 = 메모 창)
 const hotAt = e => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.left)/r.width*W, y = (e.clientY - r.top)/r.height*H; return [...HOT].reverse().find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); };
-cv.addEventListener("click", e => { const h = hotAt(e); if (!h) return; if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); });
+cv.addEventListener("click", e => { const h = hotAt(e); if (!h) return; if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
+// 3D 교무실 물건을 누르면: 칠판 = 할 일 칸 · 게시판 = 메모 · 책장 = 즐겨찾기 · TV = 시간표 · 달력 = 설정(학교 일정) · 우편함 = 친구 채팅
+function openThing(k){
+  const by = id => document.getElementById(id);
+  if (k === "todo"){ const i = by("todoIn"); if (i){ i.scrollIntoView({ block:"center", behavior:"smooth" }); i.focus(); } return; }
+  const btn = { memo:"bMemo", links:"bLinks", edit:"bEdit", dday:"bSet", friend:"bSet" }[k]; by(btn)?.click();
+  if (k === "friend") setTimeout(() => document.querySelector('#setTabs [data-tab="friend"]')?.click(), 60);
+}
 cv.addEventListener("pointermove", e => { cv.style.cursor = hotAt(e) ? "pointer" : ""; });
 
 /* 아래 파이어베이스 부분과 주고받는 창구 */
@@ -2961,6 +3051,7 @@ window.DESK = {
   setDayTT(map){ DAYTT = map && typeof map === "object" ? map : {}; patchedKey = ""; },
   setFriends(list){ FRIENDS = Array.isArray(list) ? list.filter(f => f && f.name) : []; frKey = ""; },
   setNotes(list){ NOTES = Array.isArray(list) ? list : []; }, setLinks(list){ LINKS = Array.isArray(list) ? list : []; },
+  setDday(x){ DDAY = x || null; },
   look:() => ({ s:SI, v:V }),
   setLook(l){ if (!l) return; if (l.v) setPal(l.v, true); if (l.s != null) pick(l.s, true); },
   onLook:null, onNote:null
@@ -3137,6 +3228,7 @@ function renderSched(src){
   const D = c.dday && c.dday.d && c.dday.t ? c.dday : null;
   $("ddBadge").hidden = !D;
   if (D) $("ddBadge").innerHTML = `<b>${ddText(daysTo(D.d))}</b><span>${esc(D.t)}</span>`;
+  window.DESK.setDday(D ? { n:daysTo(D.d), t:D.t } : null);
 }
 setInterval(() => renderSched(), 60000);   // 자정이 지나면 D-숫자가 줄어요
 
