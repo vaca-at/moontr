@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>문쌤 위클리 플래너</title>
+<title>문쌤 타이쿤 · 건물 단면 타워</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Jua&family=Press+Start+2P&family=Nanum+Pen+Script&family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&family=Noto+Sans+KR:wght@300;500;700&display=swap">
 <style>
-/* 대문(moontr.site) [플래너]에 끼워 넣는 위클리 플래너 (타이쿤 시안 10번 · A NEON). 시간표는 대문 시간표(moontr_config/timetable)를 그대로 읽어요 */
+/* 대문(moontr.site) [플래너]에 끼워 넣는 문쌤 타이쿤 화면 = 1번 건물 단면 타워 (교무실 타이쿤 /tycoon 의 최신 그림을 옮겨 옴, 늘 부스 네온 색). 시간표는 대문 시간표(moontr_config/timetable)를 그대로 읽어요 */
 :root{
   --bg:#07070C; --ink:#EDEDF5; --muted:#8C8CA6; --panel:#0B0B12; --line:#2A2A3A;
   --accent:#FFD400; --accent2:#2FE3F0; --hi:#FF5FAE; --ok:#5BEA6F;
@@ -456,40 +456,77 @@ const ORDER = g2 => [`${g2}-11`,`${g2}-10`,`${g2}-9`,`${g2}-8`,`${g2}-7`,`${g2}-
 
 /* ===== 1. 건물 단면 타워 ===== */
 const S1 = (() => {
-  const FH = 50, GR = 232, BX = 26, RW = 28, SW = 14, CW = 44, BW = 11*RW + 2*SW + CW;
+  // ↓ 타이쿤(/tycoon)에서는 선생님 설정에서 오는 값 — 대문은 문쌤 학교로 고정 (11반 · 1-10 담임 · 2층 1학년 · 3층 2학년 · 4층 3학년 · 교무실 2층)
+  const NCLS = 11, HR = "1-10", FLOORS = [1, 2, 3], OFFICE_F = 2;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), isClass = id => /^\d-\d+$/.test(id || "");
+  const ORDER = (gr, mid, f) => { const nr = Math.floor(NCLS/2), id = k => gr ? `${gr}-${k}` : `_${f}-${k}`, L = [], R = []; for (let k = NCLS; k > nr; k--) L.push(id(k)); for (let k = nr; k >= 1; k--) R.push(id(k)); return [...L, "|", mid, "|", ...R]; };
+  const midRoom = id => id === "office" || id === "etc" || id.startsWith("_c");
+  // 반 수에 맞춰 교실 너비를 정해요 (반이 많으면 좁게, 적으면 넓게 · 건물은 가운데로)
+  // 화면을 가로 · 세로로 꽉 채워요 (층 높이 56, 건물 너비 최대 400)
+  const NL = NCLS - Math.floor(NCLS/2), NR = Math.floor(NCLS/2), FH = 56, GR = 246, RW = clamp(Math.floor(336/NCLS), 18, 40), SW = 14, CW = 46, BW = NCLS*RW + 2*SW + CW, BX = 24 + Math.round((400 - BW)/2);
   const fb = f => GR - (f - 1)*FH, lane = f => fb(f) - 3;
-  const CX = BX + 6*RW + SW, SL = BX + 6*RW + SW/2, SR = CX + CW + SW/2, RX = CX + CW + SW;
+  const CX = BX + NL*RW + SW, SL = BX + NL*RW + SW/2, SR = CX + CW + SW/2, RX = CX + CW + SW;
   const R = [];
-  [2,3,4].forEach(f => { let x = BX; ORDER(f - 1).forEach(id => { if (id === "|"){ x += SW; return; } const w = id === "office" || id[0] === "c" ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
-  [["l0",RW],["l1",RW],["l2",RW],["l3",RW],["행정실",2*RW],["|",SW],["gate",CW],["|",SW],["교장실",2*RW],["r2",RW],["r3",RW],["r4",RW]].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
-  const HOME = { id:"home", f:0, x:414, y:186, w:60, h:46 }; R.push(HOME);
-  const OUT = 250, HD = HOME.x + 40, GX = CX + CW/2;
+  // 2 · 3 · 4층 = 내가 많이 가는 학년 (교무실은 🕘 시간표에서 고른 층 가운데, 기본 2층)
+  [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
+  // 1층: 계발 · 동아리실 · 음악실 · 미술실 · 행정실 | 현관 | 교장실 · 특별교실 · 도서실 · 보건실 · 컴퓨터실 · 가사실. 체육은 운동장, 그 밖의 교과 · 선택 과목 교실은 특별교실로 가요
+ const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /계발/.test(id) ? "계발" : /동아리|창체|자율/.test(id) ? "동아리실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "도서실" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : /가사|가정|기술|조리/.test(id) ? "가사실" : "특별교실";
+  let LIT = new Set();
+  // 날개 너비(반 수 × 교실 너비)를 방 수로 나눠 써요. 너무 좁아지면(16 아래) 끝에서부터 빼요
+  const wing = (n, big, bigFirst, items) => { const tot = n*RW, list = [...items]; while (list.length && tot/(list.length + 1) < 16) list.pop(); const all = bigFirst ? [big, ...list] : [...list, big]; return all.map(id => [id, tot/all.length]); };
+  [...wing(NL, "행정실", false, ["계발", "동아리실", "음악실", "미술실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true, ["특별교실", "도서실", "보건실", "컴퓨터실", "가사실"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
+  const HOME = { id:"home", f:0, x:432, y:GR - 44, w:46, h:44 }; R.push(HOME);
+  const YARD = { id:"yard", f:0, x:BX + 4, y:GR + 4, w:Math.max(60, NL*RW - 10), h:18 }; R.push(YARD);   // 운동장 (체육 수업)
+  const OUT = GR + 12, HD = HOME.x + 30, GX = CX + CW/2;
   const room = id => R.find(r => r.id === id);
-  const place = id => { const r = room(id); return r.id === "home" ? { x:r.x + 16, y:GR - 3 } : { x:r.x + 8, y:lane(r.f) }; };
+  // 건물에 없는 곳(층에 안 나온 학년, 자리가 모자란 특별실)은 1층 빈 칸으로 가요
+  const spare = () => (R.find(r => r.f === 1 && r.id.startsWith("_s")) || { id:"gate" }).id;
+  const mapId = id => room(id) ? id : id === "lunch" || id === "etc" || isClass(id) ? spare() : room(roomFor(id)) ? roomFor(id) : spare();
+  const place = id => { const r = room(id); return r.id === "home" ? { x:r.x + 16, y:GR - 3 } : r.id === "yard" ? { x:r.x + r.w/2, y:GR + 15 } : { x:r.x + 8, y:lane(r.f) }; };
   const near = x => Math.abs(x - SL) <= Math.abs(x - SR) ? SL : SR;
   const toHome = (f, x) => { const o = []; if (f !== 1){ const s = near(x); o.push({ x:s, y:lane(f) }, { x:s, y:lane(1) }); } o.push({ x:GX, y:lane(1) }, { x:GX, y:OUT }, { x:HD, y:OUT }, { x:HD, y:GR - 3 }); return o; };
+  const toYard = (f, x) => { const o = []; if (f !== 1){ const s = near(x); o.push({ x:s, y:lane(f) }, { x:s, y:lane(1) }); } o.push({ x:GX, y:lane(1) }, { x:GX, y:OUT }); return o; };
   function route(a, b){
     const A = room(a), B = room(b), sa = place(a), sb = place(b), p = [sa];
-    if (b === "home") p.push(...toHome(A.f, sa.x)); else if (a === "home") p.push(...toHome(B.f, sb.x).reverse());
+    if (a === "yard" && b === "home") p.push({ x:GX, y:OUT }, { x:HD, y:OUT }, { x:HD, y:GR - 3 });
+    else if (a === "home" && b === "yard") p.push({ x:HD, y:OUT }, { x:GX, y:OUT });
+    else if (b === "yard") p.push(...toYard(A.f, sa.x));
+    else if (a === "yard") p.push(...toYard(B.f, sb.x).reverse());
+    else if (b === "home") p.push(...toHome(A.f, sa.x)); else if (a === "home") p.push(...toHome(B.f, sb.x).reverse());
     else if (A.f !== B.f){ const s = near((sa.x + sb.x)/2); p.push({ x:s, y:lane(A.f) }, { x:s, y:lane(B.f) }); }
     p.push(sb); return p;
   }
+  // 또래상담부 부스(drs/booth)와 같은 색: 진한 바탕 + 층마다 네온 테두리 (2층 노랑 · 3층 주황 · 4층 분홍, 교무실 하늘색, 1층 보라)
+  const BOOTH = { ...PAL.a, sky:"#0B0B12", base:"#0B0B12", hall:"#14141F", hallLine:"#2A2A3A", edge:"#000000",
+    desk:"#8B5A2B", deskTop:"#B07A4A", board:"#1D4D2C", boardEdge:"#8B6B4A", glass:"#2FE3F0", skin:"#FFCFA8", uni:"#2C3E66", skirt:"#5B4A6E",
+    hr:"#FF5FAE", active:"#FFFFFF", apt:"#12121C", aptWin:"#1D1D2B", yard:"#1D4D2C", tuft:"#215733", path:"#B5553A", tree:"#2A6B3A",
+    roof:"#B07CFF", hA:"#1A1A26", hB:"#12121C", night:"rgba(4,4,20,.25)" };
+  const FLOOR_C = { 1:"#B07CFF", 2:"#FFD400", 3:"#FF8A1F", 4:"#FF5FAE" }, WALL_C = "#3D6BFF", DOT_C = "#FFD9B0";
+  // 부스 이름표: 진한 바탕 + 색 테두리 · 글자 (fill 이면 색으로 꽉 채우고 글자는 진하게)
+  function plate(s, cx, y, c, fill){
+    g.font = `5px ${P.font}`; const w = Math.ceil(g.measureText(s).width) + 6, x = Math.round(cx - w/2);
+    rect(x, y, w, 9, c); rect(x + 1, y + 1, w - 2, 7, fill ? c : "#0B0B12"); txt(s, cx, y + 5, 5, fill ? "#0B0B12" : c, "center");
+  }
   function sideRoom(r){
-    const y0 = r.y, fy = fb(r.f) - 2, cls = isClass(r.id);
-    rect(r.x, y0, r.w, r.h, r.id === "office" ? P.oA : r.id === "gate" ? P.hall : P.wall);
-    rect(r.x, y0, r.w, 3, P.wallTop); rect(r.x, fy - 7, r.w, 7, r.id === "office" ? P.oB : P.fA); rect(r.x + r.w - 1, y0, 1, r.h, P.edge);
+    const y0 = r.y, fy = fb(r.f) - 2, cls = isClass(r.id), c = r.id === "office" ? "#2FE3F0" : FLOOR_C[r.f];
+    rect(r.x, y0, r.w, r.h, "#10101A");
+    g.globalAlpha = .16; rect(r.x + 1, fy - 9, r.w - 2, 6, c); g.globalAlpha = 1;   // 바닥
+    frameBox(r.x + 1, y0 + 1, r.w - 2, r.h - 4, 1, c);
+    g.globalAlpha = .45; frameBox(r.x + 3, y0 + 3, r.w - 6, r.h - 8, 1, c); g.globalAlpha = 1;
     const act = !WK.walking && WK.here === r.id;
     if (cls){
-      rect(r.x + 3, y0 + 9, 13, 9, P.boardEdge); rect(r.x + 4, y0 + 10, 11, 7, P.board); rect(r.x + r.w - 9, y0 + 8, 6, 11, P.glass);
+      const sc = r.w / 28, bw = Math.round(13*sc);   // 교실이 좁으면 칠판 · 자리도 좁게
+      rect(r.x + 4, y0 + 12, bw, 9, P.boardEdge); rect(r.x + 5, y0 + 13, bw - 2, 7, P.board); rect(r.x + 6, y0 + 15, Math.round(5*sc), 1, "#E8F2EA");
+      if (r.w >= 26){ rect(r.x + r.w - 10, y0 + 12, 6, 9, "#0B0B12"); rect(r.x + r.w - 9, y0 + 13, 4, 7, "#123A44"); }
       [[13,0],[20,0],[10,6],[17,6],[24,6]].forEach(([dx, dy], k) => {
-        const x = r.x + dx - 2, y = fy - 13 + dy, s = SEATS[(k + r.x) % SEATS.length];
-        if (SCHOOL && s.on && (!BREAK || s.stay)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
-        rect(x - 1, y, 6, 2, P.deskTop); rect(x, y + 2, 1, 3, P.desk); rect(x + 3, y + 2, 1, 3, P.desk);
+        const x = r.x + Math.round(dx*sc) - 2, y = fy - 13 + dy, s = SEATS[(k + r.x) % SEATS.length];
+        if (SCHOOL && s.on && (!BREAK || s.stay)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x + 1, y - 3 + b, 2, 1, "#D7263D"); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
+        rect(x - 1, y, 6, 2, c); rect(x, y + 2, 1, 3, shade(c, .55)); rect(x + 3, y + 2, 1, 3, shade(c, .55));   // 책상도 층 색
       });
-      if (r.id === "1-10"){ g.globalAlpha = .22; rect(r.x, y0 + 3, r.w - 1, r.h - 5, P.hr); g.globalAlpha = 1; rect(r.x + r.w - 4, y0 - 7, 1, 9, P.edge); rect(r.x + r.w - 3, y0 - 7, 5, 4, P.hr); }
-      if (!TAUGHT.has(r.id)){ g.globalAlpha = .42; rect(r.x, y0, r.w - 1, r.h, P.base); g.globalAlpha = 1; }
+      if (r.id === HR){ g.globalAlpha = .2; rect(r.x + 2, y0 + 2, r.w - 4, r.h - 6, P.hr); g.globalAlpha = 1; rect(r.x + r.w - 4, y0 - 7, 1, 9, "#EDEDF5"); rect(r.x + r.w - 3, y0 - 7, 5, 4, P.hr); }
+      if (!TAUGHT.has(r.id)){ g.globalAlpha = .55; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; }
     } else if (r.id === "office"){
-      for (let i = 0; i < 4; i++) rect(r.x + 3 + i*10, y0 + 8, 7, 9, P.glass);
+      for (let i = 0; i < 4; i++){ rect(r.x + 3 + i*10, y0 + 12, 7, 7, "#0B0B12"); rect(r.x + 4 + i*10, y0 + 13, 5, 5, "#123A44"); }
       // 섬 두 개(뒤 · 앞). 가운데 칸막이를 두고 왼쪽 · 오른쪽 자리가 마주봐요. ★ 내 자리 = 앞 섬 왼쪽
       [-7, 0].forEach((dy, isl) => {
         const ix = r.x + 11, iw = 22, y = fy - 9 + dy;
@@ -506,54 +543,67 @@ const S1 = (() => {
       txt("★", r.x + 8, fy - 24, 6, P.hr, "center");
       if (SCHOOL && BREAK){ girl(r.x + 23, fy - 1, 1, HAIR[1], 2, true); girl(r.x + 41, fy - 1, 1, HAIR[3], 2, true); }
     } else if (r.id === "gate"){
-      rect(r.x + 8, y0 + 12, 28, 34, P.edge); rect(r.x + 9, y0 + 13, 12, 33, P.glass); rect(r.x + 23, y0 + 13, 12, 33, P.glass);
-    } else { rect(r.x + 5, y0 + 8, Math.min(14, r.w - 10), 10, P.glass); if (r.w > 40) rect(r.x + 34, y0 + 8, 14, 10, P.glass); g.globalAlpha = .3; rect(r.x, y0, r.w - 1, r.h, P.base); g.globalAlpha = 1; }
-    if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === "1-10" ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w - 1, r.h - 2); g.globalAlpha = 1; }
-    const lb = r.id === "office" ? "교무실" : r.id === "gate" ? "현관" : r.id === "1-10" ? "★1-10" : cls || r.id.length > 2 ? r.id : "";
-    if (lb) { g.globalAlpha = cls && !TAUGHT.has(r.id) ? .5 : 1; tag(lb, r.x + 1, y0 + 3, r.id === "1-10" ? P.hr : r.id === "office" ? P.ui.acc2 : "rgba(0,0,0,.55)", r.id === "office" ? "#10131A" : "#fff", 5); g.globalAlpha = 1; }
+      rect(r.x + 8, y0 + 14, 28, 32, c); rect(r.x + 9, y0 + 15, 12, 31, "#123A44"); rect(r.x + 23, y0 + 15, 12, 31, "#123A44");
+    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (r.id === "음악실"){ rect(r.x + 4, fy - 12, 10, 6, "#0B0B12"); for (let k = 0; k < 4; k++) rect(r.x + 5 + k*2, fy - 11, 1, 3, "#EDEDF5"); txt("♪", r.x + r.w - 7, y0 + 16 + Math.sin(T*3)*1.5, 6, c, "center"); } if (r.id === "미술실"){ rect(r.x + r.w - 11, fy - 16, 7, 9, "#EDEDF5"); rect(r.x + r.w - 10, fy - 15, 5, 4, ["#FF5FAE", "#FFD400", "#2FE3F0"][Math.floor(T/2) % 3]); rect(r.x + r.w - 9, fy - 7, 1, 5, "#8B5A2B"); } if (!LIT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
+    if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === HR ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w, r.h - 3); g.globalAlpha = 1; }
+    let lb = r.id === "office" ? "교무실" : r.id === "gate" ? "현관" : r.id === HR ? "★" + HR : r.id[0] === "_" ? "" : r.id;
+    // 좁은 방에 긴 이름(컴퓨터실 …)이면 방 너비에 맞게 줄여요
+    g.font = `5px ${P.font}`;
+    if (!cls) while (lb.length > 1 && g.measureText(lb).width + 6 > r.w - 2) lb = lb.slice(0, -1);
+    if (lb){ g.globalAlpha = cls && !TAUGHT.has(r.id) ? .5 : 1; plate(lb, r.x + r.w/2, y0 + 2, r.id === HR ? P.hr : c, r.id === HR || r.id === "office"); g.globalAlpha = 1; }
   }
   const STARS = Array.from({ length:70 }, () => [Math.floor(rnd()*W), Math.floor(rnd()*70)]);
   function sky(){
     rect(0, 0, W, H, P.sky);
-    if (V === "a" || NIGHT){
-      STARS.forEach(([x, y], k) => rect(x, y, 1, 1, k % 6 ? (V === "a" ? "#34345E" : "#5A6A9A") : (Math.sin(T*2 + k) > .3 ? "#FFFFFF" : "#8C8CA6")));
-      rect(436, 14, 10, 10, "#F4F1D0"); rect(434, 16, 14, 6, "#F4F1D0"); rect(440, 15, 6, 6, P.sky);   // 초승달
-    } else {
-      rect(28, 12, 14, 14, "#FFE27A"); rect(26, 14, 18, 10, "#FFE27A");   // 해
-      for (let k = 0; k < 4; k++){ const cx = ((k*150 + T*3) % (W + 80)) - 40, cy = 14 + (k % 2)*12; rect(cx, cy, 30, 6, "#FFFFFF"); rect(cx + 6, cy - 4, 14, 5, "#FFFFFF"); rect(cx + 18, cy - 2, 8, 3, "#FFFFFF"); }
-    }
+    STARS.forEach(([x, y], k) => rect(x, y, 1, 1, k % 6 ? "#34345E" : (Math.sin(T*2 + k) > .3 ? "#FFFFFF" : "#8C8CA6")));
+    rect(436, 14, 10, 10, "#F4F1D0"); rect(434, 16, 14, 6, "#F4F1D0"); rect(440, 15, 6, 6, P.sky);   // 초승달
   }
   function draw(){
+    LIT = new Set([...TAUGHT].map(roomFor));
+    const keep = P; P = BOOTH;   // 이 시안은 A · B 색과 상관없이 늘 부스 색
     sky();
-    for (let i = 0; i < 10; i++){ const x = 2 + i*50, h = 150 + (i % 3)*18, t = GR - h; rect(x, t, 42, h, P.apt); rect(x, t, 42, 2, P.aptWin); for (let y = t + 6; y < GR - 10; y += 7) for (let xx = x + 4; xx < x + 38; xx += 7) rect(xx, y, 4, 3, NIGHT && (xx*7 + y*3) % 5 < 2 ? "#FFE27A" : P.aptWin); }
-    rect(0, GR, W, H - GR, P.yard); TUFTS.forEach(([x, y]) => { if (y > GR + 4) rect(x, y, 2, 1, P.tuft); });
+    for (let i = 0; i < 10; i++){ const x = 2 + i*50, h = 150 + (i % 3)*18, t = GR - h; rect(x, t, 42, h, P.apt); rect(x, t, 42, 1, "#2A2A3A");
+      for (let y = t + 6; y < GR - 10; y += 7) for (let xx = x + 4; xx < x + 38; xx += 7){ const lit = (xx*7 + y*3) % 13; rect(xx, y, 4, 3, lit === 0 ? "#5A4A2A" : lit === 5 ? "#4A2A3A" : P.aptWin); } }
+    // 운동장 (부스처럼 줄무늬 잔디 + 주황 트랙)
+    rect(0, GR, W, H - GR, P.yard); for (let x = 0; x < W; x += 8) rect(x, GR, 4, H - GR, P.tuft);
     rect(GX - 6, GR, 12, OUT - GR + 5, P.path); rect(GX - 6, OUT - 4, HD - GX + 12, 9, P.path); rect(HD - 5, GR, 10, OUT - GR, P.path);
+    for (let x = GX; x < HD; x += 7) rect(x, OUT, 4, 1, "#FFFFFF");
     const top = fb(4) - FH;
-    rect(BX - 5, top - 6, BW + 10, GR - top + 6, P.base); rect(CX - 6, top - 20, CW + 12, 16, P.base); rect(CX - 6, top - 20, CW + 12, 2, P.wallTop);
+    rect(BX - 5, top - 6, BW + 10, GR - top + 6, P.base); rect(CX - 6, top - 20, CW + 12, 16, P.base);
+    // 부스 바깥 미로 벽처럼 파란 두 줄 테두리
+    frameBox(BX - 5, top - 6, BW + 10, GR - top + 6, 1, WALL_C); frameBox(CX - 6, top - 20, CW + 12, 15, 1, WALL_C);
+    g.globalAlpha = .55; frameBox(BX - 3, top - 4, BW + 6, GR - top + 2, 1, WALL_C); g.globalAlpha = 1;
     // 가운데 탑 시계 (지금 시각)
-    const nd = simNow(); rect(GX - 17, top - 17, 34, 11, P.edge); rect(GX - 16, top - 16, 32, 9, "#0B0B12");
-    txt(hhmm(nd.getHours()*60 + nd.getMinutes()), GX, top - 11.5, 5, P.ui.acc === "#E8743B" ? "#FFB27A" : P.ui.acc, "center", true);
-    R.forEach(r => { if (r.id !== "home") sideRoom(r); });
-    [SL, SR].forEach(sx => { for (let f = 1; f <= 4; f++){ const y0 = fb(f) - FH; rect(sx - SW/2, y0, SW, FH, P.hall); for (let k = 0; k < 9; k++) rect(sx - SW/2 + 1 + (f % 2 ? k : 8 - k), y0 + 6 + k*5, 4, 2, P.hallLine); } });
+    const nd = simNow(); rect(GX - 17, top - 17, 34, 11, "#FFD400"); rect(GX - 16, top - 16, 32, 9, "#0B0B12");
+    txt(hhmm(nd.getHours()*60 + nd.getMinutes()), GX, top - 11.5, 5, "#FFD400", "center", true);
+    R.forEach(r => { if (r.id !== "home" && r.id !== "yard") sideRoom(r); });
+    [SL, SR].forEach(sx => { for (let f = 1; f <= 4; f++){ const y0 = fb(f) - FH; rect(sx - SW/2, y0, SW, FH - 2, P.hall); g.globalAlpha = .5; for (let k = 0; k < 9; k++) rect(sx - SW/2 + 1 + (f % 2 ? k : 8 - k), y0 + 6 + k*5, 4, 1, WALL_C); g.globalAlpha = 1; } });
     for (let f = 1; f <= 4; f++){
-      rect(BX - 5, fb(f) - 2, BW + 10, 2, P.edge);
-      txt(f + "F", 11, fb(f) - FH/2 - 5, 6, P.ui.acc, "center", true);
-      txt(["", "현관", "1학년", "2학년", "3학년"][f], 11, fb(f) - FH/2 + 6, 5, P.ui.muted, "center");
+      rect(BX - 2, fb(f) - 2, BW + 4, 2, "#0B0B12");
+      // 복도 팩맨 점
+      if (f > 1){ g.globalAlpha = .5; for (let x = BX + 4; x < BX + BW - 2; x += 6) rect(x, fb(f) - 7, 1, 1, DOT_C); g.globalAlpha = 1; }
+      txt(f + "F", 11, fb(f) - FH/2 - 5, 6, FLOOR_C[f], "center", true);
+      txt(f === 1 ? "현관" : FLOORS[f - 2] ? FLOORS[f - 2] + "학년" : "", 11, fb(f) - FH/2 + 6, 5, P.ui.muted, "center");
     }
     // 쉬는 시간 · 점심: 층마다 앞쪽 복도를 걷는 학생들
     [2, 3, 4].forEach(f => crowd(f*11, 7, BX + 4, BX + BW - 4, lane(f) + 1, 1));
-    // 집
-    for (let k = 0; k < 7; k++) rect(HOME.x - 4 + k*2, HOME.y - 14 + k*2, HOME.w + 8 - k*4, 2, P.roof);
-    rect(HOME.x, HOME.y, HOME.w, HOME.h, P.hB); rect(HOME.x, GR - 6, HOME.w, 6, P.hA); rect(HD - 4, GR - 16, 8, 16, P.desk);
-    rect(HOME.x + 4, GR - 18, 22, 8, "#4A6FA5"); rect(HOME.x + 8, HOME.y + 7, 16, 9, P.edge); rect(HOME.x + 9, HOME.y + 8, 14, 7, NIGHT ? "#7FE3FF" : "#2A2A3A");
-    if (NIGHT){ g.globalAlpha = .18; rect(HOME.x, HOME.y, HOME.w, HOME.h, "#FFE45C"); g.globalAlpha = 1; }
-    tag("HOME 집", HOME.x + 2, HOME.y + 2, P.hr, "#fff", 5);
-    for (let x = BX + 4; x < BX + BW; x += 34){ if (Math.abs(x - GX) < 30) continue; rect(x + 3, GR + 8, 2, 5, P.desk); rect(x, GR + 2, 8, 7, P.tree); }
-    [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, P.edge); rect(x + 1, GR - 22, 6, 4, ["#E24C4C","#3C6BD8","#F4F4F4"][i]); });
+    // 집 (분홍 테두리)
+    for (let k = 0; k < 7; k++) rect(HOME.x - 4 + k*2, HOME.y - 14 + k*2, HOME.w + 8 - k*4, 2, k % 2 ? shade(P.roof, .7) : P.roof);
+    rect(HOME.x, HOME.y, HOME.w, HOME.h, P.hB); frameBox(HOME.x, HOME.y, HOME.w, HOME.h, 1, P.hr);
+    g.globalAlpha = .45; frameBox(HOME.x + 2, HOME.y + 2, HOME.w - 4, HOME.h - 4, 1, P.hr); g.globalAlpha = 1;
+    rect(HD - 4, GR - 16, 8, 15, P.desk); rect(HD + 1, GR - 9, 1, 1, "#FFD400");
+    rect(HOME.x + 5, GR - 15, 20, 7, "#2C3E66"); rect(HOME.x + 8, HOME.y + 12, 16, 9, "#0B0B12"); rect(HOME.x + 9, HOME.y + 13, 14, 7, NIGHT ? "#FFD9B0" : "#123A44");
+    plate("HOME 집", HOME.x + HOME.w/2, HOME.y + 2, P.hr, true);
+    for (let x = BX + 4; x < BX + BW; x += 34){ if (Math.abs(x - GX) < 30 || (x > YARD.x - 10 && x < YARD.x + YARD.w)) continue; rect(x + 3, GR + 8, 2, 5, P.desk); rect(x, GR + 2, 8, 7, P.tree); }
+    // 운동장: 체육 수업이면 학생들이 트랙을 돌아요
+    frameBox(YARD.x, YARD.y, YARD.w, YARD.h, 1, "#FF8A1F"); plate("운동장", YARD.x + 18, YARD.y - 4, "#FF8A1F", WK.here === "yard");
+    if (SCHOOL && !BREAK && WK.here === "yard") for (let k = 0; k < 7; k++){ const a = T*1.4 + k*.9, sx = YARD.x + YARD.w/2 + Math.cos(a)*(YARD.w/2 - 8), sy = YARD.y + YARD.h/2 + Math.sin(a)*4 + 4; girl(Math.round(sx), Math.round(sy), 1, HAIR[k % HAIR.length], Math.floor(T*8 + k) % 2, Math.sin(a) > 0); }
+    [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, "#EDEDF5"); rect(x + 1, GR - 22, 6, 4, ["#FF5FAE","#FFD400","#FF8A1F"][i]); });
     if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GR); }
+    P = keep;
   }
-  return { name:"건물 단면 타워", layout:"bottom", place, route, draw, speed:46,
-    desc:"<b>실제 학교 건물을 앞에서 잘라 본 모습</b>이에요. 2층 1학년 · 가운데 교무실, 3층 2학년, 4층 3학년이 보이고 계단으로 오르내려요. 가운데 탑 시계가 지금 시각이에요. 쉬는 시간에는 학생들이 복도를 오가고 교무실이 꽉 차요. (1층 방 자리는 짐작이에요)" };
+  return { name:"건물 단면 타워", layout:"bottom", place, route, draw, mapId, speed:46,
+    desc:"<b>학교 건물을 앞에서 잘라 본 모습</b>이에요. 내가 많이 가는 학년이 2 · 3 · 4층에, 시간표에 적은 특별실은 1층에 놓여요. 층마다 네온 테두리 색이 다르고, 가운데 교무실은 하늘색이에요. 계단으로 오르내리고, 가운데 탑 시계가 지금 시각이에요. 쉬는 시간에는 학생들이 복도를 오가요. (방 자리는 반 수에 맞춘 짐작이에요)" };
 })();
 
 /* ===== 2. 층별 평면도 (위에서) ===== */
@@ -1605,7 +1655,7 @@ $("pal").addEventListener("click", e => {
   V = b.dataset.v; P = PAL[V]; if (V === "a") delete document.documentElement.dataset.v; else document.documentElement.dataset.v = V;
   document.querySelectorAll("#pal .btn").forEach(x => x.classList.toggle("on", x === b));
 });
-pick(9);   // 10번 위클리 플래너
+pick(0);   // 1번 건물 단면 타워 (타이쿤 최신 그림, 예전에는 10번 위클리 플래너)
 /* 대문 [플래너] 위쪽 게임 단추에서 불러 써요: 색 바꾸기 (a = NEON, b = COZY) · 시간은 setSpeed · jumpTo 를 그대로 */
 function setPal(v){ if (!PAL[v]) return; V = v; P = PAL[v]; if (v === "a") delete document.documentElement.dataset.v; else document.documentElement.dataset.v = v; }
 function goLive(){ simAt = Date.now(); realAt = Date.now(); speed = 1; resetWalk(); }
@@ -1624,7 +1674,7 @@ function loop(now){
   NIGHT = hm < mm("06:30") || hm >= mm("18:30");
   BREAK = SCHOOL && !!st.brk; LUNCH = SCHOOL && !!st.lunch;
   g.setTransform(2, 0, 0, 2, 0, 0);
-  if (!S.custom){ walkTo(S, S.alias ? S.alias(st) : st.place, d); stepWalk(S, dt); }
+  if (!S.custom){ const raw = S.alias ? S.alias(st) : st.place; walkTo(S, S.mapId ? S.mapId(raw) : raw, d); stepWalk(S, dt); }
   S.draw(st);
   if (!S.custom && !S.ownMe){
     const piece = S.piece && WK.walking ? -Math.abs(Math.sin(T*12))*6 : 0;
