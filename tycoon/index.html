@@ -5997,6 +5997,7 @@ function renderAdmin(){
     <div class="agrid"><div><div class="sec" style="margin-top:0">💬 문의</div><div class="alist" id="admChats"><p class="note">불러오는 중…</p></div></div>
       <div><div class="sec" style="margin-top:0" id="admTh">대화를 고르세요</div><div class="chat" id="admMsgs"></div>
         <form class="chatin" id="admForm" hidden style="margin-top:8px"><textarea id="admIn" maxlength="1000" placeholder="답장 쓰기" aria-label="답장"></textarea><button type="submit" class="big">보내기</button></form></div></div>
+    <div class="sec">📊 접속 현황 · 웹과 앱 따로</div><div class="htable" id="admVisit"><p class="note">불러오는 중…</p></div>
     <div class="sec">🆕 최근 가입</div><div class="alist" id="admNew"><p class="note">불러오는 중…</p></div>
     <p class="note" style="margin-top:14px"><button type="button" class="btn" id="admOut">로그아웃</button></p>`;
   $("admOut").addEventListener("click", () => signOut(auth));
@@ -6023,6 +6024,15 @@ async function loadAdminStats(){
   const users = collection(db, "desk_users"), today = dkey(new Date());
   const [all, td, wk, wait] = await Promise.all([cnt(users), cnt(query(users, where("lastDay", "==", today))), cnt(query(users, where("lastAt", ">=", Date.now() - 7*864e5))), cnt(query(collection(db, "desk_chats"), where("waiting", "==", true)))]);
   $("admKpi").innerHTML = `<div><b>${all}</b>가입한 선생님</div><div><b>${td}</b>오늘 들어온 선생님</div><div><b>${wk}</b>최근 7일</div><div><b>${wait}</b>답 기다리는 문의</div>`;
+  // 접속 현황: /visit.js 가 센 방문 수 (웹 = desk, 📱 안드로이드 앱 = deskapp) — 오늘 · 최근 7일 날마다 · 누적
+  try {
+    const days = Array.from({ length:7 }, (_, i) => dkey(new Date(Date.now() - i*864e5)));
+    const get = async id => { try { const s = await getDoc(doc(db, "site_counts", id)); return s.exists() ? (s.data().n || 0) : 0; } catch (e) { return 0; } };
+    const row = async (k, nm) => { const [tot, ...ds] = await Promise.all([get(`${k}__total`), ...days.map(d => get(`${k}__d${d}`))]); return { nm, tot, ds, wk:ds.reduce((a, b) => a + b, 0) }; };
+    const R = await Promise.all([row("desk", "🌐 웹 (moontr.site/tycoon)"), row("deskapp", "📱 안드로이드 앱")]);
+    $("admVisit").innerHTML = `<table><tr><th></th><th>오늘</th><th>7일</th><th>누적</th>${days.slice(1).map(d => `<th>${d.slice(5).replace("-", "/")}</th>`).join("")}</tr>${R.map(r => `<tr><td><b>${r.nm}</b></td><td><b>${r.ds[0]}</b></td><td>${r.wk}</td><td>${r.tot}</td>${r.ds.slice(1).map(n => `<td>${n}</td>`).join("")}</tr>`).join("")}</table>
+      <p class="note">방문 = 화면을 연 횟수예요(같은 기기도 열 때마다). 앱은 2026-10-27부터 따로 세요.</p>`;
+  } catch (e){ $("admVisit").innerHTML = `<p class="err">불러오지 못했어요 (${esc(e.code || e.message)})</p>`; }
   try {
     const s = await getDocs(query(users, orderBy("createdAt", "desc"), limit(30)));
     $("admNew").innerHTML = s.empty ? `<p class="note">아직 가입한 선생님이 없어요.</p>` : s.docs.map(d => { const u = d.data(); return `<button type="button" tabindex="-1"><span class="nm"><b>${esc(u.name || "닉네임 없음")}</b> <small>${esc(u.tag || "")} · ${(u.kinds || []).map(kindName).join(" · ")}</small></span><small>가입 ${when(u.createdAt)} · 최근 ${u.lastDay || "-"}</small></button>`; }).join("");
@@ -6030,8 +6040,11 @@ async function loadAdminStats(){
 }
 </script>
 <!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
-<!-- 방문 수는 예전 /desk 때부터 이어서 세려고 app=desk 그대로 -->
-<script type="module" src="/visit.js?app=desk"></script>
+<!-- 방문 수는 예전 /desk 때부터 이어서 세려고 웹은 app=desk 그대로, 📱 안드로이드 앱은 app=deskapp 으로 따로 세요 (관리자 화면에서 나눠 봐요) -->
+<script type="module">
+const inApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || /[?&]app\b/.test(location.search);
+import(inApp ? "/visit.js?app=deskapp" : "/visit.js?app=desk");
+</script>
 <!-- 🔄 위쪽 새로고침 단추 (모든 웹앱 공용, /refresh.js) -->
 <script src="/refresh.js" data-bg="#0B0B12" data-fg="#FFD400" defer></script>
 </body></html>
