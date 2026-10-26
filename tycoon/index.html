@@ -3842,8 +3842,104 @@ const winDesk = port => (() => {
 const S31 = winDesk(false);
 /* ===== END 31 ===== */
 
+// 픽셀 고양이 (옆모습 12×8, 다리 2칸 번갈아). y = 발 닿는 줄, sit = 앉아서 꼬리만 흔들어요
+const CAT = ["k...k.......", "kk.kk.......", "kkkkk.......", "kekek......t", "kkpkk.....t.", ".kkkkkkkkkt.", ".kwkkkkkkk..", ".kwwkkkkkk.."];
+const CAT_LEG = [[".k.k....k.k.", ".k.k....k.k."], ["k...k..k...k", "............"], [".k.k...k.k..", ".k.k...k.k.."]];
+function cat(x, y, s = 1, frame = 2, flip = false, col = { k:"#F2A65A", e:"#2A1E1A", p:"#FF8FA3", w:"#FFF4E6", t:"#E08A3A" }){
+  const rows = [...CAT, ...CAT_LEG[frame]], h = rows.length;
+  g.globalAlpha = .25; rect(x - 6*s, y - s, 12*s, 1.5*s, "#000"); g.globalAlpha = 1;
+  rows.forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(x + ((flip ? 11 - i : i) - 6)*s, y + (j - h)*s, s, s, col[ch]); }));
+}
+// 고양이가 x0~x1 을 걷다 멈춰 앉았다가 다시 걸어요
+function catWalk(x0, x1, y, s = 1, sp = 10){
+  const L = Math.max(1, x1 - x0), P = 2*L + 80, t = (T*sp) % P;
+  let x = x0, flip = false, walk = true;
+  if (t < L) x = x0 + t; else if (t < L + 40){ x = x1; walk = false; } else if (t < 2*L + 40){ x = x1 - (t - L - 40); flip = true; } else { walk = false; flip = true; }
+  cat(Math.round(x), Math.round(y), s, walk ? Math.floor(T*8) % 2 : 2, !flip);
+  if (!walk && Math.floor(T*1.5) % 3 === 0) ft("z", x + (flip ? -8 : 8)*s, y - 11*s, 5*s, "#8A92A6", "center", "sans", "700");
+}
+
+/* ===== 32. 파일 탐색기 ===== */
+const explorer = port => (() => {
+  const INK = "#1F2A44", SUB = "#6A7388", LINE = "#E3E7EF", BLUE = "#2F80ED", SEL = "#DCEBFF";
+  function folder(x, y, c = "#F5C451"){ fillRR(x, y + 1, 7, 3, 1, c); fillRR(x, y + 2.5, 13, 9, 1.5, c); fillRR(x, y + 4, 13, 7.5, 1.5, "rgba(255,255,255,.25)"); }
+  function file(x, y, c = "#FFFFFF", tag = BLUE){ fillRR(x + 1, y, 10, 12, 1.5, c); g.strokeStyle = "#C9CFDB"; g.lineWidth = .8; rr0(x + 1, y, 10, 12, 1.5); g.stroke(); rect(x + 3, y + 7.5, 6, 2.5, tag); }
+  function draw(st){
+    const t = today0(st);
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#5FA8D3"); bg.addColorStop(1, "#2E6E9E"); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    // 창
+    const X = 12, Y = 22, WW = W - 24, WH = H - 34;
+    card0(X, Y, WW, WH, 7, "#FFFFFF", .3);
+    fillRR(X, Y, WW, 20, [7, 7, 0, 0], "#F3F5F9");
+    folder(X + 9, Y + 4); ft(`오늘 · ${t.date}`, X + 27, Y + 10.5, 8, INK, "left", "sans", "700");
+    ft("—", WW - 40, Y + 10, 8, SUB, "center", "sans"); ft("▢", WW - 18, Y + 10, 8, SUB, "center", "sans"); ft("✕", WW + 2, Y + 10, 8, SUB, "center", "sans");
+    // 주소 줄 · 찾기
+    const AY = Y + 24;
+    ft("←  →  ↑", X + 10, AY + 7, 8, SUB, "left", "sans", "700");
+    fillRR(X + 52, AY, WW - 160, 14, 4, "#F3F5F9");
+    ft(fitLine(`내 PC  ›  학교  ›  ${t.d.getFullYear()}  ›  ${t.d.getMonth() + 1}월  ›  ${t.d.getDate()}일 (${DAYS[t.day]})`, WW - 176, 7.5, "sans", "700"), X + 60, AY + 7.5, 7.5, INK, "left", "sans", "700");
+    fillRR(X + WW - 102, AY, 92, 14, 4, "#F3F5F9"); ft("🔍 할 일 찾기", X + WW - 95, AY + 7.5, 7, SUB, "left", "sans", "700");
+    rect(X, AY + 19, WW, 1, LINE);
+    // 왼쪽 탐색 창
+    const NY = AY + 26, NW = 92;
+    const nav = [["⭐", "즐겨찾기", null, { open:"links" }], ...LINKS.slice(0, 3).map(l => ["", l.name, 1, { url:l.url }]), ["📁", "오늘", 0, { open:"edit" }], ["📁", "이번 주", 0, { open:"edit" }], ...(HR ? [["📁", `${HR} 우리 반`, 0, null]] : []), ["📝", "메모", 0, { open:"memo" }], ["🗑", "휴지통", 0, null]];
+    nav.forEach(([ic, nm, sub, act], k) => {
+      const y = NY + k*14;
+      if (nm === "오늘") fillRR(X + 4, y - 6, NW - 6, 13, 3, SEL);
+      if (ic === "📁") folder(X + 10 + (sub ? 8 : 0), y - 5.5); else if (ic) ft(ic, X + 16, y + .5, 7.5, INK, "center");
+      else { fillRR(X + 20, y - 4, 8, 8, 2, BLUE); ft([...nm][0] || "?", X + 24, y + .3, 5.5, "#FFFFFF", "center", "sans", "700"); }
+      ft(fitLine(nm, NW - 34, 7.5, "sans", "700"), X + (sub ? 32 : 28), y + .5, 7.5, INK, "left", "sans", sub ? "" : "700");
+      if (act) hot(X + 4, y - 6, NW - 6, 13, act);
+    });
+    rect(X + NW, AY + 20, 1, WH - 64, LINE);
+    // 자세히 보기: 오늘 일정이 파일처럼
+    const LX = X + NW + 8, LW = WW - NW - 16, CY0 = AY + 28;
+    const C = [LX + 4, LX + LW*.42, LX + LW*.6, LX + LW*.78];
+    ["이름", "시간", "장소", "상태"].forEach((h, k) => ft(h, C[k] + (k ? 0 : 18), CY0, 7, SUB, "left", "sans", "700"));
+    rect(LX, CY0 + 7, LW, 1, LINE);
+    const rows = t.rows, RH = Math.min(13, (WH - 112) / Math.max(1, rows.length + 1));
+    rows.forEach((r, k) => {
+      const y = CY0 + 15 + k*RH, a = mm(r.a), b = mm(r.b), cur = t.wk && st.m >= a && st.m < b, done = t.wk && st.m >= b;
+      if (cur) fillRR(LX, y - RH/2 + .5, LW, RH - 1, 3, SEL);
+      const cls = /\d/.test(r.p), nm = !t.wk ? "-" : r.r === "lunch" ? "점심" : r.r ? NAME(r.r) : "공강";
+      if (r.r === "lunch") ft("🍚", C[0] + 7, y + .5, 7.5, INK, "center"); else if (cls && r.r) folder(C[0], y - 5.5, r.r === HR ? "#FF8FA3" : "#F5C451"); else file(C[0] + 1, y - 6, "#FFFFFF", r.r ? "#FF8FA3" : "#C9CFDB");
+      ft(fitLine(`${cls ? r.p + "교시" : r.p}${t.wk && r.r && r.r !== "lunch" ? "_" + nm : ""}`, C[1] - C[0] - 24, 7.5, "sans", "700"), C[0] + 18, y + .5, 7.5, done ? SUB : INK, "left", "sans", "700");
+      ft(`${r.a}~${r.b}`, C[1], y + .5, 7, SUB, "left", "sans");
+      ft(fitLine(nm, C[3] - C[2] - 6, 7, "sans", "700"), C[2], y + .5, 7, r.r && r.r === HR ? "#E5484D" : SUB, "left", "sans", "700");
+      if (cur){ const p = clamp((st.m - a)/(b - a), 0, 1); fillRR(C[3], y - 2, 42, 4, 2, "#D6DDEA"); fillRR(C[3], y - 2, 42*p, 4, 2, BLUE); ft(`${Math.round(p*100)}%`, C[3] + 46, y + .5, 6.5, BLUE, "left", "sans", "700"); }
+      else ft(!t.wk ? "-" : done ? "완료 ✓" : "대기", C[3], y + .5, 7, done ? "#2E9E5B" : SUB, "left", "sans", "700");
+    });
+    hot(LX, CY0 + 8, LW, rows.length*RH, { open:"edit" });
+    // 할 일 = 텍스트 파일
+    const TY = CY0 + 18 + rows.length*RH;
+    if (TY < Y + WH - 30){
+      ft("할 일", LX + 4, TY, 7, SUB, "left", "sans", "700");
+      (TODOS.length ? TODOS.slice(0, 4) : [{ t:"오른쪽 TO DO 칸에 적어 보세요", d:false }]).forEach((x, k) => {
+        const cx = LX + 4 + (k % 2)*(LW/2), cy = TY + 11 + Math.floor(k/2)*13; if (cy > Y + WH - 22) return;
+        file(cx, cy - 6, "#FFFFFF", x.d ? "#2E9E5B" : "#C9CFDB");
+        const w = ft(fitLine(`${x.t}.txt`, LW/2 - 26, 7.5, "sans", "700"), cx + 16, cy + .5, 7.5, x.d ? SUB : INK, "left", "sans", "700"); if (x.d) rect(cx + 16, cy + .5, w, .8, SUB);
+      });
+      hot(LX, TY - 6, LW, 34, { open:"todo" });
+    }
+    // 상태 줄
+    rect(X, Y + WH - 14, WW, 1, LINE);
+    ft(fitLine(`항목 ${t.rows.length}개 · ${t.wk ? `${t.rows.filter(r => r.r && r.r !== "lunch" && st.m >= mm(r.b)).length}개 완료` : "주말"} · 다음: ${nextLine(t)}`, st.go ? WW - 200 : WW - 50, 7, "sans", "700"), X + 10, Y + WH - 6.5, 7, SUB, "left", "sans", "700");
+    ft(`${t.tm}`, X + WW - 10, Y + WH - 6.5, 7, INK, "right", "sans", "700");
+    // 쉬는 시간에 다음 교실로 가는 길이면 상태 줄에 '옮기는 중' 막대
+    if (st.go){ const bx = X + WW - 190, by = Y + WH - 6.5, p = clamp((st.m - st.s)/Math.max(1, st.e - st.s), 0, 1);
+      ft(fitLine(`→ ${NAME(st.place)} 옮기는 중`, 70, 7, "sans", "700"), bx, by, 7, INK, "left", "sans", "700");
+      fillRR(bx + 74, by - 2.5, 60, 5, 2.5, "#E3E7EF"); fillRR(bx + 74, by - 2.5, 60*p, 5, 2.5, "#2E9E5B"); }
+    // 귀여운 것: 고양이가 창 위를 걸어 다녀요
+    catWalk(X + 40, X + WW - 90, Y, 2, 9);
+  }
+  return { name:"파일 탐색기", layout:"none", custom:true, draw, port, who:"전 연령 · 무난, 익숙한 컴퓨터 화면",
+    desc:"<b>파일 탐색기 창</b>이에요. 오늘 일정이 파일처럼 줄지어 있고(지금 교시는 파랗게 · 진행 %), 왼쪽엔 즐겨찾기 · 오늘 · 이번 주 · 메모, 아래엔 할 일이 .txt 파일로 있어요. 쉬는 시간엔 '옮기는 중' 창이 뜨고, 창 위를 고양이가 걸어 다녀요." };
+})();
+const S32 = explorer(false);
+/* ===== END 32 ===== */
+
 /*NEW_STRUCTS*/
-  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31 };
+  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32 };
   // 📱 세로 그림: 270×480 크기로 따로 만들어 원래 시안에 .portS 로 붙여요 (아직 없는 시안은 가로 그림 그대로)
   setDims(true);
   const PORTS = { 1:tower(true), 15:deskWin(true), 21:hud3d(true), 22:toyOffice(true), 11:retroPC(true), 8:rpg(true), 6:sideScroll(true), 5:board(true), 7:cctv(true), 10:planner(true), 9:dayClock(true), 18:widget(true) };
@@ -3969,7 +4065,7 @@ new ResizeObserver(fit).observe(col);
 // 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
 // 2026-10-27 문쌤이 제일 좋아하는 순서로 1 건물 단면 · 2 3D 교무실 · 3 보드게임 판. 새 시안은 늘 맨 뒤에 붙여요 (앞 번호가 밀리지 않게)
 // 13번부터: 무난한 바탕화면 (31 윈도우 …)
-const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31];
+const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32];
 // 예전 단추 순서 — 예전 번호로 저장된 '고른 화면 · 순서 · 📌 고정'을 새 번호로 옮길 때만 써요
 const OLD_TOP = [1, 15, 21, 22, 11, 8, 6, 5, 7, 10, 18, 9];
 const fromOld = i => Number.isInteger(i) && i >= 0 && i < OLD_TOP.length ? TOP.indexOf(OLD_TOP[i]) : i;
@@ -4041,7 +4137,8 @@ const TIPS = {
   18:"스마트폰 위젯처럼 깔끔하게. 시계 · 남은 시간 · 다음 수업",
   21:"3D 학교 대시보드. 지금 있는 방이 빛나고, 색 단추마다 밤 · 네온 · 낮 · 숲속 느낌",
   22:"나무 바닥 3D 교무실. 선생님들이 커피 · 프린터 · 회의로 오가고, 쉬는 시간엔 학생이 찾아와요",
-  31:"늘 보던 컴퓨터 바탕화면. 아이콘 · 시간표 창 · 위젯, 작업 표시줄 위를 내 캐릭터가 오가요"
+  31:"늘 보던 컴퓨터 바탕화면. 아이콘 · 시간표 창 · 위젯, 작업 표시줄 위를 내 캐릭터가 오가요",
+  32:"파일 탐색기 창. 오늘 일정이 파일처럼 줄지어 있고, 창 위를 고양이가 걸어 다녀요"
 };
 function showTip(b){
   const t = TIPS[TOP[+b.dataset.s]], el = $("tipnote"); if (!t) return;
