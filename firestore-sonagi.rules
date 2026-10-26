@@ -69,14 +69,18 @@ service cloud.firestore {
     // 계획서 내용: 누구나 보기(닉네임 없음), 정해진 항목만 쓰기, 관리자만 지우기
     match /vibe_plans/{id} {
       allow read: if true;
+      // 6번 계획서(네 칸)와 9번 '내 계획서'(웹앱 내용 content · 웹앱 링크 url)를 함께 담아요. 한쪽만 써도 저장돼요
       allow create, update: if request.resource.data.keys().hasOnly(
-          ['ban','appName','problem','features','look','prompt','createdAt','updatedAt'])
+          ['ban','appName','problem','features','look','prompt','content','url','createdAt','updatedAt'])
         && request.resource.data.ban in ['A', 'B']
         && vibeText(request.resource.data, 'appName', 1, 100)
-        && vibeText(request.resource.data, 'problem', 1, 2000)
-        && vibeText(request.resource.data, 'features', 1, 2000)
-        && vibeText(request.resource.data, 'look', 1, 2000)
-        && vibeText(request.resource.data, 'prompt', 1, 2000)
+        && vibeText(request.resource.data, 'problem', 0, 2000)
+        && vibeText(request.resource.data, 'features', 0, 2000)
+        && vibeText(request.resource.data, 'look', 0, 2000)
+        && vibeText(request.resource.data, 'prompt', 0, 2000)
+        && (!('content' in request.resource.data) || vibeText(request.resource.data, 'content', 0, 3000))
+        && (!('url' in request.resource.data) || (vibeText(request.resource.data, 'url', 0, 500)
+            && (request.resource.data.url == '' || request.resource.data.url.matches('^https://[^ ]+$'))))
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int;
       allow delete: if isTeacher();
