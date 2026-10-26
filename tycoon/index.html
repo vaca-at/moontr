@@ -4142,8 +4142,74 @@ const macDesk = port => (() => {
 const S34 = macDesk(false);
 /* ===== END 34 ===== */
 
+/* ===== 35. 캘린더 앱 (주간 보기) ===== */
+const calApp = port => (() => {
+  const GC = ["#33B679", "#F6BF26", "#4285F4", "#8E24AA", "#039BE5", "#F4511E"], HRC = "#E67C73", LUN = "#F6BF26", SP = "#7986CB", NOWC = "#EA4335";
+  const colOf = r => r === "lunch" ? LUN : HR && r === HR ? HRC : isClass(r) ? GC[(gradeOf(r) - 1) % GC.length] : SP;
+  function draw(st){
+    const t = today0(st), dark = NIGHT, BG = dark ? "#1F1F1F" : "#FFFFFF", INK = dark ? "#E3E3E3" : "#3C4043", SUB = dark ? "#9AA0A6" : "#70757A", LN = dark ? "#3C3C3C" : "#E6E8EB";
+    g.fillStyle = BG; g.fillRect(0, 0, W, H);
+    // 위쪽 막대
+    ft("≡", 12, 14, 10, SUB, "center", "sans", "700");
+    fillRR(24, 6, 16, 16, 3, "#4285F4"); ft(String(t.d.getDate()), 32, 14.5, 7.5, "#FFFFFF", "center", "sans", "900");
+    ft("캘린더", 45, 14.5, 9, INK, "left", "sans", "500");
+    g.strokeStyle = LN; g.lineWidth = 1; rr0(110, 7, 30, 15, 4); g.stroke(); ft("오늘", 125, 14.5, 7, INK, "center", "sans", "700");
+    ft("‹   ›", 160, 14, 9, SUB, "center", "sans", "700");
+    ft(`${t.d.getFullYear()}년 ${t.d.getMonth() + 1}월`, 180, 14.5, 10, INK, "left", "sans", "500");
+    g.strokeStyle = LN; rr0(W - 44, 7, 32, 15, 4); g.stroke(); ft("주 ▾", W - 28, 14.5, 7, INK, "center", "sans", "700");
+    rect(0, 28, W, 1, LN);
+    // 왼쪽: 작은 달력 · 내 캘린더 · 다가오는 일정
+    const SX = 10; ft(`${t.d.getMonth() + 1}월`, SX + 2, 40, 7.5, INK, "left", "sans", "700");
+    const first = new Date(t.d.getFullYear(), t.d.getMonth(), 1), dim = new Date(t.d.getFullYear(), t.d.getMonth() + 1, 0).getDate();
+    "일월화수목금토".split("").forEach((c, k) => ft(c, SX + 6 + k*12, 52, 5.5, SUB, "center", "sans", "700"));
+    for (let i = 1; i <= dim; i++){
+      const k = first.getDay() + i - 1, x = SX + 6 + (k % 7)*12, y = 62 + Math.floor(k/7)*10, today = i === t.d.getDate();
+      if (today){ g.fillStyle = "#4285F4"; g.beginPath(); g.arc(x, y, 4.6, 0, Math.PI*2); g.fill(); }
+      ft(String(i), x, y + .5, 5.5, today ? "#FFFFFF" : k % 7 === 0 ? "#D93025" : INK, "center", "sans", today ? "900" : "500");
+    }
+    let ly = 132; ft("내 캘린더", SX + 2, ly, 7, INK, "left", "sans", "700");
+    [["수업 (학년별 색)", GC[0]], ...(HR ? [["우리 반 " + HR, HRC]] : []), ["특별실", SP], ["점심", LUN]].forEach(([n, c], k) => { const y = ly + 12 + k*11; fillRR(SX + 2, y - 3.5, 7, 7, 1.5, c); ft(n, SX + 13, y + .5, 6.5, INK, "left", "sans", "500"); });
+    ly += 66; ft("다가오는 일정", SX + 2, ly, 7, INK, "left", "sans", "700");
+    const evs = [...(DDAY && DDAY.n >= 0 ? [{ n:DDAY.n, t:DDAY.t }] : []), ...EVENTS.filter(e => e.n >= 0)].slice(0, 3);
+    (evs.length ? evs : [{ n:null, t:"⚙️ 설정에서 넣어요" }]).forEach((e, k) => ft(fitLine(`${e.n === null ? "" : e.n === 0 ? "오늘 " : `D-${e.n} `}${e.t}`, 84, 6.5, "sans", "500"), SX + 2, ly + 12 + k*11, 6.5, e.n === null ? SUB : INK, "left", "sans", "500"));
+    // 주간 칸
+    const E = dayEdge(), h0 = Math.floor(E.i/60), h1 = Math.ceil(Math.max(E.o, E.i + 60)/60), GX = 132, GY = 50, GW = W - GX - 8, GH = H - GY - 8, CW = GW/5, PH = GH/(h1 - h0);
+    const ty = m => GY + (m/60 - h0)*PH;
+    const mon = new Date(t.d); mon.setDate(t.d.getDate() - ((t.day + 6) % 7));
+    for (let d = 1; d <= 5; d++){
+      const x = GX + (d - 1)*CW, dt = new Date(mon); dt.setDate(mon.getDate() + d - 1); const today = d === t.day;
+      ft(DAYS[d], x + CW/2, 34.5, 5.5, today ? "#1A73E8" : SUB, "center", "sans", "700");
+      if (today){ g.fillStyle = "#1A73E8"; g.beginPath(); g.arc(x + CW/2, 43.5, 5.5, 0, Math.PI*2); g.fill(); }
+      ft(String(dt.getDate()), x + CW/2, 44, 8, today ? "#FFFFFF" : INK, "center", "sans", "500");
+      rect(x, GY, 1, GH, LN);
+    }
+    for (let hh = h0; hh <= h1; hh++){ const y = GY + (hh - h0)*PH; rect(GX - 4, y, GW + 4, 1, LN); if (hh < h1) ft(`${hh < 12 ? "오전" : "오후"} ${hh % 12 || 12}시`, GX - 6, y + 1, 5, SUB, "right", "sans", "500"); }
+    // 일정 칸 (요일 · 교시)
+    for (let d = 1; d <= 5; d++){
+      const x = GX + (d - 1)*CW;
+      todayRows(d).forEach(r => {
+        if (!r.r) return; const a = mm(r.a), b = mm(r.b), y1 = ty(a), y2 = ty(b), c = colOf(r.r), past = d < t.day || (d === t.day && st.m >= b);
+        g.globalAlpha = past ? .45 : 1; fillRR(x + 2, y1 + .5, CW - 5, Math.max(4, y2 - y1 - 1.5), 3, c); g.globalAlpha = 1;
+        if (y2 - y1 > 9) ft(fitLine(r.r === "lunch" ? "점심" : `${/\d/.test(r.p) ? r.p + "교시 · " : r.p + " · "}${NAME(r.r).replace(" 우리 반", "")}`, CW - 12, 6, "sans", "700"), x + 5, y1 + 5, 6, "#FFFFFF", "left", "sans", "700");
+        if (y2 - y1 > 17) ft(`${r.a}~${r.b}`, x + 5, y1 + 12, 5, "rgba(255,255,255,.9)", "left", "sans", "500");
+      });
+    }
+    hot(GX, GY, GW, GH, { open:"edit" });
+    // 지금 선 (오늘 칸) + 귀여운 것: 선 위를 걷는 내 캐릭터
+    if (t.wk && st.m >= h0*60 && st.m <= h1*60){
+      const x = GX + (t.day - 1)*CW, y = ty(st.m);
+      rect(GX, y, GW, .6, "rgba(234,67,53,.35)"); rect(x, y - .8, CW, 1.6, NOWC); g.fillStyle = NOWC; g.beginPath(); g.arc(x, y, 3, 0, Math.PI*2); g.fill();
+      stroll(x + 8, x + CW - 8, y + 2, 1, 7);
+    }
+  }
+  return { name:"캘린더 앱", layout:"none", custom:true, draw, port, who:"전 연령 · 무난, 일정 앱",
+    desc:"<b>늘 쓰는 캘린더 앱의 주간 보기</b>예요. 월~금 칸에 수업이 색 블록(학년 색 · 우리 반 · 특별실 · 점심)으로 들어가고, 지난 칸은 흐려져요. 왼쪽엔 이달 작은 달력 · 다가오는 일정, 오늘 칸의 빨간 '지금' 선 위를 내 캐릭터가 걸어 다녀요." };
+})();
+const S35 = calApp(false);
+/* ===== END 35 ===== */
+
 /*NEW_STRUCTS*/
-  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32, 33:S33, 34:S34 };
+  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32, 33:S33, 34:S34, 35:S35 };
   // 📱 세로 그림: 270×480 크기로 따로 만들어 원래 시안에 .portS 로 붙여요 (아직 없는 시안은 가로 그림 그대로)
   setDims(true);
   const PORTS = { 1:tower(true), 15:deskWin(true), 21:hud3d(true), 22:toyOffice(true), 11:retroPC(true), 8:rpg(true), 6:sideScroll(true), 5:board(true), 7:cctv(true), 10:planner(true), 9:dayClock(true), 18:widget(true) };
@@ -4269,7 +4335,7 @@ new ResizeObserver(fit).observe(col);
 // 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
 // 2026-10-27 문쌤이 제일 좋아하는 순서로 1 건물 단면 · 2 3D 교무실 · 3 보드게임 판. 새 시안은 늘 맨 뒤에 붙여요 (앞 번호가 밀리지 않게)
 // 13번부터: 무난한 바탕화면 (31 윈도우 …)
-const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32, 33, 34];
+const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32, 33, 34, 35];
 // 예전 단추 순서 — 예전 번호로 저장된 '고른 화면 · 순서 · 📌 고정'을 새 번호로 옮길 때만 써요
 const OLD_TOP = [1, 15, 21, 22, 11, 8, 6, 5, 7, 10, 18, 9];
 const fromOld = i => Number.isInteger(i) && i >= 0 && i < OLD_TOP.length ? TOP.indexOf(OLD_TOP[i]) : i;
@@ -4344,7 +4410,8 @@ const TIPS = {
   31:"늘 보던 컴퓨터 바탕화면. 아이콘 · 시간표 창 · 위젯, 작업 표시줄 위를 내 캐릭터가 오가요",
   32:"파일 탐색기 창. 오늘 일정이 파일처럼 줄지어 있고, 창 위를 고양이가 걸어 다녀요",
   33:"인터넷 새 탭 시작 화면. 검색창 자리에 지금 상태, 즐겨찾기 바로가기, 새가 콩콩 뛰어다녀요",
-  34:"깔끔한 맥 컴퓨터 바탕화면. 위젯 · 이번 주 시간표 창 · 독, 오리가 독 위를 뒤뚱뒤뚱"
+  34:"깔끔한 맥 컴퓨터 바탕화면. 위젯 · 이번 주 시간표 창 · 독, 오리가 독 위를 뒤뚱뒤뚱",
+  35:"캘린더 앱 주간 보기. 수업이 색 블록으로, 빨간 지금 선 위를 내 캐릭터가 걸어요"
 };
 function showTip(b){
   const t = TIPS[TOP[+b.dataset.s]], el = $("tipnote"); if (!t) return;
