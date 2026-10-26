@@ -74,13 +74,11 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
   <button type="button" id="logout" hidden>로그아웃</button>
 </header>
 
-<!-- 로그인 (관리자 비밀번호 = 센메일 비밀번호, 숫자 6자리) -->
+<!-- 로그인 (관리자 구글 계정 bellachord 하나 · 관리자 허브에서 로그인했으면 바로 열려요) -->
 <form class="card login" id="login" hidden>
   <h2>관리자 로그인</h2>
-  <p class="note">관리자 비밀번호(숫자 6자리)를 입력하세요.</p>
-  <input type="password" id="pw" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="숫자 6자리" autocomplete="current-password" required>
-  <button type="submit">로그인</button>
-  <button type="button" class="glogin" id="glogin">G 구글 계정(센메일)으로 로그인</button>
+  <p class="note">관리자 구글 계정(bellachord)으로 들어와요. 관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
+  <button type="button" id="glogin">G 구글 계정(bellachord)으로 로그인</button>
   <p class="note err" id="err"></p>
 </form>
 
@@ -112,7 +110,7 @@ table.adm-week select{width:100%;padding:.3rem;border:1px solid #ccc;border-radi
    🔥 파이어베이스 (대문과 같은 moon-d528d)
    ============================================================ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const fbApp = initializeApp({
@@ -275,7 +273,7 @@ async function loadVisitStats(){
 }
 
 /* ============================================================
-   🔐 로그인: 같은 moontr.site 앱에서 이미 관리자로 로그인했으면 비밀번호 없이 바로 열려요
+   🔐 로그인: 같은 moontr.site 앱에서 이미 관리자로 로그인했으면 바로 열려요
    ============================================================ */
 let opened = false;
 onAuthStateChanged(auth, async user => {
@@ -284,8 +282,9 @@ onAuthStateChanged(auth, async user => {
   $('#admin').hidden = $('#savebar').hidden = $('#logout').hidden = !ok;
   if (!ok){
     opened = false;
-    $('#pw').focus();
-    if (user) $('#err').textContent = `지금 로그인된 ${user.email || '계정'}은 관리자 계정이 아니에요. 비밀번호나 센메일 구글 계정으로 로그인해 주세요.`;
+    $('#glogin').focus();
+    // 관리자가 아닌 계정이 공용 로그인에 남아 있으면 알려 주고 바로 로그아웃해요 (남겨 두면 다른 앱 관리자 화면도 막혀요)
+    if (user){ $('#err').textContent = `${user.email || '관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. bellachord 구글 계정으로 다시 로그인해 주세요.`; signOut(auth).catch(() => {}); }
     return;
   }
   if (opened) return;
@@ -295,21 +294,16 @@ onAuthStateChanged(auth, async user => {
   await loadTimetable();
   renderEditor();
 });
-$('#login').addEventListener('submit', async e => {
-  e.preventDefault();
-  $('#err').textContent = '';
-  try { await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $('#pw').value); }
-  catch { $('#err').textContent = '로그인 실패: 비밀번호를 확인해 주세요'; }
-  $('#pw').value = '';
-});
-/* 구글 계정(센메일)으로 로그인 */
+// 관리자 로그인은 구글 bellachord 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
+$('#login').addEventListener('submit', e => e.preventDefault());
+/* 구글 계정(bellachord)으로 로그인 */
 $('#glogin').addEventListener('click', async () => {
   $('#err').textContent = '';
   const p = new GoogleAuthProvider();
-  p.setCustomParameters({ prompt: 'select_account' });
+  p.setCustomParameters({ login_hint: 'bellachord@gmail.com' });   // 구글이 bellachord 를 먼저 골라 둬요
   try {
     const r = await signInWithPopup(auth, p);
-    if (!isAdminEmail(r.user.email)){ await signOut(auth); $('#err').textContent = `${r.user.email}은 관리자 계정이 아니에요. 센메일(${ADMIN_EMAIL}) 또는 bellachord 구글 계정으로 골라 주세요.`; }
+    if (!isAdminEmail(r.user.email)){ await signOut(auth); $('#err').textContent = '관리자 구글 계정(bellachord)으로 골라 주세요.'; }
   } catch (e){
     if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')
       $('#err').textContent = e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요' : '구글 로그인을 하지 못했어요 (' + (e.code || e.message) + ')';

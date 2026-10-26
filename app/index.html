@@ -1366,9 +1366,7 @@
 
   <div class="admin-gate" id="admin-gate">
     <span>🔒 관리자 계정으로 로그인하세요</span>
-    <input type="email" id="gate-email" placeholder="관리자 이메일" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <input type="password" id="gate-pw" placeholder="비밀번호" autocomplete="new-password">
-    <button class="small-btn" id="gate-submit" type="button">로그인</button>
+    <button class="small-btn" id="gate-submit" type="button">G 구글 계정(bellachord)으로 로그인</button>
     <span class="err" id="gate-err"></span>
   </div>
 
@@ -1516,7 +1514,7 @@ import {
   serverTimestamp, writeBatch, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // ================================================================
@@ -4900,13 +4898,6 @@ function initAdmin(){
 
   // ----- 로그인 게이트 -----
   const gate = document.getElementById('admin-gate');
-  // 이메일·비밀번호는 화면에 남기지 않는다: 자동 채움 없이 빈 칸으로 시작하고,
-  // 로그인 시도 직후와 로그아웃(게이트 재표시) 때마다 지운다
-  function clearGateInputs(){
-    document.getElementById("gate-email").value = "";
-    document.getElementById("gate-pw").value = "";
-  }
-  clearGateInputs();
 
   function showGate(msg){
     gate.style.display = 'flex';
@@ -4914,7 +4905,6 @@ function initAdmin(){
     document.getElementById('admin-tabs').style.display = 'none';
     document.getElementById('admin-logout-btn').style.display = 'none';
     document.getElementById("gate-err").textContent = msg || "";
-    clearGateInputs();
   }
   let adminTabRestored = false;
   function showAdmin(){
@@ -4942,19 +4932,24 @@ function initAdmin(){
     else if(user){ signOut(auth); showGate('관리자 계정이 아닙니다.'); }
     else showGate();
   });
+  // 구글 계정 bellachord 하나로만 들어온다 (이메일·비밀번호 로그인은 꺼 둠)
   async function submitGate(){
-    const email = document.getElementById('gate-email').value.trim();
-    const pw = document.getElementById('gate-pw').value;
-    document.getElementById('gate-err').textContent = '로그인 중...';
-    try{ await signInWithEmailAndPassword(auth, email, pw); }
-    catch(e){ console.error(e); document.getElementById("gate-err").textContent = "이메일 또는 비밀번호가 올바르지 않습니다."; }
-    finally{ clearGateInputs(); }
+    const errEl = document.getElementById('gate-err');
+    errEl.textContent = '로그인 중...';
+    try{
+      const p = new GoogleAuthProvider();
+      p.setCustomParameters({ login_hint:'bellachord@gmail.com' });
+      const r = await signInWithPopup(auth, p);
+      if(!isAdminEmail(r.user.email)){ await signOut(auth); errEl.textContent = '관리자 구글 계정(bellachord)으로 골라 주세요.'; return; }
+      errEl.textContent = '';
+    }catch(e){
+      if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request'){ errEl.textContent = ''; return; }
+      console.error(e);
+      errEl.textContent = e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요.' : '로그인하지 못했습니다. 다시 해 주세요.';
+    }
   }
   document.getElementById('gate-submit').addEventListener('click', submitGate);
-  document.getElementById('gate-pw').addEventListener('keydown', e=>{ if(e.key==='Enter') submitGate(); });
   document.getElementById('admin-logout-btn').addEventListener('click', ()=> signOut(auth));
-  // 뒤로가기 복원(bfcache)으로 입력값이 되살아나는 경우까지 차단
-  window.addEventListener("pageshow", e=>{ if(e.persisted) clearGateInputs(); });
 
   // 탭 전환은 여기 한 곳으로 모은다 (클릭할 때도, 새로고침 뒤 복원할 때도 같은 길)
   function showAdminPanel(id, remember){

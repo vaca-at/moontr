@@ -538,7 +538,7 @@ var FIREBASE_CONFIG = {
   messagingSenderId: "126636401536",
   appId: "1:126636401536:web:25b8a8296ec42b86f99765"
 };
-// 관리자는 센메일 계정으로 로그인합니다 (관리자 허브에서 로그인했으면 바로 열립니다)
+// 관리자는 구글 계정 bellachord 로 로그인합니다 (관리자 허브에서 로그인했으면 바로 열립니다)
 var ADMIN_EMAIL = "anstjsdud@sen.go.kr";
 var ADMIN_EMAILS = [ADMIN_EMAIL, "bellachord@gmail.com"];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
 var isAdminEmail = e => ADMIN_EMAILS.includes(String(e || "").toLowerCase());
@@ -1702,42 +1702,44 @@ function RefModal({ r, onClose }){
     </div></div>;
 }
 
-// 로그인 상태가 확인될 때까지 기다렸다가 관리자 계정인지 알려 줍니다
-function adminReady(){
+// 로그인 상태가 확인될 때까지 기다렸다가 지금 로그인된 계정을 알려 줍니다 (없으면 null)
+function authUser(){
   return new Promise(res=>{
-    try{ const off=firebase.auth().onAuthStateChanged(u=>{ off(); res(!!u&&isAdminEmail(u.email)); }); }
-    catch{ res(false); }
+    try{ const off=firebase.auth().onAuthStateChanged(u=>{ off(); res(u||null); }); }
+    catch{ res(null); }
   });
 }
 
+// 관리자 로그인은 구글 bellachord 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
 function PwModal({ onOk, onClose }){
-  const [v,setV]=useState(''),[e,setE]=useState('');const r=useRef(null);
-  useEffect(()=>{ adminReady().then(ok=>{ if(ok) onOk(); }); },[]);
-  // 매번 빈 칸에서 시작하도록, 브라우저가 자동으로 채워 넣은 값까지 지웁니다
-  const nm=useRef('c'+Math.random().toString(36).slice(2,9));
-  useEffect(()=>{
-    setV('');
-    const clear=()=>{ if(r.current) r.current.value=''; };
-    clear(); r.current?.focus();
-    const t1=setTimeout(clear,60), t2=setTimeout(clear,300);
-    return ()=>{ clearTimeout(t1); clearTimeout(t2); };
-  },[]);
-  const go=(ev)=>{ev.preventDefault();
-    firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, v.trim()).then(()=>onOk())
-      .catch(()=>{ setE('비밀번호가 맞지 않습니다.'); setV(''); r.current?.focus(); });
+  const [e,setE]=useState('');
+  // 관리자 허브 등에서 이미 관리자로 로그인돼 있으면 바로 엽니다.
+  // 관리자가 아닌 계정이 공용 로그인에 남아 있으면 알려 주고 로그아웃해요 (남겨 두면 다른 앱 관리자 화면도 막혀요)
+  useEffect(()=>{ authUser().then(u=>{ if(!u) return;
+    if(isAdminEmail(u.email)) onOk();
+    else { firebase.auth().signOut().catch(()=>{}); setE(`${u.email||'관리자가 아닌 계정'}으로 로그인돼 있어서 로그아웃했어요. bellachord 구글 계정으로 다시 로그인해 주세요.`); }
+  }); },[]);
+  const go=async()=>{ setE('');
+    try{
+      const p=new firebase.auth.GoogleAuthProvider();
+      p.setCustomParameters({ login_hint:'bellachord@gmail.com' });   // 구글이 bellachord 를 먼저 골라 둬요
+      const r=await firebase.auth().signInWithPopup(p);
+      if(!isAdminEmail(r.user.email)){ await firebase.auth().signOut(); setE('관리자 구글 계정(bellachord)으로 골라 주세요.'); return; }
+      onOk();
+    }catch(err){
+      if(err.code==='auth/popup-closed-by-user'||err.code==='auth/cancelled-popup-request') return;
+      setE(err.code==='auth/popup-blocked'?'팝업이 막혔어요. 팝업을 허용해 주세요':'구글 로그인을 하지 못했어요 ('+(err.code||err.message)+')');
+    }
   };
   return <div className="back" onClick={onClose}>
     <div className="sheet" style={{maxWidth:400}} onClick={ev=>ev.stopPropagation()}>
       <div className="sheet-h"><h3 className="sheet-t">진도 현황 보기</h3><button className="x" onClick={onClose}>{I.x()}</button></div>
-      <form className="sheet-b" onSubmit={go} autoComplete="off">
-        <input ref={r} type="text" inputMode="numeric" name={nm.current} className="pw" placeholder="숫자 6자리" maxLength={12}
-          autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} data-lpignore="true" data-1p-ignore="true"
-          value={v} onChange={ev=>{setV(ev.target.value);setE('')}} />
+      <div className="sheet-b">
+        <p className="sheet-s" style={{marginTop:0}}>관리자 구글 계정(bellachord)으로 들어와요. 관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
+        <button type="button" className="btn" onClick={go}>G 구글 계정(bellachord)으로 로그인</button>
         {e&&<p className="err">{e}</p>}
-        <div style={{display:'flex',gap:7}}>
-          <button type="button" className="btn ghost" style={{flex:1}} onClick={onClose}>그만두기</button>
-          <button type="submit" className="btn" style={{flex:1}}>확인</button></div>
-      </form></div></div>;
+        <button type="button" className="btn ghost" onClick={onClose}>그만두기</button>
+      </div></div></div>;
 }
 
 function StatPanel(){

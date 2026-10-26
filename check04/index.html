@@ -381,11 +381,10 @@
 <div class="gate hide" id="gate">
   <div class="box">
     <h2>교사용 화면</h2>
-    <p>관리자 비밀번호(숫자 6자리)를 입력하면 오늘 현황이 열립니다.</p>
-    <input type="password" id="gatePw" inputmode="numeric" maxlength="6" placeholder="숫자 6자리" autocomplete="current-password">
-    <div class="err" id="gateErr">비밀번호가 맞지 않습니다.</div>
+    <p>관리자 구글 계정(bellachord)으로 로그인하면 오늘 현황이 열립니다.</p>
+    <div class="err" id="gateErr"></div>
     <div class="row">
-      <button id="gateBtn">열기</button>
+      <button id="gateBtn">G 구글 계정(bellachord)으로 로그인</button>
       <button class="ghost" id="gateCancel">취소</button>
     </div>
   </div>
@@ -461,7 +460,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -477,7 +476,7 @@ const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
 
-/* 교사용 화면은 관리자 계정(센메일)으로 로그인합니다. 관리자 허브에서 로그인했으면 바로 열립니다. */
+/* 교사용 화면은 관리자 구글 계정(bellachord)으로 로그인합니다. 관리자 허브에서 로그인했으면 바로 열립니다. */
 const ADMIN_EMAIL = 'anstjsdud@sen.go.kr';
 const ADMIN_EMAILS = [ADMIN_EMAIL, 'bellachord@gmail.com'];   // 구글 계정 bellachord 로 로그인해도 관리자예요 (보안 규칙 isTeacher 와 같게)
 const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
@@ -664,27 +663,38 @@ function showStudent(){
   if (location.hash) history.replaceState(null,'',location.pathname+location.search);
   window.scrollTo(0,0);
 }
+function gateErr(text){
+  $('gateErr').textContent = text;
+  $('gateErr').style.display = text ? 'block' : 'none';
+}
 async function openGate(){
   await auth.authStateReady();
   if (isTeacher()) { showTeacher(); return; }
+  /* 관리자가 아닌 계정이 공용 로그인에 남아 있으면 로그아웃 (학생 화면은 로그인을 쓰지 않아요) */
+  if (auth.currentUser) await signOut(auth).catch(() => {});
   $('gate').classList.remove('hide');
-  $('gateErr').style.display = 'none';
-  $('gatePw').value = '';
-  $('gatePw').focus();
+  gateErr('');
 }
 $('adminBtn').addEventListener('click', openGate);
 $('backToStudent').addEventListener('click', showStudent);
 $('gateCancel').addEventListener('click', () => $('gate').classList.add('hide'));
+/* 구글 계정 bellachord 하나로만 들어와요 (이메일·비밀번호 로그인은 꺼 둠) */
 $('gateBtn').addEventListener('click', async () => {
+  gateErr('');
   try {
-    await signInWithEmailAndPassword(auth, ADMIN_EMAIL, $('gatePw').value);
+    const p = new GoogleAuthProvider();
+    p.setCustomParameters({ login_hint: 'bellachord@gmail.com' });
+    const r = await signInWithPopup(auth, p);
+    if (!isAdminEmail(r.user.email)) { await signOut(auth); gateErr('관리자 구글 계정(bellachord)으로 골라 주세요.'); return; }
     $('gate').classList.add('hide');
     showTeacher();
-  } catch { $('gateErr').style.display = 'block'; }
-  $('gatePw').value = '';
+  } catch (e) {
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    console.error(e);
+    gateErr(e.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요.' : '로그인하지 못했습니다. 다시 해 주세요.');
+  }
 });
-$('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') $('gateBtn').click(); });
-/* #teacher 로 들어오면 로그인돼 있을 때 바로 교사 화면, 아니면 비밀번호 창을 엽니다 */
+/* #teacher 로 들어오면 로그인돼 있을 때 바로 교사 화면, 아니면 로그인 창을 엽니다 */
 if (location.hash === '#teacher') openGate();
 
 /* ===== 시계 · 마감 안내 ===== */
