@@ -3938,8 +3938,98 @@ const explorer = port => (() => {
 const S32 = explorer(false);
 /* ===== END 32 ===== */
 
+// 작은 새: 동그란 몸 · 흰 배 · 주황 부리. hop = 0~1 (뛰는 높이), peck = 고개 숙이기
+function birdie(x, y, s = 1, flip = false, hop = 0, peck = false, c = "#5DB7E8"){
+  const d = flip ? -1 : 1; y -= hop*7*s;
+  g.globalAlpha = .18; g.fillStyle = "#000"; g.beginPath(); g.ellipse(x, y + hop*7*s + 1, 5*s, 1.3*s, 0, 0, Math.PI*2); g.fill(); g.globalAlpha = 1;
+  g.fillStyle = c; g.beginPath(); g.ellipse(x, y - 5*s, 6*s, 5*s, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = "#FFFFFF"; g.beginPath(); g.ellipse(x + d*1.5*s, y - 3.6*s, 3.6*s, 3*s, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = c; g.beginPath(); g.ellipse(x - d*1.6*s, y - 5*s - (hop > 0 ? Math.sin(T*30)*1.5*s : 0), 3.4*s, 2.2*s, -d*.4, 0, Math.PI*2); g.fill();   // 날개
+  const hx = x + d*3.6*s, hy = y - (peck ? 5 : 8.5)*s;
+  g.fillStyle = c; g.beginPath(); g.arc(hx, hy, 3.4*s, 0, Math.PI*2); g.fill();
+  g.fillStyle = "#1E1E28"; g.beginPath(); g.arc(hx + d*1.2*s, hy - .6*s, .8*s, 0, Math.PI*2); g.fill();
+  g.fillStyle = "#FF9F43"; g.beginPath(); g.moveTo(hx + d*3*s, hy - .6*s); g.lineTo(hx + d*5.4*s, hy + .3*s); g.lineTo(hx + d*3*s, hy + 1.2*s); g.fill();
+  g.fillStyle = "#FF9F43"; rect(x - 1.5*s, y - .5*s, .8*s, 1.5*s, "#FF9F43"); rect(x + 1*s, y - .5*s, .8*s, 1.5*s, "#FF9F43");
+}
+// 새가 x0~x1 을 콩콩 뛰어 오가다 가끔 콕콕 쪼아요
+function birdHop(x0, x1, y, s = 1){
+  const L = x1 - x0, step = 14, n = Math.max(1, Math.floor(L/step)), cyc = T*1.4, k = Math.floor(cyc) % (2*n + 4), f = cyc % 1;
+  let i, flip = false, hop = 0, peck = false;
+  if (k < n){ i = k + f; hop = Math.sin(f*Math.PI); } else if (k < n + 2){ i = n; peck = f < .5; flip = false; } else if (k < 2*n + 2){ i = n - (k - n - 2) - f; hop = Math.sin(f*Math.PI); flip = true; } else { i = 0; peck = f < .5; flip = true; }
+  birdie(x0 + i*step, y, s, flip, hop, peck);
+}
+
+/* ===== 33. 브라우저 새 탭 ===== */
+const newTab = port => (() => {
+  const greet = (h, st) => st.lunch ? "점심 맛있게 드세요" : h < 5 ? "좋은 밤이에요" : h < 11 ? "좋은 아침이에요" : h < 18 ? "좋은 오후예요" : "오늘도 수고했어요";
+  const TILE = ["#E8F0FE", "#FCE8E6", "#E6F4EA", "#FEF7E0", "#F3E8FD", "#E0F7FA", "#FFF0E0", "#EDEFF3"], TINK = ["#1A73E8", "#D93025", "#188038", "#B06000", "#8430CE", "#00838F", "#C25E00", "#5F6368"];
+  function draw(st){
+    const t = today0(st), dark = NIGHT, BG = dark ? "#202124" : "#FFFFFF", INK = dark ? "#E8EAED" : "#202124", SUB = dark ? "#9AA0A6" : "#5F6368", FLD = dark ? "#303134" : "#F1F3F4";
+    g.fillStyle = BG; g.fillRect(0, 0, W, H);
+    // 브라우저 위쪽: 탭 · 주소창
+    g.fillStyle = dark ? "#35363A" : "#DEE1E6"; g.fillRect(0, 0, W, 34);
+    fillRR(8, 5, 120, 14, [6, 6, 0, 0], dark ? "#202124" : "#FFFFFF"); ft("🏫", 17, 12.5, 7, INK, "center"); ft("새 탭 · 내 하루", 25, 12.5, 7, INK, "left", "sans", "700"); ft("✕", 120, 12.5, 6, SUB, "center", "sans");
+    ft("+", 138, 12, 10, SUB, "center", "sans");
+    g.fillStyle = BG; g.fillRect(0, 19, W, 15);
+    ft("←  →  ⟳", 10, 26.5, 7.5, SUB, "left", "sans", "700");
+    fillRR(52, 21, W - 100, 11, 5.5, FLD); ft("🔍 검색하거나 주소를 입력하세요", 60, 26.5, 6.5, SUB, "left", "sans");
+    fillRR(W - 40, 21, 11, 11, 5.5, HR ? "#E8487A" : "#1A73E8"); ft([...(ME || "나")][0], W - 34.5, 26.8, 6, "#FFFFFF", "center", "sans", "700");
+    ft("⋮", W - 14, 26.5, 8, SUB, "center", "sans", "700");
+    rect(0, 34, W, 1, dark ? "#3C4043" : "#DADCE0");
+    // 오른쪽 위 작은 링크
+    ft(`할 일 ${TODOS.filter(x => !x.d).length}`, W - 74, 46, 7, INK, "right", "sans", "700"); hot(W - 110, 40, 40, 12, { open:"todo" });
+    ft("메모", W - 50, 46, 7, INK, "right", "sans", "700"); hot(W - 66, 40, 20, 12, { open:"memo" });
+    ft("⋮⋮⋮", W - 22, 46, 6, SUB, "center", "sans", "900");
+    // 가운데: 인사 · 검색창(지금 상태)
+    const cx = W/2;
+    ft(`${greet(t.d.getHours(), st)}, ${ME}`, cx, 70, 20, INK, "center", "sans", "500");
+    const SW = 270, SX = cx - SW/2, SY = 100;
+    g.save(); g.shadowColor = dark ? "rgba(0,0,0,.5)" : "rgba(32,33,36,.18)"; g.shadowBlur = 6; g.shadowOffsetY = 1; fillRR(SX, SY, SW, 24, 12, dark ? "#303134" : "#FFFFFF"); g.restore();
+    if (!dark){ g.strokeStyle = "#DFE1E5"; g.lineWidth = 1; rr0(SX, SY, SW, 24, 12); g.stroke(); }
+    ft("🔍", SX + 13, SY + 12.5, 8, SUB, "center");
+    ft(fitLine(`${st.act}${t.left !== null && t.wk ? ` · ${t.left}분 남음` : ""}`, SW - 60, 8.5, "sans", "500"), SX + 24, SY + 12.5, 8.5, INK, "left", "sans", "500");
+    fillRR(SX + SW - 32, SY + 10, 22, 4, 2, dark ? "#5F6368" : "#E8EAED"); if (t.pr > 0) fillRR(SX + SW - 32, SY + 10, 22*t.pr, 4, 2, t.hr ? "#E8487A" : "#1A73E8");
+    // 귀여운 것: 검색창 위를 새가 콩콩
+    birdHop(SX + 24, SX + SW - 44, SY, 1.5);
+    // 바로가기 타일 (⭐ 즐겨찾기)
+    const tiles = [...LINKS.slice(0, 7).map(l => ({ nm:l.name, ic:l.icon, act:{ url:l.url } })), { nm:"바로가기 추가", ic:"+", act:{ open:"links" } }];
+    const TW2 = 44, per = Math.min(tiles.length, 8), TX0 = cx - per*TW2/2;
+    tiles.forEach((tl, k) => {
+      const x = TX0 + k*TW2 + TW2/2, y = 150;
+      if (dark) fillRR(x - 18, y - 12, 36, 40, 6, "rgba(255,255,255,.04)");
+      g.fillStyle = tl.ic === "+" ? FLD : dark ? "#3C4043" : TILE[k % 8]; g.beginPath(); g.arc(x, y, 11, 0, Math.PI*2); g.fill();
+      if (tl.ic === "+") ft("+", x, y + .5, 12, SUB, "center", "sans", "300");
+      else if (tl.ic) ft(tl.ic, x, y + 1, 10, TINK[k % 8], "center");
+      else ft([...tl.nm][0] || "?", x, y + .5, 9, TINK[k % 8], "center", "sans", "700");
+      ft(fitLine(tl.nm, 40, 6.5, "sans", "500"), x, y + 20, 6.5, INK, "center", "sans", "500");
+      hot(x - 20, y - 13, 40, 40, tl.act);
+    });
+    // 오늘 시간표 (작은 알약 줄)
+    const rows = t.rows.filter(r => /\d/.test(r.p) || r.p === "점심"), PW = Math.min(36, 380/Math.max(1, rows.length)), PX = cx - rows.length*PW/2, PY = 198;
+    ft(t.wk ? "오늘" : "주말이에요 · 푹 쉬어요", cx, PY - 10, 7, SUB, "center", "sans", "700");
+    if (t.wk) rows.forEach((r, k) => {
+      const x = PX + k*PW, a = mm(r.a), b = mm(r.b), cur = st.m >= a && st.m < b, done = st.m >= b, lunch = r.r === "lunch";
+      const fill = cur ? (r.r === HR && HR ? "#E8487A" : "#1A73E8") : lunch ? (dark ? "#4A3F1F" : "#FEF7E0") : r.r ? (dark ? "#2B3A55" : "#E8F0FE") : FLD;
+      fillRR(x + 1.5, PY, PW - 3, 22, 6, fill);
+      ft(lunch ? "점심" : r.p, x + PW/2, PY + 7, 6, cur ? "#FFFFFF" : SUB, "center", "sans", "700");
+      ft(fitLine(lunch ? "🍚" : r.r ? NAME(r.r).replace(" 우리 반", "★") : "·", PW - 6, 6.5, "sans", "700"), x + PW/2, PY + 15.5, 6.5, cur ? "#FFFFFF" : done ? SUB : INK, "center", "sans", "700");
+      if (done && !cur) { g.globalAlpha = .45; fillRR(x + 1.5, PY, PW - 3, 22, 6, BG); g.globalAlpha = 1; }
+    });
+    if (t.wk) hot(PX, PY, rows.length*PW, 22, { open:"edit" });
+    // 아래 가운데: 다음 수업 · 할 일 (모서리는 메모 스티커 · 말풍선 자리라 비워 둬요)
+    const nl = fitLine(`⏭ 다음  ${nextLine(t)}`, 200, 7.5, "sans", "700"); g.font = `700 7.5px ${fontOf("sans")}`; const nw = g.measureText(nl).width + 18;
+    fillRR(cx - nw/2, 233, nw, 15, 7.5, FLD); ft(nl, cx, 240.8, 7.5, INK, "center", "sans", "700");
+    const td = TODOS.slice(0, 3);
+    ft(fitLine(td.length ? td.map(x => (x.d ? "☑ " : "☐ ") + x.t).join("    ") : "☐ 할 일을 적어 보세요", 240, 7, "sans", "500"), cx, 258, 7, SUB, "center", "sans", "500"); hot(cx - 120, 251, 240, 14, { open:"todo" });
+  }
+  return { name:"브라우저 새 탭", layout:"none", custom:true, draw, port, who:"전 연령 · 무난, 늘 여는 시작 화면",
+    desc:"<b>인터넷 창을 새로 열었을 때의 시작 화면</b>이에요. 가운데 인사와 검색창 자리에 지금 상태(남은 분 막대), 그 아래 ⭐ 즐겨찾기 바로가기 동그라미, 오늘 시간표 알약 줄이 있어요. 검색창 위를 작은 새가 콩콩 뛰어다니며 가끔 콕콕 쪼아요." };
+})();
+const S33 = newTab(false);
+/* ===== END 33 ===== */
+
 /*NEW_STRUCTS*/
-  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32 };
+  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32, 33:S33 };
   // 📱 세로 그림: 270×480 크기로 따로 만들어 원래 시안에 .portS 로 붙여요 (아직 없는 시안은 가로 그림 그대로)
   setDims(true);
   const PORTS = { 1:tower(true), 15:deskWin(true), 21:hud3d(true), 22:toyOffice(true), 11:retroPC(true), 8:rpg(true), 6:sideScroll(true), 5:board(true), 7:cctv(true), 10:planner(true), 9:dayClock(true), 18:widget(true) };
@@ -4065,7 +4155,7 @@ new ResizeObserver(fit).observe(col);
 // 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
 // 2026-10-27 문쌤이 제일 좋아하는 순서로 1 건물 단면 · 2 3D 교무실 · 3 보드게임 판. 새 시안은 늘 맨 뒤에 붙여요 (앞 번호가 밀리지 않게)
 // 13번부터: 무난한 바탕화면 (31 윈도우 …)
-const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32];
+const TOP = [1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32, 33];
 // 예전 단추 순서 — 예전 번호로 저장된 '고른 화면 · 순서 · 📌 고정'을 새 번호로 옮길 때만 써요
 const OLD_TOP = [1, 15, 21, 22, 11, 8, 6, 5, 7, 10, 18, 9];
 const fromOld = i => Number.isInteger(i) && i >= 0 && i < OLD_TOP.length ? TOP.indexOf(OLD_TOP[i]) : i;
@@ -4138,7 +4228,8 @@ const TIPS = {
   21:"3D 학교 대시보드. 지금 있는 방이 빛나고, 색 단추마다 밤 · 네온 · 낮 · 숲속 느낌",
   22:"나무 바닥 3D 교무실. 선생님들이 커피 · 프린터 · 회의로 오가고, 쉬는 시간엔 학생이 찾아와요",
   31:"늘 보던 컴퓨터 바탕화면. 아이콘 · 시간표 창 · 위젯, 작업 표시줄 위를 내 캐릭터가 오가요",
-  32:"파일 탐색기 창. 오늘 일정이 파일처럼 줄지어 있고, 창 위를 고양이가 걸어 다녀요"
+  32:"파일 탐색기 창. 오늘 일정이 파일처럼 줄지어 있고, 창 위를 고양이가 걸어 다녀요",
+  33:"인터넷 새 탭 시작 화면. 검색창 자리에 지금 상태, 즐겨찾기 바로가기, 새가 콩콩 뛰어다녀요"
 };
 function showTip(b){
   const t = TIPS[TOP[+b.dataset.s]], el = $("tipnote"); if (!t) return;
