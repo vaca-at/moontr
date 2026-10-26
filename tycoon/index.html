@@ -714,7 +714,7 @@ const bellOf = lv => PRESET[lv].bell.map(([k, s, e]) => ({ k, s, e }));
 // 둘러보기(로그인 전)에 보여 주는 예시 선생님
 const DEMO_CFG = { name:"김쌤", level:"high", grades:3, classes:10, hr:"1-3", inT:"", outT:"", bell:bellOf("high"),
   week:{ 1:{1:"1-1",3:"1-3",4:"2-2",6:"1-5"}, 2:{2:"1-2",3:"1-4",5:"과학실"}, 3:{1:"1-6",4:"1-7",6:"2-3"}, 4:{2:"2-1",3:"1-1",5:"1-3"}, 5:{1:"1-5",3:"1-2",6:"과학실"} } };
-let CFG = null, ME = "선생님", HR = "", NGR = 3, NCLS = 10, IN_T = "08:10", OUT_T = "16:10";
+let CFG = null, ME = "선생님", HR = "", NGR = 3, NCLS = 10, IN_T = "08:10", OUT_T = "16:10", OFFICE_F = 2;   // OFFICE_F = 교무실이 있는 층 (2 · 3 · 4층, 🗓 시간표에서 골라요)
 let BELL = [], TT = {}, TAUGHT = new Set(), FLOORS = [1, 2, 3], FLOORS2 = [1, 3], SPECIAL = [], ROOMS = [];
 let TODOS = [];   // 오늘 할 일 [{ t:"글", d:true }] — 오른쪽 TO DO 칸에서 적어요
 let TAG = "";     // 영문 이름 (KIMTR 처럼) — 맨 위 'KIMTR TYCOON'
@@ -765,6 +765,7 @@ function applyConfig(cfg){
   CFG = cfg; ME = String(cfg.name || "").trim().slice(0, 12) || "선생님";
   NGR = clamp(+cfg.grades || 3, 1, 6); NCLS = clamp(+cfg.classes || 10, 1, 15);
   HR = isClass(cfg.hr) ? cfg.hr : "";
+  OFFICE_F = [2, 3, 4].includes(+cfg.officeF) ? +cfg.officeF : 2;
   IN_T = cfg.inT || "08:10"; OUT_T = cfg.outT || "16:10";   // 출퇴근을 비워 두면 08:10 · 16:10
   let n = 0;
   BELL = (cfg.bell || []).filter(b => b && b.s && b.e && mm(b.e) > mm(b.s)).sort((a, b) => mm(a.s) - mm(b.s))
@@ -1093,8 +1094,8 @@ const S1 = (() => {
   const fb = f => GR - (f - 1)*FH, lane = f => fb(f) - 3;
   const CX = BX + NL*RW + SW, SL = BX + NL*RW + SW/2, SR = CX + CW + SW/2, RX = CX + CW + SW;
   const R = [];
-  // 2 · 3 · 4층 = 내가 많이 가는 학년 (맨 아래 2층 가운데가 교무실)
-  [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === 2 ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
+  // 2 · 3 · 4층 = 내가 많이 가는 학년 (교무실은 🗓 시간표에서 고른 층 가운데, 기본 2층)
+  [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
   // 1층: 양쪽 칸에 시간표의 특별실(과학실 · 체육관 …)을 넣어요. 행정실 · 현관 · 교장실은 그대로
   const sp = [...SPECIAL];
   const wing = (n, big, bigFirst) => { const out = []; for (let i = 0; i < (n >= 3 ? n - 2 : n); i++) out.push([sp.shift() || `_s${i}${big}`, RW]); if (n >= 3){ if (bigFirst) out.unshift([big, 2*RW]); else out.push([big, 2*RW]); } return out; };
@@ -3330,6 +3331,7 @@ function renderEdit(){
     <div class="f2">
       <label class="f"><span>학년 수</span><select id="eGr">${[1,2,3,4,5,6].map(v => `<option ${v === +ed.grades ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <label class="f"><span>한 학년 반 수</span><select id="eCl">${Array.from({ length:15 }, (_, i) => i + 1).map(v => `<option ${v === +ed.classes ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label class="f"><span>교무실 위치 (건물 단면 시안)</span><select id="eOff">${[2, 3, 4].map(v => `<option value="${v}" ${v === (+ed.officeF || 2) ? "selected" : ""}>${v}층</option>`).join("")}</select></label>
       <label class="f"><span>출근 시각 (선택 · 비우면 08:10)</span><input type="time" id="eIn" value="${esc(ed.inT)}"></label>
       <label class="f"><span>퇴근 시각 (선택 · 비우면 16:10)</span><input type="time" id="eOut" value="${esc(ed.outT)}"></label>
     </div>
@@ -3374,7 +3376,7 @@ const hrNorm = v => { v = String(v || "").replace(/\s+/g, ""); if (!v) return ""
 // 화면에 적힌 값을 ed 에 옮겨요 (다시 그리기 전 · 저장 전)
 function readEdit(){
   if (!$("eName")) return;
-  ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = hrNorm($("eHr").value);
+  ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = hrNorm($("eHr").value); ed.officeF = +$("eOff").value || 2;
   ed.grades = +$("eGr").value; ed.classes = +$("eCl").value; ed.inT = $("eIn").value; ed.outT = $("eOut").value;
   ed.bell = [...document.querySelectorAll("#eBell .bellrow")].map(r => ({ k:r.querySelector(".bk").value, s:r.querySelector(".bs").value, e:r.querySelector(".be").value, ...(r.dataset.p === "1" ? { p:1 } : {}), ...(r.dataset.pe === "1" ? { pe:1 } : {}) }));
   const num = (id, d) => { const v = parseInt($(id).value, 10); return Number.isFinite(v) ? v : d; };
@@ -3477,7 +3479,7 @@ async function saveEdit(){
   readEdit();
   const bad = checkEdit(); if (bad){ $("edMsg").textContent = bad; return; }
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   // 영문 이름: 칸에 적은 것, 비었으면 닉네임의 성으로 자동 (칸은 닉네임을 바꿀 때 이미 따라 바뀌어요)
   const tag = finalTag(ed.tag, out.name);
   if (demo){ window.DESK.applyConfig(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
