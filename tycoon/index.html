@@ -612,6 +612,7 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
           <tr><td>닉네임(예: 김쌤)과 영문 이름(예: KIMTR, 🕘 시간표 창에서 바꿀 수 있음)</td><td>화면에 이름 보여 주기, 문의 답변</td></tr>
           <tr><td>선생님이 넣은 메모 · 즐겨찾기(이름 · 주소)</td><td>내 화면에 보여 주기 (본인만 봐요)</td></tr>
           <tr><td>👥 친구 코드 · 친구와 나눈 1:1 채팅 · 친구에게 보여 주는 닉네임 · 캐릭터 · 요일별 시간표</td><td>친구 맺기 · 채팅 · 친구 화면에 내 위치 보여 주기 (친구 맺은 두 사람만 봐요, [끊기]하면 채팅도 지워져요)</td></tr>
+          <tr><td>🌦 학교 위치 (시 · 군 이름과 대략 좌표, 고른 사람만)</td><td>창밖에 진짜 날씨 보여 주기. 좌표만 날씨 서비스(Open-Meteo)에 보내 날씨를 받아요. 정확한 주소는 받지 않아요</td></tr>
           <tr><td>선생님이 넣은 것: 학교급 · 학년 수 · 반 수 · 담임 반, 종 시간 · 출퇴근 시각 · 시간표, 할 일 · 메모</td><td>게임 화면과 할 일 보여 주기</td></tr>
           <tr><td>[💬 관리자에게 묻기]에 쓴 글</td><td>문의 답변</td></tr>
           <tr><td>시간표 자료(사진 · PDF · 엑셀 · 캡처)와, 학교 전체 시간표일 때 적은 내 이름 — 선생님이 올릴 때만</td><td>AI가 시간표 칸을 읽어 표를 채워 주기. 읽은 뒤 바로 버리고 저장하지 않아요</td></tr>
@@ -754,7 +755,7 @@ body.bigview .bigbtn{position:fixed;display:inline-flex;right:auto;left:10px;top
       <ul><li><b>TO DO</b> 오른쪽 아래 칸. 날짜마다 따로, ‹ › 로 다른 날도 적어요.</li><li><b>메모</b> 날짜와 상관없는 쪽지. <b>📌 고정</b>한 메모(최대 3개)가 게임 화면에 떠요. 찾기 · ◀ ▶ 순서 · [지우기]하면 휴지통.</li><li><b>즐겨찾기</b> 자주 가는 사이트. 레트로 PC · 미니멀 위젯 화면에도 아이콘으로 떠요.</li></ul>
 
       <h3>⚙️ 설정</h3>
-      <ul><li><b>계정 · 내 정보</b> 로그인 계정, 나와 학교(닉네임 · 담임 반 · 교무실 층 · 출퇴근), 학교 일정 · D-day, 내 캐릭터(남 10 · 여 10)</li><li><b>기록</b> 시간표 · TO DO · 메모 · 즐겨찾기를 지난 것까지 모아 보고, 고치고, 되돌리고, 지워요.</li><li><b>👥 친구 · 채팅</b> 내 친구 코드를 알려 주거나 받은 코드를 넣으면 바로 친구. 서로 시간표 · 캐릭터가 보이고 1:1 채팅을 해요.</li></ul>
+      <ul><li><b>계정 · 내 정보</b> 로그인 계정, 나와 학교(닉네임 · 담임 반 · 교무실 층 · 출퇴근), 학교 위치(진짜 날씨), 학교 일정 · D-day, 내 캐릭터(남 10 · 여 10)</li><li><b>기록</b> 시간표 · TO DO · 메모 · 즐겨찾기를 지난 것까지 모아 보고, 고치고, 되돌리고, 지워요.</li><li><b>👥 친구 · 채팅</b> 내 친구 코드를 알려 주거나 받은 코드를 넣으면 바로 친구. 서로 시간표 · 캐릭터가 보이고 1:1 채팅을 해요.</li></ul>
 
       <h3>🖥 바탕화면으로 만들기</h3>
       <p>컴퓨터를 켜면 교무실 타이쿤이 <b>바탕화면 배경으로 계속 움직이게</b> 할 수 있어요. 주소는 <b>https://moontr.site/tycoon/</b> 하나예요. (위 [🖥 바탕화면으로 쓰기] 단추를 누르면 주소 복사 단추가 있어요.)</p>
@@ -837,8 +838,24 @@ const MEMO_C = { y:"#FFF07A", p:"#FFC6D9", b:"#C4E4FF", g:"#CDEFC4", w:"#FFFFFF"
 // 게임 화면 속에 그리던 메모 하나 — 이제 메모는 12개 시안 모두 화면 위 스티커(#pins)로 띄워서, 그림 안에는 그리지 않아요(겹치지 않게)
 const memoTop = () => null;
 // 게임 화면 속 메모 · 즐겨찾기를 누르면 열어요. 시안이 그릴 때마다 누를 자리를 적어 둬요 (논리 480×270 좌표)
-let HOT = [], DDAY = null;   // DDAY: 학교 일정 D-day { n:남은 날, t:이름 } (3D 교무실 달력)
+let HOT = [], DDAY = null, EVENTS = [], WEATHER = null;   // DDAY: D-day { n:남은 날, t:이름 } · EVENTS: 앞으로 남은 학교 일정 · WEATHER: 진짜 날씨 { code, temp, day, name }
 const hot = (x, y, w, h, act) => { HOT.push({ x, y, w, h, act }); };
+const LOFI = { lamp:false, snd:false };   // 로파이 창가: 스탠드(밤 모드) · 빗소리
+try { LOFI.lamp = localStorage.getItem("desk-lofi-lamp") === "1"; } catch (e) {}
+let lofiCtx = null;
+// 빗소리: 노래 파일 없이 브라우저가 직접 만드는 소리예요 (저작권 걱정 없어요). 한 번 더 누르면 꺼져요
+function lofiSound(){
+  if (lofiCtx){ lofiCtx.close(); lofiCtx = null; LOFI.snd = false; return; }
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(), n = ctx.sampleRate*3, buf = ctx.createBuffer(2, n, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++){ const d = buf.getChannelData(ch); let last = 0; for (let i = 0; i < n; i++){ const w = Math.random()*2 - 1; last = (last + .02*w)/1.02; d[i] = last*3 + w*.05 + (Math.random() < .0004 ? (Math.random() - .5)*.6 : 0); } }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400;
+    const gain = ctx.createGain(); gain.gain.value = .35;
+    src.connect(lp).connect(gain).connect(ctx.destination); src.start();
+    lofiCtx = ctx; LOFI.snd = true;
+  } catch (e) { LOFI.snd = false; }
+}
 
 /* ===================== 닉네임 → 영문 이름 (성 + TR, 문쌤 = MOONTR 처럼) ===================== */
 // 많이 쓰는 성은 흔한 영문 표기로, 나머지는 로마자 표기법으로 바꿔요. 다르면 ⚙️ 설정에서 고쳐요
@@ -2140,107 +2157,185 @@ NEWS.push(S12);
 
 /* ===== 15. 로파이 교무실 창가 ===== */
 const S15 = (() => {
-  const BACK = ["...hhhh...","..hhhhhh..",".hhhhhhhh.",".hhhhhhhh.",".hhhhhhhh.",".shhhhhhs.","...ssss...","...cccc...","..cccccc..",".sccccccs.",".sccccccs.","..cccccc.."];
-  const WXL = 34, WYT = 16, WW = 262, WH = 136;
-  function skyCols(h){
-    if (h < 5.5 || h >= 19.5) return ["#0B1030", "#1E2656"];
-    if (h < 7) return ["#34407A", "#E8A08E"];
-    if (h < 10) return ["#8EC5F0", "#F6E2C8"];
-    if (h < 15.5) return ["#6CB2EC", "#D4ECFA"];
-    if (h < 17.5) return ["#7AA6D6", "#F3CF94"];
-    return ["#4E4688", "#F08A5A"];
-  }
+  // 가을 교실 창가 + 햇살 카페 책상 (색 단추와 상관없이 한 모양)
+  // 창밖은 시간대(오전 · 오후 · 노을 · 저녁 · 밤)에 따라 바뀌고, 단풍잎이 떨어져요. 쉬는 시간엔 운동장에 학생들
+  // 물건을 누르면: 모니터 = 시간표 · 포스트잇 = 고정 메모 · 코르크판 = 할 일 · 일정판 = 학교 일정 · 책 = 즐겨찾기 · 휴대폰 = 친구 채팅
+  //               턴테이블 = 빗소리 켜기/끄기 · 스탠드 = 밤 모드 · 어항 = 물 마시기(먹이 주기)
+  // 나: 교무실에 있으면 옆모습으로 컴퓨터 작업, 수업 · 점심 · 퇴근이면 빈 의자와 '자리 비움' 쪽지
+  const SIDE = ["..hhhh....", ".hhhhhh...", ".hhhhhhs..", ".hhhssss..", ".hhsssess.", ".hhsssss..", "..hsssm...", "...ss.....", "..cccc....", ".cccccc...", ".cccccc...", ".cccccc..."];
+  const ARM = [".ccccccs..", "......sss."];   // 팔: 키보드 쪽으로 뻗어요
+  const phase = h => h < 6 ? "night" : h < 11 ? "am" : h < 16 ? "pm" : h < 18 ? "sunset" : h < 19.5 ? "eve" : "night";
+  const PH = {
+    am:{ sky:["#8EC5F0", "#F6E2C8"], name:"오전", sun:"#FFF2B0", tint:null },
+    pm:{ sky:["#6CB2EC", "#D9ECF8"], name:"오후", sun:"#FFF6C8", tint:null },
+    sunset:{ sky:["#8A6AB8", "#F7A35C", "#FFD9A0"], name:"노을", sun:"#FFB070", tint:["#FF9A4A", .12] },
+    eve:{ sky:["#2E2A68", "#7A4A88", "#F08A5A"], name:"저녁", sun:null, tint:["#4A2A6A", .18] },
+    night:{ sky:["#0B1030", "#1E2656"], name:"밤", sun:null, tint:["#05061A", .34] }
+  };
+  const LEAF = ["#E8783A", "#F0B83A", "#D8483A", "#F0983A", "#C8582A"];
+  const wxType = c => c >= 95 ? "storm" : c >= 85 && c <= 86 ? "snow" : c >= 80 ? "rain" : c >= 71 ? "snow" : c >= 51 ? "rain" : c >= 45 ? "fog" : c === 3 ? "cloud" : c >= 1 ? "part" : "clear";
+  const WXI = { clear:"☀", part:"⛅", cloud:"☁", fog:"🌫", rain:"🌧", snow:"❄", storm:"⛈" }, WXN = { clear:"맑음", part:"구름 조금", cloud:"흐림", fog:"안개", rain:"비", snow:"눈", storm:"뇌우" };
+  const wkey = d => `desk-water-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  let feedAt = -9;
   function draw(st){
-    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, h = d.getHours() + d.getMinutes()/60 + d.getSeconds()/3600;
-    const dark = h < 6.5 || h >= 18.5, rainy = wk && (d.getDate()*7 + d.getMonth()) % 5 === 0;
-    const wall = P.room;
-    rect(0, 0, W, H, wall);
-    for (let x = 0; x < W; x += 16){ g.globalAlpha = .06; rect(x, 0, 1, 190, "#000"); g.globalAlpha = 1; }
-    // 창밖
-    g.save(); g.beginPath(); g.rect(WXL, WYT, WW, WH); g.clip();
-    const [c1, c2] = skyCols(h), sk = g.createLinearGradient(0, WYT, 0, WYT + WH); sk.addColorStop(0, c1); sk.addColorStop(1, c2); g.fillStyle = sk; g.fillRect(WXL, WYT, WW, WH);
-    if (dark){ for (let k = 0; k < 40; k++) rect(WXL + (k*7919) % WW, WYT + (k*131) % 70, 1, 1, k % 4 ? "#8C94C8" : "#FFFFFF"); g.beginPath(); g.arc(WXL + WW*.78, WYT + 26, 9, 0, Math.PI*2); g.fillStyle = "#F4F1D0"; g.fill(); g.beginPath(); g.arc(WXL + WW*.78 + 4, WYT + 23, 8, 0, Math.PI*2); g.fillStyle = c1; g.fill(); }
-    else { const f = Math.max(0, Math.min(1, (h - 7)/11)), sx = WXL + 20 + f*(WW - 40), sy = WYT + 70 - Math.sin(f*Math.PI)*52; g.beginPath(); g.arc(sx, sy, 11, 0, Math.PI*2); g.fillStyle = h > 16.5 ? "#FFB070" : "#FFF2B0"; g.fill(); g.globalAlpha = .25; g.beginPath(); g.arc(sx, sy, 20, 0, Math.PI*2); g.fill(); g.globalAlpha = 1;
-      for (let k = 0; k < 3; k++){ const cx = WXL + ((k*110 + T*3) % (WW + 80)) - 40, cy = WYT + 18 + k*12; g.globalAlpha = .85; rect(cx, cy, 36, 8, "#FFFFFF"); rect(cx + 8, cy - 5, 18, 6, "#FFFFFF"); g.globalAlpha = 1; } }
-    if (rainy){ g.globalAlpha = .25; rect(WXL, WYT, WW, WH, "#3A4A6A"); g.globalAlpha = 1; }
-    for (let i = 0; i < 7; i++){ const x = WXL + i*40 - 6, hh = 30 + (i % 3)*12; rect(x, WYT + 96 - hh, 30, hh + 10, dark ? "#1A1E3A" : shade(c2, .8)); for (let y = WYT + 100 - hh; y < WYT + 100; y += 6) for (let xx = x + 3; xx < x + 27; xx += 6) rect(xx, y, 3, 2, dark && (xx + y) % 3 === 0 ? "#FFE27A" : shade(c2, .9)); }
-    rect(WXL, WYT + 104, WW, WH - 104, dark ? "#2A2A3A" : "#C8A878"); rect(WXL, WYT + 104, WW, 2, dark ? "#3A3A4A" : "#D8BC90");
-    [[60, 1], [150, 1.4], [250, 1.1]].forEach(([tx, ph]) => { const sw = Math.round(Math.sin(T*1.2*ph)*1.5); rect(WXL + tx, WYT + 88, 3, 18, "#6A4A2A"); rect(WXL + tx - 9 + sw, WYT + 70, 21, 20, dark ? "#1E3A2A" : "#5A9A4A"); rect(WXL + tx - 6 + sw, WYT + 64, 15, 8, dark ? "#1E3A2A" : "#6AAA5A"); });
-    if (SCHOOL && (BREAK || LUNCH)) crowd(21, 9, WXL + 10, WXL + WW - 10, WYT + 128, 1);
-    if (rainy) for (let k = 0; k < 70; k++){ const x = WXL + (k*53 + T*30*(1 + k % 3)) % WW, y = WYT + (k*37 + T*140*(1 + k % 2)) % WH; g.globalAlpha = .5; rect(x, y, 1, 5, "#DDEBFF"); g.globalAlpha = 1; }
-    g.restore();
-    // 창틀
-    const wood = P.wood;
-    rect(WXL - 6, WYT - 6, WW + 12, 6, wood); rect(WXL - 6, WYT + WH, WW + 12, 9, wood); rect(WXL - 6, WYT, 6, WH, wood); rect(WXL + WW, WYT, 6, WH, wood);
-    rect(WXL + WW/2 - 2, WYT, 4, WH, wood); rect(WXL, WYT + WH/2 - 2, WW, 3, wood); rect(WXL - 10, WYT + WH + 7, WW + 20, 4, shade(wood, 1.2));
-    rect(WXL + 6, WYT + WH + 1, 14, 6, "#B8734A"); rect(WXL + 8, WYT + WH - 9, 10, 10, "#5A9A4A"); rect(WXL + 4, WYT + WH - 5, 6, 4, "#6AAA5A");   // 창가 화분
-    // 오른쪽 벽: 시계 · 달력 · 코르크판 시간표 (밤에 화면이 어두워져도 글씨가 잘 보이게 한 번 더 그려요)
-    const board = () => {
-    const ck = { x:356, y:44, r:20 };
-    g.beginPath(); g.arc(ck.x, ck.y, ck.r + 2, 0, Math.PI*2); g.fillStyle = wood; g.fill(); g.beginPath(); g.arc(ck.x, ck.y, ck.r, 0, Math.PI*2); g.fillStyle = "#FFFDF4"; g.fill();
-    for (let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; rect(ck.x + Math.cos(a)*16 - .5, ck.y + Math.sin(a)*16 - .5, 1.5, 1.5, "#3A3A4A"); }
-    const hand = (a, l, w, c) => { g.strokeStyle = c; g.lineWidth = w; g.lineCap = "round"; g.beginPath(); g.moveTo(ck.x, ck.y); g.lineTo(ck.x + Math.cos(a - Math.PI/2)*l, ck.y + Math.sin(a - Math.PI/2)*l); g.stroke(); };
-    hand(((h % 12)/12)*Math.PI*2, 10, 2.2, "#2A2A3A"); hand((d.getMinutes()/60 + d.getSeconds()/3600)*Math.PI*2, 15, 1.4, "#2A2A3A"); hand(d.getSeconds()/60*Math.PI*2, 16, .7, "#D84848");
-    rect(400, 22, 52, 50, "#FFFFFF"); rect(400, 22, 52, 12, "#D84848"); ft(`${d.getMonth() + 1}월`, 426, 28.5, 8, "#FFFFFF", "center", "sans", "bold"); ft(String(d.getDate()), 426, 50, 18, "#2A2A3A", "center", "sans", "bold"); ft(DAYS[day] + "요일", 426, 65, 6, "#8A8A9A", "center", "sans");
-    rect(352, 84, 122, 82, "#C49A68"); rect(355, 87, 116, 76, "#D8B080");
-    for (let k = 0; k < 40; k++) rect(356 + (k*37) % 114, 88 + (k*53) % 74, 1, 1, "#B8905A");
-    rect(360, 92, 56, 66, "#FFFDF4"); rect(386, 89, 4, 4, "#D84848");
-    ft("오늘", 364, 99, 7, "#D84848", "left", "sans", "700");
-    todayRows(day).filter(r => r.r && r.r !== "lunch").slice(0, 6).forEach((r, k) => { const now = st.m >= mm(r.a) && st.m < mm(r.b), past = st.m >= mm(r.b), y = 108 + k*8.8; if (now){ g.globalAlpha = .7; rect(362, y - 4.4, 52, 8.8, "#FFE48A"); g.globalAlpha = 1; } ft(fitW(`${/\d/.test(r.p) ? r.p + "교시" : r.p} ${r.r}`, 50, 6.5, "500"), 364, y, 6.5, past ? "#8A8494" : "#2A2A3A", "left", "sans", "500"); });
-    // 할 일 쪽지: 칸 너비에 맞춰 자르고 '…' (글씨가 쪽지 밖으로 나가지 않게)
-    rect(420, 92, 50, 66, "#FFF07A"); rect(443, 89, 4, 4, "#3C78D8"); ft("할 일", 424, 100, 7, "#C8384A", "left", "sans", "700");
-    (TODOS.length ? TODOS.slice(0, 4).map(x => (x.d ? "✓ " : "· ") + x.t) : ["아직 없어요"]).forEach((t, k) => ft(fitW(t, 44, 7, "700"), 424, 112 + k*11, 7, "#2A2A3A", "left", "sans", "700"));
-    };
-    // 글씨가 w 보다 길면 뒤를 잘라 '…'
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, h = d.getHours() + d.getMinutes()/60 + d.getSeconds()/3600, ph = PH[phase(h)], dark = ph === PH.night || ph === PH.eve;
+    const lampOn = LOFI.lamp || ph === PH.night;
     const fitW = (s, w, size, weight) => { g.font = `${weight} ${size}px ${fontOf("sans")}`; if (g.measureText(s).width <= w) return s; while (s.length > 1 && g.measureText(s + "…").width > w) s = s.slice(0, -1); return s + "…"; };
+    const RR = (x, y, w, h2, r, c) => { g.beginPath(); g.roundRect(x, y, w, h2, r); g.fillStyle = c; g.fill(); };
+    const C = (x, y, r, c) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fillStyle = c; g.fill(); };
+    const GL = (x, y, r, c) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, c); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, r*2, r*2); };
+    // 벽 (따뜻한 크림 줄무늬)
+    rect(0, 0, W, H, "#EFDDBF"); for (let x = 0; x < W; x += 12){ g.globalAlpha = .07; rect(x, 0, 6, 196, "#B07840"); g.globalAlpha = 1; }
+    // ---------- 가을 교실 창 (3칸) ----------
+    const X = 14, Y = 14, WW = 262, WH = 126;
+    g.save(); g.beginPath(); g.rect(X, Y, WW, WH); g.clip();
+    const sk = g.createLinearGradient(0, Y, 0, Y + WH*.8); ph.sky.forEach((c, i) => sk.addColorStop(i/(ph.sky.length - 1), c)); g.fillStyle = sk; g.fillRect(X, Y, WW, WH);
+    if (ph === PH.night || ph === PH.eve){ for (let k = 0; k < 36; k++){ g.globalAlpha = (ph === PH.night ? .9 : .4)*(.5 + .5*Math.sin(T*2 + k)); rect(X + (k*7919) % WW, Y + (k*131) % 60, 1, 1, "#FFFFFF"); } g.globalAlpha = 1;
+      C(X + WW*.8, Y + 24, 9, "#F4F1D0"); C(X + WW*.8 + 4, Y + 21, 8, ph.sky[0]); }
+    // 진짜 날씨 (⚙️ 설정 > 학교 위치): 맑음 · 구름 · 흐림 · 안개 · 비 · 눈 · 뇌우
+    const wx = WEATHER ? wxType(WEATHER.code) : null, wet = wx === "rain" || wx === "storm", grey = wet || wx === "cloud" || wx === "snow";
+    if (grey){ g.globalAlpha = .35; rect(X, Y, WW, WH, dark ? "#0A0C18" : "#8A94A8"); g.globalAlpha = 1; }
+    if (ph.sun && !grey){ const f = Math.max(0, Math.min(1, (h - 7)/11)), sx = X + 20 + f*(WW - 40), sy = Y + 74 - Math.sin(f*Math.PI)*56; GL(sx, sy, 30, ph === PH.sunset ? "rgba(255,160,90,.7)" : "rgba(255,245,200,.7)"); C(sx, sy, 11, ph.sun); }
+    const nCl = grey ? 6 : wx === "part" ? 4 : dark ? 0 : 3, clC = grey ? (dark ? "#2A2E44" : "#B8C0CC") : ph === PH.sunset ? "#FFD8C0" : "#FFFFFF";
+    for (let k = 0; k < nCl; k++){ const cx = X + ((k*(WW + 80)/nCl + T*3) % (WW + 80)) - 40, cy = Y + 10 + (k % 3)*11; g.globalAlpha = .9; RR(cx, cy, 44, 9, 4.5, clC); RR(cx + 10, cy - 6, 22, 9, 4.5, clC); g.globalAlpha = 1; }
+    // 먼 학교 건물 · 운동장 · 단풍나무
+    const bld = dark ? "#1E2246" : ph === PH.sunset ? "#C8908A" : "#C9D2DC";
+    rect(X + 6, Y + 62, 96, 34, bld); rect(X + 6, Y + 58, 96, 5, dark ? "#2A2E58" : "#E86A4A"); for (let yy = Y + 66; yy < Y + 92; yy += 8) for (let xx = X + 10; xx < X + 100; xx += 10) rect(xx, yy, 5, 4, dark && (xx + yy) % 3 === 0 ? "#FFE27A" : dark ? "#2A2E58" : "#EEF2F6");
+    rect(X, Y + 96, WW, WH - 96, dark ? "#3A3048" : ph === PH.sunset ? "#D8A070" : "#C8A060"); for (let i = 0; i < 16; i++) rect(X + i*17, Y + 102, 8, 2, dark ? "#2E2638" : "#B08850");
+    [[118, 0], [172, 1], [226, 2], [258, 3]].forEach(([tx, i]) => { const c = LEAF[i], sw = Math.sin(T*1.1 + i)*1.4; rect(X + tx, Y + 72, 5, 26, dark ? "#2A1E1A" : "#6A4A2A");
+      g.globalAlpha = dark ? .55 : 1; RR(X + tx - 15 + sw, Y + 42, 36, 34, 12, c); RR(X + tx - 8 + sw, Y + 36, 22, 12, 6, LEAF[(i + 1) % 5]); g.globalAlpha = 1; });
+    for (let i = 0; i < 9; i++) RR(X + 110 + i*17, Y + 98 + (i % 2), 9, 3, 1.5, LEAF[i % 5]);   // 쌓인 낙엽
+    if (SCHOOL && (BREAK || LUNCH)) crowd(21, 9, X + 10, X + WW - 10, Y + 118, 1);
+    for (let k = 0; k < 16; k++){ const lx = X + (k*47 + T*12) % WW, ly = Y + (k*31 + T*16) % WH; g.save(); g.translate(lx, ly); g.rotate(T*2 + k); rect(-2, -1.5, 4, 3, LEAF[k % 5]); g.restore(); }
+    if (wet) for (let k = 0; k < 90; k++){ const x = X + (k*53 + T*30*(1 + k % 3)) % WW, y = Y + (k*37 + T*150*(1 + k % 2)) % WH; g.globalAlpha = .55; rect(x, y, 1, 6, "#DDEBFF"); g.globalAlpha = 1; }
+    if (wx === "snow") for (let k = 0; k < 60; k++){ const x = X + (k*53 + Math.sin(T + k)*6 + T*4) % WW, y = Y + (k*37 + T*18*(1 + k % 3)) % WH; g.globalAlpha = .9; rect(x, y, 2, 2, "#FFFFFF"); g.globalAlpha = 1; }
+    if (wx === "fog"){ g.globalAlpha = .4; rect(X, Y, WW, WH, "#E8ECF0"); g.globalAlpha = 1; }
+    if (wx === "storm" && Math.sin(T*.9)*Math.sin(T*2.3) > .93){ g.globalAlpha = .5; rect(X, Y, WW, WH, "#FFFFFF"); g.globalAlpha = 1; }
+    if (ph.tint){ g.globalAlpha = ph.tint[1]; rect(X, Y, WW, WH, ph.tint[0]); g.globalAlpha = 1; }
+    g.restore();
+    for (let i = 0; i <= 3; i++) rect(X - 4 + i*WW/3, Y - 4, 6, WH + 8, "#F4F6F8"); rect(X - 4, Y - 4, WW + 8, 6, "#F4F6F8"); rect(X - 4, Y + WH - 2, WW + 8, 8, "#F4F6F8"); g.globalAlpha = .15; rect(X - 4, Y + WH + 6, WW + 8, 3, "#000"); g.globalAlpha = 1;
+    const wxS = WEATHER ? ` · ${wx === "clear" && dark ? "🌙" : WXI[wx]} ${WEATHER.temp}° ${WXN[wx]}` : "";
+    g.font = `700 6.5px ${fontOf("sans")}`; const bw0 = g.measureText(`🍁 가을 · ${ph.name}${wxS}`).width + 14;
+    RR(X + 6, Y + 6, bw0, 13, 6.5, "rgba(255,255,255,.88)"); ft(`🍁 가을 · ${ph.name}${wxS}`, X + 6 + bw0/2, Y + 13, 6.5, "#8A4A2A", "center", "sans", "700");
+    if (WEATHER && WEATHER.name){ ft(`📍 ${WEATHER.name}`, X + 10, Y + 25, 5.5, dark ? "#DDE6FF" : "#5A4A3A", "left", "sans", "700"); }
+    // ---------- 오른쪽 벽 ----------
+    const board = () => {
+      // 벽시계
+      const ck = { x:304, y:34, r:17 };
+      C(ck.x, ck.y + 1.5, ck.r + 2.5, "rgba(0,0,0,.2)"); C(ck.x, ck.y, ck.r + 2.5, "#8A5A34"); C(ck.x, ck.y, ck.r, "#FFFDF4");
+      for (let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; rect(ck.x + Math.cos(a)*13 - .6, ck.y + Math.sin(a)*13 - .6, 1.4, 1.4, "#3A3A4A"); }
+      const hand = (a, l, w, c) => { g.strokeStyle = c; g.lineWidth = w; g.lineCap = "round"; g.beginPath(); g.moveTo(ck.x, ck.y); g.lineTo(ck.x + Math.cos(a - Math.PI/2)*l, ck.y + Math.sin(a - Math.PI/2)*l); g.stroke(); };
+      hand(((h % 12)/12)*Math.PI*2, 8, 2, "#2A2A3A"); hand((d.getMinutes()/60 + d.getSeconds()/3600)*Math.PI*2, 12, 1.3, "#2A2A3A"); hand(d.getSeconds()/60*Math.PI*2, 13, .7, "#D84848");
+      // 선반 + 책 (책 한 권 = 즐겨찾기 하나, 누르면 즐겨찾기)
+      rect(334, 52, 140, 5, "#8A5A34"); g.globalAlpha = .2; rect(334, 57, 140, 2, "#000"); g.globalAlpha = 1;
+      const BC = ["#D86A5A", "#4A7AC8", "#E8B84A", "#5AAA7A", "#9A6AC8", "#E88A4A", "#3C8C6E", "#C8384A"], nb = Math.max(3, Math.min(10, LINKS.length || 0));
+      let bx = 338; for (let i = 0; i < nb; i++){ const bw = 6 + (i % 3)*1.5, bh = 18 + (i*7) % 8; rect(bx, 52 - bh, bw, bh, BC[i % BC.length]); g.globalAlpha = .25; rect(bx + 1, 55 - bh, bw - 2, 1.5, "#FFF"); g.globalAlpha = 1; bx += bw + 1; }
+      hot(334, 28, bx - 334, 30, { open:"links" });
+      rect(450, 40, 16, 12, "#E9E4DA"); rect(452, 30, 4, 10, "#5A9A4A"); rect(456, 26, 5, 14, "#6AAA5A"); rect(460, 32, 4, 8, "#5A9A4A");
+      // 코르크판: 오늘 시간표 + 할 일 (누르면 할 일 칸)
+      rect(288, 66, 124, 96, "#9A6A3E"); rect(290, 68, 120, 92, "#D8A86A"); for (let k = 0; k < 50; k++) rect(291 + (k*37) % 118, 69 + (k*53) % 90, 1, 1, "#B8905A");
+      rect(296, 74, 56, 80, "#FFFDF4"); C(324, 76, 2, "#D84848"); ft("오늘", 300, 82, 7, "#D84848", "left", "sans", "700");
+      todayRows(day).filter(r => r.r && r.r !== "lunch").slice(0, 7).forEach((r, k) => { const now = st.m >= mm(r.a) && st.m < mm(r.b), past = st.m >= mm(r.b), y = 92 + k*8.6; if (now){ g.globalAlpha = .8; rect(298, y - 4.3, 52, 8.6, "#FFE48A"); g.globalAlpha = 1; } ft(fitW(`${/\d/.test(r.p) ? r.p + "교시" : r.p} ${r.r}`, 50, 6.5, "500"), 300, y, 6.5, past ? "#9A94A4" : "#2A2A3A", "left", "sans", "500"); });
+      g.save(); g.translate(381, 113); g.rotate(.03); rect(-25, -38, 52, 78, "rgba(0,0,0,.18)"); rect(-27, -40, 52, 78, "#FFF07A"); C(0, -38, 2, "#3C78D8"); ft("할 일", -23, -31, 7, "#C8384A", "left", "sans", "700");
+      (TODOS.length ? TODOS.slice(0, 5).map(x => (x.d ? "✓ " : "· ") + x.t) : ["아직 없어요"]).forEach((t, k) => ft(fitW(t, 46, 6.5, "700"), -23, -19 + k*10, 6.5, "#2A2A3A", "left", "sans", "700")); g.restore();
+      hot(288, 66, 124, 96, { open:"todo" });
+      // 학사 일정판 (D-day 여러 개, 누르면 학교 일정 설정)
+      rect(416, 66, 58, 96, "#FFFDF4"); rect(416, 66, 58, 12, "#E86A4A"); ft("학교 일정", 445, 72.5, 6.5, "#FFFFFF", "center", "sans", "700");
+      const ev = EVENTS.length ? EVENTS.slice(0, 4) : null;
+      if (ev) ev.forEach((e, k) => { const dd = e.n === 0 ? "D-DAY" : "D-" + e.n; RR(419, 82 + k*19, 24, 11, 3, k ? "#FFE48A" : "#FF6FA0"); ft(dd, 431, 88 + k*19, 5.5, k ? "#5A4A00" : "#FFFFFF", "center", "sans", "700"); ft(fitW(e.t, 50, 6, "700"), 420, 98 + k*19, 6, "#2A2A3A", "left", "sans", "700"); });
+      else { ft(`${d.getMonth() + 1}월`, 445, 90, 8, "#E86A4A", "center", "sans", "700"); ft(String(d.getDate()), 445, 112, 20, "#2A2A3A", "center", "sans", "700"); ft(DAYS[day] + "요일", 445, 132, 7, "#8A8A9A", "center", "sans", "700"); ft("+ 일정 넣기", 445, 150, 5.5, "#B0A8B8", "center", "sans", "700"); }
+      hot(416, 66, 58, 96, { open:"dday" });
+    };
     board();
-    // 책상 · 의자 · 나
-    const mine = st.place === "office" && !st.lunch && wk && h < 17;
-    rect(150, 150, 70, 52, "#3A3A4A"); rect(154, 154, 62, 44, "#4A4A5E");   // 의자 등받이
-    if (mine){ const bob = Math.round(Math.sin(T*3.2)); [...BACK, ...LEG[2]].forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(185 + (i - 5)*3, 196 + (j - 14)*3 + bob, 3, 3, COL[ch]); })); rect(166, 152 + bob, 4, 14, "#2A2A3A"); rect(200, 152 + bob, 4, 14, "#2A2A3A"); rect(166, 150 + bob, 38, 4, "#2A2A3A"); }   // 헤드폰
-    const desk = P.deskL;
-    rect(0, 200, W, 70, shade(desk, .8)); rect(0, 196, W, 8, desk); rect(0, 196, W, 2, shade(desk, 1.2));
-    // 모니터
-    rect(238, 128, 108, 66, "#2A2A34"); rect(242, 132, 100, 56, dark ? "#1A2440" : "#22304E"); rect(286, 194, 12, 4, "#2A2A34"); rect(274, 197, 36, 3, "#2A2A34");
-    const tt = TT[day] || {}, nx = nextClass(day, st.m);
+    // ---------- 책상 ----------
+    const mine = st.place === "office" && !st.lunch && wk;
+    rect(0, 200, W, 70, "#8A5432"); rect(0, 196, W, 8, "#B57A4C"); g.globalAlpha = .3; rect(0, 196, W, 1.5, "#FFF"); g.globalAlpha = 1; for (let x = 0; x < W; x += 44){ g.globalAlpha = .08; rect(x, 204, 1, 66, "#000"); g.globalAlpha = 1; }
+    // 스탠드 (누르면 밤 모드)
+    rect(28, 140, 3, 56, "#3A3A4A"); rect(14, 134, 30, 8, "#3A3A4A"); rect(18, 192, 22, 4, "#3A3A4A"); C(29, 142, 2, lampOn ? "#FFE48A" : "#5A5A6A"); hot(10, 130, 40, 70, { open:"lamp" });
+    // 어항 = 이번 주 남은 수업 (물고기 수), 누르면 먹이 주기 = 물 한 잔
+    let fish = 0; for (let dd = day; dd <= 5 && dd >= 1; dd++) fish += dd === day ? todayRows(dd).filter(r => r.r && r.r !== "lunch" && st.m < mm(r.a)).length : Object.keys(TT[dd] || {}).length;
+    fish = Math.min(8, fish);
+    RR(52, 152, 60, 44, 10, "rgba(170,225,255,.5)"); rect(54, 164, 56, 30, "rgba(90,170,230,.45)"); rect(52, 190, 60, 6, "#D8C890"); rect(66, 182, 3, 10, "#3C9A5A"); rect(74, 184, 3, 8, "#4AAA6A");
+    for (let k = 0; k < fish; k++){ const fx = 60 + ((k*23 + T*(7 + k*2)) % 44), fy = 170 + (k % 4)*5 + Math.sin(T*2 + k)*2, dir = Math.floor((T*(7 + k*2) + k*23)/44) % 2 ? -1 : 1; g.fillStyle = ["#FF8A3A", "#FFD23D", "#FF6FA0", "#5AC8FF"][k % 4];
+      g.beginPath(); g.ellipse(fx, fy, 4, 2.5, 0, 0, Math.PI*2); g.fill(); g.beginPath(); g.moveTo(fx - 4*dir, fy); g.lineTo(fx - 7*dir, fy - 2.5); g.lineTo(fx - 7*dir, fy + 2.5); g.fill(); }
+    for (let k = 0; k < 3; k++){ g.globalAlpha = .6; C(102 - k, 188 - ((T*10 + k*7) % 24), 1.2, "#FFFFFF"); g.globalAlpha = 1; }
+    if (T - feedAt < 3) for (let k = 0; k < 5; k++) C(70 + k*6, 158 + (T - feedAt)*10 + (k % 2)*3, 1.2, "#C8843A");
+    let water = 0; try { water = +(localStorage.getItem(wkey(d)) || 0); } catch (e) {}
+    RR(56, 140, 52, 10, 5, "#1A2A3A"); ft(`💧 물 ${water}잔 · 남은 수업 ${fish}`, 82, 145.3, 5, "#CDEBFF", "center", "sans", "700");
+    hot(50, 138, 64, 60, { open:"water" });
+    // 의자 · 나 (옆모습: 모니터를 보며 키보드 톡톡)
+    const CX = 146;
     if (mine){
-      ft(st.slot, 248, 142, 8, "#9FE8C8", "left", "sans", "bold"); ft(st.e < 1440 ? `${Math.max(0, Math.ceil(st.e - st.m))}분 남음` : "", 248, 155, 7, "#DDE6F8", "left", "sans");
-      ft(nx ? `다음 ${nx.p}교시 ${nx.r} · ${nx.a}` : "오늘 수업 끝!", 248, 170, 6, "#AFC0E8", "left", "sans");
-      for (let k = 0; k < 5; k++) rect(250 + k*16, 180, 12, 2, k === Math.floor(T*2) % 5 ? "#9FE8C8" : "#3A4A70");
+      const s = 3, x0 = CX - 15, y0 = 128, bob = Math.round(Math.sin(T*2)*.5), col = { h:AV.col.h, s:AV.col.s || COL.s, c:AV.col.c, e:"#1A1622", m:"#C0504A" };
+      RR(x0 - 14, 136, 12, 50, 4, "#4A4A5E"); rect(x0 - 6, 176, 34, 8, "#4A4A5E"); rect(x0 + 8, 184, 4, 14, "#3A3A4A");   // 의자 (등받이는 뒤쪽)
+      SIDE.forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(x0 + i*s, y0 + j*s + bob, s, s, col[ch]); }));
+      const tap = Math.floor(T*8) % 2;
+      ARM.forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(x0 + i*s, y0 + (9 + j)*s + bob + (i >= 6 ? tap : 0), s, s, col[ch]); }));
+      rect(x0 + 3, y0 + 12*s, 7*s, s*2, "#2E3550"); rect(x0 + 15, y0 + 12*s, 3*s, s*5, "#2E3550"); rect(x0 + 15, y0 + 17*s - 2, 4*s, 3, "#2A2A30");   // 앉은 다리
+    } else { RR(CX - 26, 136, 12, 50, 4, "#4A4A5E"); rect(CX - 18, 176, 34, 8, "#4A4A5E"); rect(CX - 4, 184, 4, 14, "#3A3A4A"); }
+    // 모니터 (지금 · 다음, 누르면 시간표)
+    rect(178, 122, 104, 72, "#2A2A34"); RR(182, 126, 96, 64, 2, dark ? "#141C34" : "#1E2A48"); rect(223, 194, 14, 4, "#2A2A34"); rect(209, 197, 42, 3, "#2A2A34");
+    const nx = nextClass(day, st.m);
+    if (mine){
+      ft(st.slot, 189, 137, 9, "#FFD27A", "left", "sans", "700"); ft(st.e < 1440 ? `${Math.max(0, Math.ceil(st.e - st.m))}분 남음` : "", 189, 151, 7.5, "#FFFFFF", "left", "sans", "700");
+      const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s)/Math.max(1, st.e - st.s))) : 0; rect(189, 160, 82, 3, "rgba(255,255,255,.15)"); rect(189, 160, 82*pr, 3, "#FFD27A");
+      ft(nx ? fitW(`다음 ${nx.p}교시 ${NAME(nx.r)} · ${nx.a}`, 84, 6.5, "700") : "오늘 수업 끝!", 189, 174, 6.5, "#C8D4F0", "left", "sans", "700");
     } else {
-      rect(262, 140, 60, 40, "#FFF07A"); g.save(); g.translate(292, 160); g.rotate(-.05);
-      const note = !wk ? "주말 휴무 🌿" : st.place === "home" ? "퇴근했어요 🌙" : st.lunch ? "점심 먹는 중 🍚" : `${NAME(st.place)} 수업 중`;
-      ft("자리 비움", 0, -9, 8, "#2A2A3A", "center", "sans", "700"); ft(note, 0, 6, 7, "#C8384A", "center", "sans", "700"); g.restore();
+      rect(198, 136, 64, 42, "#FFF07A"); g.save(); g.translate(230, 157); g.rotate(-.05);
+      const note = !wk ? "주말 휴무 🍂" : st.place === "home" ? "퇴근했어요 🌙" : st.lunch ? "점심 먹는 중 🍚" : `${NAME(st.place)} 수업 중`;
+      ft("자리 비움", 0, -9, 8, "#2A2A3A", "center", "sans", "700"); ft(fitW(note, 58, 7, "700"), 0, 6, 7, "#C8384A", "center", "sans", "700"); g.restore();
     }
-    // 키보드 · 컵 · 스탠드 · 이름표
-    rect(250, 204, 70, 10, "#D8D8E0"); for (let k = 0; k < 9; k++) rect(253 + k*7.5, 206, 6, 2, "#A8A8B4"), rect(253 + k*7.5, 210, 6, 2, "#A8A8B4");
-    rect(362, 180, 16, 20, "#FFFFFF"); rect(378, 184, 5, 8, "#FFFFFF"); rect(364, 182, 12, 3, "#8A5A3A");
-    rect(70, 140, 3, 58, "#3A3A4A"); rect(58, 136, 30, 8, "#3A3A4A"); rect(62, 194, 18, 4, "#3A3A4A");
-    if (dark || rainy){ g.globalAlpha = .22; g.beginPath(); g.moveTo(60, 144); g.lineTo(40, 198); g.lineTo(104, 198); g.lineTo(86, 144); g.fillStyle = "#FFE48A"; g.fill(); g.globalAlpha = 1; }
-    rect(96, 208, 46, 12, "#F4F1E8"); ft("★ " + ME, 119, 214.5, 7, "#C8384A", "center", "sans", "700");
-    if (dark && !mine){ g.globalAlpha = .35; rect(0, 0, W, H, "#05061A"); g.globalAlpha = 1; board(); }   // 밤: 방은 어둡게, 벽의 시간표 · 할 일은 또렷하게
-    for (let k = 0; k < 3; k++){ g.globalAlpha = .35; rect(366 + k*4 + Math.round(Math.sin(T*2 + k)*2), 170 - ((T*8 + k*5) % 14), 2, 6, "#FFFFFF"); g.globalAlpha = 1; }   // 컵 김
-    // 책상 위 스프링 메모장 = 📌 고정한 메모 (밤에도 또렷하게, 누르면 메모 창)
-    const nt = memoTop();
-    if (nt){
-      const px = 394, py = 208, pw = 76, ph = 54;
-      g.save(); g.translate(px + pw/2, py + ph/2); g.rotate(.04);
-      rect(-pw/2 + 2, -ph/2 + 2, pw, ph, "rgba(0,0,0,.28)"); rect(-pw/2, -ph/2, pw, ph, MEMO_C[nt.color] || MEMO_C.y);
-      for (let k = 0; k < 7; k++) rect(-pw/2 + 6 + k*10, -ph/2 - 2, 3, 5, "#6A6A78");   // 스프링
-      let yy = -ph/2 + 10;
-      if (nt.title){ ft(fitLine(nt.title, pw - 10, 7, "sans", "700"), -pw/2 + 5, yy, 7, "#C8384A", "left", "sans", "700"); yy += 10; }
-      wrapLines(nt.t, pw - 10, nt.title ? 3 : 4, 6.5, "sans", "500").forEach((l, k) => ft(l, -pw/2 + 5, yy + k*9.5, 6.5, "#2A2A3A", "left", "sans", "500"));
-      g.restore(); hot(px, py, pw, ph, { note:nt.id });
-    }
-    // 로파이 플레이어
-    g.fillStyle = "rgba(10,10,20,.62)"; g.beginPath(); g.roundRect(10, 236, 214, 26, 6); g.fill();
-    g.beginPath(); g.moveTo(20, 243); g.lineTo(20, 255); g.lineTo(29, 249); g.closePath(); g.fillStyle = "#FFFFFF"; g.fill();
-    ft(`♪ lo-fi 교무실 · ${st.slot}${rainy ? " · 비 오는 날" : ""}`, 36, 245, 7, "#FFFFFF", "left", "sans");
-    rect(36, 253, 150, 2, "#55556A"); const pr = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s)/Math.max(1, st.e - st.s))) : 0; rect(36, 253, 150*pr, 2, "#9FE8C8"); rect(36 + 150*pr - 1, 252, 3, 4, "#FFFFFF");
-    for (let k = 0; k < 6; k++){ const hh = 2 + Math.abs(Math.sin(T*4 + k*1.3))*9; rect(194 + k*4, 257 - hh, 3, hh, "#9FE8C8"); }
+    hot(178, 122, 104, 72, { open:"edit" });
+    // 모니터 포스트잇 = 📌 고정 메모 (누르면 그 메모)
+    const pin = NOTES.find(n => n.pin && !n.deleted) || null;
+    g.save(); g.translate(244, 202); g.rotate(.08); rect(-1, 1, 24, 22, "rgba(0,0,0,.2)"); rect(-2, 0, 24, 22, pin ? (MEMO_C[pin.color] || MEMO_C.y) : "#FFF07A");
+    ft("📌", 10, 7, 7, "#C8384A", "center"); ft(pin ? fitW((pin.title || pin.t || "").trim(), 20, 5, "700") : "메모", 10, 16, 5, "#2A2A3A", "center", "sans", "700"); g.restore();
+    hot(240, 198, 30, 30, pin ? { note:pin.id } : { open:"memo" });
+    // 키보드
+    RR(164, 203, 74, 11, 2, "#D8D8E0"); for (let k = 0; k < 10; k++){ rect(167 + k*7, 205, 5.5, 2.5, "#A8A8B4"); rect(167 + k*7, 209, 5.5, 2.5, "#A8A8B4"); }
+    // 머그컵 (쉬는 시간이면 남은 분)
+    rect(312, 178, 16, 19, "#FFFFFF"); rect(328, 182, 5, 9, "#FFFFFF"); rect(314, 180, 12, 3, "#7A4A2A");
+    for (let k = 0; k < 3; k++){ const f = (T*.6 + k/3) % 1; g.globalAlpha = .45*(1 - f); rect(315 + k*4 + Math.sin(T*2 + k)*2, 174 - f*16, 2, 5, "#FFFFFF"); g.globalAlpha = 1; }
+    if (st.brk || (st.slot || "").includes("쉬는")){ RR(306, 158, 30, 10, 3, "#1A1A22"); ft(`${Math.max(0, Math.ceil(st.e - st.m))}분 쉬어요`, 321, 163.3, 5.5, "#FFFFFF", "center", "sans", "700"); }
+    // 턴테이블 (누르면 빗소리 켜기 / 끄기)
+    RR(340, 178, 72, 22, 3, "#C89A6A"); C(364, 189, 10, "#1A1A22"); C(364, 189, 3, "#E8483F"); g.save(); g.translate(364, 189); g.rotate(LOFI.snd ? T*3 : 0); rect(-.5, -9, 1, 5, "rgba(255,255,255,.45)"); g.restore();
+    rect(382, 180, 3, 14, "#8A8A9A"); rect(388, 184, 18, 4, "#3A3A4A"); C(404, 194, 2, LOFI.snd ? "#5AE0A0" : "#8A6A4A");
+    if (LOFI.snd){ g.globalAlpha = .75; ft("♪", 358 + Math.sin(T*2)*3, 170 - (T*8 % 12), 8, "#8A5A34", "center"); g.globalAlpha = 1; }
+    hot(338, 168, 76, 34, { open:"sound" });
+    // 꽃 화분 = 끝낸 할 일만큼 꽃
+    const done = TODOS.filter(x => x.d).length, buds = Math.min(5, TODOS.length);
+    rect(422, 182, 22, 15, "#E88A6A"); rect(421, 181, 24, 3, "rgba(0,0,0,.15)"); [[2, -6, 8, 16], [10, -12, 7, 20], [-3, -2, 7, 12], [15, -4, 7, 12]].forEach(([dx, dy, w, hh]) => rect(422 + dx, 172 + dy, w, hh, "#5A9A4A"));
+    [[426, 160], [438, 154], [420, 168], [446, 164], [432, 148]].slice(0, Math.max(buds, 1)).forEach(([fx, fy], k) => { if (k < done){ C(fx, fy, 3.4, ["#FF8FB1", "#FFD23D", "#FF8A5A", "#C89AFF", "#FF8FB1"][k]); C(fx, fy, 1.3, "#FFE27A"); } else C(fx, fy, 1.8, "#8AC87A"); });
+    hot(416, 146, 34, 52, { open:"todo" });
+    // 휴대폰 = 친구 채팅 (새 채팅이면 빛나요)
+    const unread = !document.getElementById("setDot")?.hidden;
+    if (unread){ const gr = g.createRadialGradient(460, 214, 0, 460, 214, 18); gr.addColorStop(0, "rgba(120,220,160,.6)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(442, 196, 36, 36); }
+    RR(450, 208, 20, 12, 2, "#1A1A22"); RR(452, 210, 16, 8, 1.5, unread ? "#9FE8C8" : "#2E3550"); if (unread) ft("💬", 460, 202 + Math.sin(T*5), 7, "#FFFFFF", "center");
+    hot(446, 198, 30, 26, { open:"friend" });
+    // 이름표
+    rect(96, 210, 46, 12, "rgba(0,0,0,.25)"); rect(95, 208, 46, 12, "#F4F1E8"); ft("★ " + ME, 118, 214.5, 7, "#C8384A", "center", "sans", "700");
+    // 밤 모드: 방은 어둑하게, 스탠드 불빛 + 벽의 글씨는 또렷하게
+    if (lampOn){ g.globalAlpha = .38; rect(0, 0, W, H, "#0A0A20"); g.globalAlpha = 1; g.globalAlpha = .28; g.beginPath(); g.moveTo(16, 142); g.lineTo(-10, 200); g.lineTo(150, 200); g.lineTo(42, 142); g.fillStyle = "#FFE48A"; g.fill(); g.globalAlpha = 1;
+      const gr = g.createRadialGradient(40, 196, 0, 40, 196, 120); gr.addColorStop(0, "rgba(255,220,140,.35)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(0, 76, 200, 194); board(); }
+    // 아래: 로파이 플레이어 (재생 단추 = 빗소리) · 퇴근까지
+    RR(10, 236, 214, 26, 7, "rgba(20,12,8,.68)");
+    if (LOFI.snd){ rect(19, 243, 3, 12, "#FFFFFF"); rect(25, 243, 3, 12, "#FFFFFF"); } else { g.beginPath(); g.moveTo(19, 243); g.lineTo(19, 255); g.lineTo(28, 249); g.closePath(); g.fillStyle = "#FFFFFF"; g.fill(); }
+    ft(`♪ lo-fi 가을 창가 · ${st.slot}${LOFI.snd ? " · 빗소리" : ""}`, 36, 245, 7, "#FFFFFF", "left", "sans", "700");
+    rect(36, 253, 150, 2, "rgba(255,255,255,.25)"); const pr2 = st.e < 1440 ? Math.max(0, Math.min(1, (st.m - st.s)/Math.max(1, st.e - st.s))) : 0; rect(36, 253, 150*pr2, 2, "#FFD27A"); C(36 + 150*pr2, 254, 2, "#FFFFFF");
+    for (let k = 0; k < 6; k++){ const hh = 2 + Math.abs(Math.sin(T*(LOFI.snd ? 4 : 1.2) + k*1.3))*(LOFI.snd ? 9 : 3); rect(194 + k*4, 257 - hh, 3, hh, "#FFD27A"); }
+    hot(10, 236, 30, 26, { open:"sound" });
+    const E = dayEdge(), off = E.o - st.m;
+    if (wk && off > 0 && st.place !== "home"){ const s2 = `🏠 퇴근까지 ${Math.floor(off/60) ? Math.floor(off/60) + "시간 " : ""}${Math.round(off % 60)}분`; g.font = `700 6.5px ${fontOf("sans")}`; const w2 = g.measureText(s2).width + 16; RR(W - 10 - w2, 244, w2, 14, 7, "rgba(20,12,8,.68)"); ft(s2, W - 10 - w2/2, 251.3, 6.5, "#FFE48A", "center", "sans", "700"); }
   }
-  return { name:"로파이 교무실 창가", layout:"none", custom:true, draw, who:"20~30대 · 감성, 잔잔함",
-    desc:"<b>lo-fi 영상처럼 잔잔한 내 자리</b>예요. 창밖 하늘이 시간에 따라 아침 · 낮 · 노을 · 밤으로 바뀌고, 비 오는 날도 있어요. 교무실에 있으면 헤드폰을 쓰고 일하는 뒷모습이, 수업 가면 '자리 비움' 쪽지가 보여요. 벽시계는 진짜 시각, 코르크판엔 오늘 시간표, 아래엔 음악 재생 막대(지금 교시 진행)가 있어요." };
+  // 누른 물건 처리 (스탠드 · 턴테이블 · 어항은 이 화면 안에서)
+  function act(k){
+    if (k === "lamp"){ LOFI.lamp = !LOFI.lamp; try { localStorage.setItem("desk-lofi-lamp", LOFI.lamp ? "1" : "0"); } catch (e) {} return true; }
+    if (k === "sound"){ lofiSound(); return true; }
+    if (k === "water"){ const d = simNow(); feedAt = T; try { localStorage.setItem(wkey(d), String(+(localStorage.getItem(wkey(d)) || 0) + 1)); } catch (e) {} return true; }
+    return false;
+  }
+  return { name:"로파이 교무실 창가", layout:"none", custom:true, draw, act, who:"20~30대 · 감성, 잔잔함",
+    desc:"<b>가을 교실 창가의 내 책상</b>이에요. 창밖은 오전 · 오후 · 노을 · 저녁 · 밤으로 바뀌고 단풍잎이 떨어져요. ⚙️ 설정에서 학교 위치를 고르면 진짜 날씨(비 · 눈 · 흐림)가 보여요. 교무실에 있으면 컴퓨터로 일하는 옆모습, 수업 가면 자리 비움 쪽지. 물건을 누르면: 모니터 = 시간표 · 포스트잇 = 고정 메모 · 코르크판 · 꽃 화분 = 할 일 · 일정판 = 학교 일정 · 책 = 즐겨찾기 · 휴대폰 = 친구 채팅 · 턴테이블 = 빗소리 · 스탠드 = 밤 모드 · 어항 = 물 마시기" };
 })();
 NEWS.push(S15);
 /* ===== END 15 ===== */
@@ -3037,6 +3132,7 @@ const hotAt = e => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.le
 cv.addEventListener("click", e => { const h = hotAt(e); if (!h) return; if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
 // 3D 교무실 물건을 누르면: 칠판 = 할 일 칸 · 게시판 = 메모 · 책장 = 즐겨찾기 · TV = 시간표 · 달력 = 설정(학교 일정) · 우편함 = 친구 채팅
 function openThing(k){
+  if (STRUCTS[SI]?.act?.(k)) return;   // 화면 안에서 처리하는 것 (스탠드 · 턴테이블 · 어항)
   const by = id => document.getElementById(id);
   if (k === "todo"){ const i = by("todoIn"); if (i){ i.scrollIntoView({ block:"center", behavior:"smooth" }); i.focus(); } return; }
   const btn = { memo:"bMemo", links:"bLinks", edit:"bEdit", dday:"bSet", friend:"bSet" }[k]; by(btn)?.click();
@@ -3051,7 +3147,7 @@ window.DESK = {
   setDayTT(map){ DAYTT = map && typeof map === "object" ? map : {}; patchedKey = ""; },
   setFriends(list){ FRIENDS = Array.isArray(list) ? list.filter(f => f && f.name) : []; frKey = ""; },
   setNotes(list){ NOTES = Array.isArray(list) ? list : []; }, setLinks(list){ LINKS = Array.isArray(list) ? list : []; },
-  setDday(x){ DDAY = x || null; },
+  setDday(x){ DDAY = x || null; }, setEvents(list){ EVENTS = Array.isArray(list) ? list : []; }, setWeather(w){ WEATHER = w || null; },
   look:() => ({ s:SI, v:V }),
   setLook(l){ if (!l) return; if (l.v) setPal(l.v, true); if (l.s != null) pick(l.s, true); },
   onLook:null, onNote:null
@@ -3162,7 +3258,7 @@ const DEMO_TODOS = [{ t:"가정통신문 걷기", d:true }, { t:"학습지 인�
 const setBrand = tag => { TAG = tag || ""; $("brand").textContent = TAG ? `${TAG} TYCOON` : "TEACHER TYCOON"; };
 function startDemo(){
   demo = true; hide("shLogin"); show("demoBar"); setBrand("KIMTR");
-  window.DESK.applyConfig(DEMO_CFG); window.DESK.setFriends(DEMO_CFG.friends); renderSched(DEMO_CFG); $("whoName").textContent = `${DEMO_CFG.name}의 하루 (예시)`;
+  window.DESK.applyConfig(DEMO_CFG); window.DESK.setFriends(DEMO_CFG.friends); renderSched(DEMO_CFG); loadWeather(true); $("whoName").textContent = `${DEMO_CFG.name}의 하루 (예시)`;
   dayData = { todos:DEMO_TODOS.map(x => ({ ...x })), memo:"" }; dayKey = dkey(new Date()); renderDayNav(); renderTodo();
   useDemoExtras();   // 예시 메모 · 즐겨찾기
 }
@@ -3214,7 +3310,7 @@ async function openDesk(){
   loadDay(today); loadExtras(); watchChat();
 }
 function useConfig(){
-  window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look); window.DESK.setAvatar(cfg.avatar || 0); window.DESK.setDayTT(cfg.dayTT); pushFriends();
+  window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look); window.DESK.setAvatar(cfg.avatar || 0); window.DESK.setDayTT(cfg.dayTT); pushFriends(); loadWeather();
   $("whoName").textContent = `${ME}의 하루`;
   renderSched();
 }
@@ -3228,7 +3324,7 @@ function renderSched(src){
   const D = c.dday && c.dday.d && c.dday.t ? c.dday : null;
   $("ddBadge").hidden = !D;
   if (D) $("ddBadge").innerHTML = `<b>${ddText(daysTo(D.d))}</b><span>${esc(D.t)}</span>`;
-  window.DESK.setDday(D ? { n:daysTo(D.d), t:D.t } : null);
+  window.DESK.setDday(D ? { n:daysTo(D.d), t:D.t } : null); window.DESK.setEvents(ev.map(e => ({ n:daysTo(e.d), t:e.t })));
 }
 setInterval(() => renderSched(), 60000);   // 자정이 지나면 D-숫자가 줄어요
 
@@ -4186,11 +4282,33 @@ function loginInfo(){
 }
 const fmtDay = t => { if (!t) return "-"; const d = new Date(t); return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`; };
 // ⚙️ 설정 > 계정: 나와 학교 · 학교 일정 · D-day (따로 [저장])
-let sEv = null, sDd = null, sF = null, sTagDraft = null;
-function schoolForm(){
+// 학교 위치 (진짜 날씨용): 시 · 군 이름과 대략 좌표만 저장해요 (정확한 주소 X)
+const LOCS = [
+  ["서울 · 인천 · 경기", [["서울",37.57,126.98],["인천",37.46,126.71],["수원",37.26,127.03],["성남",37.42,127.13],["고양",37.66,126.83],["용인",37.24,127.18],["부천",37.50,126.78],["안산",37.32,126.83],["안양",37.39,126.92],["남양주",37.64,127.22],["화성",37.20,126.83],["평택",36.99,127.11],["의정부",37.74,127.03],["파주",37.76,126.78],["김포",37.62,126.72],["광명",37.48,126.86],["시흥",37.38,126.80],["하남",37.54,127.21],["이천",37.27,127.44],["양평",37.49,127.49],["포천",37.89,127.20]]],
+  ["강원", [["춘천",37.88,127.73],["원주",37.34,127.92],["강릉",37.75,128.88],["속초",38.21,128.59]]],
+  ["대전 · 세종 · 충청", [["대전",36.35,127.38],["세종",36.48,127.29],["청주",36.64,127.49],["충주",36.99,127.93],["제천",37.13,128.19],["천안",36.81,127.15],["아산",36.79,127.00],["공주",36.45,127.12],["서산",36.78,126.45],["홍성",36.60,126.66]]],
+  ["광주 · 전라", [["광주",35.16,126.85],["전주",35.82,127.15],["익산",35.95,126.96],["군산",35.97,126.74],["목포",34.81,126.39],["여수",34.76,127.66],["순천",34.95,127.49],["나주",35.02,126.71]]],
+  ["대구 · 경북", [["대구",35.87,128.60],["포항",36.02,129.34],["구미",36.12,128.34],["경주",35.86,129.22],["안동",36.57,128.73]]],
+  ["부산 · 울산 · 경남", [["부산",35.18,129.08],["울산",35.54,129.31],["창원",35.23,128.68],["김해",35.23,128.89],["진주",35.18,128.11],["양산",35.34,129.04],["거제",34.88,128.62],["통영",34.85,128.43]]],
+  ["제주", [["제주",33.50,126.53],["서귀포",33.25,126.56]]]
+];
+const locOpts = sel => `<option value="">고르기</option>${sel && !LOCS.some(([, l]) => l.some(([n]) => n === sel.name)) ? `<option value="${esc(sel.name)}|${sel.lat}|${sel.lon}" selected>${esc(sel.name)}</option>` : ""}`
+  + LOCS.map(([grp, l]) => `<optgroup label="${grp}">${l.map(([n, la, lo]) => `<option value="${n}|${la}|${lo}" ${sel && sel.name === n ? "selected" : ""}>${n}</option>`).join("")}</optgroup>`).join("");
+// 진짜 날씨: Open-Meteo (키 없이 쓰는 무료 날씨). 20분마다 새로
+let wxAt = 0, wxKey = "";
+async function loadWeather(force){
+  const loc = (cfg && cfg.loc) || (demo ? { name:"서울", lat:37.57, lon:126.98 } : null);
+  if (!loc){ window.DESK.setWeather(null); wxKey = ""; return; }
+  const k = loc.lat + "," + loc.lon; if (!force && k === wxKey && Date.now() - wxAt < 15*60000) return;
+  wxKey = k; wxAt = Date.now();
+  try { const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,weather_code,is_day&timezone=Asia%2FSeoul`), j = await r.json(), c = j && j.current;
+    if (c) window.DESK.setWeather({ code:c.weather_code, temp:Math.round(c.temperature_2m), day:!!c.is_day, name:loc.name }); } catch (e) { wxAt = 0; }
+}
+setInterval(() => loadWeather(), 20*60000);
+let sEv = null, sDd = null, sF = null, sTagDraft = null;function schoolForm(){
   if (!cfg) return `<div class="sec">나와 학교</div><p class="note">먼저 🕘 시간표 창에서 처음 설정을 저장하면 여기서 고칠 수 있어요.</p>`;
   if (!sEv){ sEv = (cfg.events || []).map(e => ({ ...e })); sDd = cfg.dday ? { ...cfg.dday } : { d:"", t:"" }; sF = null; }
-  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, officeF:cfg.officeF || 2, inT:cfg.inT || "", outT:cfg.outT || "" };
+  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, officeF:cfg.officeF || 2, inT:cfg.inT || "", outT:cfg.outT || "", loc:cfg.loc || null };
   const c = sF;
   return `<div class="sec">나와 학교</div>
     <div class="f2">
@@ -4205,8 +4323,10 @@ function schoolForm(){
       <label class="f"><span>출근 시각 (비우면 08:10)</span><input type="time" id="sIn" value="${esc(c.inT || "")}"></label>
       <label class="f"><span>퇴근 시각 (비우면 16:10)</span><input type="time" id="sOut" value="${esc(c.outT || "")}"></label>
     </div>
-    <div class="sec">학교 일정 · D-day</div>
-    <p class="note">D-day 하나는 게임 화면 왼쪽 위에, 일정은 오른쪽 SCHEDULE 칸에 앞으로 남은 것만 보여요.</p>
+    <div class="sec">학교 위치 · 진짜 날씨</div>
+    <p class="note">로파이 창가 화면의 창밖이 이 동네의 진짜 날씨(비 · 눈 · 흐림 · 기온)로 바뀌어요. 시 · 군 이름과 대략 위치만 저장해요.</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><select id="sLoc" aria-label="학교 위치">${locOpts(c.loc)}</select><button type="button" class="btn" id="sLocGps">📍 지금 있는 곳으로</button><span class="note" id="sLocMsg" style="margin:0">${c.loc ? `지금: ${esc(c.loc.name)}` : "아직 안 골랐어요"}</span></div>
+    <div class="sec">학교 일정 · D-day</div>    <p class="note">D-day 하나는 게임 화면 왼쪽 위에, 일정은 오른쪽 SCHEDULE 칸에 앞으로 남은 것만 보여요.</p>
     <div class="evrow"><input type="date" id="sDdD" value="${esc(sDd.d || "")}" aria-label="D-day 날짜"><input id="sDdT" maxlength="20" placeholder="D-day 이름 (예: 기말고사)" value="${esc(sDd.t || "")}"><button type="button" class="ibtn" id="sDdX" aria-label="D-day 지우기">✕</button></div>
     <div id="sEvList">${sEv.map((e, i) => `<div class="evrow"><input type="date" data-sevd="${i}" value="${esc(e.d || "")}" aria-label="일정 날짜"><input data-sevt="${i}" maxlength="30" value="${esc(e.t || "")}" placeholder="일정 (예: 체육대회)"><button type="button" class="ibtn" data-sevdel="${i}" aria-label="이 일정 지우기">✕</button></div>`).join("")}</div>
     <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn" id="sEvAdd">+ 일정 더하기</button><span class="sp"></span><button type="button" class="big" id="sSave">나와 학교 · 일정 저장</button></div>
@@ -4217,16 +4337,16 @@ async function saveSchool(){
   const bad = !name ? "닉네임을 적어 주세요" : tagIn && !/^[A-Z][A-Z0-9]{1,11}$/.test(tagIn) ? "영문 이름은 영어 대문자로 시작, 영어 · 숫자 2~12자예요" : hr && !isClass(hr) ? "담임 반은 학년-반 으로 적어 주세요 (예: 1-1)" : "";
   if (bad){ $("sMsg").textContent = bad; return; }
   const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:+$("sCl").value, officeF:+$("sOff").value || 2, inT:$("sIn").value, outT:$("sOut").value,
-    events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
+    loc:sF.loc || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
   const tag = finalTag(tagIn, out.name);
-  if (demo){ cfg = out; useConfig(); $("sMsg").textContent = "체험 중이라 이 화면에서만 바뀌어요"; return; }
+  if (demo){ cfg = out; useConfig(); loadWeather(true); $("sMsg").textContent = "체험 중이라 이 화면에서만 바뀌어요"; return; }
   $("saved").textContent = "저장 중…";
   try {
     const up = {}; if (me.name !== out.name) up.name = out.name; if (me.tag !== tag) up.tag = tag;
     if (Object.keys(up).length){ await updateDoc(deskRef(), up); me = { ...me, ...up }; }
     await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
     try { await addDoc(collection(db, "desk_users", deskId, "hist"), { kind:"cfg", at:out.at, data:out }); } catch (e) {}
-    cfg = out; setBrand(me.tag || tagOf(me.name)); useConfig(); publishMe(); $("saved").textContent = "나와 학교 · 일정을 저장했어요 ✓"; $("sMsg").textContent = "저장했어요 ✓";
+    cfg = out; setBrand(me.tag || tagOf(me.name)); useConfig(); loadWeather(true); publishMe(); $("saved").textContent = "나와 학교 · 일정을 저장했어요 ✓"; $("sMsg").textContent = "저장했어요 ✓";
   } catch (e){ $("saved").textContent = saveErr(e); $("sMsg").textContent = saveErr(e); }
 }
 $("setBody").addEventListener("click", e => {
@@ -4235,6 +4355,12 @@ $("setBody").addEventListener("click", e => {
   else if (b.dataset.sevdel !== undefined){ sEv.splice(+b.dataset.sevdel, 1); renderSet(); }
   else if (b.id === "sDdX"){ sDd = { d:"", t:"" }; renderSet(); }
   else if (b.id === "sSave") saveSchool();
+  else if (b.id === "sLocGps"){
+    if (!navigator.geolocation){ $("sLocMsg").textContent = "이 브라우저는 위치를 못 찾아요. 목록에서 골라 주세요"; return; }
+    $("sLocMsg").textContent = "위치 찾는 중…";
+    navigator.geolocation.getCurrentPosition(p => { if (!sF) return; sF.loc = { name:"우리 학교 근처", lat:Math.round(p.coords.latitude*100)/100, lon:Math.round(p.coords.longitude*100)/100 }; renderSet(); $("sLocMsg").textContent = "찾았어요. [저장]을 눌러 주세요"; },
+      () => { $("sLocMsg").textContent = "위치를 못 찾았어요. 목록에서 골라 주세요"; }, { timeout:10000, maximumAge:600000 });
+  }
 });
 $("setBody").addEventListener("input", e => {
   const t = e.target; if (!sEv) return;
@@ -4244,7 +4370,8 @@ $("setBody").addEventListener("input", e => {
   const key = { sName:"name", sHr:"hr", sGr:"grades", sCl:"classes", sOff:"officeF", sIn:"inT", sOut:"outT" }[t.id];
   if (key && sF) sF[key] = t.value; if (t.id === "sTag") sTagDraft = t.value;
 });
-$("setBody").addEventListener("change", e => { const key = { sGr:"grades", sCl:"classes", sOff:"officeF" }[e.target.id]; if (key && sF) sF[key] = e.target.value; });
+$("setBody").addEventListener("change", e => { const key = { sGr:"grades", sCl:"classes", sOff:"officeF" }[e.target.id]; if (key && sF) sF[key] = e.target.value;
+  if (e.target.id === "sLoc" && sF){ const [n, la, lo] = e.target.value.split("|"); sF.loc = n ? { name:n, lat:+la, lon:+lo } : null; $("sLocMsg").textContent = n ? `${n} · [저장]을 눌러 주세요` : "아직 안 골랐어요"; } });
 
 // ⚙️ 설정 탭: 계정 · 내 정보 / 시간표 기록 / TO DO 기록 / 메모 기록 / 즐겨찾기 기록
 let setTab = "acct";
