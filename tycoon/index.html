@@ -131,6 +131,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .plab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:15px;line-height:1.1;color:var(--muted)}
 .plab small{font-size:10px;text-align:center;word-break:keep-all}
 .pnow{display:none}
+/* 📱 휴대폰 웹: 게임 화면 양옆 ‹ › (옆으로 밀어도 넘어가요). 컴퓨터 · 앱 · 크게 보기에서는 숨겨요 */
+.navbtn{display:none}
+@media (max-width:700px){
+  html:not(.appmode) body:not(.bigview) .navbtn{display:grid;place-items:center;position:absolute;top:50%;z-index:4;width:34px;height:54px;margin-top:-27px;padding:0 0 3px;border:0;background:rgba(10,8,22,.45);color:#fff;font:400 30px/1 var(--ui);cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+  .navbtn.prev{left:0;border-radius:0 10px 10px 0}.navbtn.next{right:0;border-radius:10px 0 0 10px}
+  .navbtn:active{background:rgba(10,8,22,.7)}
+}
 
 .picks .btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;white-space:normal;line-height:1.15;font-size:12px;word-break:keep-all}
 .picks .btn b{margin:0;font-size:10px}
@@ -139,7 +146,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .picks .btn:hover .spin{opacity:.6}.picks .btn .spin:hover{opacity:1;filter:none}
 .picks .btn.pinned .spin{opacity:1;filter:none}
 .picks .btn.pinned{box-shadow:inset 0 -3px 0 var(--accent2)}
-.sord{display:flex;flex-direction:column;gap:4px;max-width:520px}
+.sord{display:flex;flex-direction:column;gap:4px;max-width:520px;list-style:none;margin:0;padding:0}
+.sord .grip{flex:none;border:0;background:none;color:var(--muted);font-size:17px;line-height:1;min-width:26px;min-height:30px;padding:0;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.sord .grip:hover,.sord .grip:focus-visible{color:var(--accent)}
+.sord .r.drag{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.sord .r.drag .grip{cursor:grabbing;color:var(--accent)}
 .sord .r{display:flex;align-items:center;gap:8px;padding:6px 10px;border:2px solid var(--line);border-radius:var(--box-r);font:14px var(--body)}
 .sord .r.pinned{border-color:var(--accent2)}
 .sord .r b{width:26px;color:var(--accent)}.sord .r span{flex:1}
@@ -1187,7 +1198,7 @@ const DRAW = {
   </header>
   <div class="main" id="main">
     <section class="mapcol" id="mapcol">
-      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div><div class="talk off" id="talk" role="status" aria-live="polite" tabindex="0" title="누르면 다른 말"><span class="tav" id="talkAv"></span><p id="talkT"></p></div><div class="bigui" id="bigUi"><button type="button" class="bigx" id="bigX" aria-label="크게 보기 나가기">✕ 나가기</button><div class="bigpick" id="bigPick" aria-label="화면 바꾸기"></div></div></div>
+      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div><div class="talk off" id="talk" role="status" aria-live="polite" tabindex="0" title="누르면 다른 말"><span class="tav" id="talkAv"></span><p id="talkT"></p></div><button type="button" class="navbtn prev" id="navPrev" aria-label="이전 화면">‹</button><button type="button" class="navbtn next" id="navNext" aria-label="다음 화면">›</button><div class="bigui" id="bigUi"><button type="button" class="bigx" id="bigX" aria-label="크게 보기 나가기">✕ 나가기</button><div class="bigpick" id="bigPick" aria-label="화면 바꾸기"></div></div></div>
       <button type="button" class="bigbtn" id="bBig" aria-label="게임 화면 크게 보기">⛶ 크게 보기</button>
       <p class="padtip" id="padTip">📱 아이패드는 <b>가로로</b> 돌리면 게임 화면이 더 크게 보여요</p>
     </section>
@@ -4044,6 +4055,8 @@ function stroll(x0, x1, y, s = 1, sp = 12, seed = 0){
   me(Math.round(x), Math.round(y - 3*s), walk ? Math.floor(T*7) % 2 : 2, flip, s, true);
   return { x, walk, flip };
 }
+// 인사할 때 부르는 이름: 닉네임 + 님 (문선생 → 문선생님, 이미 '님'으로 끝나면 그대로)
+const sirName = () => /님$/.test(ME) ? ME : ME + "님";
 // 지금 상태 한 줄 (수업 중 · 쉬는 시간 · 퇴근 후 …)
 const nowLine = (st, t) => `${st.slot} · ${t.here}`;
 const nextLine = t => t.nx ? `${t.nx.p}교시 · ${NAME(t.nx.r)} · ${t.nx.a}` : t.wk ? "오늘 수업 끝" : "주말";
@@ -4379,7 +4392,7 @@ const newTab = port => (() => {
     // 가운데: 인사 · 검색창(지금 상태)
     const cx = W/2;
     // 📱 세로면 같은 모양을 위아래로 길게 (바로 가기는 4개씩 두 줄, 할 일은 줄마다)
-    ft(`${greet(t.d.getHours(), st)}, ${ME}`, cx, port ? 100 : 70, port ? 17 : 20, INK, "center", "sans", "500");
+    ft(`${greet(t.d.getHours(), st)}, ${sirName()}`, cx, port ? 100 : 70, port ? 17 : 20, INK, "center", "sans", "500");
     const SW = port ? W - 28 : 270, SX = cx - SW/2, SY = port ? 130 : 100;
     g.save(); g.shadowColor = dark ? "rgba(0,0,0,.5)" : "rgba(32,33,36,.18)"; g.shadowBlur = 6; g.shadowOffsetY = 1; fillRR(SX, SY, SW, 24, 12, dark ? "#303134" : "#FFFFFF"); g.restore();
     if (!dark){ g.strokeStyle = "#DFE1E5"; g.lineWidth = 1; rr0(SX, SY, SW, 24, 12); g.stroke(); }
@@ -4935,7 +4948,7 @@ const messenger = port => (() => {
   function msgs(st, t){
     if (!t.wk) return [["09:00", "주말이에요! 푹 쉬어요 🛋", false]];
     const E = dayEdge(), out = [], n = t.rows.filter(r => r.r && r.r !== "lunch" && /\d/.test(r.p)).length;
-    if (st.m >= E.i) out.push([hhmm(E.i), `좋은 아침이에요, ${ME}! 오늘 수업 ${n}개예요 ☀`, false]);
+    if (st.m >= E.i) out.push([hhmm(E.i), `좋은 아침이에요, ${sirName()}! 오늘 수업 ${n}개예요 ☀`, false]);
     t.rows.forEach(r => { if (st.m < mm(r.a)) return;
       const txt0 = r.p === "조회" || r.p === "종례" ? `${r.p} 시간이에요${HR ? ` · ${HR} 우리 반` : ""}` : r.r === "lunch" ? "점심시간이에요 🍚 맛있게 드세요" : r.r ? `${r.p}교시 ${NAME(r.r)} 수업 시작! 📚` : `${r.p}교시는 공강이에요 ☕`;
       out.push([r.a, txt0, false]); });
@@ -5089,7 +5102,7 @@ function panel(d, st){
   $("sTime").textContent = hhmm(d.getHours()*60 + d.getMinutes());
   $("sSlot").textContent = st.slot;
   queueMicrotask(syncRb);   // 🖥 리본 제목 줄도 같이
-  $("nTag").textContent = `${SI + 1}. ${STRUCTS[SI].name}`;
+  $("nTag").textContent = `${NUM(SI)}. ${STRUCTS[SI].name}`;
   $("nWhere").textContent = WK.walking ? `→ ${NAME(st.place)} 가는 중` : NAME(st.place);
   $("nAct").textContent = st.act;
   $("nBar").style.width = Math.max(0, Math.min(100, (m - st.s) / Math.max(1, st.e - st.s) * 100)) + "%";
@@ -5135,7 +5148,7 @@ function setBig(on){
 }
 function bigPoke(){ document.body.classList.remove("bigidle"); clearTimeout(bigT); bigT = setTimeout(() => document.body.classList.add("bigidle"), 3500); }
 function renderBigPick(){
-  const o = shownOrder(), b = i => `<button type="button" class="${i === SI ? "on" : ""}" data-bp="${i}" aria-label="${i + 1}. ${escH(STRUCTS[i].name)}" title="${i + 1}. ${escH(STRUCTS[i].name)}">${i + 1}</button>`;
+  const o = shownOrder(), b = i => `<button type="button" class="${i === SI ? "on" : ""}" data-bp="${i}" aria-label="${NUM(i)}. ${escH(STRUCTS[i].name)}" title="${NUM(i)}. ${escH(STRUCTS[i].name)}">${NUM(i)}</button>`;
   $("bigPick").innerHTML = `<span class="nm">${escH(STRUCTS[SI]?.name || "")}</span>` + o.filter(i => !isPC(i)).map(b).join("") + `<i class="sep" aria-hidden="true"></i>` + o.filter(isPC).map(b).join("");
 }
 document.getElementById("bBig").addEventListener("click", () => setBig(true));
@@ -5166,10 +5179,10 @@ function pick(k, quiet){
   SI = clamp(+k || 0, 0, STRUCTS.length - 1); resetWalk(); STRUCTS[SI].reset?.();
   document.documentElement.dataset.s = TOP[SI];   // 메모 스티커 모양이 시안을 따라가요
   document.documentElement.dataset.grp = isPC(SI) ? "pc" : "game";   // 🎮 레트로 게임 · 🖥 무난한 PC 묶음
-  $("hudName").textContent = `${SI + 1} · ${STRUCTS[SI].name}`;   // 📱 앱 아래 단추의 시안 이름
+  $("hudName").textContent = `${NUM(SI)} · ${STRUCTS[SI].name}`;   // 📱 앱 아래 단추의 시안 이름
   document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", +b.dataset.s === SI));
   if (bigOn()) renderBigPick();
-  if ($("pNow")) $("pNow").textContent = `${SI + 1}. ${STRUCTS[SI].name}`;
+  if ($("pNow")) $("pNow").textContent = `${NUM(SI)}. ${STRUCTS[SI].name}`;
   requestAnimationFrame(fit);
   try { localStorage.setItem("desk-struct", SI); } catch (e) {}
   if (!quiet) window.DESK.onLook?.();
@@ -5201,12 +5214,15 @@ try {
   }
 } catch (e) {}
 const shownOrder = () => { const o = SORD.filter(i => Number.isInteger(i) && i >= 0 && i < STRUCTS.length); STRUCTS.forEach((_, i) => { if (!o.includes(i)) o.push(i); }); return [...o.filter(i => SPIN.includes(i)), ...o.filter(i => !SPIN.includes(i))]; };
+// 보이는 순서 = 🎮 레트로 9개 다음 🖥 무난한 PC 9개 (각 묶음 안은 내가 바꾼 순서). 화면에 쓰는 번호는 이 순서의 1~18 (원래 시안 번호가 아니라)
+const dispOrder = () => { const o = shownOrder(); return [...o.filter(r => !isPC(r)), ...o.filter(isPC)]; };
+const NUM = r => dispOrder().indexOf(r) + 1;
 // 단추는 두 줄: 🎮 레트로 게임 · 🖥 무난한 PC (각 줄 안에서 📌 고정 · 순서가 앞으로)
 function renderStructs(){
-  const btn = r => { const pin = SPIN.includes(r); return `<button type="button" class="btn ${pin ? "pinned" : ""} ${r === SI ? "on" : ""}" data-s="${r}" title="${r + 1}. ${escH(STRUCTS[r].name)}"><b>${r + 1}</b><span class="pn">${STRUCTS[r].name}</span><span class="spin" data-spin="${r}" role="button" aria-label="${pin ? "고정 풀기" : "맨 앞에 고정"}">📌</span></button>`; };
+  const btn = r => { const pin = SPIN.includes(r); return `<button type="button" class="btn ${pin ? "pinned" : ""} ${r === SI ? "on" : ""}" data-s="${r}" title="${NUM(r)}. ${escH(STRUCTS[r].name)}"><b>${NUM(r)}</b><span class="pn">${STRUCTS[r].name}</span><span class="spin" data-spin="${r}" role="button" aria-label="${pin ? "고정 풀기" : "맨 앞에 고정"}">📌</span></button>`; };
   const o = shownOrder();
   $("structs").innerHTML = [["🎮", "레트로 게임", o.filter(r => !isPC(r))], ["🖥", "무난한 PC", o.filter(isPC)]].map(([ic, nm, rs]) => `<div class="pgrp" role="group" aria-label="${nm}"><span class="plab">${ic}<small>${nm}</small></span>${rs.map(btn).join("")}</div>`).join("")
-    + `<p class="pnow" id="pNow">${SI + 1}. ${escH(STRUCTS[SI]?.name || "")}</p>`;   // 📱 휴대폰: 번호만 보이니 지금 고른 이름을 아래 한 줄로
+    + `<p class="pnow" id="pNow">${NUM(SI)}. ${escH(STRUCTS[SI]?.name || "")}</p>`;   // 📱 휴대폰: 번호만 보이니 지금 고른 이름을 아래 한 줄로
   renderRibbon();
 }
 /* ----- 🖥 오피스 리본 (무난한 PC 시안의 머리) ----- */
@@ -5214,7 +5230,7 @@ function renderStructs(){
 const RB = $("ribbon");
 let rbTabNow = "home", rbGsw = "pc";   // rbGsw = 홈 탭 갤러리에 보일 묶음 (🖥 pc · 🎮 game)
 function renderRibbon(){
-  const o = shownOrder(), b = r => `<button type="button" class="${r === SI ? "on" : ""}" data-s="${r}" title="${r + 1}. ${escH(STRUCTS[r].name)}"><i>${r + 1}</i>${escH(STRUCTS[r].name)}</button>`;
+  const o = shownOrder(), b = r => `<button type="button" class="${r === SI ? "on" : ""}" data-s="${r}" title="${NUM(r)}. ${escH(STRUCTS[r].name)}"><i>${NUM(r)}</i>${escH(STRUCTS[r].name)}</button>`;
   $("rbGal").innerHTML = o.filter(r => rbGsw === "pc" ? isPC(r) : !isPC(r)).map(b).join("");
   $("rbGsw").querySelectorAll("[data-gsw]").forEach(x => { const on = x.dataset.gsw === rbGsw; x.classList.toggle("on", on); x.setAttribute("aria-pressed", on); });
   $("rbAll").innerHTML = [["🎮 레트로 게임", o.filter(r => !isPC(r))], ["🖥 무난한 PC", o.filter(isPC)]].map(([nm, rs]) => `<div class="rb-row"><span>${nm}</span><div class="rb-gal">${rs.map(b).join("")}</div></div>`).join("");
@@ -5380,7 +5396,7 @@ function loop(now){
 if (APP){
   let hideT = null;
   const poke = () => { document.documentElement.classList.remove("hudoff"); clearTimeout(hideT); hideT = setTimeout(() => document.documentElement.classList.add("hudoff"), 3000); };
-  const step = dd => { const o = shownOrder(), k = Math.max(0, o.indexOf(SI)); pick(o[(k + dd + o.length) % o.length]); poke(); };
+  const step = dd => { stepDesign(dd); poke(); };
   const frPaint = () => { const b = $("hudFr"), i = b.querySelector("i"); b.setAttribute("aria-pressed", SHOW_FR); i.classList.toggle("ck", SHOW_FR); i.textContent = SHOW_FR ? "✓" : ""; };
   $("hudPrev").addEventListener("click", () => step(-1));
   $("hudNext").addEventListener("click", () => step(1));
@@ -5457,8 +5473,19 @@ if (NATIVE){
 
 // 게임 화면 속 메모 · 즐겨찾기 누르기 (즐겨찾기 = 새 창, 메모 = 메모 창)
 const hotAt = e => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.left)/r.width*W, y = (e.clientY - r.top)/r.height*H; return [...HOT].reverse().find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h); };
+// 앞 · 뒤 시안으로 (보이는 1~18 순서대로, 끝에서는 처음으로)
+function stepDesign(dd){ const o = dispOrder(), k = Math.max(0, o.indexOf(SI)); pick(o[(k + dd + o.length) % o.length]); }
+// 📱 휴대폰 웹: 양옆 ‹ › 단추 · 게임 화면을 옆으로 밀기 (앱은 아래 앱 모드에서 따로)
+$("navPrev").addEventListener("click", e => { e.stopPropagation(); stepDesign(-1); });
+$("navNext").addEventListener("click", e => { e.stopPropagation(); stepDesign(1); });
+if (!APP){
+  let wx = null, wy = 0;
+  cv.addEventListener("touchstart", e => { wx = e.touches.length === 1 ? e.touches[0].clientX : null; wy = e.touches[0].clientY; }, { passive:true });
+  cv.addEventListener("touchend", e => { if (wx === null) return; const dx = e.changedTouches[0].clientX - wx, dy = e.changedTouches[0].clientY - wy; wx = null; if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)*1.5){ swiped = Date.now(); stepDesign(dx < 0 ? 1 : -1); } }, { passive:true });
+}
+let swiped = 0;   // 밀어서 넘긴 바로 뒤의 '누름'은 크게 보기로 치지 않아요
 // 누를 곳이 아닌 데를 누르면 크게 보기
-cv.addEventListener("click", e => { const h = hotAt(e); if (!h){ if (!APP && !bigOn()) setBig(true); return; } if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
+cv.addEventListener("click", e => { if (Date.now() - swiped < 600) return; const h = hotAt(e); if (!h){ if (!APP && !bigOn()) setBig(true); return; } if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
 // 3D 교무실 물건을 누르면: 칠판 = 할 일 칸 · 게시판 = 메모 · 책장 = 즐겨찾기 · TV = 시간표 · 달력 = 설정(학교 일정) · 우편함 = 친구 채팅
 function openThing(k){
   if (STRUCTS[SI]?.act?.(k)) return;   // 화면 안에서 처리하는 것 (스탠드 · 턴테이블 · 어항)
@@ -5492,7 +5519,7 @@ try { SI = +(localStorage.getItem("desk-struct") || 0) || 0; } catch (e) {}
 applyConfig(DEMO_CFG);
 { let v = "a"; try { v = localStorage.getItem("desk-pal") || "a"; } catch (e) {} setPal(v, true); setPV(PV, true); setDark(DARK, true); }
 // 주소 끝에 #3 처럼 붙이면 3번째 단추 시안으로 열려요
-{ const n = +(location.hash.match(/^#s?(\d+)$/) || [])[1]; if (n >= 1 && n <= TOP.length) pick(n - 1, true); }
+{ const n = +(location.hash.match(/^#s?(\d+)$/) || [])[1]; if (n >= 1 && n <= TOP.length) pick(dispOrder()[n - 1], true); }   // 주소 끝 #3 = 지금 보이는 3번
 fit(); requestAnimationFrame(loop);
 </script>
 
@@ -5649,9 +5676,9 @@ function openHub(){
     <div class="ap-sec">👤 계정</div>
     <div class="ap-acct"><b>${esc(who)}</b>${!user || demo ? `<button type="button" class="big" data-ap="login">구글 · 카카오로 시작</button>` : `<button type="button" class="big ghost" data-ap="acct">계정 · 기록</button>`}</div>
     <div class="ap-sec">🎮 레트로 게임 <small>1~9</small></div>
-    <div class="ap-grid">${ord.filter(i => !isPC(i)).map(i => `<button type="button" class="${i === look.s ? "on" : ""}" data-pick="${i}"><b>${i + 1}</b>${esc(names[i])}</button>`).join("")}</div>
+    <div class="ap-grid">${ord.filter(i => !isPC(i)).map(i => `<button type="button" class="${i === look.s ? "on" : ""}" data-pick="${i}"><b>${NUM(i)}</b>${esc(names[i])}</button>`).join("")}</div>
     <div class="ap-sec">🖥 무난한 PC <small>10~18</small></div>
-    <div class="ap-grid">${ord.filter(isPC).map(i => `<button type="button" class="${i === look.s ? "on" : ""}" data-pick="${i}"><b>${i + 1}</b>${esc(names[i])}</button>`).join("")}</div>
+    <div class="ap-grid">${ord.filter(isPC).map(i => `<button type="button" class="${i === look.s ? "on" : ""}" data-pick="${i}"><b>${NUM(i)}</b>${esc(names[i])}</button>`).join("")}</div>
     <div class="ap-sec">🎨 색</div>
     <div class="ap-pal"><span class="ap-pl">🎮</span>${PAL_NAMES.map(([k, t]) => `<button type="button" class="btn ${PK === k ? "on" : ""} ${DARK && (k === "b" || k === "c2") ? "dim" : ""}" data-pal="${k}">${t}</button>`).join("")}</div>
     <div class="ap-pal"><span class="ap-pl">🖥</span>${[["winlight", "윈도우 라이트", "#005FB8"], ["word", "워드 블루", "#2B579A"], ["excel", "엑셀 그린", "#217346"], ["ppt", "파워포인트 코랄", "#B7472A"]].map(([k, t, c]) => `<button type="button" class="btn ${PV === k ? "on" : ""}" data-pv="${k}"><i class="ap-dot" style="background:${c}"></i>${t}</button>`).join("")}</div>
@@ -7176,16 +7203,37 @@ $("setBody").addEventListener("change", e => { const key = { sGr:"grades", sCl:"
 
 // ⚙️ 설정 탭: 계정 · 내 정보 / 시간표 기록 / TO DO 기록 / 메모 기록 / 즐겨찾기 기록
 let setTab = "acct";
-// ⚙️ 설정 > 🎮 화면 순서: ↑ ↓ 로 순서, 📌 로 맨 앞에 고정 (위 단추 줄에 바로 반영 · 내 계정에 저장)
+// ⚙️ 설정 > 🎮 화면 순서: 할 일처럼 ⠿ 를 잡고 위아래로 끌어요 (⠿ 에서 ↑ ↓ 키도). 묶음(레트로 · PC) 안에서만 움직이고, 번호는 늘 위에서부터 1~9 · 10~18
+// 끌어서 바꾸면 그 순서 그대로 쓰도록 📌 고정은 풀어요 (맨 위로 끌어 두면 고정과 같아요)
 function renderScreens(){
-  const o = window.DESK.order();
+  const o = window.DESK.order(), d = dispOrder();
+  const row = i => `<li class="r" data-sr="${i}"><button type="button" class="grip" data-sgrip="${i}" aria-label="${esc(o.names[i])} 순서 바꾸기 (끌거나 ↑ ↓ 키)" title="끌어서 순서 바꾸기">⠿</button><b>${d.indexOf(i) + 1}</b><span>${esc(o.names[i])}</span></li>`;
   $("setBody").innerHTML = `<div class="sec">🎮 화면 순서</div>
-    <p class="note">마음에 드는 화면을 위로 올리거나 📌 고정하면, 위쪽 단추 줄(🎮 · 🖥 각 줄) 맨 앞에 와요. 홈 화면 단추에 마우스를 올려 📌를 눌러도 고정돼요. 단추 번호는 원래 번호 그대로예요.</p>
-    <div class="sord">${o.ord.map((i, k) => `<div class="r ${o.pin.includes(i) ? "pinned" : ""}"><b>${i + 1}</b><span>${esc(o.names[i])}</span>
-      <label class="note" style="margin:0"><input type="checkbox" data-pins="${i}" ${o.pin.includes(i) ? "checked" : ""}> 📌 고정</label>
-      <button type="button" class="ibtn" data-sup="${k}" ${k ? "" : "disabled"} aria-label="위로">↑</button><button type="button" class="ibtn" data-sdn="${k}" ${k < o.ord.length - 1 ? "" : "disabled"} aria-label="아래로">↓</button></div>`).join("")}</div>
+    <p class="note">⠿ 를 잡고 위아래로 끌면 순서가 바뀌어요 (⠿ 에서 ↑ ↓ 키도 돼요). 번호는 늘 위에서부터 1~9 · 10~18 이에요. 바뀐 순서는 위쪽 단추 · 크게 보기 · 앱에 바로 들어가고 내 계정에 저장돼요.</p>
+    <div class="sec" style="font-size:15px">🎮 레트로 게임</div><ul class="sord">${d.filter(i => !isPC(i)).map(row).join("")}</ul>
+    <div class="sec" style="font-size:15px">🖥 무난한 PC</div><ul class="sord">${d.filter(isPC).map(row).join("")}</ul>
     <div class="row" style="margin-top:8px"><button type="button" class="btn" id="sordReset">처음 순서로</button></div>`;
 }
+const sordSave = () => { window.DESK.setOrder([...document.querySelectorAll("#setBody .sord [data-sr]")].map(x => +x.dataset.sr), []); renderScreens(); };
+let sDrag = null;
+$("setBody").addEventListener("pointerdown", e => {
+  if (setTab !== "screens") return; const h = e.target.closest("[data-sgrip]"); if (!h) return;
+  e.preventDefault(); h.setPointerCapture(e.pointerId); sDrag = { li:h.closest("li"), id:e.pointerId }; sDrag.li.classList.add("drag");
+});
+$("setBody").addEventListener("pointermove", e => {
+  if (!sDrag || e.pointerId !== sDrag.id) return;
+  const li = sDrag.li, ul = li.parentElement;
+  const over = [...ul.children].find(x => { const r = x.getBoundingClientRect(); return x !== li && e.clientY >= r.top && e.clientY <= r.bottom; });
+  if (over){ const r = over.getBoundingClientRect(); ul.insertBefore(li, e.clientY < r.top + r.height/2 ? over : over.nextSibling); }
+});
+const sDrop = e => { if (!sDrag || e.pointerId !== sDrag.id) return; sDrag = null; sordSave(); };
+$("setBody").addEventListener("pointerup", sDrop);
+$("setBody").addEventListener("pointercancel", sDrop);
+$("setBody").addEventListener("keydown", e => {
+  const h = e.target.closest("[data-sgrip]"); if (!h || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+  e.preventDefault(); const li = h.closest("li"), sib = e.key === "ArrowUp" ? li.previousElementSibling : li.nextElementSibling; if (!sib) return;
+  li.parentElement.insertBefore(li, e.key === "ArrowUp" ? sib : sib.nextSibling); const id = h.dataset.sgrip; sordSave(); $("setBody").querySelector(`[data-sgrip="${id}"]`)?.focus();
+});
 $("setBody").addEventListener("click", e => {
   if (setTab !== "screens") return;
   const o = window.DESK.order(), b = e.target.closest("button"); if (!b) return;
@@ -7293,7 +7341,7 @@ function pdfSnap(){
 function renderPdf(){
   const o = shownOrder(), sp = PDF_OPT.span;
   $("pdBody").innerHTML = `<div class="ap-sec">1. 표지로 쓸 시안</div>
-    <div class="ap-grid">${o.map(i => `<button type="button" class="${i === SI ? "on" : ""}" data-pdpick="${i}"><b>${i + 1}</b>${esc(STRUCTS[i].name)}</button>`).join("")}</div>
+    <div class="ap-grid">${o.map(i => `<button type="button" class="${i === SI ? "on" : ""}" data-pdpick="${i}"><b>${NUM(i)}</b>${esc(STRUCTS[i].name)}</button>`).join("")}</div>
     <img class="pdprev" id="pdPrev" alt="고른 시안 미리보기">
     <p class="note" style="margin-top:0">지금 시각 그대로 찍혀요. 마음에 드는 순간에 [PDF 만들기]를 눌러 주세요.</p>
     <div class="ap-sec">2. 넣을 것</div>
@@ -7349,7 +7397,7 @@ $("pdGo").addEventListener("click", async () => {
   const evs = ((cfg && cfg.events) || []).filter(e => e.d >= dkey(now)).sort((a, b) => a.d.localeCompare(b.d));
   const dd = cfg && cfg.dday && cfg.dday.d && cfg.dday.t ? cfg.dday : null;
   const parts = [];
-  if (O.cover && pdfShot) parts.push(`<section class="cover"><img src="${pdfShot}" alt=""><p class="cap">${SI + 1}. ${esc(STRUCTS[SI].name)} · ${stamp} ${hhmm(now.getHours()*60 + now.getMinutes())}</p></section>`);
+  if (O.cover && pdfShot) parts.push(`<section class="cover"><img src="${pdfShot}" alt=""><p class="cap">${NUM(SI)}. ${esc(STRUCTS[SI].name)} · ${stamp} ${hhmm(now.getHours()*60 + now.getMinutes())}</p></section>`);
   if (O.tt) parts.push(`<section><h2>🕘 내 시간표</h2>${pdfTimetable()}${HR ? `<p class="muted">색 글씨 = 우리 반 ${esc(HR)}</p>` : ""}</section>`);
   if (O.todo) parts.push(`<section><h2>✅ TO DO 기록 · ${spanName}</h2>${days.length ? days.map(x => `<div class="day"><div class="dh"><b>${dayLabel(x.k)}</b><span>${x.todos.filter(t => t.d).length} / ${x.todos.length} 끝냄</span></div>
       ${x.todos.length ? `<ul>${x.todos.map(t => `<li class="${t.d ? "done" : ""}"><i>${t.d ? "☑" : "☐"}</i>${esc(t.t)}</li>`).join("")}</ul>` : ""}${x.memo ? `<p class="dm">${esc(x.memo)}</p>` : ""}</div>`).join("") : `<p class="muted">이 기간에 적은 할 일이 없어요.</p>`}</section>`);
