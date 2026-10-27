@@ -401,6 +401,11 @@ html.hudoff .hudb{opacity:0;pointer-events:none}
 .f{display:grid;gap:4px;margin-bottom:10px}
 .f > span{font-size:13px;color:var(--muted)}
 .f2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.clby{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer}
+.clby input{width:auto;margin:0}
+.clgs{display:flex;flex-wrap:wrap;gap:6px 10px}
+.clgs label{display:flex;align-items:center;gap:4px;font-size:13px}
+.clgs select{width:auto}
 .sec{margin:16px 0 6px;font:400 17px var(--ui);color:var(--accent2)}
 .seg{display:flex;gap:4px;flex-wrap:wrap}
 .seg button{font:14px var(--body);padding:6px 12px;border:2px solid var(--line);background:var(--field);color:var(--ink);border-radius:var(--box-r);cursor:pointer}
@@ -1599,6 +1604,8 @@ const mm = s => { const [h, m] = String(s).split(":").map(Number); return h*60 +
 const hhmm = m => String(Math.floor(m/60)).padStart(2,"0") + ":" + String(Math.floor(m%60)).padStart(2,"0");
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const isClass = id => /^\d-\d+$/.test(id || "");
+let NCLS_BY = [];
+const ncls = gr => (gr && NCLS_BY[gr - 1]) || NCLS;   // 그 학년 반 수 (학년마다 같으면 NCLS)
 const gradeOf = id => isClass(id) ? +id.split("-")[0] : 0;
 const NAME = id => id === "office" ? "교무실" : id === "home" ? "집" : id === "lunch" ? "급식실" : id === "etc" ? "특별실 · 다른 곳" : HR && id === HR ? `${id} 우리 반` : id;
 const SHORT = id => HR && id === HR ? "★" + id : id;
@@ -1607,6 +1614,8 @@ const clsCmp = (a, b) => (gradeOf(a) - gradeOf(b)) || (+a.split("-")[1] - +b.spl
 function applyConfig(cfg){
   CFG = cfg; ME = String(cfg.name || "").trim().slice(0, 12) || "선생님";
   NGR = clamp(+cfg.grades || 3, 1, 6); NCLS = clamp(+cfg.classes || 10, 1, 15);
+  NCLS_BY = Array.isArray(cfg.classesBy) ? cfg.classesBy.slice(0, NGR).map(v => clamp(+v || NCLS, 1, 15)) : [];   // 학년마다 반 수가 다르면 (NCLS = 가장 많은 학년)
+  if (NCLS_BY.length) NCLS = Math.max(...NCLS_BY);
   HR = isClass(cfg.hr) ? cfg.hr : "";
   OFFICE_F = [2, 3, 4].includes(+cfg.officeF) ? +cfg.officeF : 2;
   MYROOM = String(cfg.myRoom || "").trim().slice(0, 12); if (isClass(MYROOM)) MYROOM = "";
@@ -1691,8 +1700,8 @@ function patchDayTT(d){
 }
 // 한 층의 방 순서: 큰 반 … | 계단 | 가운데 방(교무실 등) | 계단 | … 1반 (학교마다 다르지만 반 수에 맞춰 그려요)
 const ORDER = (gr, mid, f) => {
-  const nr = Math.floor(NCLS/2), id = k => gr ? `${gr}-${k}` : `_${f}-${k}`, L = [], R = [];
-  for (let k = NCLS; k > nr; k--) L.push(id(k));
+  const n = ncls(gr), nr = Math.floor(n/2), id = k => gr ? `${gr}-${k}` : `_${f}-${k}`, L = [], R = [];
+  for (let k = n; k > nr; k--) L.push(id(k));
   for (let k = nr; k >= 1; k--) R.push(id(k));
   return [...L, "|", mid, "|", ...R];
 };
@@ -2015,7 +2024,9 @@ const tower = port => (() => {
   if (!port){
     CX = BX + NL*RW + SW; SL = BX + NL*RW + SW/2; SR = CX + CW + SW/2;
     // 2 · 3 · 4층 = 내가 많이 가는 학년 (교무실은 🕘 시간표에서 고른 층 가운데, 기본 2층)
-    [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH, bot:fb(f) }); x += w; }); });
+    // 반이 적은 학년의 층은 같은 날개 너비를 교실 수로 나눠 넓게 (계단 자리는 층마다 같아요)
+    [2,3,4].forEach(f => { const gr = FLOORS[f - 2] || 0, n = ncls(gr), wl = NL*RW/Math.max(1, n - Math.floor(n/2)), wr = NR*RW/Math.max(1, Math.floor(n/2)); let x = BX, side = 0;
+      ORDER(gr, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; side++; return; } const w = midRoom(id) ? CW : side ? wr : wl, x0 = Math.round(x); R.push({ id, f, x:x0, y:fb(f) - FH, w:Math.round(x + w) - x0, h:FH, bot:fb(f) }); x += w; }); });
     // 날개 너비(반 수 × 교실 너비)를 방 수로 나눠 써요. 너무 좁아지면(16 아래) 끝에서부터 빼요
     const wing = (n, big, bigFirst, items) => { const tot = n*RW, list = [...items]; while (list.length && tot/(list.length + 1) < 16) list.pop(); const all = bigFirst ? [big, ...list] : [...list, big]; return all.map(id => [id, tot/all.length]); };
     [...wing(NL, "행정실", false, ["계발", "동아리실", "음악실", "미술실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true, ["특별교실", "도서실", "보건실", "컴퓨터실", "가사실"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH, bot:fb(1) }); return x + w; }, BX);
@@ -2195,9 +2206,10 @@ const S2 = (() => {
   const FL = { 4:{ y:24, h:52 }, 2:{ y:112, h:60 } };
   FL[4].cy = FL[4].y + FL[4].h + 7; FL[2].cy = FL[2].y + FL[2].h + 7;
   const R = [], STAIRS = [];
-  [4,2].forEach(f => { let x = X0; ORDER(f === 4 ? GU : GL, f === 4 ? "etc" : "office", f).forEach(id => {
-    if (id === "|"){ STAIRS.push({ f, x, y:FL[f].y, w:SW, h:FL[f].h }); x += SW; return; }
-    const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:FL[f].y, w, h:FL[f].h }); x += w; }); });
+  [4,2].forEach(f => { const gr = f === 4 ? GU : GL, n = ncls(gr), NR2 = NCLS - NL, wl = NL*RW/Math.max(1, n - Math.floor(n/2)), wr = NR2*RW/Math.max(1, Math.floor(n/2)); let x = X0, side = 0;
+    ORDER(gr, f === 4 ? "etc" : "office", f).forEach(id => {
+    if (id === "|"){ STAIRS.push({ f, x:Math.round(x), y:FL[f].y, w:SW, h:FL[f].h }); x += SW; side++; return; }
+    const w = midRoom(id) ? CW : side ? wr : wl, x0 = Math.round(x); R.push({ id, f, x:x0, y:FL[f].y, w:Math.round(x + w) - x0, h:FL[f].h }); x += w; }); });
   const SL = X0 + NL*RW + SW/2, SR = X0 + NL*RW + SW + CW + SW/2;
   const HOME = { id:"home", f:0, x:392, y:192, w:82, h:64 }; R.push(HOME);
   const PY = 262, HD = { x:HOME.x + HOME.w/2, y:HOME.y + HOME.h };
@@ -2271,7 +2283,7 @@ const board = port => (() => {
   // 판 22칸: 네 귀퉁이(집 · 급식실 · 교무실 · 운동장)는 그대로, 나머지 18칸에 내가 가는 교실 · 특별실을 차례로 놓아요
   // (11곳보다 적으면 같은 학년 다른 반을 흐리게 채우고, 많으면 행정실 · 정문 같은 꾸밈 칸을 줄여요)
   const mine = [...new Set([...ROOMS.filter(isClass), ...(HR ? [HR] : [])])].sort(clsCmp);
-  const fill = []; FLOORS.forEach(gr => { for (let k = 1; k <= NCLS; k++){ const id = `${gr}-${k}`; if (!mine.includes(id)) fill.push(id); } });
+  const fill = []; FLOORS.forEach(gr => { for (let k = 1; k <= ncls(gr); k++){ const id = `${gr}-${k}`; if (!mine.includes(id)) fill.push(id); } });
   const rooms = [...mine, ...SPECIAL].slice(0, 18);
   let fk = 0; while (rooms.length < 11) rooms.push(fill.length ? fill.shift() : `f${fk++}`);
   rooms.sort((a, b) => isClass(a) && isClass(b) ? clsCmp(a, b) : isClass(a) ? -1 : isClass(b) ? 1 : 0);
@@ -2569,7 +2581,7 @@ const cctv = port => (() => {
   // 작은 화면 = 교무실 + 내가 가는 곳(많으면 13곳까지, 적으면 같은 학년 다른 반) + 집
   const FEEDS = (() => {
     const mine = [...new Set([...ROOMS.filter(isClass), ...(HR ? [HR] : [])])].sort(clsCmp), list = [...mine, ...SPECIAL].slice(0, 13);
-    FLOORS.forEach(gr => { for (let k = 1; k <= NCLS && list.length < 11; k++){ const id = `${gr}-${k}`; if (!list.includes(id)) list.push(id); } });
+    FLOORS.forEach(gr => { for (let k = 1; k <= ncls(gr) && list.length < 11; k++){ const id = `${gr}-${k}`; if (!list.includes(id)) list.push(id); } });
     return ["office", ...list.sort((a, b) => isClass(a) && isClass(b) ? clsCmp(a, b) : isClass(a) ? -1 : isClass(b) ? 1 : 0), "home"];
   })();
   let shown = null, sw = 0;
@@ -6439,7 +6451,7 @@ function renderEdit(){
       <button type="button" class="ibtn" data-delbell="${i}" aria-label="이 줄 지우기">✕</button></div>`).join("");
   const A = ed.auto, sel = (id, from, to, v) => `<select id="${id}">${Array.from({ length:to - from + 1 }, (_, i) => from + i).map(x => `<option ${x === +v ? "selected" : ""}>${x}</option>`).join("")}</select>`;
   const opts = [];
-  for (let gr = 1; gr <= (ed.grades || 3); gr++) for (let c = 1; c <= (ed.classes || 10); c++) opts.push(`${gr}-${c}`);
+  for (let gr = 1; gr <= (ed.grades || 3); gr++) for (let c = 1; c <= ((ed.classesBy || [])[gr - 1] || ed.classes || 10); c++) opts.push(`${gr}-${c}`);
   let week = `<table><thead><tr><th></th>${["월","화","수","목","금"].map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>`;
   for (let p = 1; p <= nPer; p++){
     week += `<tr><th>${p}교시</th>`;
@@ -6461,7 +6473,7 @@ function renderEdit(){
     <p class="note" id="eTag">${tagLine(ed.name)}</p>
     <div class="f2">
       <label class="f"><span>학년 수</span><select id="eGr">${[1,2,3,4,5,6].map(v => `<option ${v === +ed.grades ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <label class="f"><span>한 학년 반 수</span><select id="eCl">${Array.from({ length:15 }, (_, i) => i + 1).map(v => `<option ${v === +ed.classes ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      ${clsField("e", ed.grades, ed.classes, ed.classesBy)}
       <label class="f"><span>교무실 위치 (건물 단면 시안)</span><select id="eOff">${[2, 3, 4].map(v => `<option value="${v}" ${v === (+ed.officeF || 2) ? "selected" : ""}>${v}층</option>`).join("")}</select></label>
       ${roomSel("eRoom", ed.myRoom || "")}
       <label class="f"><span>출근 시각 (선택 · 비우면 08:10)</span><input type="time" id="eIn" value="${esc(ed.inT)}"></label>
@@ -6535,12 +6547,21 @@ function renderEdit(){
 }
 // 담임 반: 띄어쓰기를 빼고 '2학년 3반' · '2 - 3' · '203' 도 '2-3'으로 (못 바꾸면 적은 그대로 → 저장할 때 안내)
 const hrNorm = v => { v = String(v || "").replace(/\s+/g, ""); if (!v) return ""; const m = v.match(/^(\d)학년(\d{1,2})반?$/) || v.match(/^(\d)[-–—.·](\d{1,2})$/) || v.match(/^(\d)(\d{2})$/); return m ? `${+m[1]}-${+m[2]}` : v; };
+// 학년마다 다른 반 수: [1학년, 2학년, …] (학년 수만큼 맞추고, 빈 칸은 '한 학년 반 수'로). 끄면 null
+const byOf = (by, grades, cl) => Array.isArray(by) && by.length ? Array.from({ length:clamp(+grades || 3, 1, 6) }, (_, i) => clamp(+by[i] || +cl || 10, 1, 15)) : null;
+const readBy = (p, grades, cl) => { if (!$(p + "ClBy")?.checked) return null; const v = [...document.querySelectorAll(`[data-clg="${p}"]`)].map(s => +s.value); return byOf(v.length ? v : [cl], grades, cl); };
+// '한 학년 반 수' 칸 + [학년마다 다르게] (켜면 아래에 학년별 고르기)
+const clsField = (p, grades, cl, by) => { const o = v => Array.from({ length:15 }, (_, i) => i + 1).map(x => `<option ${x === +v ? "selected" : ""}>${x}</option>`).join("");
+  by = byOf(by, grades, cl);
+  return `<div class="f"><span>한 학년 반 수</span><select id="${p}Cl" aria-label="한 학년 반 수" ${by ? `style="display:none"` : ""}>${o(cl)}</select><label class="clby"><input type="checkbox" id="${p}ClBy" ${by ? "checked" : ""}>학년마다 다르게</label></div>`
+    + (by ? `<div class="f" style="grid-column:1/-1"><span>학년별 반 수</span><div class="clgs">${by.map((v, i) => `<label>${i + 1}학년 <select data-clg="${p}" aria-label="${i + 1}학년 반 수">${o(v)}</select></label>`).join("")}</div></div>` : ""); };
 // 화면에 적힌 값을 ed 에 옮겨요 (다시 그리기 전 · 저장 전)
 function readEdit(){
   // 화면에 있는 칸만 읽어요 (나와 학교는 처음에만, 종 시간 · 시간표는 '내 시간표' 탭에만 있어요)
   if ($("eName")){
     ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = hrNorm($("eHr").value); ed.officeF = +$("eOff").value || 2; ed.myRoom = $("eRoom").value;
     ed.grades = +$("eGr").value; ed.classes = +$("eCl").value; ed.inT = $("eIn").value; ed.outT = $("eOut").value;
+    ed.classesBy = readBy("e", ed.grades, ed.classes); if (ed.classesBy) ed.classes = Math.max(...ed.classesBy);
   }
   if ($("eRoom2")) ed.myRoom = $("eRoom2").value;   // 시간표 표 바로 아래의 '내 수업 장소' (위 '나와 학교' 칸과 같은 값, 고르면 서로 맞춰져요)
   if (!$("eBell")) return;
@@ -6564,7 +6585,7 @@ $("edBody").addEventListener("click", e => {
   const j = e.target.closest("[data-join]"); if (j) joinOther(j.dataset.join);
 });
 // 종류 · 학년 · 반 수가 바뀌면 표를 다시 그려요
-$("edBody").addEventListener("change", e => { if (e.target.matches(".bk, #eGr, #eCl")){ readEdit(); renderEdit(); } });
+$("edBody").addEventListener("change", e => { if (e.target.matches(".bk, #eGr, #eCl, #eClBy, [data-clg]")){ readEdit(); renderEdit(); } });
 /* ---------- ⚡ 종 시간 자동 채우기 ----------
    규칙: 수업 = 시작 + 수업 시간, 다음 줄 시작 = 앞 줄 끝 + 쉬는 시간. 점심은 정한 교시 바로 뒤, 종례는 마지막 수업 바로 뒤(쉬는 시간 없이) */
 // 학교급 단추를 누르면 넣는 예시 (학교마다 다르니 고쳐 쓰면 돼요)
@@ -6665,7 +6686,7 @@ async function saveEdit(){
   readEdit();
   const notes = fixEdit();
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, hr:ed.hr, officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   ["loc", "school"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치는 그대로
   let tag = finalTag(ed.tag, out.name); if (!/^[A-Z][A-Z0-9]{1,11}$/.test(tag)) tag = "TEACHER";
   if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT, out.dayKind); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
@@ -6781,9 +6802,10 @@ function applyImport(j){
   // 종 시간에 수업 줄이 모자라면 50분씩 늘려요
   let nPer = ed.bell.filter(b => b.k === "수업").length;
   while (nPer < cls.length){ const l = ed.bell[ed.bell.length - 1], s = l ? hhmm(Math.min(mm(l.e) + 10, 1380)) : "08:40"; ed.bell.push({ k:"수업", s, e:hhmm(Math.min(mm(s) + 50, 1439)) }); nPer++; }
-  const w = {}; let maxG = +ed.grades || 1, maxC = +ed.classes || 1;
-  cls.forEach((r, i) => r.c.forEach((v, d) => { v = normRoom(v); if (!v) return; (w[d + 1] = w[d + 1] || {})[i + 1] = v; if (isClass(v)){ maxG = Math.max(maxG, gradeOf(v)); maxC = Math.max(maxC, +v.split("-")[1]); } }));
+  const w = {}, seen = {}; let maxG = +ed.grades || 1, maxC = +ed.classes || 1;
+  cls.forEach((r, i) => r.c.forEach((v, d) => { v = normRoom(v); if (!v) return; (w[d + 1] = w[d + 1] || {})[i + 1] = v; if (isClass(v)){ const [g0, c0] = v.split("-").map(Number); maxG = Math.max(maxG, g0); maxC = Math.max(maxC, c0); seen[g0] = Math.max(seen[g0] || 0, c0); } }));
   ed.week = w; ed.grades = Math.min(6, maxG); ed.classes = Math.min(15, maxC);
+  if (ed.classesBy){ ed.classesBy = byOf(ed.classesBy.map((v, i) => Math.max(v, seen[i + 1] || 0)), ed.grades, ed.classes); ed.classes = Math.max(...ed.classesBy); }   // 학년별로 정했으면 시간표에 나온 반까지 늘려요
   if (j.hr && !ed.hr) ed.hr = j.hr;
   const filled = Object.values(w).reduce((s, o) => s + Object.keys(o).length, 0);
   renderEdit();
@@ -7101,7 +7123,7 @@ let sEv = null, sDd = null, sF = null, sTagDraft = null;
 function schoolForm(){
   if (!cfg) return `<div class="sec">나와 학교</div><p class="note">먼저 🕘 시간표 창에서 처음 설정을 저장하면 여기서 고칠 수 있어요.</p>`;
   if (!sEv){ sEv = (cfg.events || []).map(e => ({ ...e })); sDd = cfg.dday ? { ...cfg.dday } : { d:"", t:"" }; sF = null; }
-  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, officeF:cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", loc:cfg.loc || null, school:cfg.school || null };
+  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, classesBy:cfg.classesBy || null, officeF:cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", loc:cfg.loc || null, school:cfg.school || null };
   const c = sF;
   return `<div class="sec">나와 학교</div>
     <div class="f2">
@@ -7111,7 +7133,7 @@ function schoolForm(){
     </div>
     <div class="f2">
       <label class="f"><span>학년 수</span><select id="sGr">${[1,2,3,4,5,6].map(v => `<option ${v === +c.grades ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <label class="f"><span>한 학년 반 수</span><select id="sCl">${Array.from({ length:15 }, (_, i) => i + 1).map(v => `<option ${v === +c.classes ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      ${clsField("s", c.grades, c.classes, c.classesBy)}
       <label class="f"><span>교무실 위치 (건물 단면 시안)</span><select id="sOff">${[2, 3, 4].map(v => `<option value="${v}" ${v === (+c.officeF || 2) ? "selected" : ""}>${v}층</option>`).join("")}</select></label>
       ${roomSel("sRoom", c.myRoom || "")}
       <label class="f"><span>출근 시각 (비우면 08:10)</span><input type="time" id="sIn" value="${esc(c.inT || "")}"></label>
@@ -7146,7 +7168,8 @@ async function saveSchool(){
   const name = $("sName").value.trim(), hr = hrNorm($("sHr").value), tagIn = $("sTag").value.trim().toUpperCase().replace(/\s+/g, "");
   const bad = !name ? "닉네임을 적어 주세요" : tagIn && !/^[A-Z][A-Z0-9]{1,11}$/.test(tagIn) ? "영문 이름은 영어 대문자로 시작, 영어 · 숫자 2~12자예요" : hr && !isClass(hr) ? "담임 반은 학년-반 으로 적어 주세요 (예: 1-1)" : "";
   if (bad){ sSay(bad); return; }
-  const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:+$("sCl").value, officeF:+$("sOff").value || 2, myRoom:MYROOMS.includes($("sRoom").value) ? $("sRoom").value : "", inT:$("sIn").value, outT:$("sOut").value,
+  const by = readBy("s", $("sGr").value, $("sCl").value);
+  const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:by ? Math.max(...by) : +$("sCl").value, classesBy:by, officeF:+$("sOff").value || 2, myRoom:MYROOMS.includes($("sRoom").value) ? $("sRoom").value : "", inT:$("sIn").value, outT:$("sOut").value,
     loc:sF.loc || null, school:sF.school || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
   const tag = finalTag(tagIn, out.name);
   if (demo){ cfg = out; useConfig(); loadWeather(true); sSay("체험 중이라 이 화면에서만 바뀌어요"); return; }
@@ -7199,6 +7222,8 @@ $("setBody").addEventListener("input", e => {
   if (key && sF) sF[key] = t.value; if (t.id === "sTag") sTagDraft = t.value; if (t.id === "sSchQ") schQ = t.value;
 });
 $("setBody").addEventListener("change", e => { const key = { sGr:"grades", sCl:"classes", sOff:"officeF", sRoom:"myRoom" }[e.target.id]; if (key && sF) sF[key] = e.target.value;
+  // 학년마다 다르게: 켜고 끄거나 학년 수 · 학년별 반 수를 바꾸면 칸을 다시 그려요
+  if (sF && (e.target.id === "sClBy" || e.target.dataset.clg === "s" || (e.target.id === "sGr" && sF.classesBy))){ sF.classesBy = readBy("s", sF.grades, sF.classes); if (sF.classesBy) sF.classes = Math.max(...sF.classesBy); renderSet(); }
   if (e.target.id === "sLoc" && sF){ const [n, la, lo] = e.target.value.split("|"); sF.loc = n ? { name:n, lat:+la, lon:+lo } : null; $("sLocMsg").textContent = n ? `${n} · [저장]을 눌러 주세요` : "아직 안 골랐어요"; } });
 
 // ⚙️ 설정 탭: 계정 · 내 정보 / 시간표 기록 / TO DO 기록 / 메모 기록 / 즐겨찾기 기록
