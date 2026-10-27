@@ -1773,7 +1773,7 @@ function applyConfig(cfg){
   for (let d = 1; d <= 5; d++){ TT[d] = {}; Object.entries((cfg.week || {})[d] || {}).forEach(([p, r]) => { r = String(r || "").trim().slice(0, 12); if (r && per.has(String(p))) TT[d][p] = r; }); }
   // 🧒 우리 반 시간표 (비운 칸 = 우리 반 교실)
   CLASS_G = {}; CLASS_BASE = {};
-  for (let d = 1; d <= 5; d++){ CLASS_G[d] = {}; CLASS_BASE[d] = {}; per.forEach(p => { const G = parseCls(((cfg.hrWeek || {})[d] || {})[p]), G2 = G.length ? G : [{ s:"", r:clsHome() }]; CLASS_G[d][p] = G2; CLASS_BASE[d][p] = G2.length > 1 ? `선택 ${G2.length}곳` : G2[0].r; }); }
+  for (let d = 1; d <= 5; d++){ CLASS_G[d] = {}; CLASS_BASE[d] = {}; per.forEach(p => { const G = parseCls(((cfg.hrWeek || {})[d] || {})[p]).map(g => ({ ...g, r:g.r || clsHome() })), G2 = G.length ? G : [{ s:"", r:clsHome() }]; CLASS_G[d][p] = G2; CLASS_BASE[d][p] = G2.length > 1 ? `선택 ${G2.length}곳` : G2[0].s || G2[0].r; }); }   // 화면 글엔 과목(없으면 교실)
   MY_BASE = {}; for (const w in TT) MY_BASE[w] = { ...TT[w] };
   BASE_TT = MODE === "class" ? CLASS_BASE : MY_BASE; patchedKey = "";   // 하루만 바꾸기 전 원래 시간표
   const clsRooms = Object.values(CLASS_G).flatMap(o => Object.values(o).flat().map(g => g.r)).filter(r => r && r !== "home" && r !== HR);   // 아이들이 가는 특별실도 지도에
@@ -1834,11 +1834,18 @@ let MODE = "me"; try { const m0 = localStorage.getItem("desk-mode"); if (["me", 
 // 우리 반 시간표: CLASS_G = { 요일:{ 교시:[{ s:과목, r:교실 }] } } (무리 하나 = 반 전체, 여럿 = 선택과목으로 나눠 가요)
 // CLASS_BASE = 화면 글용 (교실 이름, 나눠 가면 '선택 3곳') · MY_BASE = 내 시간표 (모드를 바꾸면 TT 를 둘 중 하나로)
 let MY_BASE = {}, CLASS_BASE = {}, CLASS_G = {};
-// 칸 글 → 무리: '과학실' 하나면 반 전체, '물리 과학실 / 화학 3-2' 처럼 / 로 나누면 과목마다 그 교실로 (4곳까지, 마지막 낱말이 교실)
-const parseCls = v => String(v || "").split("/").map(x => x.trim()).filter(Boolean).slice(0, 4).map(x => { const w = x.split(/\s+/); return w.length > 1 ? { s:w.slice(0, -1).join(" ").slice(0, 10), r:w[w.length - 1].slice(0, 12) } : { s:"", r:w[0].slice(0, 12) }; });
+// 칸 글 → 무리. 과목만 적으면(국어A · 통사A) 우리 반 교실(r ""), 교실처럼 생긴 낱말(1-3 · 과학실 · 운동장 · 강당 …)이 끝에 있으면 그 교실로.
+// 체육 · 음악 · 미술 · 정보는 흔히 가는 교실로. '물리 과학실 / 화학 3-2' 처럼 / 로 나누면 과목마다 따로 (4곳까지)
+const ROOMISH = /^\d-\d+$|(실|장|관|강당|교실|도서관|홈베이스)$/;
+const SUBJ_ROOM = [[/^(체육|스포츠)/, "운동장"], [/^음악/, "음악실"], [/^미술/, "미술실"], [/^(정보|컴퓨터)/, "컴퓨터실"]];
+const parseCls = v => String(v || "").split("/").map(x => x.trim()).filter(Boolean).slice(0, 4).map(x => {
+  const w = x.split(/\s+/), last = w[w.length - 1];
+  if (ROOMISH.test(last)) return { s:w.slice(0, -1).join(" ").slice(0, 10), r:last.slice(0, 12) };
+  return { s:x.slice(0, 10), r:(SUBJ_ROOM.find(([re]) => re.test(x)) || [])[1] || "" };   // r "" = 우리 반 교실
+});
 const clsHome = () => HR || "home";
 const clsGroups = (day, p) => p === "조회" || p === "종례" ? [{ s:"", r:clsHome() }] : p === "점심" ? [{ s:"", r:"lunch" }] : ((CLASS_G[day] || {})[p] || [{ s:"", r:clsHome() }]);
-const classLabel = (day, p) => { const G = clsGroups(day, p); return G.length > 1 ? "선택 · " + G.map(g => g.s || g.r).join(" · ") : (G[0].s ? G[0].s + " · " : "") + NAME(G[0].r); };
+const classLabel = (day, p) => { const G = clsGroups(day, p); return G.length > 1 ? "선택 · " + G.map(g => g.s || g.r).join(" · ") : G[0].s ? (G[0].r === clsHome() ? G[0].s : `${G[0].s} · ${NAME(G[0].r)}`) : NAME(G[0].r); };
 function classStateAt(d){
   const day = d.getDay(), m = d.getHours()*60 + d.getMinutes() + d.getSeconds()/60, E = dayEdge(), H = clsHome(), one = r => [{ s:"", r }];
   if (day === 0 || day === 6) return { place:"home", act:"주말 · 아이들도 쉬어요", s:0, e:1440, m, slot:"주말", groups:one("home") };
@@ -6688,7 +6695,7 @@ function ttViewInner(){
   let cnt = 0;
   const cell = (d, r) => {
     if (!r.p){ if (r.k === "점심") return free("🍚 점심"); if ((r.k === "조회" || r.k === "종례") && edTab !== "me" && edTab !== "hr") return free(r.k); return (r.k === "조회" || r.k === "종례") && HRr ? chip(HRr, "hr") : free(esc(r.k)); }
-    if (edTab === "hr"){ const G = window.DESK.parseCls(((ed.hrWeek || {})[d] || {})[r.p]); if (!G.length) return chip(HRr || "우리 반", "hr"); return G.map(g => chip((g.s ? g.s + " " : "") + g.r, G.length > 1 ? "split" : kind(g.r))).join(""); }
+    if (edTab === "hr"){ const G = window.DESK.parseCls(((ed.hrWeek || {})[d] || {})[r.p]); if (!G.length) return chip(HRr || "우리 반", "hr"); return G.map(g => chip(g.s && g.r ? `${g.s} ${g.r}` : g.s || g.r, G.length > 1 ? "split" : g.r ? kind(g.r) : "hr")).join(""); }   // 과목만 = 우리 반 교실(분홍)
     const v = (((F ? F.week : ed.week) || {})[d] || {})[r.p] || ""; if (v) cnt++;
     return v ? chip(v, kind(v)) : free("공강");
   };
@@ -6712,13 +6719,24 @@ function classPane(nPer){
     wk += `</tr>`;
   }
   wk += `</tbody></table>`;
-  return `<p class="note">🧒 <b>우리 반 아이들</b>이 교시마다 어디서 수업하는지 적어요. <b>비워 두면 우리 반 교실</b>${ed.hr ? `(${esc(ed.hr)})` : ""}이에요. 체육처럼 반 전체가 옮기면 그 교실(운동장 · 과학실 …)을 적어요.</p>
-    <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 칸 옆 <b>＋</b>를 눌러 '과목 교실'을 / 로 이어 적어요 (4곳까지). 예) <code>물리 과학실 / 화학 3-2 / 지구 3-4</code> → 아이들이 세 무리로 나눠 걸어가요. 그냥 '선택'처럼 한 곳으로 묶어 적어도 돼요.</p>
+  return `<div class="sec" style="margin-top:4px">🧒 우리 반 시간표 넣기</div>
+    <p class="note">우리 반 시간표 자료를 올리면 AI가 읽어서 아래 표를 채워 줘요 (하루 5번까지 · 자료는 저장하지 않아요). 채운 뒤 틀린 칸만 고치고 [저장]하세요.</p>
+    <div class="imp">
+      <button type="button" data-imp="photo"><b>📷</b>사진<small>찍은 시간표</small></button>
+      <button type="button" data-imp="pdf"><b>📄</b>PDF<small>시간표 파일</small></button>
+      <button type="button" data-imp="xlsx"><b>📊</b>엑셀<small>xlsx · xls · csv</small></button>
+      <button type="button" data-imp="paste"><b>📋</b>캡처 붙여넣기<small>Ctrl+V</small></button>
+    </div>
+    <div class="pastebox" id="pasteBox" contenteditable="true" hidden aria-label="캡처한 그림을 여기에 붙여 넣기">여기를 누르고 붙여 넣으세요 (Ctrl+V · 휴대폰은 길게 눌러 '붙여넣기')</div>
+    <p class="impst" id="impSt" role="status"></p>
+    <input type="file" id="fPhoto" accept="image/*" hidden><input type="file" id="fPdf" accept="application/pdf,.pdf" hidden><input type="file" id="fXlsx" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
+    <p class="note">✍️ <b>직접 입력</b>: 칸에 <b>과목 이름</b>만 적으면 돼요 (국어A · 통사A …) — 아이들은 <b>우리 반 교실</b>${ed.hr ? `(${esc(ed.hr)})` : ""}에서 수업해요. 체육 → 운동장 · 음악 → 음악실 · 미술 → 미술실 · 정보 → 컴퓨터실로 가고, '과탐실'처럼 교실 이름을 적으면 그 교실로 가요. 비우면 우리 반 교실.</p>
+    <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 칸 옆 <b>＋</b>를 눌러 '과목 교실'을 / 로 이어 적어요 (4곳까지). 예) <code>물리 과학실 / 화학 3-2 / 지구 3-4</code> → 아이들이 세 무리로 나눠 걸어가요.</p>
     ${ed.hr ? "" : `<p class="err">⚙️ 설정 › 계정 · 내 정보에서 <b>담임 반</b>을 먼저 적어 주세요. 담임 반이 있어야 🧒 우리 반 모드에 아이들이 보여요.</p>`}
     <div class="wk hwk">${nPer ? wk : `<p class="note">먼저 '내 시간표' 탭에서 종 시간을 넣어 주세요.</p>`}</div>
     <p class="note" id="hPrev" aria-live="polite"></p>`;
 }
-const hPrevOf = (d, p, v) => { const G = window.DESK.parseCls(v); return !G.length ? `${H_DAYS[d]} ${p}교시 → 우리 반 교실` : `${H_DAYS[d]} ${p}교시 → ` + G.map(g => g.s ? `${g.s}: ${g.r}` : g.r).join(" · ") + (G.length > 1 ? ` (${G.length}무리로 나눠 가요)` : ""); };
+const hPrevOf = (d, p, v) => { const G = window.DESK.parseCls(v); return !G.length ? `${H_DAYS[d]} ${p}교시 → 우리 반 교실` : `${H_DAYS[d]} ${p}교시 → ` + G.map(g => `${g.s ? g.s + ": " : ""}${g.r || "우리 반 교실"}`).join(" · ") + (G.length > 1 ? ` (${G.length}무리로 나눠 가요)` : ""); };
 $("shEdit").addEventListener("input", e => {
   const t = e.target; if (edTab !== "hr" || !ed || !t.dataset.hd) return;
   const d = t.dataset.hd, p = t.dataset.hp, v = t.value.replace(/\s+/g, " ").slice(0, 60);
@@ -7178,11 +7196,13 @@ async function importFile(kind, file){
     else if (kind === "pdf"){ if (file.size > 6e6) throw new Error("PDF 가 너무 커요 (6MB 까지). 시간표 쪽만 캡처해서 붙여 넣어 주세요"); payload = { pdf:await readURL(file) }; }
     else { if (!/^image\//.test(file.type)) throw new Error("그림 파일이 아니에요"); payload = { image:await shrinkImage(file) }; }
     impSay("AI가 시간표를 읽는 중이에요… (10~40초)", true);
-    const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"desktt", name:(($("impName") && $("impName").value.trim()) || ed.name || "").slice(0, 20), ...payload }) });
+    // 🧒 우리 반 탭이면: 선생님 이름 대신 '이 반 시간표 전체를 그대로' (칸엔 과목 이름이 와요)
+    const who = edTab === "hr" ? `${ed.hr || "우리"}반 학생 시간표 전체` : (($("impName") && $("impName").value.trim()) || ed.name || "");
+    const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"desktt", name:who.slice(0, 20), ...payload }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.msg || aiErrText(r.status, j));
     if (!j.ok || !(j.rows || []).length) throw new Error(j.note || "시간표를 찾지 못했어요. 시간표가 잘 보이게 다시 올려 주세요");
-    applyImport(j);
+    if (edTab === "hr") applyClassImport(j); else applyImport(j);
   } catch (e){ impSay("⚠️ " + (e.message || e)); }
   impBusy = false;
 }
@@ -7213,6 +7233,21 @@ function applyImport(j){
   impSay(`✅ 수업 ${filled}칸을 표에 넣었어요${bellNew ? " (종 시간도 함께)" : ""}. 틀린 칸만 고친 뒤 [저장]을 눌러 주세요.${j.note ? " · " + j.note : ""}`);
   $("eWeek").scrollIntoView({ behavior:"smooth", block:"center" });
 }
+// 🧒 우리 반 시간표: 교시 줄의 칸(과목)을 그대로 우리 반 표에. 종 시간이 아직 없을 때만 읽은 시각으로 채워요
+function applyClassImport(j){
+  const kindOf = t => /조회|아침/.test(t) ? "조회" : /점심/.test(t) ? "점심" : /종례/.test(t) ? "종례" : "수업";
+  const rows = j.rows, cls = rows.filter(r => kindOf(r.t) === "수업"), timed = rows.filter(r => r.s && r.e && mm(r.e) > mm(r.s));
+  let nPer = ed.bell.filter(b => b.k === "수업").length, bellNew = false;
+  if (!nPer && timed.length){ ed.bell = timed.map(r => ({ k:kindOf(r.t), s:r.s, e:r.e })).sort((a, b) => mm(a.s) - mm(b.s)); nPer = ed.bell.filter(b => b.k === "수업").length; bellNew = true; }
+  while (nPer < cls.length){ const l = ed.bell[ed.bell.length - 1], s = l ? hhmm(Math.min(mm(l.e) + 10, 1380)) : "08:40"; ed.bell.push({ k:"수업", s, e:hhmm(Math.min(mm(s) + 50, 1439)) }); nPer++; }
+  const w = {};
+  cls.forEach((r, i) => r.c.forEach((v, d) => { v = String(v || "").trim(); if (v) (w[d + 1] = w[d + 1] || {})[i + 1] = v.slice(0, 60); }));
+  ed.hrWeek = w;
+  const filled = Object.values(w).reduce((s, o) => s + Object.keys(o).length, 0);
+  renderEdit();
+  impSay(`✅ 우리 반 수업 ${filled}칸을 표에 넣었어요${bellNew ? " (종 시간도 함께)" : ""}. 과목만 있는 칸은 우리 반 교실이에요. 선택과목 칸은 ＋로 나눠 가는 교실을 더해 주세요. 다 고치면 [저장].${j.note ? " · " + j.note : ""}`);
+  document.querySelector(".hwk")?.scrollIntoView({ behavior:"smooth", block:"center" });
+}
 $("edBody").addEventListener("click", async e => {
   const b = e.target.closest("[data-imp]"); if (!b) return;
   const k = b.dataset.imp;
@@ -7232,7 +7267,7 @@ $("edBody").addEventListener("change", e => {
 });
 // 개인설정 창이 열려 있을 때 어디서든 Ctrl+V 로 캡처를 붙여 넣으면 바로 읽어요
 document.addEventListener("paste", e => {
-  if ($("shEdit").hidden) return;
+  if ($("shEdit").hidden || typeof edTab === "number") return;   // 친한 선생님 탭엔 읽기 단추가 없어요 (내 시간표 · 우리 반 탭만)
   const it = [...(e.clipboardData ? e.clipboardData.items : [])].find(x => x.type.startsWith("image/"));
   if (it){ e.preventDefault(); importFile("paste", it.getAsFile()); }
   else if (e.target && e.target.id === "pasteBox"){ e.preventDefault(); impSay("그림이 아니라 글이 붙여졌어요. 시간표를 그림으로 캡처해서 붙여 넣어 주세요."); }
