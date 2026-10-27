@@ -39,7 +39,9 @@
 - `desk/index.html` 은 예전 주소로 들어온 사람을 `/tycoon/`(뒤쪽 `?admin` · `#admin` 포함)으로 넘겨 주는 짧은 페이지만 남겨 둡니다. 지우지 마세요 (예전 링크 · 홈 화면 아이콘).
 - 이름은 예전 그대로 둡니다: Firestore `desk_users` · `desk_chats` 등, 브라우저 저장 `desk-struct` · `desk-pal` 등, 방문 수 `visit.js?app=desk`, 3D 그림판 `window.__desk3d` · `window.__desk3o`. 바꾸면 선생님들의 데스크탑 · 설정 · 방문 수가 끊겨요.
 - 문쌤도 로그인해서 자기 시간표를 넣어 씁니다 (코드에 시간표를 박지 않아요). 시안은 `makeStructs()` 안에서 만들어져 설정이 바뀔 때마다 다시 만들어지고, 담임 반 `HR` · 닉네임 `ME` · 영문 `TAG` · 층 배치 `NCLS` · `FLOORS` · `ORDER()` · 시각 `dayEdge()` · `BELL` · `TT` · 할 일 `todoLines()` 를 씁니다.
-- 📝 메모는 12개 시안 모두 게임 화면 오른쪽 아래 스티커(`#pins`, 📌 고정 최대 3개)로 띄우고, 메모 쪽지 모양은 시안 번호(`:root[data-s]`)를 따라 바뀝니다. 그림 안에는 메모를 그리지 않아요(`memoTop()` 은 null).
+- 시안은 두 묶음 18개예요 (2026-10-27): TOP 앞 9개 = 🎮 레트로 게임(NEON · COZY 색), 뒤 9개(원래 번호 31~39) = 🖥 무난한 PC(isPC(), 그림마다 자기 색). 새 시안은 늘 TOP 맨 뒤에 붙이고, 순서를 바꾸면 OLD_TOPS 에 예전 순서를 남기고 sv 를 올려요(저장된 고른 화면 · 순서 · 고정이 따라오게).
+- 그림 배율 SC 는 화면 크기 × 기기 화소로 정해요(2~6). 그림 코드에서 2배를 가정하지 말고 SC 를 쓰세요.
+- 📝 메모는 모든 시안에서 게임 화면 오른쪽 아래 스티커(`#pins`, 📌 고정 최대 3개)로 띄우고, 메모 쪽지 모양은 시안 번호(`:root[data-s]`)를 따라 바뀝니다. 그림 안에는 메모를 그리지 않아요(`memoTop()` 은 null).
 - 다른 에이전트(세션)가 동시에 고칠 수 있으니, 고치기 전에 `git pull`, 고친 커밋 번호를 알려 줍니다.
 
 ### 📱 교무실 타이쿤 안드로이드 앱 (2026-10-26~, 패키지 `site.moontr.tycoon`)
@@ -50,7 +52,7 @@
   - 앱 로그인: `appCreds` · `appSignIn` (휴대폰 로그인 창 `Capacitor.Plugins.FirebaseAuthentication` → `signInWithCredential`). 앱 안에서는 팝업 로그인이 안 돼요
   - 홈 화면 위젯 연결: `Capacitor.Plugins.Tycoon` 의 `setData` · `setShots` · `getLaunch` (`widgetData()` 가 넘기는 글 모양 { days, todos, events, inT, outT } 를 바꾸면 위젯 Java 코드도 같이 바꿔야 해요)
   - 방문 수: 웹 = `visit.js?app=desk`, 앱 = `visit.js?app=deskapp` (관리자 화면 '📊 접속 현황 · 웹과 앱 따로')
-- 세로 그림(270×480)은 시안마다 `xxx(true)` 로 만들어 `makeStructs()` 끝의 `PORTS` 에 붙어 있어요. 가로 그림을 고치면 세로 그림도 `?port` 로 열어 같이 확인해 주세요.
+- 세로 그림(270×480)은 시안마다 `xxx(true)` 로 만들어 `makeStructs()` 끝의 `PORTS` 에 붙어 있어요. 가로 그림을 고치면 세로 그림도 `?port` 로 열어 같이 확인해 주세요. 🖥 무난한 PC 시안은 웹에서도 휴대폰을 세우면(700px 이하 세로) 세로 그림으로 보여요 (문쌤 요청, 레트로 게임 시안은 예전처럼 앱에서만).
 - 위젯 모양 · 앱 아이콘 · 권한 · 플러그인을 바꿀 때만 새 AAB 가 필요해요 (`tycoon-app` 에서 `npm run aab`).
 
 ## Firebase
