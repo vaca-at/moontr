@@ -408,6 +408,8 @@ table.tv tr.tv-now td.tv-td{background:color-mix(in srgb,var(--accent) 30%,trans
 .tv-c.hr,.tv-leg i.hr{background:#FF9CC8}.tv-c.sp,.tv-leg i.sp{background:#BDE7FF}
 .tv-c.split{background:transparent;border:1.5px dashed var(--accent);color:var(--ink);font-size:11px;padding:1px 5px}
 .tv-free{font-size:11.5px;color:var(--muted)}
+.tv-none{margin:6px 0 2px;padding:22px 12px;border:2px dashed var(--line);border-radius:10px;text-align:center;font:700 16px/1.6 var(--ui)}
+.tv-none small{font-weight:500;font-size:12.5px;color:var(--muted)}
 .tv-edit{margin:6px 0 2px;padding:8px 2px 4px;border-top:2px dashed var(--line);font:800 15px var(--ui)}
 .tv-edit small{font-weight:600;font-size:12px;color:var(--muted)}
 .privnote{margin:6px 0;padding:7px 10px;border-radius:8px;border:1px dashed var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}
@@ -1781,6 +1783,7 @@ function applyConfig(cfg){
   for (let d = 1; d <= 5; d++){ TT[d] = {}; Object.entries((cfg.week || {})[d] || {}).forEach(([p, r]) => { r = String(r || "").trim().slice(0, 12); if (r && per.has(String(p))) TT[d][p] = r; }); }
   // 🧒 우리 반 시간표 (비운 칸 = 우리 반 교실)
   CLASS_G = {}; CLASS_BASE = {};
+  CLASS_EMPTY = !Object.values(cfg.hrWeek || {}).some(o => Object.values(o || {}).some(v => String(v || "").trim()));   // 우리 반 시간표를 아직 안 적었어요
   for (let d = 1; d <= 5; d++){ CLASS_G[d] = {}; CLASS_BASE[d] = {}; per.forEach(p => { const G = parseCls(((cfg.hrWeek || {})[d] || {})[p]).map(g => ({ ...g, r:g.r || clsHome() })), G2 = G.length ? G : [{ s:"", r:clsHome() }]; CLASS_G[d][p] = G2; CLASS_BASE[d][p] = G2.length > 1 ? `선택 ${G2.length}곳` : G2[0].s || G2[0].r; }); }   // 화면 글엔 과목(없으면 교실)
   MY_BASE = {}; for (const w in TT) MY_BASE[w] = { ...TT[w] };
   BASE_TT = MODE === "class" ? CLASS_BASE : MY_BASE; patchedKey = "";   // 하루만 바꾸기 전 원래 시간표
@@ -1841,7 +1844,7 @@ const slotRoom = (day, p) => p === "조회" || p === "종례" ? HR : p === "점�
 let MODE = "me"; try { const m0 = localStorage.getItem("desk-mode"); if (["me", "class", "friend"].includes(m0)) MODE = m0; } catch (e) {}
 // 우리 반 시간표: CLASS_G = { 요일:{ 교시:[{ s:과목, r:교실 }] } } (무리 하나 = 반 전체, 여럿 = 선택과목으로 나눠 가요)
 // CLASS_BASE = 화면 글용 (교실 이름, 나눠 가면 '선택 3곳') · MY_BASE = 내 시간표 (모드를 바꾸면 TT 를 둘 중 하나로)
-let MY_BASE = {}, CLASS_BASE = {}, CLASS_G = {};
+let MY_BASE = {}, CLASS_BASE = {}, CLASS_G = {}, CLASS_EMPTY = true;
 // 칸 글 → 무리. 과목만 적으면(국어A · 통사A) 우리 반 교실(r ""), 교실처럼 생긴 낱말(1-3 · 과학실 · 운동장 · 강당 …)이 끝에 있으면 그 교실로.
 // 체육 · 음악 · 미술 · 정보는 흔히 가는 교실로. '물리 과학실 / 화학 3-2' 처럼 / 로 나누면 과목마다 따로 (4곳까지)
 const ROOMISH = /^\d-\d+$|(실|장|관|강당|교실|도서관|홈베이스)$/;
@@ -1923,8 +1926,10 @@ function modeCard(d, st){
   const el = document.getElementById("modeCard"); if (!el) return;
   const S = STRUCTS[SI] || {}, walk = !S.custom && S.place, G = st.groups || [];
   let h = "";
-  el.classList.toggle("empty", EMPTY);
+  const clsNone = MODE === "class" && CLASS_EMPTY && !!HR;
+  el.classList.toggle("empty", EMPTY || clsNone);
   if (EMPTY) h = `<b>📭 아직 등록된 시간표가 없어요</b><span>여기를 눌러 🕘 시간표를 넣으면 이 화면이 내 하루로 움직여요</span>`;
+  else if (clsNone) h = `<b>🧒 우리 반 시간표를 아직 입력하지 않았어요</b><span>여기를 눌러 🧒 우리 반 탭에서 넣으면 ${escH(HR)} 아이들이 시간표대로 움직여요</span>`;
   else if (MODE === "class"){
     if (!HR) h = `<b>🧒 우리 반</b><span>⚙️ 설정에서 담임 반을 적으면 우리 반 아이들이 보여요</span>`;
     else if (!walk || G.length > 1) h = `<b>🧒 ${escH(HR)} 아이들</b><span>${escH(st.act)}</span>${G.length > 1 ? G.map(g => `<span>· ${escH(g.s ? g.s + " → " : "")}${escH(NAME(g.r))}</span>`).join("") : ""}`;
@@ -5447,6 +5452,7 @@ function panel(d, st){
   const nx = BELL.find(([p, a]) => mm(a) > m && tt[p]);
   $("nNext").innerHTML = day === 0 || day === 6 ? "다음 수업: 월요일" : nx ? `다음 <b>${nx[0]}교시 ${escH(lab(nx[0]))}</b> · ${nx[1]}` : st.p && tt[st.p] ? "오늘 마지막 수업 중이에요" : cls ? "오늘 수업 끝! 하교해요" : "오늘 수업 끝! 수고했어요";
   $("tDay").textContent = `${DAYS[day]}요일${cls ? " · 🧒 우리 반" : ""}`;
+  if (cls && CLASS_EMPTY && !EMPTY){ $("nNext").innerHTML = "🕘 시간표 › <b>🧒 우리 반</b> 탭에서 넣어 주세요"; $("tt").innerHTML = `<span class="ttempty">📭 우리 반 시간표를 아직 입력하지 않았어요<br><small>🕘 시간표 › 🧒 우리 반 탭에서 사진 · PDF · 엑셀 · 캡처로 넣을 수 있어요</small></span>`; return; }
   if (EMPTY){ $("nNext").innerHTML = "🕘 시간표에서 <b>내 시간표</b>를 넣어 주세요"; $("tt").innerHTML = `<span class="ttempty">📭 아직 등록된 시간표가 없어요<br><small>위 🕘 시간표에서 넣으면 여기에 오늘 시간표가 보여요</small></span>`; return; }
   $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.map(([p, a, b]) => {
     const cur = m >= mm(a) && m < mm(b) ? "cur" : "", r = slotRoom(day, p);
@@ -5880,7 +5886,7 @@ applyConfig(DEMO_CFG);
 if (HASH_N) pick(dispOrder()[HASH_N - 1], true);
 setMode(MODE);   // 지난번 보기 모드 (👤 내 시간표 · 🧒 우리 반 · 👥 친한 선생님)
 $("modeBar").addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) setMode(b.dataset.mode); });
-$("modeCard").addEventListener("click", () => { if (EMPTY) window.DESK.onOpen?.("edit"); });   // 📭 '등록된 시간표가 없어요' 카드 → 🕘 시간표 창
+$("modeCard").addEventListener("click", () => { if (EMPTY) window.DESK.onOpen?.("edit"); else if (MODE === "class" && CLASS_EMPTY) window.DESK.onOpen?.("edithr"); });   // 📭 안내 카드 → 🕘 시간표 창 (우리 반이면 그 탭)
 addEventListener("hashchange", () => { const n = hashN(); if (n && dispOrder()[n - 1] !== SI) pick(dispOrder()[n - 1]); });
 fit(); requestAnimationFrame(loop);
 </script>
@@ -6081,7 +6087,7 @@ $("apBody").addEventListener("click", e => {
 // 할 일: 앱에서는 오른쪽 TO DO 칸이 안 보여서, 그 칸을 이 창 안으로 옮겨 와요 (같은 칸이라 적은 것이 그대로)
 function openTodo(){ const card = $("todoCard"); if (card.parentElement !== $("tdBody")) $("tdBody").appendChild(card); show("shTodo"); }
 // 게임 화면의 할 일 칸(칠판 · 코르크판 …)을 누르면: 앱은 할 일 창, 웹은 오른쪽 칸으로
-window.DESK.onOpen = k => { if (k === "todo") openTodo(); else if (k === "edit") $("bEdit").click(); else if (k === "memo") $("bMemo").click(); };
+window.DESK.onOpen = k => { if (k === "todo") openTodo(); else if (k === "edit") $("bEdit").click(); else if (k === "edithr"){ $("bEdit").click(); setTimeout(() => document.querySelector('#edBody [data-etab="hr"]')?.click(), 80); } else if (k === "memo") $("bMemo").click(); };
 // 안드로이드 뒤로 가기: 열린 창이 있으면 닫고, 없으면 앱을 내려요(끄지 않고)
 if (NATIVE){
   try { window.Capacitor.Plugins.App?.addListener("backButton", () => {
@@ -6712,6 +6718,9 @@ function ttViewInner(){
     const v = (((F ? F.week : ed.week) || {})[d] || {})[r.p] || ""; if (v) cnt++;
     return v ? chip(v, kind(v)) : free("공강");
   };
+  // 아직 한 칸도 안 적었으면 표 대신 '아직 입력하지 않았어요' (우리 반은 비운 칸 = 우리 반 교실이라 가득 차 보여서)
+  const src = edTab === "hr" ? ed.hrWeek : F ? F.week : ed.week, none = !Object.values(src || {}).some(o => Object.values(o || {}).some(v => String(v || "").trim()));
+  if (none) return `<div class="tv-head">${edTab === "hr" ? `🧒 ${esc(HRr || "우리 반")} 우리 반 시간표` : F ? `👥 ${esc(F.name || "선생님")} 시간표` : `🕘 ${esc(ed.name || "내")} 시간표`}</div><p class="tv-none">📭 ${edTab === "hr" ? "우리 반 시간표를" : "시간표를"} 아직 입력하지 않았어요.<br><small>아래 ${F ? "표에 반 · 장소를 적어" : "📷 사진 · 📄 PDF · 📊 엑셀 · 📋 캡처로 넣거나 칸에 직접 적어"} 주세요.</small></p>`;
   const body = rows.map(r => { const cur = wd >= 1 && wd <= 5 && nm >= mm(r.s) && nm < mm(r.e);
     return `<tr class="${r.p ? "" : "tv-etc"} ${cur ? "tv-now" : ""}"><th><b>${r.p ? r.p + "교시" : esc(r.k)}</b><small>${r.s}</small></th>${[1, 2, 3, 4, 5].map(d => `<td class="${d === wd ? "tv-td" : ""}">${cell(d, r)}</td>`).join("")}</tr>`; }).join("");
   const title = edTab === "hr" ? `🧒 ${esc(HRr || "우리 반")} 우리 반 시간표` : F ? `👥 ${esc(F.name || "선생님")} 시간표` : `🕘 ${esc(ed.name || "내")} 시간표 <small>· 일주일 수업 ${cnt}시간</small>`;
@@ -6728,7 +6737,7 @@ function classPane(nPer){
   let wk = `<table><thead><tr><th></th>${H_DAYS.slice(1).map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>`;
   for (let p = 1; p <= nPer; p++){
     wk += `<tr><th>${p}교시</th>`;
-    for (let d = 1; d <= 5; d++){ const v = (W[d] || {})[p] || ""; wk += `<td class="${v.includes("/") ? "multi" : ""}"><div class="hcell"><input list="dlRooms" data-hd="${d}" data-hp="${p}" value="${esc(v)}" maxlength="60" placeholder="우리 반" title="${esc(v)}" aria-label="우리 반 ${H_DAYS[d]} ${p}교시"><button type="button" class="hsplit" data-hsplit="${d},${p}" title="선택과목처럼 나눠 가면 교실 더하기" aria-label="${H_DAYS[d]} ${p}교시 나눠 가는 교실 더하기">＋</button></div></td>`; }
+    for (let d = 1; d <= 5; d++){ const v = (W[d] || {})[p] || ""; wk += `<td class="${v.includes("/") ? "multi" : ""}"><div class="hcell"><input list="dlRooms" data-hd="${d}" data-hp="${p}" value="${esc(v)}" maxlength="60" placeholder="" title="${esc(v)}" aria-label="우리 반 ${H_DAYS[d]} ${p}교시"><button type="button" class="hsplit" data-hsplit="${d},${p}" title="선택과목처럼 나눠 가면 교실 더하기" aria-label="${H_DAYS[d]} ${p}교시 나눠 가는 교실 더하기">＋</button></div></td>`; }
     wk += `</tr>`;
   }
   wk += `</tbody></table>`;
