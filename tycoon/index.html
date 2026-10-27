@@ -328,6 +328,11 @@ html.appmode .modebar,body.bigview .modebar{display:none}
 .modecard{position:absolute;left:1.2%;top:1.6%;z-index:4;max-width:44%;display:flex;flex-direction:column;gap:1px;padding:6px 10px;border-radius:10px;background:rgba(10,8,22,.74);color:#fff;font:600 clamp(10px,1.25cqw,13px)/1.35 var(--ui);pointer-events:none;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 .modecard b{font-weight:800;color:#FFE27A}
 .modecard span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modecard.empty{left:50%;top:50%;transform:translate(-50%,-50%);max-width:80%;align-items:center;text-align:center;gap:4px;padding:14px 20px;font-size:clamp(12px,1.6cqw,16px);pointer-events:auto;cursor:pointer;border:2px solid #FFE27A;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.modecard.empty b{font-size:1.25em}
+.modecard.empty span{white-space:normal}
+.ttempty{grid-column:1/-1;padding:10px 4px;font-weight:700;line-height:1.5;color:var(--ink)}
+.ttempty small{font-weight:500;color:var(--muted)}
 /* 📅 달력 창: 왼쪽 한 달 · 오른쪽 고른 날 (좁으면 위아래) — 색은 창 색(--panel · --accent …)을 따라가요 */
 #shCal .pane{width:min(1400px,98vw);max-height:96vh}
 #shCal .body{display:flex;flex-direction:column;gap:8px}
@@ -1254,7 +1259,7 @@ const DRAW = {
 <div class="app">
   <header class="top box">
     <div class="demo-bar" id="demoBar" hidden><span>체험 중 · 예시 선생님이라 저장되지 않아요</span><button type="button" class="btn" id="demoStart">로그인하고 시작</button></div>
-    <div class="guide-bar" id="guideBar" hidden role="status"><span id="guideText">👋 반가워요! 지금 화면은 <b>예시 시간표</b>예요. 둘러보신 뒤 <b>🕘 시간표</b>에서 내 시간표를 넣어 주세요.</span><button type="button" class="btn" id="guideGo">시간표 열기</button></div>
+    <div class="guide-bar" id="guideBar" hidden role="status"><span id="guideText">👋 반가워요! 📭 <b>아직 등록된 시간표가 없어요.</b> <b>🕘 시간표</b>에서 내 시간표를 넣어 주세요.</span><button type="button" class="btn" id="guideGo">시간표 열기</button></div>
     <!-- 🖥 무난한 PC 시안(10~18)일 때 머리 = 오피스 리본 (단추는 아래 원래 단추를 대신 눌러요 · 글자는 0.4초마다 원래 칸에서 옮겨 와요) -->
     <div class="ribbon" id="ribbon">
       <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1491,7 +1496,7 @@ const DRAW = {
     <div class="body login-hero">
       <div class="logo">TEACHER TYCOON</div>
       <h1 id="ssTitle">반가워요, 선생님! 👋</h1>
-      <p style="margin:4px 0">내 시간표를 넣으면 화면이 <b>내 하루</b>대로 움직여요.<br>지금은 예시 시간표로 보이고 있어요.</p>
+      <p style="margin:4px 0">내 시간표를 넣으면 화면이 <b>내 하루</b>대로 움직여요.<br>📭 아직 등록된 시간표가 없어요.</p>
       <ol class="ssteps"><li><b>1</b>닉네임 · 학교</li><li><b>2</b>종 시간</li><li><b>3</b>요일별 시간표</li><li><b>4</b>미리 바꾸기 <small>(선택)</small></li></ol>
       <div class="login-btns">
         <button type="button" class="big" id="ssGo">내 설정 넣기 · 1/4 단계부터</button>
@@ -1758,8 +1763,9 @@ const NAME = id => id === "office" ? "교무실" : id === "home" ? "집" : id ==
 const SHORT = id => HR && id === HR ? "★" + id : id;
 const clsCmp = (a, b) => (gradeOf(a) - gradeOf(b)) || (+a.split("-")[1] - +b.split("-")[1]);
 // 선생님 설정을 화면 그리기용으로 바꿔요 (로그인 · 저장할 때마다 불러요)
+let EMPTY = false;   // 로그인했지만 아직 시간표를 저장하지 않았어요 (오른쪽 TODAY · 그림 위 카드에 '등록된 시간표가 없어요')
 function applyConfig(cfg){
-  CFG = cfg; ME = String(cfg.name || "").trim().slice(0, 12) || "선생님";
+  CFG = cfg; EMPTY = !!cfg.empty; ME = String(cfg.name || "").trim().slice(0, 12) || "선생님";
   NGR = clamp(+cfg.grades || 3, 1, 6); NCLS = clamp(+cfg.classes || 10, 1, 15);
   NCLS_BY = Array.isArray(cfg.classesBy) ? cfg.classesBy.slice(0, NGR).map(v => clamp(+v || NCLS, 1, 15)) : [];   // 학년마다 반 수가 다르면 (NCLS = 가장 많은 학년)
   if (NCLS_BY.length) NCLS = Math.max(...NCLS_BY);
@@ -1917,7 +1923,9 @@ function modeCard(d, st){
   const el = document.getElementById("modeCard"); if (!el) return;
   const S = STRUCTS[SI] || {}, walk = !S.custom && S.place, G = st.groups || [];
   let h = "";
-  if (MODE === "class"){
+  el.classList.toggle("empty", EMPTY);
+  if (EMPTY) h = `<b>📭 아직 등록된 시간표가 없어요</b><span>여기를 눌러 🕘 시간표를 넣으면 이 화면이 내 하루로 움직여요</span>`;
+  else if (MODE === "class"){
     if (!HR) h = `<b>🧒 우리 반</b><span>⚙️ 설정에서 담임 반을 적으면 우리 반 아이들이 보여요</span>`;
     else if (!walk || G.length > 1) h = `<b>🧒 ${escH(HR)} 아이들</b><span>${escH(st.act)}</span>${G.length > 1 ? G.map(g => `<span>· ${escH(g.s ? g.s + " → " : "")}${escH(NAME(g.r))}</span>`).join("") : ""}`;
   } else if (MODE === "friend" && !walk){
@@ -5439,6 +5447,7 @@ function panel(d, st){
   const nx = BELL.find(([p, a]) => mm(a) > m && tt[p]);
   $("nNext").innerHTML = day === 0 || day === 6 ? "다음 수업: 월요일" : nx ? `다음 <b>${nx[0]}교시 ${escH(lab(nx[0]))}</b> · ${nx[1]}` : st.p && tt[st.p] ? "오늘 마지막 수업 중이에요" : cls ? "오늘 수업 끝! 하교해요" : "오늘 수업 끝! 수고했어요";
   $("tDay").textContent = `${DAYS[day]}요일${cls ? " · 🧒 우리 반" : ""}`;
+  if (EMPTY){ $("nNext").innerHTML = "🕘 시간표에서 <b>내 시간표</b>를 넣어 주세요"; $("tt").innerHTML = `<span class="ttempty">📭 아직 등록된 시간표가 없어요<br><small>위 🕘 시간표에서 넣으면 여기에 오늘 시간표가 보여요</small></span>`; return; }
   $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.map(([p, a, b]) => {
     const cur = m >= mm(a) && m < mm(b) ? "cur" : "", r = slotRoom(day, p);
     const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH((KIND[p] ? KIND[p] + " · " : "") + (cls && /\d/.test(p) ? classLabel(day, p) : NAME(r)))}</span>` : `<span class="free">${/\d/.test(p) ? "공강" : "교무실"}</span>`;
@@ -5871,6 +5880,7 @@ applyConfig(DEMO_CFG);
 if (HASH_N) pick(dispOrder()[HASH_N - 1], true);
 setMode(MODE);   // 지난번 보기 모드 (👤 내 시간표 · 🧒 우리 반 · 👥 친한 선생님)
 $("modeBar").addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) setMode(b.dataset.mode); });
+$("modeCard").addEventListener("click", () => { if (EMPTY) window.DESK.onOpen?.("edit"); });   // 📭 '등록된 시간표가 없어요' 카드 → 🕘 시간표 창
 addEventListener("hashchange", () => { const n = hashN(); if (n && dispOrder()[n - 1] !== SI) pick(dispOrder()[n - 1]); });
 fit(); requestAnimationFrame(loop);
 </script>
@@ -6101,14 +6111,15 @@ async function openDesk(){
   }
   loadFailed = false;
   if (!snap || !snap.exists()){
-    // 처음 온 선생님: 빈 데스크탑을 바로 만들어 두고(할 일 · 문의를 바로 쓸 수 있게) 예시 시간표로 먼저 둘러보게 해요
+    // 처음 온 선생님: 빈 데스크탑을 바로 만들어 두고(할 일 · 문의를 바로 쓸 수 있게) '등록된 시간표가 없어요'로 시작해요
     const now = Date.now(); deskId = user.uid;
     me = { uids:[user.uid], name:"", createdAt:now, lastAt:now, lastDay:dkey(new Date()), kinds:kindsOf(user) };
     try { await inTime(setDoc(deskRef(), me), 8000); } catch (e) { deskMissing = e.code !== "timeout"; }   // 학교망이면 이 기기에 먼저 만들어 두고 나중에 올라가요
   } else me = snap.data();
   setBrand(me.tag || (me.name ? tagOf(me.name) : ""));
   try { const m = await getDoc(doc(db, "desk_users", deskId, "data", "main")); cfg = m.exists() ? m.data() : null; } catch (e) { cfg = null; }
-  if (cfg) useConfig(); else { window.DESK.applyConfig(DEMO_CFG); $("whoName").textContent = "예시 시간표로 둘러보는 중"; }
+  // 아직 시간표를 저장하지 않은 선생님: 예시(김쌤) 대신 빈 시간표 + '등록된 시간표가 없어요' 안내 (종 시간만 고등학교 예시로 하루가 흘러가요)
+  if (cfg) useConfig(); else { window.DESK.applyConfig({ empty:true, name:"", level:"high", grades:3, classes:10, hr:"", bell:bellOf("high"), week:{} }); window.DESK.setDayTT({}); renderSched({}); $("whoName").textContent = "아직 등록된 시간표가 없어요"; }
   guide();
   watchRooms(); watchReqs(); ensureEmail(); setTimeout(publishMe, 1500);   // 👥 친구: 친구방 · 신청 지켜보기 · 이메일로 찾히게 · 내 시간표 알리기
   // 오늘 처음 들어왔으면 마지막 접속일 · 로그인 종류를 적어요 (운영 현황용)
@@ -6314,7 +6325,7 @@ function guide(){
   const need = !!user && !demo && (!cfg || !(me && me.name));
   $("guideBar").hidden = !need; $("bEdit").classList.toggle("pulse", need);
   if (need) $("guideText").innerHTML = !cfg
-    ? "👋 반가워요! 지금 화면은 <b>예시 시간표</b>예요. 둘러보신 뒤 <b>🕘 시간표</b>에서 내 시간표를 넣어 주세요. (사진 · PDF · 엑셀 · 화면 캡처로도 넣을 수 있어요)"
+    ? "👋 반가워요! 📭 <b>아직 등록된 시간표가 없어요.</b> <b>🕘 시간표</b>에서 내 시간표를 넣어 주세요. (사진 · PDF · 엑셀 · 화면 캡처로도 넣을 수 있어요)"
     : "<b>🕘 시간표</b>에서 닉네임(예: 김쌤)을 넣어 주세요. 화면 맨 위 영문 이름(KIMTR 처럼)도 닉네임으로 만들어요.";
 }
 $("guideGo").addEventListener("click", () => openEdit(false));
@@ -6732,7 +6743,7 @@ function classPane(nPer){
     <div class="pastebox" id="pasteBox" contenteditable="true" hidden aria-label="캡처한 그림을 여기에 붙여 넣기">여기를 누르고 붙여 넣으세요 (Ctrl+V · 휴대폰은 길게 눌러 '붙여넣기')</div>
     <p class="impst" id="impSt" role="status"></p>
     <input type="file" id="fPhoto" accept="image/*" hidden><input type="file" id="fPdf" accept="application/pdf,.pdf" hidden><input type="file" id="fXlsx" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
-    <p class="privnote">🔒 <b>선생님 · 학생 이름은 개인정보라 불러오지 않아요.</b> '공통국어2/배희진'처럼 이름이 함께 적힌 시간표도 <b>과목(공통국어2)만</b> 넣어요. 직접 적을 때도 이름은 적지 말아 주세요.</p>
+    <p class="privnote">🔒 <b>선생님 · 학생 이름은 개인정보라 받지 않아요.</b> 칸에 '과목/선생님 이름'이 함께 적힌 시간표도 <b>과목만</b> 넣어요. 직접 적을 때도 이름은 적지 말아 주세요.</p>
     <p class="note">✍️ <b>직접 입력</b>: 칸에 <b>과목 이름</b>만 적으면 돼요 (국어A · 통사A …) — 아이들은 <b>우리 반 교실</b>${ed.hr ? `(${esc(ed.hr)})` : ""}에서 수업해요. 체육 → 운동장 · 음악 → 음악실 · 미술 → 미술실 · 정보 → 컴퓨터실로 가고, '과탐실'처럼 교실 이름을 적으면 그 교실로 가요. 비우면 우리 반 교실.</p>
     <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 칸 옆 <b>＋</b>를 눌러 '과목 교실'을 / 로 이어 적어요 (4곳까지). 예) <code>물리 과학실 / 화학 3-2 / 지구 3-4</code> → 아이들이 세 무리로 나눠 걸어가요.</p>
     ${ed.hr ? "" : `<p class="err">⚙️ 설정 › 계정 · 내 정보에서 <b>담임 반</b>을 먼저 적어 주세요. 담임 반이 있어야 🧒 우리 반 모드에 아이들이 보여요.</p>`}
@@ -7200,12 +7211,13 @@ async function importFile(kind, file){
     else if (kind === "pdf"){ if (file.size > 6e6) throw new Error("PDF 가 너무 커요 (6MB 까지). 시간표 쪽만 캡처해서 붙여 넣어 주세요"); payload = { pdf:await readURL(file) }; }
     else { if (!/^image\//.test(file.type)) throw new Error("그림 파일이 아니에요"); payload = { image:await shrinkImage(file) }; }
     impSay("AI가 시간표를 읽는 중이에요… (10~40초)", true);
-    // 🧒 우리 반 탭이면: 선생님 이름 대신 '이 반 시간표 전체를 그대로' (칸엔 과목 이름이 와요)
-    const who = edTab === "hr" ? `${ed.hr || "우리"}반 시간표 전체·과목만` : (($("impName") && $("impName").value.trim()) || ed.name || "");
-    const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"desktt", name:who.slice(0, 20), ...payload }) });
+    // 🧒 우리 반 탭: 이름을 찾지 말고 표 전체를 읽게 해요 (kind · cls = 워커의 우리 반 전용 설명문, 이름은 받지도 묻지도 않아요)
+    const cls = edTab === "hr", who = cls ? "표 전체가 내 시간표" : (($("impName") && $("impName").value.trim()) || ed.name || "");
+    const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"desktt", name:who.slice(0, 20), ...(cls ? { kind:"class", cls:ed.hr || "" } : {}), ...payload }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.msg || aiErrText(r.status, j));
-    if (!j.ok || !(j.rows || []).length) throw new Error(j.note || "시간표를 찾지 못했어요. 시간표가 잘 보이게 다시 올려 주세요");
+    if (!j.ok || !(j.rows || []).length) throw new Error(cls ? "우리 반 시간표를 읽지 못했어요. 요일 · 교시 표 부분만 잘 보이게 캡처해서 다시 올려 주세요" : j.note || "시간표를 찾지 못했어요. 시간표가 잘 보이게 다시 올려 주세요");
+    if (cls) j.note = "";   // AI 메모에 이름이 섞이지 않게 (우리 반은 우리 안내만)
     if (edTab === "hr") applyClassImport(j); else applyImport(j);
   } catch (e){ impSay("⚠️ " + (e.message || e)); }
   impBusy = false;
@@ -7238,7 +7250,7 @@ function applyImport(j){
   impSay(`✅ 수업 ${filled}칸을 표에 넣었어요${bellNew ? " (종 시간도 함께)" : ""}. 틀린 칸만 고친 뒤 [저장]을 눌러 주세요.${j.note ? " · " + j.note : ""}`);
   $("eWeek").scrollIntoView({ behavior:"smooth", block:"center" });
 }
-// 🔒 사람 이름은 불러오지 않아요: '공통국어2/배희진' → '공통국어2'. / 로 나뉜 조각 중 한글 2~4자이고 과목 · 교실 이름이 아닌 것(= 이름)을 빼요
+// 🔒 사람 이름은 불러오지 않아요: '과목/선생님 이름' → '과목'. / 로 나뉜 조각 중 한글 2~4자이고 과목 · 교실 이름이 아닌 것(= 이름)을 빼요
 const SUBJ_RE = /(국어|영어|수학|과학|사회|역사|한국사|체육|음악|미술|정보|기술|가정|물리|화학|생명|지구|윤리|지리|경제|정치|진로|자율|동아리|봉사|창체|독서|문학|화법|작문|언어|매체|일본어|중국어|한문|통합|공통|탐구|실험|보건|선택|공강|자습|계발|조회|종례|담임|스포츠|논술|연극|제2외)/;
 const looksName = p => /^[가-힣]{2,4}$/.test(p) && !SUBJ_RE.test(p) && !ROOMISH.test(p);
 const stripNames = v => String(v || "").split("/").map(x => x.trim()).filter(x => x && !looksName(x)).join(" / ");
