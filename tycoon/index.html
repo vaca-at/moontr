@@ -367,6 +367,9 @@ html.hudoff .hudb{opacity:0;pointer-events:none}
 .ybtn:hover{background:#FFE14D}.ybtn:active{transform:translateY(2px);box-shadow:0 1px 0 #B38B00}
 .ybtn:focus-visible{outline:3px solid var(--accent2);outline-offset:2px}
 .ssave{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 2px}
+/* 🕘 시간표 표 바로 아래 '내 수업 장소' (특별실 교과) */
+.roombox{margin-top:10px;padding:10px 12px;border:2px dashed var(--accent);border-radius:var(--box-r);max-width:620px}
+.roombox .f{max-width:320px}
 .big.ghost{background:transparent;color:var(--ink);border-color:color-mix(in srgb,var(--ink) 35%,transparent)}
 .big.kakao{background:#FEE500;border-color:#FEE500;color:#191919}
 .big.google{background:#fff;border-color:#fff;color:#1F1F1F}
@@ -6259,6 +6262,11 @@ $("shEdit").addEventListener("input", e => {
   if (t.dataset.fd){ const v = t.value.trim().slice(0, 12); f.week = f.week || {}; f.week[t.dataset.fd] = f.week[t.dataset.fd] || {}; if (v) f.week[t.dataset.fd][t.dataset.fp] = v; else delete f.week[t.dataset.fd][t.dataset.fp]; }
 });
 $("shEdit").addEventListener("change", e => { if (e.target.id === "fShow" && ed && ed.friends && ed.friends[edTab]) ed.friends[edTab].show = e.target.checked; });
+// '내 수업 장소' 칸이 두 군데(나와 학교 · 시간표 표 아래)에 있으면 하나를 고를 때 다른 하나도 같이 바꿔요
+$("shEdit").addEventListener("change", e => {
+  if (e.target.id !== "eRoom" && e.target.id !== "eRoom2" || !ed) return;
+  ed.myRoom = e.target.value; const o = $(e.target.id === "eRoom" ? "eRoom2" : "eRoom"); if (o) o.value = e.target.value;
+});
 const cleanFriends = L => (L || []).filter(f => f && (f.name || "").trim()).slice(0, 5).map(f => ({ id:f.id || "f" + Date.now(), name:f.name.trim().slice(0, 10), avatar:Math.max(0, Math.min(19, +f.avatar || 0)), show:!!f.show, week:f.week || {} }));
 
 // 하루만 바꾸기: 원래 요일 시간표와 같은 칸은 빼고 저장 (지난 날짜는 지워요)
@@ -6407,6 +6415,7 @@ function renderEdit(){
     <input type="file" id="fPhoto" accept="image/*" hidden><input type="file" id="fPdf" accept="application/pdf,.pdf" hidden><input type="file" id="fXlsx" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
     <p class="note">✍️ <b>직접 입력</b>: 반은 <b>1-3</b>처럼 (학년-반), 특별실은 이름으로 적어요 (예: 과학실). 비우면 공강이에요. 학생 이름은 적지 말아 주세요.</p>
     <div class="wk" id="eWeek">${nPer ? week : `<p class="note">아래 2. 종 시간에 '수업' 줄을 먼저 넣어 주세요.</p>`}</div>
+    <div class="roombox">${roomSel("eRoom2", ed.myRoom || "")}<p class="note" style="margin:6px 0 0">🎵 음악 · 미술 · 가사 · 정보처럼 <b>늘 특별실에서 가르치면</b> 여기서 그 방을 골라 주세요. 위 표에는 반(1-3)만 적어도 캐릭터가 그 특별실로 가고, 화면에는 '2교시 1-3 수업'처럼 반이 보여요. 반 교실로 다니시면 '반 교실로 가요(보통)' 그대로 두세요.</p></div>
     <datalist id="dlRooms">${[...opts, ...SPECIALS].map(v => `<option value="${v}">`).join("")}</datalist>`;
   const DK = ed.dayKind || {}, dkSum = k => { const base = (ed.week || {})[new Date(k + "T00:00:00").getDay()] || {}, o = ed.dayTT[k] || {}, kk = DK[k] || {};
     const ch = Object.keys({ ...o, ...kk }).sort((a, b) => a - b).filter(p => kk[p] || (o[p] || "") !== (base[p] || "")).map(p => `${p}교시 ${kk[p] ? kk[p] + " " : ""}${o[p] || "공강"}`); return ch.join(" · ") || "바뀐 칸 없음"; };
@@ -6448,6 +6457,7 @@ function readEdit(){
     ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = hrNorm($("eHr").value); ed.officeF = +$("eOff").value || 2; ed.myRoom = $("eRoom").value;
     ed.grades = +$("eGr").value; ed.classes = +$("eCl").value; ed.inT = $("eIn").value; ed.outT = $("eOut").value;
   }
+  if ($("eRoom2")) ed.myRoom = $("eRoom2").value;   // 시간표 표 바로 아래의 '내 수업 장소' (위 '나와 학교' 칸과 같은 값, 고르면 서로 맞춰져요)
   if (!$("eBell")) return;
   ed.bell = [...document.querySelectorAll("#eBell .bellrow")].map(r => ({ k:r.querySelector(".bk").value, s:r.querySelector(".bs").value, e:r.querySelector(".be").value, ...(r.dataset.p === "1" ? { p:1 } : {}), ...(r.dataset.pe === "1" ? { pe:1 } : {}) }));
   const num = (id, d) => { const v = parseInt($(id).value, 10); return Number.isFinite(v) ? v : d; };
