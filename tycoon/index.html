@@ -5144,7 +5144,7 @@ PAL.c2 = cozyPal({ name:"COZY 2", font:"'Jua','Malgun Gothic',sans-serif", bg:"#
 /* ===================== 시계 (미리보기 빨리 감기) ===================== */
 let speed = 1, simAt = Date.now(), realAt = Date.now();
 const simNow = () => new Date(simAt + (Date.now() - realAt) * speed);
-function setSpeed(s){ simAt = simNow().getTime(); realAt = Date.now(); speed = s; }
+function setSpeed(s){ const back = s === 1; simAt = back ? Date.now() : simNow().getTime(); realAt = Date.now(); speed = s; if (back) resetWalk?.(); }   // 실시간 = 지금 내 시각으로 돌아와요 (월 아침 · ×600 미리보기 뒤에도)
 function jumpTo(day, time){ const d = new Date(simNow()); d.setHours(...time.split(":").map(Number), 0, 0); d.setDate(d.getDate() + ((day - d.getDay() + 7) % 7)); simAt = d.getTime(); realAt = Date.now(); resetWalk(); }
 
 /* ===================== 오른쪽 NOW · TODAY ===================== */
@@ -5368,7 +5368,7 @@ $("structs").addEventListener("focusout", hideTip);
 $("structs").addEventListener("click", hideTip);
 $("ctl").addEventListener("click", e => {
   const s = e.target.closest("[data-speed]"); if (s){ setSpeed(+s.dataset.speed); document.querySelectorAll("[data-speed]").forEach(b => b.classList.toggle("on", b === s)); return; }
-  const j = e.target.closest("[data-jump]"); if (j){ const [dd, tm] = j.dataset.jump.split(","); jumpTo(+dd, tm); }
+  const j = e.target.closest("[data-jump]"); if (j){ const [dd, tm] = j.dataset.jump.split(","); jumpTo(+dd, tm); if (speed === 1) document.querySelectorAll('[data-speed="1"]').forEach(b => b.classList.remove("on")); }   // 미리보기 중엔 '실시간' 불을 꺼요 (누르면 지금으로)
 });
 function setPal(key, quiet){
   key = PAL[key] ? key : "a"; PK = key;
