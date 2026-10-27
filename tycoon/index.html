@@ -360,6 +360,11 @@ html.hudoff .hudb{opacity:0;pointer-events:none}
 .pane .foot .msg{flex:1;font-size:13px;color:var(--muted);font-family:var(--body)}
 .close{min-width:40px;min-height:40px;border:2px solid color-mix(in srgb,var(--ink) 30%,transparent);border-radius:var(--box-r);background:transparent;color:var(--ink);font-size:16px;cursor:pointer}
 .big{font:16px var(--ui);padding:10px 18px;border-radius:var(--box-r);border:2px solid var(--accent);background:var(--accent);color:var(--on-ink);cursor:pointer;min-height:44px}
+/* 💾 노란 저장 단추: ⚙️ 설정 › 나와 학교의 칸 묶음마다 바로 아래 (맨 아래까지 내려가지 않아도 되게) */
+.ybtn{font:700 15px var(--ui);min-height:42px;padding:8px 20px;border-radius:var(--box-r);border:2px solid #E5B400;background:#FFD400;color:#1B1B1B;cursor:pointer;box-shadow:0 3px 0 #B38B00;white-space:nowrap}
+.ybtn:hover{background:#FFE14D}.ybtn:active{transform:translateY(2px);box-shadow:0 1px 0 #B38B00}
+.ybtn:focus-visible{outline:3px solid var(--accent2);outline-offset:2px}
+.ssave{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 2px}
 .big.ghost{background:transparent;color:var(--ink);border-color:color-mix(in srgb,var(--ink) 35%,transparent)}
 .big.kakao{background:#FEE500;border-color:#FEE500;color:#191919}
 .big.google{background:#fff;border-color:#fff;color:#1F1F1F}
@@ -6607,6 +6612,20 @@ $("shEdit").addEventListener("input", () => { clearTimeout(draftT); draftT = set
 /* ---------- 📷 사진 · 📄 PDF · 📊 엑셀 · 📋 캡처 → AI 가 읽어서 표 채우기 ----------
    자료는 family-spell 워커(Cloudflare)를 거쳐 AI(Claude)가 읽고 바로 버려요. 선생님마다 하루 5번까지 */
 const AI_URL = "https://family-spell.bellachord.workers.dev";
+// AI 오류를 선생님이 알아볼 말로 + 오류 번호 (관리자가 Cloudflare Workers Logs 에서 같은 번호를 찾을 수 있게)
+// j.error = 워커가 붙인 종류 (busy · api · network · parse · login · limit …), j.status / j.type = Claude API 가 돌려준 상태 · 종류
+function aiErrText(http, j){
+  const code = [j.error || "", j.status || http, j.type || ""].filter(Boolean).join(" ");
+  const why = http === 429 || j.error === "busy" || j.status === 429 ? "AI가 바빠요. 1~2분 뒤에 다시 해 주세요"
+    : j.status === 529 || j.type === "overloaded_error" || j.status >= 500 ? "AI 서버가 잠깐 붐벼요. 몇 분 뒤에 다시 해 주세요"
+    : j.status === 401 || j.status === 403 || j.type === "authentication_error" || j.type === "permission_error" ? "AI 연결 열쇠에 문제가 있어요. 관리자에게 알려 주세요 (💬 관리자에게 묻기)"
+    : j.status === 400 && j.type === "invalid_request_error" ? "AI가 이 자료를 받지 못했어요. 시간표 부분만 캡처해서 다시 올려 주시고, 그래도 안 되면 관리자에게 알려 주세요"
+    : j.error === "network" ? "AI에 연결하지 못했어요. 인터넷을 확인하고 다시 해 주세요"
+    : j.error === "parse" ? "AI 답을 표로 바꾸지 못했어요. 한 번 더 해 주세요"
+    : "읽지 못했어요";
+  console.warn("AI 오류", http, j);
+  return `${why} · 오류 번호: ${code}`;
+}
 let impBusy = false;
 const impSay = (t, busy) => { const el = $("impSt"); if (el){ el.textContent = t; el.classList.toggle("busy", !!busy); } };
 const readURL = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsDataURL(f); });
@@ -6641,7 +6660,7 @@ async function importFile(kind, file){
     impSay("AI가 시간표를 읽는 중이에요… (10~40초)", true);
     const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"desktt", name:(($("impName") && $("impName").value.trim()) || ed.name || "").slice(0, 20), ...payload }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.msg || (r.status === 429 ? "AI가 바빠요. 조금 뒤에 다시 해 주세요" : `읽지 못했어요 (${j.error || r.status})`));
+    if (!r.ok) throw new Error(j.msg || aiErrText(r.status, j));
     if (!j.ok || !(j.rows || []).length) throw new Error(j.note || "시간표를 찾지 못했어요. 시간표가 잘 보이게 다시 올려 주세요");
     applyImport(j);
   } catch (e){ impSay("⚠️ " + (e.message || e)); }
@@ -6715,7 +6734,7 @@ async function calImport(kind, file){
     calSay("AI가 학사일정을 읽는 중이에요… (10~40초)", true);
     const r = await fetch(AI_URL, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + await user.getIdToken() }, body:JSON.stringify({ mode:"deskcal", ...payload }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.msg || (r.status === 429 ? "AI가 바빠요. 조금 뒤에 다시 해 주세요" : `읽지 못했어요 (${j.error || r.status})`));
+    if (!r.ok) throw new Error(j.msg || aiErrText(r.status, j));
     if (!j.ok || !(j.events || []).length) throw new Error(j.note || "학사일정을 찾지 못했어요. 날짜가 잘 보이게 다시 올려 주세요");
     // 지금 목록과 합쳐요: 지난 일정 · 이미 있는 것(같은 날 같은 이름)은 빼고, 날짜 순서로 60개까지
     const today = dkey(new Date()), seen = new Set(sEv.map(e => e.d + "|" + e.t));
@@ -7000,14 +7019,17 @@ function schoolForm(){
       <label class="f"><span>출근 시각 (비우면 08:10)</span><input type="time" id="sIn" value="${esc(c.inT || "")}"></label>
       <label class="f"><span>퇴근 시각 (비우면 16:10)</span><input type="time" id="sOut" value="${esc(c.outT || "")}"></label>
     </div>
+    <div class="ssave"><button type="button" class="ybtn" data-ssave>💾 저장</button><span class="note" data-ssmsg style="margin:0"></span></div>
     <div class="sec">우리 학교</div>
     <p class="note">학교 이름으로 찾아 고르면 <b>학교 위치(진짜 날씨)</b>와 <b>즐겨찾기(학교 홈페이지 · 교육청 · 업무포털 · 나이스)</b>가 저절로 들어가요. 나이스 공개 학교 정보를 써요.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap"><input id="sSchQ" maxlength="30" placeholder="예) 진선여자고등학교" value="${esc(schQ)}" style="flex:1;min-width:160px" aria-label="학교 이름"><button type="button" class="btn" id="sSchFind">🔍 학교 찾기</button></div>
     ${c.school ? `<p class="note" style="margin:6px 0 0">지금 학교: <b>${esc(c.school.name)}</b> · ${esc(c.school.ofcName || "")}</p>` : ""}
     <div id="sSchList">${schHits.map((s, i) => `<button type="button" class="btn" data-sch="${i}" style="display:block;width:100%;text-align:left;margin-top:4px">🏫 <b>${esc(s.name)}</b> <small>${esc(s.kind)} · ${esc(s.addr)}</small></button>`).join("")}</div>
     <p class="note" id="sSchMsg" style="margin:4px 0 0">${esc(schMsg)}</p>
+    <div class="ssave"><button type="button" class="ybtn" data-ssave>💾 저장</button><span class="note" data-ssmsg style="margin:0"></span></div>
     <div class="sec">학교 위치 · 진짜 날씨</div>    <p class="note">교실 창가 책상 화면의 창밖이 이 동네의 진짜 날씨(비 · 눈 · 흐림 · 기온)로 바뀌어요. 시 · 군 이름과 대략 위치만 저장해요.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><select id="sLoc" aria-label="학교 위치">${locOpts(c.loc)}</select><button type="button" class="btn" id="sLocGps">📍 지금 있는 곳으로</button><span class="note" id="sLocMsg" style="margin:0">${c.loc ? `지금: ${esc(c.loc.name)}` : "아직 안 골랐어요"}</span></div>
+    <div class="ssave"><button type="button" class="ybtn" data-ssave>💾 저장</button><span class="note" data-ssmsg style="margin:0"></span></div>
     <div class="sec">학교 일정 · D-day</div>    <p class="note">D-day 하나는 게임 화면 왼쪽 위에, 일정은 오른쪽 SCHEDULE 칸에 앞으로 남은 것만 보여요.</p>
     <p class="note" style="margin-bottom:0"><b>🗓 학사일정 한 번에 넣기</b> — 학교 학사일정표(사진 · PDF · 엑셀 · 화면 캡처)를 올리면 AI가 날짜와 행사를 읽어 아래 목록에 더해요. 확인하고 [저장]을 눌러 주세요. (하루 5번까지)</p>
     <div class="calimp"><button type="button" class="btn" data-cal="photo">📷 사진</button><button type="button" class="btn" data-cal="pdf">📄 PDF</button><button type="button" class="btn" data-cal="xlsx">📊 엑셀</button><button type="button" class="btn" data-cal="paste">📋 캡처 붙여넣기</button>
@@ -7016,32 +7038,35 @@ function schoolForm(){
     <p class="impst" id="calSt" role="status">${esc(calMsg)}</p>
     <div class="evrow"><input type="date" id="sDdD" value="${esc(sDd.d || "")}" aria-label="D-day 날짜"><input id="sDdT" maxlength="20" placeholder="D-day 이름 (예: 기말고사)" value="${esc(sDd.t || "")}"><button type="button" class="ibtn" id="sDdX" aria-label="D-day 지우기">✕</button></div>
     <div id="sEvList">${sEv.map((e, i) => `<div class="evrow"><input type="date" data-sevd="${i}" value="${esc(e.d || "")}" aria-label="일정 날짜"><input data-sevt="${i}" maxlength="30" value="${esc(e.t || "")}" placeholder="일정 (예: 체육대회)"><button type="button" class="ibtn" data-sevdel="${i}" aria-label="이 일정 지우기">✕</button></div>`).join("")}</div>
-    <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn" id="sEvAdd">+ 일정 더하기</button><span class="sp"></span><button type="button" class="big" id="sSave">나와 학교 · 일정 저장</button></div>
-    <p class="err" id="sMsg"></p>`;
+    <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn" id="sEvAdd">+ 일정 더하기</button><span class="sp"></span><button type="button" class="ybtn" id="sSave">💾 나와 학교 · 일정 저장</button></div>
+    <p class="err" id="sMsg" data-ssmsg></p>`;
 }
+// 저장 결과 글은 노란 저장 단추 옆마다 (누른 단추 옆에서 바로 보이게)
+const sSay = s => document.querySelectorAll("[data-ssmsg]").forEach(x => { x.textContent = s; });
 async function saveSchool(){
+  sSay("저장 중…");
   const name = $("sName").value.trim(), hr = hrNorm($("sHr").value), tagIn = $("sTag").value.trim().toUpperCase().replace(/\s+/g, "");
   const bad = !name ? "닉네임을 적어 주세요" : tagIn && !/^[A-Z][A-Z0-9]{1,11}$/.test(tagIn) ? "영문 이름은 영어 대문자로 시작, 영어 · 숫자 2~12자예요" : hr && !isClass(hr) ? "담임 반은 학년-반 으로 적어 주세요 (예: 1-1)" : "";
-  if (bad){ $("sMsg").textContent = bad; return; }
+  if (bad){ sSay(bad); return; }
   const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:+$("sCl").value, officeF:+$("sOff").value || 2, myRoom:MYROOMS.includes($("sRoom").value) ? $("sRoom").value : "", inT:$("sIn").value, outT:$("sOut").value,
     loc:sF.loc || null, school:sF.school || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
   const tag = finalTag(tagIn, out.name);
-  if (demo){ cfg = out; useConfig(); loadWeather(true); $("sMsg").textContent = "체험 중이라 이 화면에서만 바뀌어요"; return; }
+  if (demo){ cfg = out; useConfig(); loadWeather(true); sSay("체험 중이라 이 화면에서만 바뀌어요"); return; }
   $("saved").textContent = "저장 중…";
   try {
     const up = {}; if (me.name !== out.name) up.name = out.name; if (me.tag !== tag) up.tag = tag;
     if (Object.keys(up).length){ await updateDoc(deskRef(), up); me = { ...me, ...up }; }
     await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
     try { await addDoc(collection(db, "desk_users", deskId, "hist"), { kind:"cfg", at:out.at, data:out }); } catch (e) {}
-    cfg = out; setBrand(me.tag || tagOf(me.name)); useConfig(); loadWeather(true); publishMe(); $("saved").textContent = "나와 학교 · 일정을 저장했어요 ✓"; $("sMsg").textContent = "저장했어요 ✓";
-  } catch (e){ $("saved").textContent = saveErr(e); $("sMsg").textContent = saveErr(e); }
+    cfg = out; setBrand(me.tag || tagOf(me.name)); useConfig(); loadWeather(true); publishMe(); $("saved").textContent = "나와 학교 · 일정을 저장했어요 ✓"; sSay("저장했어요 ✓");
+  } catch (e){ $("saved").textContent = saveErr(e); sSay(saveErr(e)); }
 }
 $("setBody").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b || !sEv) return;
   if (b.id === "sEvAdd"){ sEv.push({ d:"", t:"" }); renderSet(); $("sEvList")?.lastElementChild?.querySelector("input")?.focus(); }
   else if (b.dataset.sevdel !== undefined){ sEv.splice(+b.dataset.sevdel, 1); renderSet(); }
   else if (b.id === "sDdX"){ sDd = { d:"", t:"" }; renderSet(); }
-  else if (b.id === "sSave") saveSchool();
+  else if (b.id === "sSave" || b.dataset.ssave !== undefined) saveSchool();
   else if (b.id === "sSchFind") schFind();
   else if (b.dataset.sch !== undefined) schPick(schHits[+b.dataset.sch]);
   else if (b.id === "sLocGps"){
