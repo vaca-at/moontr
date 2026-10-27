@@ -771,6 +771,15 @@ service cloud.firestore {
       return (!('realName' in d) || (d.realName is string && d.realName.size() <= 20))
         && (!('tag' in d) || (d.tag is string && d.tag.matches('^[A-Z][A-Z0-9]{1,11}$')));
     }
+    // look = 지금 고른 화면(원래 시안 번호) · PC 색 · 팔레트 · 다크 (관리자 '많이 쓰는 화면' 용, 시간표 같은 내용은 없어요)
+    function deskLook(d) {
+      return !('look' in d) || (d.look is map
+        && d.look.keys().hasOnly(['s', 'pv', 'v', 'dark'])
+        && d.look.s is int && d.look.s >= 0 && d.look.s <= 99
+        && d.look.get('pv', '') is string && d.look.get('pv', '').size() <= 12
+        && d.look.get('v', '') is string && d.look.get('v', '').size() <= 12
+        && d.look.get('dark', false) is bool);
+    }
     match /desk_users/{deskId} {
       allow read: if (request.auth != null && request.auth.uid in resource.data.uids) || isTeacher();
       // realName = 실명 (관리자만 봐요), tag = 성으로 만든 영문 이름 (KIMTR 처럼, 영어 대문자 · 숫자 2~12자)
@@ -781,9 +790,9 @@ service cloud.firestore {
         && deskPerson(request.resource.data);
       // 로그인을 더할 때(addUid)는 그 로그인이 먼저 desk_links 에 '이 책상'이라고 적어 둔 경우만. 빼는 건 안 돼요
       allow update: if request.auth != null && request.auth.uid in resource.data.uids
-        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds'])
+        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds', 'look'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 20
-        && deskPerson(request.resource.data)
+        && deskPerson(request.resource.data) && deskLook(request.resource.data)
         && request.resource.data.uids.toSet().hasAll(resource.data.uids)
         && (request.resource.data.uids.size() == resource.data.uids.size()
           || (request.resource.data.uids.toSet().difference(resource.data.uids.toSet()).hasOnly([request.resource.data.addUid])
