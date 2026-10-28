@@ -26,7 +26,7 @@
 
 - 컬렉션: `ailab_cards`(카드) · `ailab_captures`(넣은 사진 기록) · `ailab_meta/task`(과제 진행판) · `ailab_meta/building`(직원 배치 · 사장실 · 건물 시안). 모두 관리자(isTeacher)만.
 - Storage: US-EAST1 버킷, `ailab/captures/{id}.jpg`
-- 함수: `readCapture`(us-east1, 사진이 올라오면 자동) · `rereadCapture`(asia-northeast3, [다시 읽기]). 모델 claude-opus-5-5, API 키는 Secret Manager `ANTHROPIC_API_KEY` (이미 등록됨)
+- 함수: `readCapture`(us-east1, 사진이 올라오면 자동) · `readBundle`(asia-northeast3, 공문 PDF 묶음) · `rereadCapture`(asia-northeast3, [다시 읽기]). 모델 claude-opus-5-5, API 키는 Secret Manager `ANTHROPIC_API_KEY` (이미 등록됨)
 - 방문 수: `/visit.js?app=ailab&hide=1` → `site_counts`, `site_devices`
 
 ## 지금까지 (2026-10-28)
@@ -45,6 +45,11 @@
   - B1 보관 층: 원본 보관실 · 창고 1 · 창고 2 · 창고 3
 - [x] **창고**: 남는 칸(`store1~3`, `store: true`). 새 방이 필요하면 `rooms.js` 에서 창고 key를 새 방으로 바꾸면 3D에도 기본 책상 · 직원으로 그려져요
 - 층 화면 창이 좁으면(휴대폰) 고른 방을 가운데 두고 가까이 보여 줘요
+- [x] **공문 PDF 묶음**: 업무관리시스템에서 '배포(PDF 형식)'으로 저장한 본문 + 첨부 PDF를 한꺼번에 넣으면 공문 하나로 읽어요
+  - 사진만 넣으면 예전처럼 한 장씩(`readCapture`), PDF가 하나라도 있으면 같이 넣은 파일 전부가 한 묶음
+  - 묶음은 Storage `ailab/bundles/{번호}/1.pdf, 2.pdf …` 에 올리고, 다 올린 뒤 앱이 `readBundle`(asia-northeast3)을 불러요
+  - 합쳐서 20MB까지. 비용은 10쪽 묶음에 약 200~250원
+  - **배포 필요**: `firebase deploy --only functions:ailab` (readBundle 새로 생김) + Storage 규칙 게시(`ailab/bundles` 허용)
 
 ## 다음에 할 일
 

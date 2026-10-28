@@ -456,7 +456,7 @@ function actions(c, more = '') {
   return `<div class="acts">
     ${c.status === 'review' ? `<button class="yes" data-act="confirm" data-id="${c.id}">맞아요</button>` : ''}
     <button data-act="edit" data-id="${c.id}">고치기</button>
-    <button class="src-btn" data-act="edit" data-id="${c.id}"><img data-path="${esc(c.storagePath)}" alt="">원본</button>
+    <button class="src-btn" data-act="edit" data-id="${c.id}">${thumb(c.storagePath)}원본</button>
     ${more}
   </div>`;
 }
@@ -611,7 +611,7 @@ function lobbyView() {
   const moving = S.uploading.size + reading.length;
   return `<div class="mD">
     <div class="intake">
-      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>넣는 순간 AI가 읽기 시작해요</small></label>
+      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 PDF는 본문과 첨부를 한꺼번에 넣으면 한 묶음으로 읽어요</small></label>
       <div class="extra">
         <label>링크 주소 <small>홈페이지 캡쳐라면 주소를 같이 적어 주세요</small><input id="pendLink" type="url" inputmode="url" placeholder="https://" value="${esc(S.pending.link)}"></label>
         <label>메모 <small>예: 3차 연수 과제 안내 / 내 이름 ○○○</small><input id="pendMemo" value="${esc(S.pending.memo)}"></label>
@@ -625,7 +625,7 @@ function lobbyView() {
       ${station(4, '방에 보관', S.cards.length - review.length)}
     </div>
     <div class="belt-wrap ${moving ? 'run' : ''}" aria-hidden="true"><div class="belt"></div>${'<span class="belt-item"><span class="doc"></span></span>'.repeat(Math.min(4, moving))}</div>
-    ${errors.length ? `<div class="errs">${errors.map((c) => `<div class="err"><img class="qthumb" data-path="${esc(c.storagePath)}" alt=""><div><b>읽지 못한 사진 · ${esc(c.name || '')}</b><small>${esc(c.error || '')}</small></div><button data-act="reread" data-cap="${c.id}">다시 읽기</button><button data-act="delcap" data-cap="${c.id}">지우기</button></div>`).join('')}</div>` : ''}
+    ${errors.length ? `<div class="errs">${errors.map((c) => `<div class="err">${thumb(c.storagePath, 'qthumb')}<div><b>읽지 못한 자료 · ${esc(c.name || '')}</b><small>${esc(c.error || '')}</small></div><button data-act="reread" data-cap="${c.id}">다시 읽기</button><button data-act="delcap" data-cap="${c.id}">지우기</button></div>`).join('')}</div>` : ''}
     <div class="q-h"><span class="pip"></span>확인을 기다리는 카드 ${review.length}장 · 노란 칸만 보면 돼요
       ${review.filter((c) => !isUnsorted(c)).length > 1 ? '<button class="chipbtn" data-act="confirmAll">방이 정해진 카드 모두 맞아요</button>' : ''}</div>
     ${review.length ? `<div class="qcards">${review.map(reviewCard).join('')}</div>` : '<p class="empty">지금은 확인할 카드가 없어요.</p>'}
@@ -646,7 +646,7 @@ function reviewCard(c) {
     ...extraFields(c).map((f) => [f.label, f.value, f.unsure ? 'unsure' : '']),
   ].filter(Boolean);
   return `<div class="qc">
-    <div class="qc-top"><img class="qthumb" data-act="edit" data-id="${c.id}" data-path="${esc(c.storagePath)}" alt="원본 보기">
+    <div class="qc-top">${thumb(c.storagePath, 'qthumb', `data-act="edit" data-id="${c.id}"`)}
       <div><b>${esc(c.kind || '자료')}</b><select data-act="move" data-id="${c.id}" aria-label="보낼 방">${roomOptions(c.room)}</select></div></div>
     <dl class="fields">${rows.map(([l, v, u]) => `<dt>${esc(l)}</dt><dd><span class="${u}">${esc(v)}</span></dd>`).join('')}</dl>
     ${c.periods?.length ? `<small>교시·흐름 ${c.periods.length}개 · 고치기에서 볼 수 있어요</small>` : ''}
@@ -660,10 +660,10 @@ function reviewCard(c) {
 
 // --- B1 원본 보관실 ---
 function archiveView() {
-  if (!S.captures.length) return '<p class="empty">넣은 캡쳐 원본이 여기에 날짜순으로 쌓여요.</p>';
-  const label = { reading: '읽는 중', done: '정리됨', error: '읽지 못함' };
+  if (!S.captures.length) return '<p class="empty">넣은 캡쳐와 공문 PDF 원본이 여기에 날짜순으로 쌓여요.</p>';
+  const label = { uploading: '올리는 중', reading: '읽는 중', done: '정리됨', error: '읽지 못함' };
   return `<div class="arch">${S.captures.map((c) => `<button class="ph" data-act="cap" data-cap="${c.id}">
-    <img data-path="${esc(c.storagePath)}" alt="" loading="lazy">
+    ${c.files?.length > 1 ? `<span class="pdfthumb">PDF 묶음<br>${c.files.length}개</span>` : thumb(c.storagePath, '', 'loading="lazy"')}
     <span>${esc(tsDate(c.createdAt))} · <span class="${c.status === 'error' ? 'st-err' : ''}">${label[c.status] || ''}</span>${c.cardCount ? ` · 카드 ${c.cardCount}` : ''}</span>
   </button>`).join('')}</div>`;
 }
@@ -682,17 +682,34 @@ function searchView() {
 }
 
 // ---------- 원본 사진 ----------
+// 사진은 <img>, PDF 는 작은 'PDF' 표시 (img 로는 PDF 를 그릴 수 없어서)
+const isPdfPath = (p) => /\.pdf$/i.test(p || '');
+function thumb(path, cls = '', attrs = '') {
+  return isPdfPath(path)
+    ? `<span class="pdfthumb ${cls}" ${attrs} title="PDF">PDF</span>`
+    : `<img class="${cls}" ${attrs} data-path="${esc(path)}" alt="">`;
+}
+// 창 왼쪽에 보여 줄 원본 전부 (공문 묶음이면 본문 · 첨부 PDF 여러 개)
+function viewer(capId, fallbackPath) {
+  const cap = S.captures.find((c) => c.id === capId);
+  const files = cap?.files?.length ? cap.files : [{ path: cap?.storagePath || fallbackPath, name: cap?.name || '' }];
+  return files.filter((f) => f.path).map((f) => (isPdfPath(f.path)
+    ? `<div class="pdfbox"><a class="chipbtn" data-path="${esc(f.path)}" target="_blank" rel="noopener">${esc(f.name || 'PDF')} · 새 창에서 열기</a><iframe class="pdfview" data-path="${esc(f.path)}" title="${esc(f.name || 'PDF')}"></iframe></div>`
+    : `<img data-path="${esc(f.path)}" alt="원본">`)).join('');
+}
+
 const urlCache = new Map();
 function hydrateImages(root = document) {
-  root.querySelectorAll('img[data-path]:not([src])').forEach(async (img) => {
-    const p = img.dataset.path;
+  root.querySelectorAll('img[data-path]:not([src]), iframe[data-path]:not([src]), a[data-path]:not([href])').forEach(async (el) => {
+    const p = el.dataset.path;
     if (!p) return;
     try {
       if (!urlCache.has(p)) urlCache.set(p, getDownloadURL(ref(storage, p)));
-      img.src = await urlCache.get(p);
+      const url = await urlCache.get(p);
+      if (el.tagName === 'A') el.href = url; else el.src = url;
     } catch {
       urlCache.delete(p);
-      img.alt = '원본 없음';
+      if (el.tagName === 'IMG') el.alt = '원본 없음';
     }
   });
 }
@@ -704,7 +721,7 @@ function openCard(id) {
   const c = cardById(id);
   if (!c) return;
   dlg.innerHTML = `<form method="dialog" class="dlg" id="cardForm" data-id="${c.id}">
-    <div class="dlg-img"><img data-path="${esc(c.storagePath)}" alt="원본 캡쳐"></div>
+    <div class="dlg-img">${viewer(c.captureId, c.storagePath)}</div>
     <div class="dlg-form">
       <h2>${c.status === 'review' ? '카드 확인하기' : '카드 고치기'}</h2>
       <label>보낼 방<select name="room">${roomOptions(c.room)}</select></label>
@@ -751,17 +768,17 @@ function openCapture(id) {
   if (!cap) return;
   const cards = S.cards.filter((c) => c.captureId === id);
   dlg.innerHTML = `<form method="dialog" class="dlg">
-    <div class="dlg-img"><img data-path="${esc(cap.storagePath)}" alt="원본 캡쳐"></div>
+    <div class="dlg-img">${viewer(cap.id)}</div>
     <div class="dlg-form">
-      <h2>원본 캡쳐</h2>
+      <h2>${cap.bundle ? '원본 공문 묶음' : '원본 캡쳐'}</h2>
       <small>${esc(cap.name || '')} · ${esc(tsDate(cap.createdAt))}에 넣음${cap.note ? ` · ${esc(cap.note)}` : ''}</small>
       ${cap.link ? `<small>함께 적은 링크: ${esc(cap.link)}</small>` : ''}
       ${cap.memo ? `<small>메모: ${esc(cap.memo)}</small>` : ''}
       ${cap.error ? `<p class="unsure">${esc(cap.error)}</p>` : ''}
-      <h3>이 사진에서 나온 카드 ${cards.length}</h3>
+      <h3>이 자료에서 나온 카드 ${cards.length}</h3>
       <div class="dlg-list">${cards.map((c) => `<a href="#${esc(c.room)}" data-act="close">${esc(floorOf(c.room).floor)} ${esc(roomName(c.room))} · ${esc(c.title)}${c.status === 'review' ? ' (확인 전)' : ''}</a>`).join('') || '<small>아직 없어요.</small>'}</div>
       <div class="dlg-acts">
-        <button type="button" data-act="delcap" data-cap="${cap.id}">사진과 카드 모두 지우기</button>
+        <button type="button" data-act="delcap" data-cap="${cap.id}">원본과 카드 모두 지우기</button>
         <button type="button" data-act="reread" data-cap="${cap.id}">다시 읽기</button>
         <button value="cancel">닫기</button>
       </div>
@@ -796,15 +813,57 @@ async function prepare(file) {
   }
 }
 
+const isPdf = (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+
+// 사진만 넣으면 한 장씩 따로 읽고, PDF가 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
 async function upload(fileList) {
-  const files = [...fileList].filter((f) => f.type.startsWith('image/'));
-  if (!files.length) { toast('사진(이미지) 파일만 넣을 수 있어요'); return; }
+  const all = [...fileList];
+  const pdfs = all.filter(isPdf), imgs = all.filter((f) => !isPdf(f) && f.type.startsWith('image/'));
+  if (!pdfs.length && !imgs.length) { toast('사진이나 PDF 파일만 넣을 수 있어요'); return; }
   const { link, memo } = S.pending;
   S.pending = { link: '', memo: '' };
-  toast(`1층 접수처에 ${files.length}장 들어왔어요. 바로 읽기 시작해요.`);
   if (S.q) { S.q = ''; $('#search').value = ''; }
   if (route() !== 'lobby') location.hash = 'lobby';
-  await Promise.all(files.map((f) => uploadOne(f, link, memo)));
+  if (pdfs.length) {
+    toast(`PDF ${pdfs.length}개${imgs.length ? `와 사진 ${imgs.length}장` : ''}을 공문 한 묶음으로 넣었어요. 다 올라가면 읽기 시작해요.`);
+    await uploadBundle([...pdfs, ...imgs], link, memo);
+    return;
+  }
+  toast(`1층 접수처에 ${imgs.length}장 들어왔어요. 바로 읽기 시작해요.`);
+  await Promise.all(imgs.map((f) => uploadOne(f, link, memo)));
+}
+
+// 공문 묶음: 파일을 ailab/bundles/{번호}/ 에 모두 올린 뒤, 서버 함수 readBundle 에 '다 올렸어요' 하고 읽기를 맡겨요
+async function uploadBundle(files, link, memo) {
+  const capRef = doc(collection(db, dbPath('captures')));
+  S.uploading.set(capRef.id, files[0].name);
+  render();
+  try {
+    const total = files.reduce((n, f) => n + f.size, 0);
+    if (total > 20 * 1024 * 1024) throw new Error('파일이 합쳐서 20MB를 넘어요. 나눠서 넣어 주세요');
+    const list = [];
+    for (const [i, f] of files.entries()) {
+      const pdf = isPdf(f);
+      const blob = pdf ? f : await prepare(f);
+      const type = pdf ? 'application/pdf' : blob.type || 'image/jpeg';
+      list.push({ path: `ailab/bundles/${capRef.id}/${i + 1}.${pdf ? 'pdf' : OK_TYPES[type] || 'img'}`, name: f.name || `파일 ${i + 1}`, type, blob });
+    }
+    const meta = list.map(({ path, name, type }) => ({ path, name, type }));
+    const name = files.length > 1 ? `${files[0].name} 외 ${files.length - 1}개` : files[0].name;
+    await setDoc(capRef, { status: 'uploading', bundle: true, name, files: meta, storagePath: meta[0].path, link, memo, createdAt: serverTimestamp() });
+    await Promise.all(list.map((x) => uploadBytes(ref(storage, x.path), x.blob, { contentType: x.type })));
+    await updateDoc(capRef, { status: 'reading' });
+  } catch (e) {
+    await setDoc(capRef, { status: 'error', bundle: true, error: `올리지 못했어요 (${e.code || e.message})`, createdAt: serverTimestamp() }, { merge: true }).catch(() => {});
+    S.uploading.delete(capRef.id);
+    render();
+    return;
+  }
+  S.uploading.delete(capRef.id);
+  render();
+  // 읽는 데 1~3분 걸려요. 기다리지 않고, 결과 카드는 화면에 저절로 들어와요
+  httpsCallable(fns, 'readBundle', { timeout: 540000 })({ captureId: capRef.id })
+    .catch((e) => toast(`공문 묶음을 읽지 못했어요 (${e.message})`));
 }
 
 async function uploadOne(file, link, memo) {
@@ -835,13 +894,14 @@ async function reread(capId) {
 
 async function deleteCapture(capId) {
   const cap = S.captures.find((c) => c.id === capId);
-  if (!cap || !confirm('이 사진과 사진에서 나온 카드를 모두 지울까요? 되돌릴 수 없어요.')) return;
+  if (!cap || !confirm('이 원본과 여기서 나온 카드를 모두 지울까요? 되돌릴 수 없어요.')) return;
   const cards = await getDocs(query(collection(db, dbPath('cards')), where('captureId', '==', capId)));
   const batch = writeBatch(db);
   cards.forEach((d) => batch.delete(d.ref));
   batch.delete(doc(db, dbPath(`captures/${capId}`)));
   await batch.commit();
-  if (cap.storagePath) await deleteObject(ref(storage, cap.storagePath)).catch(() => {});
+  const paths = cap.files?.length ? cap.files.map((f) => f.path) : [cap.storagePath].filter(Boolean);
+  await Promise.all(paths.map((p) => deleteObject(ref(storage, p)).catch(() => {})));
   if (dlg.open) dlg.close();
   toast('지웠어요');
 }
@@ -970,7 +1030,7 @@ window.addEventListener('drop', (e) => {
   if (S.teacher) upload(e.dataTransfer.files);
 });
 document.addEventListener('paste', (e) => {
-  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f));
   if (!S.teacher || !files.length) return;
   e.preventDefault();
   upload(files);

@@ -18,6 +18,16 @@ service firebase.storage {
       allow update: if false;
     }
 
+    // ===== AI Lab 공문 묶음 (본문 + 첨부 PDF, 사진도 함께 가능) =====
+    // ailab/bundles/{묶음 번호}/{1.pdf, 2.pdf ...}. 관리자만, PDF 또는 사진, 한 파일 20MB 미만
+    match /ailab/bundles/{capId}/{file} {
+      allow read, delete: if isTeacher();
+      allow create: if isTeacher()
+        && request.resource.size < 20 * 1024 * 1024
+        && (request.resource.contentType == 'application/pdf' || request.resource.contentType.matches('image/.*'));
+      allow update: if false;
+    }
+
     match /{allPaths=**} { allow read, write: if false; }
   }
 }
