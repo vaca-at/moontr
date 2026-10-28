@@ -263,7 +263,7 @@ const SEATS = Array.from({ length:40 }, () => ({ on:rnd() < .82, hair:HAIR[Math.
 const isClass = id => /^\d-./.test(id);   // "3-1" 같은 반 + "3-미도약" 같은 수업
 let T = 0, SCHOOL = false, NIGHT = false, BREAK = false, LUNCH = false;
 // 교실 자리에 앉아 있는 학생: 쉬는 시간엔 몇 명만 남고, 점심시간엔 다 나가요 (선생님은 교무실)
-const inSeat = sv => !LUNCH && inSeat(sv);
+const inSeat = sv => !LUNCH && (!BREAK || sv.stay);
 
 // ===== 위에서 본 방 하나 (여러 구조가 같이 써요) =====
 // s = 픽셀 한 칸 크기(1~4). 작은 칸은 s=1, 큰 화면은 s=3처럼 같은 그림을 또렷하게 키워요
@@ -561,7 +561,10 @@ const S1 = (() => {
       const dy = fy - 8, gx = mid - 3; rect(r.x + 4, dy, r.w - 8, 2, "#6B3E22"); rect(r.x + 5, dy + 2, 1, 6, "#4A2A16"); rect(r.x + r.w - 6, dy + 2, 1, 6, "#4A2A16");
       rect(gx + 1, dy - 9, 4, 1, "#3B82F6"); rect(gx, dy - 8, 6, 4, "#3B82F6"); rect(gx + 1, dy - 4, 4, 1, "#3B82F6");
       for (let k = 0; k < 2; k++){ const lx = gx + ((st2 + k*3) % 6); rect(lx, dy - 8 + k*2, Math.min(2, gx + 6 - lx), 2, "#5BEA6F"); }
-      rect(gx + 2, dy - 3, 2, 1, "#C8A040"); rect(gx + 1, dy - 2, 4, 2, "#8B5A2B"); }
+      rect(gx + 2, dy - 3, 2, 1, "#C8A040"); rect(gx + 1, dy - 2, 4, 2, "#8B5A2B");
+      /* 책상 오른쪽 작은 깃발: 금색 깃대에 흰 천이 펄럭여요 */
+      const fx = r.x + r.w - 11; rect(fx - 1, dy - 1, 3, 1, "#8B5A2B"); rect(fx, dy - 13, 1, 12, "#C8A040"); rect(fx, dy - 14, 1, 1, "#FFE14D");
+      for (let k = 0; k < 6; k++){ const wy = dy - 13 + Math.round(Math.sin(T*4 - k*.9)*.8*(k/5)); rect(fx + 1 + k, wy, 1, 4, "#F4F4FA"); if (k === 2 || k === 3) { rect(fx + 1 + k, wy + 1, 1, 1, "#E5484D"); rect(fx + 1 + k, wy + 2, 1, 1, "#3B82F6"); } } }
     if (r.id === "특별교실1"){   /* 스크린에 발표 화면이 넘어가요 (막대그래프가 바뀌어요) */
       const sx = mid - 9, sy = y0 + 12, pg = Math.floor(T/2) % 3; rect(sx, sy, 18, 12, "#EDEDF5"); rect(sx, sy, 18, 1, "#9AA0B4"); rect(mid, sy + 12, 1, fy - sy - 12, "#5A5F73");
       [[3, 6, 4], [5, 2, 7], [6, 4, 3]][pg].forEach((hh, k) => rect(sx + 3 + k*5, sy + 10 - hh, 3, hh, ["#FF5FAE", "#7DD3FC", "#FFD400"][k])); }
@@ -573,8 +576,8 @@ const S1 = (() => {
     if (r.id === "보건실"){   /* 침대 · 빨간 십자 · 심박 모니터 선이 움직여요 */
       const bx3 = r.x + 4; rect(bx3, fy - 6, 14, 3, "#EDEDF5"); rect(bx3, fy - 7, 4, 1, "#FFFFFF"); rect(bx3, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 13, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 4, fy - 7, 10, 1, "#7DD3FC");
       rect(mid - 1, y0 + 12, 3, 9, "#E5484D"); rect(mid - 4, y0 + 15, 9, 3, "#E5484D");
-      const mx3 = r.x + r.w - 15; rect(mx3, fy - 16, 11, 8, "#1A1622"); rect(mx3 + 5, fy - 8, 1, 8, "#5A5F73");
-      for (let k = 0; k < 9; k++){ const ph = (k + st2) % 9, yy = ph === 4 ? -3 : ph === 5 ? 2 : 0; rect(mx3 + 1 + k, fy - 12 + yy, 1, 1, "#5BEA6F"); } }
+      /* 침대 옆 수액 걸이: 수액 방울이 똑똑 떨어져요 */
+      const px = r.x + r.w - 8; rect(px - 2, fy - 1, 5, 1, "#5A5F73"); rect(px, fy - 21, 1, 20, "#9AA0B4"); rect(px - 3, fy - 21, 4, 1, "#9AA0B4"); rect(px - 5, fy - 20, 4, 6, "#E6F6FF"); rect(px - 5, fy - 17, 4, 3, "#9EDCF5"); rect(px - 4, fy - 14, 2, 3, "#CFEFFF"); rect(px - 3, fy - 11, 1, 5, "#CFEFFF"); const dp = (T*3) % 1; if (dp < .8) rect(px - 4, Math.round(fy - 13 + dp*3), 1, 1, "#3B9BE0"); }
     if (r.id === "동아리실"){   /* 공이 통통 튀어요 */
       const hgt = Math.abs(Math.sin(T*3))*13, by4 = Math.round(fy - 5 - hgt); g.globalAlpha = .35; rect(mid - 2 + Math.round(hgt/8), fy - 1, 5 - Math.round(hgt/6), 1, "#000"); g.globalAlpha = 1;
       rect(mid - 1, by4, 4, 4, "#FF8A3D"); rect(mid, by4 - 1, 2, 1, "#FF8A3D"); rect(mid, by4 + 4, 2, 1, "#FF8A3D"); rect(mid - 2, by4 + 1, 1, 2, "#FF8A3D"); rect(mid + 3, by4 + 1, 1, 2, "#FF8A3D"); rect(mid - 1, by4 + 2, 4, 1, "#7A3A10"); rect(mid + 1, by4, 1, 4, "#7A3A10"); }
