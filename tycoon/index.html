@@ -326,6 +326,18 @@ body:not(.bigview) .mapcol{flex-direction:column}
 .modebar button.on{background:var(--accent);color:var(--on-ink,#111)}
 .modebar button:focus-visible{outline:2px solid var(--accent2,var(--accent));outline-offset:1px}
 html.appmode .modebar,body.bigview .modebar{display:none}
+/* 위 '미리보기' 줄 = 세 칸 (왼쪽 미리보기 | 가운데 보기 모드 | 오른쪽 색). 컴퓨터에선 여기 · 휴대폰 웹은 게임 화면 바로 위(#modeBar) */
+header.top .row2{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:6px 10px}
+header.top .row2 .r2l{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+header.top .row2 .r2r{justify-self:end;flex-wrap:wrap}
+.modebar.r2c{margin:0}
+.jsel{font:13px var(--ui);padding:5px 8px;border:var(--box-b);border-radius:var(--box-r);background:var(--panel);color:var(--ink);cursor:pointer;max-width:150px}
+@media (min-width:701px){ #modeBar{display:none} }
+@media (max-width:700px){ #modeBarTop{display:none} header.top .row2{display:flex;flex-wrap:wrap} }
+/* 🖥 리본 '보기': 세 칸을 위아래로 */
+.rb-modes button{display:block;width:100%;padding:2px 9px;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;font-family:inherit;font-size:12px;text-align:left;white-space:nowrap;cursor:pointer}
+.rb-modes button:hover{background:rgba(127,127,127,.15)}
+.rb-modes button.on{background:color-mix(in srgb,var(--wacc,#2B579A) 18%,transparent);border-color:var(--wacc,#2B579A);font-weight:700}
 @media (max-width:700px){ .modebar{width:100%} .modebar button{flex:1;padding:6px 4px;font-size:12px} }
 /* 걷지 않는 화면 위 작은 카드 (🧒 우리 반 지금 · 나눠 간 교실 / 👥 친한 선생님 위치) */
 .modecard{position:absolute;left:1.2%;top:1.6%;z-index:4;max-width:44%;display:flex;flex-direction:column;gap:1px;padding:6px 10px;border-radius:10px;background:rgba(10,8,22,.74);color:#fff;font:600 clamp(10px,1.25cqw,13px)/1.35 var(--ui);pointer-events:none;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
@@ -1316,15 +1328,13 @@ const DRAW = {
           <label class="rb-sel"><svg class="ri"><use href="#ri-clock"/></svg><select id="rbSpeed" aria-label="미리보기 빠르기"><option value="1">실시간</option><option value="60">×60 빨리</option><option value="600">×600 빨리</option></select></label>
           <label class="rb-sel"><svg class="ri"><use href="#ri-ff"/></svg><select id="rbJump" aria-label="이 시각으로 건너뛰기"></select></label>
         </div><div class="rb-nm">미리보기</div></div>
+        <div class="rb-grp"><div class="rb-bd rb-stk rb-modes" role="group" aria-label="보기 모드"><button type="button" data-mode="me" aria-pressed="true">👤 내 시간표</button><button type="button" data-mode="class" aria-pressed="false">🧒 우리 반</button><button type="button" data-mode="friend" aria-pressed="false">👥 친한 선생님</button></div><div class="rb-nm">보기</div></div>
         <div class="rb-grp"><div class="rb-bd">
           <div class="rb-pal" id="rbPal" role="group" aria-label="색"><button type="button" data-pv="winlight" style="background:#005FB8" title="윈도우 라이트" aria-label="윈도우 라이트"></button><button type="button" data-pv="word" style="background:#2B579A" title="워드 블루" aria-label="워드 블루"></button><button type="button" data-pv="excel" style="background:#217346" title="엑셀 그린" aria-label="엑셀 그린"></button><button type="button" data-pv="ppt" style="background:#B7472A" title="파워포인트 코랄" aria-label="파워포인트 코랄"></button></div>
           <button type="button" class="rb-big" data-dark aria-pressed="false"><svg class="ri"><use href="#ri-moon"/></svg><span>다크 모드</span></button>
           <button type="button" class="rb-big" data-click="bSet"><svg class="ri"><use href="#ri-gear"/></svg>설정<i class="dot" id="rbSetDot" hidden></i></button>
         </div><div class="rb-nm">꾸미기</div></div>
-        <div class="rb-grp"><div class="rb-bd">
-          <button type="button" class="rb-big" data-click="bChat"><svg class="ri"><use href="#ri-chat"/></svg>묻기<i class="dot" id="rbChatDot" hidden></i></button>
-          <button type="button" class="rb-big" data-rtab="help"><svg class="ri"><use href="#ri-book"/></svg>도움말</button>
-        </div><div class="rb-nm">도움</div></div>
+        <i id="rbChatDot" hidden></i><!-- 묻기 · 도움말은 '도움말' 탭에 (홈 탭은 '보기' 칸 자리를 위해 뺐어요) -->
       </div>
       <div class="rb-body" data-rpane="view" hidden><div class="rb-grp"><div class="rb-bd rb-rows" id="rbAll"></div><div class="rb-nm">화면 18개 · 📌 고정과 순서는 ⚙️ 설정 › 화면 순서</div></div></div>
       <div class="rb-body" data-rpane="time" hidden>
@@ -1360,14 +1370,16 @@ const DRAW = {
       </div>
     </div>
     <div class="picks" id="structs"></div>
+    <!-- 세 칸: 왼쪽 미리보기 | 가운데 보기 모드 | 오른쪽 색 -->
     <div class="row row2">
-      <span class="lab">미리보기 시간</span>
+      <div class="r2l"><span class="lab">미리보기</span>
       <div class="row" style="gap:5px" id="ctl">
         <button type="button" class="btn on" data-speed="1">실시간</button><button type="button" class="btn" data-speed="60">×60</button><button type="button" class="btn" data-speed="600">×600</button>
-        <span class="row" style="gap:5px" id="jumps"></span>
-      </div>
-      <!-- 색 단추는 맨 오른쪽 (줄이 바뀌어도 '색'과 단추가 함께 오른쪽에) -->
-      <div class="row" style="gap:5px;margin-left:auto"><span class="lab">색</span>
+        <select id="jumpSel" class="jsel" aria-label="이 시각으로 건너뛰기"></select><span id="jumps" hidden></span>
+      </div></div>
+      <div class="modebar r2c" id="modeBarTop" role="group" aria-label="보기 모드"><button type="button" data-mode="me" aria-pressed="true">👤 내 시간표</button><button type="button" data-mode="class" aria-pressed="false">🧒 우리 반</button><button type="button" data-mode="friend" aria-pressed="false">👥 친한 선생님</button></div>
+      <!-- 색 단추는 맨 오른쪽 -->
+      <div class="row r2r" style="gap:5px"><span class="lab">색</span>
         <div class="row" style="gap:5px" id="pal"><button type="button" class="btn on" data-v="a">NEON 1</button><button type="button" class="btn" data-v="n2">NEON 2</button><button type="button" class="btn" data-v="b">COZY 1</button><button type="button" class="btn" data-v="c2">COZY 2</button><button type="button" class="btn" data-dark aria-pressed="false" title="1~18번 모두 어둡게 (레트로는 NEON 으로)">🌙 다크</button></div></div>
     </div>
     <div class="tipnote" id="tipnote" role="tooltip" hidden></div>
@@ -5568,7 +5580,8 @@ function renderJumps(){
   if (cls[1]) J.push(["화 쉬는 시간", 2, hhmm(mm(cls[1][2]) + 3)]);
   if (lunch) J.push(["수 점심", 3, hhmm(mm(lunch[1]) + 10)]);
   J.push(["금 퇴근", 5, hhmm(Math.max(0, E.o - 5))], ["토요일", 6, "11:00"]);
-  $("jumps").innerHTML = J.map(([t, d, h]) => `<button type="button" class="btn" data-jump="${d},${h}">${t}</button>`).join("");
+  $("jumps").innerHTML = J.map(([t, d, h]) => `<button type="button" class="btn" data-jump="${d},${h}">${t}</button>`).join("");   // 숨은 단추 (아래 고르기 · 리본이 눌러요)
+  $("jumpSel").innerHTML = `<option value="">⏩ 이 시각으로…</option>` + J.map(([t, d, h]) => `<option value="${d},${h}">${t}</option>`).join("");
   // 🖥 리본: 미리보기 탭 단추 · 홈 탭 '건너뛰기' 고르기 칸
   $("rbJump").innerHTML = `<option value="">이 시각으로…</option>` + J.map(([t, d, h]) => `<option value="${d},${h}">${t}</option>`).join("");
   $("rbJumps").innerHTML = J.map(([t, d, h]) => `<button type="button" class="rb-chip" data-rjump="${d},${h}">${t}</button>`).join("");
@@ -5634,6 +5647,7 @@ RB.addEventListener("click", e => {
   const j = e.target.closest("[data-rjump]"); if (j) document.querySelector(`#ctl [data-jump="${j.dataset.rjump}"]`)?.click();
 });
 $("rbSpeed").addEventListener("change", e => { document.querySelector(`#ctl [data-speed="${e.target.value}"]`)?.click(); syncRb(); });
+$("jumpSel").addEventListener("change", e => { if (e.target.value) document.querySelector(`#ctl [data-jump="${e.target.value}"]`)?.click(); e.target.value = ""; });
 $("rbJump").addEventListener("change", e => { if (e.target.value) document.querySelector(`#ctl [data-jump="${e.target.value}"]`)?.click(); e.target.value = ""; });
 function setOrder(ord, pin){
   if (Array.isArray(ord)) SORD = ord.filter(i => Number.isInteger(i) && i >= 0 && i < TOP.length);
@@ -5908,7 +5922,7 @@ applyConfig(DEMO_CFG);
 { let v = "a"; try { v = localStorage.getItem("desk-pal") || "a"; } catch (e) {} setPal(v, true); setPV(PV, true); setDark(DARK, true); }
 if (HASH_N) pick(dispOrder()[HASH_N - 1], true);
 setMode(MODE);   // 지난번 보기 모드 (👤 내 시간표 · 🧒 우리 반 · 👥 친한 선생님)
-$("modeBar").addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) setMode(b.dataset.mode); });
+document.addEventListener("click", e => { const b = e.target.closest("button[data-mode]"); if (b) setMode(b.dataset.mode); });   // 위 줄 가운데 · 🖥 리본 '보기' · 📱 휴대폰 웹 게임 화면 위 · 앱 오른쪽 위
 $("modeCard").addEventListener("click", () => { if (EMPTY) window.DESK.onOpen?.("edit"); else if (MODE === "class" && CLASS_EMPTY) window.DESK.onOpen?.("edithr"); });   // 📭 안내 카드 → 🕘 시간표 창 (우리 반이면 그 탭)
 addEventListener("hashchange", () => { const n = hashN(); if (n && dispOrder()[n - 1] !== SI) pick(dispOrder()[n - 1]); });
 fit(); requestAnimationFrame(loop);
