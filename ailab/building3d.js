@@ -64,11 +64,11 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, 1, .1, 400);
 const hemi = new THREE.HemisphereLight('#ffffff', '#b9a68a', 1.6);
 const sun = new THREE.DirectionalLight('#fff4e2', 2.3);
-sun.position.set(-14, 34, 26);
-sun.target.position.set(0, 11, 0);
+sun.position.set(-14, 29, 26);
+sun.target.position.set(0, 6, 0);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 30, bottom: -18, near: 1, far: 110 }); // 층고를 높인 건물 전체가 들어가게
+Object.assign(sun.shadow.camera, { left: -33, right: 33, top: 24, bottom: -22, near: 1, far: 110 }); // 방 4개짜리 넓고 낮은 건물이 다 들어가게
 sun.shadow.bias = -.0004;
 sun.shadow.normalBias = .03;
 scene.add(hemi, sun, sun.target);
@@ -401,7 +401,7 @@ const staffInfo = (id, room) => {
   return { title: s.name, sub: room ? `${ROOMS[room].name} 직원` : (where(id).join(' · ') || '아직 배치 전'), text: STAFF_ABOUT[id], job: room ? ROOMS[room].job : '' };
 };
 const friendInfo = (id) => ({ title: friendById(id).name, sub: '사장님 옆 친구', text: FRIEND_ABOUT[id][0], job: FRIEND_ABOUT[id][1] });
-const meInfo = () => { const m = ME.find((x) => x.id === STATE.me) || ME[0]; return { title: `사장님 · ${m.name}`, sub: '5F 사장실', text: `${m.note}.`, job: ME_JOB }; };
+const meInfo = () => { const m = ME.find((x) => x.id === STATE.me) || ME[0]; return { title: `사장님 · ${m.name}`, sub: `${FLOORS.find((f) => f.rooms.includes('boss'))?.floor || ''} 사장실`, text: `${m.note}.`, job: ME_JOB }; };
 const tipEl = document.getElementById('tip');
 function showTip(info, x, y) {
   tipEl.innerHTML = `<b>${info.title}</b>${info.sub ? `<i>${info.sub}</i>` : ''}<p>${info.text}</p>${info.job ? `<p class="job"><span>하는 일</span>${info.job}</p>` : ''}`;
@@ -654,7 +654,13 @@ function lamp(g, x, y, z) {
 }
 
 // ---------- 건물 ----------
-const FH = 5.6, D = 5.6, BW = 20; // FH: 층고 (3.2 → 4.1 → 층 화면에서 답답하지 않게 5.6)
+// FH: 층고 (3.2 → 4.1 → 층 화면에서 답답하지 않게 5.6), RW: 방 한 칸 너비
+// 건물 너비는 한 층의 방 수(지금 4개)에 맞추고, 높이는 rooms.js 의 층 수를 따라요 (모니터가 가로로 기니까 낮고 넓게)
+const FH = 5.6, D = 5.6, RW = 10;
+const BW = RW * Math.max(...FLOORS.map((f) => f.rooms.length));
+const UP = FLOORS.filter((f) => !f.floor.startsWith('B')).length; // 땅 위 층 수 (B 로 시작하는 층은 흙 속)
+const floorY = (i) => (UP - 1 - i) * FH;
+const ROOF_Y = UP * FH, BOTTOM = -(FLOORS.length - UP) * FH;
 const WK = FH / 4.1; // 창문은 층고에 맞춰 키워요
 
 // --- 건물 시안 5개. side: 바깥 옆벽(색 · glass · brick · logs), win: 창문 모양, roof: 옥상 꾸밈 ---
@@ -801,16 +807,16 @@ function furnish(k, g, { x0, x1, cx, y }) {
   DESK = sd().desk;
   const worker = (x, z, role = 'desk', o = {}) => addChar(g, x, y, z, role, { def: sd(), info: staffInfo(sid, k), ...o });
   switch (k) {
+    // 방 한 칸 = 너비 10 (x0 ~ x1). 예전에 한 층을 혼자 쓰던 사장실 · 접수처 · 보관실도 한 칸에 맞췄어요
     case 'boss': {
-      standBoard(g, cx - 6.4, y, zb + .3, checklist('다가오는 일정', [['연수 4차', true], ['공개수업 참관', true], ['과제 지도안', false], ['성찰 정리', false], ['결과 보고', false]]));
-      desk(g, cx + .3, y, -.6, { h: .98 });
-      shelf(g, cx + 4.4, y, zb, 1.4, 2.2, 3);
-      shelf(g, cx + 5.9, y, zb, 1.4, 2.2, 7);
-      sofa(g, cx - 3, y, zb + .2);
-      lamp(g, cx - 4.4, y, zb);
-      plant(g, x0 + .7, y, 1.6, true);
-      plant(g, x1 - .7, y, 1.4, true);
-      wallBoard(g, cx + 1.6, y + 2.2, zw, 1.3, .9, posterMat('D-7', P.red));
+      standBoard(g, cx - 3.2, y, zb + .3, checklist('다가오는 일정', [['연수 4차', true], ['공개수업 참관', true], ['과제 지도안', false], ['성찰 정리', false], ['결과 보고', false]]));
+      desk(g, cx + .6, y, -.6, { h: .98 });
+      shelf(g, cx + 2.9, y, zb, 1.3, 2.2, 3);
+      shelf(g, cx + 4.2, y, zb, 1.1, 2.2, 7);
+      lamp(g, cx - 1.6, y, zb);
+      plant(g, x0 + .6, y, 1.7, true);
+      plant(g, x1 - .6, y, 1.7, true);
+      wallBoard(g, cx + .6, y + 2.2, zw, 1.3, .9, posterMat('D-7', P.red));
       const me = ME.find((m) => m.id === STATE.me) || ME[0];
       const fr = friendById(STATE.friend);
       addChar(g, cx - 2.6, y, 1.2, 'me', { def: me.def(), hold: me.hold, face: .12, info: meInfo() });
@@ -862,25 +868,43 @@ function furnish(k, g, { x0, x1, cx, y }) {
       crates(g, x1 - 1.6, y, zb, 1, 1);
       break;
     case 'lobby':
-      mailbox(g, x0 + 1.4, y, 1.4);
-      crates(g, x0 + 2.4, y, zb, 3, 2);
-      counter(g, cx - 1.2, y, .9, 3.4);
-      worker(cx - 1.9, .1, 'stand');
-      worker(cx - .4, .1, 'stand', { face: .2 });
-      belt(g, cx + 1.4, x1 - .8, y, .7);
-      worker(x0 + 2.2, 1.9, 'walk', { walk: [x0 + 2.2, cx - 3.5, 1] });
-      wallBoard(g, cx - 1.2, y + 2.2, zw, 2.4, .7, posterMat('접수처', P.red));
-      plant(g, x1 - .6, y, 1.9, true);
+      mailbox(g, x0 + .7, y, 1.5);
+      crates(g, x0 + .55, y, zb, 2, 2);
+      counter(g, cx - 1.3, y, .9, 2.8);
+      worker(cx - 2, .1, 'stand');
+      worker(cx - .6, .1, 'stand', { face: .2 });
+      belt(g, cx + .7, x1 - .5, y, .6);
+      worker(x0 + 1.6, 1.9, 'walk', { walk: [x0 + 1.6, cx + 1.5, 1] });
+      wallBoard(g, cx - 1.3, y + 2.2, zw, 2.2, .7, posterMat('접수처', P.red));
+      plant(g, x1 - .5, y, 1.9);
       break;
     case 'archive':
-      for (let i = 0; i < 5; i++) shelf(g, x0 + 1.1 + i * 1.5, y, zb, 1.4, 2.2, 31 + i * 7);
-      crates(g, cx + 1.4, y, zb, 3, 3);
-      crates(g, x1 - 1.9, y, .6, 2, 2);
-      worker(x0 + 1.2, 1.1, 'walk', { walk: [x0 + 1.2, cx + 2.2, .8] });
-      lamp(g, x1 - .6, y, zb);
+      for (let i = 0; i < 4; i++) shelf(g, x0 + .95 + i * 1.45, y, zb, 1.35, 2.2, 31 + i * 7);
+      crates(g, cx + 1.8, y, zb, 2, 3);
+      crates(g, x1 - 1.5, y, .7, 2, 2);
+      worker(x0 + 1.1, 1.4, 'walk', { walk: [x0 + 1.1, cx + 2.2, .8] });
+      lamp(g, x1 - .5, y, zb);
       break;
-    default: break;
+    default:
+      if (ROOMS[k]?.store) { storeRoom(g, k, { x0, x1, cx, y }); break; }
+      // rooms.js 에 새로 넣은 방: 책상 · 직원 · 책장으로 기본 꾸밈
+      desk(g, cx - 1.6, y, .8); worker(cx - 1.6, 0);
+      shelf(g, x1 - 1.2, y, zb, 1.3, 2.1, k.length * 7);
+      plant(g, x0 + .6, y, 1.7);
+      break;
   }
+}
+
+// 창고: 아직 쓰지 않는 칸. 상자 · 천을 덮은 가구 · '빈 방' 표지 (창고 번호마다 조금씩 다르게)
+function storeRoom(g, k, { x0, x1, cx, y }) {
+  const zb = -D / 2 + .55, n = Number(k.replace(/\D/g, '')) || 1;
+  crates(g, x0 + .6, y, zb, 3, 3 - (n % 2));
+  shelf(g, cx + .6 + (n % 3) * .4, y, zb, 1.3, 2, 40 + n * 9);
+  crates(g, x1 - 1.9, y, .9 - (n % 2) * .4, 2, 1 + (n % 2));
+  B(g, 1.5, .85, .8, '#e9eef0', cx - 1.2, y + .43, .9);
+  B(g, 1.62, .06, .92, '#dfe6e9', cx - 1.2, y + .88, .9);
+  wallBoard(g, cx - 1.2, y + 2.3, -D / 2 + .13, 1.6, .7, posterMat('빈 방', P.metal));
+  if (n % 2 === 0) { B(g, .06, 1.3, .06, P.wood, x1 - .45, y + .65, zb + .4); B(g, .32, .22, .12, P.gold, x1 - .45, y + .11, zb + .4); } // 빗자루
 }
 
 function buildWorld() {
@@ -888,11 +912,11 @@ function buildWorld() {
   people.length = 0; docs.length = 0; roomBoxes.length = 0; labelItems.length = 0;
   labelsEl.innerHTML = '';
   FLOORS.forEach((f, i) => {
-    const y = (4 - i) * FH;
+    const y = floorY(i);
     const g = new THREE.Group();
     g.userData.floor = f.floor;
     world.add(g);
-    const base = f.floor === 'B1';
+    const base = f.floor.startsWith('B');
     const TH = theme(), wall = base ? TH.wallB1 : TH.floors ? TH.floors[i] : TH.wall;
     B(g, BW + .5, .3, D + .3, TH.slab, 0, y - .15, .15);
     B(g, BW + .5, .32, .14, TH.edge, 0, y - .15, D / 2 + .34);
@@ -932,7 +956,7 @@ function buildWorld() {
   });
 
   // 옥상
-  const roofY = 5 * FH;
+  const roofY = ROOF_Y;
   const TH = theme();
   B(world, BW + .5, .4, D + .3, TH.slab, 0, roofY - .1, .15);
   B(world, BW + .5, .32, .14, TH.edge, 0, roofY - .15, D / 2 + .34);
@@ -947,7 +971,7 @@ function buildWorld() {
   labelItems.push({ el: roof, pos: new THREE.Vector3(0, roofY + 1.1, D / 2) });
 
   // 땅 단면 (B1 은 흙 속에)
-  const GW = 9, gy0 = -FH - .7, zf = D / 2 + .41, depth = 9;
+  const GW = 9, gy0 = BOTTOM - .7, zf = D / 2 + .41, depth = 9;
   for (const sx of [-1, 1]) {
     const x = sx * (BW / 2 + .25 + GW / 2);
     B(world, GW, -gy0, depth + zf, P.dirt, x, gy0 / 2, (zf - depth) / 2);
@@ -981,9 +1005,11 @@ function fitDist(w, h) {
 }
 function overview() {
   selected = null;
-  // 위로는 옥상 장식(시계탑 · 풍선)까지, 아래로는 B1 흙까지 들어오게
-  goal.target.set(0, (5 * FH + 7 - FH - .7) / 2, 0);
-  goal.dist = fitDist(BW + 8, 6 * FH + 12) * 1.02 + D / 2;
+  // 위로는 옥상 장식(시계탑 · 풍선)까지, 아래로는 지하 흙까지 들어오게
+  // 낮고 넓은 건물은 위로 남는 자리가 크고, 내려다보는 각도 때문에 앞쪽 바닥이 아래로 더 내려가 보여서 아래를 넉넉히
+  const top = ROOF_Y + 4.5, bottom = BOTTOM - 2.5;
+  goal.target.set(0, (ROOF_Y + BOTTOM) / 2 - 2, 0); // 건물 한가운데보다 조금 아래를 봐야 화면 가운데에 와요
+  goal.dist = fitDist(BW + 6, top - bottom) * 1.02 + D / 2;
   goal.yaw = -.32; goal.pitch = .16;
   document.getElementById('back').hidden = true;
   markSigns();
@@ -1148,7 +1174,9 @@ const stepEl = document.getElementById('stepText');
 const floorsEl = document.getElementById('floors');
 const staffEl = document.getElementById('staff');
 const friendsEl = document.getElementById('friends');
-const STAFF_FLOORS = FLOORS.filter((f) => f.floor !== '5F');
+// 직원을 둘 수 있는 방 (사장실은 나 · 친구 자리, 창고는 빈 방)
+const staffable = (k) => k !== 'boss' && !ROOMS[k]?.store;
+const STAFF_FLOORS = FLOORS.map((f) => ({ ...f, rooms: f.rooms.filter(staffable) })).filter((f) => f.rooms.length);
 
 // 서랍이 닫혀 있으면 그 방 화면으로 들어가고, 서랍(배치판)이 열려 있으면 배치할 방으로 골라요
 function chooseRoom(k) {
@@ -1160,7 +1188,7 @@ function chooseRoom(k) {
 }
 function targetRooms() {
   if (!target) return [];
-  return target.kind === 'room' ? [target.key] : FLOORS.find((f) => f.floor === target.key).rooms;
+  return target.kind === 'room' ? [target.key].filter(staffable) : FLOORS.find((f) => f.floor === target.key).rooms.filter(staffable);
 }
 function renderBoard() {
   floorsEl.innerHTML = STAFF_FLOORS.map((f) => {
@@ -1297,20 +1325,21 @@ function placeLabels() {
   }
 }
 
-const still = matchMedia('(prefers-reduced-motion: reduce)');
+// 학교 컴퓨터처럼 Windows '애니메이션 효과'가 꺼져 있으면 브라우저가 '움직임 줄이기'를 알려 와요.
+// 예전에는 그때 모두 멈췄는데, 움직이는 건물이 이 화면의 핵심이라 설정과 상관없이 움직여요.
 const clock = new THREE.Clock();
 let t = 0, tour = 0;
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), .05);
   if (!visible) return; // 숨어 있는 동안은 그리지 않아요
-  if (!still.matches) t += dt;
+  t += dt;
   for (const c of people) animate(c, t);
   for (const { d, x0, x1, off } of docs) d.position.x = x0 + (((t * .18 + off) % 1) * (x1 - x0));
   if (flag) flag.rotation.y = Math.sin(t * 3) * .25;
   for (const b of bobbers) b.m.position.y = b.y0 + Math.sin(t * 1.5 + b.ph) * .12;
   // 6초 넘게 가만히 있으면 화면보호기처럼 천천히 둘러봐요 (건물 전체 보기일 때만)
-  if (!selected && !drag && !drawer.classList.contains('open') && performance.now() - lastInput > 6000 && !still.matches) {
+  if (!selected && !drag && !drawer.classList.contains('open') && performance.now() - lastInput > 6000) {
     tour += dt;
     goal.yaw = -.32 + Math.sin(tour * .09) * .5;
     goal.pitch = .16 + Math.sin(tour * .05) * .05;
@@ -1386,6 +1415,12 @@ export function focusRoom(k, instant = false) {
   bandFloor = f.floor;
   applyBandVis();
   goal.yaw = -.12;
+  // 층 화면 창이 좁으면(휴대폰 등) 방 4개가 너무 작아지니, 고른 방을 가운데 두고 가까이 봐요
+  if (camera.aspect < 2.4) {
+    const b = ROOMS[k].box;
+    goal.target.x = b.cx;
+    goal.dist = fitDist(b.w * 1.5, FH + 1) + D / 2;
+  }
   markSigns();
   if (instant) { view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch; }
 }

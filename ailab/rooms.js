@@ -1,9 +1,10 @@
 // AI 클래스의 층과 방 — 이 파일 하나가 건물 설계도입니다.
 //
-// 방을 추가하려면
-//   1) ROOMS에 한 칸 넣고 (ai: true 이면 사진을 읽은 AI가 자료를 그 방으로 보냅니다)
-//   2) FLOORS의 원하는 층 rooms 목록에 그 key를 넣은 뒤
-//   3) 이 파일을 GitHub에 다시 올리고, firebase 폴더에서 firebase deploy --only functions 를 하세요.
+// 한 층에 방이 4개씩 옆으로 나란히 있어요 (모니터가 가로로 기니까 건물을 낮고 넓게).
+// 비어 있는 칸은 '창고'예요. 새 방이 필요해지면
+//   1) ROOMS에 새 방을 한 칸 넣고 (ai: true 이면 사진을 읽은 AI가 자료를 그 방으로 보냅니다)
+//   2) FLOORS에서 창고 key 하나(store1 등)를 새 방 key로 바꾼 뒤
+//   3) 이 파일을 GitHub에 다시 올리고, firebase 폴더에서 firebase deploy --only functions:ailab 를 하세요.
 //      (functions 쪽 사본은 배포할 때 자동으로 맞춰집니다)
 //
 // view: 방 안에서 카드를 보여주는 모양
@@ -14,6 +15,8 @@
 
 // 화면에 보이는 이름 (주소는 그대로 moontr.site/ailab)
 export const APP_NAME = '문쌤의 AI 연구소';
+
+const STORE = { role: '창고지기', system: true, store: true, desc: '아직 비어 있는 창고예요. 새 방이 필요해지면 이 자리를 방으로 바꿔 써요.' };
 
 export const ROOMS = {
   boss: { name: '사장실', role: '비서', system: true },
@@ -51,13 +54,15 @@ export const ROOMS = {
 
   lobby: { name: '접수처', role: '접수', system: true },
   archive: { name: '원본 보관실', role: '창고지기', system: true },
+
+  store1: { name: '창고 1', ...STORE },
+  store2: { name: '창고 2', ...STORE },
+  store3: { name: '창고 3', ...STORE },
 };
 
+// 위층부터 아래층 순서. 한 층에 방 4개 (왼쪽 → 오른쪽)
 export const FLOORS = [
-  { floor: '5F', name: '사장실', rooms: ['boss'] },
-  { floor: '4F', name: '연수 층', rooms: ['train', 'links'] },
-  { floor: '3F', name: '수업 공개 층', rooms: ['moral', 'others'] },
-  { floor: '2F', name: '연구 층', rooms: ['plans', 'task'] },
-  { floor: '1F', name: '접수처', rooms: ['lobby'] },
-  { floor: 'B1', name: '원본 보관실', rooms: ['archive'] },
+  { floor: '2F', name: '연수 층', rooms: ['boss', 'train', 'links', 'task'] },
+  { floor: '1F', name: '수업 층', rooms: ['lobby', 'moral', 'others', 'plans'] },
+  { floor: 'B1', name: '보관 층', rooms: ['archive', 'store1', 'store2', 'store3'] },
 ];

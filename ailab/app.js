@@ -225,6 +225,7 @@ const DECO = {
 const deco = (k) => (DECO[k] || ['w', 'shelf']).map((p) => PROP[p]).join('');
 
 function roomBadge(k) {
+  if (ROOMS[k]?.store) return { n: 0, hot: false };
   const review = S.cards.filter((c) => c.status === 'review');
   if (k === 'lobby') {
     const n = S.uploading.size + S.captures.filter((c) => c.status === 'reading' || c.status === 'error').length + review.length;
@@ -260,7 +261,7 @@ function homeSide() {
   const review = S.cards.filter((c) => c.status === 'review').length;
   return `<section class="panel">
       <div class="intake-mini">
-        <h3>1F 접수처</h3>
+        <h3>${esc(floorOf('lobby').floor)} 접수처</h3>
         <button class="btn primary" data-act="upload">사진 넣기</button>
       </div>
       <ul class="queue">
@@ -269,7 +270,7 @@ function homeSide() {
       </ul>
       <small>캡쳐를 화면 어디에든 끌어다 놓거나 Ctrl+V로 붙여 넣어도 바로 들어가요.</small>
     </section>
-    <section class="panel"><h3>5F 사장실 · 다가오는 일정</h3>${bossView(true)}</section>`;
+    <section class="panel"><h3>${esc(floorOf('boss').floor)} 사장실 · 다가오는 일정</h3>${bossView(true)}</section>`;
 }
 
 // --- 로그인 전: 건물 안내만 ---
@@ -387,6 +388,7 @@ function floorView(k) {
 }
 
 function roomContent(k) {
+  if (ROOMS[k]?.store) return storeRoom(k);
   if (isGuest()) return guestRoom(k);
   if (k === 'boss') return bossView(false);
   if (k === 'lobby') return lobbyView();
@@ -399,11 +401,18 @@ function roomContent(k) {
   return head + view(list, k);
 }
 
+// 창고: 아직 쓰지 않는 칸. 새 방이 필요하면 rooms.js 에서 이 자리를 방으로 바꿔요
+function storeRoom(k) {
+  return `<div class="empty"><p>${esc(roomName(k))}는 아직 비어 있어요. 상자만 쌓여 있어요.</p>
+    <p>새 방이 필요해지면 이 자리를 방으로 바꿔 쓸 수 있어요. (rooms.js 에서 창고 이름을 새 방으로 바꾸기)</p></div>`;
+}
+
 function emptyRoom(k) {
   return `<div class="empty"><p>아직 ${esc(roomName(k))}에 자료가 없어요. 1층 접수처에 캡쳐를 넣으면 ${esc(ROOMS[k].role || '직원')}이(가) 읽고 여기로 가져와요.</p><button class="btn primary" data-act="upload">사진 넣기</button></div>`;
 }
 
 function guideSay(k) {
+  if (ROOMS[k]?.store) return '빈 창고예요. 새 방이 생기면 제가 정리해서 비워 둘게요.';
   if (isGuest()) return `${roomName(k)} ${ROOMS[k]?.role || '직원'}이에요. 선생님이 오시면 정리한 자료를 보여 드릴게요.`;
   const review = S.cards.filter((c) => c.status === 'review').length;
   if (k === 'boss') {
@@ -921,7 +930,7 @@ document.addEventListener('focusout', () => {
 // ---------- 엘리베이터: 다른 층으로 가면 문이 닫히고, 층 표시가 바뀌고, 문이 열려요 ----------
 let lastRoute = route();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// 학교 컴퓨터처럼 Windows '애니메이션 효과'가 꺼져 있어도 엘리베이터는 움직여요 (움직임이 이 앱의 핵심이라서)
 async function ride(from, to) {
   S.riding = true;
   $('.lift')?.classList.add('shut');
@@ -942,8 +951,8 @@ window.addEventListener('hashchange', () => {
   const next = route();
   const a = ROOMS[lastRoute] ? floorOf(lastRoute) : null, b = ROOMS[next] ? floorOf(next) : null;
   lastRoute = next;
-  if (B3 && a && b && a !== b && !S.q && !S.riding && !calm()) { ride(a, b); return; }
-  if (B3 && !a && b && !calm()) S.doorsShut = true; // 첫 화면에서 들어올 때도 문이 열리며
+  if (B3 && a && b && a !== b && !S.q && !S.riding) { ride(a, b); return; }
+  if (B3 && !a && b) S.doorsShut = true; // 첫 화면에서 들어올 때도 문이 열리며
   render();
   window.scrollTo(0, 0);
 });
