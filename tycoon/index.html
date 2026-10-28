@@ -6083,18 +6083,19 @@ onAuthStateChanged(auth, async u => {
   if (APP && !cfg && !loadFailed && !asked){ try { sessionStorage.setItem("desk-start-asked", "1"); } catch (e) {} show("shStart"); }
 });
 // 📺 전자칠판: 공개 칸(desk_board)에서 우리 반 시간표만 읽어 게임 화면만 가득 (머리 줄 · 오른쪽 칸 · 창 없이, 저장 없음)
-async function openBoard(){
+// 칠판 칸을 계속 지켜봐요: 선생님이 시간표 · 미리 바꾸기(보강 · 행사 …)를 저장하면 켜 둔 칠판도 몇 초 안에 따라 바뀌어요
+function openBoard(){
   document.body.classList.add("bigview", "boardview"); hide("shLogin"); hide("demoBar");
-  try {
-    const s = await getDoc(doc(db, "desk_board", BOARD)); if (!s.exists()) throw new Error("gone");
+  const gone = () => { if (!document.querySelector(".boardmsg")) document.body.insertAdjacentHTML("beforeend", `<div class="boardmsg">📺 이 전자칠판 링크는 끊겼거나 잘못됐어요.<br><small>교무실 타이쿤 ⚙️ 설정 › 📺 전자칠판에서 새 링크를 만들어 주세요.</small></div>`); };
+  onSnapshot(doc(db, "desk_board", BOARD), s => {
+    if (!s.exists()){ gone(); return; }
+    document.querySelector(".boardmsg")?.remove();
     const b = s.data();
     window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {} });
     window.DESK.setDayTT(b.dayTT || {}, b.dayKind || {}); window.DESK.setAvatar(b.avatar || 0); window.DESK.setTodos([]); window.DESK.setFriends([]); setMode("class");   // 나 + 우리 반
     if (b.loc){ BOARD_LOC = b.loc; loadWeather(true); }   // 창밖 날씨만 (시 · 군)
-  } catch (e){
-    document.body.insertAdjacentHTML("beforeend", `<div class="boardmsg">📺 이 전자칠판 링크는 끊겼거나 잘못됐어요.<br><small>교무실 타이쿤 ⚙️ 설정 › 📺 전자칠판에서 새 링크를 만들어 주세요.</small></div>`);
-  }
-  dispatchEvent(new Event("resize"));   // 게임 화면을 칠판 크기에 맞춰요
+    dispatchEvent(new Event("resize"));   // 게임 화면을 칠판 크기에 맞춰요
+  }, gone);
 }
 let BOARD_LOC = null;
 if (BOARD) openBoard();
