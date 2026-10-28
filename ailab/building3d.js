@@ -65,10 +65,10 @@ const camera = new THREE.PerspectiveCamera(30, 1, .1, 400);
 const hemi = new THREE.HemisphereLight('#ffffff', '#b9a68a', 1.6);
 const sun = new THREE.DirectionalLight('#fff4e2', 2.3);
 sun.position.set(-14, 34, 26);
-sun.target.position.set(0, 7, 0);
+sun.target.position.set(0, 11, 0);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 24, bottom: -10, near: 1, far: 90 });
+Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 30, bottom: -18, near: 1, far: 110 }); // 층고를 높인 건물 전체가 들어가게
 sun.shadow.bias = -.0004;
 sun.shadow.normalBias = .03;
 scene.add(hemi, sun, sun.target);
@@ -654,7 +654,8 @@ function lamp(g, x, y, z) {
 }
 
 // ---------- 건물 ----------
-const FH = 4.1, D = 5.6, BW = 20; // FH: 층고 (예전 3.2 → 넉넉하게)
+const FH = 5.6, D = 5.6, BW = 20; // FH: 층고 (3.2 → 4.1 → 층 화면에서 답답하지 않게 5.6)
+const WK = FH / 4.1; // 창문은 층고에 맞춰 키워요
 
 // --- 건물 시안 5개. side: 바깥 옆벽(색 · glass · brick · logs), win: 창문 모양, roof: 옥상 꾸밈 ---
 const THEMES = [
@@ -721,29 +722,29 @@ function windows(g, cx, rw, n, y) {
   const pane = (x, w, h) => { B(g, w + .2, h + .2, .08, TH.frame, x, wy, zf); B(g, w, h, .04, TH.glass, x, wy, zf + .05, { m: gm }); };
   if (TH.win === 'ribbon') {
     const w = rw - 1.6;
-    pane(cx, w, 1.9);
-    for (let mx = cx - w / 2 + 1.5; mx < cx + w / 2 - .4; mx += 1.5) B(g, .07, 1.9, .05, TH.frame, mx, wy, zf + .08, { shadow: false });
+    pane(cx, w, 1.9 * WK);
+    for (let mx = cx - w / 2 + 1.5; mx < cx + w / 2 - .4; mx += 1.5) B(g, .07, 1.9 * WK, .05, TH.frame, mx, wy, zf + .08, { shadow: false });
   } else if (TH.win === 'tall') {
     const k = n === 1 ? 5 : 2, gap = (rw - 1.6) / k;
     for (let i = 0; i < k; i++) {
       const x = cx - (rw - 1.6) / 2 + gap * (i + .5);
-      pane(x, 1, 2.1);
-      B(g, .6, .3, .1, TH.frame, x, wy + 1.25, zf);
+      pane(x, 1, 2.1 * WK);
+      B(g, .6, .3, .1, TH.frame, x, wy + 1.05 * WK + .2, zf);
       B(g, 1, .06, .05, TH.frame, x, wy + .2, zf + .08, { shadow: false });
     }
   } else if (TH.win === 'round') {
     const k = n === 1 ? 4 : 2, gap = (rw - 2) / k;
     for (let i = 0; i < k; i++) {
       const x = cx - (rw - 2) / 2 + gap * (i + .5);
-      B(g, 1.7, 1.7, .1, TH.frame, x, wy, zf);
-      B(g, 1.3, 1.3, .04, TH.glass, x, wy, zf + .06, { m: gm });
-      B(g, .08, 1.3, .05, TH.frame, x, wy, zf + .09, { shadow: false });
-      B(g, 1.3, .08, .05, TH.frame, x, wy, zf + .09, { shadow: false });
+      B(g, 1.7 * WK, 1.7 * WK, .1, TH.frame, x, wy, zf);
+      B(g, 1.3 * WK, 1.3 * WK, .04, TH.glass, x, wy, zf + .06, { m: gm });
+      B(g, .08, 1.3 * WK, .05, TH.frame, x, wy, zf + .09, { shadow: false });
+      B(g, 1.3 * WK, .08, .05, TH.frame, x, wy, zf + .09, { shadow: false });
     }
   } else {
     for (const wx of n === 1 ? [cx - 3, cx + 3] : [cx]) {
-      pane(wx, 1.9, 1.5);
-      B(g, .06, 1.5, .05, TH.frame, wx, wy, zf + .08, { shadow: false });
+      pane(wx, 1.9 * WK, 1.5 * WK);
+      B(g, .06, 1.5 * WK, .05, TH.frame, wx, wy, zf + .08, { shadow: false });
     }
   }
 }
@@ -981,8 +982,8 @@ function fitDist(w, h) {
 function overview() {
   selected = null;
   // 위로는 옥상 장식(시계탑 · 풍선)까지, 아래로는 B1 흙까지 들어오게
-  goal.target.set(0, (5 * FH + 5.5 - FH - .7) / 2, 0);
-  goal.dist = fitDist(BW + 8, 6 * FH + 8) * 1.02 + D / 2;
+  goal.target.set(0, (5 * FH + 7 - FH - .7) / 2, 0);
+  goal.dist = fitDist(BW + 8, 6 * FH + 12) * 1.02 + D / 2;
   goal.yaw = -.32; goal.pitch = .16;
   document.getElementById('back').hidden = true;
   markSigns();
