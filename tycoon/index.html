@@ -400,6 +400,10 @@ header.top .row2 .r2r{justify-self:end;flex-wrap:wrap}
 .cevrow span{flex:1;min-width:0;font-weight:700}
 .cadd{display:flex;gap:6px;margin-top:2px}
 .cadd input{flex:1;min-width:0}
+/* 📢 학생 알림: 켜면 노랗게 (우리 반 화면 · 전자칠판 알림 한 줄에 떠요) */
+.ckid{flex:none;padding:2px 8px;border:1px dashed var(--line);border-radius:999px;background:transparent;color:var(--muted);font:600 12px/1.4 inherit;cursor:pointer;white-space:nowrap}
+.ckid.on{border:1px solid #FFD400;background:#FFD400;color:#1A1622}
+.ckidnew{flex:none;display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap}
 .cup{display:flex;flex-direction:column;gap:3px}
 .cup button{display:grid;grid-template-columns:4.2em minmax(0,1fr) auto;gap:6px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);text-align:left;cursor:pointer;font:13px var(--body)}
 .cup button b{color:var(--accent);font:700 12px var(--ui)}.cup button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cup button small{color:var(--muted)}
@@ -6208,7 +6212,7 @@ function openBoard(){
     window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {}, kids:b.kids });
     window.DESK.setDayTT(b.dayTT || {}, b.dayKind || {}); window.DESK.setHrDayTT(b.hrDayTT || {}); window.DESK.setAvatar(b.avatar || 0); window.DESK.setTodos([]); window.DESK.setFriends([]); setMode("class");   // 나 + 우리 반
     if (b.loc){ BOARD_LOC = b.loc; loadWeather(true); }   // 창밖 날씨만 (시 · 군)
-    BOARD_EV = b.events || [];   // 📢 알림 한 줄의 오늘 · 내일 일정
+    BOARD_EV = b.events || [];   // 📢 학생 알림을 켠 일정만 올라와요
     dispatchEvent(new Event("resize"));   // 게임 화면을 칠판 크기에 맞춰요
   }, gone);
 }
@@ -6323,8 +6327,11 @@ async function openDesk(){
   // 학교에서 이 PC에만 저장해 둔 것이 있으면, 서버에 올라가는 대로 알려 줘요
   if (lsGet("desk-pending", 0)) waitForPendingWrites(db).then(() => { lsSet("desk-pending", 0); $("saved").textContent = "학교에서 저장해 둔 내용이 서버에도 올라갔어요 ✓"; }).catch(() => {});
 }
+let boardFresh = false;
 function useConfig(){
   window.DESK.applyConfig(cfg); window.DESK.setLook(cfg.look); window.DESK.setAvatar(cfg.avatar || 0); window.DESK.setDayTT(cfg.dayTT, cfg.dayKind); window.DESK.setHrDayTT(cfg.hrDayTT); pushFriends(); loadWeather();
+  // 📺 열 때 한 번 칠판도 지금 내용으로 다시 써요 (예전에 올라간 달력 일정 같은 칸은 지워져요)
+  if (!boardFresh && cfg.board && !demo){ boardFresh = true; syncBoard(); }
   $("whoName").textContent = `${ME}의 하루`;
   renderSched();
 }
@@ -7384,7 +7391,7 @@ async function saveEdit(){
   readEdit();
   const notes = fixEdit();
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), hrShort:!!ed.hrShort, kids:cleanKids(ed.kids), officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), hrShort:!!ed.hrShort, kids:cleanKids(ed.kids), officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30), ...(e.k ? { k:true } : {}) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   ["loc", "school", "board", "hrDayTT"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치 · 📺 전자칠판 링크는 그대로
   let tag = finalTag(ed.tag, out.name); if (!/^[A-Z][A-Z0-9]{1,11}$/.test(tag)) tag = "TEACHER";
   if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT, out.dayKind); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
@@ -7709,9 +7716,10 @@ setTimeout(() => setInterval(() => {
 }, 2000), 3000);
 
 /* ---------- 📢 우리 반 알림 한 줄 (🧒 우리 반 모드 · 전자칠판) ----------
-   게임 화면 왼쪽 위에 2분마다 12초: 다음 시간(과목 · 교실) → 오늘 일정 → 내일 일정을 번갈아 띄워요 (아이들이 늘 같은 화면이라고 느끼지 않게) */
+   게임 화면 왼쪽 위에 2분마다 12초: 다음 시간(과목 · 교실) → 오늘 · 내일 일정을 번갈아 띄워요 (아이들이 늘 같은 화면이라고 느끼지 않게)
+   일정은 📅 달력에서 '📢 학생 알림'을 켠 것만 (개인 일정은 안 떠요) */
+const noticeEvents = () => ((demo ? DEMO_CFG.events : cfg ? cfg.events : BOARD_EV) || []).filter(e => e.k);
 let noticeI = 0, noticeAt = 0, noticeHide = null;
-const noticeEvents = () => (demo ? DEMO_CFG.events : cfg ? cfg.events : BOARD_EV) || [];
 function noticeLines(){
   const d = simNow(), day = d.getDay(), m = d.getHours()*60 + d.getMinutes(), out = [];
   if (day >= 1 && day <= 5){
@@ -7923,7 +7931,7 @@ async function saveSchool(){
   if (bad){ sSay(bad); return false; }
   const by = readBy("s", $("sGr").value, $("sCl").value);
   const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:by ? Math.max(...by) : +$("sCl").value, classesBy:by, officeF:+$("sOff").value || 2, myRoom:MYROOMS.includes($("sRoom").value) ? $("sRoom").value : "", inT:$("sIn").value, outT:$("sOut").value,
-    loc:sF.loc || null, school:sF.school || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
+    loc:sF.loc || null, school:sF.school || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30), ...(e.k ? { k:true } : {}) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
   const tag = finalTag(tagIn, out.name);
   if (demo){ cfg = out; useConfig(); loadWeather(true); sDirty = false; sSay("체험 중이라 이 화면에서만 바뀌어요"); return true; }
   $("saved").textContent = "저장 중…";
@@ -8128,9 +8136,9 @@ $("chgList").addEventListener("click", e => { const b = e.target.closest("[data-
 const shortCell = v => String(v || "").split("/").map(x => { const w = x.trim().split(/\s+/).filter(Boolean); if (!w.length) return ""; const last = w[w.length - 1], roomy = ROOMISH.test(last) || last === "교실", subj = (roomy ? w.slice(0, -1) : w).join(" "); if (!subj) return x.trim(); let s2 = shortSubj(subj); if (!roomy && ROOMISH.test(s2)) s2 += " 교실"; return roomy ? `${s2} ${last}` : s2; }).filter(Boolean).join(" / ");
 const shortMap = W => Object.fromEntries(Object.entries(W || {}).map(([k, o]) => [k, Object.fromEntries(Object.entries(o || {}).map(([p, v]) => [p, shortCell(v)]))]));
 const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrShort ? shortMap(cfg.hrWeek) : cfg.hrWeek || {}, hrDayTT:cfg.hrShort ? shortMap(cfg.hrDayTT) : cfg.hrDayTT || {}, kids:cleanKids(cfg.kids), events:boardEvents(), loc:cfg.loc || null, at:Date.now() });
-// 칠판 📢 알림 한 줄에 쓸 일정: 오늘부터 14일 안의 것만 20개까지
-function boardEvents(){ const a = dkey(new Date()), z = new Date(); z.setDate(z.getDate() + 14); const b = dkey(z); return (cfg.events || []).filter(e => e.d >= a && e.d <= b).slice(0, 20).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })); }
-// 칠판에 올리기: 보안 규칙에 새 칸(학생 교복 kids · 일정 events)을 아직 게시하지 않았으면 그 칸만 빼고 다시 올려요
+// 칠판 📢 알림 한 줄에 쓸 일정: '📢 학생 알림'을 켠 것 중 오늘부터 14일 안의 것만 20개까지 (개인 일정은 안 올라가요)
+function boardEvents(){ const a = dkey(new Date()), z = new Date(); z.setDate(z.getDate() + 14); const b = dkey(z); return (cfg.events || []).filter(e => e.k && e.d >= a && e.d <= b).slice(0, 20).map(e => ({ d:e.d, t:String(e.t).slice(0, 30), k:true })); }
+// 칠판에 올리기: 보안 규칙에 새 칸(학생 교복 kids · 학생 알림 일정 events)을 아직 게시하지 않았으면 그 칸만 빼고 다시 올려요
 const putBoard = tok => setDoc(doc(db, "desk_board", tok), boardData()).catch(() => { const d = boardData(); delete d.kids; delete d.events; return setDoc(doc(db, "desk_board", tok), d); });
 const boardUrl = (tok, home) => home ? `https://moontr.site/?board=${tok}` : `https://moontr.site/tycoon/?board=${tok}#1`;
 const syncBoard = () => { if (cfg && cfg.board && !demo) putBoard(cfg.board).catch(() => {}); };   // 시간표 · 학교를 저장할 때마다 칠판도
@@ -8138,7 +8146,7 @@ let boardMsg = "";
 function boardForm(){
   const tok = cfg && cfg.board;
   return `<div class="sec">📺 전자칠판 (로그인 없이 우리 반 화면)</div>
-    <p class="note">교실 전자칠판에 <b>로그인하지 않고</b> 🧒 우리 반 화면(나 + 우리 반 아이들)을 띄우는 링크예요. 링크엔 <b>닉네임 · 캐릭터 · 내 시간표 · 우리 반 시간표 · 종 시간 · 앞으로 14일 달력 일정(📢 알림 한 줄)</b>만 올라가고, 할 일 · 메모 · 친구 · 이메일은 안 올라가요. 링크를 아는 사람만 볼 수 있어요.</p>
+    <p class="note">교실 전자칠판에 <b>로그인하지 않고</b> 🧒 우리 반 화면(나 + 우리 반 아이들)을 띄우는 링크예요. 링크엔 <b>닉네임 · 캐릭터 · 내 시간표 · 우리 반 시간표 · 종 시간 · 📅 달력에서 📢 학생 알림을 켠 일정</b>만 올라가고, 할 일 · 메모 · 친구 · 이메일은 안 올라가요. 링크를 아는 사람만 볼 수 있어요.</p>
     ${!cfg || !cfg.hr ? `<p class="note">먼저 위 '나와 학교'에서 <b>담임 반</b>을 저장해 주세요.</p>`
       : tok ? `<div class="boardbox"><b>① 전자칠판에서 이 주소를 열면 끝</b><div class="burl"><code>${esc(boardUrl(tok))}</code><button type="button" class="btn" data-bcopy="${esc(boardUrl(tok))}">복사</button></div>
         <b>② moontr.site 대문 '5 타이쿤'도 이 화면으로 (그 칠판에서만)</b><div class="burl"><code>${esc(boardUrl(tok, true))}</code><button type="button" class="btn" data-bcopy="${esc(boardUrl(tok, true))}">복사</button></div>
@@ -8239,7 +8247,7 @@ function renderCal(){
     const cls = ["cday", d.getMonth() !== calM ? "out" : "", wd === 0 || holi ? "sun" : wd === 6 ? "sat" : "", k === today ? "today" : "", k === calSel ? "sel" : "", evs.length || (DD && DD.d === k) ? "has" : ""].filter(Boolean).join(" ");
     cells += `<button type="button" class="${cls}" data-cday="${k}" aria-label="${d.getMonth() + 1}월 ${d.getDate()}일${holi ? " " + holi : ""}${evs.length ? " 일정 " + evs.length + "개" : ""}"><b>${d.getDate()}</b>`
       + (holi ? `<i class="ho">${esc(holi)}</i>` : "") + (DD && DD.d === k ? `<i class="dd">🎯 ${esc(DD.t)}</i>` : "")
-      + evs.slice(0, 3).map(e => `<i class="ev">${esc(e.t)}</i>`).join("") + (evs.length > 3 ? `<i class="more">+${evs.length - 3}</i>` : "") + (DT[k] ? `<i class="chg">✎ 바뀐 시간표</i>` : "") + `</button>`;
+      + evs.slice(0, 3).map(e => `<i class="ev">${e.k ? "📢 " : ""}${esc(e.t)}</i>`).join("") + (evs.length > 3 ? `<i class="more">+${evs.length - 3}</i>` : "") + (DT[k] ? `<i class="chg">✎ 바뀐 시간표</i>` : "") + `</button>`;
   }
   // 고른 날: 그날 내 시간표 (미리 바꾼 날이면 그걸로) · 일정 · 더하기
   const sd = new Date(calSel + "T00:00:00"), swd = sd.getDay(), base = (C.week || {})[swd] || {}, o = DT[calSel], tt = o || base, kd = (C.dayKind || {})[calSel] || {};
@@ -8256,8 +8264,9 @@ function renderCal(){
       ${classes ? `<div class="cclass" title="${o ? "미리 바꾼 날" : "내 수업"}">${o ? `<span class="chgb">바뀐 날</span>` : ""}${classes}</div>` : ""}
       <div class="cev">${sev.map(([e, i], k) => calEdit === i
         ? `<span class="cevrow editing"><input class="cev-in" maxlength="30" value="${esc(e.t)}" aria-label="일정 고치기"><button type="button" class="btn" data-csave="${i}">저장</button><button type="button" class="ibtn" data-ccancel aria-label="고치기 그만">↩</button></span>`
-        : `<span class="cevrow"><span>${esc(e.t)}</span>${sev.length > 1 ? `<button type="button" class="ibtn" data-cmove="${i},-1" ${k === 0 ? "disabled" : ""} aria-label="${esc(e.t)} 위로" title="위로">▲</button><button type="button" class="ibtn" data-cmove="${i},1" ${k === sev.length - 1 ? "disabled" : ""} aria-label="${esc(e.t)} 아래로" title="아래로">▼</button>` : ""}<button type="button" class="ibtn" data-cfix="${i}" aria-label="${esc(e.t)} 고치기" title="고치기">✏️</button><button type="button" class="ibtn" data-cdel="${i}" aria-label="${esc(e.t)} 지우기">✕</button></span>`).join("")}</div>
-      <form class="cadd" id="calForm"><input id="calIn" maxlength="30" placeholder="이날 일정 더하기 (예: 체육대회)" aria-label="이날 일정"><button type="submit" class="btn">+ 더하기</button></form>
+        : `<span class="cevrow"><span>${e.k ? "📢 " : ""}${esc(e.t)}</span><button type="button" class="ckid${e.k ? " on" : ""}" data-ckid="${i}" aria-pressed="${!!e.k}" title="켜면 🧒 우리 반 화면 · 전자칠판 알림 한 줄에 떠요">📢 학생 알림</button>${sev.length > 1 ? `<button type="button" class="ibtn" data-cmove="${i},-1" ${k === 0 ? "disabled" : ""} aria-label="${esc(e.t)} 위로" title="위로">▲</button><button type="button" class="ibtn" data-cmove="${i},1" ${k === sev.length - 1 ? "disabled" : ""} aria-label="${esc(e.t)} 아래로" title="아래로">▼</button>` : ""}<button type="button" class="ibtn" data-cfix="${i}" aria-label="${esc(e.t)} 고치기" title="고치기">✏️</button><button type="button" class="ibtn" data-cdel="${i}" aria-label="${esc(e.t)} 지우기">✕</button></span>`).join("")}</div>
+      <form class="cadd" id="calForm"><input id="calIn" maxlength="30" placeholder="이날 일정 더하기 (예: 체육대회)" aria-label="이날 일정"><label class="chk ckidnew" title="켜면 🧒 우리 반 화면 · 전자칠판 알림 한 줄에 떠요"><input type="checkbox" id="calKid"> 📢 학생 알림</label><button type="submit" class="btn">+ 더하기</button></form>
+      <span class="note" style="margin:0">📢 학생 알림을 켠 일정만 우리 반 화면 · 전자칠판 알림 한 줄(오늘 · 내일)에 떠요. 개인 일정은 켜지 마세요.</span>
       <span class="note" id="calMsg" role="status" style="margin:0">${esc(calMsg2)}</span>
     </div>`;
 }
@@ -8279,6 +8288,8 @@ $("calBody").addEventListener("click", e => {
   const day = e.target.closest("[data-cday]");
   if (day){ calSel = day.dataset.cday; calEdit = null; const d = new Date(calSel + "T00:00:00"); calY = d.getFullYear(); calM = d.getMonth(); calMsg2 = ""; renderCal(); return; }
   const C = calSrc() || {}, EV = (C.events || []).map(x => ({ ...x }));
+  // 📢 학생 알림 켜고 끄기
+  const kd = e.target.closest("[data-ckid]"); if (kd){ const x = EV[+kd.dataset.ckid]; if (x.k) delete x.k; else x.k = true; calSave(EV); return; }
   const del = e.target.closest("[data-cdel]"); if (del){ EV.splice(+del.dataset.cdel, 1); calEdit = null; calSave(EV); return; }   // D-day 는 ⚙️ 설정에서만 정해요 (달력엔 보이기만)
   // ✎ 고치기 · 저장 · 그만
   const fx = e.target.closest("[data-cfix]"); if (fx){ calEdit = +fx.dataset.cfix; renderCal(); const i = $("calBody").querySelector(".cev-in"); i?.focus(); i?.select(); return; }
@@ -8302,7 +8313,7 @@ $("calBody").addEventListener("keydown", e => {
 });
 $("calBody").addEventListener("submit", e => {
   e.preventDefault(); const v = ($("calIn").value || "").trim().slice(0, 30); if (!v) return;
-  const C = calSrc() || {}; calSave([...(C.events || []), { d:calSel, t:v }]);
+  const C = calSrc() || {}; calSave([...(C.events || []), { d:calSel, t:v, ...($("calKid")?.checked ? { k:true } : {}) }]);
 });
 /* ----- 📄 PDF 뽑기: 좋아하는 시안 그림을 표지로 + 시간표 · TO DO 기록 · 메모 · 학교 일정 → 인쇄 창에서 'PDF로 저장' ----- */
 // 시안마다 PDF 제목 · 줄 색 (원래 시안 번호 → 색). 없으면 파랑
