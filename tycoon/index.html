@@ -2358,8 +2358,8 @@ const tower = port => (() => {
   const RW = clamp(Math.floor(336/NCLS), 18, 40), BW = port ? 250 : NCLS*RW + 2*SW + CW, BX = port ? Math.round((W - BW)/2) : 24 + Math.round((400 - BW)/2);
   const fb = f => GR - (f - 1)*FH, lane = f => fb(f) - 3;
   const R = [];
-  // 1층: 계발 · 동아리실 · 음악실 · 미술실 · 행정실 | 현관 | 교장실 · 특별교실 · 도서실 · 보건실 · 컴퓨터실 · 가사실. 체육은 운동장, 그 밖의 교과 · 선택 과목 교실은 특별교실로 가요
-  const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /계발/.test(id) ? "계발" : /동아리|창체|자율/.test(id) ? "동아리실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "도서실" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : /가사|가정|기술|조리/.test(id) ? "가사실" : "특별교실";
+  // 1층: 가사실 · 동아리실 · 과학실 · 음악실 · 교장실 | 현관 | 특별교실 · 미술실 · 도서실 · 보건실 · 컴퓨터실 · 계발. 체육은 운동장, 그 밖의 교과 · 선택 과목 교실은 특별교실로 가요
+  const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /계발/.test(id) ? "계발" : /동아리|창체|자율/.test(id) ? "동아리실" : /과학|과탐|물리|화학|생명|지구/.test(id) ? "과학실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "도서실" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : /가사|가정|기술|조리/.test(id) ? "가사실" : "특별교실";
   const LIT = new Set([...TAUGHT].map(roomFor));
   let CX, SL, SR;
   if (!port){
@@ -2370,7 +2370,7 @@ const tower = port => (() => {
       ORDER(gr, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; side++; return; } const w = midRoom(id) ? CW : side ? wr : wl, x0 = Math.round(x); R.push({ id, f, x:x0, y:fb(f) - FH, w:Math.round(x + w) - x0, h:FH, bot:fb(f) }); x += w; }); });
     // 날개 너비(반 수 × 교실 너비)를 방 수로 나눠 써요. 너무 좁아지면(16 아래) 끝에서부터 빼요
     const wing = (n, big, bigFirst, items) => { const tot = n*RW, list = [...items]; while (list.length && tot/(list.length + 1) < 16) list.pop(); const all = bigFirst ? [big, ...list] : [...list, big]; return all.map(id => [id, tot/all.length]); };
-    [...wing(NL, "행정실", false, ["계발", "동아리실", "음악실", "미술실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true, ["특별교실", "도서실", "보건실", "컴퓨터실", "가사실"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH, bot:fb(1) }); return x + w; }, BX);
+    [...wing(NL, "교장실", false, ["가사실", "동아리실", "과학실", "음악실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "특별교실", true, ["미술실", "도서실", "보건실", "컴퓨터실", "계발"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH, bot:fb(1) }); return x + w; }, BX);
   } else {
     SL = BX + SW/2; SR = BX + BW - SW/2;
     const IN = BW - 2*SW, X0 = BX + SW;
@@ -2383,8 +2383,8 @@ const tower = port => (() => {
       const lo = cls.slice(up); if (ids.includes("office")) lo.splice(Math.ceil(lo.length/2), 0, "office"); row(lo, f, fb(f));
     });
     const fit1 = (list, fixed) => { const l = [...list]; while (l.length && (IN - fixed*CW)/(l.length) < 26) l.pop(); return l; };
-    row(fit1(["계발", "동아리실", "음악실", "미술실", "특별교실", "컴퓨터실", "가사실"], 0), 1, fb(1) - RH);
-    row(["행정실", "교장실", "gate", "도서실", "보건실"], 1, fb(1));
+    row(fit1(["가사실", "동아리실", "과학실", "음악실", "미술실", "컴퓨터실", "계발"], 0), 1, fb(1) - RH);
+    row(["교장실", "특별교실", "gate", "도서실", "보건실"], 1, fb(1));   // 특별교실(그 밖의 교과가 가는 곳)은 늘 있게 아랫줄에
   }
   // 세로: 집은 건물 아래 왼쪽, 운동장은 아래 오른쪽 땅에 (오른쪽 아래엔 메모 스티커가 떠요. HB = 집 바닥, YC = 운동장 가운데 줄)
   const HOME = port ? { id:"home", f:0, x:BX + 2, y:GR + 30, w:52, h:42 } : { id:"home", f:0, x:432, y:GR - 44, w:46, h:44 }; R.push(HOME);
@@ -2474,7 +2474,8 @@ const tower = port => (() => {
     rect(0, 0, W, H, P.sky);
     STARS.forEach(([x, y], k) => rect(x, y, 1, 1, k % 6 ? "#34345E" : (Math.sin(T*2 + k) > .3 ? "#FFFFFF" : "#8C8CA6")));
     // 🔋 선생님 배터리 (예전 초승달 자리): 출근 100% → 점심 50%, 점심에 ⚡ 100% → 퇴근 50%, 퇴근 뒤 · 주말 100%
-    const bt = batLevel(simNow()), bx = W - 50, by = 13, bw = 20, bh = 10, fw = Math.max(1, Math.round((bw - 4)*bt.v/100));
+    // 그림 맨 오른쪽 위에 바짝
+    const bt = batLevel(simNow()), bw = 20, bh = 10, bx = W - bw - 4, by = 2, fw = Math.max(1, Math.round((bw - 4)*bt.v/100));
     rect(bx, by, bw, bh, "#F4F1D0"); rect(bx + 1, by + 1, bw - 2, bh - 2, P.sky); rect(bx + bw, by + 3, 2, 4, "#F4F1D0");
     rect(bx + 2, by + 2, fw, bh - 4, bt.v > 75 ? "#5BEA6F" : bt.v > 60 ? "#FFD23D" : "#FF8A3D");
     if (bt.charge && Math.floor(T*2) % 2) txt("⚡", bx + bw/2, by + bh/2 + .5, 7, "#FFFFFF", "center");   // 숫자 없이 그림만
