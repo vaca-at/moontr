@@ -158,9 +158,11 @@ service cloud.firestore {
     }
 
     // 문장 담벼락: 누구나 보기(이름 없이), 쓴 사람 닉네임은 vibe_wall_who 에만(관리자만 보기)
+    // wid: 같은 사람 쪽지를 같은 색으로 보여 주는 짧은 열쇠(해시 10글자, 닉네임은 알 수 없어요)
     match /vibe_wall/{id} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['ban','kind','text','createdAt'])
+      allow create: if request.resource.data.keys().hasOnly(['ban','kind','text','createdAt','wid'])
+        && (!('wid' in request.resource.data) || (request.resource.data.wid is string && request.resource.data.wid.size() <= 16))
         && request.resource.data.ban in ['A', 'B']
         && request.resource.data.kind in ['learned', 'felt', 'wonder']
         && vibeText(request.resource.data, 'text', 1, 300)
