@@ -19,9 +19,12 @@ const JOBS = {
 // n · hot = 이름표 옆 숫자 (앱이 setBadges 로 실제 자료 수를 넣어요)
 const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, { ...r, job: JOBS[k] || r.desc || '', n: 0, hot: false }]));
 const ME_JOB = '건물 전체를 둘러보며 다가오는 연수·공개수업·과제 마감을 챙겨요.';
-const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5 }, me: 1, friend: 1, gender: 'm', theme: 1 };
+const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5 }, me: 1, friend: 1, gender: 'm', theme: 1, layout: 1 };
 const saved = (() => { try { return JSON.parse(localStorage.getItem('ailab3d') || 'null'); } catch { return null; } })();
 const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...(saved?.assign || {}) } };
+// 시안 미리 보기: 주소 뒤에 ?layout=3&theme=8&me=6&friend=11 처럼 붙이면 그 모습으로 (저장은 안 해요)
+const PREVIEW = Object.fromEntries(['layout', 'theme', 'me', 'friend'].map((k) => [k, Number(new URLSearchParams(location.search).get(k)) || 0]).filter(([, v]) => v));
+Object.assign(STATE, PREVIEW);
 const hooks = { onRoom: null, onChange: null };
 const root = document.getElementById('b3d');
 let visible = !root.hidden;
@@ -68,7 +71,7 @@ sun.position.set(-14, 29, 26);
 sun.target.position.set(0, 6, 0);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -33, right: 33, top: 24, bottom: -22, near: 1, far: 110 }); // 방 4개짜리 넓고 낮은 건물이 다 들어가게
+Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 28, bottom: -22, near: 1, far: 120 }); // 방 4개짜리 넓고 낮은 건물이 다 들어가게
 sun.shadow.bias = -.0004;
 sun.shadow.normalBias = .03;
 scene.add(hemi, sun, sun.target);
@@ -259,6 +262,18 @@ const meDef = (o) => {
   const f = STATE.gender === 'f';
   return { ...PERSON, parts: person({ head: P.skin, headFront: f ? faceLong() : face(), hand: P.skin, ...o, hat: (f ? hairLong : hairTop)(HAIR, o.hat || []) }) };
 };
+// 동그란 안경 쓴 얼굴 (안경테는 얇은 막대 네 개씩, 눈은 그 안에) · 곱슬머리 덩어리
+const GLASSES = [
+  [0, 0, 6, .7, HAIR],
+  [.7, 1.3, 2, .28, '#1a1a1a'], [.7, 3, 2, .28, '#1a1a1a'], [.7, 1.3, .28, 2, '#1a1a1a'], [2.42, 1.3, .28, 2, '#1a1a1a'],
+  [3.3, 1.3, 2, .28, '#1a1a1a'], [3.3, 3, 2, .28, '#1a1a1a'], [3.3, 1.3, .28, 2, '#1a1a1a'], [5.02, 1.3, .28, 2, '#1a1a1a'],
+  [2.7, 1.8, .6, .22, '#1a1a1a'], [1.4, 1.9, .65, .8, P.eye], [4, 1.9, .65, .8, P.eye], [2.5, 4.2, 1, .5, '#7a3a2a'],
+];
+const CURLS = [
+  { x: -2.2, y: -10.4, w: 1.8, h: 1, d: 1.8, c: HAIR }, { x: 0, y: -10.6, w: 2, h: 1.2, d: 2, c: HAIR }, { x: 2.2, y: -10.4, w: 1.8, h: 1, d: 1.8, c: HAIR },
+  { x: -1.1, y: -10.3, z: -1.8, w: 2, h: 1, d: 1.8, c: HAIR }, { x: 1.3, y: -10.3, z: 1.6, w: 1.8, h: .9, d: 1.6, c: HAIR },
+  { x: -3.4, y: -8.6, w: .9, h: 1.6, d: 3, c: HAIR }, { x: 3.4, y: -8.6, w: .9, h: 1.6, d: 3, c: HAIR },
+];
 const ME = [
   { id: 1, name: '도덕 선생님', hold: 'L', note: '초록 가디건에 교사 명찰, 하트 그려진 도덕 교과서', def: () => meDef({
     torso: '#4a9a74', arm: '#4a9a74', leg: '#c9b79a',
@@ -283,6 +298,30 @@ const ME = [
     back: [{ y: -.4, z: -3, w: 6, h: 6.4, d: 2, c: P.red }, { y: 1.6, z: -4.1, w: 4, h: 2.2, d: .3, c: shade(P.red, -.15) }],
     itemR: [{ x: 5.85, y: 4.6, z: 2.4, w: 3.4, h: 2.6, d: .2, c: P.paper, front: [[.3, .3, 2.8, .4, P.gold], [.3, 1, 2, .25, '#9aabb6'], [.3, 1.5, 1.6, .25, '#9aabb6'], [2.4, 1.6, .7, .7, P.red]] }],
   }) },
+  { id: 6, name: '초록 니트 개발자', hold: 'R', note: '곱슬 검은 머리, 동그란 안경, 초록 니트, 키보드', def: () => meDef({
+    torso: '#3f8f5c', arm: '#3f8f5c', leg: '#2f3e5c',
+    headFront: GLASSES, hat: CURLS,
+    torsoFront: [[2, 0, 4, .8, shade('#3f8f5c', -.18)], [0, 6.4, 8, .8, shade('#3f8f5c', -.12)]],
+    itemR: [{ x: 5.85, y: 4.7, z: 2.6, w: 4.8, h: .35, d: 1.8, c: '#d8dde2', front: [[.3, .05, 4.2, .25, '#9aa3ab']] }],
+  }) },
+  { id: 7, name: '초록 후드 사장님', hold: 'R', note: '곱슬 검은 머리, 동그란 안경, 끈 달린 초록 후드, 녹음기', def: () => meDef({
+    torso: '#2f6e4c', arm: '#2f6e4c', leg: '#2a2f38',
+    headFront: GLASSES, hat: CURLS,
+    back: [{ y: -4.3, z: -2.6, w: 6.4, h: 2, d: 1.4, c: '#2f6e4c' }],
+    torsoFront: [[2.6, 0, .35, 2.8, P.white], [5, 0, .35, 2.8, P.white], [1.8, 4.6, 4.4, 2, shade('#2f6e4c', -.15)]],
+    itemR: [{ x: 5.85, y: 4.8, z: 2.4, w: 1.4, h: 2.2, d: .5, c: '#2a2f38', front: [[.3, .3, .8, .5, P.red]] }],
+  }) },
+  { id: 8, name: '베이지 재킷 사장님', hold: 'R', note: '긴 갈색 웨이브 머리, 베이지 재킷, 검은 옷, 노트북', def: () => ({ ...PERSON, parts: person({
+    head: P.skin, headFront: [[0, 0, 6, .8, '#5a3524'], [0, .8, 1.3, .7, '#5a3524'], [1.5, 2, .7, .9, P.eye], [3.8, 2, .7, .9, P.eye], [2.5, 3.9, 1, .3, '#b0674a']],
+    hat: [
+      { y: -9.6, w: 6.6, h: 1.3, d: 6.1, c: '#5a3524' }, { y: -6.1, z: -2.85, w: 7, h: 7.8, d: 1.2, c: '#5a3524' },
+      { x: -3.4, y: -6.4, w: 1, h: 6.4, d: 5.4, c: '#5a3524' }, { x: 3.4, y: -6.4, w: 1, h: 6.4, d: 5.4, c: '#5a3524' },
+      { x: -3.9, y: -3.6, z: -.6, w: 1, h: 2.6, d: 3.6, c: '#6b4029' }, { x: 3.9, y: -3.6, z: -.6, w: 1, h: 2.6, d: 3.6, c: '#6b4029' },
+    ],
+    torso: '#d8c9b4', arm: '#d8c9b4', hand: P.skin, leg: '#23262b',
+    torsoFront: [[2.2, 0, 3.6, 5, '#23262b'], [1.6, 0, .6, 3, shade('#d8c9b4', -.12)], [5.8, 0, .6, 3, shade('#d8c9b4', -.12)]],
+    itemR: [{ x: 5.85, y: 4.5, z: 2.9, w: 4.6, h: .4, d: 3.2, c: P.steel }, { x: 5.85, y: 2.7, z: 1.4, w: 4.6, h: 3.2, d: .3, c: P.steel, front: [[2, 1.2, .7, .7, P.white]] }],
+  }) }) },
   { id: 5, name: '시안 고르는 기획자', hold: 'R', note: '줄무늬 셔츠, 귀에 꽂은 연필, 색깔 시안 카드 다섯 장', def: () => meDef({
     torso: '#f4f1ea', arm: '#f4f1ea', leg: '#3a4a5e',
     torsoFront: [[0, .8, 8, .7, P.shirt], [0, 2.8, 8, .7, P.shirt], [0, 4.8, 8, .7, P.shirt], [0, 6.8, 8, .7, P.shirt]],
@@ -367,6 +406,19 @@ const FRIENDS = [
     { x: -1.8, y: 1.8, w: .8, h: 2, d: 1.6, c: P.red }, { x: 1.8, y: 1.8, w: .8, h: 2, d: 1.6, c: P.red },
     group('flame', [0, 2.5, 0], [{ y: 3.2, w: 1.5, h: 1.4, d: 1.5, c: P.gold }, { y: 4.2, w: .8, h: 1, d: .8, c: P.red }]),
   ] }) },
+  // 클로드: 주황 네모 몸통에 세로로 긴 눈 두 개 (11번은 다리 넷, 12번은 팔 · 입 · 짧은 다리 둘)
+  { id: 11, name: '클로드', note: '주황 네모, 다리 넷', move: 'hop', lift: 0, def: () => ({ foot: 5.4, parts: [
+    { w: 8, h: 6, d: 6, c: '#d97757', front: [[2.2, 1.6, .9, 2, '#1a1a1a'], [4.9, 1.6, .9, 2, '#1a1a1a']] },
+    { x: -4.6, y: .5, w: 1.4, h: 1.6, d: 2.4, c: '#c96a4b' }, { x: 4.6, y: .5, w: 1.4, h: 1.6, d: 2.4, c: '#c96a4b' },
+    ...[-2.8, -1, 1, 2.8].map((x) => ({ x, y: 4.2, w: 1.1, h: 2.4, d: 1.4, c: '#c96a4b' })),
+  ] }) },
+  { id: 12, name: '클로드 짝꿍', note: '팔 벌린 주황 네모', move: 'hop', lift: 0, def: () => ({ foot: 5.9, parts: [
+    { w: 7, h: 6.4, d: 6, c: '#e08a4c', front: [[1.8, 2, .9, 1.6, '#1a1a1a'], [4.3, 2, .9, 1.6, '#1a1a1a'], [2.9, 4.2, 1.2, .3, '#8a3b22']] },
+    group('armL', [-3.5, -.5, 0], [{ x: -4.7, y: .6, w: 2.4, h: 1.6, d: 2.2, c: '#e08a4c' }]),
+    group('armR', [3.5, -.5, 0], [{ x: 4.7, y: .6, w: 2.4, h: 1.6, d: 2.2, c: '#e08a4c' }]),
+    group('legL', [-1.4, 3.2, 0], [{ x: -1.4, y: 4.6, w: 1.8, h: 2.6, d: 2, c: '#cf7a3e' }]),
+    group('legR', [1.4, 3.2, 0], [{ x: 1.4, y: 4.6, w: 1.8, h: 2.6, d: 2, c: '#cf7a3e' }]),
+  ] }) },
 ];
 const friendById = (id) => FRIENDS.find((f) => f.id === id) || FRIENDS[0];
 
@@ -394,6 +446,8 @@ const FRIEND_ABOUT = {
   8: ['책장을 펄럭이며 떠 있는 책이에요.', '지도안과 연수 자료를 펼쳐 보여 줘요.'],
   9: ['살짝 비치는 수줍은 유령이에요.', '밤늦게 남은 일을 조용히 지켜요.'],
   10: ['불꽃을 일렁이며 떠 있는 꼬마 로켓이에요.', '급한 일을 순식간에 처리해요.'],
+  11: ['주황 네모 몸에 다리가 넷인 AI 친구 클로드예요.', '공문을 읽고 카드로 정리하는 일을 함께해요.'],
+  12: ['팔을 활짝 벌린 클로드 짝꿍이에요.', '회의 녹음 요약처럼 귀찮은 일을 척척 도와줘요.'],
 };
 const where = (id) => Object.entries(STATE.assign).filter(([, v]) => v === id).map(([k]) => ROOMS[k].name);
 const staffInfo = (id, room) => {
@@ -656,23 +710,60 @@ function lamp(g, x, y, z) {
 // ---------- 건물 ----------
 // FH: 층고 (3.2 → 4.1 → 층 화면에서 답답하지 않게 5.6), RW: 방 한 칸 너비
 // 건물 너비는 한 층의 방 수(지금 4개)에 맞추고, 높이는 rooms.js 의 층 수를 따라요 (모니터가 가로로 기니까 낮고 넓게)
-const FH = 5.6, D = 5.6, RW = 10;
-const BW = RW * Math.max(...FLOORS.map((f) => f.rooms.length));
-const UP = FLOORS.filter((f) => !f.floor.startsWith('B')).length; // 땅 위 층 수 (B 로 시작하는 층은 흙 속)
-const floorY = (i) => (UP - 1 - i) * FH;
-const ROOF_Y = UP * FH, BOTTOM = -(FLOORS.length - UP) * FH;
+const FH = 5.6, D = 5.6, RW = 10, SW = 3.4; // SW: 엘리베이터 칸 너비
+const RBW = RW * Math.max(...FLOORS.map((f) => f.rooms.length)); // 방들만의 너비
+let BW = RBW; // 건물 전체 너비 (엘리베이터 칸이 건물 안에 있으면 그만큼 넓어져요. buildWorld 가 정해요)
+// 펜트하우스(penthouse)는 옥상 위에 따로 올린 한 층이에요. 나머지 층(MAIN)이 건물 몸통
+const MAIN = FLOORS.filter((f) => !f.penthouse);
+const UP = MAIN.filter((f) => !f.floor.startsWith('B')).length; // 땅 위 층 수 (B 로 시작하는 층은 흙 속)
+const ROOF_Y = UP * FH, BOTTOM = -(MAIN.length - UP) * FH;
+const floorY = (i) => (FLOORS[i].penthouse ? ROOF_Y : (UP - 1 - MAIN.indexOf(FLOORS[i])) * FH);
+const HAS_PH = FLOORS.some((f) => f.penthouse), PW = 18; // PW: 펜트하우스 너비
+const TOP_Y = ROOF_Y + (HAS_PH ? FH : 0); // 맨 꼭대기 (옥상 꾸밈은 여기에)
 const WK = FH / 4.1; // 창문은 층고에 맞춰 키워요
 
-// --- 건물 시안 5개. side: 바깥 옆벽(색 · glass · brick · logs), win: 창문 모양, roof: 옥상 꾸밈 ---
+// --- 건물 시안 10개. side: 바깥 옆벽(색 · glass · brick · logs), win: 창문 모양, roof: 옥상 꾸밈, ground: 땅 · 나무 색 바꾸기 ---
+// 1번 숲속 연구소가 기본. 6~10번은 2026-10-29 새 컨셉 (문쌤이 골라요)
 const THEMES = [
-  { id: 1, name: '나무 연구소', wall: '#efe4d3', wall2: '#e3d4bf', wallB1: '#cbbfae', slab: '#ddd2c2', edge: '#353c44', pillar: '#c99a5c', frame: '#f7f3ec', glass: '#bfe0ee', side: '#e3d4bf', win: 'two', roof: 'flag' },
-  { id: 2, name: '유리 타워', wall: '#eef3f6', wall2: '#d3e0e7', wallB1: '#bdc8ce', slab: '#f6f8f9', edge: '#2b7ea1', pillar: '#98a6ae', frame: '#98a6ae', glass: '#9fd3ea', side: 'glass', win: 'ribbon', roof: 'helipad' },
-  { id: 3, name: '벽돌 학교', wall: '#f3e9d8', wall2: '#e6d8c0', wallB1: '#cbbfae', slab: '#e2d6c4', edge: '#7a3b2e', pillar: '#a8513c', frame: '#3f7a55', glass: '#cfe6ee', side: 'brick', win: 'tall', roof: 'clock' },
-  { id: 4, name: '파스텔 장난감', floors: ['#fde2e4', '#e2f0cb', '#cde7f0', '#fff1c1', '#e8def8', '#d9d2c5'], wall: '#fde2e4', wall2: '#f6d6dc', wallB1: '#d9d2c5', slab: '#ffffff', edge: '#f28fad', pillar: '#f7c873', frame: '#ffffff', glass: '#d6f0ff', side: '#f7c6d0', win: 'round', roof: 'balloon' },
-  { id: 5, name: '숲속 연구소', wall: '#eadcc2', wall2: '#d9c4a0', wallB1: '#c5b394', slab: '#cdb58e', edge: '#4f6b3a', pillar: '#7a5232', frame: '#7a5232', glass: '#cfe8d6', side: 'logs', win: 'two', roof: 'garden' },
+  { id: 1, name: '숲속 연구소', wall: '#eadcc2', wall2: '#d9c4a0', wallB1: '#c5b394', slab: '#cdb58e', edge: '#4f6b3a', pillar: '#7a5232', frame: '#7a5232', glass: '#cfe8d6', side: 'logs', win: 'two', roof: 'garden' },
+  { id: 2, name: '나무 연구소', wall: '#efe4d3', wall2: '#e3d4bf', wallB1: '#cbbfae', slab: '#ddd2c2', edge: '#353c44', pillar: '#c99a5c', frame: '#f7f3ec', glass: '#bfe0ee', side: '#e3d4bf', win: 'two', roof: 'flag' },
+  { id: 3, name: '유리 타워', wall: '#eef3f6', wall2: '#d3e0e7', wallB1: '#bdc8ce', slab: '#f6f8f9', edge: '#2b7ea1', pillar: '#98a6ae', frame: '#98a6ae', glass: '#9fd3ea', side: 'glass', win: 'ribbon', roof: 'helipad' },
+  { id: 4, name: '벽돌 학교', wall: '#f3e9d8', wall2: '#e6d8c0', wallB1: '#cbbfae', slab: '#e2d6c4', edge: '#7a3b2e', pillar: '#a8513c', frame: '#3f7a55', glass: '#cfe6ee', side: 'brick', win: 'tall', roof: 'clock' },
+  { id: 5, name: '파스텔 장난감', floors: ['#fde2e4', '#e2f0cb', '#cde7f0', '#fff1c1', '#e8def8', '#d9d2c5'], wall: '#fde2e4', wall2: '#f6d6dc', wallB1: '#d9d2c5', slab: '#ffffff', edge: '#f28fad', pillar: '#f7c873', frame: '#ffffff', glass: '#d6f0ff', side: '#f7c6d0', win: 'round', roof: 'balloon' },
+  { id: 6, name: '한옥 연구소', wall: '#f3ead8', wall2: '#e6d7bd', wallB1: '#cdbb9c', slab: '#d8c3a0', edge: '#3a2e26', pillar: '#7a4a2a', frame: '#5a3b24', glass: '#f6efdf', side: '#d9c3a0', win: 'tall', roof: 'giwa' },
+  { id: 7, name: '우주 정거장', wall: '#eef2f6', wall2: '#dfe6ee', wallB1: '#c3ccd6', slab: '#f7f9fb', edge: '#2f3b4c', pillar: '#9aa7b8', frame: '#c7d2de', glass: '#7fd8ff', side: 'glass', win: 'round', roof: 'dish',
+    ground: { grass: '#d9dee6', dirt: '#9aa3ae', dirtD: '#7f8894', leaf: '#9fd3f0', leaf2: '#7fb8e0', trunk: '#8a94a3' } },
+  { id: 8, name: '바닷가 등대', wall: '#ffffff', wall2: '#e8f1f6', wallB1: '#d4dde3', slab: '#f2efe6', edge: '#2b6cb0', pillar: '#2b6cb0', frame: '#ffffff', glass: '#bfe6f5', side: '#dbe9f2', win: 'round', roof: 'lighthouse',
+    ground: { grass: '#f0dfb0', dirt: '#d9c08a', dirtD: '#c4a96f', leaf: '#4caf7a', leaf2: '#3a9466' } },
+  { id: 9, name: '겨울 눈 오두막', wall: '#f4eadb', wall2: '#e7d8c2', wallB1: '#cdbda5', slab: '#d9c6a8', edge: '#5a3e2b', pillar: '#6b4a30', frame: '#5a3e2b', glass: '#ffe3a0', side: 'logs', win: 'two', roof: 'snow',
+    ground: { grass: '#f4f7fa', dirt: '#b5a48e', dirtD: '#9c8b75', leaf: '#2f6b4a', leaf2: '#e9f1f4' } },
+  { id: 10, name: '벚꽃 학교', wall: '#fff3f5', wall2: '#fbe1e7', wallB1: '#e3cfd4', slab: '#ffffff', edge: '#d26a8a', pillar: '#f2a7bb', frame: '#ffffff', glass: '#d6f0ff', side: '#f7d2dc', win: 'tall', roof: 'blossom',
+    ground: { leaf: '#f6a9c0', leaf2: '#f9cfdc' } },
 ];
 const theme = () => THEMES.find((x) => x.id === STATE.theme) || THEMES[0];
+const P0 = { ...P }; // 땅 · 나무 기본 색 (시안이 ground 로 바꿨다가 되돌릴 때)
 const bobbers = [];
+const anims = []; // 매 장면마다 움직이는 것 (엘리베이터 · 회전문 · 등대 빛 · 연기 · 꽃잎). buildWorld 가 채워요
+
+// --- 현관 · 엘리베이터 시안 5개 (?layout=1~5 로 미리 보기) ---
+// shaft: 엘리베이터 자리 (center 가운데 · left 왼쪽 끝 · right 오른쪽 끝 · outside 건물 밖 오른쪽), car: 모양, entry: 현관 쪽, door: 현관 모양
+const LAYOUTS = [
+  { id: 1, name: '가운데 유리 엘리베이터 · 캐노피 현관', shaft: 'center', car: 'glass', entry: 'left', door: 'canopy' },
+  { id: 2, name: '왼쪽 계단 코어 · 회전문 현관', shaft: 'left', car: 'core', entry: 'left', door: 'revolving' },
+  { id: 3, name: '바깥 캡슐 엘리베이터 · 기둥 현관', shaft: 'outside', car: 'capsule', entry: 'left', door: 'porch' },
+  { id: 4, name: '오른쪽 유리 엘리베이터 · 아치 현관', shaft: 'right', car: 'glass', entry: 'left', door: 'arch' },
+  { id: 5, name: '가운데 계단 코어 · 유리 상자 현관', shaft: 'center', car: 'core', entry: 'left', door: 'glassbox' },
+];
+const layout = () => LAYOUTS.find((x) => x.id === STATE.layout) || LAYOUTS[0];
+const shaftInside = () => layout().shaft !== 'outside';
+// 한 층의 방 칸과 엘리베이터 칸 위치: { rooms: [[x0, x1], ...], shaft: [x0, x1] | null }
+function slots(n) {
+  const L = layout(), rw = RBW / n, left = -BW / 2;
+  const at = !shaftInside() ? -1 : L.shaft === 'left' ? 0 : L.shaft === 'right' ? n : Math.ceil(n / 2);
+  const rooms = [];
+  for (let j = 0; j < n; j++) { const x0 = left + j * rw + (at >= 0 && j >= at ? SW : 0); rooms.push([x0, x0 + rw]); }
+  return { rooms, shaft: at < 0 ? null : [left + at * rw, left + at * rw + SW] };
+}
 
 // 벽돌 · 통나무 무늬 (캔버스로 그려 반복)
 const patterns = new Map();
@@ -754,14 +845,15 @@ function windows(g, cx, rw, n, y) {
     }
   }
 }
-function roofExtras(roofY) {
+// W: 꾸밈을 올릴 지붕 너비 (펜트하우스가 있으면 펜트하우스 지붕)
+function roofExtras(roofY, W = BW) {
   const TH = theme();
   flag = null;
   const pole = (x, z) => { B(world, .1, 3, .1, P.metal, x, roofY + 1.6, z); flag = B(world, 1.2, .7, .05, P.red, x + .65, roofY + 2.7, z); };
   if (TH.roof === 'flag') {
     B(world, 3, 1, 2, P.steel, -6, roofY + .6, -1);
     B(world, 2.6, .1, 1.6, shade(P.steel, -.25), -6, roofY + 1.12, -1);
-    pole(BW / 2 - 1, 1.5);
+    pole(W / 2 - 1, 1.5);
   } else if (TH.roof === 'helipad') {
     B(world, 6, .06, 4.4, '#3a4148', 4, roofY + .13, .1);
     B(world, .35, .03, 2.2, P.gold, 3.2, roofY + .17, .1); B(world, .35, .03, 2.2, P.gold, 4.8, roofY + .17, .1); B(world, 1.6, .03, .35, P.gold, 4, roofY + .17, .1);
@@ -769,12 +861,13 @@ function roofExtras(roofY) {
     B(world, .3, .3, .3, P.red, -7, roofY + 4.4, -1.5, { m: mat(P.red, { emissive: P.red, emissiveIntensity: .8 }) });
     B(world, 3, 1.2, 2, P.steel, -4, roofY + .7, -1);
   } else if (TH.roof === 'clock') {
-    B(world, 3.4, 3.4, 2.6, '#ffffff', 0, roofY + 1.8, -1.2, { m: patternMat('brick', 3.4, 3.4) });
-    const f = new THREE.Mesh(UNIT, clockMat()); f.scale.set(2.2, 2.2, .05); f.position.set(0, roofY + 2, .12); world.add(f);
-    B(world, 3.9, .4, 3.1, TH.edge, 0, roofY + 3.7, -1.2);
-    B(world, 2.8, .7, 2.1, '#7a3b2e', 0, roofY + 4.25, -1.2);
-    B(world, 1.5, .7, 1.1, '#7a3b2e', 0, roofY + 4.95, -1.2);
-    B(world, .5, .5, .5, P.gold, 0, roofY + 5.5, -1.2);
+    const cx = layout().shaft === 'center' && !HAS_PH ? -8 : 0; // 가운데 엘리베이터 기계실과 겹치지 않게
+    B(world, 3.4, 3.4, 2.6, '#ffffff', cx, roofY + 1.8, -1.2, { m: patternMat('brick', 3.4, 3.4) });
+    const f = new THREE.Mesh(UNIT, clockMat()); f.scale.set(2.2, 2.2, .05); f.position.set(cx, roofY + 2, .12); world.add(f);
+    B(world, 3.9, .4, 3.1, TH.edge, cx, roofY + 3.7, -1.2);
+    B(world, 2.8, .7, 2.1, '#7a3b2e', cx, roofY + 4.25, -1.2);
+    B(world, 1.5, .7, 1.1, '#7a3b2e', cx, roofY + 4.95, -1.2);
+    B(world, .5, .5, .5, P.gold, cx, roofY + 5.5, -1.2);
   } else if (TH.roof === 'balloon') {
     ['#f28fad', '#7cc3e0', '#f7c873', '#9cd38a', '#b9a3e3'].forEach((c, i) => {
       const x = -7 + i * 1.1, z = -1 + (i % 2) * .8;
@@ -782,14 +875,48 @@ function roofExtras(roofY) {
       const b = B(world, .8, .95, .8, c, x, roofY + 2.6 + (i % 3) * .5, z);
       bobbers.push({ m: b, y0: b.position.y, ph: i });
     });
-    pole(BW / 2 - 1, 1.5);
-  } else if (TH.roof === 'garden') {
-    B(world, BW + .1, .16, D + .1, P.grass, 0, roofY + .18, .15);
+    pole(W / 2 - 1, 1.5);
+  } else if (TH.roof === 'giwa') { // 한옥: 겹겹이 쌓은 기와지붕 + 들린 처마 끝 + 용마루
+    for (let k = 0; k < 4; k++) B(world, W + 2.6 - k * 3.2, .36, D + 2.4 - k * 1.1, k % 2 ? '#56616b' : '#4a545e', 0, roofY + .3 + k * .36, .15);
+    B(world, W - 10, .32, .5, '#2f363d', 0, roofY + 1.75, .15);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) B(world, .7, .32, .7, '#4a545e', sx * (W / 2 + 1.1), roofY + .62, .15 + sz * (D / 2 + .95));
+  } else if (TH.roof === 'dish') { // 우주 정거장: 태양광 판 · 위성 안테나 · 깜빡이는 불빛
+    for (let i = 0; i < 3; i++) { const s = B(world, 2.3, .08, 1.8, '#2a3f73', 1.2 + i * 2.6, roofY + .7, -.6); s.rotation.x = -.45; B(world, .1, .6, .1, P.metal, 1.2 + i * 2.6, roofY + .35, -.6); }
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(1.7, .35, .6, 18), mat('#e9eef3'));
+    dish.position.set(-W / 2 + 3, roofY + 2, -.5); dish.rotation.z = .6; dish.castShadow = true; world.add(dish);
+    B(world, .2, 1.6, .2, P.metal, -W / 2 + 3, roofY + .8, -.5);
+    B(world, .08, 3.4, .08, P.metal, -W / 2 + .8, roofY + 1.7, -1);
+    const blink = new THREE.MeshStandardMaterial({ color: P.red, emissive: P.red, emissiveIntensity: 1 });
+    B(world, .3, .3, .3, P.red, -W / 2 + .8, roofY + 3.5, -1, { m: blink });
+    anims.push((t) => { blink.emissiveIntensity = Math.sin(t * 4) > 0 ? 1.2 : .1; });
+  } else if (TH.roof === 'lighthouse') { // 바닷가: 빨강 · 하양 줄무늬 등대 + 빙글 도는 불빛
+    const lx = -W / 2 + 3;
+    for (let k = 0; k < 5; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(1 - k * .06, 1.06 - k * .06, 1, 16), mat(k % 2 ? '#ffffff' : '#d9473a')); c.position.set(lx, roofY + .5 + k, -.6); c.castShadow = true; world.add(c); }
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(.75, .75, .9, 16), mat('#ffe9a0', { emissive: '#ffd45a', emissiveIntensity: .9 }));
+    lamp.position.set(lx, roofY + 5.45, -.6); world.add(lamp);
+    const capC = new THREE.Mesh(new THREE.ConeGeometry(.95, .9, 16), mat('#d9473a')); capC.position.set(lx, roofY + 6.35, -.6); world.add(capC);
+    const beam = new THREE.Group(); beam.position.set(lx, roofY + 5.45, -.6); world.add(beam);
+    B(beam, 9, .5, .5, '#ffe9a0', 4.5, 0, 0, { m: new THREE.MeshBasicMaterial({ color: '#fff3c4', transparent: true, opacity: .28, depthWrite: false }), shadow: false });
+    anims.push((t) => { beam.rotation.y = t * .9; });
+  } else if (TH.roof === 'snow') { // 겨울: 눈 덮인 지붕 · 고드름 · 굴뚝 연기
+    B(world, W + .9, .4, D + .7, '#ffffff', 0, roofY + .4, .15);
+    if (HAS_PH) B(world, BW + .4, .2, D + .3, '#ffffff', 0, ROOF_Y + .1, .15); // 테라스에도 눈
+    for (let x = -W / 2; x < W / 2; x += 1.3) B(world, .14, .25 + ((x * 7) % 3 + 3) % 3 * .12, .14, '#e6f3fa', x, roofY - .25, D / 2 + .4, { shadow: false });
+    B(world, 1, 2.2, 1, '#8a4b3a', 7, roofY + 1.3, -1.2); B(world, 1.2, .3, 1.2, '#ffffff', 7, roofY + 2.5, -1.2);
+    const puffs = [0, 1, 2].map(() => B(world, .5, .5, .5, '#e9eef1', 7, roofY + 2.8, -1.2, { shadow: false }));
+    anims.push((t) => puffs.forEach((m, i) => { const k = (t * .35 + i / 3) % 1; m.position.y = roofY + 2.8 + k * 2.4; m.position.x = 7 + k * .8; m.scale.setScalar(.5 + k * .9); m.visible = k < .92; }));
+  } else if (TH.roof === 'garden' || TH.roof === 'blossom') {
+    B(world, W + .1, .16, D + .1, P.grass, 0, roofY + .18, .15);
+    if (TH.roof === 'blossom') { // 벚꽃 학교: 꽃잎이 건물 앞으로 살랑살랑 떨어져요
+      const petal = mat('#f7b3c8', { emissive: '#f7b3c8', emissiveIntensity: .15 });
+      const ps = [...Array(26)].map((_, i) => ({ m: B(world, .14, .03, .14, '#f7b3c8', 0, 0, 0, { m: petal, shadow: false }), x: -BW / 2 + ((i * 37) % 100) / 100 * BW, ph: i * .37 }));
+      anims.push((t) => ps.forEach((p) => { const k = (t * .08 + p.ph) % 1; p.m.position.set(p.x + Math.sin(t + p.ph * 9) * .8, roofY + 1 - k * (roofY - BOTTOM + 1), D / 2 + .9 + Math.cos(t * .7 + p.ph) * .4); p.m.rotation.set(t + p.ph, t * 1.3, 0); }));
+    }
     const tree = (x, z, s) => { B(world, .3 * s, 1.2 * s, .3 * s, P.trunk, x, roofY + .25 + .6 * s, z); B(world, 1.4 * s, 1.1 * s, 1.4 * s, P.leaf, x, roofY + .25 + 1.6 * s, z); B(world, .9 * s, .8 * s, .9 * s, P.leaf2, x, roofY + .25 + 2.4 * s, z); };
     tree(-7, -1, 1); tree(6.5, -1.3, .85);
     for (let i = 0; i < 4; i++) { B(world, 1.2, .4, .5, P.wood, -2.4 + i * 1.6, roofY + .45, 1.6); B(world, 1, .35, .4, ['#f28fad', '#f7c873', '#ffffff', '#b9a3e3'][i], -2.4 + i * 1.6, roofY + .8, 1.6); }
     // 앞 모서리를 타고 내려오는 덩굴
-    for (const sx of [-1, 1]) for (let yy = roofY + .3, i = 0; yy > 1; yy -= .45, i++) {
+    for (const sx of [-1, 1]) for (let yy = ROOF_Y + .3, i = 0; yy > 1; yy -= .45, i++) {
       if ((i * 7 + (sx > 0 ? 3 : 0)) % 5 === 4) continue;
       B(world, .35, .4, .35, i % 2 ? P.leaf : P.leaf2, sx * (BW / 2 + .32) + (i % 3) * .06 * sx, yy, D / 2 + .1 - (i % 2) * .25);
     }
@@ -895,6 +1022,220 @@ function furnish(k, g, { x0, x1, cx, y }) {
   }
 }
 
+// ---------- 엘리베이터 칸 (층마다): 승강로 벽 · 레일 · 앞쪽 승강장 · 계단(코어형) ----------
+function shaftFloor(g, [x0, x1], y, above) {
+  const L = layout(), TH = theme(), cx = (x0 + x1) / 2, core = L.car === 'core';
+  const h = FH - .3, cy = y + h / 2;
+  for (const x of [x0, x1]) {
+    B(g, .2, h, D - .8, core ? shade(TH.wall2, -.15) : TH.wall2, x, cy, -.4);
+    B(g, .36, h, .36, TH.pillar, x, cy, D / 2 - .1);
+  }
+  B(g, SW - .2, h, .12, core ? '#5c656d' : '#34404a', cx, cy, -D / 2 + .26); // 승강로 안쪽 벽
+  for (const sx of [-1, 1]) B(g, .08, FH, .08, P.metal, cx + sx * (SW / 2 - .45), y + FH / 2, -D / 2 + .45); // 레일
+  if (L.car === 'glass') { // 유리 승강로: 차 앞에 유리판과 세로 틀
+    B(g, SW - .3, h, .05, '#9fd3ea', cx, cy, -D / 2 + 2.25, { m: glassWall, shadow: false });
+    for (const sx of [-1, 0, 1]) B(g, .06, h, .07, P.metal, cx + sx * (SW / 2 - .2), cy, -D / 2 + 2.28, { shadow: false });
+  }
+  // 승강장: 호출 단추 · 층 번호판
+  B(g, .06, .5, .3, P.steel, x0 + .14, y + 1.3, -D / 2 + 2.6);
+  B(g, .03, .1, .1, P.gold, x0 + .18, y + 1.38, -D / 2 + 2.6, { m: mat(P.gold, { emissive: P.gold, emissiveIntensity: .6 }) });
+  B(g, .7, .32, .04, TH.edge, cx, y + 3.2 * (FH / 5.6), -D / 2 + 2.32);
+  // 코어형: 승강장 앞에 위층으로 올라가는 계단 (중간 쉼터에서 꺾여요)
+  if (core && above) {
+    const steps = 7, run = (SW - 1.2) / steps, rise = FH / 2 / steps;
+    for (let s = 0; s < steps; s++) {
+      B(g, run + .02, rise, 1, TH.slab, x0 + .3 + run * (s + .5), y + rise * (s + .5), .55);
+      B(g, run + .02, rise, 1, TH.slab, x1 - .9 - run * (s + .5), y + FH / 2 + rise * (s + .5), 1.75);
+    }
+    B(g, .6, .2, 2.2, TH.slab, x1 - .6, y + FH / 2 - .1, 1.15); // 쉼터
+    B(g, SW - .8, .06, .06, P.metal, cx, y + FH / 4 + .9, .05, { shadow: false }); // 난간
+  }
+}
+
+// ---------- 펜트하우스 사장실: 옥상 위 유리벽 한 층 + 둘레 테라스 ----------
+// 왼쪽 절반은 라운지, 오른쪽 절반은 사장 책상. 가운데 엘리베이터면 차가 펜트하우스까지 올라와요
+const shaftUnderPH = () => HAS_PH && layout().shaft === 'center';
+function penthouse(g, f, y) {
+  const TH = theme(), h = FH - .3, cy = y + h / 2, x0 = -PW / 2, x1 = PW / 2;
+  B(g, PW, h, .2, TH.wall, 0, cy, -D / 2 + .1);
+  windows(g, -6.5, 10, 2, y); windows(g, 6.5, 10, 2, y);
+  for (const sx of [-1, 1]) {
+    B(g, .08, h, D, '#9fd3ea', sx * PW / 2, cy, .15, { m: glassWall, shadow: false });
+    for (const z of [-D / 2, 0, D / 2]) B(g, .22, h, .22, TH.pillar, sx * PW / 2, cy, z);
+  }
+  B(g, PW + .6, .35, D + .6, TH.slab, 0, y + FH - .12, .15);
+  B(g, PW + 2.2, .18, D + 1.6, TH.edge, 0, y + FH + .12, .3); // 넓은 처마
+  B(g, PW + .6, .3, .14, TH.edge, 0, y + FH - .15, D / 2 + .45);
+  // 라운지 (왼쪽)
+  B(g, 8, .03, 3.6, '#c9a07a', -6.5, y + .02, .6, { shadow: false }); // 깔개
+  sofa(g, -7.8, y, -.9); sofa(g, -4.2, y, -.9);
+  B(g, 2, .45, 1, P.wood, -6, y + .23, .9); B(g, .5, .25, .5, P.leaf, -6, y + .58, .9); // 탁자와 화분
+  lamp(g, x0 + .8, y, -1.6); plant(g, x0 + .7, y, 2, true);
+  B(g, .08, 1.6, .08, P.metal, -6, y + FH - 1.1, .3, { shadow: false }); // 샹들리에
+  B(g, 1.2, .35, 1.2, P.gold, -6, y + FH - 1.95, .3, { m: mat(P.gold, { emissive: P.gold, emissiveIntensity: .6 }), shadow: false });
+  if (shaftUnderPH()) { // 엘리베이터 도착하는 유리 칸
+    for (const sx of [-1, 1]) B(g, .06, h, 2.2, '#9fd3ea', sx * (SW / 2), cy, -D / 2 + 1.3, { m: glassWall, shadow: false });
+    B(g, SW, h, .05, '#9fd3ea', 0, cy, -D / 2 + 2.4, { m: glassWall, shadow: false });
+    B(g, SW + .2, .12, .12, P.metal, 0, y + h, -D / 2 + 2.4, { shadow: false });
+  }
+  // 사장 자리 (오른쪽 절반)
+  furnish('boss', g, { x0, x1, cx: 6.4, y });
+  hitAndSign(g, 'boss', 0, PW, y);
+  const tag = document.createElement('span');
+  tag.className = 'tag'; tag.textContent = f.floor;
+  labelsEl.append(tag);
+  labelItems.push({ el: tag, pos: new THREE.Vector3(x0 - .5, y + FH / 2, D / 2 + .3) });
+  ROOMS.boss.box = { cx: 0, y, w: PW };
+}
+// 테라스: 옥상(건물 몸통 지붕) 위 펜트하우스 양옆 — 나무 바닥 · 유리 난간 · 선베드 · 파라솔 · 꼬마전구
+function terrace() {
+  const y = ROOF_Y, TH = theme();
+  for (const sx of [-1, 1]) {
+    const a = PW / 2 + .3, b = BW / 2 - .1, cx = sx * (a + b) / 2;
+    B(world, b - a, .06, D - .2, '#b98a5a', cx, y + .03, .2, { shadow: false });
+  }
+  B(world, BW + .3, .9, .05, '#9fd3ea', 0, y + .45, D / 2 + .3, { m: glassWall, shadow: false });
+  B(world, BW + .3, .08, .1, P.metal, 0, y + .92, D / 2 + .3, { shadow: false });
+  for (const x of [PW / 2 + 2.2, PW / 2 + 4.6]) { B(world, 1, .3, 2, P.white, x, y + .3, .5); B(world, 1, .5, .5, P.white, x, y + .55, -.4); }
+  B(world, .08, 2.4, .08, P.metal, PW / 2 + 3.4, y + 1.2, -1.2); B(world, 2.6, .15, 2.6, P.red, PW / 2 + 3.4, y + 2.4, -1.2);
+  for (const x of [-PW / 2 - 2, -PW / 2 - 5.5]) plant(world, x, y, -1.5, true);
+  B(world, 1.8, .5, .6, P.wood, -PW / 2 - 3.7, y + .28, 1);
+  for (let i = 0; i < 14; i++) B(world, .14, .14, .14, P.gold, -BW / 2 + 1.5 + i * ((BW - 3) / 13), y + 2.2 - Math.sin((i / 13) * Math.PI) * .4, D / 2 - .2, { m: mat(P.gold, { emissive: P.gold, emissiveIntensity: .9 }), shadow: false });
+}
+
+// 방 하나의 누르는 상자 + 이름표
+function hitAndSign(g, k, cx, w, y) {
+  const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: '#2b7ea1', transparent: true, opacity: 0, depthWrite: false }));
+  hit.scale.set(w - .2, FH - .35, D);
+  hit.position.set(cx, y + (FH - .3) / 2, .15);
+  hit.userData.room = k;
+  g.add(hit);
+  roomBoxes.push(hit);
+  const r = ROOMS[k];
+  const el = document.createElement('button');
+  el.className = 'sign';
+  el.type = 'button';
+  el.dataset.room = k;
+  el.innerHTML = `${r.name}<i class="${r.hot ? 'hot' : ''}" ${r.n ? '' : 'hidden'}>${r.n}</i>`;
+  labelsEl.append(el);
+  labelItems.push({ el, pos: new THREE.Vector3(cx, y + FH - .62, D / 2 - .2) });
+}
+
+// ---------- 엘리베이터 차: 층마다 잠깐 서고 위아래로 오가요 ----------
+function buildLift() {
+  const L = layout(), TH = theme(), n = MAIN[0].rooms.length; // 펜트하우스 말고 몸통 층 기준
+  const outside = L.shaft === 'outside';
+  const cx = outside ? BW / 2 + .25 + 1.6 : (slots(n).shaft[0] + slots(n).shaft[1]) / 2;
+  const cz = outside ? -D / 2 + 1.7 : -D / 2 + 1.35;
+  // 서는 층: 건물 안 엘리베이터는 모든 층(펜트하우스는 바로 아래에 있을 때만), 바깥 캡슐은 땅 위 층만
+  const stops = FLOORS.map((f, i) => ({ f, y: floorY(i) }))
+    .filter(({ f }) => (f.penthouse ? shaftUnderPH() : !outside || !f.floor.startsWith('B')))
+    .map((s) => s.y).sort((a, b) => a - b);
+  const car = new THREE.Group();
+  const w = outside ? 2.2 : SW - .7, ch = 2.6, d = outside ? 2.2 : 1.8;
+  if (L.car === 'capsule') {
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, ch, 16), glassWall);
+    tube.position.y = ch / 2; car.add(tube);
+    for (const yy of [.06, ch - .06]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(1.18, 1.18, .14, 16), mat(P.white)); r.position.y = yy; r.castShadow = true; car.add(r); }
+  } else {
+    const shell = L.car === 'core' ? '#c9ced3' : P.metal;
+    B(car, w, .12, d, shell, 0, .06, 0); B(car, w, .12, d, shell, 0, ch - .06, 0);
+    B(car, w, ch, .08, shell, 0, ch / 2, -d / 2 + .04);
+    for (const sx of [-1, 1]) {
+      if (L.car === 'core') B(car, .08, ch, d, shell, sx * (w / 2 - .04), ch / 2, 0);
+      else { B(car, .05, ch, d, '#9fd3ea', sx * (w / 2 - .03), ch / 2, 0, { m: glassWall, shadow: false }); B(car, .08, ch, .08, P.metal, sx * (w / 2 - .04), ch / 2, d / 2 - .04); }
+    }
+    if (L.car === 'core') { B(car, w * .45, ch - .3, .05, P.steel, -w * .23, ch / 2, d / 2 - .03); B(car, w * .45, ch - .3, .05, P.steel, w * .23, ch / 2, d / 2 - .03); }
+  }
+  B(car, .5, .06, .5, P.gold, 0, ch - .16, 0, { m: mat(P.gold, { emissive: P.gold, emissiveIntensity: .9 }), shadow: false }); // 천장 불빛
+  car.position.set(cx, stops[0], cz);
+  world.add(car);
+  // 타고 있는 직원 (코어형은 문이 닫혀 있어 안 보여요)
+  if (L.car !== 'core') addChar(car, 0, .12, 0, 'stand', { def: staffById(STATE.assign.lobby).def(), face: .2, info: staffInfo(STATE.assign.lobby) });
+  const top = (shaftUnderPH() ? TOP_Y : outside ? ROOF_Y + 1.6 : ROOF_Y) - .1;
+  const cable = B(world, .05, 1, .05, P.belt, cx, 0, cz, { shadow: false });
+  if (outside) { // 건물 밖 유리 탑 + 층마다 이어진 다리
+    const th = ROOF_Y + 1.8;
+    B(world, 2.9, th, 2.9, '#9fd3ea', cx, th / 2, cz, { m: glassWall, shadow: false });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) B(world, .18, th, .18, TH.pillar, cx + sx * 1.45, th / 2, cz + sz * 1.45);
+    B(world, 3.3, .4, 3.3, TH.edge, cx, th + .2, cz);
+    stops.forEach((yy) => { B(world, .5, .2, 2, TH.slab, BW / 2 + .35, yy - .1, cz); B(world, .04, 2.4, 1.6, '#2b3640', BW / 2 + .27, yy + 1.2, cz, { shadow: false }); });
+  } else if (!shaftUnderPH()) B(world, SW + .4, 1.5, 2.6, TH.wall2, cx, ROOF_Y + .75, -D / 2 + 1.4); // 옥상 기계실
+  // 순서: 아래 → 위 → 아래, 층마다 2.5초 서고 2초에 한 층씩
+  const route = stops.length > 1 ? [...stops.keys(), ...[...stops.keys()].slice(1, -1).reverse()] : [0];
+  const dwell = 2.5, travel = 2, T = dwell + travel;
+  anims.push((t) => {
+    const k = Math.floor(t / T) % route.length, f = t % T;
+    const a = stops[route[k]], b = stops[route[(k + 1) % route.length]];
+    const u = f < dwell ? 0 : (f - dwell) / travel, e = u * u * (3 - 2 * u);
+    car.position.y = a + (b - a) * e;
+    const cTop = car.position.y + ch;
+    cable.scale.y = Math.max(.01, top - cTop);
+    cable.position.y = (top + cTop) / 2;
+  });
+}
+
+// ---------- 현관: 1층 옆벽에 문 · 길 · 이름판, 모양은 시안마다 ----------
+function entrance() {
+  const L = layout(), TH = theme(), sx = L.entry === 'left' ? -1 : 1;
+  const xo = sx * (BW / 2 + .25), zc = D / 2 - 1.4; // xo: 옆벽 바깥면
+  const at = (d) => xo + sx * d; // 벽에서 바깥으로 d 만큼
+  const tall = L.door === 'arch' ? 3 : 2.6;
+  const doorM = mat('#4f7f98', { roughness: .25, metalness: .2 });
+  for (const face of [at(.03), sx * (BW / 2 - .02)]) {
+    B(world, .06, tall + .2, 2, TH.frame === '#ffffff' ? P.metal : TH.frame, face, (tall + .2) / 2, zc, { shadow: false });
+    for (const dz of [-.47, .47]) B(world, .07, tall, .86, '#4f7f98', face + sx * .01, tall / 2, zc + dz, { m: doorM, shadow: false });
+  }
+  B(world, .9, .03, 1.5, '#8a4b3a', at(.6), .18, zc); // 발판
+  for (let k = 0; k < 4; k++) B(world, .7, .05, .9, '#d8d2c4', at(1.6 + k * 1.15), .18, zc + (k % 2 ? .25 : -.25)); // 디딤돌
+  const sign = new THREE.Mesh(UNIT, texMat((g, w, h) => {
+    g.fillStyle = TH.edge; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#ffffff'; g.font = `52px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(APP_NAME, w / 2, h / 2 + 4);
+  }, 640, 110));
+  sign.scale.set(.05, .5, 2.9); sign.position.set(at(.06), tall + 1.1, zc); world.add(sign);
+  const post = (x, z, hh, c = P.metal, s = .1) => B(world, s, hh, s, c, x, hh / 2, z);
+  switch (L.door) {
+    case 'canopy':
+      B(world, 2.7, .18, 2.9, TH.edge, at(1.35), 3.05, zc);
+      post(at(2.55), zc - 1.3, 3); post(at(2.55), zc + 1.3, 3);
+      B(world, .5, .05, .5, P.gold, at(1.2), 2.94, zc, { m: mat(P.gold, { emissive: P.gold, emissiveIntensity: .8 }), shadow: false });
+      break;
+    case 'revolving': {
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 2.6, 20, 1, true), glassWall);
+      drum.position.set(at(1), 1.3, zc); world.add(drum);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, .25, 20), mat(TH.edge));
+      cap.position.set(at(1), 2.72, zc); cap.castShadow = true; world.add(cap);
+      const vanes = new THREE.Group(); vanes.position.set(at(1), 1.3, zc); world.add(vanes);
+      B(vanes, 2, 2.4, .06, '#9fd3ea', 0, 0, 0, { m: glassWall, shadow: false }); B(vanes, .06, 2.4, 2, '#9fd3ea', 0, 0, 0, { m: glassWall, shadow: false });
+      B(vanes, .1, 2.4, .1, P.metal, 0, 0, 0);
+      anims.push((t) => { vanes.rotation.y = t * .7; });
+      break;
+    }
+    case 'porch':
+      B(world, 3, .3, 3.4, TH.slab, at(1.5), .3, zc);
+      B(world, .5, .15, 2.4, TH.slab, at(3.2), .22, zc);
+      post(at(2.75), zc - 1.45, 3.4, TH.pillar, .34); post(at(2.75), zc + 1.45, 3.4, TH.pillar, .34);
+      B(world, 3.4, .28, 3.8, TH.edge, at(1.6), 3.55, zc);
+      B(world, 2.6, .3, 3, TH.edge, at(1.4), 3.84, zc);
+      B(world, 1.6, .3, 1.8, TH.edge, at(1.2), 4.12, zc);
+      break;
+    case 'arch':
+      for (const dz of [-1.15, 1.15]) post(at(.2), zc + dz, 3.2, TH.pillar, .32);
+      for (let k = 0; k < 4; k++) B(world, .34, .28, 2.6 - k * .62, TH.pillar, at(.2), 3.3 + k * .26, zc);
+      plant(world, at(.7), .16, zc - 1.9, true); plant(world, at(.7), .16, zc + 1.9, true);
+      break;
+    case 'glassbox':
+      B(world, 2.3, 2.9, 2.7, '#9fd3ea', at(1.15), 1.6, zc, { m: glassWall, shadow: false });
+      B(world, 2.45, .14, 2.85, P.metal, at(1.15), 3.08, zc);
+      for (const dz of [-1.35, 1.35]) post(at(2.3), zc + dz, 3);
+      B(world, .07, 2.5, 1.5, '#4f7f98', at(2.32), 1.25 + .16, zc, { m: doorM, shadow: false });
+      break;
+    default: break;
+  }
+  // 현관 옆 가로등
+  post(at(4.6), zc - 1.6, 2.4); B(world, .32, .32, .32, P.gold, at(4.6), 2.5, zc - 1.6, { m: mat(P.gold, { emissive: P.gold, emissiveIntensity: .5 }) });
+}
+
 // 창고: 아직 쓰지 않는 칸. 상자 · 천을 덮은 가구 · '빈 방' 표지 (창고 번호마다 조금씩 다르게)
 function storeRoom(g, k, { x0, x1, cx, y }) {
   const zb = -D / 2 + .55, n = Number(k.replace(/\D/g, '')) || 1;
@@ -909,27 +1250,40 @@ function storeRoom(g, k, { x0, x1, cx, y }) {
 
 function buildWorld() {
   world.clear();
-  people.length = 0; docs.length = 0; roomBoxes.length = 0; labelItems.length = 0;
+  people.length = 0; docs.length = 0; roomBoxes.length = 0; labelItems.length = 0; anims.length = 0;
   labelsEl.innerHTML = '';
+  Object.assign(P, P0, theme().ground || {}); // 시안마다 땅 · 나무 색
+  BW = RBW + (shaftInside() ? SW : 0);
   FLOORS.forEach((f, i) => {
     const y = floorY(i);
     const g = new THREE.Group();
     g.userData.floor = f.floor;
     world.add(g);
+    if (f.penthouse) { penthouse(g, f, y); return; }
     const base = f.floor.startsWith('B');
     const TH = theme(), wall = base ? TH.wallB1 : TH.floors ? TH.floors[i] : TH.wall;
-    B(g, BW + .5, .3, D + .3, TH.slab, 0, y - .15, .15);
+    const n = f.rooms.length, rw = RBW / n, sl = slots(n);
+    // 바닥: 엘리베이터 칸 뒤쪽(차가 지나가는 자리)은 구멍을 내요. 맨 아래층은 막힌 바닥
+    const bottomFloor = i === FLOORS.length - 1;
+    if (sl.shaft && !bottomFloor) {
+      const [s0, s1] = sl.shaft, hz = -D / 2 + 2.2; // hz: 구멍 앞쪽 끝
+      const piece = (a, b, z0, z1) => { if (b - a > .01) B(g, b - a, .3, z1 - z0, TH.slab, (a + b) / 2, y - .15, (z0 + z1) / 2); };
+      piece(-BW / 2 - .25, s0 + .15, -D / 2 - .0, D / 2 + .3);
+      piece(s1 - .15, BW / 2 + .25, -D / 2 - .0, D / 2 + .3);
+      piece(s0 + .15, s1 - .15, hz, D / 2 + .3);
+    } else B(g, BW + .5, .3, D + .3, TH.slab, 0, y - .15, .15);
     B(g, BW + .5, .32, .14, TH.edge, 0, y - .15, D / 2 + .34);
     B(g, BW, FH - .3, .2, wall, 0, y + (FH - .3) / 2, -D / 2 + .1);
     for (const sx of [-1, 1]) sideWall(g, sx, y, base);
-    const n = f.rooms.length, rw = BW / n;
     for (let j = 1; j < n; j++) {
-      const x = -BW / 2 + j * rw;
+      if (sl.shaft && Math.abs(sl.rooms[j][0] - sl.shaft[1]) < .01) continue; // 엘리베이터 칸과 맞닿은 벽은 shaftFloor 가 그려요
+      const x = sl.rooms[j][0];
       B(g, .16, FH - .3, D - .8, shade(wall, -.06), x, y + (FH - .3) / 2, -.4);
       B(g, .36, FH - .3, .36, TH.pillar, x, y + (FH - .3) / 2, D / 2 - .1);
     }
+    if (sl.shaft) shaftFloor(g, sl.shaft, y, MAIN.indexOf(f) > 0);
     f.rooms.forEach((k, j) => {
-      const x0 = -BW / 2 + j * rw, x1 = x0 + rw, cx = (x0 + x1) / 2;
+      const [x0, x1] = sl.rooms[j], cx = (x0 + x1) / 2;
       if (!base) windows(g, cx, rw, n, y);
       furnish(k, g, { x0, x1, cx, y });
       const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: '#2b7ea1', transparent: true, opacity: 0, depthWrite: false }));
@@ -958,17 +1312,25 @@ function buildWorld() {
   // 옥상
   const roofY = ROOF_Y;
   const TH = theme();
-  B(world, BW + .5, .4, D + .3, TH.slab, 0, roofY - .1, .15);
+  if (shaftUnderPH()) { // 엘리베이터가 펜트하우스까지 올라가도록 옥상 바닥에 구멍
+    const [s0, s1] = slots(FLOORS.find((f) => !f.penthouse).rooms.length).shaft, hz = -D / 2 + 2.2;
+    const piece = (a, b, z0, z1) => B(world, b - a, .4, z1 - z0, TH.slab, (a + b) / 2, roofY - .1, (z0 + z1) / 2);
+    piece(-BW / 2 - .25, s0 + .15, -D / 2, D / 2 + .3); piece(s1 - .15, BW / 2 + .25, -D / 2, D / 2 + .3); piece(s0 + .15, s1 - .15, hz, D / 2 + .3);
+  } else B(world, BW + .5, .4, D + .3, TH.slab, 0, roofY - .1, .15);
   B(world, BW + .5, .32, .14, TH.edge, 0, roofY - .15, D / 2 + .34);
   for (const sx of [-1, 1]) B(world, .3, .5, D + .3, TH.wall2, sx * (BW / 2 + .1), roofY + .35, .15);
   B(world, BW + .5, .5, .3, TH.wall2, 0, roofY + .35, -D / 2 + .1);
   bobbers.length = 0;
-  roofExtras(roofY);
+  // 옥상 꾸밈(시안마다)은 맨 꼭대기에: 펜트하우스가 있으면 그 지붕 위, 몸통 옥상은 테라스
+  if (HAS_PH) terrace();
+  roofExtras(TOP_Y, HAS_PH ? PW : BW);
+  buildLift();
+  entrance();
   const roof = document.createElement('span');
   roof.className = 'roofsign';
   roof.textContent = APP_NAME;
   labelsEl.append(roof);
-  labelItems.push({ el: roof, pos: new THREE.Vector3(0, roofY + 1.1, D / 2) });
+  labelItems.push({ el: roof, pos: new THREE.Vector3(0, TOP_Y + 1.1, D / 2) });
 
   // 땅 단면 (B1 은 흙 속에)
   const GW = 9, gy0 = BOTTOM - .7, zf = D / 2 + .41, depth = 9;
@@ -982,8 +1344,11 @@ function buildWorld() {
   B(world, BW + .5, .16, depth - D / 2, P.grass, 0, .08, -D / 2 - (depth - D / 2) / 2);
   B(world, BW + .5, .45, D + .6, P.dirt, 0, gy0 + .22, .15);
   const tree = (x, z, s = 1) => { B(world, .35 * s, 1.4 * s, .35 * s, P.trunk, x, .7 * s, z); B(world, 1.6 * s, 1.3 * s, 1.6 * s, P.leaf, x, 1.9 * s, z); B(world, 1.1 * s, .9 * s, 1.1 * s, P.leaf2, x, 2.9 * s, z); };
-  tree(-BW / 2 - 3, 1.5, 1.3); tree(-BW / 2 - 6.2, -2.5, 1); tree(BW / 2 + 3.3, -1, 1.15); tree(BW / 2 + 6.5, 2, .9);
-  B(world, 1.4, .5, .6, P.wood, BW / 2 + 3.5, .3, 2.6);
+  // 현관 쪽 나무는 길을 비켜 뒤로, 바깥 엘리베이터 쪽 나무는 더 멀리
+  const L = layout(), eL = L.entry === 'left', eR = L.entry === 'right', out = L.shaft === 'outside' ? 2.4 : 0;
+  tree(-BW / 2 - 3, eL ? -2.6 : 1.5, 1.3); tree(-BW / 2 - 6.2, eL ? -3.4 : -2.5, 1);
+  tree(BW / 2 + 3.3 + out, eR ? -2.6 : -1, 1.15); tree(BW / 2 + 6.5 + out, eR ? -3.4 : 2, .9);
+  if (!eR) B(world, 1.4, .5, .6, P.wood, BW / 2 + 3.5 + out, .3, 2.6);
   markSigns();
   applyBandVis();
 }
@@ -1007,9 +1372,9 @@ function overview() {
   selected = null;
   // 위로는 옥상 장식(시계탑 · 풍선)까지, 아래로는 지하 흙까지 들어오게
   // 낮고 넓은 건물은 위로 남는 자리가 크고, 내려다보는 각도 때문에 앞쪽 바닥이 아래로 더 내려가 보여서 아래를 넉넉히
-  const top = ROOF_Y + 4.5, bottom = BOTTOM - 2.5;
-  goal.target.set(0, (ROOF_Y + BOTTOM) / 2 - 2, 0); // 건물 한가운데보다 조금 아래를 봐야 화면 가운데에 와요
-  goal.dist = fitDist(BW + 6, top - bottom) * 1.02 + D / 2;
+  const top = TOP_Y + 4.5, bottom = BOTTOM - 2.5;
+  goal.target.set(0, (TOP_Y + BOTTOM) / 2 - 2, 0); // 건물 한가운데보다 조금 아래를 봐야 화면 가운데에 와요
+  goal.dist = fitDist(BW + 6 + (layout().shaft === 'outside' ? 6 : 0), top - bottom) * 1.02 + D / 2;
   goal.yaw = -.32; goal.pitch = .16;
   document.getElementById('back').hidden = true;
   markSigns();
@@ -1028,7 +1393,7 @@ function enterFloor(floor) {
   const y = ROOMS[f.rooms[0]].box.y;
   selected = f.rooms[0];
   goal.target.set(0, y + FH * .46, .3);
-  goal.dist = fitDist(BW + 1, FH + 1) + D / 2;
+  goal.dist = fitDist((f.penthouse ? PW : BW) + 1, FH + 1) + D / 2;
   goal.yaw = THREE.MathUtils.clamp(view.yaw, -.35, .35) * .5;
   goal.pitch = .1;
   document.getElementById('back').hidden = false;
@@ -1337,6 +1702,7 @@ function loop() {
   for (const c of people) animate(c, t);
   for (const { d, x0, x1, off } of docs) d.position.x = x0 + (((t * .18 + off) % 1) * (x1 - x0));
   if (flag) flag.rotation.y = Math.sin(t * 3) * .25;
+  for (const a of anims) a(t);
   for (const b of bobbers) b.m.position.y = b.y0 + Math.sin(t * 1.5 + b.ph) * .12;
   // 6초 넘게 가만히 있으면 화면보호기처럼 천천히 둘러봐요 (건물 전체 보기일 때만)
   if (!selected && !drag && !drawer.classList.contains('open') && performance.now() - lastInput > 6000) {
@@ -1358,6 +1724,9 @@ renderTheme();
 poke();
 new ResizeObserver(resize).observe(stage);
 resize();
+// 미리 보기: ?focus=boss 처럼 붙이면 그 방을 가까이 비춰요
+const FOCUS = new URLSearchParams(location.search).get('focus');
+if (FOCUS && ROOMS[FOCUS]?.box) enter(FOCUS);
 view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch;
 loop();
 
@@ -1388,7 +1757,8 @@ export function setState(s) {
     me: s.me || STATE.me, friend: s.friend || STATE.friend,
     gender: s.gender === 'f' ? 'f' : s.gender === 'm' ? 'm' : STATE.gender,
     theme: s.theme || STATE.theme,
-  });
+    layout: s.layout || STATE.layout,
+  }, PREVIEW);
   if (JSON.stringify(STATE) === keep) return;
   try { localStorage.setItem('ailab3d', JSON.stringify(STATE)); } catch {}
   rebuild();

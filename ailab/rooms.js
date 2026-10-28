@@ -58,11 +58,14 @@ export const ROOMS = {
   store1: { name: '창고 1', ...STORE },
   store2: { name: '창고 2', ...STORE },
   store3: { name: '창고 3', ...STORE },
+  store4: { name: '창고 4', ...STORE },
 };
 
 // 위층부터 아래층 순서. 한 층에 방 4개 (왼쪽 → 오른쪽)
+// penthouse: 옥상 위에 따로 올린 사장실 (유리벽 · 테라스)
 export const FLOORS = [
-  { floor: '2F', name: '연수 층', rooms: ['boss', 'train', 'links', 'task'] },
+  { floor: 'PH', name: '펜트하우스', rooms: ['boss'], penthouse: true },
+  { floor: '2F', name: '연수 층', rooms: ['train', 'links', 'task', 'store4'] },
   { floor: '1F', name: '수업 층', rooms: ['lobby', 'moral', 'others', 'plans'] },
   { floor: 'B1', name: '보관 층', rooms: ['archive', 'store1', 'store2', 'store3'] },
 ];
