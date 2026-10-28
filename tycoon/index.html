@@ -415,6 +415,27 @@ table.tv tr.tv-now td.tv-td{background:color-mix(in srgb,var(--accent) 30%,trans
 .tv-none small{font-weight:500;font-size:12.5px;color:var(--muted)}
 .tv-edit{margin:6px 0 2px;padding:8px 2px 4px;border-top:2px dashed var(--line);font:800 15px var(--ui)}
 .tv-edit small{font-weight:600;font-size:12px;color:var(--muted)}
+/* 🧒 우리 반 칸 = 누르는 단추 · '교실 정하기' 창 */
+.hwk td{padding:2px}
+.hcellb{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:44px;padding:5px 7px;border:1.5px solid var(--line);border-radius:9px;background:var(--field,transparent);color:var(--ink);text-align:left;cursor:pointer;font:12.5px var(--body)}
+.hcellb:hover,.hcellb:focus-visible{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.hc-g{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 5px;line-height:1.3}
+.hc-g b{font-weight:800}
+.hc-g i,.hc-home{font-style:normal;font-size:11px;color:var(--muted)}
+.hc-g i.go{color:var(--accent);font-weight:700}
+.hc-sep{font-size:10px;opacity:.6}
+.hwk td.multi .hcellb{border-style:dashed;border-color:var(--accent)}
+.hpop{position:fixed;z-index:10000;width:min(440px,94vw);display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;border:2px solid var(--accent);background:var(--panel,#1E1E2A);color:var(--ink,#fff);box-shadow:0 12px 40px rgba(0,0,0,.45);font:13px var(--ui)}
+.hp-head{display:flex;align-items:center;gap:6px;font-size:14.5px}
+.hp-row{display:flex;align-items:center;gap:5px}
+.hp-row .hp-n{flex:0 0 18px;height:18px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:var(--on-ink,#111);font:800 11px var(--ui)}
+.hp-row .hp-s{flex:1 1 40%;min-width:0}
+.hp-row .hp-r{flex:1 1 45%;min-width:0}
+.hp-row .hp-rx{flex:1 1 30%;min-width:0}
+.hpop input,.hpop select{font:13.5px var(--body);color:var(--ink);background:var(--field,#14141c);border:1.5px solid var(--line);border-radius:7px;padding:7px 8px;box-sizing:border-box}
+.hpop input:focus,.hpop select:focus{outline:2px solid var(--accent);outline-offset:0}
+.hp-add{align-self:flex-start;border-style:dashed}
+.hp-foot{display:flex;align-items:center;gap:6px}
 .privnote{margin:6px 0;padding:7px 10px;border-radius:8px;border:1px dashed var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}
 .privnote b{color:var(--ink)}
 /* 🕘 시간표 창 › 🧒 우리 반 탭: 칸 + 나눠 가기 ＋ */
@@ -6733,12 +6754,70 @@ let tvT = null;
 $("edBody").addEventListener("input", e => { if (!$("ttView") || !e.target.closest("#eWeek, .hwk, .wk, #eBell")) return; clearTimeout(tvT); tvT = setTimeout(() => { if (edTab === "me") readEdit(); if ($("ttView")) $("ttView").innerHTML = ttViewInner(); }, 150); });
 // 🧒 우리 반 탭: 담임 반 아이들이 교시마다 가는 곳 (비우면 우리 반 교실, 나눠 가면 '과목 교실 / 과목 교실')
 const H_DAYS = ["", "월", "화", "수", "목", "금"];
+// 🧒 우리 반 칸 = 누르는 단추 ('과목 + 📍교실'). 누르면 아래 '교실 정하기' 창
+const H_ROOMS = ["운동장", "체육관", "과학실", "음악실", "미술실", "가사실", "기술실", "컴퓨터실", "도서실", "강당"];
+function hCellTd(d, p){
+  const v = ((ed.hrWeek || {})[d] || {})[p] || "", G = window.DESK.parseCls(v);
+  const inner = !G.length ? `<span class="hc-home">🏫 우리 반</span>` : G.map(g => `<span class="hc-g">${g.s ? `<b>${esc(g.s)}</b>` : ""}<i class="${g.r && g.r !== ed.hr ? "go" : ""}">${g.r && g.r !== ed.hr ? "📍" + esc(g.r) : "🏫 우리 반"}</i></span>`).join(`<span class="hc-sep">✂️</span>`);
+  return `<td class="${G.length > 1 ? "multi" : ""}"><button type="button" class="hcellb" data-hcell="${d},${p}" aria-label="우리 반 ${H_DAYS[d]} ${p}교시 교실 정하기">${inner}</button></td>`;
+}
+// '교실 정하기' 창: 줄마다 [과목][📍 교실 고르기] (+ 나눠 가기 · ✕). 고칠 때마다 바로 ed.hrWeek 와 표에 반영
+document.body.insertAdjacentHTML("beforeend", `<div class="hpop" id="hPop" hidden role="dialog" aria-label="교실 정하기"><div class="hp-head"><b id="hpTitle"></b><span class="sp"></span><button type="button" class="ibtn" data-hp="close" aria-label="닫기">✕</button></div><div id="hpRows"></div><button type="button" class="btn hp-add" data-hp="add">✂️ 다른 교실로 나눠 가기 (선택과목)</button><div class="hp-foot"><button type="button" class="btn" data-hp="clear">비우기</button><span class="sp"></span><button type="button" class="big" data-hp="done">완료</button></div></div>`);
+let hpCell = null, hpRows = [];
+// 고른 값: 우리 반("") · 아는 교실 · 다른 반(@cls) · 직접 적기(@own)
+const hpPicked = g => { const r = g.r === ed.hr ? "" : g.r || ""; return g.mode === "cls" || (/^\d-\d+$/.test(r)) ? "@cls" : g.mode === "own" || (r && !H_ROOMS.includes(r)) ? "@own" : r; };
+const hpRoomSel = g => { const cur = hpPicked(g);
+  return `<select class="hp-r" aria-label="교실">${[["", `🏫 우리 반 교실${ed.hr ? ` (${esc(ed.hr)})` : ""}`], ...H_ROOMS.map(x => [x, "📍 " + x]), ["@cls", "📍 다른 반 교실…"], ["@own", "✏️ 직접 적기…"]].map(([v, t]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${t}</option>`).join("")}</select>`; };
+function hpRender(){
+  $("hpRows").innerHTML = hpRows.map((g, i) => { const r = g.r === ed.hr ? "" : g.r || "", pk = hpPicked(g);
+    return `<div class="hp-row" data-i="${i}">${hpRows.length > 1 ? `<span class="hp-n">${i + 1}</span>` : ""}<input class="hp-s" maxlength="12" placeholder="과목 (예: 진로활동)" value="${esc(g.s)}" aria-label="과목">${hpRoomSel(g)}<input class="hp-rx" maxlength="12" placeholder="${pk === "@cls" ? "반 (예: 2-3)" : "교실 이름 (예: 시청각실)"}" value="${esc(pk.startsWith("@") ? r : "")}" ${pk.startsWith("@") ? "" : "hidden"} aria-label="교실 이름">${hpRows.length > 1 ? `<button type="button" class="ibtn" data-hp="del" aria-label="${i + 1}번 줄 빼기" title="이 줄 빼기">✕</button>` : ""}</div>`; }).join("");
+  $("hPop").querySelector(".hp-add").hidden = hpRows.length >= 4;
+}
+// 줄들 → 칸 글 ('과목 교실 / 과목 교실'). 우리 반 교실은 비워 두되, 체육처럼 저절로 다른 곳으로 가는 과목이면 우리 반을 적어 둬요
+function hpSave(){
+  if (!hpCell) return; const [d, p] = hpCell;
+  const v = hpRows.map(g => { const s = g.s.replace(/[\/]/g, " ").trim(), r = (g.r || "").trim(); const auto = !r && s && window.DESK.parseCls(s)[0]?.r; return [s, r || (auto ? ed.hr || "" : "")].filter(Boolean).join(" "); }).filter(Boolean).join(" / ");
+  ed.hrWeek = ed.hrWeek || {}; ed.hrWeek[d] = ed.hrWeek[d] || {}; if (v) ed.hrWeek[d][p] = v; else delete ed.hrWeek[d][p];
+  const b = document.querySelector(`#edBody [data-hcell="${d},${p}"]`); if (b) b.closest("td").outerHTML = hCellTd(d, p);
+  if ($("ttView")) $("ttView").innerHTML = ttViewInner(); if ($("hPrev")) $("hPrev").textContent = hPrevOf(d, p, v);
+}
+function hpOpen(btn){
+  const [d, p] = btn.dataset.hcell.split(","); hpCell = [d, p];
+  const G = window.DESK.parseCls(((ed.hrWeek || {})[d] || {})[p] || ""); hpRows = G.length ? G.map(g => ({ s:g.s, r:g.r })) : [{ s:"", r:"" }];
+  $("hpTitle").textContent = `🧒 ${H_DAYS[d]}요일 ${p}교시 · 교실 정하기`; hpRender();
+  const pop = $("hPop"); pop.hidden = false;
+  const R = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, R.left)) + "px";
+  pop.style.top = (R.bottom + h + 8 < innerHeight ? R.bottom + 6 : Math.max(8, R.top - h - 6)) + "px";
+  pop.querySelector(".hp-s")?.focus();
+}
+const hpClose = () => { $("hPop").hidden = true; hpCell = null; };
+$("edBody").addEventListener("click", e => { const b = e.target.closest("[data-hcell]"); if (b && edTab === "hr") hpOpen(b); });
+$("hPop").addEventListener("click", e => {
+  const k = e.target.closest("[data-hp]")?.dataset.hp; if (!k) return;
+  if (k === "close" || k === "done"){ hpClose(); return; }
+  if (k === "add"){ if (hpRows.length < 4){ hpRows.push({ s:"", r:"" }); hpRender(); hpSave(); $("hPop").querySelectorAll(".hp-s")[hpRows.length - 1]?.focus(); } return; }
+  if (k === "clear"){ hpRows = [{ s:"", r:"" }]; hpRender(); hpSave(); return; }
+  if (k === "del"){ const i = +e.target.closest(".hp-row").dataset.i; hpRows.splice(i, 1); hpRender(); hpSave(); }
+});
+$("hPop").addEventListener("input", e => {
+  const row = e.target.closest(".hp-row"); if (!row) return; const g = hpRows[+row.dataset.i];
+  if (e.target.classList.contains("hp-s")) g.s = e.target.value;
+  if (e.target.classList.contains("hp-r")){ const v = e.target.value; g.mode = v === "@cls" ? "cls" : v === "@own" ? "own" : ""; g.r = v.startsWith("@") ? "" : v;
+    // 과목만 고른 체육 · 음악 … 이 '우리 반'을 고르면 우리 반으로 (저장할 때 반 이름을 적어 둬요)
+    if (!v && g.s && window.DESK.parseCls(g.s)[0]?.r) g.r = ed.hr || "";
+    const i = +row.dataset.i; hpRender(); if (g.mode) $("hpRows").querySelectorAll(".hp-rx")[i]?.focus(); }   // 다시 그린 줄에서 교실 이름 칸으로
+  if (e.target.classList.contains("hp-rx")){ const v = e.target.value.trim(); g.r = g.mode === "cls" ? hrNorm(v) : v; }
+  hpSave();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("hPop").hidden){ e.stopPropagation(); hpClose(); } }, true);
+document.addEventListener("pointerdown", e => { if (!$("hPop").hidden && !e.target.closest("#hPop, [data-hcell]")) hpClose(); });
 function classPane(nPer){
   const W = ed.hrWeek || {};
   let wk = `<table><thead><tr><th></th>${H_DAYS.slice(1).map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>`;
   for (let p = 1; p <= nPer; p++){
     wk += `<tr><th>${p}교시</th>`;
-    for (let d = 1; d <= 5; d++){ const v = (W[d] || {})[p] || ""; wk += `<td class="${v.includes("/") ? "multi" : ""}"><div class="hcell"><input list="dlRooms" data-hd="${d}" data-hp="${p}" value="${esc(v)}" maxlength="60" placeholder="" title="${esc(v)}" aria-label="우리 반 ${H_DAYS[d]} ${p}교시"><button type="button" class="hsplit" data-hsplit="${d},${p}" title="선택과목처럼 나눠 가면 교실 더하기" aria-label="${H_DAYS[d]} ${p}교시 나눠 가는 교실 더하기">＋</button><button type="button" class="hsplit" data-hminus="${d},${p}" title="마지막에 더한 교실 빼기 (되돌리기)" aria-label="${H_DAYS[d]} ${p}교시 나눠 가는 교실 하나 빼기" ${v.includes("/") ? "" : "hidden"}>−</button></div></td>`; }
+    for (let d = 1; d <= 5; d++) wk += hCellTd(d, p);
     wk += `</tr>`;
   }
   wk += `</tbody></table>`;
@@ -6754,35 +6833,13 @@ function classPane(nPer){
     <p class="impst" id="impSt" role="status"></p>
     <input type="file" id="fPhoto" accept="image/*" hidden><input type="file" id="fPdf" accept="application/pdf,.pdf" hidden><input type="file" id="fXlsx" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
     <p class="privnote">🔒 <b>선생님 · 학생 이름은 개인정보라 받지 않아요.</b> 칸에 '과목/선생님 이름'이 함께 적힌 시간표도 <b>과목만</b> 넣어요. 직접 적을 때도 이름은 적지 말아 주세요.</p>
-    <p class="note">✍️ <b>직접 입력</b>: 칸에 <b>과목 이름</b>만 적으면 돼요 (국어A · 통사A …) — 아이들은 <b>우리 반 교실</b>${ed.hr ? `(${esc(ed.hr)})` : ""}에서 수업해요. 체육 → 운동장 · 음악 → 음악실 · 미술 → 미술실 · 정보 → 컴퓨터실로 가고, '과탐실'처럼 교실 이름을 적으면 그 교실로 가요. 비우면 우리 반 교실.</p>
-    <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 칸 옆 <b>＋</b>를 눌러 '과목 교실'을 / 로 이어 적어요 (4곳까지, 잘못 눌렀으면 <b>−</b>로 하나씩 빼요). 예) <code>물리 과학실 / 화학 3-2 / 지구 3-4</code> → 아이들이 세 무리로 나눠 걸어가요. 반 전체가 한 교실로 가면 ＋ 없이 <code>진로활동 가사실</code>처럼 적어요.</p>
+    <p class="note">✍️ <b>칸을 누르면 '교실 정하기' 창</b>이 떠요. 과목을 적고 📍 교실을 골라요 (안 고르면 <b>🏫 우리 반 교실</b>${ed.hr ? `(${esc(ed.hr)})` : ""}). 체육 · 음악 · 미술 · 정보는 운동장 · 음악실 · 미술실 · 컴퓨터실로 먼저 골라져 있어요.</p>
+    <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 창에서 <b>[✂️ 다른 교실로 나눠 가기]</b>를 눌러 줄을 더하고, 필요 없는 줄은 <b>✕</b>로 빼요 (4곳까지) → 아이들이 무리로 나눠 걸어가요.</p>
     ${ed.hr ? "" : `<p class="err">⚙️ 설정 › 계정 · 내 정보에서 <b>담임 반</b>을 먼저 적어 주세요. 담임 반이 있어야 🧒 우리 반 모드에 아이들이 보여요.</p>`}
     <div class="wk hwk">${nPer ? wk : `<p class="note">먼저 '내 시간표' 탭에서 종 시간을 넣어 주세요.</p>`}</div>
     <p class="note" id="hPrev" aria-live="polite"></p>`;
 }
 const hPrevOf = (d, p, v) => { const G = window.DESK.parseCls(v); return !G.length ? `${H_DAYS[d]} ${p}교시 → 우리 반 교실` : `${H_DAYS[d]} ${p}교시 → ` + G.map(g => `${g.s ? g.s + ": " : ""}${g.r || "우리 반 교실"}`).join(" · ") + (G.length > 1 ? ` (${G.length}무리로 나눠 가요)` : ""); };
-$("shEdit").addEventListener("input", e => {
-  const t = e.target; if (edTab !== "hr" || !ed || !t.dataset.hd) return;
-  const d = t.dataset.hd, p = t.dataset.hp, v = t.value.replace(/\s+/g, " ").slice(0, 60);
-  ed.hrWeek = ed.hrWeek || {}; ed.hrWeek[d] = ed.hrWeek[d] || {};
-  if (v.trim()) ed.hrWeek[d][p] = v; else delete ed.hrWeek[d][p];
-  t.title = v; t.closest("td")?.classList.toggle("multi", v.includes("/")); $("hPrev").textContent = hPrevOf(d, p, v);
-  const mb = t.parentElement.querySelector("[data-hminus]"); if (mb) mb.hidden = !v.includes("/");   // − 는 나눠 가기(/)가 있을 때만
-});
-$("shEdit").addEventListener("focusin", e => { const t = e.target; if (edTab === "hr" && t.dataset && t.dataset.hd && $("hPrev")) $("hPrev").textContent = hPrevOf(t.dataset.hd, t.dataset.hp, t.value); });
-// − : 마지막 ' / 교실' 하나를 빼요 (＋를 잘못 눌렀을 때 되돌리기)
-$("shEdit").addEventListener("click", e => {
-  const b = e.target.closest("[data-hminus]"); if (!b || edTab !== "hr") return;
-  const i = b.parentElement.querySelector("input"); if (!i) return;
-  i.value = i.value.replace(/\s*\/[^/]*$/, "").trim();
-  i.focus(); i.setSelectionRange(i.value.length, i.value.length); i.dispatchEvent(new Event("input", { bubbles:true }));
-});
-$("shEdit").addEventListener("click", e => {
-  const b = e.target.closest("[data-hsplit]:not([data-hminus])"); if (!b || edTab !== "hr") return;
-  const i = b.parentElement.querySelector("input"); if (!i) return;
-  if (i.value.trim() && !/\/\s*$/.test(i.value)) i.value = i.value.trim() + " / ";
-  i.focus(); i.setSelectionRange(i.value.length, i.value.length); i.dispatchEvent(new Event("input", { bubbles:true }));
-});
 // 저장할 때: 월~금 · 숫자 교시 · 60자까지
 const cleanHrWeek = W => { const o = {}; for (let d = 1; d <= 5; d++){ const r = (W || {})[d] || {}; Object.entries(r).forEach(([p, v]) => { v = String(v || "").trim().replace(/(\s*\/\s*)+$/, "").slice(0, 60); if (/^\d+$/.test(p) && v){ (o[d] = o[d] || {})[p] = v; } }); } return o; };
 $("shEdit").addEventListener("click", e => {
