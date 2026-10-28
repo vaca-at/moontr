@@ -2,7 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, getDocs,
+  getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, getDocs, getDoc,
   serverTimestamp, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
@@ -180,13 +180,14 @@ function render() {
   const r = route();
   const b3d = $('#b3d');
   document.body.append(b3d); // 화면을 다시 그리기 전에 3D 무대를 잠깐 빼 두어요 (캔버스는 그대로)
-  const home3d = !S.q && !ROOMS[r] && B3 !== false;
+  const admin = !S.q && r === 'admin';
+  const home3d = !S.q && !admin && !ROOMS[r] && B3 !== false;
   const band = !S.q && !!ROOMS[r] && !!B3;
   document.body.classList.toggle('home3d', home3d);
   if (home3d) {
     $('#view').innerHTML = '';
   } else {
-    $('#view').innerHTML = S.q ? searchView() : ROOMS[r] ? floorView(r) : homeView();
+    $('#view').innerHTML = S.q ? searchView() : admin ? adminView() : ROOMS[r] ? floorView(r) : homeView();
   }
   if (B3) {
     B3.setBadges(Object.fromEntries(Object.keys(ROOMS).map((k) => [k, roomBadge(k)])));
@@ -285,7 +286,7 @@ function guestSide() {
       <p class="sum">연수 공문, 연수 홈페이지, 수업 공개 공문, 다른 선생님 지도안 캡쳐를 AI 직원들이 읽고 층마다 정리하는 연구실이에요.</p>
       <ul class="dir">${FLOORS.map((f) => `<li><b>${esc(f.floor)}</b><span>${f.rooms.map((k) => `<a href="#${k}">${esc(roomName(k))}</a>`).join(' · ')}</span></li>`).join('')}</ul>
       <button class="btn primary" data-act="login">선생님 로그인</button>
-      <small>자료는 로그인한 선생님만 볼 수 있어요.</small>
+      <small>자료는 로그인한 선생님만 볼 수 있어요. 로그인하면 <a href="policy/">이용약관 · 개인정보 처리방침</a>에 동의한 것으로 봐요.</small>
     </section>`;
 }
 
@@ -296,6 +297,69 @@ function guestRoom(k) {
     ${fields.length ? `<div class="kw">${fields.map((f) => `<span class="chip">${esc(f)}</span>`).join('')}</div>` : ''}
     <p>이 방의 자료는 선생님 로그인 후에 볼 수 있어요.</p>
     <button class="btn primary" data-act="login">선생님 로그인</button>
+  </div>`;
+}
+
+// --- 관리자 현황 (#admin) ---
+// 방문 수(site_counts · site_devices, visit.js 가 세요)는 들어올 때 한 번 불러오고, 자료 현황은 지금 구독 중인 카드 · 캡쳐로 계산해요
+const DAYS = 14;
+const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+async function loadStats() {
+  S.statsLoading = true;
+  try {
+    const days = [...Array(DAYS)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - (DAYS - 1 - i)); return dayKey(d); });
+    const read = async (id) => { const s = await getDoc(doc(db, 'site_counts', `ailab__${id}`)); return s.exists() ? s.data().n || 0 : 0; };
+    const [total, ...daily] = await Promise.all([read('total'), ...days.map((d) => read(`d${d}`))]);
+    const dev = await getDocs(query(collection(db, 'site_devices'), where('app', '==', 'ailab')));
+    const kinds = { phone: 0, tablet: 0, pc: 0 };
+    dev.forEach((d) => { kinds[d.data().kind] = (kinds[d.data().kind] || 0) + 1; });
+    S.stats = { total, days: days.map((d, i) => ({ d, n: daily[i] })), devices: dev.size, kinds, at: new Date() };
+  } catch (e) {
+    S.stats = { error: e.code || e.message, at: new Date() };
+  }
+  S.statsLoading = false;
+  render();
+}
+function adminView() {
+  if (isGuest()) return `<div class="empty"><p>현황은 관리자 계정으로 로그인해야 볼 수 있어요.</p><button class="btn primary" data-act="login">선생님 로그인</button></div>`;
+  if (!S.stats && !S.statsLoading) loadStats();
+  const st = S.stats;
+  const caps = S.captures, cards = S.cards;
+  const by = (s) => caps.filter((c) => c.status === s).length;
+  const month = todayStr().slice(0, 7);
+  const capMonth = caps.filter((c) => { const d = c.createdAt?.toDate?.(); return d && dayKey(d).startsWith(month); }).length;
+  const review = cards.filter((c) => c.status === 'review').length;
+  const tile = (n, label, extra = '') => `<div class="ad-tile ${extra}"><b>${n}</b><small>${label}</small></div>`;
+  const today = st?.days?.at(-1)?.n ?? '…';
+  const max = Math.max(1, ...(st?.days || []).map((x) => x.n));
+  const bars = st?.days ? `<div class="ad-bars" role="img" aria-label="최근 ${DAYS}일 방문 수">${st.days.map((x, i) => {
+    const [, m, d] = x.d.split('-').map(Number);
+    const last = i === st.days.length - 1, top = x.n === max && x.n > 0;
+    return `<div class="ad-bar" title="${m}월 ${d}일 · ${x.n}번"><span class="v">${last || top ? x.n : ''}</span><i style="height:${Math.round((x.n / max) * 100)}%"></i><span class="d">${i % 2 === (DAYS - 1) % 2 ? `${m}.${d}` : ''}</span></div>`;
+  }).join('')}</div>` : `<p class="empty">${st?.error ? `방문 수를 불러오지 못했어요 (${esc(st.error)})` : '방문 수를 불러오는 중이에요…'}</p>`;
+  const roomKeys = Object.keys(ROOMS).filter((k) => ROOMS[k].ai);
+  const roomMax = Math.max(1, ...roomKeys.map((k) => cardsIn(k).length));
+  const errs = caps.filter((c) => c.status === 'error').slice(0, 5);
+  const recent = caps.slice(0, 8);
+  const label = { reading: '읽는 중', done: '정리됨', error: '읽지 못함' };
+  return `<div class="admin">
+    <div class="flr-h"><h2>관리자 현황</h2><small>${st?.at ? `방문 수 ${st.at.getHours()}:${pad(st.at.getMinutes())} 기준` : ''}</small>
+      <button class="chipbtn" data-act="stats">새로고침</button><a class="chipbtn" href="#">← 건물로</a></div>
+    <section class="ad-sec"><h3>방문</h3>
+      <div class="ad-tiles">${tile(today, '오늘 방문')}${tile(st?.total ?? '…', '누적 방문')}${tile(st?.devices ?? '…', '방문한 기기')}${st?.kinds ? tile(`${st.kinds.pc} · ${st.kinds.phone} · ${st.kinds.tablet}`, 'PC · 휴대폰 · 태블릿', 'sm') : ''}</div>
+      <h4>최근 ${DAYS}일 방문 수</h4>${bars}
+      <small>관리자 화면(#admin)과 한 번 들어온 뒤 탭을 닫기 전까지는 다시 세지 않아요.</small>
+    </section>
+    <section class="ad-sec"><h3>사진 읽기 (AI)</h3>
+      <div class="ad-tiles">${tile(caps.length, '넣은 사진')}${tile(capMonth, '이번 달 넣은 사진')}${tile(by('reading'), '읽는 중')}${tile(by('error'), '읽지 못함', by('error') ? 'bad' : '')}${tile(review, '확인 기다리는 카드', review ? 'warn' : '')}${tile(cards.length, '정리된 카드')}</div>
+      ${errs.length ? `<h4>최근 읽지 못한 사진</h4><ul class="ad-list">${errs.map((c) => `<li><span class="st-err">읽지 못함</span><b>${esc(c.name || '사진')}</b><small>${esc(c.error || '')}</small><button class="chipbtn" data-act="reread" data-cap="${c.id}">다시 읽기</button></li>`).join('')}</ul>` : ''}
+    </section>
+    <section class="ad-sec"><h3>방별 카드</h3>
+      <ul class="ad-rooms">${roomKeys.map((k) => { const n = cardsIn(k).length; return `<li><a href="#${k}">${esc(floorOf(k).floor)} ${esc(roomName(k))}</a><span class="track"><i style="width:${Math.round((n / roomMax) * 100)}%"></i></span><b>${n}</b></li>`; }).join('')}</ul>
+    </section>
+    <section class="ad-sec"><h3>최근 넣은 사진</h3>
+      ${recent.length ? `<ul class="ad-list">${recent.map((c) => `<li><span>${esc(tsDate(c.createdAt))}</span><b>${esc(c.name || '사진')}</b><small>${label[c.status] || ''}${c.cardCount ? ` · 카드 ${c.cardCount}` : ''}</small><button class="chipbtn" data-act="cap" data-cap="${c.id}">보기</button></li>`).join('')}</ul>` : '<p class="empty">아직 넣은 사진이 없어요.</p>'}
+    </section>
   </div>`;
 }
 
@@ -818,6 +882,7 @@ document.addEventListener('click', async (e) => {
         break;
       }
       case 'subj': S.subj = b.dataset.v; render(); break;
+      case 'stats': S.stats = null; render(); break;
       case 'cap': openCapture(cap); break;
       case 'reread': if (dlg.open) dlg.close(); await reread(cap); break;
       case 'delcap': await deleteCapture(cap); break;
