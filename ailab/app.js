@@ -12,7 +12,8 @@ import { APP_NAME, ROOMS, FLOORS } from './rooms.js';
 const REGION = 'asia-northeast3';
 const DEFAULT_STEPS = ['주제 정하기', '참고 지도안 고르기', '내 지도안 쓰기', '수업 실행', '성찰 정리·제출'];
 
-const S = { user: null, teacher: false, cards: [], captures: [], task: null, building: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false };
+// riding = 엘리베이터가 움직이는 중(그동안은 화면을 다시 그리지 않아요), doorsShut = 다음 화면을 문 닫힌 채로 그리고 열기
+const S = { user: null, teacher: false, cards: [], captures: [], task: null, building: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false, riding: false, doorsShut: false, focused: '' };
 let auth, db, storage, fns;
 let unsubs = [];
 // 첫 화면 3D 건물 (building3d.js). null = 불러오는 중, false = 이 브라우저에서 3D가 안 돼서 예전 그림으로
@@ -172,22 +173,32 @@ function subscribe() {
 const route = () => decodeURIComponent(location.hash.slice(1)) || 'home';
 
 function render() {
-  if (!db) return;
+  if (!db || S.riding) return;
   // 글을 쓰는 중에는 화면을 다시 그리지 않고, 칸을 벗어날 때 그립니다.
   const ae = document.activeElement;
   if (ae && $('#view').contains(ae) && ae.matches('textarea, input:not([type=checkbox]):not([type=date])')) { S.dirty = true; return; }
   const r = route();
+  const b3d = $('#b3d');
+  document.body.append(b3d); // 화면을 다시 그리기 전에 3D 무대를 잠깐 빼 두어요 (캔버스는 그대로)
   const home3d = !S.q && !ROOMS[r] && B3 !== false;
+  const band = !S.q && !!ROOMS[r] && !!B3;
   document.body.classList.toggle('home3d', home3d);
-  if (B3) B3.setVisible(home3d);
   if (home3d) {
     $('#view').innerHTML = '';
-    if (B3) {
-      B3.setBadges(Object.fromEntries(Object.keys(ROOMS).map((k) => [k, roomBadge(k)])));
-      B3.setTop(isGuest() ? guestSide() : homeSide());
-    }
   } else {
     $('#view').innerHTML = S.q ? searchView() : ROOMS[r] ? floorView(r) : homeView();
+  }
+  if (B3) {
+    B3.setBadges(Object.fromEntries(Object.keys(ROOMS).map((k) => [k, roomBadge(k)])));
+    if (band) $('.b3d-slot').append(b3d); // 층 화면: 위쪽 엘리베이터 창 안으로
+    B3.setMode(band ? 'band' : 'home');
+    B3.setVisible(home3d || band);
+    if (home3d) { B3.setTop(isGuest() ? guestSide() : homeSide()); S.focused = ''; }
+    if (band && S.focused !== r) { B3.focusRoom(r, S.doorsShut || !S.focused); S.focused = r; }
+  }
+  if (S.doorsShut) {
+    S.doorsShut = false;
+    setTimeout(() => $('.lift')?.classList.remove('shut'), 160);
   }
   hydrateImages();
   document.body.classList.toggle('busy', S.uploading.size > 0 || S.captures.some((c) => c.status === 'reading'));
@@ -300,6 +311,7 @@ function floorView(k) {
     </nav>
     <section class="flr">
       <div class="flr-h"><h2>${esc(f.name)}</h2></div>
+      ${B3 !== false ? `<div class="lift ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div></div>` : ''}
       <div class="doors" role="tablist">${f.rooms.map((r) => {
         const b = roomBadge(r);
         return `<a class="door ${r === k ? 'on' : ''}" role="tab" aria-selected="${r === k}" href="#${r}">${esc(roomName(r))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</a>`;
@@ -841,7 +853,35 @@ document.addEventListener('focusout', () => {
   if (S.dirty) setTimeout(() => { S.dirty = false; render(); });
 });
 
-window.addEventListener('hashchange', () => { S.subj = ''; render(); window.scrollTo(0, 0); });
+// ---------- 엘리베이터: 다른 층으로 가면 문이 닫히고, 층 표시가 바뀌고, 문이 열려요 ----------
+let lastRoute = route();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+async function ride(from, to) {
+  S.riding = true;
+  $('.lift')?.classList.add('shut');
+  await sleep(400);
+  const i = FLOORS.indexOf(from), j = FLOORS.indexOf(to), step = j > i ? 1 : -1;
+  const disp = $('.ev-disp');
+  for (let n = i + step; disp && n !== j + step; n += step) {
+    disp.innerHTML = `${step < 0 ? '▲' : '▼'} ${esc(FLOORS[n].floor)}<small>${esc(FLOORS[n].name)}</small>`;
+    await sleep(260);
+  }
+  S.riding = false;
+  S.doorsShut = true;
+  render();
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', () => {
+  S.subj = '';
+  const next = route();
+  const a = ROOMS[lastRoute] ? floorOf(lastRoute) : null, b = ROOMS[next] ? floorOf(next) : null;
+  lastRoute = next;
+  if (B3 && a && b && a !== b && !S.q && !S.riding && !calm()) { ride(a, b); return; }
+  if (B3 && !a && b && !calm()) S.doorsShut = true; // 첫 화면에서 들어올 때도 문이 열리며
+  render();
+  window.scrollTo(0, 0);
+});
 
 // 화면 어디든 끌어다 놓기 / 붙여넣기
 let dragDepth = 0;

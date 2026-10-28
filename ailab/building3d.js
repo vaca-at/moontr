@@ -25,6 +25,9 @@ const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...(s
 const hooks = { onRoom: null, onChange: null };
 const root = document.getElementById('b3d');
 let visible = !root.hidden;
+// home = 첫 화면(화면 가득) · band = 층 화면 위쪽 띠(그 층만 보여 줘요)
+let mode = 'home';
+let bandRooms = []; // 층 화면에서 보고 있는 층의 방들
 // 이 브라우저에도 기억하고(로그인 전), 로그인한 선생님이면 앱이 Firebase 에 저장해요
 const save = () => {
   try { localStorage.setItem('ailab3d', JSON.stringify(STATE)); } catch {}
@@ -1068,13 +1071,14 @@ function pickChar(e) {
   return o?.userData.char?.info ? o.userData.char : null;
 }
 stage.addEventListener('wheel', (e) => {
+  if (mode === 'band') return; // 층 화면에서는 휠로 페이지를 내려요
   e.preventDefault();
   goal.dist = THREE.MathUtils.clamp(goal.dist * (1 + Math.sign(e.deltaY) * .1), 8, 140);
 }, { passive: false });
 labelsEl.addEventListener('click', (e) => { const s = e.target.closest('.sign'); if (s) chooseRoom(s.dataset.room); });
 document.getElementById('back').addEventListener('click', () => { target = null; overview(); renderBoard(); });
 addEventListener('keydown', (e) => {
-  if (!visible || e.key !== 'Escape') return;
+  if (!visible || mode !== 'home' || e.key !== 'Escape') return;
   if (drawer.classList.contains('open')) setDrawer(false);
   else if (selected) { target = null; overview(); renderBoard(); }
 });
@@ -1127,7 +1131,7 @@ themePick.addEventListener('click', (e) => { const b = e.target.closest('button'
 document.getElementById('thPrev').addEventListener('click', () => setTheme(STATE.theme - 1));
 document.getElementById('thNext').addEventListener('click', () => setTheme(STATE.theme + 1));
 addEventListener('keydown', (e) => {
-  if (!visible || drawer.classList.contains('open') || e.target.closest?.('input, textarea, select, dialog')) return;
+  if (!visible || mode !== 'home' || drawer.classList.contains('open') || e.target.closest?.('input, textarea, select, dialog')) return;
   if (e.key === 'ArrowLeft') setTheme(STATE.theme - 1);
   if (e.key === 'ArrowRight') setTheme(STATE.theme + 1);
 });
@@ -1270,6 +1274,7 @@ function resize() {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  if (mode === 'band' && selected) { const k = selected; focusRoom(k); return; }
   if (!selected) overview(); else if (target?.kind === 'floor') enterFloor(target.key); else enter(selected);
 }
 const tmp = new THREE.Vector3();
@@ -1277,7 +1282,9 @@ function placeLabels() {
   const w = stage.clientWidth, h = stage.clientHeight;
   for (const { el, pos } of labelItems) {
     tmp.copy(pos).project(camera);
-    const off = tmp.z > 1 || tmp.x < -1.1 || tmp.x > 1.1 || tmp.y < -1.1 || tmp.y > 1.1;
+    // 층 화면에서는 그 층 방 이름표만 (이웃 층 이름표 · 층 번호는 숨겨요)
+    const other = mode === 'band' && !bandRooms.includes(el.dataset.room);
+    const off = other || tmp.z > 1 || tmp.x < -1.1 || tmp.x > 1.1 || tmp.y < -1.1 || tmp.y > 1.1;
     el.style.visibility = off ? 'hidden' : 'visible';
     if (!off) el.style.translate = `${((tmp.x + 1) / 2) * w}px ${((1 - tmp.y) / 2) * h}px`;
   }
@@ -1350,6 +1357,27 @@ export function setState(s) {
   try { localStorage.setItem('ailab3d', JSON.stringify(STATE)); } catch {}
   rebuild();
   renderTheme();
+}
+// 첫 화면(home) ↔ 층 화면 위쪽 띠(band)
+export function setMode(m) {
+  if (mode === m) return;
+  mode = m;
+  root.classList.toggle('band', m === 'band');
+  if (m === 'home') { target = null; overview(); renderBoard(); } else { hideTip(); setDrawer(false); }
+  resize();
+}
+// 층 화면: 그 방이 있는 층으로 카메라가 가고, 그 방 이름표에 불이 들어와요
+// instant = 엘리베이터 문이 닫혀 있는 동안 도착해 있도록 바로 옮기기
+export function focusRoom(k, instant = false) {
+  const f = FLOORS.find((x) => x.rooms.includes(k));
+  if (!f) return;
+  target = null;
+  enterFloor(f.floor);
+  selected = k;
+  bandRooms = f.rooms;
+  goal.yaw = -.12;
+  markSigns();
+  if (instant) { view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch; }
 }
 // 서랍 맨 위에 앱이 넣는 내용 (로그인 안내 · 다가오는 일정 등)
 export function setTop(html) { document.getElementById('b3dTop').innerHTML = html; }
