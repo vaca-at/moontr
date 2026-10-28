@@ -12,9 +12,11 @@ import { APP_NAME, ROOMS, FLOORS } from './rooms.js';
 const REGION = 'asia-northeast3';
 const DEFAULT_STEPS = ['주제 정하기', '참고 지도안 고르기', '내 지도안 쓰기', '수업 실행', '성찰 정리·제출'];
 
-const S = { user: null, teacher: false, cards: [], captures: [], task: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false };
+const S = { user: null, teacher: false, cards: [], captures: [], task: null, building: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false };
 let auth, db, storage, fns;
 let unsubs = [];
+// 첫 화면 3D 건물 (building3d.js). null = 불러오는 중, false = 이 브라우저에서 3D가 안 돼서 예전 그림으로
+let B3 = null;
 
 // ---------- 작은 도구 ----------
 const $ = (s, el = document) => el.querySelector(s);
@@ -94,11 +96,34 @@ async function start() {
   onAuthStateChanged(auth, (user) => {
     unsubs.forEach((u) => u());
     unsubs = [];
-    Object.assign(S, { user, teacher: false, cards: [], captures: [], task: null });
+    Object.assign(S, { user, teacher: false, cards: [], captures: [], task: null, building: null });
     updateAuthUI();
     render();
     if (user) subscribe();
   });
+
+  // 머리줄 높이만큼 아래에서 3D 건물이 시작해요
+  const top = $('.top');
+  const setHdr = () => document.documentElement.style.setProperty('--hdr', `${top.offsetHeight}px`);
+  new ResizeObserver(setHdr).observe(top);
+  setHdr();
+  import('./building3d.js').then((m) => {
+    B3 = m;
+    m.connect({ onRoom: (k) => { location.hash = k; }, onChange: saveBuilding });
+    if (S.building) m.setState(S.building);
+    render();
+  }).catch(() => { B3 = false; render(); });
+}
+
+// 직원 배치 · 원장실 · 건물 시안: 로그인한 선생님이면 Firebase 에 저장 (어느 기기에서든 같게)
+let buildingT = null;
+function saveBuilding(state) {
+  if (!S.teacher) return;
+  clearTimeout(buildingT);
+  buildingT = setTimeout(() => {
+    setDoc(doc(db, dbPath('meta/building')), { ...state, updatedAt: serverTimestamp() })
+      .catch((e) => toast(`건물 설정을 저장하지 못했어요 (${e.code})`));
+  }, 800);
 }
 
 // 로그인하지 않아도 건물(첫 화면)은 보이고, 자료는 관리자(규칙의 isTeacher) 계정으로 들어와야 보여요.
@@ -136,6 +161,11 @@ function subscribe() {
     S.task = s.exists() ? s.data() : null;
     render();
   }, denied));
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/building')), (s) => {
+    if (!s.exists()) return;
+    S.building = s.data();
+    if (B3) B3.setState(S.building);
+  }, denied));
 }
 
 // ---------- 화면 ----------
@@ -147,7 +177,18 @@ function render() {
   const ae = document.activeElement;
   if (ae && $('#view').contains(ae) && ae.matches('textarea, input:not([type=checkbox]):not([type=date])')) { S.dirty = true; return; }
   const r = route();
-  $('#view').innerHTML = S.q ? searchView() : ROOMS[r] ? floorView(r) : homeView();
+  const home3d = !S.q && !ROOMS[r] && B3 !== false;
+  document.body.classList.toggle('home3d', home3d);
+  if (B3) B3.setVisible(home3d);
+  if (home3d) {
+    $('#view').innerHTML = '';
+    if (B3) {
+      B3.setBadges(Object.fromEntries(Object.keys(ROOMS).map((k) => [k, roomBadge(k)])));
+      B3.setTop(isGuest() ? guestSide() : homeSide());
+    }
+  } else {
+    $('#view').innerHTML = S.q ? searchView() : ROOMS[r] ? floorView(r) : homeView();
+  }
   hydrateImages();
   document.body.classList.toggle('busy', S.uploading.size > 0 || S.captures.some((c) => c.status === 'reading'));
 }
@@ -191,29 +232,32 @@ function homeView() {
         return `<a class="rm" href="#${k}"><span class="rm-sign">${esc(roomName(k))}</span>${b.n ? `<span class="badge ${b.hot ? 'hot' : ''}">${b.n}</span>` : ''}${deco(k)}</a>`;
       }).join('')}
     </div>`).join('');
-  const reading = S.uploading.size + S.captures.filter((c) => c.status === 'reading').length;
-  const review = S.cards.filter((c) => c.status === 'review').length;
   return `<div class="home">
     <section class="bld" aria-label="${esc(APP_NAME)} 건물">
       <div class="roof"><span class="flag"></span><span class="roof-sign">${esc(APP_NAME)}</span></div>
       ${floors}
       <div class="ground"></div>
     </section>
-    <aside class="side">${isGuest() ? guestSide() : `
-      <section class="panel">
-        <div class="intake-mini">
-          <h3>1F 접수처</h3>
-          <button class="btn primary" data-act="upload">사진 넣기</button>
-        </div>
-        <ul class="queue">
-          <li>${reading ? '<span class="spin"></span>' : '<span class="pip" style="background:var(--ok)"></span>'}AI가 읽는 중 ${reading}장</li>
-          <li><span class="pip"></span><a href="#lobby">확인 기다리는 카드 ${review}장</a></li>
-        </ul>
-        <small>캡쳐를 화면 어디에든 끌어다 놓거나 Ctrl+V로 붙여 넣어도 바로 들어가요.</small>
-      </section>
-      <section class="panel"><h3>5F 원장실 · 다가오는 일정</h3>${bossView(true)}</section>`}
-    </aside>
+    <aside class="side">${isGuest() ? guestSide() : homeSide()}</aside>
   </div>`;
+}
+
+// 로그인한 선생님의 첫 화면 옆 칸 (3D 건물에서는 ☰ 메뉴 서랍 맨 위)
+function homeSide() {
+  const reading = S.uploading.size + S.captures.filter((c) => c.status === 'reading').length;
+  const review = S.cards.filter((c) => c.status === 'review').length;
+  return `<section class="panel">
+      <div class="intake-mini">
+        <h3>1F 접수처</h3>
+        <button class="btn primary" data-act="upload">사진 넣기</button>
+      </div>
+      <ul class="queue">
+        <li>${reading ? '<span class="spin"></span>' : '<span class="pip" style="background:var(--ok)"></span>'}AI가 읽는 중 ${reading}장</li>
+        <li><span class="pip"></span><a href="#lobby">확인 기다리는 카드 ${review}장</a></li>
+      </ul>
+      <small>캡쳐를 화면 어디에든 끌어다 놓거나 Ctrl+V로 붙여 넣어도 바로 들어가요.</small>
+    </section>
+    <section class="panel"><h3>5F 원장실 · 다가오는 일정</h3>${bossView(true)}</section>`;
 }
 
 // --- 로그인 전: 건물 안내만 ---
