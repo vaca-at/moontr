@@ -315,7 +315,10 @@ html.appmode .sheet .pane{max-height:calc(100dvh - 20px - env(safe-area-inset-to
 .hudb{position:fixed;z-index:12;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(10,8,22,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1.5px solid rgba(255,255,255,.25);color:#fff;font:900 15px var(--body,sans-serif);border-radius:14px;cursor:pointer;transition:opacity .35s;padding:0}
 #hudMenu{left:calc(10px + env(safe-area-inset-left,0px));top:calc(10px + env(safe-area-inset-top,0px));width:46px;height:46px;border-radius:50%;font-size:21px}
 #hudFr{right:calc(10px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));height:38px;padding:0 12px;font-size:17px}
-#hudFr small{font:900 13px var(--ui,sans-serif)}   /* 📱 앱 오른쪽 위 = 보기 모드 (누를 때마다 👤 → 🧒 → 👥) */
+/* 📱 앱 오른쪽 위 = 보기 모드 세 칸 (👤 나 · 🧒 우리 반 · 👥 친구) */
+#hudFr{gap:2px;padding:3px;border-radius:99px;cursor:default}
+#hudFr button{height:100%;padding:0 11px;border:0;border-radius:99px;background:transparent;color:#fff;font:800 13.5px var(--ui,sans-serif);white-space:nowrap;cursor:pointer}
+#hudFr button.on{background:#FFD400;color:#1B1B1B}
 /* 보기 모드 단추 (게임 화면 바로 위): 👤 내 시간표 · 🧒 우리 반 · 👥 친한 선생님 */
 body:not(.bigview) .mapcol{flex-direction:column}
 .modebar{display:flex;flex:0 0 auto;gap:4px;margin:0 0 6px;padding:3px;border:var(--box-b);border-radius:var(--box-r);background:var(--panel);width:max-content;max-width:100%}
@@ -1456,7 +1459,7 @@ const DRAW = {
 <!-- 📱 앱 모드 단추 3개 (안드로이드 앱 · ?app): 3초 동안 안 만지면 숨고, 화면을 톡 치면 다시 나와요 -->
 <div class="apphud" id="appHud">
   <button type="button" class="hudb" id="hudMenu" aria-label="설정 열기">☰</button>
-  <button type="button" class="hudb" id="hudFr" aria-label="보기 모드 바꾸기 (내 시간표 · 우리 반 · 친한 선생님)">👤<small>내 시간표</small></button>
+  <div class="hudb" id="hudFr" role="group" aria-label="보기 모드"><button type="button" data-mode="me" aria-pressed="true">👤 나</button><button type="button" data-mode="class" aria-pressed="false">🧒 우리 반</button><button type="button" data-mode="friend" aria-pressed="false">👥 친구</button></div>
   <div class="hudb" id="hudPick"><button type="button" id="hudPrev" aria-label="이전 시안">◀</button><span id="hudName">1 · 건물 단면 타워</span><button type="button" id="hudNext" aria-label="다음 시안">▶</button></div>
 </div>
 
@@ -1887,10 +1890,8 @@ function setMode(m){
   BASE_TT = MODE === "class" ? CLASS_BASE : MY_BASE; patchedKey = ""; patchDayTT(simNow());
   resetWalk(); kwReset(); document.documentElement.dataset.mode = MODE; paintMode();
 }
-const MODE_LAB = { me:["👤", "내 시간표"], class:["🧒", "우리 반"], friend:["👥", "친한 선생님"] };
 function paintMode(){
   document.querySelectorAll("[data-mode]").forEach(b => { if (b === document.documentElement) return; const on = b.dataset.mode === MODE; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
-  const h = document.getElementById("hudFr"); if (h) h.innerHTML = `${MODE_LAB[MODE][0]}<small>${MODE_LAB[MODE][1]}</small>`;
 }
 // 위젯처럼 '내 시간표'로 계산해야 하는 곳: 잠깐 내 시간표로 바꿔서
 function asMe(fn){
@@ -5757,7 +5758,7 @@ if (APP){
   $("hudPrev").addEventListener("click", () => step(-1));
   $("hudNext").addEventListener("click", () => step(1));
   $("navPrev").textContent = "◀"; $("navNext").textContent = "▶";   // 양옆 세모 (누르면 위 navPrev · navNext 가 넘겨요)
-  $("hudFr").addEventListener("click", () => { setMode({ me:"class", class:"friend", friend:"me" }[MODE]); poke(); });   // 👤 → 🧒 → 👥 → 👤
+  $("hudFr").addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) setMode(b.dataset.mode); poke(); });   // 👤 나 · 🧒 우리 반 · 👥 친구
   $("hudMenu").addEventListener("click", () => { window.DESK.onMenu?.(); });
   addEventListener("pointerdown", poke, { passive:true });
   let sx = null, sy = null;
@@ -6737,7 +6738,7 @@ function classPane(nPer){
   let wk = `<table><thead><tr><th></th>${H_DAYS.slice(1).map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>`;
   for (let p = 1; p <= nPer; p++){
     wk += `<tr><th>${p}교시</th>`;
-    for (let d = 1; d <= 5; d++){ const v = (W[d] || {})[p] || ""; wk += `<td class="${v.includes("/") ? "multi" : ""}"><div class="hcell"><input list="dlRooms" data-hd="${d}" data-hp="${p}" value="${esc(v)}" maxlength="60" placeholder="" title="${esc(v)}" aria-label="우리 반 ${H_DAYS[d]} ${p}교시"><button type="button" class="hsplit" data-hsplit="${d},${p}" title="선택과목처럼 나눠 가면 교실 더하기" aria-label="${H_DAYS[d]} ${p}교시 나눠 가는 교실 더하기">＋</button></div></td>`; }
+    for (let d = 1; d <= 5; d++){ const v = (W[d] || {})[p] || ""; wk += `<td class="${v.includes("/") ? "multi" : ""}"><div class="hcell"><input list="dlRooms" data-hd="${d}" data-hp="${p}" value="${esc(v)}" maxlength="60" placeholder="" title="${esc(v)}" aria-label="우리 반 ${H_DAYS[d]} ${p}교시"><button type="button" class="hsplit" data-hsplit="${d},${p}" title="선택과목처럼 나눠 가면 교실 더하기" aria-label="${H_DAYS[d]} ${p}교시 나눠 가는 교실 더하기">＋</button><button type="button" class="hsplit" data-hminus="${d},${p}" title="마지막에 더한 교실 빼기 (되돌리기)" aria-label="${H_DAYS[d]} ${p}교시 나눠 가는 교실 하나 빼기" ${v.includes("/") ? "" : "hidden"}>−</button></div></td>`; }
     wk += `</tr>`;
   }
   wk += `</tbody></table>`;
@@ -6754,7 +6755,7 @@ function classPane(nPer){
     <input type="file" id="fPhoto" accept="image/*" hidden><input type="file" id="fPdf" accept="application/pdf,.pdf" hidden><input type="file" id="fXlsx" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
     <p class="privnote">🔒 <b>선생님 · 학생 이름은 개인정보라 받지 않아요.</b> 칸에 '과목/선생님 이름'이 함께 적힌 시간표도 <b>과목만</b> 넣어요. 직접 적을 때도 이름은 적지 말아 주세요.</p>
     <p class="note">✍️ <b>직접 입력</b>: 칸에 <b>과목 이름</b>만 적으면 돼요 (국어A · 통사A …) — 아이들은 <b>우리 반 교실</b>${ed.hr ? `(${esc(ed.hr)})` : ""}에서 수업해요. 체육 → 운동장 · 음악 → 음악실 · 미술 → 미술실 · 정보 → 컴퓨터실로 가고, '과탐실'처럼 교실 이름을 적으면 그 교실로 가요. 비우면 우리 반 교실.</p>
-    <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 칸 옆 <b>＋</b>를 눌러 '과목 교실'을 / 로 이어 적어요 (4곳까지). 예) <code>물리 과학실 / 화학 3-2 / 지구 3-4</code> → 아이들이 세 무리로 나눠 걸어가요.</p>
+    <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 칸 옆 <b>＋</b>를 눌러 '과목 교실'을 / 로 이어 적어요 (4곳까지, 잘못 눌렀으면 <b>−</b>로 하나씩 빼요). 예) <code>물리 과학실 / 화학 3-2 / 지구 3-4</code> → 아이들이 세 무리로 나눠 걸어가요. 반 전체가 한 교실로 가면 ＋ 없이 <code>진로활동 가사실</code>처럼 적어요.</p>
     ${ed.hr ? "" : `<p class="err">⚙️ 설정 › 계정 · 내 정보에서 <b>담임 반</b>을 먼저 적어 주세요. 담임 반이 있어야 🧒 우리 반 모드에 아이들이 보여요.</p>`}
     <div class="wk hwk">${nPer ? wk : `<p class="note">먼저 '내 시간표' 탭에서 종 시간을 넣어 주세요.</p>`}</div>
     <p class="note" id="hPrev" aria-live="polite"></p>`;
@@ -6766,10 +6767,18 @@ $("shEdit").addEventListener("input", e => {
   ed.hrWeek = ed.hrWeek || {}; ed.hrWeek[d] = ed.hrWeek[d] || {};
   if (v.trim()) ed.hrWeek[d][p] = v; else delete ed.hrWeek[d][p];
   t.title = v; t.closest("td")?.classList.toggle("multi", v.includes("/")); $("hPrev").textContent = hPrevOf(d, p, v);
+  const mb = t.parentElement.querySelector("[data-hminus]"); if (mb) mb.hidden = !v.includes("/");   // − 는 나눠 가기(/)가 있을 때만
 });
 $("shEdit").addEventListener("focusin", e => { const t = e.target; if (edTab === "hr" && t.dataset && t.dataset.hd && $("hPrev")) $("hPrev").textContent = hPrevOf(t.dataset.hd, t.dataset.hp, t.value); });
+// − : 마지막 ' / 교실' 하나를 빼요 (＋를 잘못 눌렀을 때 되돌리기)
 $("shEdit").addEventListener("click", e => {
-  const b = e.target.closest("[data-hsplit]"); if (!b || edTab !== "hr") return;
+  const b = e.target.closest("[data-hminus]"); if (!b || edTab !== "hr") return;
+  const i = b.parentElement.querySelector("input"); if (!i) return;
+  i.value = i.value.replace(/\s*\/[^/]*$/, "").trim();
+  i.focus(); i.setSelectionRange(i.value.length, i.value.length); i.dispatchEvent(new Event("input", { bubbles:true }));
+});
+$("shEdit").addEventListener("click", e => {
+  const b = e.target.closest("[data-hsplit]:not([data-hminus])"); if (!b || edTab !== "hr") return;
   const i = b.parentElement.querySelector("input"); if (!i) return;
   if (i.value.trim() && !/\/\s*$/.test(i.value)) i.value = i.value.trim() + " / ";
   i.focus(); i.setSelectionRange(i.value.length, i.value.length); i.dispatchEvent(new Event("input", { bubbles:true }));
