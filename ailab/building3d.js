@@ -19,7 +19,7 @@ const JOBS = {
 // n · hot = 이름표 옆 숫자 (앱이 setBadges 로 실제 자료 수를 넣어요)
 const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, { ...r, job: JOBS[k] || r.desc || '', n: 0, hot: false }]));
 const ME_JOB = '건물 전체를 둘러보며 다가오는 연수·공개수업·과제 마감을 챙겨요.';
-const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5 }, me: 1, friend: 1, gender: 'm', theme: 1, layout: 1 };
+const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5 }, me: 1, friend: 1, gender: 'm', theme: 1, layout: 5 }; // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
 const saved = (() => { try { return JSON.parse(localStorage.getItem('ailab3d') || 'null'); } catch { return null; } })();
 const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...(saved?.assign || {}) } };
 // 시안 미리 보기: 주소 뒤에 ?layout=3&theme=8&me=6&friend=11 처럼 붙이면 그 모습으로 (저장은 안 해요)
@@ -82,7 +82,142 @@ function applyTheme() {
   const dark = scene.background.getHSL({}).l < .3;
   hemi.intensity = dark ? 1.05 : 1.6;
   sun.intensity = dark ? 1.5 : 2.3;
+  if (WX?.data) applyWeather(); // 실시간 날씨를 받았으면 그 하늘로
 }
+
+// ---------- 실시간 날씨 · 해 뜨고 지는 시간 ----------
+// 평일 근무 시간은 서울, 출근 전 · 퇴근 후 · 주말은 남양주 (Open-Meteo: 열쇠 없이 쓰는 무료 날씨, 15분마다 새로)
+// 하늘색 · 햇빛 방향과 세기 · 노을 · 밤에 켜지는 창문 불 · 비 · 눈 · 구름 · 안개를 3D 에 그려요
+const PLACES = { seoul: { name: '서울', lat: 37.5665, lon: 126.978 }, nyj: { name: '남양주', lat: 37.636, lon: 127.2165 } };
+const WORK = { days: [1, 2, 3, 4, 5], start: '08:30', end: '16:30' }; // 근무 시간 (바꾸려면 여기만)
+var WX = { key: '', why: '', kind: '', data: null }; // var: applyTheme 이 먼저 불려도 괜찮게
+const hm = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+function placeNow(d = new Date()) {
+  const mins = d.getHours() * 60 + d.getMinutes(), weekday = WORK.days.includes(d.getDay());
+  const work = weekday && mins >= hm(WORK.start) && mins < hm(WORK.end);
+  return { key: work ? 'seoul' : 'nyj', why: work ? '근무 시간' : !weekday ? '주말' : mins < hm(WORK.start) ? '출근 전' : '퇴근 후' };
+}
+const wxCache = new Map();
+async function loadWeather(key) {
+  const c = wxCache.get(key);
+  if (c && Date.now() - c.at < 15 * 60e3) return c.data;
+  const p = PLACES[key];
+  const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,weather_code,cloud_cover&daily=sunrise,sunset&timezone=Asia%2FSeoul&forecast_days=1`);
+  if (!r.ok) throw new Error(`날씨 ${r.status}`);
+  const j = await r.json();
+  const data = { temp: j.current.temperature_2m, code: j.current.weather_code, cloud: j.current.cloud_cover,
+    sunrise: new Date(`${j.daily.sunrise[0]}:00+09:00`), sunset: new Date(`${j.daily.sunset[0]}:00+09:00`) };
+  wxCache.set(key, { data, at: Date.now() });
+  return data;
+}
+function wxKind(code) {
+  if (code >= 95) return 'storm';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
+  if (code === 45 || code === 48) return 'fog';
+  if (code === 3) return 'overcast';
+  return code === 1 || code === 2 ? 'partly' : 'clear';
+}
+const WX_NAME = { clear: '맑음', partly: '구름 조금', overcast: '흐림', fog: '안개', rain: '비', snow: '눈', storm: '뇌우' };
+// light: 0 밤 ~ 1 낮, glow: 노을 세기, u: 낮 동안 해가 간 정도 (해 뜰 때 0 → 질 때 1)
+function sunPhase(now, d) {
+  const t = now.getTime(), r = d.sunrise.getTime(), s = d.sunset.getTime(), m = 40 * 60e3;
+  const light = t < r - m || t > s + m ? 0 : t < r + m ? (t - (r - m)) / (2 * m) : t > s - m ? (s + m - t) / (2 * m) : 1;
+  const glow = light > 0 && (t < r + m || t > s - m) ? 1 - Math.abs(light - .5) * 2 : 0;
+  return { light: Math.min(1, Math.max(0, light)), glow, u: Math.min(1, Math.max(0, (t - r) / (s - r))) };
+}
+const skyCanvas = document.createElement('canvas');
+skyCanvas.width = 4; skyCanvas.height = 256;
+const skyTex = new THREE.CanvasTexture(skyCanvas);
+skyTex.colorSpace = THREE.SRGBColorSpace;
+const mix = (a, b, k) => `#${new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString()}`;
+const fmtT = (d) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+function applyWeather() {
+  const d = WX.data;
+  if (!d) return;
+  const kind = WX.kind, ph = sunPhase(new Date(), d);
+  const grey = { clear: 0, partly: .15, overcast: .55, fog: .6, rain: .7, snow: .5, storm: .85 }[kind];
+  let top = mix('#0a1430', mix('#6fb4e6', '#8e9ba6', grey), ph.light);
+  let bot = mix('#26365a', mix('#d7ecf7', '#c4ccd2', grey), ph.light);
+  if (ph.glow) { bot = mix(bot, '#f4a76b', ph.glow * (1 - grey * .7)); top = mix(top, '#5a6fa8', ph.glow * .4); }
+  const g = skyCanvas.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, top); gr.addColorStop(1, bot);
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  skyTex.needsUpdate = true;
+  scene.background = skyTex;
+  hemi.intensity = .35 + ph.light * (1.25 - grey * .45);
+  sun.intensity = .25 + ph.light * (2.1 - grey * 1.5);
+  sun.color.set(ph.glow > .3 ? '#ffb877' : ph.light < .2 ? '#9fb4ff' : '#fff4e2');
+  // 해는 아침에 왼쪽(동쪽)에서 떠서 저녁에 오른쪽으로, 밤에는 높이 뜬 달빛
+  const ang = Math.PI * ph.u;
+  if (ph.light > 0) sun.position.set(-34 * Math.cos(ang), 8 + 26 * Math.sin(ang), 26); else sun.position.set(-10, 30, 26);
+  scene.fog = kind === 'fog' ? new THREE.Fog(bot, 35, 120) : grey >= .55 ? new THREE.Fog(bot, 80, 200) : null;
+  const night = ph.light < .4;
+  for (const m of glassMats) { m.emissive.set(night ? '#ffd98a' : m.userData.base); m.emissiveIntensity = night ? .9 : .35; }
+  setPrecip(kind);
+  setClouds(kind);
+  const el = document.getElementById('wx');
+  el.hidden = false;
+  el.innerHTML = `<b>${PLACES[WX.key].name}</b><span>${WX.why}</span><span>${WX_NAME[kind]} ${Math.round(d.temp)}°</span><span>해 뜸 ${fmtT(d.sunrise)} · 해 짐 ${fmtT(d.sunset)}</span>`;
+}
+// 비 · 눈: 건물 앞쪽 공간에만 내려요 (잘라 놓은 방 안으로는 안 들어가게)
+let precip = null, precipKind = '';
+function setPrecip(kind) {
+  const k = kind === 'storm' ? 'rain' : kind;
+  if (k === precipKind) return;
+  if (precip) { scene.remove(precip.obj); precip = null; }
+  precipKind = k;
+  if (k !== 'rain' && k !== 'snow') return;
+  const n = k === 'rain' ? 900 : 600, per = k === 'rain' ? 6 : 3, pos = new Float32Array(n * per);
+  const seeds = [...Array(n)].map(() => ({ x: (Math.random() - .5) * 90, y: Math.random() * 46 - 12, z: 3.6 + Math.random() * 9, v: k === 'rain' ? 24 + Math.random() * 10 : 1.4 + Math.random(), ph: Math.random() * 6 }));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const obj = k === 'rain'
+    ? new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: .5 }))
+    : new THREE.Points(geo, new THREE.PointsMaterial({ color: '#ffffff', size: .22 }));
+  obj.frustumCulled = false;
+  scene.add(obj);
+  precip = { obj, seeds, k, pos };
+}
+function stepPrecip(dt, t) {
+  if (!precip) return;
+  const { seeds, pos, k } = precip;
+  seeds.forEach((s, i) => {
+    s.y -= s.v * dt;
+    if (s.y < BOTTOM - 1) s.y += 46;
+    if (k === 'rain') pos.set([s.x, s.y, s.z, s.x - .12, s.y + .9, s.z], i * 6);
+    else pos.set([s.x + Math.sin(t * .8 + s.ph) * .6, s.y, s.z], i * 3);
+  });
+  precip.obj.geometry.attributes.position.needsUpdate = true;
+}
+// 구름: 맑으면 하나, 구름 조금이면 넷, 흐리면 일곱. 비 · 뇌우 때는 잿빛
+const cloudGroup = new THREE.Group();
+scene.add(cloudGroup);
+let cloudKey = '';
+function setClouds(kind) {
+  const n = kind === 'clear' ? 1 : kind === 'partly' ? 4 : 7, dark = kind === 'rain' || kind === 'storm';
+  if (cloudKey === `${n}|${dark}`) return;
+  cloudKey = `${n}|${dark}`;
+  cloudGroup.clear();
+  for (let i = 0; i < n; i++) {
+    const c = new THREE.Group(), s = 1 + (i % 3) * .4;
+    [[0, 0, 0, 4, 1.4, 2.4], [1.8, .6, 0, 3, 1.6, 2.2], [-1.8, .4, .2, 2.6, 1.2, 2], [.6, 1.2, -.2, 2.4, 1.2, 1.8]]
+      .forEach(([x, y, z, w, h, dd]) => B(c, w * s, h * s, dd * s, dark ? '#8e979f' : '#ffffff', x * s, y * s, z * s, { shadow: false }));
+    c.position.set(-45 + i * 14 + (i % 2) * 5, TOP_Y + 8 + (i % 3) * 3, -8 - (i % 2) * 6);
+    c.userData.v = .6 + (i % 3) * .3;
+    cloudGroup.add(c);
+  }
+}
+function stepClouds(dt) { for (const c of cloudGroup.children) { c.position.x += c.userData.v * dt; if (c.position.x > 55) c.position.x = -55; } }
+async function refreshWeather() {
+  const p = placeNow();
+  try {
+    const data = await loadWeather(p.key);
+    Object.assign(WX, p, { data, kind: wxKind(data.code) });
+    applyWeather();
+  } catch { /* 날씨를 못 받으면 원래 하늘 그대로 */ }
+}
+
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
@@ -241,6 +376,7 @@ const STAFF = [
     group('legR', [2, 3.5, 0], [{ x: 2, y: 5, w: 2.6, h: 3, d: 3.4, c: '#5aa549' }]),
     group('tail', [0, 1, -3.5], [{ y: 1.6, z: -5.4, w: 3, h: 2.4, d: 4, c: '#6dbb5a' }, { y: 2.4, z: -8, w: 1.8, h: 1.4, d: 2.4, c: '#6dbb5a' }, { y: .3, z: -5, w: .9, h: .9, d: .9, c: P.gold }]),
   ] }) },
+  { id: 11, name: '레고 개발자', note: '큰 네모 머리 · 사각 안경 · 초록 니트', def: () => legoDev() },
 ];
 const staffById = (id) => STAFF.find((s) => s.id === id) || STAFF[0];
 
@@ -274,6 +410,28 @@ const CURLS = [
   { x: -1.1, y: -10.3, z: -1.8, w: 2, h: 1, d: 1.8, c: HAIR }, { x: 1.3, y: -10.3, z: 1.6, w: 1.8, h: .9, d: 1.6, c: HAIR },
   { x: -3.4, y: -8.6, w: .9, h: 1.6, d: 3, c: HAIR }, { x: 3.4, y: -8.6, w: .9, h: 1.6, d: 3, c: HAIR },
 ];
+// 레고처럼: 큰 네모 머리 · 층층이 쌓인 검은 머리와 삐죽 앞머리 · 굵은 초록빛 사각 안경 · 밝은 초록 니트에 어두운 세로줄 두 개
+// 사장 6번이면서 직원 11번으로도 써요
+function legoDev() {
+  const SK = '#f1d9bd', G = '#46a86a', HR = '#1d1a19', F = '#2f4a3a';
+  const parts = person({
+    head: SK, torso: G, arm: G, hand: SK, leg: '#3a3f47',
+    torsoFront: [[2.6, .6, .45, 3.2, '#2e6b45'], [4.95, .6, .45, 3.2, '#2e6b45'], [1.8, 0, 4.4, .7, shade(G, -.15)]],
+    itemR: [{ x: 5.85, y: 4.7, z: 2.6, w: 4.8, h: .35, d: 1.8, c: '#d8dde2', front: [[.3, .05, 4.2, .25, '#9aa3ab']] }],
+  });
+  parts[0] = group('head', [0, -4, 0], [
+    { y: -7.5, w: 7, h: 6.6, d: 6.4, c: SK, front: [
+      [0, 0, 7, 1.1, HR], [.4, 1.1, 1.3, .7, HR], [2.9, 1.1, 1.5, .55, HR], [5.5, 1.1, 1.1, .75, HR],
+      [.7, 2.2, 2.5, .45, F], [.7, 4.1, 2.5, .45, F], [.7, 2.2, .45, 2.35, F], [2.75, 2.2, .45, 2.35, F],
+      [3.8, 2.2, 2.5, .45, F], [3.8, 4.1, 2.5, .45, F], [3.8, 2.2, .45, 2.35, F], [5.85, 2.2, .45, 2.35, F],
+      [3.2, 2.9, .6, .3, F], [1.7, 3, .6, .85, P.eye], [4.8, 3, .6, .85, P.eye], [3, 5.4, 1, .3, '#a8644a'],
+    ] },
+    { y: -11.3, w: 7.6, h: 1.6, d: 7, c: HR }, { y: -12.4, w: 6.4, h: .9, d: 6, c: HR }, { x: -1.6, y: -13.1, w: 2.2, h: .7, d: 3, c: HR },
+    { y: -8.6, z: -3.3, w: 7.6, h: 5.2, d: 1.2, c: HR },
+    { x: -3.75, y: -9.4, w: .9, h: 3.2, d: 6.2, c: HR }, { x: 3.75, y: -9.4, w: .9, h: 3.2, d: 6.2, c: HR },
+  ]);
+  return { ...PERSON, parts };
+}
 const ME = [
   { id: 1, name: '도덕 선생님', hold: 'L', note: '초록 가디건에 교사 명찰, 하트 그려진 도덕 교과서', def: () => meDef({
     torso: '#4a9a74', arm: '#4a9a74', leg: '#c9b79a',
@@ -298,19 +456,30 @@ const ME = [
     back: [{ y: -.4, z: -3, w: 6, h: 6.4, d: 2, c: P.red }, { y: 1.6, z: -4.1, w: 4, h: 2.2, d: .3, c: shade(P.red, -.15) }],
     itemR: [{ x: 5.85, y: 4.6, z: 2.4, w: 3.4, h: 2.6, d: .2, c: P.paper, front: [[.3, .3, 2.8, .4, P.gold], [.3, 1, 2, .25, '#9aabb6'], [.3, 1.5, 1.6, .25, '#9aabb6'], [2.4, 1.6, .7, .7, P.red]] }],
   }) },
-  { id: 6, name: '초록 니트 개발자', hold: 'R', note: '곱슬 검은 머리, 동그란 안경, 초록 니트, 키보드', def: () => meDef({
-    torso: '#3f8f5c', arm: '#3f8f5c', leg: '#2f3e5c',
-    headFront: GLASSES, hat: CURLS,
-    torsoFront: [[2, 0, 4, .8, shade('#3f8f5c', -.18)], [0, 6.4, 8, .8, shade('#3f8f5c', -.12)]],
-    itemR: [{ x: 5.85, y: 4.7, z: 2.6, w: 4.8, h: .35, d: 1.8, c: '#d8dde2', front: [[.3, .05, 4.2, .25, '#9aa3ab']] }],
-  }) },
-  { id: 7, name: '초록 후드 사장님', hold: 'R', note: '곱슬 검은 머리, 동그란 안경, 끈 달린 초록 후드, 녹음기', def: () => meDef({
-    torso: '#2f6e4c', arm: '#2f6e4c', leg: '#2a2f38',
-    headFront: GLASSES, hat: CURLS,
-    back: [{ y: -4.3, z: -2.6, w: 6.4, h: 2, d: 1.4, c: '#2f6e4c' }],
-    torsoFront: [[2.6, 0, .35, 2.8, P.white], [5, 0, .35, 2.8, P.white], [1.8, 4.6, 4.4, 2, shade('#2f6e4c', -.15)]],
-    itemR: [{ x: 5.85, y: 4.8, z: 2.4, w: 1.4, h: 2.2, d: .5, c: '#2a2f38', front: [[.3, .3, .8, .5, P.red]] }],
-  }) },
+  { id: 6, name: '초록 니트 개발자', hold: 'R', note: '레고처럼 큰 네모 머리, 층층 검은 머리, 굵은 사각 안경, 초록 니트, 키보드', def: legoDev },
+  { id: 7, name: '초록 후드 사장님', hold: 'R', note: '삼각형 면으로 만든 둥근 얼굴, 곱슬머리, 동그란 안경, 끈 달린 초록 후드, 녹음기', def: () => {
+    const SK = '#ecd9bf', G = '#2f6b4b', HR = '#2a221e';
+    const parts = person({
+      head: SK, torso: G, arm: G, leg: '#2a2f38',
+      torsoFront: [[2.5, .3, .4, 3.2, '#e9e4da'], [5.1, .3, .4, 3.2, '#e9e4da']],
+      back: [{ y: -4.4, z: -2.5, w: 7, h: 2.2, d: 1.6, c: shade(G, -.12) }],
+      itemL: [{ geo: 'ball', r: 1.6, x: -5.85, y: 4.6, c: SK }],
+      itemR: [{ geo: 'ball', r: 1.6, x: 5.85, y: 4.6, c: SK }, { x: 5.85, y: 5.2, z: 1.8, w: 1.4, h: 2.2, d: .5, c: '#2a2f38', front: [[.3, .3, .8, .5, P.red]] }],
+    });
+    parts[0] = group('head', [0, -4, 0], [
+      { geo: 'ico', r: 4.4, y: -7.9, c: SK }, // 삼각형 면이 보이는 둥근 얼굴
+      { geo: 'ball', r: 1.1, x: -4.3, y: -7.5, c: SK }, { geo: 'ball', r: 1.1, x: 4.3, y: -7.5, c: SK },
+      ...[[0, -11.6, -.6, 2.7], [-2.7, -11, 0, 2.2], [2.7, -11, 0, 2.2], [-3.8, -9.2, -1.1, 1.9], [3.8, -9.2, -1.1, 1.9], [0, -10.2, -2.9, 2.7], [-1.5, -11.2, 1.9, 1.7], [1.6, -11.1, 2, 1.6], [-3.4, -7, -2.2, 1.6], [3.4, -7, -2.2, 1.6]]
+        .map(([x, y, z, r]) => ({ geo: 'lump', r, x, y, z, c: HR })),
+      { geo: 'ring', r: 1.3, x: -1.6, y: -8.6, z: 4.1, c: '#141414' }, { geo: 'ring', r: 1.3, x: 1.6, y: -8.6, z: 4.1, c: '#141414' },
+      { x: 0, y: -8.7, z: 4.3, w: .9, h: .25, d: .25, c: '#141414' },
+      { geo: 'ball', r: .8, x: -1.6, y: -8.6, z: 3.7, c: '#6b7888', shiny: true }, { geo: 'ball', r: .8, x: 1.6, y: -8.6, z: 3.7, c: '#6b7888', shiny: true },
+      { geo: 'ball', r: .26, x: -1.35, y: -8.95, z: 4.45, c: '#ffffff' }, { geo: 'ball', r: .26, x: 1.85, y: -8.95, z: 4.45, c: '#ffffff' },
+      { geo: 'cone', r: .45, x: 0, y: -7.5, z: 4.45, rx: Math.PI / 2, c: SK },
+      { geo: 'ball', sx: .75, sy: .55, sz: .3, x: 0, y: -6.3, z: 4.1, c: '#3a1f1a' },
+    ]);
+    return { ...PERSON, parts };
+  } },
   { id: 8, name: '베이지 재킷 사장님', hold: 'R', note: '긴 갈색 웨이브 머리, 베이지 재킷, 검은 옷, 노트북', def: () => ({ ...PERSON, parts: person({
     head: P.skin, headFront: [[0, 0, 6, .8, '#5a3524'], [0, .8, 1.3, .7, '#5a3524'], [1.5, 2, .7, .9, P.eye], [3.8, 2, .7, .9, P.eye], [2.5, 3.9, 1, .3, '#b0674a']],
     hat: [
@@ -434,6 +603,7 @@ const STAFF_ABOUT = {
   8: '나비넥타이를 맨 단정한 펭귄이에요. 줄 맞춰 정리하는 걸 좋아해요.',
   9: '빛으로 된 직원이에요. 여러 방을 순식간에 오가요.',
   10: '의욕이 넘치는 공룡 인턴이에요. 꼬리로 박자를 맞추며 일해요.',
+  11: '레고처럼 네모난 개발자예요. 사각 안경 너머로 코드를 척척 짜요.',
 };
 const FRIEND_ABOUT = {
   1: ['사장님 어깨 옆에 둥둥 떠 있는 화면 얼굴 로봇이에요.', '다가오는 일정과 할 일을 먼저 알려 줘요.'],
@@ -466,9 +636,25 @@ function showTip(info, x, y) {
 }
 const hideTip = () => { tipEl.hidden = true; };
 
+// 둥근 모양 조각 (삼각형 면이 보이는 로우폴리): ico 둥근 공 · ball 각진 작은 공 · lump 머리카락 덩어리 · ring 안경테 · cone 코
+const GEO = new Map();
+const geoOf = (k) => {
+  if (!GEO.has(k)) GEO.set(k, { ico: () => new THREE.IcosahedronGeometry(1, 1), ball: () => new THREE.IcosahedronGeometry(1, 0), lump: () => new THREE.DodecahedronGeometry(1, 0), ring: () => new THREE.TorusGeometry(1, .16, 6, 16), cone: () => new THREE.ConeGeometry(1, 1.6, 5) }[k]());
+  return GEO.get(k);
+};
 function buildParts(parts, into, origin, named, groups) {
   const [ox, oy, oz] = origin;
   for (const p of parts) {
+    if (p.geo) { // { geo, r (또는 sx · sy · sz), x, y, z, c, rx · ry · rz, shiny }
+      const { x = 0, y = 0, z = 0, r = 1 } = p;
+      const m = new THREE.Mesh(geoOf(p.geo), mat(p.c, p.shiny ? { flatShading: true, roughness: .15, metalness: .15 } : { flatShading: true }));
+      m.scale.set((p.sx ?? r) * V, (p.sy ?? r) * V, (p.sz ?? r) * V);
+      m.position.set((x - ox) * V, -(y - oy) * V, (z - oz) * V);
+      m.rotation.set(p.rx || 0, p.ry || 0, p.rz || 0);
+      m.castShadow = true; m.receiveShadow = true;
+      into.add(m);
+      continue;
+    }
     if (p.group) {
       const g = new THREE.Group();
       const [px, py, pz] = p.pivot;
@@ -814,8 +1000,11 @@ function sideWall(g, sx, y, base) {
     B(g, .25, FH, D + .3, '#ffffff', x, cy, .15, { m: patternMat(TH.side, D + .3, FH) });
   } else B(g, .25, FH, D + .3, base ? shade(TH.wallB1, -.08) : TH.side, x, cy, .15);
 }
+const glassMats = new Set(); // 창유리 재질 (밤에 불을 켜려고 모아 둬요)
 function windows(g, cx, rw, n, y) {
   const TH = theme(), wy = y + FH * .56, zf = -D / 2 + .22, gm = mat(TH.glass, { emissive: TH.glass, emissiveIntensity: .35 });
+  gm.userData.base = TH.glass;
+  glassMats.add(gm);
   const pane = (x, w, h) => { B(g, w + .2, h + .2, .08, TH.frame, x, wy, zf); B(g, w, h, .04, TH.glass, x, wy, zf + .05, { m: gm }); };
   if (TH.win === 'ribbon') {
     const w = rw - 1.6;
@@ -1351,6 +1540,7 @@ function buildWorld() {
   if (!eR) B(world, 1.4, .5, .6, P.wood, BW / 2 + 3.5 + out, .3, 2.6);
   markSigns();
   applyBandVis();
+  if (WX.data) applyWeather(); // 새로 만든 창문에도 밤 불빛
 }
 // 층 화면에서는 그 층만 그려요 (다른 층 · 옥상 · 땅은 숨겨서 한 칸이 딱 맞게 보이게)
 function applyBandVis() {
@@ -1703,6 +1893,8 @@ function loop() {
   for (const { d, x0, x1, off } of docs) d.position.x = x0 + (((t * .18 + off) % 1) * (x1 - x0));
   if (flag) flag.rotation.y = Math.sin(t * 3) * .25;
   for (const a of anims) a(t);
+  stepPrecip(dt, t);
+  stepClouds(dt);
   for (const b of bobbers) b.m.position.y = b.y0 + Math.sin(t * 1.5 + b.ph) * .12;
   // 6초 넘게 가만히 있으면 화면보호기처럼 천천히 둘러봐요 (건물 전체 보기일 때만)
   if (!selected && !drag && !drawer.classList.contains('open') && performance.now() - lastInput > 6000) {
@@ -1729,6 +1921,9 @@ const FOCUS = new URLSearchParams(location.search).get('focus');
 if (FOCUS && ROOMS[FOCUS]?.box) enter(FOCUS);
 view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch;
 loop();
+// 날씨: 처음 한 번, 그 뒤 1분마다 위치(근무 시간이면 서울)와 해 위치를 다시 봐요 (날씨 자체는 15분마다 새로 받아요)
+refreshWeather();
+setInterval(refreshWeather, 60e3);
 
 // ---------- 앱과 잇는 곳 ----------
 export function connect(h) { Object.assign(hooks, h); }
