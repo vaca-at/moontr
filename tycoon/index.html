@@ -326,6 +326,10 @@ body:not(.bigview) .mapcol{flex-direction:column}
 .modebar button.on{background:var(--accent);color:var(--on-ink,#111)}
 .modebar button:focus-visible{outline:2px solid var(--accent2,var(--accent));outline-offset:1px}
 html.appmode .modebar,body.bigview .modebar{display:none}
+/* 📺 전자칠판 링크(?board=): 게임 화면만 가득 (나가기 · 번호 단추 · 메모 스티커 · 말풍선 없이) */
+body.boardview .bigui,body.boardview #pins,body.boardview #talk,body.boardview .navbtn,body.boardview #moontr-refresh,body.boardview .moontr-visit,body.boardview .admin-fab{display:none!important}
+.boardmsg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:100;padding:22px 28px;border-radius:14px;background:#111;color:#fff;border:2px solid #FFD400;font:700 18px/1.6 var(--ui);text-align:center}
+.boardmsg small{font-weight:500;font-size:13px;color:#ccc}
 /* 위 '미리보기' 줄 = 세 칸 (왼쪽 미리보기 | 가운데 보기 모드 | 오른쪽 색). 컴퓨터에선 여기 · 휴대폰 웹은 게임 화면 바로 위(#modeBar) */
 header.top .row2{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:6px 10px}
 header.top .row2 .r2l{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
@@ -2334,7 +2338,6 @@ function kidsWalk(S, st, dt){
   }
   KW.forEach(w => kwStep(S, w, dt));
   for (let i = KW.length - 1; i >= 0; i--) if (KW[i].leave && !KW[i].walking) KW.splice(i, 1);
-  WK.here = KW.find(w => !w.leave)?.here ?? null; WK.walking = KW.some(w => w.walking);   // 화면이 '지금 있는 방'에 불을 켜는 건 아이들 자리로 (나는 안 그려요)
 }
 // 남학생 (여학생 girl() 과 같은 크기 · 짧은 머리 · 바지)
 const BOY = ["..hhh..", ".hhhhh.", ".hsssh.", ".seses.", ".sssss.", "..sws..", ".ccccc.", "scccccs", ".kkkkk.", ".kkkkk."];
@@ -5487,7 +5490,7 @@ function panel(d, st){
   const cls = MODE === "class", G = st.groups || [], lab = p => cls && /\d/.test(p) ? classLabel(day, p) : NAME(tt[p]);   // 🧒 우리 반: 나눠 가면 과목들
   $("nTag").textContent = (cls ? `🧒 ${HR || "우리 반"} · ` : MODE === "friend" ? "👥 · " : "") + `${NUM(SI)}. ${STRUCTS[SI].name}`;
   const where = G.length > 1 ? G.map(g => (g.s ? g.s + " " : "") + NAME(g.r)).join(" · ") : NAME(st.place);
-  $("nWhere").textContent = WK.walking ? `→ ${where} 가는 중` : where;
+  $("nWhere").textContent = (cls ? KW.some(w => w.walking) : WK.walking) ? `→ ${where} 가는 중` : where;   // 우리 반은 아이들 기준
   $("nAct").textContent = st.act;
   $("nBar").style.width = Math.max(0, Math.min(100, (m - st.s) / Math.max(1, st.e - st.s) * 100)) + "%";
   const nx = BELL.find(([p, a]) => mm(a) > m && tt[p]);
@@ -5771,19 +5774,21 @@ function loop(now){
   BREAK = SCHOOL && !!st.brk; LUNCH = SCHOOL && !!st.lunch;
   g.setTransform(SC, 0, 0, SC, 0, 0);
   if (!S.custom){
-    if (MODE === "class") kidsWalk(S, st, dt);   // 🧒 우리 반: 아이들 무리가 걸어요
-    else { const raw = S.alias ? S.alias(st) : st.place; walkTo(S, S.mapId ? S.mapId(raw) : raw, d); stepWalk(S, dt); }
+    // 🧒 우리 반: 아이들 무리 + 나(내 시간표대로)가 같이 걸어요
+    if (MODE === "class") kidsWalk(S, st, dt);
+    const ms = MODE === "class" ? asMe(() => stateAt(d)) : st, raw = S.alias ? S.alias(ms) : ms.place;
+    walkTo(S, S.mapId ? S.mapId(raw) : raw, d); stepWalk(S, dt);
   }
   idleStep(); HOT = []; S.draw(st);
   if (!S.custom && S.place && !S.ownMe && MODE === "class") drawKids(S, st);
   // 👥 친한 선생님 모드: 친구들은 또렷하게, 나는 흐리게 (RPG 카메라는 카메라 안에서 따로 그려요)
   if (!S.custom && S.place && !S.ownMe && MODE === "friend") drawFriends(S, d);
-  if (!S.custom && !S.ownMe && MODE !== "class"){
+  if (!S.custom && !S.ownMe){
     const piece = S.piece && WK.walking ? -Math.abs(Math.sin(T*12))*6 : 0;
     if (MODE === "friend") g.globalAlpha = .45;
     me(Math.round(WK.pos.x), Math.round(WK.pos.y + piece), frameNo(), WK.flip, S.meScale || 1);
     g.globalAlpha = 1;
-    if (S !== D[7] && MODE === "me") bubble(bubText(st), WK.pos.x, WK.pos.y - 16);
+    if (S !== D[7] && MODE !== "friend") bubble(MODE === "class" ? bubText(asMe(() => stateAt(d))) : bubText(st), WK.pos.x, WK.pos.y - 16);   // 우리 반 모드도 내 말풍선은 내 시간표로
   }
   if (now - panelAt > 400){ panelAt = now; panel(d, st); friendsCard(d); modeCard(d, st); }
   requestAnimationFrame(loop);
@@ -5888,7 +5893,7 @@ if (!APP){
 }
 let swiped = 0;   // 밀어서 넘긴 바로 뒤의 '누름'은 크게 보기로 치지 않아요
 // 누를 곳이 아닌 데를 누르면 크게 보기
-cv.addEventListener("click", e => { if (Date.now() - swiped < 600) return; const h = hotAt(e); if (!h){ if (!APP && !bigOn()) setBig(true); return; } if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
+cv.addEventListener("click", e => { if (Date.now() - swiped < 600) return; const h = hotAt(e); if (!h){ if (!APP && !bigOn()) setBig(true); return; } if (document.body.classList.contains("boardview")){ if (h.act.open) STRUCTS[SI]?.act?.(h.act.open); return; }   /* 📺 전자칠판: 화면 안 물건(스탠드 · 어항 …)만 */ if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
 // 3D 교무실 물건을 누르면: 칠판 = 할 일 칸 · 게시판 = 메모 · 책장 = 즐겨찾기 · TV = 시간표 · 달력 = 설정(학교 일정) · 우편함 = 친구 채팅
 function openThing(k){
   if (STRUCTS[SI]?.act?.(k)) return;   // 화면 안에서 처리하는 것 (스탠드 · 턴테이블 · 어항)
@@ -5962,6 +5967,8 @@ const firebaseConfig = {
 // 이 기기(브라우저)에 먼저 보관해요: 학교망이 막혀도 이 PC에서는 바로 보이고, 인터넷이 통할 때 서버로 저절로 올라가요
 // 단, 관리자 화면(?admin · #admin)만은 moontr.site 공용 로그인을 같이 써요 → 관리자 허브에서 관리자 구글 계정으로 한 번 로그인해 두면 여기도 저절로 열려요
 const ADMIN_PAGE = /[?&]admin\b/.test(location.search) || location.hash === "#admin";
+// 📺 전자칠판 링크 (?board=긴 열쇠): 로그인 없이 우리 반 화면만 (desk_board/{열쇠} = 우리 반 시간표 · 종 시간 · 담임 반만)
+const BOARD = (location.search.match(/[?&]board=([A-Za-z0-9]{20,40})\b/) || [])[1] || "";
 const fbApp = ADMIN_PAGE ? initializeApp(firebaseConfig) : initializeApp(firebaseConfig, "tycoon"), auth = getAuth(fbApp);
 let db; try { db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling:true, localCache:persistentLocalCache({ tabManager:persistentMultipleTabManager() }) }); }
 catch (e) { db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling:true }); }
@@ -6064,6 +6071,7 @@ function needLogin(what){
 /* ---------- 로그인 상태가 바뀌면 ---------- */
 onAuthStateChanged(auth, async u => {
   user = u;
+  if (BOARD){ window.bootDone?.(); return; }   // 📺 전자칠판: 로그인 창 없이 (아래 openBoard)
   if (ADMIN_PAGE){ renderAdmin(); return; }
   // 구글 · 카카오가 아닌 로그인(이메일 등)은 쓰지 않아요 → 로그아웃하고 로그인 화면으로
   if (u && !kindsOf(u).length){ await signOut(auth); return; }
@@ -6074,6 +6082,22 @@ onAuthStateChanged(auth, async u => {
   let asked = false; try { asked = sessionStorage.getItem("desk-start-asked") === "1"; } catch (e) {}
   if (APP && !cfg && !loadFailed && !asked){ try { sessionStorage.setItem("desk-start-asked", "1"); } catch (e) {} show("shStart"); }
 });
+// 📺 전자칠판: 공개 칸(desk_board)에서 우리 반 시간표만 읽어 게임 화면만 가득 (머리 줄 · 오른쪽 칸 · 창 없이, 저장 없음)
+async function openBoard(){
+  document.body.classList.add("bigview", "boardview"); hide("shLogin"); hide("demoBar");
+  try {
+    const s = await getDoc(doc(db, "desk_board", BOARD)); if (!s.exists()) throw new Error("gone");
+    const b = s.data();
+    window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {} });
+    window.DESK.setDayTT(b.dayTT || {}, b.dayKind || {}); window.DESK.setAvatar(b.avatar || 0); window.DESK.setTodos([]); window.DESK.setFriends([]); setMode("class");   // 나 + 우리 반
+    if (b.loc){ BOARD_LOC = b.loc; loadWeather(true); }   // 창밖 날씨만 (시 · 군)
+  } catch (e){
+    document.body.insertAdjacentHTML("beforeend", `<div class="boardmsg">📺 이 전자칠판 링크는 끊겼거나 잘못됐어요.<br><small>교무실 타이쿤 ⚙️ 설정 › 📺 전자칠판에서 새 링크를 만들어 주세요.</small></div>`);
+  }
+  dispatchEvent(new Event("resize"));   // 게임 화면을 칠판 크기에 맞춰요
+}
+let BOARD_LOC = null;
+if (BOARD) openBoard();
 $("ssGo").addEventListener("click", () => { hide("shStart"); openEdit(); });
 $("ssLater").addEventListener("click", () => hide("shStart"));
 
@@ -6366,7 +6390,7 @@ async function saveAvatar(i){
   if (demo || !deskId){ return; }
   if (!cfg){ $("saved").textContent = "먼저 🕘 시간표를 저장하면 캐릭터도 저장돼요"; return; }
   cfg.avatar = i; $("saved").textContent = "저장 중…";
-  try { await setDoc(doc(db, "desk_users", deskId, "data", "main"), { avatar:i }, { merge:true }); $("saved").textContent = "캐릭터를 저장했어요 ✓"; publishMe(); }
+  try { await setDoc(doc(db, "desk_users", deskId, "data", "main"), { avatar:i }, { merge:true }); $("saved").textContent = "캐릭터를 저장했어요 ✓"; publishMe(); syncBoard(); }
   catch (e){ $("saved").textContent = saveErr(e); }
 }
 // 시간표 · 닉네임을 아직 안 넣었으면 위쪽 안내 띠 + ✏️ 개인설정 단추를 반짝여요 (억지로 창을 열지는 않아요)
@@ -7217,7 +7241,7 @@ async function saveEdit(){
   const notes = fixEdit();
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
   const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
-  ["loc", "school"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치는 그대로
+  ["loc", "school", "board"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치 · 📺 전자칠판 링크는 그대로
   let tag = finalTag(ed.tag, out.name); if (!/^[A-Z][A-Z0-9]{1,11}$/.test(tag)) tag = "TEACHER";
   if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT, out.dayKind); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
   if (!user){ $("edMsg").textContent = "로그인이 풀렸어요. 다시 로그인한 뒤 [저장]해 주세요 (적은 내용은 남겨 두었어요)"; try { localStorage.setItem(draftKey(), JSON.stringify(ed)); } catch (e) {} return; }
@@ -7232,7 +7256,7 @@ async function saveEdit(){
     // 이 기기에 먼저 저장돼요. 8초 안에 서버까지 올라가면 끝, 아니면(학교망이 막힘) 이 PC에 둔 채로 나중에 저절로 올라가요
     const wP = setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
     let synced = false; try { await inTime(wP, 8000); synced = true; } catch (e) { if (e.code !== "timeout") throw e; }
-    cfg = out; hide("shEdit"); useConfig(); guide();
+    cfg = out; hide("shEdit"); useConfig(); guide(); syncBoard();   // 📺 전자칠판도 새 시간표로
     const tail = notes.length ? " · " + notes.join(" · ") : "";
     if (synced){ draftDrop(); $("saved").textContent = (first ? "내 시간표로 바뀌었어요! 위 1~18 단추로 마음에 드는 화면을 골라 보세요 ✓" : "시간표를 저장했어요 ✓") + tail; }
     else {
@@ -7642,7 +7666,7 @@ const locOpts = sel => `<option value="">고르기</option>${sel && !LOCS.some((
 // 진짜 날씨: Open-Meteo (키 없이 쓰는 무료 날씨). 20분마다 새로
 let wxAt = 0, wxKey = "";
 async function loadWeather(force){
-  const loc = (cfg && cfg.loc) || (demo ? { name:"서울", lat:37.57, lon:126.98 } : null);
+  const loc = (cfg && cfg.loc) || BOARD_LOC || (demo ? { name:"서울", lat:37.57, lon:126.98 } : null);   // 📺 전자칠판은 칠판 칸의 위치
   if (!loc){ window.DESK.setWeather(null); wxKey = ""; return; }
   const k = loc.lat + "," + loc.lon; if (!force && k === wxKey && Date.now() - wxAt < 15*60000) return;
   wxKey = k; wxAt = Date.now();
@@ -7733,7 +7757,7 @@ async function saveSchool(){
     if (Object.keys(up).length){ await updateDoc(deskRef(), up); me = { ...me, ...up }; }
     await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
     try { await addDoc(collection(db, "desk_users", deskId, "hist"), { kind:"cfg", at:out.at, data:out }); } catch (e) {}
-    cfg = out; setBrand(me.tag || tagOf(me.name)); useConfig(); loadWeather(true); publishMe(); $("saved").textContent = "나와 학교 · 일정을 저장했어요 ✓"; sDirty = false; document.querySelectorAll(".savebar").forEach(b => b.classList.remove("dirty")); sSay("저장했어요 ✓"); return true;
+    cfg = out; setBrand(me.tag || tagOf(me.name)); useConfig(); loadWeather(true); publishMe(); syncBoard(); $("saved").textContent = "나와 학교 · 일정을 저장했어요 ✓"; sDirty = false; document.querySelectorAll(".savebar").forEach(b => b.classList.remove("dirty")); sSay("저장했어요 ✓"); return true;
   } catch (e){ $("saved").textContent = saveErr(e); sSay(saveErr(e)); return false; }
 }
 $("setBody").addEventListener("click", e => {
@@ -7847,6 +7871,7 @@ function renderSet(){  document.querySelectorAll("#setTabs [data-tab]").forEach(
     ${["google","kakao"].map(k => { const p = L.of(k === "google" ? "google.com" : KAKAO); return `<div class="acct"><b>${kindName(k)}${L.kind === k ? ` <span class="chip" style="color:var(--accent)">지금 사용 중</span>` : ""}${p && L.label(p) ? `<small style="display:block;color:var(--muted);font-size:12px">${esc(L.label(p))}</small>` : ""}</b>${linked(k) ? `<span class="ok">✓ 연결됨</span>` : `<button type="button" class="big ${k} " data-link="${k}">${kindName(k)}도 연결하기</button>`}</div>`; }).join("")}
     ${pendingMerge ? `<p class="note">${kindName(pendingMerge)} 계정으로 만든 데스크탑이 따로 있어요.</p><button type="button" class="big" data-merge="${pendingMerge}">${kindName(pendingMerge)} 계정 확인하고 하나로 합치기</button>` : ""}
     <p class="err" id="setErr">${esc(setMsg)}</p>
+    ${boardForm()}
     <div class="sec">💾 백업 · 내 기록</div>
     <p class="note">📄 PDF는 좋아하는 화면을 표지로, 시간표 · 할 일 · 메모를 보기 좋게 뽑아요 (인쇄 · PDF 저장). 파일은 다시 불러올 수 있는 전체 기록이에요.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap"><button type="button" class="big" data-go="pdf">📄 PDF로 백업</button><button type="button" class="big ghost" data-go="export">내 기록 내려받기 (파일)</button><button type="button" class="big ghost" data-go="logout">로그아웃</button></div>
@@ -7855,6 +7880,40 @@ function renderSet(){  document.querySelectorAll("#setTabs [data-tab]").forEach(
     <button type="button" class="big ghost" data-go="delete" style="border-color:var(--hi);color:var(--hi)">내 데스크탑 지우기</button>
     ${cfg ? `<div class="savebar ${sDirty ? "dirty" : ""}"><span class="sbmsg" data-ssmsg>${sDirty ? "바꾼 내용이 있어요 · 저장을 눌러 주세요" : "닉네임 · 반 수 · 수업 장소 · 일정을 바꾸면 여기서 저장해요"}</span><button type="button" class="ybtn" data-ssave>💾 저장</button></div>` : ""}`;
 }
+/* ----- 📺 전자칠판 링크: 로그인 없이 우리 반 화면만 (공개 칸 desk_board/{긴 열쇠}) ----- */
+// 올라가는 것: 닉네임 · 캐릭터 · 담임 반 · 학년 · 반 수 · 종 시간 · 내 시간표(요일별 · 미리 바꾼 날 · 출퇴근 · 수업 장소) · 우리 반 시간표 · 학교 위치(시 · 군)
+// 할 일 · 메모 · 친구 · 이메일은 안 올라가요
+const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrWeek || {}, loc:cfg.loc || null, at:Date.now() });
+const boardUrl = (tok, home) => home ? `https://moontr.site/?board=${tok}` : `https://moontr.site/tycoon/?board=${tok}#1`;
+const syncBoard = () => { if (cfg && cfg.board && !demo) setDoc(doc(db, "desk_board", cfg.board), boardData()).catch(() => {}); };   // 시간표 · 학교를 저장할 때마다 칠판도
+let boardMsg = "";
+function boardForm(){
+  const tok = cfg && cfg.board;
+  return `<div class="sec">📺 전자칠판 (로그인 없이 우리 반 화면)</div>
+    <p class="note">교실 전자칠판에 <b>로그인하지 않고</b> 🧒 우리 반 화면(나 + 우리 반 아이들)을 띄우는 링크예요. 링크엔 <b>닉네임 · 캐릭터 · 내 시간표 · 우리 반 시간표 · 종 시간</b>만 올라가고, 할 일 · 메모 · 친구 · 이메일은 안 올라가요. 링크를 아는 사람만 볼 수 있어요.</p>
+    ${!cfg || !cfg.hr ? `<p class="note">먼저 위 '나와 학교'에서 <b>담임 반</b>을 저장해 주세요.</p>`
+      : tok ? `<div class="boardbox"><b>① 전자칠판에서 이 주소를 열면 끝</b><div class="burl"><code>${esc(boardUrl(tok))}</code><button type="button" class="btn" data-bcopy="${esc(boardUrl(tok))}">복사</button></div>
+        <b>② moontr.site 대문 '5 타이쿤'도 이 화면으로 (그 칠판에서만)</b><div class="burl"><code>${esc(boardUrl(tok, true))}</code><button type="button" class="btn" data-bcopy="${esc(boardUrl(tok, true))}">복사</button></div>
+        <p class="note" style="margin:4px 0 0">②는 칠판에서 한 번만 열면 그 브라우저가 기억해요. 시간표를 저장하면 칠판 화면도 따라 바뀌어요.</p>
+        <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn" data-board="new">🔄 새 링크로 바꾸기</button><button type="button" class="btn del" data-board="cut">링크 끊기</button></div></div>`
+      : `<button type="button" class="big" data-board="make">📺 전자칠판 링크 만들기</button>`}
+    <p class="note" id="boardMsg" style="margin:4px 0 0">${esc(boardMsg)}</p>`;
+}
+async function boardAct(k){
+  if (demo || !cfg || !user){ boardMsg = "체험 중에는 만들 수 없어요"; renderSet(); return; }
+  try {
+    if (cfg.board && (k === "cut" || k === "new")) await deleteDoc(doc(db, "desk_board", cfg.board)).catch(() => {});
+    let tok = null;
+    if (k === "make" || k === "new"){ const a = new Uint8Array(24); crypto.getRandomValues(a); tok = [...a].map(x => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"[x % 56]).join(""); cfg.board = tok; await setDoc(doc(db, "desk_board", tok), boardData()); }
+    cfg.board = tok; await setDoc(doc(db, "desk_users", deskId, "data", "main"), { board:tok }, { merge:true });
+    boardMsg = tok ? (k === "new" ? "새 링크로 바꿨어요 ✓ 예전 링크는 이제 안 열려요" : "링크를 만들었어요 ✓ 아래 주소를 전자칠판에서 열어 주세요") : "링크를 끊었어요 ✓ 칠판에서 이제 안 보여요";
+  } catch (e){ boardMsg = "하지 못했어요: " + saveErr(e) + " (Firestore 보안 규칙을 게시했는지 확인해 주세요)"; }
+  renderSet();
+}
+$("setBody").addEventListener("click", e => {
+  const b = e.target.closest("[data-board]"); if (b){ if (b.dataset.board === "cut" && !confirm("전자칠판 링크를 끊을까요? 칠판에서 바로 안 보여요.")) return; boardAct(b.dataset.board); return; }
+  const c = e.target.closest("[data-bcopy]"); if (c){ navigator.clipboard?.writeText(c.dataset.bcopy).then(() => { c.textContent = "복사됨 ✓"; setTimeout(() => { c.textContent = "복사"; }, 1500); }).catch(() => {}); }
+});
 // 바꾼 내용이 있으면 맨 아래 저장 줄을 노랗게 · 닫거나 다른 탭으로 가면 저절로 저장 (저장 못 하면 창에 남아요)
 let sDirty = false;
 const sMark = () => { sDirty = true; document.querySelectorAll(".savebar").forEach(b => b.classList.add("dirty")); document.querySelectorAll(".savebar .sbmsg").forEach(x => { x.textContent = "바꾼 내용이 있어요 · 저장을 눌러 주세요"; }); };
@@ -8189,8 +8248,8 @@ $("setBody").addEventListener("click", async e => {
     if (!sure(b, "", "한 번 더 누르면 이 시간표로 바꿔요")) return;
     try {
       if (cfg) await addDoc(collection(db, "desk_users", deskId, "hist"), { kind:"cfg", at:Date.now(), data:{ ...cfg, at:Date.now() } });   // 되돌리기 전 시간표도 남겨 둬요
-      const out = { ...h.data, at:Date.now() }; await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);
-      cfg = out; useConfig(); $("saved").textContent = `${fmtWhen(h.at)} 시간표로 되돌렸어요 ✓`; renderHist();
+      const out = { ...h.data, ...(cfg && cfg.board ? { board:cfg.board } : {}), at:Date.now() }; await setDoc(doc(db, "desk_users", deskId, "data", "main"), out);   // 📺 전자칠판 링크는 지금 것 그대로
+      cfg = out; useConfig(); syncBoard(); $("saved").textContent = `${fmtWhen(h.at)} 시간표로 되돌렸어요 ✓`; renderHist();
     } catch (err){ $("saved").textContent = saveErr(err); }
     return;
   }
@@ -8317,6 +8376,7 @@ async function deleteAll(){
   if (w === null) return;
   if (w.trim() !== "지우기"){ alert("'지우기'라고 써야 지워져요."); return; }
   try {
+    if (cfg && cfg.board) await deleteDoc(doc(db, "desk_board", cfg.board)).catch(() => {});   // 📺 전자칠판 공개 칸도
     await wipeDesk(db, deskId);
     await deleteDoc(doc(db, "desk_links", user.uid)).catch(() => {});
     try { await deleteUser(auth.currentUser); alert("모두 지웠어요. 그동안 써 주셔서 고마워요."); }

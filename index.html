@@ -502,9 +502,19 @@ const appById = id => APPS.find(a => a.id === id);
 const VIEWS = ['door','time','school','quote','planner'];
 
 /* 대문 바꾸기 */
+// 📺 우리 반 전자칠판: 교무실 타이쿤 ⚙️ 설정 › 📺 전자칠판의 'moontr.site/?board=열쇠'를 이 기기에서 한 번 열면 기억해요
+//    → 이 기기에서만 '5 타이쿤' 대문이 교무실 타이쿤 1번 건물 단면(나 + 우리 반, 로그인 없이)으로 · 대문도 늘 타이쿤으로 열려요
+//    (?board=off 로 열면 잊어요. 다른 기기 · 방문자는 예전 문쌤 타이쿤 그대로)
+let BOARD = '';
+try {
+  const q = (location.search.match(/[?&]board=([A-Za-z0-9]{20,40}|off)\b/) || [])[1];
+  if (q === 'off') localStorage.removeItem('moontr-board'); else if (q) localStorage.setItem('moontr-board', q);
+  if (q) history.replaceState(null, '', location.pathname + location.hash);
+  BOARD = localStorage.getItem('moontr-board') || '';
+} catch(e) {}
 function show(v){
   document.body.dataset.v = v;
-  if (v === 'planner' && !$('#plannerFrame').getAttribute('src')) $('#plannerFrame').src = 'planner/index.html';   // 플래너는 처음 볼 때 불러와요
+  if (v === 'planner' && !$('#plannerFrame').getAttribute('src')) $('#plannerFrame').src = BOARD ? `/tycoon/?board=${BOARD}#1` : 'planner/index.html';   // 플래너는 처음 볼 때 불러와요 (📺 칠판이면 교무실 타이쿤)
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
   document.querySelectorAll('[data-go]').forEach(b => b.setAttribute('aria-pressed', b.dataset.go === v));
   try { localStorage.setItem('moontr-last', v); } catch(e) {}
@@ -626,7 +636,7 @@ const pw = () => { try { const w = $('#plannerFrame').contentWindow; return w &&
 const markOn = (sel, b) => document.querySelectorAll(sel).forEach(x => x.classList.toggle('on', x === b));
 document.querySelectorAll('#v-planner [data-speed]').forEach(b => b.addEventListener('click', () => {
   const w = pw(); if (!w || !w.setSpeed) return;
-  if (b.dataset.speed === '1') w.goLive(); else w.setSpeed(+b.dataset.speed);
+  if (b.dataset.speed === '1') (w.goLive ? w.goLive() : w.setSpeed(1)); else w.setSpeed(+b.dataset.speed);   // 교무실 타이쿤은 setSpeed(1) = 지금으로
   markOn('#v-planner [data-speed]', b);
 }));
 document.querySelectorAll('#v-planner [data-jump]').forEach(b => b.addEventListener('click', () => {
@@ -680,7 +690,7 @@ function renderBar(){
 }
 renderBar(); setInterval(renderBar, 15000);
 const fixed = location.hash.slice(1);
-show(VIEWS.includes(fixed) ? fixed : pickRandom());
+show(VIEWS.includes(fixed) ? fixed : BOARD ? 'planner' : pickRandom());   // 📺 칠판 기기는 늘 타이쿤 대문으로
 </script>
 <!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
 <script type="module" src="/visit.js?app=home&policy=/policy/"></script>
