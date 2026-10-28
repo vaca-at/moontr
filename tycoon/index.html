@@ -146,6 +146,18 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .picks .btn:hover .spin{opacity:.6}.picks .btn .spin:hover{opacity:1;filter:none}
 .picks .btn.pinned .spin{opacity:1;filter:none}
 .picks .btn.pinned{box-shadow:inset 0 -3px 0 var(--accent2)}
+/* 머리 줄이기 (2026-10-29): 넓은 화면에서 화면 단추는 번호 · 이름을 한 줄로, 머리 위아래 여백도 조금 줄여요 */
+@media (min-width:701px){
+  .top{gap:4px;padding:5px 10px}
+  .picks{gap:4px}.pgrp{gap:4px}
+  .picks .btn{display:block;text-align:center;padding:5px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+  .picks .btn b{margin-right:5px}
+  .plab{flex-direction:row;gap:4px;font-size:13px}
+  .tools .btn{padding:4px 10px}
+}
+/* ▴ 접기: 화면 고르기 · 미리보기 줄(리본은 아래 칸)을 접어 게임 화면을 크게 (이 기기에 기억) */
+:root[data-fold] header.top :is(.picks,.row2){display:none!important}
+:root[data-fold] .ribbon .rb-body{display:none!important}
 .sord{display:flex;flex-direction:column;gap:4px;max-width:520px;list-style:none;margin:0;padding:0}
 .sord .grip{flex:none;border:0;background:none;color:var(--muted);font-size:17px;line-height:1;min-width:26px;min-height:30px;padding:0;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .sord .grip:hover,.sord .grip:focus-visible{color:var(--accent)}
@@ -925,6 +937,18 @@ html.appmode.hudoff .navbtn{opacity:0;pointer-events:none}
 .rb-row{display:flex;align-items:center;gap:8px}
 .rb-row > span{width:84px;flex:none;font-size:11.5px;color:var(--rsub);white-space:nowrap}
 .rb-row .rb-gal{grid-template-columns:repeat(9,104px);grid-auto-rows:22px;border-radius:3px}
+/* 리본 줄이기 (2026-10-29): 넓은 화면에서 탭과 제목 줄을 한 줄로, 묶음 이름은 숨기고 아이콘은 조금 작게 */
+.rb-fold{margin-left:6px;align-self:center;border:0;background:none;color:var(--rtsub);font:inherit;font-size:13px;padding:4px 8px;border-radius:4px;cursor:pointer}
+.rb-fold:hover{background:color-mix(in srgb,var(--rtink) 12%,transparent);color:var(--rtink)}
+@media (min-width:701px){
+  :root[data-grp="pc"] .ribbon{display:grid;grid-template-columns:auto minmax(0,1fr)}
+  .rb-tabs{grid-column:1;grid-row:1;align-items:flex-end;padding:4px 4px 0 10px}
+  .rb-title{grid-column:2;grid-row:1;padding-top:4px;padding-bottom:4px}
+  .rb-body{grid-column:1 / -1;padding:5px 6px}
+  .rb-nm{display:none}
+  .ribbon .ri{width:20px;height:20px}
+  .rb-big{padding:3px 7px;gap:2px}
+}
 .rb-chip{padding:6px 12px;border:1px solid var(--rline);border-radius:4px;background:var(--wcard);color:var(--wink);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;margin-top:6px}
 .rb-chip:hover{background:color-mix(in srgb,var(--wacc) 10%,var(--wcard))}
 .rb-chip.on{background:var(--wacc-soft);border-color:var(--wacc);color:var(--waccsi);font-weight:600}
@@ -1346,7 +1370,7 @@ const DRAW = {
         <symbol id="ri-moon" viewBox="0 0 16 16"><path d="M13 9.8A5.5 5.5 0 0 1 6.2 3a5.5 5.5 0 1 0 6.8 6.8z"/></symbol>
       </svg>
       <div class="rb-title"><b id="rbBrand">교무실 타이쿤</b><span id="rbWho"></span><span class="sp"></span><span class="rb-save" id="rbSave" hidden></span><span class="rb-pill" id="rbSlot">--</span><span class="rb-pill dd" id="rbDd" hidden></span><span id="rbDate">--</span><b class="rb-time" id="rbTime">--:--</b></div>
-      <div class="rb-tabs" role="tablist" aria-label="리본 메뉴"><button type="button" role="tab" data-rtab="home" aria-selected="true" class="on">홈</button><button type="button" role="tab" data-rtab="view" aria-selected="false">화면</button><button type="button" role="tab" data-rtab="time" aria-selected="false">미리보기</button><button type="button" role="tab" data-rtab="help" aria-selected="false">도움말</button></div>
+      <div class="rb-tabs" role="tablist" aria-label="리본 메뉴"><button type="button" role="tab" data-rtab="home" aria-selected="true" class="on">홈</button><button type="button" role="tab" data-rtab="view" aria-selected="false">화면</button><button type="button" role="tab" data-rtab="time" aria-selected="false">미리보기</button><button type="button" role="tab" data-rtab="help" aria-selected="false">도움말</button><button type="button" class="rb-fold" id="rbFold" aria-pressed="false" title="메뉴 접기 (게임 화면을 크게)">▴</button></div>
       <div class="rb-body" data-rpane="home">
         <div class="rb-grp"><div class="rb-bd">
           <button type="button" class="rb-big" data-click="bEdit"><svg class="ri"><use href="#ri-clock"/></svg>시간표</button>
@@ -1397,7 +1421,7 @@ const DRAW = {
         <button type="button" class="btn" id="bSet">⚙️ 설정<i class="dot" id="setDot" hidden></i></button>
         <button type="button" class="btn" id="bWall" hidden>🖥 바탕화면으로 쓰기</button><!-- 단추는 뺐어요 (방법은 📖 타이쿤 매뉴얼에) -->
 
-        <button type="button" class="btn wallbtn" id="bManual">📖 타이쿤 매뉴얼</button>
+        <button type="button" class="btn wallbtn" id="bManual">📖 타이쿤 매뉴얼</button><button type="button" class="btn" id="bFold" aria-pressed="false" title="메뉴 접기 (게임 화면을 크게)">▴ 접기</button>
       </div>
     </div>
     <div class="picks" id="structs"></div>
@@ -5767,13 +5791,22 @@ function syncRb(){
   RB.querySelectorAll("[data-rspeed]").forEach(b => b.classList.toggle("on", +b.dataset.rspeed === speed));
 }
 RB.addEventListener("click", e => {
-  const t = e.target.closest("[data-rtab]"); if (t){ rbTab(t.dataset.rtab); return; }
+  if (e.target.closest("#rbFold")){ setFold(!document.documentElement.hasAttribute("data-fold")); return; }
+  const t = e.target.closest("[data-rtab]"); if (t){ rbTab(t.dataset.rtab); if (document.documentElement.hasAttribute("data-fold")) setFold(false); return; }
   const gs = e.target.closest("[data-gsw]"); if (gs){ rbGsw = gs.dataset.gsw; renderRibbon(); return; }
   const c = e.target.closest("[data-click]"); if (c){ $(c.dataset.click)?.click(); return; }
   const s = e.target.closest("button[data-s]"); if (s){ pick(+s.dataset.s); rbTab("home"); return; }   // <html> 에도 data-s 가 있어서 단추만
   const sp = e.target.closest("[data-rspeed]"); if (sp){ document.querySelector(`#ctl [data-speed="${sp.dataset.rspeed}"]`)?.click(); syncRb(); return; }
   const j = e.target.closest("[data-rjump]"); if (j) document.querySelector(`#ctl [data-jump="${j.dataset.rjump}"]`)?.click();
 });
+// ▴ 접기 · ▾ 펴기 (레트로 머리 · 리본 함께, 이 기기에 기억해요)
+function setFold(on){
+  document.documentElement.toggleAttribute("data-fold", on);
+  try { localStorage.setItem("desk-fold", on ? "1" : "0"); } catch (e) {}
+  [["bFold", on ? "▾ 펴기" : "▴ 접기"], ["rbFold", on ? "▾" : "▴"]].forEach(([id, s]) => { const b = $(id); if (b){ b.textContent = s; b.setAttribute("aria-pressed", on); b.title = on ? "메뉴 펴기" : "메뉴 접기 (게임 화면을 크게)"; } });
+}
+{ let on = false; try { on = localStorage.getItem("desk-fold") === "1"; } catch (e) {} setFold(on); }
+$("bFold").addEventListener("click", () => setFold(!document.documentElement.hasAttribute("data-fold")));
 $("rbSpeed").addEventListener("change", e => { document.querySelector(`#ctl [data-speed="${e.target.value}"]`)?.click(); syncRb(); });
 $("jumpSel").addEventListener("change", e => { if (e.target.value) document.querySelector(`#ctl [data-jump="${e.target.value}"]`)?.click(); e.target.value = ""; });
 $("rbJump").addEventListener("change", e => { if (e.target.value) document.querySelector(`#ctl [data-jump="${e.target.value}"]`)?.click(); e.target.value = ""; });
