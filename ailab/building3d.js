@@ -27,7 +27,7 @@ const root = document.getElementById('b3d');
 let visible = !root.hidden;
 // home = 첫 화면(화면 가득) · band = 층 화면 위쪽 띠(그 층만 보여 줘요)
 let mode = 'home';
-let bandRooms = []; // 층 화면에서 보고 있는 층의 방들
+let bandRooms = [], bandFloor = ''; // 층 화면에서 보고 있는 층과 그 층의 방들
 // 이 브라우저에도 기억하고(로그인 전), 로그인한 선생님이면 앱이 Firebase 에 저장해요
 const save = () => {
   try { localStorage.setItem('ailab3d', JSON.stringify(STATE)); } catch {}
@@ -889,6 +889,7 @@ function buildWorld() {
   FLOORS.forEach((f, i) => {
     const y = (4 - i) * FH;
     const g = new THREE.Group();
+    g.userData.floor = f.floor;
     world.add(g);
     const base = f.floor === 'B1';
     const TH = theme(), wall = base ? TH.wallB1 : TH.floors ? TH.floors[i] : TH.wall;
@@ -959,6 +960,11 @@ function buildWorld() {
   tree(-BW / 2 - 3, 1.5, 1.3); tree(-BW / 2 - 6.2, -2.5, 1); tree(BW / 2 + 3.3, -1, 1.15); tree(BW / 2 + 6.5, 2, .9);
   B(world, 1.4, .5, .6, P.wood, BW / 2 + 3.5, .3, 2.6);
   markSigns();
+  applyBandVis();
+}
+// 층 화면에서는 그 층만 그려요 (다른 층 · 옥상 · 땅은 숨겨서 한 칸이 딱 맞게 보이게)
+function applyBandVis() {
+  for (const ch of world.children) ch.visible = mode !== 'band' || ch.userData.floor === bandFloor;
 }
 
 // ---------- 카메라 ----------
@@ -1363,6 +1369,7 @@ export function setMode(m) {
   if (mode === m) return;
   mode = m;
   root.classList.toggle('band', m === 'band');
+  applyBandVis();
   if (m === 'home') { target = null; overview(); renderBoard(); } else { hideTip(); setDrawer(false); }
   resize();
 }
@@ -1375,6 +1382,8 @@ export function focusRoom(k, instant = false) {
   enterFloor(f.floor);
   selected = k;
   bandRooms = f.rooms;
+  bandFloor = f.floor;
+  applyBandVis();
   goal.yaw = -.12;
   markSigns();
   if (instant) { view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch; }
