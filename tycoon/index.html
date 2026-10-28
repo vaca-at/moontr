@@ -843,6 +843,11 @@ html.appmode.hudoff .navbtn{opacity:0;pointer-events:none}
 .talk:focus-visible p{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:700px){ .talk{max-width:70cqw} .talk .tav{width:6cqw} }
 @media (prefers-reduced-motion: reduce){ .talk{transition:none} }
+/* 📢 우리 반 알림 한 줄 (왼쪽 위, 칠판에서도 잘 보이게 크게) */
+.notice{position:absolute;left:1.4cqw;top:1.2cqw;z-index:3;max-width:40cqw;padding:.5cqw 1.1cqw;background:rgba(11,11,18,.92);color:#FFFFFF;border:2px solid #FFD400;border-radius:.6cqw;font:700 clamp(12px,1.6cqw,26px)/1.35 'Noto Sans KR','Malgun Gothic',sans-serif;box-shadow:0 2px 0 rgba(0,0,0,.4);word-break:keep-all;pointer-events:none;transition:opacity .5s,transform .5s}
+.notice.off{opacity:0;transform:translateX(-8px)}
+@media (max-width:700px){ .notice{max-width:70cqw;font-size:12px} }
+@media (prefers-reduced-motion: reduce){ .notice{transition:none} }
 /* 📄 PDF 뽑기 창 */
 .pdprev{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000;border:var(--box-b);border-radius:var(--box-r);margin:8px 0 4px}
 .pdopts{display:flex;flex-direction:column;gap:6px;font:14px var(--body)}
@@ -1413,7 +1418,7 @@ const DRAW = {
   <div class="main" id="main">
     <section class="mapcol" id="mapcol">
       <div class="modebar" id="modeBar" role="group" aria-label="보기 모드"><button type="button" data-mode="me" aria-pressed="true">👤 내 시간표</button><button type="button" data-mode="class" aria-pressed="false">🧒 우리 반</button><button type="button" data-mode="friend" aria-pressed="false">👥 친한 선생님</button></div>
-      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div><div class="modecard" id="modeCard" role="status" hidden></div><div class="talk off" id="talk" role="status" aria-live="polite" tabindex="0" title="누르면 다른 말"><span class="tav" id="talkAv"></span><p id="talkT"></p></div><button type="button" class="navbtn prev" id="navPrev" aria-label="이전 화면">‹</button><button type="button" class="navbtn next" id="navNext" aria-label="다음 화면">›</button><div class="bigui" id="bigUi"><button type="button" class="bigx" id="bigX" aria-label="크게 보기 나가기">✕ 나가기</button><button type="button" class="bigarr prev" id="bigPrev" aria-label="이전 화면">◀</button><button type="button" class="bigarr next" id="bigNext" aria-label="다음 화면">▶</button><div class="bigpick" id="bigPick" aria-label="화면 바꾸기"></div></div></div>
+      <div class="frame" id="frame"><canvas id="cv" width="960" height="540" role="img" aria-label="지금 내 하루를 보여 주는 게임 화면"></canvas><div class="pins" id="pins" aria-label="화면에 띄운 메모"></div><div class="modecard" id="modeCard" role="status" hidden></div><div class="talk off" id="talk" role="status" aria-live="polite" tabindex="0" title="누르면 다른 말"><span class="tav" id="talkAv"></span><p id="talkT"></p></div><div class="notice off" id="notice" role="status" aria-live="polite"></div><button type="button" class="navbtn prev" id="navPrev" aria-label="이전 화면">‹</button><button type="button" class="navbtn next" id="navNext" aria-label="다음 화면">›</button><div class="bigui" id="bigUi"><button type="button" class="bigx" id="bigX" aria-label="크게 보기 나가기">✕ 나가기</button><button type="button" class="bigarr prev" id="bigPrev" aria-label="이전 화면">◀</button><button type="button" class="bigarr next" id="bigNext" aria-label="다음 화면">▶</button><div class="bigpick" id="bigPick" aria-label="화면 바꾸기"></div></div></div>
       <button type="button" class="bigbtn" id="bBig" aria-label="게임 화면 크게 보기">⛶ 크게 보기</button>
       <p class="padtip" id="padTip">📱 아이패드는 <b>가로로</b> 돌리면 게임 화면이 더 크게 보여요</p>
     </section>
@@ -2476,7 +2481,9 @@ const tower = port => (() => {
   const YARD = port ? { id:"yard", f:0, x:BX + 68, y:GR + 30, w:BW - 70, h:32 } : { id:"yard", f:0, x:BX + 4, y:GR + 4, w:Math.max(60, NL*RW - 10), h:18 }; R.push(YARD);   // 운동장 (체육 수업)
   const room = id => R.find(r => r.id === id);
   const GT = room("gate"), GX = GT.x + GT.w/2; if (port) CX = GT.x;
-  const OUT = GR + 12, HD = HOME.x + 30, HB = HOME.y + HOME.h, HY = HB - 3, YC = port ? YARD.y + 20 : GR + 15;
+  // 가로 그림: 운동장은 맨 오른쪽(현관 깃발 옆 ~ 집 앞), 집 가는 길은 땅 맨 아래로
+  if (!port){ YARD.x = GX + 22; YARD.y = GR + 2; YARD.w = HOME.x + 20 - YARD.x; YARD.h = 12; }
+  const OUT = port ? GR + 12 : GR + 19, HD = HOME.x + 30, HB = HOME.y + HOME.h, HY = HB - 3, YC = port ? YARD.y + 20 : YARD.y + YARD.h - 1;
   // 건물에 없는 곳(층에 안 나온 학년, 자리가 모자란 특별실)은 1층 빈 칸으로 가요
   const spare = () => (R.find(r => r.f === 1 && r.id.startsWith("_s")) || { id:"gate" }).id;
   const mapId = id => room(id) ? id : id === "lunch" || id === "etc" || isClass(id) ? spare() : room(roomFor(id)) ? roomFor(id) : spare();
@@ -2574,10 +2581,10 @@ const tower = port => (() => {
       for (let k = 1; k <= 3; k++) rect(Math.round(cx2 + Math.cos(a)*k), Math.round(cy2 + Math.sin(a)*k), 1, 1, "#E5484D"); rect(cx2, cy2 - 2, 1, 2, "#1A1622"); rect(cx2, cy2, 1, 1, "#1A1622");
       const bx2 = r.x + 4; rect(bx2, fy - 9, r.w - 8, 1, "#8B5A2B"); rect(bx2, fy - 2, r.w - 8, 1, "#8B5A2B");
       for (let k = 0; k * 3 < r.w - 10; k++) rect(bx2 + 1 + k*3, fy - 8 + (k % 3 === 1 ? 1 : 0), 2, 6 - (k % 3 === 1 ? 1 : 0), ["#E5484D", "#3B82F6", "#5BEA6F", "#FFD400", "#B07CFF"][k % 5]); }
-    if (r.id === "보건실"){   /* 침대 · 빨간 십자 · 심박 모니터 선이 움직여요 */
+    if (r.id === "보건실"){   /* 침대 · 침대 옆 커튼이 살랑살랑 (아래로 갈수록 조금 더 흔들려요) */
       const bx3 = r.x + 4; rect(bx3, fy - 6, 14, 3, "#EDEDF5"); rect(bx3, fy - 7, 4, 1, "#FFFFFF"); rect(bx3, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 13, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 4, fy - 7, 10, 1, "#7DD3FC");
-      rect(mid - 1, y0 + 12, 3, 9, "#E5484D"); rect(mid - 4, y0 + 15, 9, 3, "#E5484D");
-      }
+      const cx3 = bx3 + 17, ct = y0 + 12, cl = fy - 3 - ct; rect(r.x + 3, ct - 1, r.w - 6, 1, "#9AA0B4");
+      for (let yy = 0; yy < cl; yy++){ const sw = Math.round(Math.sin(T*1.6 - yy*.12) * 1.4 * yy/cl); for (let k = 0; k < 7; k++) rect(cx3 + k + sw, ct + yy, 1, 1, k % 3 === 2 ? "#6FB8A4" : "#A6E3D2"); } }
     if (r.id === "동아리실"){   /* 공이 통통 튀어요 */
       const hgt = Math.abs(Math.sin(T*3))*13, by4 = Math.round(fy - 5 - hgt); g.globalAlpha = .35; rect(mid - 2 + Math.round(hgt/8), fy - 1, 5 - Math.round(hgt/6), 1, "#000"); g.globalAlpha = 1;
       rect(mid - 1, by4, 4, 4, "#FF8A3D"); rect(mid, by4 - 1, 2, 1, "#FF8A3D"); rect(mid, by4 + 4, 2, 1, "#FF8A3D"); rect(mid - 2, by4 + 1, 1, 2, "#FF8A3D"); rect(mid + 3, by4 + 1, 1, 2, "#FF8A3D"); rect(mid - 1, by4 + 2, 4, 1, "#7A3A10"); rect(mid + 1, by4, 1, 4, "#7A3A10"); }
@@ -6201,10 +6208,11 @@ function openBoard(){
     window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {}, kids:b.kids });
     window.DESK.setDayTT(b.dayTT || {}, b.dayKind || {}); window.DESK.setHrDayTT(b.hrDayTT || {}); window.DESK.setAvatar(b.avatar || 0); window.DESK.setTodos([]); window.DESK.setFriends([]); setMode("class");   // 나 + 우리 반
     if (b.loc){ BOARD_LOC = b.loc; loadWeather(true); }   // 창밖 날씨만 (시 · 군)
+    BOARD_EV = b.events || [];   // 📢 알림 한 줄의 오늘 · 내일 일정
     dispatchEvent(new Event("resize"));   // 게임 화면을 칠판 크기에 맞춰요
   }, gone);
 }
-let BOARD_LOC = null;
+let BOARD_LOC = null, BOARD_EV = [];
 if (BOARD) openBoard();
 $("ssGo").addEventListener("click", () => { hide("shStart"); openEdit(); });
 $("ssLater").addEventListener("click", () => hide("shStart"));
@@ -7700,6 +7708,37 @@ setTimeout(() => setInterval(() => {
   if (key !== talkKeyNow || Date.now() - talkShownAt > 12*60000){ talkKeyNow = key; talkShow(false); }
 }, 2000), 3000);
 
+/* ---------- 📢 우리 반 알림 한 줄 (🧒 우리 반 모드 · 전자칠판) ----------
+   게임 화면 왼쪽 위에 2분마다 12초: 다음 시간(과목 · 교실) → 오늘 일정 → 내일 일정을 번갈아 띄워요 (아이들이 늘 같은 화면이라고 느끼지 않게) */
+let noticeI = 0, noticeAt = 0, noticeHide = null;
+const noticeEvents = () => (demo ? DEMO_CFG.events : cfg ? cfg.events : BOARD_EV) || [];
+function noticeLines(){
+  const d = simNow(), day = d.getDay(), m = d.getHours()*60 + d.getMinutes(), out = [];
+  if (day >= 1 && day <= 5){
+    const nx = BELL.find(([p, a]) => mm(a) > m && (/\d/.test(p) || p === "점심"));
+    if (nx && nx[0] === "점심") out.push(`🍚 다음은 점심시간이에요 (${nx[1]})`);
+    else if (nx){
+      const G = clsGroups(day, nx[0]), H = clsHome();
+      const what = G[0].none ? "수업 없음 · 우리 반 교실" : G.length > 1 ? G.map(g => `${g.s || ""} ${NAME(g.r)}`.trim()).join(" · ") : `${G[0].s ? G[0].s + " · " : ""}${G[0].r === H ? "우리 반 교실" : NAME(G[0].r) + "로 이동"}`;
+      out.push(`📢 다음 시간 ${nx[0]}교시 (${nx[1]}) ${what}`);
+    }
+  }
+  const tm = new Date(d); tm.setDate(d.getDate() + 1);
+  const ev = noticeEvents(), tk = dkey(d), mk = dkey(tm);
+  ev.filter(e => e.d === tk).forEach(e => out.push(`📅 오늘 일정 · ${e.t}`));
+  ev.filter(e => e.d === mk).forEach(e => out.push(`📅 내일 일정 · ${e.t}`));
+  return out;
+}
+function noticeShow(){
+  const el = $("notice"); if (!el) return;
+  const L = MODE === "class" ? noticeLines() : [];
+  if (!L.length){ el.classList.add("off"); return; }
+  el.textContent = L[noticeI++ % L.length]; el.classList.remove("off"); noticeAt = Date.now();
+  clearTimeout(noticeHide); noticeHide = setTimeout(() => el.classList.add("off"), 12000);
+}
+// 처음은 화면이 열리고 5초 뒤, 그다음은 2분마다 (우리 반 모드가 아니면 숨겨요)
+setTimeout(() => { noticeShow(); setInterval(() => { if (MODE !== "class") $("notice").classList.add("off"); else if (Date.now() - noticeAt > 120000) noticeShow(); }, 1000); }, 5000);
+
 /* ---------- 다른 로그인 확인용 두 번째 연결 (지금 로그인은 그대로 둬요) ---------- */
 async function otherLogin(kind, cred){
   const app2 = initializeApp(firebaseConfig, "other" + Date.now());
@@ -8088,16 +8127,18 @@ $("chgList").addEventListener("click", e => { const b = e.target.closest("[data-
 // '과목 이름 줄여서 보여 주기'를 켰으면 칠판엔 미리 줄여서 올려요 (규칙에 새 칸을 더하지 않게). 줄인 이름이 '과탐실'처럼 교실 같으면 '교실'을 붙여 우리 반 교실로
 const shortCell = v => String(v || "").split("/").map(x => { const w = x.trim().split(/\s+/).filter(Boolean); if (!w.length) return ""; const last = w[w.length - 1], roomy = ROOMISH.test(last) || last === "교실", subj = (roomy ? w.slice(0, -1) : w).join(" "); if (!subj) return x.trim(); let s2 = shortSubj(subj); if (!roomy && ROOMISH.test(s2)) s2 += " 교실"; return roomy ? `${s2} ${last}` : s2; }).filter(Boolean).join(" / ");
 const shortMap = W => Object.fromEntries(Object.entries(W || {}).map(([k, o]) => [k, Object.fromEntries(Object.entries(o || {}).map(([p, v]) => [p, shortCell(v)]))]));
-const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrShort ? shortMap(cfg.hrWeek) : cfg.hrWeek || {}, hrDayTT:cfg.hrShort ? shortMap(cfg.hrDayTT) : cfg.hrDayTT || {}, kids:cleanKids(cfg.kids), loc:cfg.loc || null, at:Date.now() });
-// 칠판에 올리기: 보안 규칙에 '학생 교복(kids)' 칸을 아직 게시하지 않았으면 그 칸만 빼고 다시 올려요
-const putBoard = tok => setDoc(doc(db, "desk_board", tok), boardData()).catch(() => { const d = boardData(); delete d.kids; return setDoc(doc(db, "desk_board", tok), d); });
+const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrShort ? shortMap(cfg.hrWeek) : cfg.hrWeek || {}, hrDayTT:cfg.hrShort ? shortMap(cfg.hrDayTT) : cfg.hrDayTT || {}, kids:cleanKids(cfg.kids), events:boardEvents(), loc:cfg.loc || null, at:Date.now() });
+// 칠판 📢 알림 한 줄에 쓸 일정: 오늘부터 14일 안의 것만 20개까지
+function boardEvents(){ const a = dkey(new Date()), z = new Date(); z.setDate(z.getDate() + 14); const b = dkey(z); return (cfg.events || []).filter(e => e.d >= a && e.d <= b).slice(0, 20).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })); }
+// 칠판에 올리기: 보안 규칙에 새 칸(학생 교복 kids · 일정 events)을 아직 게시하지 않았으면 그 칸만 빼고 다시 올려요
+const putBoard = tok => setDoc(doc(db, "desk_board", tok), boardData()).catch(() => { const d = boardData(); delete d.kids; delete d.events; return setDoc(doc(db, "desk_board", tok), d); });
 const boardUrl = (tok, home) => home ? `https://moontr.site/?board=${tok}` : `https://moontr.site/tycoon/?board=${tok}#1`;
 const syncBoard = () => { if (cfg && cfg.board && !demo) putBoard(cfg.board).catch(() => {}); };   // 시간표 · 학교를 저장할 때마다 칠판도
 let boardMsg = "";
 function boardForm(){
   const tok = cfg && cfg.board;
   return `<div class="sec">📺 전자칠판 (로그인 없이 우리 반 화면)</div>
-    <p class="note">교실 전자칠판에 <b>로그인하지 않고</b> 🧒 우리 반 화면(나 + 우리 반 아이들)을 띄우는 링크예요. 링크엔 <b>닉네임 · 캐릭터 · 내 시간표 · 우리 반 시간표 · 종 시간</b>만 올라가고, 할 일 · 메모 · 친구 · 이메일은 안 올라가요. 링크를 아는 사람만 볼 수 있어요.</p>
+    <p class="note">교실 전자칠판에 <b>로그인하지 않고</b> 🧒 우리 반 화면(나 + 우리 반 아이들)을 띄우는 링크예요. 링크엔 <b>닉네임 · 캐릭터 · 내 시간표 · 우리 반 시간표 · 종 시간 · 앞으로 14일 달력 일정(📢 알림 한 줄)</b>만 올라가고, 할 일 · 메모 · 친구 · 이메일은 안 올라가요. 링크를 아는 사람만 볼 수 있어요.</p>
     ${!cfg || !cfg.hr ? `<p class="note">먼저 위 '나와 학교'에서 <b>담임 반</b>을 저장해 주세요.</p>`
       : tok ? `<div class="boardbox"><b>① 전자칠판에서 이 주소를 열면 끝</b><div class="burl"><code>${esc(boardUrl(tok))}</code><button type="button" class="btn" data-bcopy="${esc(boardUrl(tok))}">복사</button></div>
         <b>② moontr.site 대문 '5 타이쿤'도 이 화면으로 (그 칠판에서만)</b><div class="burl"><code>${esc(boardUrl(tok, true))}</code><button type="button" class="btn" data-bcopy="${esc(boardUrl(tok, true))}">복사</button></div>
@@ -8228,7 +8269,7 @@ async function calSave(events, dday){
   if (demo){ Object.assign(DEMO_CFG, up); renderSched(DEMO_CFG); calMsg2 = "체험 중이라 이 화면에서만 바뀌어요"; renderCal(); return; }
   if (!cfg || !user){ needLogin("달력 일정"); return; }
   calMsg2 = "저장 중…"; renderCal();
-  try { await setDoc(doc(db, "desk_users", deskId, "data", "main"), { ...up, at:Date.now() }, { merge:true }); Object.assign(cfg, up); renderSched(); calMsg2 = "저장했어요 ✓"; }
+  try { await setDoc(doc(db, "desk_users", deskId, "data", "main"), { ...up, at:Date.now() }, { merge:true }); Object.assign(cfg, up); renderSched(); syncBoard(); calMsg2 = "저장했어요 ✓"; }
   catch (e){ calMsg2 = saveErr(e); }
   renderCal();
 }

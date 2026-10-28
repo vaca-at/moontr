@@ -478,13 +478,14 @@ const S1 = (() => {
   const wing = (n, big, bigFirst, items) => { const tot = n*RW, list = [...items]; while (list.length && tot/(list.length + 1) < 16) list.pop(); const all = bigFirst ? [big, ...list] : [...list, big]; return all.map(id => [id, tot/all.length]); };
   [...wing(NL, "교장실", false, ["가사실", "과학실", "미술실", "음악실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "특별교실1", true, ["특별교실2", "보건실", "컴퓨터실", "동아리실"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
   const HOME = { id:"home", f:0, x:432, y:GR - 44, w:46, h:44 }; R.push(HOME);
-  const YARD = { id:"yard", f:0, x:BX + 4, y:GR + 4, w:Math.max(60, NL*RW - 10), h:18 }; R.push(YARD);   // 운동장 (체육 수업)
-  const OUT = GR + 12, HD = HOME.x + 30, GX = CX + CW/2;
+  // 운동장은 맨 오른쪽(현관 깃발 옆 ~ 집 앞), 집 가는 길은 땅 맨 아래로
+  const OUT = GR + 19, HD = HOME.x + 30, GX = CX + CW/2;
+  const YARD = { id:"yard", f:0, x:GX + 22, y:GR + 2, w:HOME.x + 20 - (GX + 22), h:12 }; R.push(YARD);   // 운동장 (체육 수업)
   const room = id => R.find(r => r.id === id);
   // 건물에 없는 곳(층에 안 나온 학년, 자리가 모자란 특별실)은 1층 빈 칸으로 가요
   const spare = () => (R.find(r => r.f === 1 && r.id.startsWith("_s")) || { id:"gate" }).id;
   const mapId = id => room(id) ? id : id === "lunch" || id === "etc" || isClass(id) ? spare() : room(roomFor(id)) ? roomFor(id) : spare();
-  const place = id => { const r = room(id); return r.id === "home" ? { x:r.x + 16, y:GR - 3 } : r.id === "yard" ? { x:r.x + r.w/2, y:GR + 15 } : { x:r.x + 8, y:lane(r.f) }; };
+  const place = id => { const r = room(id); return r.id === "home" ? { x:r.x + 16, y:GR - 3 } : r.id === "yard" ? { x:r.x + r.w/2, y:GR + 13 } : { x:r.x + 8, y:lane(r.f) }; };
   const near = x => Math.abs(x - SL) <= Math.abs(x - SR) ? SL : SR;
   const toHome = (f, x) => { const o = []; if (f !== 1){ const s = near(x); o.push({ x:s, y:lane(f) }, { x:s, y:lane(1) }); } o.push({ x:GX, y:lane(1) }, { x:GX, y:OUT }, { x:HD, y:OUT }, { x:HD, y:GR - 3 }); return o; };
   const toYard = (f, x) => { const o = []; if (f !== 1){ const s = near(x); o.push({ x:s, y:lane(f) }, { x:s, y:lane(1) }); } o.push({ x:GX, y:lane(1) }, { x:GX, y:OUT }); return o; };
@@ -573,10 +574,10 @@ const S1 = (() => {
       for (let k = 1; k <= 3; k++) rect(Math.round(cx2 + Math.cos(a)*k), Math.round(cy2 + Math.sin(a)*k), 1, 1, "#E5484D"); rect(cx2, cy2 - 2, 1, 2, "#1A1622"); rect(cx2, cy2, 1, 1, "#1A1622");
       const bx2 = r.x + 4; rect(bx2, fy - 9, r.w - 8, 1, "#8B5A2B"); rect(bx2, fy - 2, r.w - 8, 1, "#8B5A2B");
       for (let k = 0; k * 3 < r.w - 10; k++) rect(bx2 + 1 + k*3, fy - 8 + (k % 3 === 1 ? 1 : 0), 2, 6 - (k % 3 === 1 ? 1 : 0), ["#E5484D", "#3B82F6", "#5BEA6F", "#FFD400", "#B07CFF"][k % 5]); }
-    if (r.id === "보건실"){   /* 침대 · 빨간 십자 · 심박 모니터 선이 움직여요 */
+    if (r.id === "보건실"){   /* 침대 · 침대 옆 커튼이 살랑살랑 (아래로 갈수록 조금 더 흔들려요) */
       const bx3 = r.x + 4; rect(bx3, fy - 6, 14, 3, "#EDEDF5"); rect(bx3, fy - 7, 4, 1, "#FFFFFF"); rect(bx3, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 13, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 4, fy - 7, 10, 1, "#7DD3FC");
-      rect(mid - 1, y0 + 12, 3, 9, "#E5484D"); rect(mid - 4, y0 + 15, 9, 3, "#E5484D");
-      }
+      const cx3 = bx3 + 17, ct = y0 + 12, cl = fy - 3 - ct; rect(r.x + 3, ct - 1, r.w - 6, 1, "#9AA0B4");
+      for (let yy = 0; yy < cl; yy++){ const sw = Math.round(Math.sin(T*1.6 - yy*.12) * 1.4 * yy/cl); for (let k = 0; k < 7; k++) rect(cx3 + k + sw, ct + yy, 1, 1, k % 3 === 2 ? "#6FB8A4" : "#A6E3D2"); } }
     if (r.id === "동아리실"){   /* 공이 통통 튀어요 */
       const hgt = Math.abs(Math.sin(T*3))*13, by4 = Math.round(fy - 5 - hgt); g.globalAlpha = .35; rect(mid - 2 + Math.round(hgt/8), fy - 1, 5 - Math.round(hgt/6), 1, "#000"); g.globalAlpha = 1;
       rect(mid - 1, by4, 4, 4, "#FF8A3D"); rect(mid, by4 - 1, 2, 1, "#FF8A3D"); rect(mid, by4 + 4, 2, 1, "#FF8A3D"); rect(mid - 2, by4 + 1, 1, 2, "#FF8A3D"); rect(mid + 3, by4 + 1, 1, 2, "#FF8A3D"); rect(mid - 1, by4 + 2, 4, 1, "#7A3A10"); rect(mid + 1, by4, 1, 4, "#7A3A10"); }
@@ -641,7 +642,7 @@ const S1 = (() => {
     for (let x = BX + 4; x < BX + BW; x += 34){ if (Math.abs(x - GX) < 30 || (x > YARD.x - 10 && x < YARD.x + YARD.w)) continue; rect(x + 3, GR + 8, 2, 5, P.desk); rect(x, GR + 2, 8, 7, P.tree); }
     // 운동장: 체육 수업이면 학생들이 트랙을 돌아요
     frameBox(YARD.x, YARD.y, YARD.w, YARD.h, 1, "#FF8A1F"); plate("운동장", YARD.x + 18, YARD.y - 4, "#FF8A1F", WK.here === "yard");
-    if (SCHOOL && !BREAK && WK.here === "yard") for (let k = 0; k < 7; k++){ const a = T*1.4 + k*.9, sx = YARD.x + YARD.w/2 + Math.cos(a)*(YARD.w/2 - 8), sy = YARD.y + YARD.h/2 + Math.sin(a)*4 + 4; girl(Math.round(sx), Math.round(sy), 1, HAIR[k % HAIR.length], Math.floor(T*8 + k) % 2, Math.sin(a) > 0); }
+    if (SCHOOL && !BREAK && WK.here === "yard") for (let k = 0; k < 7; k++){ const a = T*1.4 + k*.9, sx = YARD.x + YARD.w/2 + Math.cos(a)*(YARD.w/2 - 8), sy = YARD.y + YARD.h/2 + Math.sin(a) + 4; girl(Math.round(sx), Math.round(sy), 1, HAIR[k % HAIR.length], Math.floor(T*8 + k) % 2, Math.sin(a) > 0); }
     [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, "#EDEDF5"); rect(x + 1, GR - 22, 6, 4, ["#FF5FAE","#FFD400","#FF8A1F"][i]); });
     if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GR); }
     P = keep;
