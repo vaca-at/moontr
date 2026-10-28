@@ -1758,7 +1758,8 @@ const PRESET = {
 const bellOf = lv => PRESET[lv].bell.map(([k, s, e]) => ({ k, s, e }));
 // 둘러보기(로그인 전)에 보여 주는 예시 선생님
 const DEMO_CFG = { friends:[{ id:"d1", name:"부장님", avatar:14, show:true, week:{ 1:{ 1:"2-3", 2:"2-5", 4:"3-2", 6:"2-1" }, 2:{ 2:"2-1", 3:"3-4", 5:"2-6" }, 3:{ 1:"2-6", 3:"2-2", 5:"3-1" }, 4:{ 2:"2-4", 3:"2-2", 6:"3-5" }, 5:{ 2:"3-3", 4:"2-4" } } }], name:"김쌤", level:"high", grades:3, classes:10, hr:"1-3",
-  hrWeek:{ 1:{ 4:"체육 운동장" }, 2:{ 3:"음악실", 6:"물리 과학실 / 화학 1-4 / 지구 1-6" }, 3:{ 2:"체육 운동장" }, 4:{ 5:"물리 과학실 / 화학 1-4 / 지구 1-6" }, 5:{ 1:"미술실" } },   // 🧒 우리 반 예시 (화 6교시 = 선택과목 세 곳)
+  hrWeek:{ 1:{ 1:"국어", 2:"수학", 3:"영어", 4:"체육 운동장", 5:"통합사회", 6:"한국사", 7:"과학탐구실험 과학실" }, 2:{ 1:"수학", 2:"국어", 3:"음악 음악실", 4:"영어", 5:"통합과학", 6:"물리 과학실 / 화학 1-4 / 지구 1-6" },
+    3:{ 1:"영어", 2:"체육 운동장", 3:"국어", 4:"수학", 5:"한국사", 6:"통합사회", 7:"자율활동" }, 4:{ 1:"통합과학", 2:"영어", 3:"수학", 4:"국어", 5:"물리 과학실 / 화학 1-4 / 지구 1-6", 6:"진로활동" }, 5:{ 1:"미술 미술실", 2:"미술 미술실", 3:"수학", 4:"영어", 5:"국어", 6:"통합사회" } },   // 🧒 우리 반 예시 (화 6 · 목 5교시 = 선택과목 세 곳, 빈칸 = 수업 없음)
   inT:"", outT:"", bell:bellOf("high"),
   week:{ 1:{1:"1-1",3:"1-3",4:"2-2",6:"1-5"}, 2:{2:"1-2",3:"1-4",5:"과학실"}, 3:{1:"1-6",4:"1-7",6:"2-3"}, 4:{2:"2-1",3:"1-1",5:"1-3"}, 5:{1:"1-5",3:"1-2",6:"과학실"} } };
 let CFG = null, ME = "선생님", HR = "", NGR = 3, NCLS = 10, IN_T = "08:10", OUT_T = "16:10", OFFICE_F = 2;   // OFFICE_F = 교무실이 있는 층 (2 · 3 · 4층, 🕘 시간표에서 골라요)
@@ -1944,7 +1945,7 @@ function classStateAt(d){
     const s = mm(a), e = mm(b);
     if (m >= s && m < e){
       if (p === "점심") return { place:"lunch", act:"점심시간 · 급식실", s, e, m, slot:"점심", p, lunch:true, groups:one("lunch") };
-      if (!/\d/.test(p)) return { place:H, act:`우리 반 ${p}`, s, e, m, slot:p, p, groups:one(H) };
+      if (!/\d/.test(p)) return { place:H, act:`${p} 중 · 우리 반 교실`, s, e, m, slot:p, p, groups:one(H) };   // 조회 중 · 종례 중
       const G = clsGroups(day, p);
       if (G[0].none) return { place:H, act:`${p}교시 · 수업 없음 (우리 반 교실)`, s, e, m, slot:`${p}교시`, p, groups:G, none:true };
       return { place:G[0].r, act:G.length > 1 ? `${p}교시 선택 · ${G.length}곳으로 나눠 수업` : `${p}교시 ${G[0].s ? G[0].s + " · " : ""}${G[0].r === H ? "우리 반 교실" : NAME(G[0].r)} 수업`, s, e, m, slot:`${p}교시`, p, groups:G };
@@ -2399,7 +2400,7 @@ function drawKids(S, st){
     if (w.leave) return;
     // 이름표: 나눠 가면 과목(없으면 교실), 반 전체면 '우리 반'
     // 반 전체면 지금 수업: '수학 시간' (가는 중이면 '→ 수학') · 쉬는 시간 · 점심 시간 · 조회 · 종례 · 하교
-    const subj = w.g && w.g.s, now1 = subj ? (w.walking ? `→ ${subj}` : `${subj} 시간`) : st.lunch ? "점심 시간" : st.brk ? "쉬는 시간" : st.none ? "수업 없음" : st.p && /\d/.test(st.p) ? `${st.p}교시` : st.slot || HR || "우리 반";
+    const subj = w.g && w.g.s, now1 = subj ? (w.walking ? `→ ${subj}` : `${subj} 시간`) : st.lunch ? "점심 시간" : st.brk ? "쉬는 시간" : st.none ? "수업 없음" : st.p === "조회" || st.p === "종례" ? `${st.p} 중` : st.p && /\d/.test(st.p) ? `${st.p}교시` : st.slot || HR || "우리 반";
     const tag = many ? (w.g.s || NAME(w.g.r)) : `🧒 ${now1}`, tw = Math.max(16, tag.length*4.6 + 6), ty = Math.round(w.pos.y - 13*s - 8);
     g.globalAlpha = .82; rect(Math.round(w.pos.x - tw/2), ty, Math.round(tw), 7, many ? "#2E6BD8" : "#D8435A"); g.globalAlpha = 1;
     txt(tag, Math.round(w.pos.x), ty + 3.5, 4.5, "#FFFFFF", "center");
@@ -2524,6 +2525,13 @@ const tower = port => (() => {
     } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (r.id === "음악실"){ rect(r.x + 4, fy - 12, 10, 6, "#0B0B12"); for (let k = 0; k < 4; k++) rect(r.x + 5 + k*2, fy - 11, 1, 3, "#EDEDF5");   /* 왼쪽 피아노 · 오른쪽 첼로 (떨어뜨려서) · ♪ 는 가운데 위 */
       const cx = r.x + r.w - 9; rect(cx + 1, fy - 24, 2, 2, "#3A2416"); rect(cx + 2, fy - 22, 1, 7, "#3A2416"); rect(cx, fy - 15, 5, 4, "#B5651D"); rect(cx + 1, fy - 11, 3, 1, "#8B4513"); rect(cx - 1, fy - 10, 7, 5, "#B5651D"); rect(cx + 2, fy - 21, 1, 15, "#F2E3B8"); rect(cx, fy - 9, 1, 2, "#3A2416"); rect(cx + 4, fy - 9, 1, 2, "#3A2416"); rect(cx + 2, fy - 5, 1, 4, "#9A9AAA");
       const ph = (T*.7) % 1; g.globalAlpha = 1 - ph*.6; txt(Math.floor(T*.7) % 2 ? "♫" : "♪", r.x + 9 + Math.sin(T*2.4)*2.5, fy - 15 - ph*7, 7, "#FFE14D", "center"); g.globalAlpha = 1; }   // 피아노 위에서 떠오르는 밝은 음표
+    if (r.id === "가사실"){   /* 책상 위 빵 · 전자레인지 (돌아가요: 창이 주황빛으로 깜빡 · 접시가 돌고 · 타이머 깜빡) */
+      const dy = fy - 8; rect(r.x + 3, dy, r.w - 6, 2, "#8B5A2B"); rect(r.x + 4, dy + 2, 1, 6, "#5A3A1C"); rect(r.x + r.w - 5, dy + 2, 1, 6, "#5A3A1C");
+      if (r.w >= 30){ const bx = r.x + 5; rect(bx, dy - 4, 9, 4, "#D9A066"); rect(bx + 1, dy - 5, 7, 1, "#C68A4C"); rect(bx + 2, dy - 4, 1, 1, "#A86A32"); rect(bx + 4, dy - 4, 1, 1, "#A86A32"); rect(bx + 6, dy - 4, 1, 1, "#A86A32"); }
+      const mx = r.x + r.w - 18, st = Math.floor(T*5); rect(mx, dy - 9, 14, 9, "#D8DCE6"); rect(mx + 1, dy - 8, 8, 7, "#1A1622");
+      g.globalAlpha = .55 + .35*Math.sin(T*6); rect(mx + 1, dy - 8, 8, 7, "#FFB84D"); g.globalAlpha = 1;
+      rect(mx + 2, dy - 3, 6, 1, "#EDEDF5"); rect(mx + 2 + st % 5, dy - 4, 2, 1, "#8B5A2B");
+      rect(mx + 10, dy - 8, 3, 7, "#9AA0B4"); if (st % 2) rect(mx + 10, dy - 7, 3, 1, "#5BEA6F"); rect(mx + 11, dy - 4, 1, 1, "#3A3F5C"); rect(mx + 11, dy - 2, 1, 1, "#3A3F5C"); }
     if (r.id === "컴퓨터실"){   /* 책상 위 컴퓨터 한 대: 화면에 코드 줄이 써지고 커서가 깜빡여요 */
       const dy = fy - 8, cx = Math.round(r.x + r.w/2 - 7); rect(r.x + 3, dy, r.w - 6, 2, "#8B5A2B"); rect(r.x + 4, dy + 2, 1, 6, "#5A3A1C"); rect(r.x + r.w - 5, dy + 2, 1, 6, "#5A3A1C");
       rect(cx, dy - 12, 14, 10, "#2A2A34"); rect(cx + 1, dy - 11, 12, 8, "#0B1A2A"); rect(cx + 6, dy - 2, 2, 2, "#2A2A34"); rect(cx + 2, dy - 1, 10, 1, "#C8CCD8");
@@ -5547,7 +5555,7 @@ function panel(d, st){
   $("tDay").textContent = `${DAYS[day]}요일${cls ? " · 🧒 우리 반" : ""}`;
   if (cls && CLASS_EMPTY && !EMPTY){ $("nNext").innerHTML = "🕘 시간표 › <b>🧒 우리 반</b> 탭에서 넣어 주세요"; $("tt").innerHTML = `<span class="ttempty">📭 우리 반 시간표를 아직 입력하지 않았어요<br><small>🕘 시간표 › 🧒 우리 반 탭에서 사진 · PDF · 엑셀 · 캡처로 넣을 수 있어요</small></span>`; return; }
   if (EMPTY){ $("nNext").innerHTML = "🕘 시간표에서 <b>내 시간표</b>를 넣어 주세요"; $("tt").innerHTML = `<span class="ttempty">📭 아직 등록된 시간표가 없어요<br><small>위 🕘 시간표에서 넣으면 여기에 오늘 시간표가 보여요</small></span>`; return; }
-  $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.map(([p, a, b]) => {
+  $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.filter(([p]) => !(cls && (p === "조회" || p === "종례"))).map(([p, a, b]) => {   // 🧒 우리 반 TODAY 엔 조회 · 종례 줄 없이
     const cur = m >= mm(a) && m < mm(b) ? "cur" : "", r = slotRoom(day, p);
     const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH((KIND[p] ? KIND[p] + " · " : "") + (cls && /\d/.test(p) ? classLabel(day, p) : NAME(r)))}</span>` : `<span class="free">${/\d/.test(p) ? (cls ? "수업 없음" : "공강") : "교무실"}</span>`;
     return `<span class="p ${cur}">${/\d/.test(p) ? p + "교시" : p}</span><span class="${cur}">${what}</span><span class="t">${a}</span>`;
@@ -6824,7 +6832,7 @@ function friendPane(f, nPer){
 // 🕘 시간표 창 맨 위: 지금 탭(내 시간표 · 우리 반 · 친한 선생님)의 전체 시간표 — 오늘 요일 · 지금 교시 강조, 학년별 색. 아래에서 고치면 바로 따라 바뀌어요
 function ttViewInner(){
   const bell = (ed.bell || []).filter(b => b && b.s && b.e).slice().sort((a, b) => mm(a.s) - mm(b.s)); let n = 0;
-  const rows = bell.map(b => ({ k:b.k, p:b.k === "수업" ? String(++n) : "", s:b.s, e:b.e }));
+  const rows = bell.map(b => ({ k:b.k, p:b.k === "수업" ? String(++n) : "", s:b.s, e:b.e })).filter(r => !(edTab === "hr" && (r.k === "조회" || r.k === "종례")));   // 우리 반 표엔 조회 · 종례 줄 없이
   if (!n) return `<p class="note" style="margin:0">아직 종 시간이 없어요. 아래 '종 시간'을 먼저 넣으면 여기에 전체 시간표가 보여요.</p>`;
   const F = typeof edTab === "number" ? (ed.friends || [])[edTab] : null, HRr = ed.hr || "";
   const now = new Date(), wd = now.getDay(), nm = now.getHours()*60 + now.getMinutes();
