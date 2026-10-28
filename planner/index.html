@@ -262,6 +262,8 @@ const HAIR = ["#2A1E1A","#3B2A20","#1A1A1A","#5A3A22","#2A2030"];
 const SEATS = Array.from({ length:40 }, () => ({ on:rnd() < .82, hair:HAIR[Math.floor(rnd()*5)], ph:rnd()*6, t:rnd() < .5, stay:rnd() < .35 }));
 const isClass = id => /^\d-./.test(id);   // "3-1" 같은 반 + "3-미도약" 같은 수업
 let T = 0, SCHOOL = false, NIGHT = false, BREAK = false, LUNCH = false;
+// 교실 자리에 앉아 있는 학생: 쉬는 시간엔 몇 명만 남고, 점심시간엔 다 나가요 (선생님은 교무실)
+const inSeat = sv => !LUNCH && inSeat(sv);
 
 // ===== 위에서 본 방 하나 (여러 구조가 같이 써요) =====
 // s = 픽셀 한 칸 크기(1~4). 작은 칸은 s=1, 큰 화면은 s=3처럼 같은 그림을 또렷하게 키워요
@@ -288,7 +290,7 @@ function frameBox(x, y, w, h, t, c){ rect(x, y, w, t, c); rect(x, y + h - t, w, 
 function seat(x, y, s, st, act, show){
   rect(x, y, 8*s, 2*s, P.deskTop); rect(x, y + 2*s, 8*s, s, P.desk);
   if (s >= 2){ rect(x + s, y, 3*s, s, "#F4F1E8"); rect(x + 5*s, y, s, s, P.board); }
-  if (show && st.on && (!BREAK || st.stay)){
+  if (show && st.on && inSeat(st)){
     const b = act ? Math.round(Math.sin(T*4 + st.ph)*.6) * s : 0;
     rect(x + s, y + 6*s + b, 6*s, 2*s, P.uni); rect(x + 2*s, y + 3*s + b, 4*s, 4*s, st.hair); rect(x + 2*s, y + 7*s + b, 4*s, s, st.hair);
     if (s >= 2 && st.ph > 3) rect(x + 3*s, y + 5*s + b, 2*s, s, "#D8435A");
@@ -520,7 +522,7 @@ const S1 = (() => {
       if (r.w >= 26){ rect(r.x + r.w - 10, y0 + 12, 6, 9, "#0B0B12"); rect(r.x + r.w - 9, y0 + 13, 4, 7, "#123A44"); }
       [[13,0],[20,0],[10,6],[17,6],[24,6]].forEach(([dx, dy], k) => {
         const x = r.x + Math.round(dx*sc) - 2, y = fy - 13 + dy, s = SEATS[(k + r.x) % SEATS.length];
-        if (SCHOOL && s.on && (!BREAK || s.stay)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x + 1, y - 3 + b, 2, 1, "#D7263D"); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
+        if (SCHOOL && s.on && inSeat(s)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x + 1, y - 3 + b, 2, 1, "#D7263D"); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
         rect(x - 1, y, 6, 2, c); rect(x, y + 2, 1, 3, shade(c, .55)); rect(x + 3, y + 2, 1, 3, shade(c, .55));   // 책상도 층 색
       });
       if (r.id === HR){ g.globalAlpha = .2; rect(r.x + 2, y0 + 2, r.w - 4, r.h - 6, P.hr); g.globalAlpha = 1; rect(r.x + r.w - 4, y0 - 7, 1, 9, "#EDEDF5"); rect(r.x + r.w - 3, y0 - 7, 5, 4, P.hr); }
@@ -780,7 +782,7 @@ const S3 = (() => {
         for (const v of [.46, .7, .92]) for (const u of [.22, .5, .78]){
           const sv = SEATS[(k++ + hashId(id)) % SEATS.length];
           items.push([u, v - .08, p => isoBox(p, 9, 3, P.deskTop, P.desk, shade(P.desk, .78))]);
-          if (SCHOOL && sv.on && (!BREAK || sv.stay)) items.push([u, v, p => person({ x:p.x, y:p.y + (act ? Math.round(Math.sin(T*4 + sv.ph)) : 0) }, sv.hair, P.uni, false)]);
+          if (SCHOOL && sv.on && inSeat(sv)) items.push([u, v, p => person({ x:p.x, y:p.y + (act ? Math.round(Math.sin(T*4 + sv.ph)) : 0) }, sv.hair, P.uni, false)]);
         }
         if (id === "1-10"){ const t = up(T, WH + 2); rect(t.x, t.y - 11, 1, 11, P.edge); rect(t.x + 1, t.y - 11, 7, 5, P.hr); }
       } else if (kind === "office"){
@@ -1082,7 +1084,7 @@ const S6 = (() => {
     for (let c = 0; c < cols; c++) for (let r = 0; r < 2; r++){
       const wx0 = x + 10 + c*24, wy0 = y + 22 + r*34, sv = SEATS[(c*2 + r + hashId(id)) % SEATS.length];
       let who = null;
-      if (SCHOOL && cls && sv.on && (!BREAK || sv.stay)) who = { hair:sv.hair };
+      if (SCHOOL && cls && sv.on && inSeat(sv)) who = { hair:sv.hair };
       if (SCHOOL && id === "office" && (BREAK || sv.t)) who = { hair:sv.hair, shirt:["#6B7FA8","#A8746B","#6BA88A"][c % 3] };
       if (SCHOOL && id === "lunch" && LUNCH && sv.on) who = { hair:sv.hair };
       win(wx0, wy0, 16, 22, who);

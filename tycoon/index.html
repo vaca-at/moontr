@@ -466,6 +466,14 @@ table.tv tr.tv-now td.tv-td{background:color-mix(in srgb,var(--accent) 30%,trans
 .chglist li.none{display:block;color:var(--muted);font-size:12px}
 .hshort{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;margin:8px 0 2px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;cursor:pointer}
 .hshort small{flex-basis:100%;color:var(--muted);font-size:12px}
+.kidset{margin:8px 0 2px;padding:10px;border:1px dashed var(--line);border-radius:8px}
+.kidset > small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.kidsex{display:flex;gap:14px;margin:8px 0}
+.kidpick .avrow{grid-template-columns:96px repeat(8,minmax(0,1fr))}
+.kidpick .avrow + .avrow{margin-top:8px;padding-top:8px;border-top:1px dashed #C9CEDC}
+.kidpick .av svg{width:22px}
+.kidpick .av::before{top:calc(8px + 37.7px - 4px)}
+@media (max-width:560px){ .kidpick .avrow{grid-template-columns:repeat(4,minmax(0,1fr))} .kidpick .av svg{width:20px} .kidpick .av::before{top:calc(8px + 34.3px - 4px)} }
 .privnote{margin:6px 0;padding:7px 10px;border-radius:8px;border:1px dashed var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}
 .privnote b{color:var(--ink)}
 /* 🕘 시간표 창 › 🧒 우리 반 탭: 칸 + 나눠 가기 ＋ */
@@ -1848,7 +1856,7 @@ function applyConfig(cfg){
   TT = {};
   for (let d = 1; d <= 5; d++){ TT[d] = {}; Object.entries((cfg.week || {})[d] || {}).forEach(([p, r]) => { r = String(r || "").trim().slice(0, 12); if (r && per.has(String(p))) TT[d][p] = r; }); }
   // 🧒 우리 반 시간표 (과목만 = 우리 반 교실 · 비운 칸 = 수업 없음)
-  CLASS_G = {}; CLASS_BASE = {}; HR_SHORT = !!cfg.hrShort;   // 과목 이름 줄여서 보여 주기
+  CLASS_G = {}; CLASS_BASE = {}; HR_SHORT = !!cfg.hrShort; KIDS = cleanKids(cfg.kids);   // 과목 이름 줄여서 보여 주기 · 학생 교복
   CLASS_EMPTY = !Object.values(cfg.hrWeek || {}).some(o => Object.values(o || {}).some(v => String(v || "").trim()));   // 우리 반 시간표를 아직 안 적었어요
   for (let d = 1; d <= 5; d++){ CLASS_G[d] = {}; CLASS_BASE[d] = {}; per.forEach(p => { const G = shortG(parseCls(((cfg.hrWeek || {})[d] || {})[p]).map(g => ({ ...g, r:g.r || clsHome() }))), none = clsNone(G), G2 = none ? NONE_G() : G; CLASS_G[d][p] = G2; CLASS_BASE[d][p] = none ? "" : G2.length > 1 ? `선택 ${G2.length}곳` : G2[0].s || G2[0].r; }); }   // 화면 글엔 과목(없으면 교실) · 빈칸 = 수업 없음
   MY_BASE = {}; for (const w in TT) MY_BASE[w] = { ...TT[w] };
@@ -1919,6 +1927,13 @@ let HR_SHORT = false;
 const SUBJ_SHORT = { "과학탐구실험":"과탐실", "통합사회":"통사", "통합과학":"통과" };
 const shortSubj = s => { const t0 = String(s || "").trim(), t = t0.replace(/\s*[0-9ⅠⅡⅢⅣ]+$/, "").replace(/^공통\s*/, ""); return SUBJ_SHORT[t] || t.replace(/활동$/, "") || t0; };
 const shortG = G => HR_SHORT ? G.map(g => ({ ...g, s:g.s ? shortSubj(g.s) : g.s })) : G;
+/* 🧒 우리 학교 학생 (🕘 시간표 › 🧒 우리 반 탭): 남학생 · 여학생 · 둘 다(공학), 교복 색은 남 · 여 따로 */
+// 교복: [이름, 윗옷, 바지 · 치마] — 기본은 화면 색
+const UNI = { def:["기본", "", ""], gray:["회색", "#8C9099", "#5A5E68"], navy:["남색", "#2B3A67", "#1E2A4A"], black:["검정", "#2E2E36", "#1A1A20"], wine:["자주", "#7A2E45", "#4A2030"], green:["초록", "#2F6B4E", "#23402F"], beige:["베이지", "#C9B48C", "#7A6A4A"], sky:["하늘", "#7FB2E0", "#3D5A80"] };
+const cleanKids = o => ({ sex:["m", "f", "mf"].includes(o && o.sex) ? o.sex : "mf", b:UNI[o && o.b] ? o.b : "def", g:UNI[o && o.g] ? o.g : "def" });
+let KIDS = cleanKids();
+const uniCol = who => { const u = UNI[KIDS[who]] || UNI.def; return { c:u[1] || P.uni, k:u[2] || P.skirt }; };
+const kidBoy = k => KIDS.sex === "m" || (KIDS.sex === "mf" && k % 2 === 1);   // 공학이면 남 · 여 번갈아
 const SUBJ_ROOM = [[/^(체육|스포츠)/, "운동장"], [/^음악/, "음악실"], [/^미술/, "미술실"], [/^(정보|컴퓨터)/, "컴퓨터실"]];
 const parseCls = v => String(v || "").split("/").map(x => x.trim()).filter(Boolean).slice(0, 4).map(x => {
   x = x.replace(/우리\s*반(\s*교실)?|담임\s*반|반\s*교실/g, "교실").trim();   // '교실' · '우리 반' = 우리 반 교실 (이동수업 없이 교실에 있어요)
@@ -2104,6 +2119,8 @@ const TUFTS = Array.from({ length:90 }, () => [Math.floor(rnd()*W), Math.floor(r
 const HAIR = ["#2A1E1A","#3B2A20","#1A1A1A","#5A3A22","#2A2030"];
 const SEATS = Array.from({ length:40 }, () => ({ on:rnd() < .82, hair:HAIR[Math.floor(rnd()*5)], ph:rnd()*6, t:rnd() < .5, stay:rnd() < .35 }));
 let T = 0, SCHOOL = false, NIGHT = false, BREAK = false, LUNCH = false;
+// 교실 자리에 앉아 있는 학생: 쉬는 시간엔 몇 명만 남고, 점심시간엔 다 나가요 (선생님은 교무실)
+const inSeat = sv => !LUNCH && (!BREAK || sv.stay);
 
 // ===== 위에서 본 방 하나 (여러 구조가 같이 써요) =====
 // s = 픽셀 한 칸 크기(1~4). 작은 칸은 s=1, 큰 화면은 s=3처럼 같은 그림을 또렷하게 키워요
@@ -2130,7 +2147,7 @@ function frameBox(x, y, w, h, t, c){ rect(x, y, w, t, c); rect(x, y + h - t, w, 
 function seat(x, y, s, st, act, show){
   rect(x, y, 8*s, 2*s, DESKC || P.deskTop); rect(x, y + 2*s, 8*s, s, DESKC ? shade(DESKC, .55) : P.desk);   // NEON 2: 책상도 반 색
   if (s >= 2){ rect(x + s, y, 3*s, s, "#F4F1E8"); rect(x + 5*s, y, s, s, P.board); }
-  if (show && st.on && (!BREAK || st.stay)){
+  if (show && st.on && inSeat(st)){
     const b = act ? Math.round(Math.sin(T*4 + st.ph)*.6) * s : 0;
     rect(x + s, y + 6*s + b, 6*s, 2*s, P.uni); rect(x + 2*s, y + 3*s + b, 4*s, 4*s, st.hair); rect(x + 2*s, y + 7*s + b, 4*s, s, st.hair);
     if (s >= 2 && st.ph > 3) rect(x + 3*s, y + 5*s + b, 2*s, s, "#D8435A");
@@ -2171,7 +2188,7 @@ function topRoom(x, y, w, h, id, o = {}){
       const st = SEATS[(r*7 + c*3 + hid) % SEATS.length];
       seat(gx + c*11*s, gy + r*11*s, s, st, o.act, o.school);
     }
-    if (o.school && BREAK && rows > 0){ const by = Math.min(gy + rows*11*s - s, y + h - 2*s); girl(x + 5*s, by, s, SEATS[hid % SEATS.length].hair, 2, false); girl(x + 11*s, by, s, SEATS[(hid + 3) % SEATS.length].hair, 2, true); }
+    if (o.school && BREAK && rows > 0){ const by = Math.min(gy + rows*11*s - s, y + h - 2*s); student(x + 5*s, by, s, SEATS[hid % SEATS.length].hair, 2, false, 0); student(x + 11*s, by, s, SEATS[(hid + 3) % SEATS.length].hair, 2, true, 1); }
     if (HR && id === HR){ g.globalAlpha = .18; rect(x, y + wh, w, h - wh, P.hr); g.globalAlpha = 1; rect(x + w - 5*s, y + s, s, 5*s, P.edge); rect(x + w - 4*s, y + s, 3*s, 2*s, P.hr); }
     if (!TAUGHT.has(id)){ g.globalAlpha = .45; rect(x, y, w, h, P.base); g.globalAlpha = 1; }
   } else if (k === "office"){
@@ -2206,7 +2223,7 @@ function topRoom(x, y, w, h, id, o = {}){
     if (o.school && BREAK){
       const I0 = O.isl[0];
       [[I0.x + O.IW + 9*s, I0.y + O.IH + 4*s], [cx + 8*s, y + h - 2*s], [I0.x + O.IW + 5*s, y + h - 3*s]].forEach(([vx, vy], k3) => {
-        if (vx > x + 3*s && vx < x + w - 3*s) girl(vx, Math.min(vy, y + h - s), s, SEATS[(k3*5 + 2) % SEATS.length].hair, 2, k3 !== 1);
+        if (vx > x + 3*s && vx < x + w - 3*s) student(vx, Math.min(vy, y + h - s), s, SEATS[(k3*5 + 2) % SEATS.length].hair, 2, k3 !== 1, k3);
       });
     }
   } else if (k === "home"){
@@ -2276,18 +2293,26 @@ function avatarSvg(i){
   rows.forEach((line, y) => [...line].forEach((ch, x) => { if (ch !== ".") r += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${a.col[ch]}"/>`; }));
   return `<svg viewBox="0 0 10 14" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
 }
+// 🧒 우리 학교 학생 고르는 칸 그림 (남 · 여 × 교복 색)
+function kidSvg(boy, u){
+  const [, c, k] = UNI[u] || UNI.def, col = { h:"#2B1D16", s:"#FFCFA8", e:"#1A1622", w:"#FFFFFF", r:"#D8435A", c:c || P.uni, k:k || P.skirt, b:"#1A1622" }; let r = "";
+  [...(boy ? BOY : GIRL), ...(boy ? BLEG : GLEG)[2]].forEach((line, y) => [...line].forEach((ch, x) => { if (ch !== ".") r += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${col[ch]}"/>`; }));
+  return `<svg viewBox="0 0 7 12" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
+}
 // 캐릭터 고르는 판 (머리 모양 4줄 × 옷 색 5칸) — attr: 단추에 붙일 data- 이름, sel: 지금 고른 번호
 function avatarGrid(attr, sel){
   const ROWS = ["남 · 짧은 머리", "남 · 조금 긴 머리", "여 · 긴 머리", "여 · 단발"];
   return `<div class="avpick">${ROWS.map((t, row) => `<div class="avrow"><span class="avlab">${t}</span>${AV_COLS.map(([cn], j) => { const i = avIdx(row, j), on = i === (+sel || 0);
     return `<button type="button" class="av${on ? " on" : ""}" data-${attr}="${i}" aria-label="${avatarDef(i).name}" aria-pressed="${on}">${avatarSvg(i)}<small>${cn}</small></button>`; }).join("")}</div>`).join("")}</div>`;
 }
-/* 여고 학생 (7×12 픽셀: 긴 머리 · 빨간 리본 · 교복 치마) */
-const GIRL = ["..hhh..", ".hhhhh.", ".hsssh.", ".heseh.", ".hsssh.", ".hwrwh.", ".ccccc.", "scccccs", ".kkkkk.", ".kkkkk."];
+// 학생 한 명: 남학교 · 여학교 · 공학(남 · 여 번갈아) 설정대로
+function student(x, y, s, hair, frame = 2, flip = false, k = 0){ (kidBoy(k) ? boyKid : girl)(x, y, s, hair, frame, flip); }
+/* 여학생 (7×12 픽셀: 긴 머리 · 빨간 리본 · 교복 치마) */
+const GIRL =["..hhh..", ".hhhhh.", ".hsssh.", ".heseh.", ".hsssh.", ".hwrwh.", ".ccccc.", "scccccs", ".kkkkk.", ".kkkkk."];
 const GLEG = [[".s...s.", ".b...b."], ["..s.s..", "..b.b.."], ["..s.s..", "..b.b.."]];
 function girl(x, y, s, hair, frame = 2, flip = false){
   if (frame === 2){ const ph = Math.sin(T*1.3 + x*.41 + y*.17); if (ph > .8) y -= s; if (Math.sin(T*.5 + x*.3) > .85) flip = !flip; }   // 가만히 있어도 가끔 콩 · 두리번
-  const col = { h:hair, s:P.skin, e:"#1A1622", w:"#FFFFFF", r:"#D8435A", c:P.uni, k:P.skirt, b:"#1A1622" };
+  const u = uniCol("g"), col = { h:hair, s:P.skin, e:"#1A1622", w:"#FFFFFF", r:"#D8435A", c:u.c, k:u.k, b:"#1A1622" };
   g.globalAlpha = .3; rect(x - 3*s, y - s, 7*s, 2*s, "#000"); g.globalAlpha = 1;
   [...GIRL, ...GLEG[frame]].forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(x + ((flip ? 6 - i : i) - 3)*s, y + (j - 12)*s, s, s, col[ch]); }));
 }
@@ -2299,7 +2324,7 @@ function crowd(seed, n, x0, x1, y, s = 1){
     const sd = SEATS[(seed + k*7) % SEATS.length], sp = 9 + (k*13) % 9;
     const t = (T*sp + sd.ph*97 + k*53) % (2*len), fwd = t < len, still = k % 4 === 3;
     const x = still ? x0 + ((k*61 + seed*17) % len) : x0 + (fwd ? t : 2*len - t);
-    girl(Math.round(x), Math.round(y + (k % 3) - 1), s, sd.hair, still ? 2 : Math.floor(T*6 + k) % 2, still ? k % 2 === 0 : !fwd);
+    student(Math.round(x), Math.round(y + (k % 3) - 1), s, sd.hair, still ? 2 : Math.floor(T*6 + k) % 2, still ? k % 2 === 0 : !fwd, k);
   }
 }
 function bubble(s, x, y, size = 6){
@@ -2383,7 +2408,7 @@ const BOY = ["..hhh..", ".hhhhh.", ".hsssh.", ".seses.", ".sssss.", "..sws..", "
 const BLEG = [[".k...k.", ".b...b."], ["..k.k..", "..b.b.."], ["..k.k..", "..b.b.."]];
 function boyKid(x, y, s, hair, frame = 2, flip = false){
   if (frame === 2){ if (Math.sin(T*1.3 + x*.41 + y*.17) > .8) y -= s; if (Math.sin(T*.5 + x*.3) > .85) flip = !flip; }
-  const col = { h:hair, s:P.skin, e:"#1A1622", w:"#FFFFFF", c:P.uni, k:P.skirt, b:"#1A1622" };
+  const u = uniCol("b"), col = { h:hair, s:P.skin, e:"#1A1622", w:"#FFFFFF", c:u.c, k:u.k, b:"#1A1622" };
   g.globalAlpha = .3; rect(x - 3*s, y - s, 7*s, 2*s, "#000"); g.globalAlpha = 1;
   [...BOY, ...BLEG[frame]].forEach((line, j) => [...line].forEach((ch, i) => { if (ch !== ".") rect(x + ((flip ? 6 - i : i) - 3)*s, y + (j - 12)*s, s, s, col[ch]); }));
 }
@@ -2395,7 +2420,7 @@ function drawKids(S, st){
     if (!w.pos) return;
     KOFF.slice(0, w.n).map(([dx, dy], k) => [dx, dy, k]).sort((a, b) => a[1] - b[1]).forEach(([dx, dy, k]) => {
       const x = Math.round(w.pos.x + dx*s*.8), y = Math.round(w.pos.y + dy*s*.6), fr = w.walking ? Math.floor(T*8 + k) % 2 : 2;
-      ((k + gi) % 2 ? boyKid : girl)(x, y, s, KID_HAIR[(k + gi*2) % KID_HAIR.length], fr, w.walking ? w.flip : k % 2 === 0);
+      student(x, y, s, KID_HAIR[(k + gi*2) % KID_HAIR.length], fr, w.walking ? w.flip : k % 2 === 0, k + gi);
     });
     if (w.leave) return;
     // 이름표: 나눠 가면 과목(없으면 교실), 반 전체면 '우리 반'
@@ -2495,7 +2520,7 @@ const tower = port => (() => {
       if (r.w >= 26){ rect(r.x + r.w - 10, y0 + 12, 6, 9, "#0B0B12"); rect(r.x + r.w - 9, y0 + 13, 4, 7, "#123A44"); }
       [[13,0],[20,0],[10,6],[17,6],[24,6]].forEach(([dx, dy], k) => {
         const x = r.x + Math.round(dx*sc) - 2, y = fy - 13 + dy, s = SEATS[(k + Math.round(r.x)) % SEATS.length];
-        if (SCHOOL && s.on && (!BREAK || s.stay)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0; rect(x, y - 3 + b, 4, 3, P.uni); rect(x + 1, y - 3 + b, 2, 1, "#D7263D"); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); }
+        if (SCHOOL && s.on && inSeat(s)){ const b = act ? Math.round(Math.sin(T*4 + s.ph)) : 0, bo = kidBoy(k); rect(x, y - 3 + b, 4, 3, uniCol(bo ? "b" : "g").c); if (!bo) rect(x + 1, y - 3 + b, 2, 1, "#D7263D"); rect(x, y - 6 + b, 4, 3, P.skin); rect(x, y - 7 + b, 4, 2, s.hair); if (!bo){ rect(x - 1, y - 6 + b, 1, 4, s.hair); rect(x + 4, y - 6 + b, 1, 4, s.hair); } }
         rect(x - 1, y, 6, 2, c); rect(x, y + 2, 1, 3, shade(c, .55)); rect(x + 3, y + 2, 1, 3, shade(c, .55));   // 책상도 층 색
       });
       if (r.id === HR){ g.globalAlpha = .2; rect(r.x + 2, y0 + 2, r.w - 4, r.h - 6, P.hr); g.globalAlpha = 1; rect(r.x + r.w - 4, y0 - 7, 1, 9, "#EDEDF5"); rect(r.x + r.w - 3, y0 - 7, 5, 4, P.hr); }
@@ -2517,7 +2542,7 @@ const tower = port => (() => {
         rect(ix + iw/2 + 2, y - 5, 5, 4, P.edge); rect(ix + iw/2 + 3, y - 4, 3, 2, P.glass);
       });
       txt("★", r.x + 8, fy - 24, 6, P.hr, "center");
-      if (SCHOOL && BREAK){ girl(r.x + 23, fy - 1, 1, HAIR[1], 2, true); girl(r.x + 41, fy - 1, 1, HAIR[3], 2, true); }
+      if (SCHOOL && BREAK){ student(r.x + 23, fy - 1, 1, HAIR[1], 2, true, 0); student(r.x + 41, fy - 1, 1, HAIR[3], 2, true, 1); }
     } else if (r.id === "gate"){
       const dh = Math.min(32, r.h - 14), gy = port ? fy - dh : y0 + 14;   // 세로 그림은 줄이 낮아서 현관문도 조금 낮게
       const gx = r.x + (port ? 10 : 8);
@@ -2634,7 +2659,7 @@ const tower = port => (() => {
     // 운동장: 체육 수업이면 학생들이 트랙을 돌아요 (세로는 넓은 타원 트랙)
     if (port){ g.globalAlpha = .35; rect(YARD.x + 4, YARD.y + 4, YARD.w - 8, YARD.h - 8, "#B5553A"); g.globalAlpha = 1; rect(YARD.x + 9, YARD.y + 9, YARD.w - 18, YARD.h - 18, P.yard); }
     frameBox(YARD.x, YARD.y, YARD.w, YARD.h, 1, "#FF8A1F"); plate("운동장", YARD.x + 18, YARD.y - 4, "#FF8A1F", WK.here === "yard");
-    if (SCHOOL && !BREAK && WK.here === "yard") for (let k = 0; k < 7; k++){ const a = T*1.4 + k*.9, sx = YARD.x + YARD.w/2 + Math.cos(a)*(YARD.w/2 - 8), sy = YARD.y + YARD.h/2 + Math.sin(a)*(YARD.h/2 - 5) + 4; girl(Math.round(sx), Math.round(sy), 1, HAIR[k % HAIR.length], Math.floor(T*8 + k) % 2, Math.sin(a) > 0); }
+    if (SCHOOL && !BREAK && WK.here === "yard") for (let k = 0; k < 7; k++){ const a = T*1.4 + k*.9, sx = YARD.x + YARD.w/2 + Math.cos(a)*(YARD.w/2 - 8), sy = YARD.y + YARD.h/2 + Math.sin(a)*(YARD.h/2 - 5) + 4; student(Math.round(sx), Math.round(sy), 1, HAIR[k % HAIR.length], Math.floor(T*8 + k) % 2, Math.sin(a) > 0, k); }
     [GX - 16, GX + 12, GX + 18].forEach((x, i) => { rect(x, GR - 22, 1, 30, "#EDEDF5"); rect(x + 1, GR - 22, 6, 4, ["#FF5FAE","#FFD400","#FF8A1F"][i]); });
     if (NIGHT){ g.fillStyle = P.night; g.fillRect(0, 0, W, GR); }
     P = keep;
@@ -2760,7 +2785,7 @@ const board = port => (() => {
     if (id === "운동장"){
       rect(x + 3, y + 3, w - 6, h - 6, P.trackA); rect(x + 9, y + 8, w - 18, h - 16, P.trackIn);
       g.strokeStyle = "#F4F1E8"; g.lineWidth = 1; g.strokeRect(x + 5.5, y + 5.5, w - 11, h - 11); rect(x + w/2, y + 8, 1, h - 16, "#F4F1E8");
-      girl(x + 16 + Math.round(Math.sin(T*1.3)*8), y + h - 6, 1, HAIR[0], Math.floor(T*6) % 2, Math.cos(T*1.3) < 0);
+      student(x + 16 + Math.round(Math.sin(T*1.3)*8), y + h - 6, 1, HAIR[0], Math.floor(T*6) % 2, Math.cos(T*1.3) < 0, 0);
     } else if (id === "정문"){
       rect(x, y, w, h, P.ground); rect(x + w/2 - 7, y, 14, h, P.path);
       rect(x + w/2 - 14, y + 6, 5, h - 9, P.wallTop); rect(x + w/2 + 9, y + 6, 5, h - 9, P.wallTop); rect(x + w/2 - 14, y + 4, 28, 4, P.wall);
@@ -2938,7 +2963,7 @@ const sideScroll = port => (() => {
     for (let c = 0; c < cols; c++) for (let r = 0; r < 2; r++){
       const wx0 = x + 10 + c*24, wy0 = y + 22 + r*34, sv = SEATS[(c*2 + r + hashId(id)) % SEATS.length];
       let who = null;
-      if (SCHOOL && cls && sv.on && (!BREAK || sv.stay)) who = { hair:sv.hair };
+      if (SCHOOL && cls && sv.on && inSeat(sv)) who = { hair:sv.hair };
       if (SCHOOL && id === "office" && (BREAK || sv.t)) who = { hair:sv.hair, shirt:["#6B7FA8","#A8746B","#6BA88A"][c % 3] };
       if (SCHOOL && id === "lunch" && LUNCH && sv.on) who = { hair:sv.hair };
       win(wx0, wy0, 16, 22, who);
@@ -6171,7 +6196,7 @@ function openBoard(){
     if (!s.exists()){ gone(); return; }
     document.querySelector(".boardmsg")?.remove();
     const b = s.data();
-    window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {} });
+    window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {}, kids:b.kids });
     window.DESK.setDayTT(b.dayTT || {}, b.dayKind || {}); window.DESK.setHrDayTT(b.hrDayTT || {}); window.DESK.setAvatar(b.avatar || 0); window.DESK.setTodos([]); window.DESK.setFriends([]); setMode("class");   // 나 + 우리 반
     if (b.loc){ BOARD_LOC = b.loc; loadWeather(true); }   // 창밖 날씨만 (시 · 군)
     dispatchEvent(new Event("resize"));   // 게임 화면을 칠판 크기에 맞춰요
@@ -6973,8 +6998,25 @@ function classPane(nPer){
     ${ed.hr ? "" : `<p class="err">⚙️ 설정 › 계정 · 내 정보에서 <b>담임 반</b>을 먼저 적어 주세요. 담임 반이 있어야 🧒 우리 반 모드에 아이들이 보여요.</p>`}
     <div class="wk hwk">${nPer ? wk : `<p class="note">먼저 '내 시간표' 탭에서 종 시간을 넣어 주세요.</p>`}</div>
     <label class="chk hshort"><input type="checkbox" id="hShort" ${ed.hrShort ? "checked" : ""}> <b>과목 이름 줄여서 보여 주기</b> <small>공통국어2 → 국어 · 과학탐구실험2 → 과탐실 · 통합사회2 → 통사 · 자율활동 → 자율 · 진로활동 → 진로 (저장된 이름은 그대로, 화면 · 게임 · 전자칠판에서만 짧게)</small></label>
+    ${kidsPick()}
     <p class="note" id="hPrev" aria-live="polite"></p>`;
 }
+// 🧒 우리 학교 학생: 남학생 · 여학생 체크 (둘 다 = 남녀 공학) · 남 · 여 교복 색 ([저장]하면 게임 · 전자칠판 아이들이 이 모습)
+function kidsPick(){
+  const K = cleanKids(ed.kids), m = K.sex !== "f", f = K.sex !== "m";
+  const row = (w, boy, lab) => `<div class="avrow"><span class="avlab">${lab}</span>${Object.entries(UNI).map(([u, [n]]) => { const on = K[w] === u;
+    return `<button type="button" class="av${on ? " on" : ""}" data-kuni="${w}:${u}" aria-label="${lab} ${n}" aria-pressed="${on}">${kidSvg(boy, u)}<small>${n}</small></button>`; }).join("")}</div>`;
+  return `<div class="kidset"><b>🧒 우리 학교 학생</b> <small>게임 속 아이들 모습이에요. 둘 다 고르면 남녀 공학 (남 · 여 번갈아 걸어요)</small>
+    <div class="kidsex"><label class="chk"><input type="checkbox" id="kSexM" ${m ? "checked" : ""}> 👦 남학생</label><label class="chk"><input type="checkbox" id="kSexF" ${f ? "checked" : ""}> 👧 여학생</label></div>
+    <div class="avpick kidpick">${m ? row("b", true, "👦 남학생 교복") : ""}${f ? row("g", false, "👧 여학생 교복") : ""}</div></div>`;
+}
+$("edBody").addEventListener("click", e => { const b = e.target.closest("[data-kuni]"); if (!b || edTab !== "hr") return; const [w, u] = b.dataset.kuni.split(":"); ed.kids = { ...cleanKids(ed.kids), [w]:u }; renderEdit(); });
+$("edBody").addEventListener("change", e => {
+  if (!/^kSex[MF]$/.test(e.target.id) || edTab !== "hr") return;
+  const m = $("kSexM").checked, f = $("kSexF").checked;
+  if (!m && !f){ e.target.checked = true; return; }   // 하나는 꼭 골라요
+  ed.kids = { ...cleanKids(ed.kids), sex:m && f ? "mf" : m ? "m" : "f" }; renderEdit();
+});
 const hPrevOf = (d, p, v) => { const G = window.DESK.parseCls(v); return !G.length ? `${H_DAYS[d]} ${p}교시 → 우리 반 교실` : `${H_DAYS[d]} ${p}교시 → ` + G.map(g => `${g.s ? g.s + ": " : ""}${g.r || "우리 반 교실"}`).join(" · ") + (G.length > 1 ? ` (${G.length}무리로 나눠 가요)` : ""); };
 // 저장할 때: 월~금 · 숫자 교시 · 60자까지
 // 반 이름만 적힌 칸(예전에 '1-10'으로 채워진 칸)은 '수업 없음'이라 지워요
@@ -7332,7 +7374,7 @@ async function saveEdit(){
   readEdit();
   const notes = fixEdit();
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), hrShort:!!ed.hrShort, officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), hrShort:!!ed.hrShort, kids:cleanKids(ed.kids), officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   ["loc", "school", "board", "hrDayTT"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치 · 📺 전자칠판 링크는 그대로
   let tag = finalTag(ed.tag, out.name); if (!/^[A-Z][A-Z0-9]{1,11}$/.test(tag)) tag = "TEACHER";
   if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT, out.dayKind); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
@@ -8044,9 +8086,11 @@ $("chgList").addEventListener("click", e => { const b = e.target.closest("[data-
 // '과목 이름 줄여서 보여 주기'를 켰으면 칠판엔 미리 줄여서 올려요 (규칙에 새 칸을 더하지 않게). 줄인 이름이 '과탐실'처럼 교실 같으면 '교실'을 붙여 우리 반 교실로
 const shortCell = v => String(v || "").split("/").map(x => { const w = x.trim().split(/\s+/).filter(Boolean); if (!w.length) return ""; const last = w[w.length - 1], roomy = ROOMISH.test(last) || last === "교실", subj = (roomy ? w.slice(0, -1) : w).join(" "); if (!subj) return x.trim(); let s2 = shortSubj(subj); if (!roomy && ROOMISH.test(s2)) s2 += " 교실"; return roomy ? `${s2} ${last}` : s2; }).filter(Boolean).join(" / ");
 const shortMap = W => Object.fromEntries(Object.entries(W || {}).map(([k, o]) => [k, Object.fromEntries(Object.entries(o || {}).map(([p, v]) => [p, shortCell(v)]))]));
-const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrShort ? shortMap(cfg.hrWeek) : cfg.hrWeek || {}, hrDayTT:cfg.hrShort ? shortMap(cfg.hrDayTT) : cfg.hrDayTT || {}, loc:cfg.loc || null, at:Date.now() });
+const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrShort ? shortMap(cfg.hrWeek) : cfg.hrWeek || {}, hrDayTT:cfg.hrShort ? shortMap(cfg.hrDayTT) : cfg.hrDayTT || {}, kids:cleanKids(cfg.kids), loc:cfg.loc || null, at:Date.now() });
+// 칠판에 올리기: 보안 규칙에 '학생 교복(kids)' 칸을 아직 게시하지 않았으면 그 칸만 빼고 다시 올려요
+const putBoard = tok => setDoc(doc(db, "desk_board", tok), boardData()).catch(() => { const d = boardData(); delete d.kids; return setDoc(doc(db, "desk_board", tok), d); });
 const boardUrl = (tok, home) => home ? `https://moontr.site/?board=${tok}` : `https://moontr.site/tycoon/?board=${tok}#1`;
-const syncBoard = () => { if (cfg && cfg.board && !demo) setDoc(doc(db, "desk_board", cfg.board), boardData()).catch(() => {}); };   // 시간표 · 학교를 저장할 때마다 칠판도
+const syncBoard = () => { if (cfg && cfg.board && !demo) putBoard(cfg.board).catch(() => {}); };   // 시간표 · 학교를 저장할 때마다 칠판도
 let boardMsg = "";
 function boardForm(){
   const tok = cfg && cfg.board;
@@ -8065,7 +8109,7 @@ async function boardAct(k){
   try {
     if (cfg.board && (k === "cut" || k === "new")) await deleteDoc(doc(db, "desk_board", cfg.board)).catch(() => {});
     let tok = null;
-    if (k === "make" || k === "new"){ const a = new Uint8Array(24); crypto.getRandomValues(a); tok = [...a].map(x => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"[x % 56]).join(""); cfg.board = tok; await setDoc(doc(db, "desk_board", tok), boardData()); }
+    if (k === "make" || k === "new"){ const a = new Uint8Array(24); crypto.getRandomValues(a); tok = [...a].map(x => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"[x % 56]).join(""); cfg.board = tok; await putBoard(tok); }
     cfg.board = tok; await setDoc(doc(db, "desk_users", deskId, "data", "main"), { board:tok }, { merge:true });
     boardMsg = tok ? (k === "new" ? "새 링크로 바꿨어요 ✓ 예전 링크는 이제 안 열려요" : "링크를 만들었어요 ✓ 아래 주소를 전자칠판에서 열어 주세요") : "링크를 끊었어요 ✓ 칠판에서 이제 안 보여요";
   } catch (e){ boardMsg = "하지 못했어요: " + saveErr(e) + " (Firestore 보안 규칙을 게시했는지 확인해 주세요)"; }
