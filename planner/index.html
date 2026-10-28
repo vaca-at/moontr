@@ -451,7 +451,7 @@ const frameNo = () => WK.walking ? Math.floor(T*8) % 2 : 2;
 const bubText = st => WK.walking ? "🚶 이동 중" : st.place === "home" ? (st.slot === "주말" ? "🛋 주말" : "🏠 " + st.slot) : st.act.replace(" 중", "");
 
 /* ===================== 실제 건물 (앞에서 본 층 배치) ===================== */
-// 2층: 11반 … 6반 | 계단 | 교무실 | 계단 | 5반 … 1반 (3층 2학년 · 4층 3학년도 같은 순서), 1층: 행정실 · 현관 · 교장실(자리는 짐작)
+// 2층: 11반 … 6반 | 계단 | 교무실 | 계단 | 5반 … 1반 (3층 2학년 · 4층 3학년도 같은 순서), 1층: 가사실 · 과학실 · 미술실 · 음악실 · 교장실 · 현관 · 특별교실1 · 특별교실2 · 보건실 · 컴퓨터실 · 동아리실
 const ORDER = g2 => [`${g2}-11`,`${g2}-10`,`${g2}-9`,`${g2}-8`,`${g2}-7`,`${g2}-6`,"|", g2 === 1 ? "office" : `c${g2}`, "|", `${g2}-5`,`${g2}-4`,`${g2}-3`,`${g2}-2`,`${g2}-1`];
 
 /* ===== 1. 건물 단면 타워 ===== */
@@ -469,12 +469,12 @@ const S1 = (() => {
   const R = [];
   // 2 · 3 · 4층 = 내가 많이 가는 학년 (교무실은 🕘 시간표에서 고른 층 가운데, 기본 2층)
   [2,3,4].forEach(f => { let x = BX; ORDER(FLOORS[f - 2] || 0, f === OFFICE_F ? "office" : `_c${f}`, f).forEach(id => { if (id === "|"){ x += SW; return; } const w = midRoom(id) ? CW : RW; R.push({ id, f, x, y:fb(f) - FH, w, h:FH }); x += w; }); });
-  // 1층: 계발 · 동아리실 · 음악실 · 미술실 · 행정실 | 현관 | 교장실 · 특별교실 · 도서실 · 보건실 · 컴퓨터실 · 가사실. 체육은 운동장, 그 밖의 교과 · 선택 과목 교실은 특별교실로 가요
- const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /계발/.test(id) ? "계발" : /동아리|창체|자율/.test(id) ? "동아리실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "도서실" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : /가사|가정|기술|조리/.test(id) ? "가사실" : "특별교실";
+  // 1층: 가사실 · 과학실 · 미술실 · 음악실 · 교장실 | 현관 | 특별교실1 · 특별교실2 · 보건실 · 컴퓨터실 · 동아리실. 체육은 운동장, 계발 · 창체 · 자율은 동아리실, 도서는 특별교실2, 그 밖의 교과 · 선택 과목은 특별교실1로 가요
+  const roomFor = id => isClass(id) ? id : /체육|운동장/.test(id) ? "yard" : /특별교실\s*2/.test(id) ? "특별교실2" : /계발|동아리|창체|자율/.test(id) ? "동아리실" : /과학|과탐|물리|화학|생명|지구/.test(id) ? "과학실" : /음악/.test(id) ? "음악실" : /미술/.test(id) ? "미술실" : /도서/.test(id) ? "특별교실2" : /보건/.test(id) ? "보건실" : /컴퓨터|정보/.test(id) ? "컴퓨터실" : /가사|가정|기술|조리/.test(id) ? "가사실" : "특별교실1";
   let LIT = new Set();
   // 날개 너비(반 수 × 교실 너비)를 방 수로 나눠 써요. 너무 좁아지면(16 아래) 끝에서부터 빼요
   const wing = (n, big, bigFirst, items) => { const tot = n*RW, list = [...items]; while (list.length && tot/(list.length + 1) < 16) list.pop(); const all = bigFirst ? [big, ...list] : [...list, big]; return all.map(id => [id, tot/all.length]); };
-  [...wing(NL, "행정실", false, ["계발", "동아리실", "음악실", "미술실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "교장실", true, ["특별교실", "도서실", "보건실", "컴퓨터실", "가사실"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
+  [...wing(NL, "교장실", false, ["가사실", "과학실", "미술실", "음악실"]), ["|",SW], ["gate",CW], ["|",SW], ...wing(NR, "특별교실1", true, ["특별교실2", "보건실", "컴퓨터실", "동아리실"])].reduce((x, [id, w]) => { if (id !== "|") R.push({ id, f:1, x, y:fb(1) - FH, w, h:FH }); return x + w; }, BX);
   const HOME = { id:"home", f:0, x:432, y:GR - 44, w:46, h:44 }; R.push(HOME);
   const YARD = { id:"yard", f:0, x:BX + 4, y:GR + 4, w:Math.max(60, NL*RW - 10), h:18 }; R.push(YARD);   // 운동장 (체육 수업)
   const OUT = GR + 12, HD = HOME.x + 30, GX = CX + CW/2;
@@ -544,7 +544,47 @@ const S1 = (() => {
       if (SCHOOL && BREAK){ girl(r.x + 23, fy - 1, 1, HAIR[1], 2, true); girl(r.x + 41, fy - 1, 1, HAIR[3], 2, true); }
     } else if (r.id === "gate"){
       rect(r.x + 8, y0 + 14, 28, 32, c); rect(r.x + 9, y0 + 15, 12, 31, "#123A44"); rect(r.x + 23, y0 + 15, 12, 31, "#123A44");
-    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (r.id === "음악실"){ rect(r.x + 4, fy - 12, 10, 6, "#0B0B12"); for (let k = 0; k < 4; k++) rect(r.x + 5 + k*2, fy - 11, 1, 3, "#EDEDF5"); txt("♪", r.x + r.w - 7, y0 + 16 + Math.sin(T*3)*1.5, 6, c, "center"); } if (r.id === "미술실"){ rect(r.x + r.w - 11, fy - 16, 7, 9, "#EDEDF5"); rect(r.x + r.w - 10, fy - 15, 5, 4, ["#FF5FAE", "#FFD400", "#2FE3F0"][Math.floor(T/2) % 3]); rect(r.x + r.w - 9, fy - 7, 1, 5, "#8B5A2B"); } if (!LIT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
+    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (r.id === "음악실"){ rect(r.x + 4, fy - 12, 10, 6, "#0B0B12"); for (let k = 0; k < 4; k++) rect(r.x + 5 + k*2, fy - 11, 1, 3, "#EDEDF5");   /* 왼쪽 피아노 · 오른쪽 첼로 (떨어뜨려서) · ♪ 는 가운데 위 */
+      const cx = r.x + r.w - 9; rect(cx + 1, fy - 24, 2, 2, "#3A2416"); rect(cx + 2, fy - 22, 1, 7, "#3A2416"); rect(cx, fy - 15, 5, 4, "#B5651D"); rect(cx + 1, fy - 11, 3, 1, "#8B4513"); rect(cx - 1, fy - 10, 7, 5, "#B5651D"); rect(cx + 2, fy - 21, 1, 15, "#F2E3B8"); rect(cx, fy - 9, 1, 2, "#3A2416"); rect(cx + 4, fy - 9, 1, 2, "#3A2416"); rect(cx + 2, fy - 5, 1, 4, "#9A9AAA");
+      const ph = (T*.7) % 1; g.globalAlpha = 1 - ph*.6; txt(Math.floor(T*.7) % 2 ? "♫" : "♪", r.x + 9 + Math.sin(T*2.4)*2.5, fy - 15 - ph*7, 7, "#FFE14D", "center"); g.globalAlpha = 1; }   // 피아노 위에서 떠오르는 밝은 음표
+    if (r.id === "가사실"){   /* 책상 위 빵 · 전자레인지 (돌아가요: 창이 주황빛으로 깜빡 · 접시가 돌고 · 타이머 깜빡) */
+      const dy = fy - 8; rect(r.x + 3, dy, r.w - 6, 2, "#8B5A2B"); rect(r.x + 4, dy + 2, 1, 6, "#5A3A1C"); rect(r.x + r.w - 5, dy + 2, 1, 6, "#5A3A1C");
+      if (r.w >= 30){ const bx = r.x + 5; rect(bx, dy - 4, 9, 4, "#D9A066"); rect(bx + 1, dy - 5, 7, 1, "#C68A4C"); rect(bx + 2, dy - 4, 1, 1, "#A86A32"); rect(bx + 4, dy - 4, 1, 1, "#A86A32"); rect(bx + 6, dy - 4, 1, 1, "#A86A32"); }
+      const mx = r.x + r.w - 18, st = Math.floor(T*5); rect(mx, dy - 9, 14, 9, "#D8DCE6"); rect(mx + 1, dy - 8, 8, 7, "#1A1622");
+      g.globalAlpha = .55 + .35*Math.sin(T*6); rect(mx + 1, dy - 8, 8, 7, "#FFB84D"); g.globalAlpha = 1;
+      rect(mx + 2, dy - 3, 6, 1, "#EDEDF5"); rect(mx + 2 + st % 5, dy - 4, 2, 1, "#8B5A2B");
+      rect(mx + 10, dy - 8, 3, 7, "#9AA0B4"); if (st % 2) rect(mx + 10, dy - 7, 3, 1, "#5BEA6F"); rect(mx + 11, dy - 4, 1, 1, "#3A3F5C"); rect(mx + 11, dy - 2, 1, 1, "#3A3F5C"); }
+    const st2 = Math.floor(T*4), mid = Math.round(r.x + r.w/2);
+    if (r.id === "교장실"){   /* 책상 위 지구본이 빙글빙글 */
+      const dy = fy - 8, gx = mid - 3; rect(r.x + 4, dy, r.w - 8, 2, "#6B3E22"); rect(r.x + 5, dy + 2, 1, 6, "#4A2A16"); rect(r.x + r.w - 6, dy + 2, 1, 6, "#4A2A16");
+      rect(gx + 1, dy - 9, 4, 1, "#3B82F6"); rect(gx, dy - 8, 6, 4, "#3B82F6"); rect(gx + 1, dy - 4, 4, 1, "#3B82F6");
+      for (let k = 0; k < 2; k++){ const lx = gx + ((st2 + k*3) % 6); rect(lx, dy - 8 + k*2, Math.min(2, gx + 6 - lx), 2, "#5BEA6F"); }
+      rect(gx + 2, dy - 3, 2, 1, "#C8A040"); rect(gx + 1, dy - 2, 4, 2, "#8B5A2B"); }
+    if (r.id === "특별교실1"){   /* 스크린에 발표 화면이 넘어가요 (막대그래프가 바뀌어요) */
+      const sx = mid - 9, sy = y0 + 12, pg = Math.floor(T/2) % 3; rect(sx, sy, 18, 12, "#EDEDF5"); rect(sx, sy, 18, 1, "#9AA0B4"); rect(mid, sy + 12, 1, fy - sy - 12, "#5A5F73");
+      [[3, 6, 4], [5, 2, 7], [6, 4, 3]][pg].forEach((hh, k) => rect(sx + 3 + k*5, sy + 10 - hh, 3, hh, ["#FF5FAE", "#7DD3FC", "#FFD400"][k])); }
+    if (r.id === "특별교실2"){   /* 벽시계 바늘이 돌고, 아래 책꽂이 */
+      const cx2 = mid, cy2 = y0 + 19, a = T*.8; rect(cx2 - 4, cy2 - 4, 9, 9, "#EDEDF5"); rect(cx2 - 4, cy2 - 4, 9, 1, "#5A5F73"); rect(cx2 - 4, cy2 + 4, 9, 1, "#5A5F73"); rect(cx2 - 4, cy2 - 4, 1, 9, "#5A5F73"); rect(cx2 + 4, cy2 - 4, 1, 9, "#5A5F73");
+      for (let k = 1; k <= 3; k++) rect(Math.round(cx2 + Math.cos(a)*k), Math.round(cy2 + Math.sin(a)*k), 1, 1, "#E5484D"); rect(cx2, cy2 - 2, 1, 2, "#1A1622"); rect(cx2, cy2, 1, 1, "#1A1622");
+      const bx2 = r.x + 4; rect(bx2, fy - 9, r.w - 8, 1, "#8B5A2B"); rect(bx2, fy - 2, r.w - 8, 1, "#8B5A2B");
+      for (let k = 0; k * 3 < r.w - 10; k++) rect(bx2 + 1 + k*3, fy - 8 + (k % 3 === 1 ? 1 : 0), 2, 6 - (k % 3 === 1 ? 1 : 0), ["#E5484D", "#3B82F6", "#5BEA6F", "#FFD400", "#B07CFF"][k % 5]); }
+    if (r.id === "보건실"){   /* 침대 · 빨간 십자 · 심박 모니터 선이 움직여요 */
+      const bx3 = r.x + 4; rect(bx3, fy - 6, 14, 3, "#EDEDF5"); rect(bx3, fy - 7, 4, 1, "#FFFFFF"); rect(bx3, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 13, fy - 3, 1, 3, "#9AA0B4"); rect(bx3 + 4, fy - 7, 10, 1, "#7DD3FC");
+      rect(mid - 1, y0 + 12, 3, 9, "#E5484D"); rect(mid - 4, y0 + 15, 9, 3, "#E5484D");
+      const mx3 = r.x + r.w - 15; rect(mx3, fy - 16, 11, 8, "#1A1622"); rect(mx3 + 5, fy - 8, 1, 8, "#5A5F73");
+      for (let k = 0; k < 9; k++){ const ph = (k + st2) % 9, yy = ph === 4 ? -3 : ph === 5 ? 2 : 0; rect(mx3 + 1 + k, fy - 12 + yy, 1, 1, "#5BEA6F"); } }
+    if (r.id === "동아리실"){   /* 공이 통통 튀어요 */
+      const hgt = Math.abs(Math.sin(T*3))*13, by4 = Math.round(fy - 5 - hgt); g.globalAlpha = .35; rect(mid - 2 + Math.round(hgt/8), fy - 1, 5 - Math.round(hgt/6), 1, "#000"); g.globalAlpha = 1;
+      rect(mid - 1, by4, 4, 4, "#FF8A3D"); rect(mid, by4 - 1, 2, 1, "#FF8A3D"); rect(mid, by4 + 4, 2, 1, "#FF8A3D"); rect(mid - 2, by4 + 1, 1, 2, "#FF8A3D"); rect(mid + 3, by4 + 1, 1, 2, "#FF8A3D"); rect(mid - 1, by4 + 2, 4, 1, "#7A3A10"); rect(mid + 1, by4, 1, 4, "#7A3A10"); }
+    if (r.id === "컴퓨터실"){   /* 책상 위 컴퓨터 한 대: 화면에 코드 줄이 써지고 커서가 깜빡여요 */
+      const dy = fy - 8, cx = Math.round(r.x + r.w/2 - 7); rect(r.x + 3, dy, r.w - 6, 2, "#8B5A2B"); rect(r.x + 4, dy + 2, 1, 6, "#5A3A1C"); rect(r.x + r.w - 5, dy + 2, 1, 6, "#5A3A1C");
+      rect(cx, dy - 12, 14, 10, "#2A2A34"); rect(cx + 1, dy - 11, 12, 8, "#0B1A2A"); rect(cx + 6, dy - 2, 2, 2, "#2A2A34"); rect(cx + 2, dy - 1, 10, 1, "#C8CCD8");
+      const step = Math.floor(T*4); ["#5BEA6F", "#7DD3FC", "#FFD400"].forEach((col, k) => rect(cx + 2 + (k === 1 ? 1 : 0), dy - 10 + k*2.5, 1 + (step + k*3) % 8, 1, col));
+      if (step % 2) rect(cx + 3 + (step + 6) % 8, dy - 10 + 5, 1, 1.5, "#FFFFFF"); }
+    if (r.id === "과학실"){   /* 책상 위 삼각 플라스크(보글보글) · 현미경 */
+      const dy = fy - 8; rect(r.x + 3, dy, r.w - 6, 2, "#8B5A2B"); rect(r.x + 4, dy + 2, 1, 6, "#5A3A1C"); rect(r.x + r.w - 5, dy + 2, 1, 6, "#5A3A1C");
+      const fx = r.x + 7; rect(fx + 2, dy - 9, 2, 3, "#CFEFFF"); rect(fx + 1, dy - 6, 4, 2, "#CFEFFF"); rect(fx, dy - 4, 6, 2, "#5BEA6F"); rect(fx - 1, dy - 2, 8, 2, "#3CC85A"); if (Math.floor(T*3) % 3) rect(fx + 2 + Math.floor(T*3) % 2, dy - 11 - Math.floor(T*3) % 3, 1, 1, "#BFFFD0");
+      if (r.w >= 26){ const mx = r.x + r.w - 12; rect(mx, dy - 2, 7, 2, "#3A3F5C"); rect(mx + 5, dy - 9, 2, 7, "#3A3F5C"); rect(mx + 1, dy - 5, 5, 1, "#8C91A6"); rect(mx + 2, dy - 10, 3, 2, "#C8CCD8"); rect(mx + 2, dy - 8, 2, 3, "#C8CCD8"); rect(mx + 3, dy - 12, 2, 2, "#8C91A6"); } } if (r.id === "미술실"){ rect(r.x + r.w - 11, fy - 16, 7, 9, "#EDEDF5"); rect(r.x + r.w - 10, fy - 15, 5, 4, ["#FF5FAE", "#FFD400", "#2FE3F0"][Math.floor(T/2) % 3]); rect(r.x + r.w - 9, fy - 7, 1, 5, "#8B5A2B"); } if (!LIT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
     if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === HR ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w, r.h - 3); g.globalAlpha = 1; }
     let lb = r.id === "office" ? "교무실" : r.id === "gate" ? "현관" : r.id === HR ? "★" + HR : r.id[0] === "_" ? "" : r.id;
     // 좁은 방에 긴 이름(컴퓨터실 …)이면 방 너비에 맞게 줄여요
