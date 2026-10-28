@@ -32,7 +32,11 @@ let visible = !root.hidden;
 let mode = 'home';
 let bandRooms = [], bandFloor = ''; // 층 화면에서 보고 있는 층과 그 층의 방들
 // 이 브라우저에도 기억하고(로그인 전), 로그인한 선생님이면 앱이 Firebase 에 저장해요
+// 화면에서 직접 바꾼 때. 앱은 0.8초 뒤에 Firebase 에 저장하는데, 그 사이 서버에서 돌아오는 '예전 값'이
+// 화면을 한 칸 뒤로 되돌리지 않게 바꾼 뒤 3초 동안은 setState 를 받지 않아요 (← → 키를 빨리 눌러도 안 튀게)
+let lastLocal = 0;
 const save = () => {
+  lastLocal = performance.now();
   try { localStorage.setItem('ailab3d', JSON.stringify(STATE)); } catch {}
   hooks.onChange?.({ ...STATE, assign: { ...STATE.assign } });
 };
@@ -247,6 +251,9 @@ function B(parent, w, h, d, color, x, y, z, { shadow = true, m = null } = {}) {
 }
 
 // ---------- 글씨가 있는 면 (캔버스 그림) ----------
+// 글씨 그림은 한 번 그린 걸 다시 써요 (시안을 바꿀 때마다 새로 그리면 잠깐 멈칫해요)
+const texCache = new Map();
+const memoTex = (key, make) => { if (!texCache.has(key)) texCache.set(key, make()); return texCache.get(key); };
 function texMat(draw, w = 512, h = 320) {
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
@@ -257,7 +264,8 @@ function texMat(draw, w = 512, h = 320) {
   return new THREE.MeshStandardMaterial({ map: t, roughness: .7, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: .25 });
 }
 const FONT = '"Jua", "IBM Plex Sans KR", sans-serif';
-function checklist(title, items) {
+const checklist = (title, items) => memoTex(`cl|${title}|${JSON.stringify(items)}`, () => drawChecklist(title, items));
+function drawChecklist(title, items) {
   return texMat((g, w, h) => {
     g.fillStyle = '#26313a'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#f2b84a'; g.font = `34px ${FONT}`; g.fillText(title, 28, 50);
@@ -270,7 +278,8 @@ function checklist(title, items) {
     });
   });
 }
-const calendarMat = () => texMat((g, w, h) => {
+const calendarMat = () => memoTex('calendar', drawCalendar);
+const drawCalendar = () => texMat((g, w, h) => {
   g.fillStyle = '#fbfaf6'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#e0693f'; g.fillRect(0, 0, w, 70);
   g.fillStyle = '#fff'; g.font = `40px ${FONT}`; g.fillText('11월 연수', 24, 50);
@@ -281,7 +290,8 @@ const calendarMat = () => texMat((g, w, h) => {
     g.fillText(String(i + 1), x, y);
   }
 }, 512, 340);
-const posterMat = (title, color) => texMat((g, w, h) => {
+const posterMat = (title, color) => memoTex(`poster|${title}|${color}`, () => drawPoster(title, color));
+const drawPoster = (title, color) => texMat((g, w, h) => {
   g.fillStyle = '#fbfaf6'; g.fillRect(0, 0, w, h);
   g.fillStyle = color; g.fillRect(30, 40, 300, 22); g.fillRect(30, 80, 200, 14);
   g.fillStyle = '#c3d0d8'; for (let i = 0; i < 5; i++) g.fillRect(30, 130 + i * 30, 380 - (i % 2) * 90, 10);
@@ -909,22 +919,17 @@ const TOP_Y = ROOF_Y + (HAS_PH ? FH : 0); // 맨 꼭대기 (옥상 꾸밈은 여
 const WK = FH / 4.1; // 창문은 층고에 맞춰 키워요
 
 // --- 건물 시안 10개. side: 바깥 옆벽(색 · glass · brick · logs), win: 창문 모양, roof: 옥상 꾸밈, ground: 땅 · 나무 색 바꾸기 ---
-// 1번 숲속 연구소가 기본. 6~10번은 2026-10-29 새 컨셉 (문쌤이 골라요)
+// 1번 숲속 연구소가 기본. 5~7번은 2026-10-29 새 컨셉 (파스텔 장난감 · 바닷가 등대 · 벚꽃 학교는 뺐어요)
 const THEMES = [
   { id: 1, name: '숲속 연구소', wall: '#eadcc2', wall2: '#d9c4a0', wallB1: '#c5b394', slab: '#cdb58e', edge: '#4f6b3a', pillar: '#7a5232', frame: '#7a5232', glass: '#cfe8d6', side: 'logs', win: 'two', roof: 'garden' },
   { id: 2, name: '나무 연구소', wall: '#efe4d3', wall2: '#e3d4bf', wallB1: '#cbbfae', slab: '#ddd2c2', edge: '#353c44', pillar: '#c99a5c', frame: '#f7f3ec', glass: '#bfe0ee', side: '#e3d4bf', win: 'two', roof: 'flag' },
   { id: 3, name: '유리 타워', wall: '#eef3f6', wall2: '#d3e0e7', wallB1: '#bdc8ce', slab: '#f6f8f9', edge: '#2b7ea1', pillar: '#98a6ae', frame: '#98a6ae', glass: '#9fd3ea', side: 'glass', win: 'ribbon', roof: 'helipad' },
   { id: 4, name: '벽돌 학교', wall: '#f3e9d8', wall2: '#e6d8c0', wallB1: '#cbbfae', slab: '#e2d6c4', edge: '#7a3b2e', pillar: '#a8513c', frame: '#3f7a55', glass: '#cfe6ee', side: 'brick', win: 'tall', roof: 'clock' },
-  { id: 5, name: '파스텔 장난감', floors: ['#fde2e4', '#e2f0cb', '#cde7f0', '#fff1c1', '#e8def8', '#d9d2c5'], wall: '#fde2e4', wall2: '#f6d6dc', wallB1: '#d9d2c5', slab: '#ffffff', edge: '#f28fad', pillar: '#f7c873', frame: '#ffffff', glass: '#d6f0ff', side: '#f7c6d0', win: 'round', roof: 'balloon' },
-  { id: 6, name: '한옥 연구소', wall: '#f3ead8', wall2: '#e6d7bd', wallB1: '#cdbb9c', slab: '#d8c3a0', edge: '#3a2e26', pillar: '#7a4a2a', frame: '#5a3b24', glass: '#f6efdf', side: '#d9c3a0', win: 'tall', roof: 'giwa' },
-  { id: 7, name: '우주 정거장', wall: '#eef2f6', wall2: '#dfe6ee', wallB1: '#c3ccd6', slab: '#f7f9fb', edge: '#2f3b4c', pillar: '#9aa7b8', frame: '#c7d2de', glass: '#7fd8ff', side: 'glass', win: 'round', roof: 'dish',
+  { id: 5, name: '한옥 연구소', wall: '#f3ead8', wall2: '#e6d7bd', wallB1: '#cdbb9c', slab: '#d8c3a0', edge: '#3a2e26', pillar: '#7a4a2a', frame: '#5a3b24', glass: '#f6efdf', side: '#d9c3a0', win: 'tall', roof: 'giwa' },
+  { id: 6, name: '우주 정거장', wall: '#eef2f6', wall2: '#dfe6ee', wallB1: '#c3ccd6', slab: '#f7f9fb', edge: '#2f3b4c', pillar: '#9aa7b8', frame: '#c7d2de', glass: '#7fd8ff', side: 'glass', win: 'round', roof: 'dish',
     ground: { grass: '#d9dee6', dirt: '#9aa3ae', dirtD: '#7f8894', leaf: '#9fd3f0', leaf2: '#7fb8e0', trunk: '#8a94a3' } },
-  { id: 8, name: '바닷가 등대', wall: '#ffffff', wall2: '#e8f1f6', wallB1: '#d4dde3', slab: '#f2efe6', edge: '#2b6cb0', pillar: '#2b6cb0', frame: '#ffffff', glass: '#bfe6f5', side: '#dbe9f2', win: 'round', roof: 'lighthouse',
-    ground: { grass: '#f0dfb0', dirt: '#d9c08a', dirtD: '#c4a96f', leaf: '#4caf7a', leaf2: '#3a9466' } },
-  { id: 9, name: '겨울 눈 오두막', wall: '#f4eadb', wall2: '#e7d8c2', wallB1: '#cdbda5', slab: '#d9c6a8', edge: '#5a3e2b', pillar: '#6b4a30', frame: '#5a3e2b', glass: '#ffe3a0', side: 'logs', win: 'two', roof: 'snow',
+  { id: 7, name: '겨울 눈 오두막', wall: '#f4eadb', wall2: '#e7d8c2', wallB1: '#cdbda5', slab: '#d9c6a8', edge: '#5a3e2b', pillar: '#6b4a30', frame: '#5a3e2b', glass: '#ffe3a0', side: 'logs', win: 'two', roof: 'snow',
     ground: { grass: '#f4f7fa', dirt: '#b5a48e', dirtD: '#9c8b75', leaf: '#2f6b4a', leaf2: '#e9f1f4' } },
-  { id: 10, name: '벚꽃 학교', wall: '#fff3f5', wall2: '#fbe1e7', wallB1: '#e3cfd4', slab: '#ffffff', edge: '#d26a8a', pillar: '#f2a7bb', frame: '#ffffff', glass: '#d6f0ff', side: '#f7d2dc', win: 'tall', roof: 'blossom',
-    ground: { leaf: '#f6a9c0', leaf2: '#f9cfdc' } },
 ];
 const theme = () => THEMES.find((x) => x.id === STATE.theme) || THEMES[0];
 const P0 = { ...P }; // 땅 · 나무 기본 색 (시안이 ground 로 바꿨다가 되돌릴 때)
@@ -981,7 +986,8 @@ function patternMat(kind, w, h) {
   return m;
 }
 const glassWall = new THREE.MeshStandardMaterial({ color: '#9fd3ea', transparent: true, opacity: .3, roughness: .1, metalness: .1, depthWrite: false });
-const clockMat = () => texMat((g, w, h) => {
+const clockMat = () => memoTex('clock', drawClock);
+const drawClock = () => texMat((g, w, h) => {
   g.fillStyle = '#7a3b2e'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#fbfaf6'; g.beginPath(); g.arc(w / 2, h / 2, 140, 0, Math.PI * 2); g.fill();
   g.fillStyle = '#2a2522';
@@ -1057,14 +1063,6 @@ function roofExtras(roofY, W = BW) {
     B(world, 2.8, .7, 2.1, '#7a3b2e', cx, roofY + 4.25, -1.2);
     B(world, 1.5, .7, 1.1, '#7a3b2e', cx, roofY + 4.95, -1.2);
     B(world, .5, .5, .5, P.gold, cx, roofY + 5.5, -1.2);
-  } else if (TH.roof === 'balloon') {
-    ['#f28fad', '#7cc3e0', '#f7c873', '#9cd38a', '#b9a3e3'].forEach((c, i) => {
-      const x = -7 + i * 1.1, z = -1 + (i % 2) * .8;
-      B(world, .03, 2 + (i % 3) * .5, .03, '#ffffff', x, roofY + 1.2 + (i % 3) * .25, z, { shadow: false });
-      const b = B(world, .8, .95, .8, c, x, roofY + 2.6 + (i % 3) * .5, z);
-      bobbers.push({ m: b, y0: b.position.y, ph: i });
-    });
-    pole(W / 2 - 1, 1.5);
   } else if (TH.roof === 'giwa') { // 한옥: 겹겹이 쌓은 기와지붕 + 들린 처마 끝 + 용마루
     for (let k = 0; k < 4; k++) B(world, W + 2.6 - k * 3.2, .36, D + 2.4 - k * 1.1, k % 2 ? '#56616b' : '#4a545e', 0, roofY + .3 + k * .36, .15);
     B(world, W - 10, .32, .5, '#2f363d', 0, roofY + 1.75, .15);
@@ -1078,15 +1076,6 @@ function roofExtras(roofY, W = BW) {
     const blink = new THREE.MeshStandardMaterial({ color: P.red, emissive: P.red, emissiveIntensity: 1 });
     B(world, .3, .3, .3, P.red, -W / 2 + .8, roofY + 3.5, -1, { m: blink });
     anims.push((t) => { blink.emissiveIntensity = Math.sin(t * 4) > 0 ? 1.2 : .1; });
-  } else if (TH.roof === 'lighthouse') { // 바닷가: 빨강 · 하양 줄무늬 등대 + 빙글 도는 불빛
-    const lx = -W / 2 + 3;
-    for (let k = 0; k < 5; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(1 - k * .06, 1.06 - k * .06, 1, 16), mat(k % 2 ? '#ffffff' : '#d9473a')); c.position.set(lx, roofY + .5 + k, -.6); c.castShadow = true; world.add(c); }
-    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(.75, .75, .9, 16), mat('#ffe9a0', { emissive: '#ffd45a', emissiveIntensity: .9 }));
-    lamp.position.set(lx, roofY + 5.45, -.6); world.add(lamp);
-    const capC = new THREE.Mesh(new THREE.ConeGeometry(.95, .9, 16), mat('#d9473a')); capC.position.set(lx, roofY + 6.35, -.6); world.add(capC);
-    const beam = new THREE.Group(); beam.position.set(lx, roofY + 5.45, -.6); world.add(beam);
-    B(beam, 9, .5, .5, '#ffe9a0', 4.5, 0, 0, { m: new THREE.MeshBasicMaterial({ color: '#fff3c4', transparent: true, opacity: .28, depthWrite: false }), shadow: false });
-    anims.push((t) => { beam.rotation.y = t * .9; });
   } else if (TH.roof === 'snow') { // 겨울: 눈 덮인 지붕 · 고드름 · 굴뚝 연기
     B(world, W + .9, .4, D + .7, '#ffffff', 0, roofY + .4, .15);
     if (HAS_PH) B(world, BW + .4, .2, D + .3, '#ffffff', 0, ROOF_Y + .1, .15); // 테라스에도 눈
@@ -1094,13 +1083,8 @@ function roofExtras(roofY, W = BW) {
     B(world, 1, 2.2, 1, '#8a4b3a', 7, roofY + 1.3, -1.2); B(world, 1.2, .3, 1.2, '#ffffff', 7, roofY + 2.5, -1.2);
     const puffs = [0, 1, 2].map(() => B(world, .5, .5, .5, '#e9eef1', 7, roofY + 2.8, -1.2, { shadow: false }));
     anims.push((t) => puffs.forEach((m, i) => { const k = (t * .35 + i / 3) % 1; m.position.y = roofY + 2.8 + k * 2.4; m.position.x = 7 + k * .8; m.scale.setScalar(.5 + k * .9); m.visible = k < .92; }));
-  } else if (TH.roof === 'garden' || TH.roof === 'blossom') {
+  } else if (TH.roof === 'garden') {
     B(world, W + .1, .16, D + .1, P.grass, 0, roofY + .18, .15);
-    if (TH.roof === 'blossom') { // 벚꽃 학교: 꽃잎이 건물 앞으로 살랑살랑 떨어져요
-      const petal = mat('#f7b3c8', { emissive: '#f7b3c8', emissiveIntensity: .15 });
-      const ps = [...Array(26)].map((_, i) => ({ m: B(world, .14, .03, .14, '#f7b3c8', 0, 0, 0, { m: petal, shadow: false }), x: -BW / 2 + ((i * 37) % 100) / 100 * BW, ph: i * .37 }));
-      anims.push((t) => ps.forEach((p) => { const k = (t * .08 + p.ph) % 1; p.m.position.set(p.x + Math.sin(t + p.ph * 9) * .8, roofY + 1 - k * (roofY - BOTTOM + 1), D / 2 + .9 + Math.cos(t * .7 + p.ph) * .4); p.m.rotation.set(t + p.ph, t * 1.3, 0); }));
-    }
     const tree = (x, z, s) => { B(world, .3 * s, 1.2 * s, .3 * s, P.trunk, x, roofY + .25 + .6 * s, z); B(world, 1.4 * s, 1.1 * s, 1.4 * s, P.leaf, x, roofY + .25 + 1.6 * s, z); B(world, .9 * s, .8 * s, .9 * s, P.leaf2, x, roofY + .25 + 2.4 * s, z); };
     tree(-7, -1, 1); tree(6.5, -1.3, .85);
     for (let i = 0; i < 4; i++) { B(world, 1.2, .4, .5, P.wood, -2.4 + i * 1.6, roofY + .45, 1.6); B(world, 1, .35, .4, ['#f28fad', '#f7c873', '#ffffff', '#b9a3e3'][i], -2.4 + i * 1.6, roofY + .8, 1.6); }
@@ -1377,10 +1361,10 @@ function entrance() {
   }
   B(world, .9, .03, 1.5, '#8a4b3a', at(.6), .18, zc); // 발판
   for (let k = 0; k < 4; k++) B(world, .7, .05, .9, '#d8d2c4', at(1.6 + k * 1.15), .18, zc + (k % 2 ? .25 : -.25)); // 디딤돌
-  const sign = new THREE.Mesh(UNIT, texMat((g, w, h) => {
+  const sign = new THREE.Mesh(UNIT, memoTex(`sign|${TH.edge}`, () => texMat((g, w, h) => {
     g.fillStyle = TH.edge; g.fillRect(0, 0, w, h);
     g.fillStyle = '#ffffff'; g.font = `52px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(APP_NAME, w / 2, h / 2 + 4);
-  }, 640, 110));
+  }, 640, 110)));
   sign.scale.set(.05, .5, 2.9); sign.position.set(at(.06), tall + 1.1, zc); world.add(sign);
   const post = (x, z, hh, c = P.metal, s = .1) => B(world, s, hh, s, c, x, hh / 2, z);
   switch (L.door) {
@@ -1945,7 +1929,7 @@ export function setBadges(map) {
 }
 // Firebase 에서 불러온 설정으로 바꾸기 (저장하지 않고 그리기만)
 export function setState(s) {
-  if (!s) return;
+  if (!s || performance.now() - lastLocal < 3000) return;
   const keep = JSON.stringify(STATE);
   Object.assign(STATE, {
     assign: { ...DEFAULT.assign, ...(s.assign || {}) },
