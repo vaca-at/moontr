@@ -464,6 +464,8 @@ table.tv tr.tv-now td.tv-td{background:color-mix(in srgb,var(--accent) 30%,trans
 .chglist li.today b{color:var(--accent)}
 .chglist li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chglist li.none{display:block;color:var(--muted);font-size:12px}
+.hshort{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;margin:8px 0 2px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;cursor:pointer}
+.hshort small{flex-basis:100%;color:var(--muted);font-size:12px}
 .privnote{margin:6px 0;padding:7px 10px;border-radius:8px;border:1px dashed var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}
 .privnote b{color:var(--ink)}
 /* 🕘 시간표 창 › 🧒 우리 반 탭: 칸 + 나눠 가기 ＋ */
@@ -1678,7 +1680,7 @@ const DRAW = {
       <ul><li>위 [📅 달력] — 한 달에 학교 일정 · D-day · 공휴일 · 미리 바꾼 날이 보여요.</li><li>날짜를 누르면 그날 내 수업과 일정이 나오고, 일정을 바로 더하거나(＋) 지워요(✕). D-day는 ⚙️ 설정 › 학교 일정 · D-day에서 정해요.</li></ul>
 
       <h3>🕘 시간표</h3>
-      <ul><li>창을 열면 맨 위에 <b>전체 시간표</b>(오늘 요일 · 지금 교시 강조)가 보이고, 아래 '✏️ 시간표 고치기'에서 고쳐요.</li><li><b>🧒 우리 반 탭</b> 담임 반 아이들이 교시마다 가는 곳. 비우면 우리 반 교실. 선택과목처럼 나눠 가면 칸 옆 ＋를 눌러 <code>물리 과학실 / 화학 3-2</code>처럼 4곳까지.</li><li><b>1. 요일별 시간표</b> 반은 1-3처럼, 특별실은 이름으로. 비우면 공강.</li><li><b>2. 종 시간</b> 조회 · 1교시 시작만 적고 [⚡ 자동으로 채우기]</li><li><b>3. 하루만 바꾸기</b> 보강 · 시험 · 행사일처럼 그날만 바뀌는 시간표</li><li><b>[+ 시간표 추가]</b> 친한 선생님 · 부장님 시간표를 탭으로 더해요. 그 선생님이 수업 중일 때 그 교실에 캐릭터로 보여요 (교무실은 빼요).</li><li>[저장]할 때마다 지난 시간표가 기록으로 남아요.</li></ul>
+      <ul><li>창을 열면 맨 위에 <b>전체 시간표</b>(오늘 요일 · 지금 교시 강조)가 보이고, 아래 '✏️ 시간표 고치기'에서 고쳐요.</li><li><b>🧒 우리 반 탭</b> 칸을 누르면 '교실 정하기' 창이 떠요. 과목을 적고 📍 교실을 골라요 (안 고르면 우리 반 교실). 비운 칸은 수업 없음. 선택과목은 [✂️ 다른 교실로 나눠 가기]로 4곳까지. '과목 이름 줄여서 보여 주기'를 켜면 공통국어2 → 국어처럼 짧게.</li><li><b>1. 요일별 시간표</b> 반은 1-3처럼, 특별실은 이름으로. 비우면 공강.</li><li><b>2. 종 시간</b> 조회 · 1교시 시작만 적고 [⚡ 자동으로 채우기]</li><li><b>3. 하루만 바꾸기</b> 보강 · 시험 · 행사일처럼 그날만 바뀌는 시간표</li><li><b>[+ 시간표 추가]</b> 친한 선생님 · 부장님 시간표를 탭으로 더해요. 그 선생님이 수업 중일 때 그 교실에 캐릭터로 보여요 (교무실은 빼요).</li><li>[저장]할 때마다 지난 시간표가 기록으로 남아요.</li></ul>
 
       <h3>✅ TO DO · 📝 메모 · ⭐ 즐겨찾기</h3>
       <ul><li><b>TO DO</b> 오른쪽 아래 칸. 날짜마다 따로, ‹ › 로 다른 날도 적어요.</li><li><b>메모</b> 날짜와 상관없는 쪽지. <b>📌 고정</b>한 메모(최대 3개)가 게임 화면에 떠요. 찾기 · ◀ ▶ 순서 · [지우기]하면 휴지통.</li><li><b>즐겨찾기</b> 자주 가는 사이트. 레트로 PC · 미니멀 위젯 화면에도 아이콘으로 떠요.</li></ul>
@@ -1844,10 +1846,10 @@ function applyConfig(cfg){
   const per = new Set(BELL.map(b => b[0]).filter(p => /\d/.test(p)));
   TT = {};
   for (let d = 1; d <= 5; d++){ TT[d] = {}; Object.entries((cfg.week || {})[d] || {}).forEach(([p, r]) => { r = String(r || "").trim().slice(0, 12); if (r && per.has(String(p))) TT[d][p] = r; }); }
-  // 🧒 우리 반 시간표 (비운 칸 = 우리 반 교실)
-  CLASS_G = {}; CLASS_BASE = {};
+  // 🧒 우리 반 시간표 (과목만 = 우리 반 교실 · 비운 칸 = 수업 없음)
+  CLASS_G = {}; CLASS_BASE = {}; HR_SHORT = !!cfg.hrShort;   // 과목 이름 줄여서 보여 주기
   CLASS_EMPTY = !Object.values(cfg.hrWeek || {}).some(o => Object.values(o || {}).some(v => String(v || "").trim()));   // 우리 반 시간표를 아직 안 적었어요
-  for (let d = 1; d <= 5; d++){ CLASS_G[d] = {}; CLASS_BASE[d] = {}; per.forEach(p => { const G = parseCls(((cfg.hrWeek || {})[d] || {})[p]).map(g => ({ ...g, r:g.r || clsHome() })), G2 = G.length ? G : [{ s:"", r:clsHome() }]; CLASS_G[d][p] = G2; CLASS_BASE[d][p] = G2.length > 1 ? `선택 ${G2.length}곳` : G2[0].s || G2[0].r; }); }   // 화면 글엔 과목(없으면 교실)
+  for (let d = 1; d <= 5; d++){ CLASS_G[d] = {}; CLASS_BASE[d] = {}; per.forEach(p => { const G = shortG(parseCls(((cfg.hrWeek || {})[d] || {})[p]).map(g => ({ ...g, r:g.r || clsHome() }))), none = clsNone(G), G2 = none ? NONE_G() : G; CLASS_G[d][p] = G2; CLASS_BASE[d][p] = none ? "" : G2.length > 1 ? `선택 ${G2.length}곳` : G2[0].s || G2[0].r; }); }   // 화면 글엔 과목(없으면 교실) · 빈칸 = 수업 없음
   MY_BASE = {}; for (const w in TT) MY_BASE[w] = { ...TT[w] };
   BASE_TT = MODE === "class" ? CLASS_BASE : MY_BASE; patchedKey = "";   // 하루만 바꾸기 전 원래 시간표
   const clsRooms = Object.values(CLASS_G).flatMap(o => Object.values(o).flat().map(g => g.r)).filter(r => r && r !== "home" && r !== HR);   // 아이들이 가는 특별실도 지도에
@@ -1911,6 +1913,11 @@ let MY_BASE = {}, CLASS_BASE = {}, CLASS_G = {}, CLASS_EMPTY = true;
 // 칸 글 → 무리. 과목만 적으면(국어A · 통사A) 우리 반 교실(r ""), 교실처럼 생긴 낱말(1-3 · 과학실 · 운동장 · 강당 …)이 끝에 있으면 그 교실로.
 // 체육 · 음악 · 미술 · 정보는 흔히 가는 교실로. '물리 과학실 / 화학 3-2' 처럼 / 로 나누면 과목마다 따로 (4곳까지)
 const ROOMISH = /^\d-\d+$|(실|장|관|강당|교실|도서관|홈베이스)$/;
+// 과목 이름 줄이기 (🕘 시간표 › 🧒 우리 반 탭 '줄여서 보여 주기' · 보여 줄 때만): 공통국어2 → 국어 · 과학탐구실험2 → 과탐실 · 통합사회2 → 통사 · 자율활동 → 자율
+let HR_SHORT = false;
+const SUBJ_SHORT = { "과학탐구실험":"과탐실", "통합사회":"통사", "통합과학":"통과" };
+const shortSubj = s => { const t0 = String(s || "").trim(), t = t0.replace(/\s*[0-9ⅠⅡⅢⅣ]+$/, "").replace(/^공통\s*/, ""); return SUBJ_SHORT[t] || t.replace(/활동$/, "") || t0; };
+const shortG = G => HR_SHORT ? G.map(g => ({ ...g, s:g.s ? shortSubj(g.s) : g.s })) : G;
 const SUBJ_ROOM = [[/^(체육|스포츠)/, "운동장"], [/^음악/, "음악실"], [/^미술/, "미술실"], [/^(정보|컴퓨터)/, "컴퓨터실"]];
 const parseCls = v => String(v || "").split("/").map(x => x.trim()).filter(Boolean).slice(0, 4).map(x => {
   x = x.replace(/우리\s*반(\s*교실)?|담임\s*반|반\s*교실/g, "교실").trim();   // '교실' · '우리 반' = 우리 반 교실 (이동수업 없이 교실에 있어요)
@@ -1922,9 +1929,12 @@ const parseCls = v => String(v || "").split("/").map(x => x.trim()).filter(Boole
 const clsHome = () => HR || "home";
 // 🧒 우리 반 하루만 바꾸기: HR_DAY = { "2026-10-30":{ "1":"미술" } } (오른쪽 '시간표 바꾸기' 칸) · HR_TODAY = 지금 날짜 것
 let HR_DAY = {}, HR_TODAY = null, HR_TODAY_WD = -1;
-const clsOver = (day, p) => { if (!HR_TODAY || day !== HR_TODAY_WD || !(p in HR_TODAY)) return null; const G = parseCls(HR_TODAY[p]).map(g => ({ ...g, r:g.r || clsHome() })); return G.length ? G : [{ s:"", r:clsHome() }]; };
-const clsGroups = (day, p) => p === "조회" || p === "종례" ? [{ s:"", r:clsHome() }] : p === "점심" ? [{ s:"", r:"lunch" }] : (clsOver(day, p) || (CLASS_G[day] || {})[p] || [{ s:"", r:clsHome() }]);
-const classLabel = (day, p) => { const G = clsGroups(day, p); return G.length > 1 ? "선택 · " + G.map(g => g.s || g.r).join(" · ") : G[0].s ? (G[0].r === clsHome() ? G[0].s : `${G[0].s} · ${NAME(G[0].r)}`) : NAME(G[0].r); };
+// 빈칸 · 반 이름만 적힌 칸(1-10) = 그 교시 수업 없음 (아이들은 교실에 그냥 있어요)
+const NONE_G = () => [{ s:"", r:clsHome(), none:true }];
+const clsNone = G => !G.length || (G.length === 1 && !G[0].s && (!G[0].r || G[0].r === clsHome()));
+const clsOver = (day, p) => { if (!HR_TODAY || day !== HR_TODAY_WD || !(p in HR_TODAY)) return null; const G = shortG(parseCls(HR_TODAY[p]).map(g => ({ ...g, r:g.r || clsHome() }))); return clsNone(G) && !String(HR_TODAY[p]).match(/교실|우리\s*반/) ? NONE_G() : G.length ? G : [{ s:"", r:clsHome() }]; };
+const clsGroups = (day, p) => p === "조회" || p === "종례" ? [{ s:"", r:clsHome() }] : p === "점심" ? [{ s:"", r:"lunch" }] : (clsOver(day, p) || (CLASS_G[day] || {})[p] || NONE_G());
+const classLabel = (day, p) => { const G = clsGroups(day, p); if (G[0].none) return "수업 없음"; return G.length > 1 ? "선택 · " + G.map(g => g.s || g.r).join(" · ") : G[0].s ? (G[0].r === clsHome() ? G[0].s : `${G[0].s} · ${NAME(G[0].r)}`) : NAME(G[0].r); };
 function classStateAt(d){
   const day = d.getDay(), m = d.getHours()*60 + d.getMinutes() + d.getSeconds()/60, E = dayEdge(), H = clsHome(), one = r => [{ s:"", r }];
   if (day === 0 || day === 6) return { place:"home", act:"주말 · 아이들도 쉬어요", s:0, e:1440, m, slot:"주말", groups:one("home") };
@@ -1936,6 +1946,7 @@ function classStateAt(d){
       if (p === "점심") return { place:"lunch", act:"점심시간 · 급식실", s, e, m, slot:"점심", p, lunch:true, groups:one("lunch") };
       if (!/\d/.test(p)) return { place:H, act:`우리 반 ${p}`, s, e, m, slot:p, p, groups:one(H) };
       const G = clsGroups(day, p);
+      if (G[0].none) return { place:H, act:`${p}교시 · 수업 없음 (우리 반 교실)`, s, e, m, slot:`${p}교시`, p, groups:G, none:true };
       return { place:G[0].r, act:G.length > 1 ? `${p}교시 선택 · ${G.length}곳으로 나눠 수업` : `${p}교시 ${G[0].s ? G[0].s + " · " : ""}${G[0].r === H ? "우리 반 교실" : NAME(G[0].r)} 수업`, s, e, m, slot:`${p}교시`, p, groups:G };
     }
   }
@@ -2015,7 +2026,7 @@ function patchDayTT(d){
   TT = {}; for (const w in BASE_TT) TT[w] = { ...BASE_TT[w] };
   const cls = MODE === "class", o = cls ? null : DAYTT[k], wd = d.getDay(); KIND = (!cls && wd >= 1 && wd <= 5 && DAYKIND[k]) || {};   // 내 시간표 하루만 바꾸기
   HR_TODAY = HR_DAY[k] || null; HR_TODAY_WD = wd;   // 🧒 우리 반 하루만 바꾸기 (화면 글도 바꿔요)
-  if (cls && HR_TODAY && wd >= 1 && wd <= 5){ TT[wd] = { ...(TT[wd] || {}) }; Object.keys(HR_TODAY).forEach(p => { const G = clsGroups(wd, p); TT[wd][p] = G.length > 1 ? `선택 ${G.length}곳` : G[0].s || G[0].r; }); }
+  if (cls && HR_TODAY && wd >= 1 && wd <= 5){ TT[wd] = { ...(TT[wd] || {}) }; Object.keys(HR_TODAY).forEach(p => { const G = clsGroups(wd, p); TT[wd][p] = G[0].none ? "" : G.length > 1 ? `선택 ${G.length}곳` : G[0].s || G[0].r; }); }
   if (o && wd >= 1 && wd <= 5){ TT[wd] = {}; Object.entries(o).forEach(([p, r]) => { r = String(r || "").trim().slice(0, 12); if (r){ TT[wd][p] = r; TAUGHT.add(r); } }); }
 }
 // 한 층의 방 순서: 큰 반 … | 계단 | 가운데 방(교무실 등) | 계단 | … 1반 (학교마다 다르지만 반 수에 맞춰 그려요)
@@ -2388,7 +2399,7 @@ function drawKids(S, st){
     if (w.leave) return;
     // 이름표: 나눠 가면 과목(없으면 교실), 반 전체면 '우리 반'
     // 반 전체면 지금 수업: '수학 시간' (가는 중이면 '→ 수학') · 쉬는 시간 · 점심 시간 · 조회 · 종례 · 하교
-    const subj = w.g && w.g.s, now1 = subj ? (w.walking ? `→ ${subj}` : `${subj} 시간`) : st.lunch ? "점심 시간" : st.brk ? "쉬는 시간" : st.p && /\d/.test(st.p) ? `${st.p}교시` : st.slot || HR || "우리 반";
+    const subj = w.g && w.g.s, now1 = subj ? (w.walking ? `→ ${subj}` : `${subj} 시간`) : st.lunch ? "점심 시간" : st.brk ? "쉬는 시간" : st.none ? "수업 없음" : st.p && /\d/.test(st.p) ? `${st.p}교시` : st.slot || HR || "우리 반";
     const tag = many ? (w.g.s || NAME(w.g.r)) : `🧒 ${now1}`, tw = Math.max(16, tag.length*4.6 + 6), ty = Math.round(w.pos.y - 13*s - 8);
     g.globalAlpha = .82; rect(Math.round(w.pos.x - tw/2), ty, Math.round(tw), 7, many ? "#2E6BD8" : "#D8435A"); g.globalAlpha = 1;
     txt(tag, Math.round(w.pos.x), ty + 3.5, 4.5, "#FFFFFF", "center");
@@ -2510,7 +2521,13 @@ const tower = port => (() => {
       const dh = Math.min(32, r.h - 14), gy = port ? fy - dh : y0 + 14;   // 세로 그림은 줄이 낮아서 현관문도 조금 낮게
       const gx = r.x + (port ? 10 : 8);
       rect(gx, gy, 28, dh, c); rect(gx + 1, gy + 1, 12, dh - 1, "#123A44"); rect(gx + 15, gy + 1, 12, dh - 1, "#123A44");
-    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (r.id === "음악실"){ rect(r.x + 4, fy - 12, 10, 6, "#0B0B12"); for (let k = 0; k < 4; k++) rect(r.x + 5 + k*2, fy - 11, 1, 3, "#EDEDF5"); txt("♪", r.x + r.w - 7, y0 + 16 + Math.sin(T*3)*1.5, 6, c, "center"); } if (r.id === "미술실"){ rect(r.x + r.w - 11, fy - 16, 7, 9, "#EDEDF5"); rect(r.x + r.w - 10, fy - 15, 5, 4, ["#FF5FAE", "#FFD400", "#2FE3F0"][Math.floor(T/2) % 3]); rect(r.x + r.w - 9, fy - 7, 1, 5, "#8B5A2B"); } if (!LIT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
+    } else { rect(r.x + 6, y0 + 14, Math.min(14, r.w - 12), 9, "#123A44"); if (r.w > 40) rect(r.x + 34, y0 + 14, 14, 9, "#123A44"); if (r.id === "음악실"){ rect(r.x + 4, fy - 12, 10, 6, "#0B0B12"); for (let k = 0; k < 4; k++) rect(r.x + 5 + k*2, fy - 11, 1, 3, "#EDEDF5");   /* 왼쪽 피아노 · 오른쪽 첼로 (떨어뜨려서) · ♪ 는 가운데 위 */
+      const cx = r.x + r.w - 9; rect(cx + 1, fy - 24, 2, 2, "#3A2416"); rect(cx + 2, fy - 22, 1, 7, "#3A2416"); rect(cx, fy - 15, 5, 4, "#B5651D"); rect(cx + 1, fy - 11, 3, 1, "#8B4513"); rect(cx - 1, fy - 10, 7, 5, "#B5651D"); rect(cx + 2, fy - 21, 1, 15, "#F2E3B8"); rect(cx, fy - 9, 1, 2, "#3A2416"); rect(cx + 4, fy - 9, 1, 2, "#3A2416"); rect(cx + 2, fy - 5, 1, 4, "#9A9AAA");
+      txt("♪", r.x + r.w/2, y0 + 16 + Math.sin(T*3)*1.5, 6, c, "center"); }
+    if (r.id === "과학실"){   /* 책상 위 삼각 플라스크(보글보글) · 현미경 */
+      const dy = fy - 8; rect(r.x + 3, dy, r.w - 6, 2, "#8B5A2B"); rect(r.x + 4, dy + 2, 1, 6, "#5A3A1C"); rect(r.x + r.w - 5, dy + 2, 1, 6, "#5A3A1C");
+      const fx = r.x + 7; rect(fx + 2, dy - 9, 2, 3, "#CFEFFF"); rect(fx + 1, dy - 6, 4, 2, "#CFEFFF"); rect(fx, dy - 4, 6, 2, "#5BEA6F"); rect(fx - 1, dy - 2, 8, 2, "#3CC85A"); if (Math.floor(T*3) % 3) rect(fx + 2 + Math.floor(T*3) % 2, dy - 11 - Math.floor(T*3) % 3, 1, 1, "#BFFFD0");
+      if (r.w >= 26){ const mx = r.x + r.w - 12; rect(mx, dy - 2, 7, 2, "#3A3F5C"); rect(mx + 5, dy - 9, 2, 7, "#3A3F5C"); rect(mx + 1, dy - 5, 5, 1, "#8C91A6"); rect(mx + 2, dy - 10, 3, 2, "#C8CCD8"); rect(mx + 2, dy - 8, 2, 3, "#C8CCD8"); rect(mx + 3, dy - 12, 2, 2, "#8C91A6"); } } if (r.id === "미술실"){ rect(r.x + r.w - 11, fy - 16, 7, 9, "#EDEDF5"); rect(r.x + r.w - 10, fy - 15, 5, 4, ["#FF5FAE", "#FFD400", "#2FE3F0"][Math.floor(T/2) % 3]); rect(r.x + r.w - 9, fy - 7, 1, 5, "#8B5A2B"); } if (!LIT.has(r.id)){ g.globalAlpha = .35; rect(r.x, y0, r.w, r.h - 2, "#0B0B12"); g.globalAlpha = 1; } }
     if (act || (WK.walking && WK.here === r.id)){ g.globalAlpha = .55 + .45*Math.sin(T*5); g.strokeStyle = r.id === HR ? P.hr : P.active; g.lineWidth = 2; g.strokeRect(r.x, y0 + 1, r.w, r.h - 3); g.globalAlpha = 1; }
     let lb = r.id === "office" ? "교무실" : r.id === "gate" ? "현관" : r.id === HR ? "★" + HR : r.id[0] === "_" ? "" : r.id;    // 좁은 방에 긴 이름(컴퓨터실 …)이면 방 너비에 맞게 줄여요
     g.font = `5px ${P.font}`;
@@ -5527,7 +5544,7 @@ function panel(d, st){
   if (EMPTY){ $("nNext").innerHTML = "🕘 시간표에서 <b>내 시간표</b>를 넣어 주세요"; $("tt").innerHTML = `<span class="ttempty">📭 아직 등록된 시간표가 없어요<br><small>위 🕘 시간표에서 넣으면 여기에 오늘 시간표가 보여요</small></span>`; return; }
   $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.map(([p, a, b]) => {
     const cur = m >= mm(a) && m < mm(b) ? "cur" : "", r = slotRoom(day, p);
-    const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH((KIND[p] ? KIND[p] + " · " : "") + (cls && /\d/.test(p) ? classLabel(day, p) : NAME(r)))}</span>` : `<span class="free">${/\d/.test(p) ? "공강" : "교무실"}</span>`;
+    const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH((KIND[p] ? KIND[p] + " · " : "") + (cls && /\d/.test(p) ? classLabel(day, p) : NAME(r)))}</span>` : `<span class="free">${/\d/.test(p) ? (cls ? "수업 없음" : "공강") : "교무실"}</span>`;
     return `<span class="p ${cur}">${/\d/.test(p) ? p + "교시" : p}</span><span class="${cur}">${what}</span><span class="t">${a}</span>`;
   }).join("");
 }
@@ -6811,11 +6828,11 @@ function ttViewInner(){
   let cnt = 0;
   const cell = (d, r) => {
     if (!r.p){ if (r.k === "점심") return free("🍚 점심"); if ((r.k === "조회" || r.k === "종례") && edTab !== "me" && edTab !== "hr") return free(r.k); return (r.k === "조회" || r.k === "종례") && HRr ? chip(HRr, "hr") : free(esc(r.k)); }
-    if (edTab === "hr"){ const G = window.DESK.parseCls(((ed.hrWeek || {})[d] || {})[r.p]); if (!G.length) return chip(HRr || "우리 반", "hr"); return G.map(g => chip(g.s && g.r ? `${g.s} ${g.r}` : g.s || g.r, G.length > 1 ? "split" : g.r ? kind(g.r) : "hr")).join(""); }   // 과목만 = 우리 반 교실(분홍)
+    if (edTab === "hr"){ const G = window.DESK.parseCls(((ed.hrWeek || {})[d] || {})[r.p]); if (!G.length || (G.length === 1 && !G[0].s && (!G[0].r || G[0].r === HRr))) return free("—"); /* 수업 없음 */ const sn = s => ed.hrShort ? shortSubj(s) : s; return G.map(g => chip(g.s && g.r ? `${sn(g.s)} ${g.r}` : sn(g.s) || g.r, G.length > 1 ? "split" : g.r ? kind(g.r) : "hr")).join(""); }   // 과목만 = 우리 반 교실(분홍)
     const v = (((F ? F.week : ed.week) || {})[d] || {})[r.p] || ""; if (v) cnt++;
     return v ? chip(v, kind(v)) : free("공강");
   };
-  // 아직 한 칸도 안 적었으면 표 대신 '아직 입력하지 않았어요' (우리 반은 비운 칸 = 우리 반 교실이라 가득 차 보여서)
+  // 아직 한 칸도 안 적었으면 표 대신 '아직 입력하지 않았어요' (우리 반 탭도)
   const src = edTab === "hr" ? ed.hrWeek : F ? F.week : ed.week, none = !Object.values(src || {}).some(o => Object.values(o || {}).some(v => String(v || "").trim()));
   if (none) return `<div class="tv-head">${edTab === "hr" ? `🧒 ${esc(HRr || "우리 반")} 우리 반 시간표` : F ? `👥 ${esc(F.name || "선생님")} 시간표` : `🕘 ${esc(ed.name || "내")} 시간표`}</div><p class="tv-none">📭 ${edTab === "hr" ? "우리 반 시간표를" : "시간표를"} 아직 입력하지 않았어요.<br><small>아래 ${F ? "표에 반 · 장소를 적어" : "📷 사진 · 📄 PDF · 📊 엑셀 · 📋 캡처로 넣거나 칸에 직접 적어"} 주세요.</small></p>`;
   const body = rows.map(r => { const cur = wd >= 1 && wd <= 5 && nm >= mm(r.s) && nm < mm(r.e);
@@ -6827,13 +6844,14 @@ function ttViewInner(){
 const ttViewBlock = () => `<section class="ttview" id="ttView" aria-label="전체 시간표">${ttViewInner()}</section><div class="tv-edit">✏️ 시간표 고치기 <small>아래에서 고치면 위 표가 바로 바뀌어요 · 다 고치면 맨 아래 [저장]</small></div>`;
 let tvT = null;
 $("edBody").addEventListener("input", e => { if (!$("ttView") || !e.target.closest("#eWeek, .hwk, .wk, #eBell")) return; clearTimeout(tvT); tvT = setTimeout(() => { if (edTab === "me") readEdit(); if ($("ttView")) $("ttView").innerHTML = ttViewInner(); }, 150); });
-// 🧒 우리 반 탭: 담임 반 아이들이 교시마다 가는 곳 (비우면 우리 반 교실, 나눠 가면 '과목 교실 / 과목 교실')
+// 🧒 우리 반 탭: 담임 반 아이들이 교시마다 가는 곳 (과목만 = 우리 반 교실 · 비우면 수업 없음, 나눠 가면 '과목 교실 / 과목 교실')
 const H_DAYS = ["", "월", "화", "수", "목", "금"];
 // 🧒 우리 반 칸 = 누르는 단추 ('과목 + 📍교실'). 누르면 아래 '교실 정하기' 창
 const H_ROOMS = ["운동장", "체육관", "과학실", "음악실", "미술실", "가사실", "기술실", "컴퓨터실", "도서실", "강당"];
 function hCellTd(d, p){
-  const v = ((ed.hrWeek || {})[d] || {})[p] || "", G = window.DESK.parseCls(v);
-  const inner = !G.length ? `<span class="hc-home">🏫 우리 반</span>` : G.map(g => `<span class="hc-g">${g.s ? `<b>${esc(g.s)}</b>` : ""}<i class="${g.r && g.r !== ed.hr ? "go" : ""}">${g.r && g.r !== ed.hr ? "📍" + esc(g.r) : "🏫 우리 반"}</i></span>`).join(`<span class="hc-sep">✂️</span>`);
+  const v = ((ed.hrWeek || {})[d] || {})[p] || "", G = window.DESK.parseCls(v), sn = s => ed.hrShort ? shortSubj(s) : s;   // 줄여서 보여 주기
+  const none = !G.length || (G.length === 1 && !G[0].s && (!G[0].r || G[0].r === ed.hr));   // 빈칸 · 반 이름만 = 수업 없음
+  const inner = none ? `<span class="hc-home">— 수업 없음</span>` : G.map(g => `<span class="hc-g">${g.s ? `<b title="${esc(g.s)}">${esc(sn(g.s))}</b>` : ""}<i class="${g.r && g.r !== ed.hr ? "go" : ""}">${g.r && g.r !== ed.hr ? "📍" + esc(g.r) : "🏫 우리 반"}</i></span>`).join(`<span class="hc-sep">✂️</span>`);
   return `<td class="${G.length > 1 ? "multi" : ""}"><button type="button" class="hcellb" data-hcell="${d},${p}" aria-label="우리 반 ${H_DAYS[d]} ${p}교시 교실 정하기">${inner}</button></td>`;
 }
 // '교실 정하기' 창: 줄마다 [과목][📍 교실 고르기] (+ 나눠 가기 · ✕). 고칠 때마다 바로 ed.hrWeek 와 표에 반영
@@ -6868,6 +6886,8 @@ function hpOpen(btn){
 }
 const hpClose = () => { $("hPop").hidden = true; hpCell = null; };
 $("edBody").addEventListener("click", e => { const b = e.target.closest("[data-hcell]"); if (b && edTab === "hr") hpOpen(b); });
+// 과목 이름 줄여서 보여 주기: 켜고 끄면 표 · 맨 위 전체 시간표를 바로 다시 그려요 ([저장]하면 게임 · 전자칠판에도)
+$("edBody").addEventListener("change", e => { if (e.target.id !== "hShort" || edTab !== "hr") return; ed.hrShort = e.target.checked; renderEdit(); });
 $("hPop").addEventListener("click", e => {
   const k = e.target.closest("[data-hp]")?.dataset.hp; if (!k) return;
   if (k === "close" || k === "done"){ hpClose(); return; }
@@ -6912,11 +6932,13 @@ function classPane(nPer){
     <p class="note">✂️ <b>선택과목처럼 나눠 가면</b> 창에서 <b>[✂️ 다른 교실로 나눠 가기]</b>를 눌러 줄을 더하고, 필요 없는 줄은 <b>✕</b>로 빼요 (4곳까지) → 아이들이 무리로 나눠 걸어가요.</p>
     ${ed.hr ? "" : `<p class="err">⚙️ 설정 › 계정 · 내 정보에서 <b>담임 반</b>을 먼저 적어 주세요. 담임 반이 있어야 🧒 우리 반 모드에 아이들이 보여요.</p>`}
     <div class="wk hwk">${nPer ? wk : `<p class="note">먼저 '내 시간표' 탭에서 종 시간을 넣어 주세요.</p>`}</div>
+    <label class="chk hshort"><input type="checkbox" id="hShort" ${ed.hrShort ? "checked" : ""}> <b>과목 이름 줄여서 보여 주기</b> <small>공통국어2 → 국어 · 과학탐구실험2 → 과탐실 · 통합사회2 → 통사 · 자율활동 → 자율 · 진로활동 → 진로 (저장된 이름은 그대로, 화면 · 게임 · 전자칠판에서만 짧게)</small></label>
     <p class="note" id="hPrev" aria-live="polite"></p>`;
 }
 const hPrevOf = (d, p, v) => { const G = window.DESK.parseCls(v); return !G.length ? `${H_DAYS[d]} ${p}교시 → 우리 반 교실` : `${H_DAYS[d]} ${p}교시 → ` + G.map(g => `${g.s ? g.s + ": " : ""}${g.r || "우리 반 교실"}`).join(" · ") + (G.length > 1 ? ` (${G.length}무리로 나눠 가요)` : ""); };
 // 저장할 때: 월~금 · 숫자 교시 · 60자까지
-const cleanHrWeek = W => { const o = {}; for (let d = 1; d <= 5; d++){ const r = (W || {})[d] || {}; Object.entries(r).forEach(([p, v]) => { v = String(v || "").trim().replace(/(\s*\/\s*)+$/, "").slice(0, 60); if (/^\d+$/.test(p) && v){ (o[d] = o[d] || {})[p] = v; } }); } return o; };
+// 반 이름만 적힌 칸(예전에 '1-10'으로 채워진 칸)은 '수업 없음'이라 지워요
+const cleanHrWeek = W => { const o = {}; for (let d = 1; d <= 5; d++){ const r = (W || {})[d] || {}; Object.entries(r).forEach(([p, v]) => { v = String(v || "").trim().replace(/(\s*\/\s*)+$/, "").slice(0, 60); if (ed && ed.hr && v.replace(/\s+/g, "") === ed.hr) v = ""; if (/^\d+$/.test(p) && v){ (o[d] = o[d] || {})[p] = v; } }); } return o; };
 $("shEdit").addEventListener("click", e => {
   const t = e.target.closest("[data-etab]"); if (!t || !ed) return;
   readEdit(); ed.friends = ed.friends || [];
@@ -7270,7 +7292,7 @@ async function saveEdit(){
   readEdit();
   const notes = fixEdit();
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), hrShort:!!ed.hrShort, officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:cleanFriends(ed.friends), events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   ["loc", "school", "board", "hrDayTT"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치 · 📺 전자칠판 링크는 그대로
   let tag = finalTag(ed.tag, out.name); if (!/^[A-Z][A-Z0-9]{1,11}$/.test(tag)) tag = "TEACHER";
   if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT, out.dayKind); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
@@ -7979,7 +8001,10 @@ $("chgList").addEventListener("click", e => { const b = e.target.closest("[data-
 /* ----- 📺 전자칠판 링크: 로그인 없이 우리 반 화면만 (공개 칸 desk_board/{긴 열쇠}) ----- */
 // 올라가는 것: 닉네임 · 캐릭터 · 담임 반 · 학년 · 반 수 · 종 시간 · 내 시간표(요일별 · 미리 바꾼 날 · 출퇴근 · 수업 장소) · 우리 반 시간표 · 학교 위치(시 · 군)
 // 할 일 · 메모 · 친구 · 이메일은 안 올라가요
-const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrWeek || {}, hrDayTT:cfg.hrDayTT || {}, loc:cfg.loc || null, at:Date.now() });
+// '과목 이름 줄여서 보여 주기'를 켰으면 칠판엔 미리 줄여서 올려요 (규칙에 새 칸을 더하지 않게). 줄인 이름이 '과탐실'처럼 교실 같으면 '교실'을 붙여 우리 반 교실로
+const shortCell = v => String(v || "").split("/").map(x => { const w = x.trim().split(/\s+/).filter(Boolean); if (!w.length) return ""; const last = w[w.length - 1], roomy = ROOMISH.test(last) || last === "교실", subj = (roomy ? w.slice(0, -1) : w).join(" "); if (!subj) return x.trim(); let s2 = shortSubj(subj); if (!roomy && ROOMISH.test(s2)) s2 += " 교실"; return roomy ? `${s2} ${last}` : s2; }).filter(Boolean).join(" / ");
+const shortMap = W => Object.fromEntries(Object.entries(W || {}).map(([k, o]) => [k, Object.fromEntries(Object.entries(o || {}).map(([p, v]) => [p, shortCell(v)]))]));
+const boardData = () => ({ desk:deskId, uids:(me && me.uids) || [user.uid], name:String(cfg.name || "").slice(0, 12), avatar:+cfg.avatar || 0, hr:cfg.hr || "", grades:+cfg.grades || 3, classes:+cfg.classes || 10, classesBy:cfg.classesBy || null, officeF:+cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", bell:cfg.bell || [], week:cfg.week || {}, dayTT:cfg.dayTT || {}, dayKind:cfg.dayKind || {}, hrWeek:cfg.hrShort ? shortMap(cfg.hrWeek) : cfg.hrWeek || {}, hrDayTT:cfg.hrShort ? shortMap(cfg.hrDayTT) : cfg.hrDayTT || {}, loc:cfg.loc || null, at:Date.now() });
 const boardUrl = (tok, home) => home ? `https://moontr.site/?board=${tok}` : `https://moontr.site/tycoon/?board=${tok}#1`;
 const syncBoard = () => { if (cfg && cfg.board && !demo) setDoc(doc(db, "desk_board", cfg.board), boardData()).catch(() => {}); };   // 시간표 · 학교를 저장할 때마다 칠판도
 let boardMsg = "";
