@@ -1,0 +1,23 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 관리자 = 센메일 계정, 또는 구글 bellachord 계정 (구글이 확인한 메일만) — firestore.rules 와 같아요
+    function isTeacher() {
+      return request.auth != null
+        && (request.auth.token.email == 'anstjsdud@sen.go.kr'
+            || (request.auth.token.email == 'bellachord@gmail.com' && request.auth.token.email_verified == true));
+    }
+
+    // ===== AI Lab (/ailab) 캡쳐 원본 =====
+    // 관리자만 올리기 · 보기 · 지우기. 사진(image/*)만, 한 장 10MB 미만. 올린 원본은 고치지 않아요
+    match /ailab/captures/{file} {
+      allow read, delete: if isTeacher();
+      allow create: if isTeacher()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update: if false;
+    }
+
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}
