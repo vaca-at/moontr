@@ -7710,65 +7710,76 @@ setTimeout(() => setInterval(() => {
   if (key !== talkKeyNow || Date.now() - talkShownAt > 12*60000){ talkKeyNow = key; talkShow(false); }
 }, 2000), 3000);
 
-/* ---------- 📢 우리 반 알림 한 줄 (🧒 우리 반 모드 · 전자칠판) ----------
-   게임 화면 왼쪽 위에 1분 반마다 12초, 누가 봐도 괜찮은 말만 번갈아 띄워요 (아이들이 늘 같은 화면이라고 느끼지 않게)
-   이번 시간 · 쉬는 시간 · 점심시간 남은 분, 다음 시간, 오늘 남은 수업, 날씨, 오늘 날짜, 작은 생활 한마디 (달력 일정은 안 떠요)
+/* ---------- 📢 알림 한 줄 (👤 내 시간표 · 🧒 우리 반 모드 · 전자칠판) ----------
+   게임 화면 왼쪽 위에 1분 반마다 12초, 누가 봐도 괜찮은 말만 번갈아 띄워요 (늘 같은 화면이라고 느끼지 않게, 달력 일정은 안 떠요)
+   👤 내 시간표 = 나에게 하는 말 (내 수업 · 공강 · 출퇴근), 🧒 우리 반 = 선생님이 아이들에게 하는 말 (우리 반 시간표)
+   이번 시간 · 쉬는 시간 · 점심시간(1시간 전부터) 남은 분, 다음 시간, 오늘 남은 수업, 출근 · 퇴근, 날씨, 오늘 날짜, 작은 생활 한마디
    곧 끝나는 것(점심 5분 · 쉬는 시간 3분 전)과 쉬는 시간의 다음 시간은 먼저 띄우고, 방금 띄운 말은 잠깐 쉬어요 */
 const wxWord = w => w.code >= 71 && w.code <= 86 ? "눈" : w.code >= 51 ? "비" : w.code >= 45 ? "안개" : w.code >= 2 ? "흐림" : "맑음";
-const WX_SAY = { 맑음:"맑아요", 흐림:"흐려요", 비:"비가 와요", 눈:"눈이 와요", 안개:"안개가 꼈어요" };
-let noticeLast = [], noticeAt = 0, noticeHide = null;
+const WX_SAY = { 맑음:["맑아요", "맑아"], 흐림:["흐려요", "흐려"], 비:["비가 와요", "비가 와"], 눈:["눈이 와요", "눈이 와"], 안개:["안개가 꼈어요", "안개가 꼈어"] };
+// 받침에 맞춰 '로 · 으로' (ㄹ 받침 · 받침 없음 · 한글이 아닌 끝 = 로)
+const ro = w => { const c = String(w).trim().slice(-1).charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 && c % 28 !== 8 ? "으로" : "로"; };
+let noticeLast = [], noticeAt = 0, noticeHide = null, noticeMode = "";
 function noticeLines(){
-  const d = simNow(), day = d.getDay(), m = d.getHours()*60 + d.getMinutes() + d.getSeconds()/60, out = [];
-  const add = (k, t, hot) => out.push({ k, t, hot:!!hot }), left = t => Math.max(1, Math.ceil(t - m));
-  if (day === 0 || day === 6) add("week", "😴 주말이에요. 푹 쉬어요");
+  const cls = MODE === "class", d = simNow(), day = d.getDay(), m = d.getHours()*60 + d.getMinutes() + d.getSeconds()/60, out = [];
+  // add(키, 👤 내 시간표 말, 🧒 우리 반 말, 먼저 띄우기) · 빈 말이면 그 모드에선 안 띄워요
+  const add = (k, me, kid, hot) => { const t = cls ? kid : me; if (t) out.push({ k, t, hot:!!hot }); }, left = t => Math.max(1, Math.ceil(t - m));
+  const inT = mm(IN_T), outT = mm(OUT_T);
+  if (day === 0 || day === 6) add("week", "😴 주말이에요. 푹 쉬어요", "😴 주말이야. 푹 쉬어");
   else if (BELL.length){
-    const les = p => /\d/.test(p) && !clsGroups(day, p)[0].none, first = mm(BELL[0][1]), last = mm(BELL[BELL.length - 1][2]);
+    const mine = p => (TT[day] || {})[p], les = p => /\d/.test(p) && (cls ? !clsGroups(day, p)[0].none : !!mine(p)), first = mm(BELL[0][1]), last = mm(BELL[BELL.length - 1][2]);
     const cur = BELL.find(([, a, b]) => m >= mm(a) && m < mm(b)), nb = BELL.find(([, a]) => mm(a) > m), L = BELL.find(([p]) => p === "점심");
     const nx = BELL.find(([p, a]) => mm(a) > m && (/\d/.test(p) || p === "점심")), brk = !cur && nb && m >= first;
-    if (m < first) add("morning", `☀️ 좋은 아침이에요. 첫 종은 ${BELL[0][1]}에 울려요`);
-    else if (m >= last) add("bye", "🏠 오늘도 수고했어요. 조심히 가요");
-    if (cur && cur[0] === "점심"){ const n = left(mm(cur[2])); add("lunch", `🍚 점심시간이 ${n}분 남았어요`, n <= 5); }
-    else if (cur && les(cur[0])) add("now", `⏳ ${cur[0]}교시가 ${left(mm(cur[2]))}분 남았어요`);
-    else if (brk){ const n = left(mm(nb[1])); add("break", `🔔 쉬는 시간이 ${n}분 남았어요`, n <= 3); }
-    if (L && m < mm(L[1]) && mm(L[1]) - m <= 120) add("tolunch", `🍚 점심시간까지 ${left(mm(L[1]))}분 남았어요`);
-    if (nx && nx[0] === "점심") add("next", `🍚 다음은 점심시간이에요 (${nx[1]})`, brk);
+    if (m >= inT - 60 && m < inT) add("in", "🚗 출근 중이에요. 오늘도 좋은 하루", "🚗 선생님은 출근하는 중이야. 이따 만나!");
+    if (m >= outT && m < outT + 60) add("out", "🏠 퇴근 중이에요. 오늘도 수고했어요", "🏠 선생님은 퇴근하는 중이야. 내일 보자!");
+    if (m < first) add("morning", `☀️ 좋은 아침이에요. 첫 종은 ${BELL[0][1]}에 울려요`, `☀️ 좋은 아침! 첫 종은 ${BELL[0][1]}에 울려`);
+    else if (m >= last && m >= outT + 60) add("bye", "🌙 오늘도 수고했어요. 푹 쉬어요", "🏠 오늘도 수고했어. 조심히 가");
+    else if (m >= last) add("bye", null, "🏠 오늘도 수고했어. 조심히 가");
+    if (m >= outT - 60 && m < outT && m >= first) add("toout", `🏃 퇴근까지 ${left(outT)}분 남았어요`, null);
+    if (cur && cur[0] === "점심"){ const n = left(mm(cur[2])); add("lunch", `🍚 점심시간이 ${n}분 남았어요`, n <= 5 ? `🍚 점심시간 ${n}분 남았어. 교실로 들어오자` : `🍚 점심시간 ${n}분 남았어`, n <= 5); add("bat", "🔋 점심시간, 배터리 충전 중이에요", null); }
+    else if (cur && /\d/.test(cur[0])){ const n = left(mm(cur[2])), r = mine(cur[0]);
+      add("now", r ? `⏳ ${cur[0]}교시 ${r} 수업, ${n}분 남았어요` : `☕ ${cur[0]}교시 공강, ${n}분 남았어요`, les(cur[0]) ? `⏳ ${cur[0]}교시 ${n}분 남았어. 조금만 더 집중하자!` : null); }
+    else if (brk){ const n = left(mm(nb[1])); add("break", `🔔 쉬는 시간이 ${n}분 남았어요`, n <= 3 ? `🔔 쉬는 시간 ${n}분 남았어. 자리에 앉자` : `🔔 쉬는 시간 ${n}분 남았어`, n <= 3); }
+    if (L && m < mm(L[1]) && mm(L[1]) - m <= 60){ const n = left(mm(L[1])); add("tolunch", `🍚 점심시간까지 ${n}분 남았어요`, `🍚 점심까지 ${n}분! 조금만 힘내자`); }
+    if (nx && nx[0] === "점심") add("next", `🍚 다음은 점심시간이에요 (${nx[1]})`, `🍚 다음은 점심시간이야 (${nx[1]})`, brk);
     else if (nx){
-      const G = clsGroups(day, nx[0]), H = clsHome();
-      const what = G[0].none ? "수업 없음 · 우리 반 교실" : G.length > 1 ? G.map(g => `${g.s || ""} ${NAME(g.r)}`.trim()).join(" · ") : `${G[0].s ? G[0].s + " · " : ""}${G[0].r === H ? "우리 반 교실" : NAME(G[0].r) + "로 이동"}`;
-      add("next", `📢 다음 시간 ${nx[0]}교시 (${nx[1]}) ${what}`, brk);
+      const r = mine(nx[0]), G = clsGroups(day, nx[0]), H = clsHome();
+      const gs = G.map(g => `${g.s || ""} ${NAME(g.r)}`.trim()).join(" · "), what = G[0].none ? "수업 없이 우리 반 교실이야" : G.length > 1 ? `${gs}${ro(gs)} 나눠 가` : `${G[0].s ? G[0].s + ", " : ""}${G[0].r === H ? "우리 반 교실이야" : NAME(G[0].r) + ro(NAME(G[0].r)) + " 이동해야 해"}`;
+      add("next", r ? `📢 다음 시간 ${nx[0]}교시 ${r}${classRoom(r) !== r ? " · " + MYROOM : ""} (${nx[1]})` : `☕ 다음 ${nx[0]}교시는 공강이에요 (${nx[1]})`, `📢 다음 시간은 ${nx[0]}교시 (${nx[1]}) ${what}`, brk);
     }
     const rest = BELL.filter(([p, a]) => mm(a) > m && les(p)).length;
-    if (rest) add("rest", rest === 1 ? "📚 오늘 수업이 이제 1개 남았어요" : `📚 오늘 수업이 ${rest}개 남았어요`);
-    else if (cur && les(cur[0])) add("rest", "📚 지금이 오늘 마지막 수업이에요. 조금만 힘내요");
-    else if (m >= first && m < last && BELL.some(([p]) => les(p))) add("rest", "🎉 오늘 수업이 다 끝났어요. 수고했어요");
-    if (day === 5 && L && m >= mm(L[2])) add("fri", "🎉 내일은 주말이에요");
-    if (day === 1 && L && m < mm(L[1])) add("mon", "💪 새로운 한 주예요. 이번 주도 힘내요");
-    if (brk) [["water", "💧 물 한 잔 마시고 와요"], ["air", "🪟 창문 열고 환기해요"], ["stretch", "🙆 쭉 기지개 한 번 켜요"]].forEach(([k, t]) => add(k, t));
-    if (cur && les(cur[0])) add("sit", "🪑 허리 쭉 펴고 바르게 앉아요");
+    if (rest) add("rest", rest === 1 ? "📚 오늘 수업이 이제 1개 남았어요" : `📚 오늘 수업이 ${rest}개 남았어요`, rest === 1 ? "📚 오늘 수업 이제 1개 남았어" : `📚 오늘 수업 ${rest}개 남았어`);
+    else if (cur && les(cur[0])) add("rest", "📚 지금이 오늘 마지막 수업이에요. 힘내요", "📚 오늘 마지막 수업이야. 힘내자!");
+    else if (m >= first && m < Math.max(last, outT) && BELL.some(([p]) => les(p))) add("rest", "🎉 오늘 수업 끝! 남은 업무만 정리해요", m < last ? "🎉 오늘 수업 끝! 수고했어" : null);
+    if (day === 5 && L && m >= mm(L[2])) add("fri", "🎉 내일은 주말이에요. 조금만 더!", "🎉 내일은 주말! 조금만 힘내자");
+    if (day === 1 && L && m < mm(L[1])) add("mon", "💪 새로운 한 주예요. 이번 주도 힘내요", "💪 새로운 한 주 시작! 이번 주도 힘내자");
+    if (brk) [["water", "💧 물 한 잔 마셔요", "💧 물 한 잔 마시고 와"], ["air", "☕ 따뜻한 차 한 잔 어때요", "🪟 창문 열고 환기하자"], ["stretch", "🙆 어깨 한 번 쭉 펴요", "🙆 쭉 기지개 한 번 켜자"]].forEach(([k, a, b]) => add(k, a, b));
+    if (cur && les(cur[0])) add("sit", "🗣 목 아끼면서 천천히 말해요", "🪑 허리 쭉 펴고 바르게 앉자");
   }
   if (WEATHER){
-    const w = wxWord(WEATHER), c = WEATHER.temp;
-    add("wx", `🌡 지금 바깥은 ${c}도, ${WX_SAY[w]}`);
-    if (w === "비") add("wx2", "☔ 집에 갈 때 우산 꼭 챙겨요");
-    else if (w === "눈") add("wx2", "⛄ 길이 미끄러워요. 천천히 걸어요");
-    if (c <= 5) add("cold", "🧣 바깥이 추워요. 따뜻하게 입고 나가요");
-    else if (c >= 28) add("hot", "💧 더워요. 물을 자주 마셔요");
+    const w = wxWord(WEATHER), c = WEATHER.temp, school = day >= 1 && day <= 5, schoolEnd = BELL.length ? mm(BELL[BELL.length - 1][2]) : mm(OUT_T);
+    add("wx", `🌡 지금 바깥은 ${c}도, ${WX_SAY[w][0]}`, `🌡 지금 바깥은 ${c}도, ${WX_SAY[w][1]}`);
+    if (w === "비") add("wx2", school && m < mm(OUT_T) ? "☔ 퇴근할 때 우산 챙겨요" : "☔ 나갈 때 우산 챙겨요", school && m < schoolEnd ? "☔ 집에 갈 때 우산 꼭 챙겨" : "☔ 나갈 때 우산 꼭 챙겨");
+    else if (w === "눈") add("wx2", "⛄ 길이 미끄러워요. 오가는 길 조심해요", "⛄ 길이 미끄러워. 천천히 걷자");
+    if (c <= 5) add("cold", "🧣 바깥이 추워요. 따뜻하게 입어요", "🧣 추워. 따뜻하게 입고 다니자");
+    else if (c >= 28) add("hot", "💧 더워요. 물 자주 마셔요", "💧 더워. 물 자주 마시자");
   }
-  add("date", `📅 오늘은 ${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일이에요`);
+  add("date", `📅 오늘은 ${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일이에요`, `📅 오늘은 ${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS[day]}요일`);
   return out;
 }
+const noticeOn = () => MODE === "class" || MODE === "me";   // 👥 친한 선생님 보기엔 안 띄워요
 function noticeShow(){
   const el = $("notice"); if (!el) return;
-  const L = MODE === "class" ? noticeLines() : [], fresh = L.filter(x => !noticeLast.includes(x.k)), hot = fresh.filter(x => x.hot);
+  const L = noticeOn() ? noticeLines() : [], fresh = L.filter(x => !noticeLast.includes(x.k)), hot = fresh.filter(x => x.hot);
   const pool = hot.length ? hot : fresh.length ? fresh : L;
   if (!pool.length){ el.classList.add("off"); return; }
   const x = pool[Math.floor(Math.random()*pool.length)];
   noticeLast = [x.k, ...noticeLast].slice(0, Math.min(5, L.length - 1));
-  el.textContent = x.t; el.classList.remove("off"); noticeAt = Date.now();
+  el.textContent = x.t; el.classList.remove("off"); noticeAt = Date.now(); noticeMode = MODE;
   clearTimeout(noticeHide); noticeHide = setTimeout(() => el.classList.add("off"), 12000);
 }
-// 처음은 화면이 열리고 5초 뒤, 그다음은 1분 반마다 (우리 반 모드가 아니면 숨겨요)
-setTimeout(() => { noticeShow(); setInterval(() => { if (MODE !== "class") $("notice").classList.add("off"); else if (Date.now() - noticeAt > 90000) noticeShow(); }, 1000); }, 5000);
+// 처음은 화면이 열리고 5초 뒤, 그다음은 1분 반마다 · 보기를 바꾸면 바로 그 말투로 (친한 선생님 보기면 숨겨요)
+setTimeout(() => { noticeShow(); setInterval(() => { if (!noticeOn()) $("notice").classList.add("off"); else if (MODE !== noticeMode || Date.now() - noticeAt > 90000) noticeShow(); }, 1000); }, 5000);
 
 /* ---------- 다른 로그인 확인용 두 번째 연결 (지금 로그인은 그대로 둬요) ---------- */
 async function otherLogin(kind, cred){
