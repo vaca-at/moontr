@@ -262,13 +262,13 @@ function homeSide() {
   return `<section class="panel">
       <div class="intake-mini">
         <h3>${esc(floorOf('lobby').floor)} 접수처</h3>
-        <button class="btn primary" data-act="upload">사진 넣기</button>
+        <button class="btn primary" data-act="upload">사진·PDF 넣기</button>
       </div>
       <ul class="queue">
         <li>${reading ? '<span class="spin"></span>' : '<span class="pip" style="background:var(--ok)"></span>'}AI가 읽는 중 ${reading}장</li>
         <li><span class="pip"></span><a href="#lobby">확인 기다리는 카드 ${review}장</a></li>
       </ul>
-      <small>캡쳐를 화면 어디에든 끌어다 놓거나 Ctrl+V로 붙여 넣어도 바로 들어가요.</small>
+      <small>캡쳐나 공문 PDF를 화면 어디에든 끌어다 놓거나 Ctrl+V로 붙여 넣어도 바로 들어가요. 공문은 본문과 첨부 PDF를 한꺼번에 넣으면 한 묶음으로 읽어요.</small>
     </section>
     <section class="panel"><h3>${esc(floorOf('boss').floor)} 사장실 · 다가오는 일정</h3>${bossView(true)}</section>`;
 }
@@ -408,7 +408,7 @@ function storeRoom(k) {
 }
 
 function emptyRoom(k) {
-  return `<div class="empty"><p>아직 ${esc(roomName(k))}에 자료가 없어요. 1층 접수처에 캡쳐를 넣으면 ${esc(ROOMS[k].role || '직원')}이(가) 읽고 여기로 가져와요.</p><button class="btn primary" data-act="upload">사진 넣기</button></div>`;
+  return `<div class="empty"><p>아직 ${esc(roomName(k))}에 자료가 없어요. 1층 접수처에 캡쳐나 공문 PDF를 넣으면 ${esc(ROOMS[k].role || '직원')}이(가) 읽고 여기로 가져와요.</p><button class="btn primary" data-act="upload">사진·PDF 넣기</button></div>`;
 }
 
 function guideSay(k) {

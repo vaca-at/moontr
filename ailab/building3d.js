@@ -19,7 +19,7 @@ const JOBS = {
 // n · hot = 이름표 옆 숫자 (앱이 setBadges 로 실제 자료 수를 넣어요)
 const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, { ...r, job: JOBS[k] || r.desc || '', n: 0, hot: false }]));
 const ME_JOB = '건물 전체를 둘러보며 다가오는 연수·공개수업·과제 마감을 챙겨요.';
-const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5 }, me: 1, friend: 1, gender: 'm', theme: 1, layout: 5 }; // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
+const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5 }, me: 8, friend: 11, gender: 'f', theme: 1, layout: 5 }; // 사장님은 8번 베이지 재킷(여자), 친구는 클로드 // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
 const saved = (() => { try { return JSON.parse(localStorage.getItem('ailab3d') || 'null'); } catch { return null; } })();
 const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...(saved?.assign || {}) } };
 // 시안 미리 보기: 주소 뒤에 ?layout=3&theme=8&me=6&friend=11 처럼 붙이면 그 모습으로 (저장은 안 해요)
@@ -387,6 +387,13 @@ const STAFF = [
     group('tail', [0, 1, -3.5], [{ y: 1.6, z: -5.4, w: 3, h: 2.4, d: 4, c: '#6dbb5a' }, { y: 2.4, z: -8, w: 1.8, h: 1.4, d: 2.4, c: '#6dbb5a' }, { y: .3, z: -5, w: .9, h: .9, d: .9, c: P.gold }]),
   ] }) },
   { id: 11, name: '레고 개발자', note: '큰 네모 머리 · 사각 안경 · 초록 니트', def: () => legoDev() },
+  { id: 12, name: '클로드 짝꿍', note: '팔 벌린 주황 네모 일꾼', def: () => ({ foot: 5.9, desk: .5, parts: [
+    { w: 7, h: 6.4, d: 6, c: '#e08a4c', front: [[1.8, 2, .9, 1.6, '#1a1a1a'], [4.3, 2, .9, 1.6, '#1a1a1a'], [2.9, 4.2, 1.2, .3, '#8a3b22']] },
+    group('armL', [-3.5, -.5, 0], [{ x: -4.7, y: .6, w: 2.4, h: 1.6, d: 2.2, c: '#e08a4c' }]),
+    group('armR', [3.5, -.5, 0], [{ x: 4.7, y: .6, w: 2.4, h: 1.6, d: 2.2, c: '#e08a4c' }]),
+    group('legL', [-1.4, 3.2, 0], [{ x: -1.4, y: 4.6, w: 1.8, h: 2.6, d: 2, c: '#cf7a3e' }]),
+    group('legR', [1.4, 3.2, 0], [{ x: 1.4, y: 4.6, w: 1.8, h: 2.6, d: 2, c: '#cf7a3e' }]),
+  ] }) },
 ];
 const staffById = (id) => STAFF.find((s) => s.id === id) || STAFF[0];
 
@@ -442,6 +449,33 @@ function legoDev() {
   ]);
   return { ...PERSON, parts };
 }
+// 사장 8번 (캡쳐 그대로): 큰 네모 얼굴 · 까만 점 눈 · 짧은 입 · 베이지 재킷(옷깃) 안에 검은 상의 · 검은 바지 · 네모 손
+// 여자: 삼각형 면이 보이는 긴 갈색 웨이브 머리(어깨 아래까지) / 남자: 짧은 갈색 머리
+function beigeBoss() {
+  const SK = '#f3d6bf', J = '#d9c7ad', JD = shade('#d9c7ad', -.14), BK = '#1f1f22', HR = '#5b3a26', HR2 = '#6e4630';
+  const female = STATE.gender === 'f';
+  const parts = person({
+    head: SK, torso: J, arm: J, hand: SK, leg: BK,
+    torsoFront: [[2.3, 0, 3.4, 8, BK], [1.5, 0, .8, 3.8, JD], [5.7, 0, .8, 3.8, JD], [1.9, 3.8, .6, .6, JD], [5.5, 3.8, .6, .6, JD]],
+  });
+  const face = [[1.7, 3, .75, .85, '#141414'], [4.15, 3, .75, .85, '#141414'], [2.85, 4.75, 1, .22, '#9a5a44']];
+  const hair = female
+    ? [
+      ...[[0, -11.2, -.4, 2.6], [-2.3, -10.8, .4, 2.1], [2.3, -10.6, .2, 2], [-3.7, -9, -.4, 1.9], [3.7, -9, -.6, 1.8], [0, -9.6, -3, 2.8],
+        [-4, -6.6, -.8, 1.9], [4, -6.6, -1, 1.9], [-4.2, -4.4, -1.4, 1.8], [4.2, -4.4, -1.6, 1.7], [-3.8, -2.4, -1.8, 1.6], [3.9, -2.5, -1.9, 1.5],
+        [0, -6.5, -3.4, 3], [-2.2, -3.6, -3.1, 2.2], [2.2, -3.6, -3.1, 2.2], [-1.8, -11.2, 2.3, 1.5]]
+        .map(([x, y, z, r], i) => ({ geo: 'lump', r, x, y, z, c: i % 3 ? HR : HR2 })),
+    ]
+    : [
+      { y: -10.9, w: 7, h: 1.5, d: 6.6, c: HR }, { y: -8.6, z: -3.1, w: 7, h: 3.8, d: 1, c: HR },
+      { x: -3.45, y: -9.3, w: .8, h: 2, d: 5.6, c: HR }, { x: 3.45, y: -9.3, w: .8, h: 2, d: 5.6, c: HR }, { x: -1.4, y: -11.8, w: 2.6, h: .7, d: 3.2, c: HR2 },
+    ];
+  parts[0] = group('head', [0, -4, 0], [
+    { y: -7.4, w: 6.6, h: 6.4, d: 6, c: SK, front: [...(female ? [[0, 0, 6.6, 1, HR], [0, 1, 2.4, .9, HR], [4.9, 1, 1.7, .5, HR]] : [[0, 0, 6.6, .9, HR], [0, .9, 1.4, .5, HR]]), ...face] },
+    ...hair,
+  ]);
+  return { ...PERSON, parts };
+}
 const ME = [
   { id: 1, name: '도덕 선생님', hold: 'L', note: '초록 가디건에 교사 명찰, 하트 그려진 도덕 교과서', def: () => meDef({
     torso: '#4a9a74', arm: '#4a9a74', leg: '#c9b79a',
@@ -490,17 +524,7 @@ const ME = [
     ]);
     return { ...PERSON, parts };
   } },
-  { id: 8, name: '베이지 재킷 사장님', hold: 'R', note: '긴 갈색 웨이브 머리, 베이지 재킷, 검은 옷, 노트북', def: () => ({ ...PERSON, parts: person({
-    head: P.skin, headFront: [[0, 0, 6, .8, '#5a3524'], [0, .8, 1.3, .7, '#5a3524'], [1.5, 2, .7, .9, P.eye], [3.8, 2, .7, .9, P.eye], [2.5, 3.9, 1, .3, '#b0674a']],
-    hat: [
-      { y: -9.6, w: 6.6, h: 1.3, d: 6.1, c: '#5a3524' }, { y: -6.1, z: -2.85, w: 7, h: 7.8, d: 1.2, c: '#5a3524' },
-      { x: -3.4, y: -6.4, w: 1, h: 6.4, d: 5.4, c: '#5a3524' }, { x: 3.4, y: -6.4, w: 1, h: 6.4, d: 5.4, c: '#5a3524' },
-      { x: -3.9, y: -3.6, z: -.6, w: 1, h: 2.6, d: 3.6, c: '#6b4029' }, { x: 3.9, y: -3.6, z: -.6, w: 1, h: 2.6, d: 3.6, c: '#6b4029' },
-    ],
-    torso: '#d8c9b4', arm: '#d8c9b4', hand: P.skin, leg: '#23262b',
-    torsoFront: [[2.2, 0, 3.6, 5, '#23262b'], [1.6, 0, .6, 3, shade('#d8c9b4', -.12)], [5.8, 0, .6, 3, shade('#d8c9b4', -.12)]],
-    itemR: [{ x: 5.85, y: 4.5, z: 2.9, w: 4.6, h: .4, d: 3.2, c: P.steel }, { x: 5.85, y: 2.7, z: 1.4, w: 4.6, h: 3.2, d: .3, c: P.steel, front: [[2, 1.2, .7, .7, P.white]] }],
-  }) }) },
+  { id: 8, name: '베이지 재킷 사장님', hold: 'R', note: '큰 네모 얼굴, 긴 갈색 웨이브 머리(남자는 짧은 머리), 베이지 재킷 · 검은 상의 · 검은 바지', def: beigeBoss },
   { id: 5, name: '시안 고르는 기획자', hold: 'R', note: '줄무늬 셔츠, 귀에 꽂은 연필, 색깔 시안 카드 다섯 장', def: () => meDef({
     torso: '#f4f1ea', arm: '#f4f1ea', leg: '#3a4a5e',
     torsoFront: [[0, .8, 8, .7, P.shirt], [0, 2.8, 8, .7, P.shirt], [0, 4.8, 8, .7, P.shirt], [0, 6.8, 8, .7, P.shirt]],
@@ -591,12 +615,33 @@ const FRIENDS = [
     { x: -4.6, y: .5, w: 1.4, h: 1.6, d: 2.4, c: '#c96a4b' }, { x: 4.6, y: .5, w: 1.4, h: 1.6, d: 2.4, c: '#c96a4b' },
     ...[-2.8, -1, 1, 2.8].map((x) => ({ x, y: 4.2, w: 1.1, h: 2.4, d: 1.4, c: '#c96a4b' })),
   ] }) },
-  { id: 12, name: '클로드 짝꿍', note: '팔 벌린 주황 네모', move: 'hop', lift: 0, def: () => ({ foot: 5.9, parts: [
-    { w: 7, h: 6.4, d: 6, c: '#e08a4c', front: [[1.8, 2, .9, 1.6, '#1a1a1a'], [4.3, 2, .9, 1.6, '#1a1a1a'], [2.9, 4.2, 1.2, .3, '#8a3b22']] },
-    group('armL', [-3.5, -.5, 0], [{ x: -4.7, y: .6, w: 2.4, h: 1.6, d: 2.2, c: '#e08a4c' }]),
-    group('armR', [3.5, -.5, 0], [{ x: 4.7, y: .6, w: 2.4, h: 1.6, d: 2.2, c: '#e08a4c' }]),
-    group('legL', [-1.4, 3.2, 0], [{ x: -1.4, y: 4.6, w: 1.8, h: 2.6, d: 2, c: '#cf7a3e' }]),
-    group('legR', [1.4, 3.2, 0], [{ x: 1.4, y: 4.6, w: 1.8, h: 2.6, d: 2, c: '#cf7a3e' }]),
+  // 아이스커피: 투명 컵 · 커피 · 우유층 · 얼음 가득 · 초록 빨대 (7번 따뜻한 커피잔과 같은 작은 탁자 위)
+  { id: 13, name: '아이스커피', note: '얼음 가득, 초록 빨대', move: 'pet', lift: 0, def: () => ({ foot: 9.3, parts: [
+    { y: 2.4, w: 5.4, h: .6, d: 5.4, c: P.wood }, { y: 6, w: 1, h: 6.6, d: 1, c: P.woodD }, { y: 9, w: 3.4, h: .6, d: 3.4, c: P.woodD },
+    { y: .4, w: 3.6, h: 3.4, d: 3.6, c: '#6b4226' }, { y: -1.6, w: 3.6, h: .8, d: 3.6, c: '#c99a6b' },
+    group('ice', [0, -3, 0], [
+      { x: -.9, y: -2.6, z: .6, w: 1.3, h: 1.3, d: 1.3, c: 'ghost:#ffffff' }, { x: .8, y: -2.9, z: -.5, w: 1.3, h: 1.3, d: 1.3, c: 'ghost:#ffffff' },
+      { x: -.6, y: -3.4, z: -.9, w: 1.2, h: 1.2, d: 1.2, c: 'ghost:#ffffff' }, { x: .9, y: -2.5, z: .9, w: 1.1, h: 1.1, d: 1.1, c: 'ghost:#ffffff' },
+      { x: 0, y: -3.6, z: .1, w: 1.2, h: 1.2, d: 1.2, c: 'ghost:#ffffff' }, { x: -1.1, y: -3.9, z: .2, w: 1, h: 1, d: 1, c: 'ghost:#ffffff' },
+    ]),
+    { y: -1, w: 4.2, h: 6.2, d: 4.2, c: 'ghost:#e8f6fb', front: [[1.1, 2.4, .6, .8, P.eye], [2.5, 2.4, .6, .8, P.eye], [1.5, 3.5, 1.2, .35, P.eye], [.4, 3.1, .6, .4, P.blush], [3.2, 3.1, .6, .4, P.blush]] },
+    { x: 1, y: -5.4, w: .45, h: 5.2, d: .45, c: '#3fa564' }, { x: 1.55, y: -7.9, w: 1.4, h: .45, d: .45, c: '#3fa564' },
+  ] }) },
+  // 뻐끔이: 동글동글 하늘색 물고기 친구 (삼각형 면 로우폴리). 꼬리를 살랑, 머리 위로 물방울이 뽀글뽀글
+  { id: 14, name: '뻐끔이', note: '동글동글 하늘색 물고기', move: 'hop', lift: 0, def: () => ({ foot: .5, parts: [
+    { geo: 'ico', r: 3.2, y: -3.3, c: '#7fc4d6' },
+    { geo: 'ico', sx: 2.2, sy: 2, sz: 1, y: -2.5, z: 2.5, c: '#e9f6f8' },
+    { geo: 'ball', r: .95, x: -1.3, y: -4.5, z: 2.5, c: '#ffffff' }, { geo: 'ball', r: .95, x: 1.3, y: -4.5, z: 2.5, c: '#ffffff' },
+    { geo: 'ball', r: .48, x: -1.25, y: -4.45, z: 3.3, c: '#1a1a1a', shiny: true }, { geo: 'ball', r: .48, x: 1.25, y: -4.45, z: 3.3, c: '#1a1a1a', shiny: true },
+    { geo: 'ball', sx: 1.1, sy: .6, sz: .6, y: -3.1, z: 3.1, c: '#f2a1a8' },
+    { geo: 'ball', r: .38, x: -2.2, y: -3.4, z: 2.3, c: '#f6b3bd' }, { geo: 'ball', r: .38, x: 2.2, y: -3.4, z: 2.3, c: '#f6b3bd' },
+    { geo: 'cone', r: .9, y: -6.7, z: -.3, c: '#4fa3bd' },
+    { geo: 'ball', sx: .4, sy: 1.1, sz: .9, x: -3.3, y: -2.8, c: '#4fa3bd' }, { geo: 'ball', sx: .4, sy: 1.1, sz: .9, x: 3.3, y: -2.8, c: '#4fa3bd' },
+    group('tail', [0, -3.2, -2.8], [{ geo: 'cone', r: 1.2, y: -3.2, z: -3.8, rx: -Math.PI / 2, c: '#4fa3bd' }]),
+    { geo: 'ball', r: .6, x: -1.2, y: -.1, z: .6, c: '#4fa3bd' }, { geo: 'ball', r: .6, x: 1.2, y: -.1, z: .6, c: '#4fa3bd' },
+    group('steam', [0, -7.5, 0], [
+      { geo: 'ball', r: .35, x: .8, y: -7.8, z: .6, c: 'ghost:#dff4fb' }, { geo: 'ball', r: .28, x: 1.3, y: -8.6, z: .7, c: 'ghost:#dff4fb' }, { geo: 'ball', r: .22, x: .9, y: -9.3, z: .6, c: 'ghost:#dff4fb' },
+    ]),
   ] }) },
 ];
 const friendById = (id) => FRIENDS.find((f) => f.id === id) || FRIENDS[0];
@@ -614,6 +659,7 @@ const STAFF_ABOUT = {
   9: '빛으로 된 직원이에요. 여러 방을 순식간에 오가요.',
   10: '의욕이 넘치는 공룡 인턴이에요. 꼬리로 박자를 맞추며 일해요.',
   11: '레고처럼 네모난 개발자예요. 사각 안경 너머로 코드를 척척 짜요.',
+  12: '팔을 활짝 벌린 클로드 짝꿍이에요. 창고 상자도 번쩍번쩍 날라요.',
 };
 const FRIEND_ABOUT = {
   1: ['사장님 어깨 옆에 둥둥 떠 있는 화면 얼굴 로봇이에요.', '다가오는 일정과 할 일을 먼저 알려 줘요.'],
@@ -628,6 +674,8 @@ const FRIEND_ABOUT = {
   10: ['불꽃을 일렁이며 떠 있는 꼬마 로켓이에요.', '급한 일을 순식간에 처리해요.'],
   11: ['주황 네모 몸에 다리가 넷인 AI 친구 클로드예요.', '공문을 읽고 카드로 정리하는 일을 함께해요.'],
   12: ['팔을 활짝 벌린 클로드 짝꿍이에요.', '회의 녹음 요약처럼 귀찮은 일을 척척 도와줘요.'],
+  13: ['얼음이 가득 든 아이스커피예요.', '바쁜 날에도 시원하게 응원해요.'],
+  14: ['동글동글한 하늘색 물고기 친구 뻐끔이예요.', '머리 위로 물방울을 뽀글뽀글 올리며 사장님 곁을 지켜요.'],
 };
 const where = (id) => Object.entries(STATE.assign).filter(([, v]) => v === id).map(([k]) => ROOMS[k].name);
 const staffInfo = (id, room) => {
@@ -1412,6 +1460,9 @@ function entrance() {
 // 창고: 아직 쓰지 않는 칸. 상자 · 천을 덮은 가구 · '빈 방' 표지 (창고 번호마다 조금씩 다르게)
 function storeRoom(g, k, { x0, x1, cx, y }) {
   const zb = -D / 2 + .55, n = Number(k.replace(/\D/g, '')) || 1;
+  // 직원을 배치했으면 창고 안을 오가며 상자를 정리해요
+  const sid = STATE.assign[k];
+  if (sid) addChar(g, x0 + 1.6, y, 1.6, 'walk', { def: staffById(sid).def(), walk: [x0 + 1.6, x1 - 1.6, .9], info: staffInfo(sid, k) });
   crates(g, x0 + .6, y, zb, 3, 3 - (n % 2));
   shelf(g, cx + .6 + (n % 3) * .4, y, zb, 1.3, 2, 40 + n * 9);
   crates(g, x1 - 1.9, y, .9 - (n % 2) * .4, 2, 1 + (n % 2));
@@ -1547,8 +1598,10 @@ function overview() {
   // 위로는 옥상 장식(시계탑 · 풍선)까지, 아래로는 지하 흙까지 들어오게
   // 낮고 넓은 건물은 위로 남는 자리가 크고, 내려다보는 각도 때문에 앞쪽 바닥이 아래로 더 내려가 보여서 아래를 넉넉히
   const top = TOP_Y + 4.5, bottom = BOTTOM - 2.5;
-  goal.target.set(0, (TOP_Y + BOTTOM) / 2 - 2, 0); // 건물 한가운데보다 조금 아래를 봐야 화면 가운데에 와요
-  goal.dist = fitDist(BW + 6 + (layout().shaft === 'outside' ? 6 : 0), top - bottom) * 1.02 + D / 2;
+  // 넓은 화면은 왼쪽 게임 메뉴 자리만큼 건물을 오른쪽으로 비켜 보여요
+  const pad = camera.aspect > 1.2 ? 9 : 0;
+  goal.target.set(-pad / 2, (TOP_Y + BOTTOM) / 2 - 2, 0); // 건물 한가운데보다 조금 아래를 봐야 화면 가운데에 와요
+  goal.dist = fitDist(BW + 6 + pad + (layout().shaft === 'outside' ? 6 : 0), top - bottom) * 1.02 + D / 2;
   goal.yaw = -.32; goal.pitch = .16;
   document.getElementById('back').hidden = true;
   markSigns();
@@ -1651,7 +1704,8 @@ labelsEl.addEventListener('click', (e) => { const s = e.target.closest('.sign');
 document.getElementById('back').addEventListener('click', () => { target = null; overview(); renderBoard(); });
 addEventListener('keydown', (e) => {
   if (!visible || mode !== 'home' || e.key !== 'Escape') return;
-  if (drawer.classList.contains('open')) setDrawer(false);
+  if (!manualEl.hidden) showManual(false);
+  else if (drawer.classList.contains('open')) setDrawer(false);
   else if (selected) { target = null; overview(); renderBoard(); }
 });
 
@@ -1664,7 +1718,46 @@ function setDrawer(open) {
   if (open) { hideTip(); drawer.focus?.(); }
   poke();
 }
-hudMenu.addEventListener('click', () => setDrawer(!drawer.classList.contains('open')));
+// 서랍에 보일 판: staff(직원 고르기) · boss(사장님 고르기) · null(전부, ☰ 메뉴)
+function openPanel(mode) {
+  document.getElementById('pnlStaff').hidden = mode === 'boss';
+  document.getElementById('pnlBoss').hidden = mode === 'staff';
+  document.getElementById('b3dTop').hidden = !!mode;
+  drawer.querySelector('.head h2').textContent = mode === 'staff' ? '직원 고르기' : mode === 'boss' ? '사장님 고르기' : '메뉴';
+  setDrawer(true);
+}
+hudMenu.addEventListener('click', () => (drawer.classList.contains('open') ? setDrawer(false) : openPanel(null)));
+
+// ---------- 게임 메뉴 (첫 화면 왼쪽 큰 단추) · 매뉴얼 ----------
+const manualEl = document.getElementById('manual');
+function showManual(on) {
+  manualEl.hidden = !on;
+  if (on) { setDrawer(false); document.getElementById('manX').focus(); }
+}
+document.getElementById('manX').addEventListener('click', () => showManual(false));
+// 머리줄의 '문쌤의 AI 연구소' 이름을 누르면: 메뉴 · 매뉴얼을 접고 건물 전체 보기
+document.querySelector('.brand')?.addEventListener('click', () => {
+  showManual(false);
+  setDrawer(false);
+  target = null;
+  overview();
+  renderBoard();
+});
+manualEl.addEventListener('click', (e) => { if (e.target === manualEl) showManual(false); });
+document.getElementById('gameMenu').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-go]');
+  if (!b) return; // [사진·PDF 넣기]는 data-act="upload" 라 앱이 받아요
+  if (b.dataset.go === 'staff') { target = null; overview(); openPanel('staff'); renderBoard(); }
+  if (b.dataset.go === 'boss') { target = null; enter('boss'); openPanel('boss'); renderBoard(); }
+  if (b.dataset.go === 'theme') setTheme(STATE.theme + 1);
+  if (b.dataset.go === 'manual') showManual(true);
+});
+// 단추 그림: 지금 1층 접수처 직원 · 지금 사장님
+function drawMenuIcons() {
+  const me = ME.find((m) => m.id === STATE.me) || ME[0];
+  snapshot(staffById(STATE.assign.lobby).def(), document.getElementById('icoStaff'));
+  snapshot(me.def(), document.getElementById('icoBoss'));
+}
 document.getElementById('drawerX').addEventListener('click', () => setDrawer(false));
 const fsBtn = document.getElementById('hudFs');
 fsBtn.addEventListener('click', () => {
@@ -1697,6 +1790,7 @@ function setTheme(id) {
 }
 function renderTheme() {
   document.getElementById('thName').textContent = `${STATE.theme}. ${theme().name}`;
+  document.getElementById('gTheme').textContent = `지금: ${theme().name}`;
   themePick.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.th) === STATE.theme)));
 }
 themePick.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTheme(Number(b.dataset.th)); });
@@ -1714,7 +1808,7 @@ const floorsEl = document.getElementById('floors');
 const staffEl = document.getElementById('staff');
 const friendsEl = document.getElementById('friends');
 // 직원을 둘 수 있는 방 (사장실은 나 · 친구 자리, 창고는 빈 방)
-const staffable = (k) => k !== 'boss' && !ROOMS[k]?.store;
+const staffable = (k) => k !== 'boss'; // 창고에도 직원을 둘 수 있어요 (안 두면 빈 창고)
 const STAFF_FLOORS = FLOORS.map((f) => ({ ...f, rooms: f.rooms.filter(staffable) })).filter((f) => f.rooms.length);
 
 // 서랍이 닫혀 있으면 그 방 화면으로 들어가고, 서랍(배치판)이 열려 있으면 배치할 방으로 골라요
@@ -1734,7 +1828,7 @@ function renderBoard() {
     const whole = target?.kind === 'floor' && target.key === f.floor;
     return `<div class="frow">
       <button type="button" class="fbtn ${whole ? 'on' : ''}" data-floor="${f.floor}">${f.floor}<small>${f.rooms.length > 1 ? '층 전체' : f.name}</small></button>
-      <div class="rooms">${f.rooms.map((k) => `<button type="button" class="rbtn ${(target?.kind === 'room' && target.key === k) || whole ? 'on' : ''}" data-room="${k}">${ROOMS[k].name}<small>${staffById(STATE.assign[k]).name}</small></button>`).join('')}</div>
+      <div class="rooms">${f.rooms.map((k) => `<button type="button" class="rbtn ${(target?.kind === 'room' && target.key === k) || whole ? 'on' : ''}" data-room="${k}">${ROOMS[k].name}<small>${STATE.assign[k] ? staffById(STATE.assign[k]).name : '비어 있음'}</small></button>`).join('')}</div>
     </div>`;
   }).join('');
   const rooms = targetRooms();
@@ -1809,7 +1903,7 @@ document.getElementById('reset').addEventListener('click', () => {
   rebuild();
   overview();
 });
-function rebuild() { buildWorld(); renderBoard(); }
+function rebuild() { buildWorld(); renderBoard(); drawMenuIcons(); }
 
 // ---------- 캐릭터 사진(작은 3D 그림) ----------
 const TW = 120, TH = 128;
@@ -1894,6 +1988,7 @@ function loop() {
 await Promise.race([document.fonts.load(`34px ${FONT}`), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
 gallery(staffEl, STAFF);
 gallery(friendsEl, FRIENDS);
+drawMenuIcons();
 buildWorld();
 renderBoard();
 renderTheme();
