@@ -12,7 +12,7 @@ import { APP_NAME, ROOMS, FLOORS } from './rooms.js';
 const REGION = 'asia-northeast3';
 const DEFAULT_STEPS = ['주제 정하기', '참고 지도안 고르기', '내 지도안 쓰기', '수업 실행', '성찰 정리·제출'];
 
-const S = { user: null, cards: [], captures: [], task: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false };
+const S = { user: null, teacher: false, cards: [], captures: [], task: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false };
 let auth, db, storage, fns;
 let unsubs = [];
 
@@ -48,7 +48,9 @@ const floorOf = (k) => FLOORS.find((f) => f.rooms.includes(k)) || { floor: '·',
 const isUnsorted = (c) => !ROOMS[c.room]?.ai;
 const cardsIn = (k) => S.cards.filter((c) => c.room === k);
 const cardById = (id) => S.cards.find((c) => c.id === id);
-const userPath = (p) => `users/${S.user.uid}/${p}`;
+// moontr.site의 다른 웹앱처럼 컬렉션 이름 앞에 ailab_ 을 붙입니다 (ailab_cards, ailab_captures, ailab_meta)
+const dbPath = (p) => `ailab_${p}`;
+const isGuest = () => !S.teacher;
 const isPast = (c) => isDate(c.date) && (c.end_date || c.date) < todayStr();
 function safeUrl(u) {
   const s = String(u || '').trim();
@@ -89,37 +91,48 @@ async function start() {
   storage = getStorage(app);
   fns = getFunctions(app, REGION);
 
-  $('#loginBtn').addEventListener('click', async () => {
-    $('#loginMsg').textContent = '';
-    try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch (e) { $('#loginMsg').textContent = `들어가지 못했어요 (${e.code || e.message})`; }
-  });
-
   onAuthStateChanged(auth, (user) => {
     unsubs.forEach((u) => u());
     unsubs = [];
-    S.user = user;
-    $('#login').hidden = !!user;
-    $('#app').hidden = !user;
+    Object.assign(S, { user, teacher: false, cards: [], captures: [], task: null });
+    updateAuthUI();
+    render();
     if (user) subscribe();
   });
+}
+
+// 로그인하지 않아도 건물(첫 화면)은 보이고, 자료는 관리자(규칙의 isTeacher) 계정으로 들어와야 보여요.
+function updateAuthUI() {
+  document.body.classList.toggle('guest', isGuest());
+  $('#authBtn').textContent = S.user ? '나가기' : '선생님 로그인';
+  $('#authBtn').dataset.act = S.user ? 'logout' : 'login';
+}
+
+async function login() {
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') toast(`로그인하지 못했어요 (${e.code || e.message})`);
+  }
 }
 
 function subscribe() {
   const denied = (e) => {
     if (e.code === 'permission-denied') {
+      toast('이 계정으로는 자료를 볼 수 없어요. 관리자 계정으로 로그인해 주세요.');
       signOut(auth);
-      $('#loginMsg').textContent = '이 계정은 이 건물에 들어올 수 없어요. 규칙 파일의 이메일을 확인해 주세요.';
     } else toast(`자료를 불러오지 못했어요 (${e.code})`);
   };
-  unsubs.push(onSnapshot(query(collection(db, userPath('cards')), orderBy('createdAt', 'desc')), (s) => {
+  unsubs.push(onSnapshot(query(collection(db, dbPath('cards')), orderBy('createdAt', 'desc')), (s) => {
     S.cards = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (!S.teacher) { S.teacher = true; updateAuthUI(); }
     render();
   }, denied));
-  unsubs.push(onSnapshot(query(collection(db, userPath('captures')), orderBy('createdAt', 'desc')), (s) => {
+  unsubs.push(onSnapshot(query(collection(db, dbPath('captures')), orderBy('createdAt', 'desc')), (s) => {
     S.captures = s.docs.map((d) => ({ id: d.id, ...d.data() }));
     render();
   }, denied));
-  unsubs.push(onSnapshot(doc(db, userPath('meta/task')), (s) => {
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/task')), (s) => {
     S.task = s.exists() ? s.data() : null;
     render();
   }, denied));
@@ -129,7 +142,7 @@ function subscribe() {
 const route = () => decodeURIComponent(location.hash.slice(1)) || 'home';
 
 function render() {
-  if (!S.user) return;
+  if (!db) return;
   // 글을 쓰는 중에는 화면을 다시 그리지 않고, 칸을 벗어날 때 그립니다.
   const ae = document.activeElement;
   if (ae && $('#view').contains(ae) && ae.matches('textarea, input:not([type=checkbox]):not([type=date])')) { S.dirty = true; return; }
@@ -186,7 +199,7 @@ function homeView() {
       ${floors}
       <div class="ground"></div>
     </section>
-    <aside class="side">
+    <aside class="side">${isGuest() ? guestSide() : `
       <section class="panel">
         <div class="intake-mini">
           <h3>1F 접수처</h3>
@@ -198,8 +211,36 @@ function homeView() {
         </ul>
         <small>캡쳐를 화면 어디에든 끌어다 놓거나 Ctrl+V로 붙여 넣어도 바로 들어가요.</small>
       </section>
-      <section class="panel"><h3>5F 원장실 · 다가오는 일정</h3>${bossView(true)}</section>
+      <section class="panel"><h3>5F 원장실 · 다가오는 일정</h3>${bossView(true)}</section>`}
     </aside>
+  </div>`;
+}
+
+// --- 로그인 전: 건물 안내만 ---
+const SYSTEM_DESC = {
+  boss: '다가오는 연수·공개수업·과제 마감을 D-day 순으로 모아 보여 줘요.',
+  lobby: '캡쳐를 넣는 곳이에요. 넣는 순간 AI 직원이 읽고 알맞은 방으로 보내요.',
+  archive: '넣은 캡쳐 원본을 고치지 않고 그대로 보관해요.',
+};
+const roomDesc = (k) => SYSTEM_DESC[k] || ROOMS[k]?.desc || '';
+
+function guestSide() {
+  return `<section class="panel">
+      <h3>층별 안내</h3>
+      <p class="sum">연수 공문, 연수 홈페이지, 수업 공개 공문, 다른 선생님 지도안 캡쳐를 AI 직원들이 읽고 층마다 정리하는 연구실이에요.</p>
+      <ul class="dir">${FLOORS.map((f) => `<li><b>${esc(f.floor)}</b><span>${f.rooms.map((k) => `<a href="#${k}">${esc(roomName(k))}</a>`).join(' · ')}</span></li>`).join('')}</ul>
+      <button class="btn primary" data-act="login">선생님 로그인</button>
+      <small>자료는 로그인한 선생님만 볼 수 있어요.</small>
+    </section>`;
+}
+
+function guestRoom(k) {
+  const fields = ROOMS[k]?.fields || [];
+  return `<div class="empty">
+    <p>${esc(roomDesc(k))}</p>
+    ${fields.length ? `<div class="kw">${fields.map((f) => `<span class="chip">${esc(f)}</span>`).join('')}</div>` : ''}
+    <p>이 방의 자료는 선생님 로그인 후에 볼 수 있어요.</p>
+    <button class="btn primary" data-act="login">선생님 로그인</button>
   </div>`;
 }
 
@@ -226,6 +267,7 @@ function floorView(k) {
 }
 
 function roomContent(k) {
+  if (isGuest()) return guestRoom(k);
   if (k === 'boss') return bossView(false);
   if (k === 'lobby') return lobbyView();
   if (k === 'archive') return archiveView();
@@ -242,6 +284,7 @@ function emptyRoom(k) {
 }
 
 function guideSay(k) {
+  if (isGuest()) return `${roomName(k)} ${ROOMS[k]?.role || '직원'}이에요. 선생님이 오시면 정리한 자료를 보여 드릴게요.`;
   const review = S.cards.filter((c) => c.status === 'review').length;
   if (k === 'boss') {
     const next = upcoming()[0];
@@ -570,7 +613,7 @@ async function saveCard(form) {
     unsure: [],
   };
   if (ROOMS[room]?.ai) Object.assign(data, { status: 'done', confirmedAt: serverTimestamp() });
-  await updateDoc(doc(db, userPath(`cards/${c.id}`)), data);
+  await updateDoc(doc(db, dbPath(`cards/${c.id}`)), data);
   toast(ROOMS[room]?.ai ? `${roomName(room)}에 보관했어요` : '저장했어요. 방을 고르면 보관돼요.');
 }
 
@@ -636,12 +679,12 @@ async function upload(fileList) {
 }
 
 async function uploadOne(file, link, memo) {
-  const capRef = doc(collection(db, userPath('captures')));
+  const capRef = doc(collection(db, dbPath('captures')));
   S.uploading.set(capRef.id, file.name);
   render();
   try {
     const blob = await prepare(file);
-    const path = userPath(`captures/${capRef.id}.${OK_TYPES[blob.type] || 'img'}`);
+    const path = `ailab/captures/${capRef.id}.${OK_TYPES[blob.type] || 'img'}`;
     await setDoc(capRef, { status: 'reading', name: file.name || '붙여넣은 이미지', storagePath: path, link, memo, createdAt: serverTimestamp() });
     await uploadBytes(ref(storage, path), blob, { contentType: blob.type || 'image/jpeg' });
   } catch (e) {
@@ -664,10 +707,10 @@ async function reread(capId) {
 async function deleteCapture(capId) {
   const cap = S.captures.find((c) => c.id === capId);
   if (!cap || !confirm('이 사진과 사진에서 나온 카드를 모두 지울까요? 되돌릴 수 없어요.')) return;
-  const cards = await getDocs(query(collection(db, userPath('cards')), where('captureId', '==', capId)));
+  const cards = await getDocs(query(collection(db, dbPath('cards')), where('captureId', '==', capId)));
   const batch = writeBatch(db);
   cards.forEach((d) => batch.delete(d.ref));
-  batch.delete(doc(db, userPath(`captures/${capId}`)));
+  batch.delete(doc(db, dbPath(`captures/${capId}`)));
   await batch.commit();
   if (cap.storagePath) await deleteObject(ref(storage, cap.storagePath)).catch(() => {});
   if (dlg.open) dlg.close();
@@ -676,7 +719,7 @@ async function deleteCapture(capId) {
 
 // ---------- 과제 저장 ----------
 function saveTask(patch) {
-  return setDoc(doc(db, userPath('meta/task')), { ...patch, updatedAt: serverTimestamp() }, { merge: true })
+  return setDoc(doc(db, dbPath('meta/task')), { ...patch, updatedAt: serverTimestamp() }, { merge: true })
     .catch((e) => toast(`저장하지 못했어요 (${e.code})`));
 }
 
@@ -687,16 +730,19 @@ document.addEventListener('click', async (e) => {
   const { act, id, cap } = b.dataset;
   try {
     switch (act) {
-      case 'upload': $('#fileInput').click(); break;
+      case 'upload':
+        if (isGuest()) { toast('선생님 로그인 후에 사진을 넣을 수 있어요'); await login(); } else $('#fileInput').click();
+        break;
+      case 'login': await login(); break;
       case 'logout': await signOut(auth); break;
       case 'confirm':
-        await updateDoc(doc(db, userPath(`cards/${id}`)), { status: 'done', unsure: [], confirmedAt: serverTimestamp() });
+        await updateDoc(doc(db, dbPath(`cards/${id}`)), { status: 'done', unsure: [], confirmedAt: serverTimestamp() });
         toast(`${roomName(cardById(id)?.room)}에 보관했어요`);
         break;
       case 'confirmAll': {
         const batch = writeBatch(db);
         const list = S.cards.filter((c) => c.status === 'review' && !isUnsorted(c));
-        list.forEach((c) => batch.update(doc(db, userPath(`cards/${c.id}`)), { status: 'done', unsure: [], confirmedAt: serverTimestamp() }));
+        list.forEach((c) => batch.update(doc(db, dbPath(`cards/${c.id}`)), { status: 'done', unsure: [], confirmedAt: serverTimestamp() }));
         await batch.commit();
         toast(`${list.length}장을 각 방에 보관했어요`);
         break;
@@ -704,14 +750,14 @@ document.addEventListener('click', async (e) => {
       case 'edit': e.preventDefault(); openCard(id); break;
       case 'del':
         if (confirm('이 카드를 버릴까요? 원본 사진은 B1 보관실에 남아요.')) {
-          await deleteDoc(doc(db, userPath(`cards/${id}`)));
+          await deleteDoc(doc(db, dbPath(`cards/${id}`)));
           if (dlg.open) dlg.close();
           toast('버렸어요');
         }
         break;
       case 'ref': {
         const c = cardById(id);
-        await updateDoc(doc(db, userPath(`cards/${id}`)), { taskRef: !c?.taskRef });
+        await updateDoc(doc(db, dbPath(`cards/${id}`)), { taskRef: !c?.taskRef });
         toast(c?.taskRef ? '과제에서 뺐어요' : '2F 과제 작업실에 담았어요');
         break;
       }
@@ -731,7 +777,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('change', (e) => {
   const t = e.target;
   if (t.matches('select[data-act=move]')) {
-    updateDoc(doc(db, userPath(`cards/${t.dataset.id}`)), { room: t.value }).then(() => toast(`${roomName(t.value)}(으)로 보냈어요`));
+    updateDoc(doc(db, dbPath(`cards/${t.dataset.id}`)), { room: t.value }).then(() => toast(`${roomName(t.value)}(으)로 보냈어요`));
   } else if (t.matches('input[data-act=step]')) {
     const steps = taskSteps().map((s, i) => (i === Number(t.dataset.i) ? { ...s, done: t.checked } : s));
     saveTask({ steps });
@@ -755,7 +801,7 @@ window.addEventListener('hashchange', () => { S.subj = ''; render(); window.scro
 
 // 화면 어디든 끌어다 놓기 / 붙여넣기
 let dragDepth = 0;
-window.addEventListener('dragenter', (e) => { if (S.user && e.dataTransfer?.types.includes('Files')) { dragDepth++; $('#dropOverlay').hidden = false; } });
+window.addEventListener('dragenter', (e) => { if (S.teacher && e.dataTransfer?.types.includes('Files')) { dragDepth++; $('#dropOverlay').hidden = false; } });
 window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('#dropOverlay').hidden = true; } });
 window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
 window.addEventListener('drop', (e) => {
@@ -763,16 +809,15 @@ window.addEventListener('drop', (e) => {
   e.preventDefault();
   dragDepth = 0;
   $('#dropOverlay').hidden = true;
-  if (S.user) upload(e.dataTransfer.files);
+  if (S.teacher) upload(e.dataTransfer.files);
 });
 document.addEventListener('paste', (e) => {
   const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
-  if (!S.user || !files.length) return;
+  if (!S.teacher || !files.length) return;
   e.preventDefault();
   upload(files);
 });
 
 start().catch((e) => {
-  $('#login').hidden = false;
-  $('#loginMsg').textContent = `Firebase 설정을 읽지 못했어요: ${e.message}`;
+  $('#view').innerHTML = `<p class="empty">Firebase 설정을 읽지 못했어요: ${esc(e.message)}</p>`;
 });
