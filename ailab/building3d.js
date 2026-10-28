@@ -1,9 +1,9 @@
 // AI Lab 첫 화면 — three.js 복셀 3D 건물 (화면보호기처럼 화면 가득)
 // index.html 의 #b3d 안 요소(무대 · 단추 · 서랍)를 찾아 그려요. app.js 가 이 파일을 불러오고 아래 export 로 이어져요.
 //   onRoom(k)      : 서랍이 닫혀 있을 때 방을 누르면 → 앱이 그 방 화면으로
-//   onChange(state): 직원 배치 · 원장실 · 건물 시안이 바뀌면 → 앱이 Firebase 에 저장
+//   onChange(state): 직원 배치 · 사장실 · 건물 시안이 바뀌면 → 앱이 Firebase 에 저장
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { ROOMS as APP_ROOMS, FLOORS } from './rooms.js';
+import { APP_NAME, ROOMS as APP_ROOMS, FLOORS } from './rooms.js';
 
 // ---------- 층과 방 (rooms.js) + 그 방 직원이 하는 일 (마우스를 올리면 보여요) ----------
 const JOBS = {
@@ -248,7 +248,7 @@ const hairTop = (c = HAIR, extra = []) => [
   { x: -3.1, y: -8.3, w: .5, h: 1.6, d: 5, c }, { x: 3.1, y: -8.3, w: .5, h: 1.6, d: 5, c }, ...extra,
 ];
 const face = (c = HAIR) => [[0, 0, 6, .7, c], [0, .7, 1.8, .5, c], ...smile];
-// 원장님 여자 모습: 어깨까지 오는 긴 머리, 양쪽으로 나눈 앞머리, 빨간 머리핀
+// 사장님 여자 모습: 어깨까지 오는 긴 머리, 양쪽으로 나눈 앞머리, 빨간 머리핀
 const hairLong = (c = HAIR, extra = []) => [
   { y: -9.55, w: 6.3, h: 1.1, d: 5.9, c }, { y: -6.5, z: -2.75, w: 6.5, h: 6.8, d: .9, c },
   { x: -3.15, y: -7.1, w: .6, h: 4.6, d: 5.2, c }, { x: 3.15, y: -7.1, w: .6, h: 4.6, d: 5.2, c },
@@ -272,7 +272,7 @@ const ME = [
     hat: [{ y: -10, w: 6.9, h: .5, d: 1, c: P.belt }, { x: -3.35, y: -7.2, w: .8, h: 1.9, d: 1.9, c: P.belt }, { x: 3.35, y: -7.2, w: .8, h: 1.9, d: 1.9, c: P.belt }, { x: 3.1, y: -6, z: 1.8, w: .3, h: .3, d: 2.4, c: P.belt }],
     itemR: [{ x: 5.85, y: 4.5, z: 2.9, w: 4.6, h: .4, d: 3.2, c: P.steel }, { x: 5.85, y: 2.7, z: 1.4, w: 4.6, h: 3.2, d: .3, c: P.steel, front: [[2, 1.2, .7, .7, P.white]] }],
   }) },
-  { id: 3, name: '타이쿤 원장님', hold: 'R', note: '정장, 금색 넥타이와 원장 배지, 커피 머그', def: () => meDef({
+  { id: 3, name: '타이쿤 사장님', hold: 'R', note: '정장, 금색 넥타이와 사장 배지, 커피 머그', def: () => meDef({
     torso: '#2f3e5c', arm: '#2f3e5c', leg: '#26324a',
     torsoFront: [[2.8, 0, 2.4, 3, P.white], [3.6, .4, .8, 3.8, P.gold], [.9, 1.2, 1.1, .7, P.gold]],
     itemR: [{ x: 5.85, y: 4.9, z: 2.5, w: 1.9, h: 2.1, d: 1.9, c: P.paper, front: [[.4, .8, 1.1, .4, P.red]] }, { x: 7.05, y: 4.9, z: 2.5, w: .5, h: 1.2, d: .4, c: P.paper }],
@@ -384,10 +384,10 @@ const STAFF_ABOUT = {
   10: '의욕이 넘치는 공룡 인턴이에요. 꼬리로 박자를 맞추며 일해요.',
 };
 const FRIEND_ABOUT = {
-  1: ['원장님 어깨 옆에 둥둥 떠 있는 화면 얼굴 로봇이에요.', '다가오는 일정과 할 일을 먼저 알려 줘요.'],
-  2: ['꼬리를 흔들며 원장님을 졸졸 따라다녀요.', '오래 앉아 있으면 쉬었다 하자고 졸라요.'],
+  1: ['사장님 어깨 옆에 둥둥 떠 있는 화면 얼굴 로봇이에요.', '다가오는 일정과 할 일을 먼저 알려 줘요.'],
+  2: ['꼬리를 흔들며 사장님을 졸졸 따라다녀요.', '오래 앉아 있으면 쉬었다 하자고 졸라요.'],
   3: ['책 더미 위에서 해바라기씨를 오물오물 먹어요.', '흩어진 메모를 볼에 모아 와요.'],
-  4: ['웃는 얼굴의 화분이에요.', '원장실 공기를 맑게 하고 기분을 북돋아요.'],
+  4: ['웃는 얼굴의 화분이에요.', '사장실 공기를 맑게 하고 기분을 북돋아요.'],
   5: ['프로펠러 네 개로 떠다니는 작은 드론이에요.', '층마다 날아가 무슨 일이 있는지 살펴봐요.'],
   6: ['귀가 쫑긋한 하얀 토끼예요.', '새 소식이 오면 깡총 뛰어 알려요.'],
   7: ['김이 모락모락 나는 머그잔이에요.', '바쁜 날 따뜻한 커피로 응원해요.'],
@@ -400,8 +400,8 @@ const staffInfo = (id, room) => {
   const s = staffById(id);
   return { title: s.name, sub: room ? `${ROOMS[room].name} 직원` : (where(id).join(' · ') || '아직 배치 전'), text: STAFF_ABOUT[id], job: room ? ROOMS[room].job : '' };
 };
-const friendInfo = (id) => ({ title: friendById(id).name, sub: '원장님 옆 친구', text: FRIEND_ABOUT[id][0], job: FRIEND_ABOUT[id][1] });
-const meInfo = () => { const m = ME.find((x) => x.id === STATE.me) || ME[0]; return { title: `원장님 · ${m.name}`, sub: '5F 원장실', text: `${m.note}.`, job: ME_JOB }; };
+const friendInfo = (id) => ({ title: friendById(id).name, sub: '사장님 옆 친구', text: FRIEND_ABOUT[id][0], job: FRIEND_ABOUT[id][1] });
+const meInfo = () => { const m = ME.find((x) => x.id === STATE.me) || ME[0]; return { title: `사장님 · ${m.name}`, sub: '5F 사장실', text: `${m.note}.`, job: ME_JOB }; };
 const tipEl = document.getElementById('tip');
 function showTip(info, x, y) {
   tipEl.innerHTML = `<b>${info.title}</b>${info.sub ? `<i>${info.sub}</i>` : ''}<p>${info.text}</p>${info.job ? `<p class="job"><span>하는 일</span>${info.job}</p>` : ''}`;
@@ -941,7 +941,7 @@ function buildWorld() {
   roofExtras(roofY);
   const roof = document.createElement('span');
   roof.className = 'roofsign';
-  roof.textContent = 'AI Lab';
+  roof.textContent = APP_NAME;
   labelsEl.append(roof);
   labelItems.push({ el: roof, pos: new THREE.Vector3(0, roofY + 1.1, D / 2) });
 

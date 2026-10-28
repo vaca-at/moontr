@@ -116,7 +116,7 @@ async function start() {
   }).catch(() => { B3 = false; render(); });
 }
 
-// 직원 배치 · 원장실 · 건물 시안: 로그인한 선생님이면 Firebase 에 저장 (어느 기기에서든 같게)
+// 직원 배치 · 사장실 · 건물 시안: 로그인한 선생님이면 Firebase 에 저장 (어느 기기에서든 같게)
 let buildingT = null;
 function saveBuilding(state) {
   if (!S.teacher) return;
@@ -268,7 +268,7 @@ function homeSide() {
       </ul>
       <small>캡쳐를 화면 어디에든 끌어다 놓거나 Ctrl+V로 붙여 넣어도 바로 들어가요.</small>
     </section>
-    <section class="panel"><h3>5F 원장실 · 다가오는 일정</h3>${bossView(true)}</section>`;
+    <section class="panel"><h3>5F 사장실 · 다가오는 일정</h3>${bossView(true)}</section>`;
 }
 
 // --- 로그인 전: 건물 안내만 ---
@@ -504,7 +504,7 @@ function taskPanel() {
   </section>`;
 }
 
-// --- 5F 원장실 ---
+// --- 5F 사장실 ---
 function upcoming() {
   const t = todayStr();
   const list = S.cards.filter((c) => !isUnsorted(c) && isDate(c.date) && (c.end_date || c.date) >= t);

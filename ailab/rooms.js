@@ -12,10 +12,11 @@
 //   lesson — 날짜순 수업 목록 (수업 공개)
 //   plan   — 수업 흐름 카드, 활동 방식별 묶음 (지도안)
 
-export const APP_NAME = 'AI Lab';
+// 화면에 보이는 이름 (주소는 그대로 moontr.site/ailab)
+export const APP_NAME = '문쌤의 AI 연구소';
 
 export const ROOMS = {
-  boss: { name: '원장실', role: '비서', system: true },
+  boss: { name: '사장실', role: '비서', system: true },
 
   train: {
     name: '연수 기록실', role: '기록 담당', ai: true, view: 'event',
@@ -53,7 +54,7 @@ export const ROOMS = {
 };
 
 export const FLOORS = [
-  { floor: '5F', name: '원장실', rooms: ['boss'] },
+  { floor: '5F', name: '사장실', rooms: ['boss'] },
   { floor: '4F', name: '연수 층', rooms: ['train', 'links'] },
   { floor: '3F', name: '수업 공개 층', rooms: ['moral', 'others'] },
   { floor: '2F', name: '연구 층', rooms: ['plans', 'task'] },
