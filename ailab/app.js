@@ -1263,25 +1263,77 @@ async function analyzeHwp(file) {
   if (flags & 2) throw new Error('비밀번호가 걸린 한글 파일이에요');
   if (flags & 4) throw new Error('배포용(읽기 전용) 한글 파일이라 글자를 꺼낼 수 없어요. PDF로 바꿔서 넣어 주세요');
   const secs = entries.filter(([p]) => /\/BodyText\/Section\d+$/i.test(p)).sort(([a], [b]) => parseInt(a.match(/(\d+)$/)[1], 10) - parseInt(b.match(/(\d+)$/)[1], 10));
-  const lines = [];
+  const blocks = [];
   for (const [, e] of secs) {
     let b = new Uint8Array(e.content);
     if (flags & 1) b = await inflateRaw(b);
-    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-    for (let p = 0; p + 4 <= b.length;) {
-      const h = dv.getUint32(p, true);
-      p += 4;
-      let size = (h >>> 20) & 0xfff;
-      if (size === 0xfff) { size = dv.getUint32(p, true); p += 4; }
-      if ((h & 0x3ff) === 67) { const s = clean(hwpParaText(b, p, size)); if (s) lines.push(s); }
-      p += size;
-    }
+    blocks.push(...hwpBlocks(hwpTree(hwpRecords(b))));
   }
-  if (!lines.length) throw new Error(`${file.name} 에서 글자를 찾지 못했어요`);
-  // 30줄씩 한 덩어리 (덩어리마다 넣기 · 가리기 · 빼기)
-  const units = [];
-  for (let i = 0; i < lines.length; i += 30) units.push(textUnit(`글 ${units.length + 1}`, lines.slice(i, i + 30)));
+  // 표 · 글 묶음마다 넣기 · 가리기 · 빼기 (.odt · .hwpx 와 같게)
+  const seen = new Set();
+  let t = 0, g = 0;
+  const units = blocks.filter((x) => { const k = x.lines.join('\n'); if (seen.has(k)) return false; seen.add(k); return true; })
+    .map((x) => textUnit(x.type === 'table' ? `표 ${++t}` : `글 ${++g}`, x.lines));
+  if (!units.length) throw new Error(`${file.name} 에서 글자를 찾지 못했어요`);
   return { kind: 'doc', file, units };
+}
+// 기록 하나 = 머리 4바이트(종류 10비트 · 깊이 10비트 · 크기 12비트, 크기가 0xFFF 면 뒤 4바이트) + 내용
+function hwpRecords(b) {
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength), out = [];
+  for (let p = 0; p + 4 <= b.length;) {
+    const h = dv.getUint32(p, true);
+    p += 4;
+    let size = (h >>> 20) & 0xfff;
+    if (size === 0xfff) { size = dv.getUint32(p, true); p += 4; }
+    out.push({ tag: h & 0x3ff, level: (h >>> 10) & 0x3ff, data: b.subarray(p, p + size), kids: [] });
+    p += size;
+  }
+  return out;
+}
+// 깊이로 나무 모양 만들기 (깊이 n+1 기록은 바로 앞 깊이 n 기록의 자식)
+function hwpTree(recs) {
+  const root = { level: -1, kids: [] }, stack = [root];
+  for (const r of recs) {
+    while (stack.length > 1 && stack[stack.length - 1].level >= r.level) stack.pop();
+    stack[stack.length - 1].kids.push(r);
+    stack.push(r);
+  }
+  return root.kids;
+}
+// 문단(66) → 글자(67) · 조종(71). 조종 안에 표(77)가 있으면 칸(72)마다 문단을 모아 행으로 (표 기록의 '행마다 칸 수'로 나눠요)
+const HWP = { para: 66, text: 67, ctrl: 71, list: 72, table: 77 };
+function hwpBlocks(nodes) {
+  const out = [];
+  const text = (s) => { const last = out[out.length - 1]; if (last?.type === 'text') last.lines.push(s); else out.push({ type: 'text', lines: [s] }); };
+  const table = (lines) => out.push({ type: 'table', lines });
+  const para = (n, onText, onTable) => {
+    const t = n.kids.find((k) => k.tag === HWP.text);
+    const s = t ? clean(hwpParaText(t.data, 0, t.data.length)) : '';
+    if (s) onText(s);
+    for (const k of n.kids) if (k.tag === HWP.ctrl) ctrl(k, onText, onTable);
+  };
+  // 칸 속 글자 (칸 안의 표는 ' / ' 로 이어 붙여요)
+  const cellText = (paras) => { const parts = []; for (const p of paras) para(p, (s) => parts.push(s), (ls) => parts.push(ls.join(' / '))); return parts.join(' '); };
+  const ctrl = (c, onText, onTable) => {
+    const cells = [];
+    let cur = null;
+    for (const k of c.kids) {
+      if (k.tag === HWP.list) { cur = k.kids.filter((q) => q.tag === HWP.para); cells.push(cur); } // 문단이 칸의 자식으로 오는 경우
+      else if (k.tag === HWP.para) { if (!cur) { cur = []; cells.push(cur); } cur.push(k); } // 칸 뒤에 형제로 오는 경우
+    }
+    const tbl = c.kids.find((k) => k.tag === HWP.table);
+    if (!tbl) { for (const cell of cells) for (const p of cell) para(p, onText, onTable); return; } // 머리말 · 글상자 같은 것: 그냥 글로
+    const texts = cells.map(cellText), d = tbl.data, dv = new DataView(d.buffer, d.byteOffset, d.byteLength);
+    const nRows = d.length >= 8 ? dv.getUint16(4, true) : 0, nCols = d.length >= 8 ? dv.getUint16(6, true) : 0;
+    let sizes = d.length >= 18 + nRows * 2 ? Array.from({ length: nRows }, (_, r) => dv.getUint16(18 + r * 2, true)) : [];
+    if (sizes.reduce((a, x) => a + x, 0) !== texts.length) sizes = nCols ? Array.from({ length: Math.ceil(texts.length / nCols) }, () => nCols) : texts.map(() => 1);
+    const lines = [];
+    let i = 0;
+    for (const n of sizes) { const row = texts.slice(i, i + n).filter(Boolean).join(' | '); i += n; if (row) lines.push(row); }
+    if (lines.length) onTable(lines);
+  };
+  for (const n of nodes) if (n.tag === HWP.para) para(n, text, table);
+  return out.filter((x) => x.lines.length);
 }
 async function analyzeDoc(file) {
   if (/\.hwp$/i.test(file.name)) return analyzeHwp(file);
