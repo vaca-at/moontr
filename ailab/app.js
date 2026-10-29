@@ -1255,12 +1255,24 @@ function askPlain(reason, pdfs) {
 // 넣기 전 확인 창: 쪽 · 시트 · 표를 누를 때마다 넣기 → 가리기 → 빼기. [이대로 넣기]를 누르면 { files, note }, 닫으면 null
 async function checkFiles(pdfs, sheets, docs, hasImgs) {
   toast('이름 · 연락처가 있는지 이 PC 안에서 살펴보고 있어요…');
-  let list;
+  // 파일마다 따로 읽어서, 비밀번호가 걸렸거나 못 읽는 파일은 그 파일만 빼고 넣어요 (명단 엑셀에 비밀번호를 거는 공문이 많아요)
+  const jobs = [...pdfs.map((f) => [f, analyzePdf]), ...sheets.map((f) => [f, analyzeSheet]), ...docs.map((f) => [f, analyzeDoc])];
+  let settled;
   try {
-    list = await withTimeout(Promise.all([...pdfs.map(analyzePdf), ...sheets.map(analyzeSheet), ...docs.map(analyzeDoc)]), 40000);
+    settled = await withTimeout(Promise.allSettled(jobs.map(([f, fn]) => fn(f))), 40000);
   } catch (e) {
     return askPlain(`${e.message || e}`, pdfs);
   }
+  const list = [], skipped = [];
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled') list.push(r.value);
+    else skipped.push({ name: jobs[i][0].name, why: /password|encrypt|비밀번호/i.test(r.reason?.message || r.reason?.name || '') ? '비밀번호가 걸려 있어요' : `읽지 못했어요 (${r.reason?.message || r.reason})` });
+  });
+  if (!list.length) {
+    toast(`${skipped.map((s) => `${s.name}: ${s.why}`).join(' · ')}${hasImgs ? ' — 사진만 넣을게요' : ''}`);
+    return hasImgs ? { files: [], note: '' } : null;
+  }
+  const skippedBox = skipped.length ? `<div class="dlg-err"><b>빼고 넣는 파일 ${skipped.length}개</b>${skipped.map((s) => `<p>${esc(s.name)} — ${esc(s.why)}</p>`).join('')}<small>비밀번호가 걸린 명단은 업무관리시스템에서 직접 열어 보세요.</small></div>` : '';
   const tag = (u) => (u.hits ? ` · 이름 등 ${u.hits}곳` : u.roster ? ' · 명단 같음' : u.noText ? ' · 그림' : '');
   const tile = (a, i) => a.units.map((u, j) => `<button type="button" class="pg ${u.mode} ${a.kind}" data-f="${i}" data-p="${j}">
       ${a.kind === 'pdf' ? '<span class="cv"></span>' : `<span class="sh">${u.rows}줄</span>`}
@@ -1268,10 +1280,11 @@ async function checkFiles(pdfs, sheets, docs, hasImgs) {
   dlg.innerHTML = `<form method="dialog" class="dlg one pdfcheck">${DLG_X}<div class="dlg-form">
     <h2>넣기 전에 개인정보 가리기</h2>
     <p class="note">이름 세 글자 · 휴대폰 번호 · 메일 주소로 보이는 곳은 까맣게 <b>가리고</b> 넣어요. 가린 쪽은 그림으로 다시 만들어서 가린 글자가 AI에게도, 저장소에도 가지 않아요. 누를 때마다 <b>넣기 → 가리기 → 빼기</b>로 바뀌어요.</p>
+    ${skippedBox}
     <label>내 이름 <small>(내 이름은 가리지 않고, 명단에 있는지 AI에게 알려 줘요)</small><input id="myName" autocomplete="off" placeholder="예: 홍길동" value="${esc(S.myName || '')}"></label>
     ${list.map((a, i) => `<section class="pc-file"><h3>${{ xlsx: '엑셀 · ', doc: '문서 · ' }[a.kind] || ''}${esc(a.file.name)}</h3><div class="pgrid">${tile(a, i)}</div></section>`).join('')}
     <div class="found" id="found"></div>
-    <div class="dlg-acts"><button value="cancel">취소</button><button type="button" class="yes" id="goPdf">이대로 넣기</button></div>
+    <div class="dlg-acts"><button value="cancel">취소</button><button type="button" class="yes" id="goPdf">${skipped.length ? `${skipped.length}개 빼고 넣기` : '이대로 넣기'}</button></div>
   </div></form>`;
   dlg.querySelectorAll('.pg.pdf').forEach((b) => { const u = list[b.dataset.f].units[b.dataset.p]; b.querySelector('.cv').append(u.canvas, u.over); });
   const nameEl = $('#myName', dlg), foundEl = $('#found', dlg);
