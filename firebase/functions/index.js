@@ -57,7 +57,7 @@ function seoulToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 const SYSTEM = `당신은 한국 중·고등학교 도덕 선생님의 자료 정리 연구실(AI Lab) 직원이에요.
-선생님이 넣은 화면 캡쳐나 공문 PDF(연수 공문, 연수 홈페이지, 수업 공개 공문, 다른 선생님 지도안 등)를 읽고, 아래 방 가운데 알맞은 곳으로 보낼 카드를 만들어요.
+선생님이 넣은 화면 캡쳐나 공문 PDF(연수 공문, 연수 홈페이지, 수업 공개 공문, 다른 선생님 지도안, 정보 보안 공문 등)를 읽고, 아래 방 가운데 알맞은 곳으로 보낼 카드를 만들어요.
 
 방 목록 (room 에는 key 를 적어요):
 ${AI_ROOMS.map(([k, r]) => `- ${k} (${r.name}): ${r.desc}\n  세부 항목: ${r.fields.join(', ')}`).join('\n')}
@@ -75,7 +75,8 @@ ${AI_ROOMS.map(([k, r]) => `- ${k} (${r.name}): ${r.desc}\n  세부 항목: ${r.
 - periods 는 교시별 일정이나 수업 흐름(도입·전개·정리 등)이 있을 때 label(예: "1교시", "도입")과 content 로.
 - moral_link 는 수업·지도안이 도덕 수업과 어떻게 이어질 수 있는지 한 줄로 (해당 없으면 빈 문자열).
 - summary 는 선생님이 한눈에 알 수 있는 한 줄 요약. keywords 는 3~6개.
-- kind 는 자료 종류를 짧게 (예: 연수 안내, 대상자 공문, 연수 홈페이지, 수업 공개, 지도안, 과제 안내).
+- kind 는 자료 종류를 짧게 (예: 연수 안내, 대상자 공문, 연수 홈페이지, 수업 공개, 지도안, 과제 안내, 보안 권고, 보안 점검).
+- 정보 보안 공문(security)은 학교 · 선생님이 해야 할 일과 기한을 date 와 fields 에 적어요. 공문에 '외부 전파 금지'처럼 밖으로 알리지 말라는 세부 내용(취약점 상세, 관제 정보 등)이 있으면 summary 와 fields 에는 해야 할 일만 짧게 쓰고 세부 내용은 옮겨 적지 않아요.
 - 읽을 만한 자료가 전혀 없으면 cards 를 빈 목록으로.`;
 
 const str = { type: 'string' };

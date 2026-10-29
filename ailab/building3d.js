@@ -13,13 +13,14 @@ const JOBS = {
   others: '도덕이 아닌 다른 교과의 공개수업을 모아 안내해요.',
   plans: '다른 선생님 지도안을 읽고 활동 방식별로 묶어 둬요.',
   task: '연수 과제 안내를 정리하고 단계별 진행과 제출일을 챙겨요.',
+  security: '정보 보안 공문에서 학교가 해야 할 일과 기한만 뽑아 챙겨요.',
   lobby: '들어온 캡쳐를 받아 AI에게 읽히고, 어느 방으로 보낼지 정해요.',
   archive: '넣은 캡쳐 원본을 고치지 않고 그대로 보관해요.',
 };
 // n · hot = 이름표 옆 숫자 (앱이 setBadges 로 실제 자료 수를 넣어요)
 const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, { ...r, job: JOBS[k] || r.desc || '', n: 0, hot: false }]));
 const ME_JOB = '건물 전체를 둘러보며 다가오는 연수·공개수업·과제 마감을 챙겨요.';
-const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5 }, me: 8, friend: 11, gender: 'f', theme: 1, layout: 5 }; // 사장님은 8번 베이지 재킷(여자), 친구는 클로드 // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
+const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3 }, me: 8, friend: 11, gender: 'f', theme: 1, layout: 5 }; // 사장님은 8번 베이지 재킷(여자), 친구는 클로드 // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
 const saved = (() => { try { return JSON.parse(localStorage.getItem('ailab3d') || 'null'); } catch { return null; } })();
 const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...(saved?.assign || {}) } };
 // 시안 미리 보기: 주소 뒤에 ?layout=3&theme=8&me=6&friend=11 처럼 붙이면 그 모습으로 (저장은 안 해요)
@@ -1233,6 +1234,13 @@ function furnish(k, g, { x0, x1, cx, y }) {
       worker(x0 + 1.1, 1.4, 'walk', { walk: [x0 + 1.1, cx + 2.2, .8] });
       lamp(g, x1 - .5, y, zb);
       break;
+    case 'security':
+      wallBoard(g, cx - 2, y + 2.15, zw, 1.8, .9, posterMat('보안', P.red));
+      desk(g, cx - 2, y, .8); worker(cx - 2, 0);
+      desk(g, cx + 1.6, y, .8); worker(cx + 1.6, 0);
+      cabinet(g, x1 - .8, y, zb); cabinet(g, x1 - 1.6, y, zb);
+      plant(g, x0 + .6, y, 1.6);
+      break;
     default:
       if (ROOMS[k]?.store) { storeRoom(g, k, { x0, x1, cx, y }); break; }
       // rooms.js 에 새로 넣은 방: 책상 · 직원 · 책장으로 기본 꾸밈
@@ -1752,12 +1760,6 @@ document.getElementById('gameMenu').addEventListener('click', (e) => {
   if (b.dataset.go === 'theme') setTheme(STATE.theme + 1);
   if (b.dataset.go === 'manual') showManual(true);
 });
-// 단추 그림: 지금 1층 접수처 직원 · 지금 사장님
-function drawMenuIcons() {
-  const me = ME.find((m) => m.id === STATE.me) || ME[0];
-  snapshot(staffById(STATE.assign.lobby).def(), document.getElementById('icoStaff'));
-  snapshot(me.def(), document.getElementById('icoBoss'));
-}
 document.getElementById('drawerX').addEventListener('click', () => setDrawer(false));
 const fsBtn = document.getElementById('hudFs');
 fsBtn.addEventListener('click', () => {
@@ -1789,9 +1791,7 @@ function setTheme(id) {
   renderTheme();
 }
 function renderTheme() {
-  document.getElementById('thName').textContent = `${STATE.theme}. ${theme().name}`;
-  document.getElementById('gTheme').textContent = `지금: ${theme().name}`;
-  themePick.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.th) === STATE.theme)));
+  document.getElementById('thName').textContent = `${STATE.theme}. ${theme().name}`;  themePick.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.th) === STATE.theme)));
 }
 themePick.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTheme(Number(b.dataset.th)); });
 document.getElementById('thPrev').addEventListener('click', () => setTheme(STATE.theme - 1));
@@ -1903,7 +1903,7 @@ document.getElementById('reset').addEventListener('click', () => {
   rebuild();
   overview();
 });
-function rebuild() { buildWorld(); renderBoard(); drawMenuIcons(); }
+function rebuild() { buildWorld(); renderBoard(); }
 
 // ---------- 캐릭터 사진(작은 3D 그림) ----------
 const TW = 120, TH = 128;
@@ -1988,7 +1988,6 @@ function loop() {
 await Promise.race([document.fonts.load(`34px ${FONT}`), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
 gallery(staffEl, STAFF);
 gallery(friendsEl, FRIENDS);
-drawMenuIcons();
 buildWorld();
 renderBoard();
 renderTheme();

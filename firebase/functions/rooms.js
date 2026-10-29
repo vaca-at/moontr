@@ -52,10 +52,15 @@ export const ROOMS = {
     fields: ['과제명', '제출 기한', '제출 방법', '분량·양식'],
   },
 
+  security: {
+    name: '정보 보안실', role: '보안 담당', ai: true, view: 'event',
+    desc: '정보 보안 관련 공문 (보안 점검 · 보안 권고 · 개인정보 보호 · 보안 교육 안내 등). 학교에서 해야 할 일과 기한 위주',
+    fields: ['공문 제목', '보낸 곳', '해야 할 일', '대상', '기한', '관련 시스템·프로그램'],
+  },
+
   lobby: { name: '접수처', role: '접수', system: true },
   archive: { name: '원본 보관실', role: '창고지기', system: true },
 
-  store1: { name: '창고 1', ...STORE },
   store2: { name: '창고 2', ...STORE },
   store3: { name: '창고 3', ...STORE },
   store4: { name: '창고 4', ...STORE },
@@ -67,5 +72,5 @@ export const FLOORS = [
   { floor: 'PH', name: '펜트하우스', rooms: ['boss'], penthouse: true },
   { floor: '2F', name: '연수 층', rooms: ['train', 'links', 'task', 'store4'] },
   { floor: '1F', name: '수업 층', rooms: ['lobby', 'moral', 'others', 'plans'] },
-  { floor: 'B1', name: '보관 층', rooms: ['archive', 'store1', 'store2', 'store3'] },
+  { floor: 'B1', name: '보관 · 보안 층', rooms: ['archive', 'security', 'store2', 'store3'] }, // 창고 1 → 정보 보안실 (2026-10-29)
 ];
