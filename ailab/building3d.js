@@ -4,13 +4,14 @@
 //   onChange(state): 직원 배치 · 사장실 · 건물 시안이 바뀌면 → 앱이 Firebase 에 저장
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { APP_NAME, ROOMS as APP_ROOMS, FLOORS } from './rooms.js';
+import { buildForm } from './forms3d.js';
 
 // ---------- 층과 방 (rooms.js) + 그 방 직원이 하는 일 (마우스를 올리면 보여요) ----------
 const JOBS = {
   train: '연수 안내 공문을 읽고 연수명·일시·장소·이수 시간을 정리해요.',
   links: '연수 사이트 캡쳐에서 주소와 중요 안내, 마감일을 뽑아 즐겨찾기로 꽂아 둬요.',
   moral: '수업 공개 공문에서 도덕 수업을 골라 날짜순으로 안내해요.',
-  others: '도덕이 아닌 다른 교과의 공개수업을 모아 안내해요.',
+  others: '다른 교과 공개수업을 교과별 책장에 꽂아 두고, 책을 고르면 열람대로 가져다줘요.',
   plans: '다른 선생님 지도안을 읽고 활동 방식별로 묶어 둬요.',
   task: '연수 과제 안내를 정리하고 단계별 진행과 제출일을 챙겨요.',
   aiedu: 'AI·바이브코딩 수업 · 특강과 AI 교육 공문을 모아 일정과 할 일을 챙겨요.',
@@ -21,14 +22,17 @@ const JOBS = {
 // n · hot = 이름표 옆 숫자 (앱이 setBadges 로 실제 자료 수를 넣어요)
 const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, { ...r, job: JOBS[k] || r.desc || '', n: 0, hot: false }]));
 const ME_JOB = '건물 전체를 둘러보며 다가오는 연수·공개수업·과제 마감을 챙겨요.';
-const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3, aiedu: 11 }, me: 8, friend: 11, gender: 'f', theme: 1, layout: 5 }; // 사장님은 8번 베이지 재킷(여자), 친구는 클로드 // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
+const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3, aiedu: 11 }, me: 8, friend: 11, gender: 'f', theme: 1, layout: 5, look: 0 }; // look: 캐릭터 느낌 0 각진 복셀 · 2 반질 비닐 (게임 메뉴 단추로 바꿔요) // 사장님은 8번 베이지 재킷(여자), 친구는 클로드 // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
 const saved = (() => { try { return JSON.parse(localStorage.getItem('ailab3d') || 'null'); } catch { return null; } })();
 // 저장된 배치 가운데 지금 있는 방만 (창고를 새 방으로 바꾸면 옛 창고 이름이 남아 있을 수 있어요)
 const onlyRooms = (a) => Object.fromEntries(Object.entries(a || {}).filter(([k]) => ROOMS[k]));
 const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...onlyRooms(saved?.assign) } };
 // 시안 미리 보기: 주소 뒤에 ?layout=3&theme=8&me=6&friend=11 처럼 붙이면 그 모습으로 (저장은 안 해요)
-const PREVIEW = Object.fromEntries(['layout', 'theme', 'me', 'friend'].map((k) => [k, Number(new URLSearchParams(location.search).get(k)) || 0]).filter(([, v]) => v));
+const PREVIEW = Object.fromEntries(['layout', 'theme', 'me', 'friend', 'look'].map((k) => [k, Number(new URLSearchParams(location.search).get(k)) || 0]).filter(([, v]) => v));
 Object.assign(STATE, PREVIEW);
+// 캐릭터 느낌: STATE.look (0 각진 복셀 · 2 반질 비닐, 미리 보기 ?look=1 클레이 · 3 만화) · ?noon=1 이면 시각과 상관없이 한낮 빛으로 (비교 사진용)
+let LOOK = STATE.look || 0;
+const NOON = new URLSearchParams(location.search).has('noon');
 const hooks = { onRoom: null, onChange: null };
 const root = document.getElementById('b3d');
 let visible = !root.hidden;
@@ -143,7 +147,7 @@ const fmtT = (d) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 function applyWeather() {
   const d = WX.data;
   if (!d) return;
-  const kind = WX.kind, ph = sunPhase(new Date(), d);
+  const kind = WX.kind, ph = sunPhase(NOON ? new Date((d.sunrise.getTime() + d.sunset.getTime()) / 2) : new Date(), d);
   const grey = { clear: 0, partly: .15, overcast: .55, fog: .6, rain: .7, snow: .5, storm: .85 }[kind];
   let top = mix('#0a1430', mix('#6fb4e6', '#8e9ba6', grey), ph.light);
   let bot = mix('#26365a', mix('#d7ecf7', '#c4ccd2', grey), ph.light);
@@ -702,15 +706,73 @@ const hideTip = () => { tipEl.hidden = true; };
 // 둥근 모양 조각 (삼각형 면이 보이는 로우폴리): ico 둥근 공 · ball 각진 작은 공 · lump 머리카락 덩어리 · ring 안경테 · cone 코
 const GEO = new Map();
 const geoOf = (k) => {
-  if (!GEO.has(k)) GEO.set(k, { ico: () => new THREE.IcosahedronGeometry(1, 1), ball: () => new THREE.IcosahedronGeometry(1, 0), lump: () => new THREE.DodecahedronGeometry(1, 0), ring: () => new THREE.TorusGeometry(1, .16, 6, 16), cone: () => new THREE.ConeGeometry(1, 1.6, 5) }[k]());
+  if (!GEO.has(k)) GEO.set(k, { ico: () => new THREE.IcosahedronGeometry(1, 1), ball: () => new THREE.IcosahedronGeometry(1, 0), smooth: () => new THREE.IcosahedronGeometry(1, 4), lump: () => new THREE.DodecahedronGeometry(1, 0), ring: () => new THREE.TorusGeometry(1, .16, 6, 16), cone: () => new THREE.ConeGeometry(1, 1.6, 5) }[k]());
   return GEO.get(k);
 };
+
+// --- 느낌 시안: 모양은 그대로, 모서리를 둥글리고 재질만 바꿔요 (말랑 클레이 · 반질 비닐 · 파스텔 만화) ---
+const LOOKS = { 1: { r: .42, pastel: .18, glow: .3 }, 2: { r: .34, pastel: .08, glow: .2 }, 3: { r: .24, pastel: .3, glow: .22 } }; // glow: 방이 어두워도 캐릭터가 밝게
+const roundGeos = new Map();
+// 크기마다 둥근 상자를 만들어 둬요 (늘려 쓰면 모서리가 찌그러져서). 아주 얇은 조각(눈 · 입)은 각진 그대로
+function roundGeo(w, h, d) {
+  const min = Math.min(w, h, d);
+  if (min < .03) return null;
+  const key = `${w.toFixed(3)}|${h.toFixed(3)}|${d.toFixed(3)}`;
+  if (roundGeos.has(key)) return roundGeos.get(key);
+  const r = min * LOOKS[LOOK].r, g = new THREE.BoxGeometry(w, h, d, 6, 6, 6);
+  const p = g.attributes.position, nrm = g.attributes.normal;
+  const lim = new THREE.Vector3(w / 2 - r, h / 2 - r, d / 2 - r), neg = lim.clone().negate(), v = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    c.copy(v).clamp(neg, lim);
+    v.sub(c);
+    if (v.lengthSq() > 1e-12) { v.normalize(); nrm.setXYZ(i, v.x, v.y, v.z); v.multiplyScalar(r); }
+    v.add(c);
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  roundGeos.set(key, g);
+  return g;
+}
+let toonGrad = null;
+const charMats = new Map();
+function charMat(color) {
+  if (!LOOK || /^(holo|ghost):/.test(color)) return null;
+  if (!charMats.has(color)) {
+    const base = new THREE.Color(color), hsl = base.getHSL({});
+    const c = hsl.l < .2 ? base : base.clone().lerp(new THREE.Color('#ffffff'), LOOKS[LOOK].pastel); // 눈 · 입 같은 어두운 색은 그대로
+    const glow = LOOKS[LOOK].glow;
+    let m;
+    if (LOOK === 1) m = new THREE.MeshStandardMaterial({ color: c, roughness: .95, emissive: c, emissiveIntensity: glow });
+    else if (LOOK === 2) m = new THREE.MeshPhysicalMaterial({ color: c, roughness: .35, clearcoat: 1, clearcoatRoughness: .18, sheen: .4, emissive: c, emissiveIntensity: glow });
+    else {
+      if (!toonGrad) {
+        toonGrad = new THREE.DataTexture(new Uint8Array([150, 215, 255]), 3, 1, THREE.RedFormat);
+        toonGrad.minFilter = toonGrad.magFilter = THREE.NearestFilter;
+        toonGrad.needsUpdate = true;
+      }
+      m = new THREE.MeshToonMaterial({ color: c, gradientMap: toonGrad, emissive: c, emissiveIntensity: glow });
+    }
+    charMats.set(color, m);
+  }
+  return charMats.get(color);
+}
+function charBox(into, w, h, d, c, x, y, z) {
+  const geo = LOOK ? roundGeo(w, h, d) : null, m = charMat(c);
+  if (!geo) return B(into, w, h, d, c, x, y, z, { m });
+  const mesh = new THREE.Mesh(geo, m || mat(c));
+  mesh.position.set(x, y, z);
+  mesh.castShadow = !String(c).startsWith('holo:');
+  mesh.receiveShadow = true;
+  into.add(mesh);
+  return mesh;
+}
 function buildParts(parts, into, origin, named, groups) {
   const [ox, oy, oz] = origin;
   for (const p of parts) {
     if (p.geo) { // { geo, r (또는 sx · sy · sz), x, y, z, c, rx · ry · rz, shiny }
       const { x = 0, y = 0, z = 0, r = 1 } = p;
-      const m = new THREE.Mesh(geoOf(p.geo), mat(p.c, p.shiny ? { flatShading: true, roughness: .15, metalness: .15 } : { flatShading: true }));
+      const round = LOOK && (p.geo === 'ico' || p.geo === 'ball');
+      const m = new THREE.Mesh(geoOf(round ? 'smooth' : p.geo), charMat(p.c) || mat(p.c, p.shiny ? { flatShading: true, roughness: .15, metalness: .15 } : { flatShading: true }));
       m.scale.set((p.sx ?? r) * V, (p.sy ?? r) * V, (p.sz ?? r) * V);
       m.position.set((x - ox) * V, -(y - oy) * V, (z - oz) * V);
       m.rotation.set(p.rx || 0, p.ry || 0, p.rz || 0);
@@ -729,10 +791,10 @@ function buildParts(parts, into, origin, named, groups) {
       continue;
     }
     const { x = 0, y = 0, z = 0, w, h, d, c, front = [] } = p;
-    B(into, w * V, h * V, d * V, c, (x - ox) * V, -(y - oy) * V, (z - oz) * V);
+    charBox(into, w * V, h * V, d * V, c, (x - ox) * V, -(y - oy) * V, (z - oz) * V);
     for (const [l, t, mw, mh, mc] of front) {
       const cx = x - w / 2 + l + mw / 2, cy = y - h / 2 + t + mh / 2;
-      B(into, mw * V, mh * V, .12 * V, mc, (cx - ox) * V, -(cy - oy) * V, (z + d / 2 + .06 - oz) * V, { shadow: false });
+      B(into, mw * V, mh * V, .12 * V, mc, (cx - ox) * V, -(cy - oy) * V, (z + d / 2 + .06 - oz) * V, { shadow: false, m: charMat(mc) });
     }
   }
 }
@@ -822,6 +884,30 @@ function animate(c, t) {
       if (c.legL) { c.legL.rotation.x = step * .55; c.legR.rotation.x = -step * .55; }
       if (arms) { c.armL.rotation.x = -step * .5; c.armR.rotation.x = step * .5; }
       c.lift.position.y = c.legL ? Math.abs(step) * .04 : Math.abs(Math.sin(s * 5)) * .22;
+      return;
+    }
+    case 'librarian': { // 도서관 사서: c.go 자리로 걸어가요 (없으면 c.home). 책을 들고 있으면 두 팔을 앞으로
+      const dt = Math.min(.05, Math.max(0, s - (c.lastS ?? s)));
+      c.lastS = s;
+      const go = c.go || c.home;
+      const dx = go.x - c.root.position.x, dz = go.z - c.root.position.z, dist = Math.hypot(dx, dz);
+      c.moving = dist > .04;
+      let want = go.face;
+      if (c.moving) {
+        const st = Math.min(dist, 2.6 * dt);
+        c.root.position.x += (dx / dist) * st;
+        c.root.position.z += (dz / dist) * st;
+        want = Math.atan2(dx, dz);
+      }
+      const da = Math.atan2(Math.sin(want - c.root.rotation.y), Math.cos(want - c.root.rotation.y));
+      c.root.rotation.y += da * Math.min(1, dt * 8);
+      const step = c.moving ? Math.sin(s * 7) : 0;
+      if (c.legL) { c.legL.rotation.x = step * .55; c.legR.rotation.x = -step * .55; }
+      if (arms) {
+        if (c.carry?.visible) { c.armL.rotation.x = -1.1; c.armR.rotation.x = -1.1; } else { c.armL.rotation.x = -step * .5; c.armR.rotation.x = step * .5; }
+      }
+      c.lift.position.y = c.moving ? (c.legL ? Math.abs(step) * .04 : Math.abs(Math.sin(s * 5)) * .18) : Math.abs(Math.sin(s * 1.4)) * .03;
+      if (c.head) c.head.rotation.y = c.moving ? 0 : Math.sin(s * .6) * .3;
       return;
     }
     default: // stand · wave
@@ -983,6 +1069,10 @@ const THEMES = [
     ground: { grass: '#d9dee6', dirt: '#9aa3ae', dirtD: '#7f8894', leaf: '#9fd3f0', leaf2: '#7fb8e0', trunk: '#8a94a3' } },
   { id: 7, name: '겨울 눈 오두막', wall: '#f4eadb', wall2: '#e7d8c2', wallB1: '#cdbda5', slab: '#d9c6a8', edge: '#5a3e2b', pillar: '#6b4a30', frame: '#5a3e2b', glass: '#ffe3a0', side: 'logs', win: 'two', roof: 'snow',
     ground: { grass: '#f4f7fa', dirt: '#b5a48e', dirtD: '#9c8b75', leaf: '#2f6b4a', leaf2: '#e9f1f4' } },
+  // 8~12번: 겉모양 자체가 다른 건물 (forms3d.js). 건물 전체 보기에서만 이 모형이고, 방 안은 2번 나무 연구소 색으로 그려요
+  ...[['library', '둥근 지붕 도서관'], ['manor', '사장님 저택'], ['resort', '섬 리조트'], ['village', '작은 마을'], ['tree', '나무 위 연구소']].map(([form, name], i) => ({
+    id: 8 + i, name, form, wall: '#efe4d3', wall2: '#e3d4bf', wallB1: '#cbbfae', slab: '#ddd2c2', edge: '#353c44', pillar: '#c99a5c', frame: '#f7f3ec', glass: '#bfe0ee', side: '#e3d4bf', win: 'two', roof: 'flag',
+  })),
 ];
 const theme = () => THEMES.find((x) => x.id === STATE.theme) || THEMES[0];
 const P0 = { ...P }; // 땅 · 나무 기본 색 (시안이 ground 로 바꿨다가 되돌릴 때)
@@ -1201,12 +1291,7 @@ function furnish(k, g, { x0, x1, cx, y }) {
       plant(g, x0 + .6, y, 1.7);
       break;
     case 'others':
-      chart(g, x0 + .8, y, zb);
-      easel(g, cx + 2.4, y, -.2, -.35);
-      worker(cx - .2, .4, 'stand', { face: .7 });
-      worker(cx + .4, 1.6, 'wave');
-      worker(x0 + 1, 1.9, 'walk', { walk: [x0 + 1, cx + 1.2, 1.1] });
-      wallBoard(g, cx + .2, y + 2.1, zw, 1.6, 1, posterMat('과학', P.cap));
+      library(g, { cx, y }, worker);
       break;
     case 'plans':
       desk(g, cx - 2.1, y, .8); worker(cx - 2.1, 0);
@@ -1265,6 +1350,208 @@ function furnish(k, g, { x0, x1, cx, y }) {
 }
 
 // ---------- 엘리베이터 칸 (층마다): 승강로 벽 · 레일 · 앞쪽 승강장 · 계단(코어형) ----------
+// ---------- 타교과실 = 수업 공개 도서관: 책장 하나 = 교과 묶음, 책 한 권 = 공개수업 하나 (2026-10-29 B형) ----------
+// 책을 누르면 그 방 직원(사서)이 책장으로 걸어가 꺼내 와서 열람대 위에 펼쳐요. 책은 앱이 setLibrary 로 넣어요
+const LIB_SHELVES = ['사회·역사·윤리', '정보·인공지능', '국어·영어', '수학', '과학', '그 밖의 교과'];
+// 위에서부터 맞춰 봐요 ('인공지능 수학'은 수학, '정보과학'은 정보)
+const LIB_MATCH = [[3, /수학|미적분|기하/], [1, /정보|소프트웨어|데이터|인공지능|코딩/], [4, /과학|물리|화학|생명|지구/], [0, /윤리|도덕|사회|역사|종교|철학/], [2, /국어|문학|영어/]];
+const LIB_COLOR = ['#8c4f5e', '#3c6688', '#6f7f3c', '#9a6c3a', '#3e7f75', '#6d5a90'];
+const LIB_TAG = { 윤리: '#e0709b', 바이브코딩: '#3fbf8c', 독서: '#f0c040' }; // 책 허리띠 색
+const libShelf = (sub) => (LIB_MATCH.find(([, re]) => re.test(sub || '')) || [5])[0];
+const libTags = (l) => [
+  (l.shelf === 0 || /윤리|인권|가치|문답|정서|문명/.test(l.title)) && '윤리',
+  /바이브/.test(l.title) && '바이브코딩',
+  /독서|소설/.test(l.title) && '독서',
+].filter(Boolean);
+let LIB_DATA = [];
+const LIB = { key: '', list: [], books: [], shelves: null, keeper: null, fetch: null, openL: null, openId: '' };
+const LIB_SW = 1.45, LIB_SH = 2.8, LIB_RH = (LIB_SH - .06) / 4;
+const libSign = (name, n) => memoTex(`lib|${name}|${n}`, () => texMat((g, w, h) => {
+  g.fillStyle = '#2d3a46'; g.fillRect(0, 0, w, h);
+  g.strokeStyle = '#c9a76a'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#f5efe2'; g.font = `${name.length > 6 ? 46 : 54}px ${FONT}`; g.fillText(name, w / 2, h / 2 - 14);
+  g.fillStyle = '#c9a76a'; g.font = `32px ${FONT}`; g.fillText(`${n}권`, w / 2, h / 2 + 38);
+}, 512, 140));
+function library(g, { cx, y }, worker) {
+  const zb = -D / 2 + .55, SD = .46;
+  const sx = (i) => cx - 4.05 + i * 1.62;
+  LIB.shelves = LIB_SHELVES.map((name, i) => {
+    const s = new THREE.Group();
+    s.position.set(sx(i), y, zb);
+    g.add(s);
+    B(s, LIB_SW, LIB_SH, .05, P.woodD, 0, LIB_SH / 2, -SD / 2);
+    for (const k of [-1, 1]) B(s, .07, LIB_SH, SD, P.wood, k * (LIB_SW / 2 - .035), LIB_SH / 2, 0);
+    for (let r = 0; r <= 4; r++) B(s, LIB_SW, .06, SD, P.wood, 0, .03 + r * LIB_RH, 0);
+    // 맨 아래 칸은 상자 · 잡지 (책은 위 세 칸에)
+    if (i % 2) for (let k = 0; k < 4; k++) B(s, .5, .05, .34, ['#d9c9a8', '#a9b8c8', '#c8a9a9', '#b7c8a9'][k], -.3, .09 + k * .055, 0);
+    else B(s, .5, .4, .36, P.crate, .3, .26, 0);
+    const sign = new THREE.Mesh(UNIT, libSign(name, 0));
+    sign.scale.set(1.32, .36, .04);
+    sign.position.set(0, LIB_SH + .3, -.12);
+    s.add(sign);
+    const books = new THREE.Group();
+    s.add(books);
+    return { name, sign, books };
+  });
+  // 열람대: 펼친 책 한 권
+  const dz = 1.55;
+  B(g, 2.1, .1, 1, P.wood, cx, y + .8, dz);
+  for (const a of [-1, 1]) for (const b of [-1, 1]) B(g, .09, .76, .09, P.woodD, cx + a * .95, y + .38, dz + b * .4);
+  B(g, 1.62, .05, 1, '#5b3a52', cx, y + .875, dz);
+  LIB.cv = document.createElement('canvas');
+  LIB.cv.width = 1024; LIB.cv.height = 640;
+  LIB.tex = new THREE.CanvasTexture(LIB.cv);
+  LIB.tex.colorSpace = THREE.SRGBColorSpace;
+  const page = new THREE.Mesh(new THREE.PlaneGeometry(1.52, .95), new THREE.MeshStandardMaterial({ map: LIB.tex, roughness: .9, emissive: '#ffffff', emissiveMap: LIB.tex, emissiveIntensity: .3 }));
+  page.rotation.x = -Math.PI / 2 + .55;
+  page.position.set(cx, y + 1.06, dz + .04);
+  g.add(page);
+  plant(g, cx - 4.3, y, 1.9);
+  // 사서: 그 방에 배치한 직원. 열람대 오른쪽에 서 있다가 책을 가지러 가요
+  const c = worker(cx + 1.75, 1.25, 'librarian', { face: -.35 });
+  c.home = { x: cx + 1.75, z: 1.25, face: -.35 };
+  c.go = null;
+  const tall = new THREE.Box3().setFromObject(c.root).max.y - c.root.position.y; // 직원마다 키가 달라서 손 높이에 맞춰 들어요
+  c.carry = B(c.root, .32, .1, .24, '#555555', 0, tall * .45, .34, { m: new THREE.MeshStandardMaterial({ color: '#555555', roughness: .8 }) });
+  c.carry.visible = false;
+  LIB.keeper = c;
+  LIB.sx = sx; LIB.zTake = zb + .85; LIB.fetch = null; LIB.openL = null;
+  // 펼친 책 위 말풍선 (글씨는 3D보다 HTML 이 또렷해요)
+  LIB.cap = document.createElement('div');
+  LIB.cap.className = 'libcap';
+  LIB.cap.dataset.room = 'others';
+  LIB.cap.hidden = true;
+  labelsEl.append(LIB.cap);
+  labelItems.push({ el: LIB.cap, pos: new THREE.Vector3(cx, y + 1.55, dz) });
+  libFill();
+}
+function libFill() {
+  if (!LIB.shelves) return;
+  const seen = new Set();
+  const list = LIB_DATA.filter((c) => { const k = `${c.subject}|${c.title}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .map((c) => ({ ...c, shelf: libShelf(c.subject) }));
+  list.forEach((l) => { l.tags = libTags(l); });
+  LIB.books = [];
+  LIB.shelves.forEach((sh, i) => {
+    sh.books.traverse((o) => { if (o.material?.userData.lib) o.material.dispose(); });
+    sh.books.clear();
+    const mine = list.filter((l) => l.shelf === i).sort((a, b) => a.subject.localeCompare(b.subject, 'ko'));
+    sh.sign.material = libSign(sh.name, mine.length);
+    const perRow = Math.max(1, Math.ceil(mine.length / 3));
+    const bwMax = Math.min(.17, (LIB_SW - .2) / perRow - .015);
+    const rowX = [0, 0, 0].map(() => -LIB_SW / 2 + .1);
+    let k = i * 37 + 11;
+    const rnd = () => (k = (k * 9301 + 49297) % 233280) / 233280;
+    mine.forEach((l, n) => {
+      const r = 3 - Math.floor(n / perRow); // 위 칸(3)부터 채워요
+      const bw = bwMax * (.8 + rnd() * .2), bh = LIB_RH * (.6 + rnd() * .25), bd = .3;
+      const color = shade(LIB_COLOR[i], (rnd() - .5) * .3);
+      const book = new THREE.Group();
+      book.position.set(rowX[r - 1] + bw / 2, .06 + r * LIB_RH, .03);
+      rowX[r - 1] += bw + .015;
+      const m = new THREE.MeshStandardMaterial({ color, roughness: .8 });
+      m.userData.lib = true;
+      const spine = B(book, bw, bh, bd, color, 0, bh / 2, 0, { m });
+      B(book, bw + .004, .025, bd + .004, '#e9dcc0', 0, bh - .05, 0, { shadow: false });
+      l.tags.forEach((t, ti) => B(book, bw + .006, .05, bd + .008, LIB_TAG[t], 0, bh * .36 - ti * .07, 0, { shadow: false }));
+      spine.userData.lesson = l;
+      Object.assign(l, { book, spine, color, pull: 0, goal: 0 });
+      sh.books.add(book);
+      LIB.books.push(spine);
+    });
+  });
+  LIB.list = list;
+  LIB.fetch = null;
+  if (LIB.keeper) { LIB.keeper.go = null; LIB.keeper.carry.visible = false; }
+  const open = list.find((l) => l.id === LIB.openId);
+  if (open) open.book.visible = false;
+  libOpen(open || null);
+}
+function libWrap(g, text, maxW) {
+  const lines = [];
+  let line = '';
+  for (const ch of text) {
+    if (line && g.measureText(line + ch).width > maxW) { lines.push(line.trim()); line = ch; } else line += ch;
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+}
+function libOpen(l) {
+  LIB.openL = l;
+  LIB.openId = l?.id || '';
+  const g = LIB.cv.getContext('2d'), w = LIB.cv.width, h = LIB.cv.height;
+  g.fillStyle = '#f7f1e3'; g.fillRect(0, 0, w, h);
+  const fold = g.createLinearGradient(w / 2 - 40, 0, w / 2 + 40, 0);
+  fold.addColorStop(0, 'rgba(0,0,0,0)'); fold.addColorStop(.5, 'rgba(0,0,0,.18)'); fold.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = fold; g.fillRect(w / 2 - 40, 0, 80, h);
+  g.textBaseline = 'top';
+  if (!l) {
+    g.textAlign = 'center'; g.fillStyle = '#3a2f28'; g.font = `52px ${FONT}`;
+    g.fillText('책장에서', w / 4, h / 2 - 64); g.fillText('책을 골라 보세요', w / 4, h / 2);
+    g.fillStyle = '#8a7a6a'; g.font = `38px ${FONT}`; g.fillText('사서가 가져다줘요', w * .75, h / 2 - 24);
+  } else {
+    g.textAlign = 'left';
+    g.fillStyle = '#8a7a6a'; g.font = `34px ${FONT}`; g.fillText(LIB_SHELVES[l.shelf], 50, 60);
+    g.fillStyle = '#3a2f28'; g.font = `${l.subject.length > 6 ? 56 : 76}px ${FONT}`; g.fillText(l.subject || '교과 미기재', 50, 116);
+    g.fillStyle = LIB_COLOR[l.shelf]; g.fillRect(50, 226, 120, 8);
+    l.tags.forEach((t, i) => { g.fillStyle = LIB_TAG[t]; g.fillRect(50, 290 + i * 66, 220, 50); g.fillStyle = '#ffffff'; g.font = `32px ${FONT}`; g.fillText(t, 66, 298 + i * 66); });
+    g.fillStyle = '#3a2f28'; g.font = `50px ${FONT}`;
+    libWrap(g, l.title, w / 2 - 110).slice(0, 7).forEach((ln, i) => g.fillText(ln, w / 2 + 55, 70 + i * 72));
+  }
+  LIB.tex.needsUpdate = true;
+  LIB.cap.hidden = !l;
+  if (l) { const sm = document.createElement('small'); sm.textContent = l.subject || '교과 미기재'; LIB.cap.replaceChildren(sm, l.title); }
+}
+// 사서에게 책 심부름 시키기 (가는 중에 다른 책을 누르면 그 책으로 바꿔요)
+function libFetch(l) {
+  const c = LIB.keeper;
+  if (LIB.fetch?.l === l || (!LIB.fetch && LIB.openL === l)) return;
+  for (const x of [LIB.fetch?.l, LIB.openL]) if (x) { x.book.visible = true; x.goal = 0; }
+  l.goal = 1;
+  if (!c) { l.book.visible = false; libOpen(l); return; }
+  c.carry.visible = false;
+  c.go = { x: LIB.sx(l.shelf), z: LIB.zTake, face: Math.PI };
+  LIB.fetch = { l, phase: 'go', wait: 0 };
+  LIB.cap.hidden = false;
+  LIB.cap.replaceChildren('사서가 가지러 갔어요…');
+}
+function stepLibrary(dt) {
+  for (const l of LIB.list) {
+    if (!l.book) continue;
+    l.pull += (l.goal - l.pull) * Math.min(1, dt * 9);
+    l.book.position.z = .03 + l.pull * .2;
+  }
+  const f = LIB.fetch, c = LIB.keeper;
+  if (!f || !c) return;
+  const at = (p) => Math.hypot(p.x - c.root.position.x, p.z - c.root.position.z) < .06;
+  if (f.phase === 'go' && at(c.go)) { f.phase = 'take'; f.wait = .45; }
+  else if (f.phase === 'take' && (f.wait -= dt) <= 0) {
+    f.l.book.visible = false;
+    c.carry.material.color.set(f.l.color);
+    c.carry.visible = true;
+    c.go = null;
+    f.phase = 'back';
+  } else if (f.phase === 'back' && at(c.home)) {
+    c.carry.visible = false;
+    LIB.fetch = null;
+    libOpen(f.l);
+  }
+}
+// 지금 도서관 안을 보고 있을 때만 책을 고를 수 있어요 (건물 전체 보기에서는 책이 너무 작아요)
+const libActive = () => LIB.books.length && selected === 'others' && (mode !== 'band' || bandRooms.includes('others'));
+function pickBook() { // pick(e) 가 광선을 맞춘 뒤에 불러요
+  if (!libActive()) return null;
+  return ray.intersectObjects(LIB.books.filter((s) => s.parent.visible), false)[0]?.object.userData.lesson || null;
+}
+let libHovered = null;
+function libHover(l) {
+  if (libHovered === l) return;
+  libHovered?.spine.material.emissive.set('#000000');
+  l?.spine.material.emissive.set('#3a3020');
+  libHovered = l;
+}
+
 function shaftFloor(g, [x0, x1], y, above) {
   const L = layout(), TH = theme(), cx = (x0 + x1) / 2, core = L.car === 'core';
   const h = FH - .3, cy = y + h / 2;
@@ -1529,7 +1816,7 @@ function buildWorld() {
     if (sl.shaft) shaftFloor(g, sl.shaft, y, MAIN.indexOf(f) > 0);
     f.rooms.forEach((k, j) => {
       const [x0, x1] = sl.rooms[j], cx = (x0 + x1) / 2;
-      if (!base) windows(g, cx, rw, n, y);
+      if (!base && k !== 'others') windows(g, cx, rw, n, y); // 도서관은 뒷벽을 책장으로 채워요
       furnish(k, g, { x0, x1, cx, y });
       const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: '#2b7ea1', transparent: true, opacity: 0, depthWrite: false }));
       hit.scale.set(rw - .2, FH - .35, D);
@@ -1594,10 +1881,63 @@ function buildWorld() {
   tree(-BW / 2 - 3, eL ? -2.6 : 1.5, 1.3); tree(-BW / 2 - 6.2, eL ? -3.4 : -2.5, 1);
   tree(BW / 2 + 3.3 + out, eR ? -2.6 : -1, 1.15); tree(BW / 2 + 6.5 + out, eR ? -3.4 : 2, .9);
   if (!eR) B(world, 1.4, .5, .6, P.wood, BW / 2 + 3.5 + out, .3, 2.6);
+  buildOutside();
   markSigns();
   applyBandVis();
   if (WX.data) applyWeather(); // 새로 만든 창문에도 밤 불빛
 }
+
+// ---------- 건물 시안 8~12번: 다른 겉모양 (건물 전체 보기에서만) ----------
+const outside = new THREE.Group();
+scene.add(outside);
+const OUT = { hits: [], anchors: {}, box: new THREE.Box3(), on: false };
+const OUT_SCALE = 2.2;
+function glassMat(c) {
+  const m = mat(c, { emissive: c, emissiveIntensity: .35 });
+  m.userData.base = c;
+  glassMats.add(m);
+  return m;
+}
+function buildOutside() {
+  outside.clear();
+  OUT.hits = []; OUT.anchors = {};
+  const form = theme().form;
+  if (!form) return;
+  const g = new THREE.Group();
+  g.scale.setScalar(OUT_SCALE);
+  outside.add(g);
+  let slots;
+  try { slots = buildForm(form, g, { mat, glass: glassMat }); } catch (e) { // 모형이 깨져도 상자 건물로는 보여요
+    console.error('건물 겉모양을 그리지 못했어요', e);
+    outside.clear();
+    return;
+  }
+  // 이름 있는 자리(사장실 · 접수처 · 보관실 · 보안실)부터, 나머지 방은 빈자리에 차례로 (창고는 겉에 안 보여요)
+  const rooms = FLOORS.flatMap((f) => f.rooms).filter((k) => !ROOMS[k].store);
+  const named = new Set(slots.map((s) => s.key).filter(Boolean));
+  const free = slots.filter((s) => !s.key);
+  const take = (k) => slots.find((s) => s.key === k) || (named.has(k) ? null : free.shift());
+  for (const k of rooms) {
+    const s = take(k);
+    if (!s) continue;
+    const [x, y, z, w, h, d] = s.box;
+    const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: '#2b7ea1', transparent: true, opacity: 0, depthWrite: false }));
+    hit.scale.set(w, h, d);
+    hit.position.set(x, y, z);
+    hit.userData.room = k;
+    g.add(hit);
+    OUT.hits.push(hit);
+    OUT.anchors[k] = new THREE.Vector3(x, y + h / 2 + .35, z).multiplyScalar(OUT_SCALE);
+  }
+  outside.updateMatrixWorld(true);
+  OUT.box.setFromObject(g);
+  for (const it of labelItems) {
+    const k = it.el.dataset.room;
+    it.posOut = it.el.classList.contains('roofsign') ? new THREE.Vector3(0, OUT.box.max.y + 1.6, 0) : k && !it.el.classList.contains('libcap') ? OUT.anchors[k] || null : null;
+  }
+}
+// 지금 겉모양 모형을 보여 줄 때: 8~12번 시안 · 첫 화면 · 방에 들어가지 않았을 때
+const extOn = () => !!theme().form && OUT.hits.length > 0 && mode === 'home' && !selected;
 // 층 화면에서는 그 층만 그려요 (다른 층 · 옥상 · 땅은 숨겨서 한 칸이 딱 맞게 보이게)
 function applyBandVis() {
   for (const ch of world.children) ch.visible = mode !== 'band' || ch.userData.floor === bandFloor;
@@ -1616,6 +1956,16 @@ function fitDist(w, h) {
 }
 function overview() {
   selected = null;
+  if (extOn()) { // 다른 겉모양: 모형 전체가 들어오게, 조금 더 내려다보며
+    const c = OUT.box.getCenter(new THREE.Vector3()), s = OUT.box.getSize(new THREE.Vector3());
+    const pad = camera.aspect > 1.2 ? 9 : 0;
+    goal.target.set(c.x - pad / 2, c.y - s.y * .1, c.z);
+    goal.dist = fitDist(s.x + pad + 4, s.y * 1.5 + 6) + s.z * .45;
+    goal.yaw = -.32; goal.pitch = .42;
+    document.getElementById('back').hidden = true;
+    markSigns();
+    return;
+  }
   // 위로는 옥상 장식(시계탑 · 풍선)까지, 아래로는 지하 흙까지 들어오게
   // 낮고 넓은 건물은 위로 남는 자리가 크고, 내려다보는 각도 때문에 앞쪽 바닥이 아래로 더 내려가 보여서 아래를 넉넉히
   const top = TOP_Y + 4.5, bottom = BOTTOM - 2.5;
@@ -1682,11 +2032,12 @@ function pick(e) {
   const r = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  return ray.intersectObjects(roomBoxes, false)[0]?.object.userData.room || null;
+  return ray.intersectObjects(OUT.on ? OUT.hits : roomBoxes, false)[0]?.object.userData.room || null;
 }
 function hoverRoom(k) {
   if (hovered === k) return;
   roomBoxes.forEach((b) => { b.material.opacity = b.userData.room === k ? .07 : 0; });
+  OUT.hits.forEach((b) => { b.material.opacity = b.userData.room === k ? .12 : 0; });
   hovered = k;
 }
 renderer.domElement.addEventListener('pointerdown', (e) => {
@@ -1704,7 +2055,10 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     return;
   }
   const ch = pickChar(e);
-  if (ch) { showTip(ch.info, e.clientX, e.clientY); hoverRoom(null); stage.classList.add('hover'); return; }
+  if (ch) { showTip(ch.info, e.clientX, e.clientY); hoverRoom(null); libHover(null); stage.classList.add('hover'); return; }
+  const bk = pickBook();
+  libHover(bk);
+  if (bk) { showTip({ title: bk.title, sub: bk.subject || '교과 미기재', text: '누르면 사서가 가져와 열람대에 펼쳐요.' }, e.clientX, e.clientY); hoverRoom(null); stage.classList.add('hover'); return; }
   hideTip();
   const k = pick(e);
   stage.classList.toggle('hover', !!k);
@@ -1715,11 +2069,16 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (drag && !drag.moved) {
     const ch = pickChar(e);
     if (ch) showTip(ch.info, e.clientX, e.clientY); // 휴대폰은 눌러서 설명 보기
-    else { hideTip(); const k = pick(e); if (k) chooseRoom(k); }
+    else {
+      hideTip();
+      const bk = pickBook();
+      if (bk) libFetch(bk);
+      else { const k = pick(e); if (k) chooseRoom(k); }
+    }
   }
   drag = null;
 });
-renderer.domElement.addEventListener('pointerleave', () => { hoverRoom(null); hideTip(); });
+renderer.domElement.addEventListener('pointerleave', () => { hoverRoom(null); libHover(null); hideTip(); });
 // 캐릭터를 맞혔는지 (pick 이 광선을 맞춘 뒤에 불러요)
 function pickChar(e) {
   pick(e);
@@ -1783,6 +2142,7 @@ document.getElementById('gameMenu').addEventListener('click', (e) => {
   if (b.dataset.go === 'staff') { target = null; overview(); openPanel('staff'); renderBoard(); }
   if (b.dataset.go === 'boss') { target = null; enter('boss'); openPanel('boss'); renderBoard(); }
   if (b.dataset.go === 'theme') setTheme(STATE.theme + 1);
+  if (b.dataset.go === 'look') { STATE.look = STATE.look === 2 ? 0 : 2; save(); rebuild(); }
   if (b.dataset.go === 'manual') showManual(true);
 });
 document.getElementById('drawerX').addEventListener('click', () => setDrawer(false));
@@ -1813,6 +2173,7 @@ function setTheme(id) {
   STATE.theme = ((id - 1 + THEMES.length) % THEMES.length) + 1;
   save();
   buildWorld();
+  if (!selected) overview(); // 겉모양이 다른 시안(8~12번)은 크기가 달라서 다시 맞춰 봐요
   renderTheme();
 }
 function renderTheme() {
@@ -1929,7 +2290,19 @@ document.getElementById('reset').addEventListener('click', () => {
   rebuild();
   overview();
 });
-function rebuild() { buildWorld(); renderBoard(); }
+function rebuild() { syncLook(); buildWorld(); renderBoard(); }
+// 느낌이 바뀌면 모아 둔 둥근 상자 · 재질을 비우고 서랍의 직원 그림도 다시 찍어요
+function syncLook() {
+  const want = STATE.look || 0;
+  document.querySelector('[data-go="look"]')?.setAttribute('aria-pressed', String(want === 2));
+  if (LOOK === want) return;
+  LOOK = want;
+  charMats.clear();
+  roundGeos.forEach((g) => g.dispose());
+  roundGeos.clear();
+  gallery(staffEl, STAFF);
+  gallery(friendsEl, FRIENDS);
+}
 
 // ---------- 캐릭터 사진(작은 3D 그림) ----------
 const TW = 120, TH = 128;
@@ -1974,7 +2347,9 @@ function resize() {
 const tmp = new THREE.Vector3();
 function placeLabels() {
   const w = stage.clientWidth, h = stage.clientHeight;
-  for (const { el, pos } of labelItems) {
+  for (const it of labelItems) {
+    const { el } = it, pos = OUT.on ? it.posOut : it.pos;
+    if (!pos) { el.style.visibility = 'hidden'; continue; }
     tmp.copy(pos).project(camera);
     // 층 화면에서는 그 층 방 이름표만 (이웃 층 이름표 · 층 번호는 숨겨요)
     const other = mode === 'band' && !bandRooms.includes(el.dataset.room);
@@ -1994,6 +2369,7 @@ function loop() {
   if (!visible) return; // 숨어 있는 동안은 그리지 않아요
   t += dt;
   for (const c of people) animate(c, t);
+  stepLibrary(dt);
   for (const { d, x0, x1, off } of docs) d.position.x = x0 + (((t * .18 + off) % 1) * (x1 - x0));
   if (flag) flag.rotation.y = Math.sin(t * 3) * .25;
   for (const a of anims) a(t);
@@ -2004,14 +2380,18 @@ function loop() {
   if (!selected && !drag && !drawer.classList.contains('open') && performance.now() - lastInput > 6000) {
     tour += dt;
     goal.yaw = -.32 + Math.sin(tour * .09) * .5;
-    goal.pitch = .16 + Math.sin(tour * .05) * .05;
+    goal.pitch = (OUT.on ? .42 : .16) + Math.sin(tour * .05) * .05;
   }
+  // 8~12번 시안: 건물 전체 보기에서는 겉모양 모형, 방에 들어가면 상자 건물 속 방
+  const ext = extOn();
+  if (ext !== OUT.on) { OUT.on = ext; world.visible = !ext; outside.visible = ext; hoverRoom(null); }
   placeCamera();
   renderer.render(scene, camera);
   placeLabels();
 }
 
 await Promise.race([document.fonts.load(`34px ${FONT}`), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
+syncLook();
 gallery(staffEl, STAFF);
 gallery(friendsEl, FRIENDS);
 buildWorld();
@@ -2047,6 +2427,15 @@ export function setBadges(map) {
     i.hidden = !r.n;
   });
 }
+// 타교과실 도서관 책: 그 방 카드들 [{ id, subject, title }] (바뀐 게 없으면 다시 꽂지 않아요)
+export function setLibrary(cards) {
+  const next = (cards || []).map((c) => ({ id: c.id, subject: String(c.subject || ''), title: String(c.title || '') }));
+  const key = JSON.stringify(next);
+  if (key === LIB.key) return;
+  LIB.key = key;
+  LIB_DATA = next;
+  libFill();
+}
 // Firebase 에서 불러온 설정으로 바꾸기 (저장하지 않고 그리기만)
 export function setState(s) {
   if (!s || performance.now() - lastLocal < 3000) return;
@@ -2057,6 +2446,7 @@ export function setState(s) {
     gender: s.gender === 'f' ? 'f' : s.gender === 'm' ? 'm' : STATE.gender,
     theme: s.theme || STATE.theme,
     layout: s.layout || STATE.layout,
+    look: s.look === 2 ? 2 : s.look === 0 ? 0 : STATE.look,
   }, PREVIEW);
   if (JSON.stringify(STATE) === keep) return;
   try { localStorage.setItem('ailab3d', JSON.stringify(STATE)); } catch {}
