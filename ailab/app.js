@@ -411,7 +411,7 @@ function roomContent(k) {
   if (k === 'lobby') return lobbyView();
   if (k === 'archive') return archiveView();
   const r = ROOMS[k];
-  const head = r.task ? taskPanel() : '';
+  const head = r.task ? taskPanel() : k === 'links' ? linkForm() : '';
   const list = cardsIn(k);
   if (!list.length) return head + emptyRoom(k);
   const view = { link: linksView, lesson: lessonsView, plan: plansView, split: splitView }[r.view] || eventsView;
@@ -473,7 +473,7 @@ function actions(c, more = '') {
   return `<div class="acts">
     ${c.status === 'review' ? `<button class="yes" data-act="confirm" data-id="${c.id}">맞아요</button>` : ''}
     <button data-act="edit" data-id="${c.id}">고치기</button>
-    <button class="src-btn" data-act="edit" data-id="${c.id}">${thumb(c.storagePath)}원본</button>
+    ${c.storagePath ? `<button class="src-btn" data-act="edit" data-id="${c.id}">${thumb(c.storagePath)}원본</button>` : ''}
     ${more}
   </div>`;
 }
@@ -554,7 +554,43 @@ function linkCard(c) {
     ${actions(c)}
   </article>`;
 }
-const linksView = (list) => `<div class="tiles">${list.map(linkCard).join('')}</div>`;
+// 분류(카테고리)별로 묶어 보기. AI가 캡쳐에서 만든 링크는 '어느 연수에서'를 분류로 써요
+const linkCat = (c) => c.category || field(c, '어느 연수에서') || '기타';
+function linksView(list) {
+  const groups = Object.entries(groupBy(list, linkCat)).sort((a, b) => (a[0] === '기타') - (b[0] === '기타') || a[0].localeCompare(b[0], 'ko'));
+  return groups.map(([cat, items]) => `<section class="lgrp"><h3>${esc(cat)} <small>(${items.length})</small></h3><div class="tiles">${items.map(linkCard).join('')}</div></section>`).join('');
+}
+// 링크 서재 맨 위: 링크를 직접 붙여 넣기 (한 줄에 하나, 분류 · 제목 · 주소. 엑셀에서 세 칸을 복사해 붙여도 돼요)
+const linkForm = () => `<details class="linkadd" ${S.cards.some((c) => c.room === 'links') ? '' : 'open'}>
+    <summary>링크 직접 넣기</summary>
+    <label for="linkPaste">한 줄에 하나씩 <b>분류, 제목, 주소</b> 순서로 적어요. 엑셀에서 세 칸을 복사해 붙여 넣어도 돼요.</label>
+    <textarea id="linkPaste" rows="4" placeholder="연수, 서울교육연수원 이러닝, https://www.seoul.go.kr/...&#10;수업자료, 에듀넷 티-클리어, https://www.edunet.net"></textarea>
+    <button class="btn primary" data-act="addLinks" type="button">링크 넣기</button>
+  </details>`;
+const URLISH = /^(https?:\/\/|www\.)\S+$|^[\w-]+(\.[\w-]+)+(\/\S*)?$/i;
+function parseLinks(text) {
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const parts = (line.includes('\t') ? line.split('\t') : line.split(/\s*[,|]\s*(?=\S)/)).map((s) => s.trim()).filter(Boolean);
+    const i = parts.findIndex((p) => URLISH.test(p));
+    if (i < 0) return null;
+    const url = safeUrl(parts[i]), rest = parts.filter((_, j) => j !== i);
+    const [category, title] = rest.length >= 2 ? [rest[0], rest.slice(1).join(' ')] : ['기타', rest[0] || url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]];
+    return url ? { category, title, url } : null;
+  }).filter(Boolean);
+}
+async function addLinks() {
+  const box = $('#linkPaste');
+  const links = parseLinks(box?.value || '');
+  if (!links.length) { toast('주소가 있는 줄을 찾지 못했어요. "분류, 제목, 주소" 순서로 적어 주세요'); return; }
+  const batch = writeBatch(db);
+  links.forEach((l) => batch.set(doc(collection(db, dbPath('cards'))), {
+    room: 'links', kind: '링크', title: l.title, url: l.url, category: l.category, summary: '', date: '', end_date: '', time: '', place: '', subject: '',
+    moral_link: '', keywords: [], fields: [], periods: [], unsure: [], status: 'done', taskRef: false, captureId: '', storagePath: '', manual: true, createdAt: serverTimestamp(),
+  }));
+  await batch.commit();
+  box.value = '';
+  toast(`링크 ${links.length}개를 넣었어요`);
+}
 
 // lesson: 수업 공개
 function lessonRow(c, k) {
@@ -574,12 +610,52 @@ function lessonRow(c, k) {
     <span class="subj ${k === 'moral' ? 'moral' : 'other'} ${uns(c, 'subject')}">${esc(c.subject || field(c, '교과') || (k === 'moral' ? '도덕' : '기타'))}</span>
   </li>`;
 }
+// 교과 이름을 큰 묶음으로 (인공지능 수학 → 수학, 데이터 과학(정보과) → 정보, 한문 · 일본문화 → 제2외국어·한문 …). 위에서부터 먼저 맞는 묶음
+const SUBJ_GROUPS = [
+  ['정보', /정보|소프트웨어|데이터|코딩|프로그래밍|인공지능\s*기초|^인공지능$/],
+  ['수학', /수학|미적분|기하|확률|대수|통계/],
+  ['과학', /과학|물리|화학|생명|지구|천문|생물/],
+  ['국어', /국어|문학|화법|작문|독서|언어와\s*매체|매체/],
+  ['영어', /영어/],
+  ['제2외국어·한문', /한문|일본|중국|독일|프랑스|스페인|러시아|아랍|베트남|외국어/],
+  ['사회', /사회|역사|한국사|지리|경제|정치|법|세계사|동아시아/],
+  ['기술·가정', /기술|가정|공학|발명/],
+  ['체육', /체육|스포츠|운동/],
+  ['예술', /음악|미술|예술|연극|영화|디자인/],
+  ['교양', /종교|철학|진로|논리|심리|교육학|보건|환경|교양/],
+];
+const subjOf = (c) => c.subject || field(c, '교과') || '';
+const subjGroup = (s) => (SUBJ_GROUPS.find(([, re]) => re.test(s)) || ['기타'])[0];
 function lessonsView(list, k) {
-  const subjects = [...new Set(list.map((c) => c.subject || field(c, '교과')).filter(Boolean))];
-  const filtered = S.subj && subjects.includes(S.subj) ? list.filter((c) => (c.subject || field(c, '교과')) === S.subj) : list;
-  const chips = subjects.length > 1 ? `<div class="row">${['', ...subjects].map((s) => `<button class="chipbtn ${s === (subjects.includes(S.subj) ? S.subj : '') ? 'on' : ''}" data-act="subj" data-v="${esc(s)}">${esc(s || '전체')}</button>`).join('')}</div>` : '';
+  const counts = list.reduce((m, c) => { const g = subjGroup(subjOf(c)); m[g] = (m[g] || 0) + 1; return m; }, {});
+  const groups = [...SUBJ_GROUPS.map(([g]) => g), '기타'].filter((g) => counts[g]);
+  const cur = groups.includes(S.subj) ? S.subj : '';
+  const filtered = cur ? list.filter((c) => subjGroup(subjOf(c)) === cur) : list;
+  const chips = groups.length > 1 ? `<div class="row">${['', ...groups].map((g) => `<button class="chipbtn ${g === cur ? 'on' : ''}" data-act="subj" data-v="${esc(g)}">${esc(g || '전체')} <small>(${g ? counts[g] : list.length})</small></button>`).join('')}</div>` : '';
   const { live, past } = sortCards(filtered);
-  return chips + withPast(live, past, (c) => lessonRow(c, k), (h) => `<ul class="lessons">${h}</ul>`);
+  return lessonBrief(filtered, cur) + chips + withPast(live, past, (c) => lessonRow(c, k), (h) => `<ul class="lessons">${h}</ul>`);
+}
+// 한눈 브리핑: 모인 수업 공개를 숫자로 요약 (이번 주 · 몰린 날 · 많은 교과 · 학교 · 도덕과 연결 추천). 화면에서 바로 계산해요
+function lessonBrief(list, cur) {
+  const t = todayStr(), live = sortCards(list).live.filter((c) => isDate(c.date));
+  if (!live.length) return '';
+  const top = (fn, n = 3) => Object.entries(groupBy(live, fn)).filter(([key]) => key).sort((a, b) => b[1].length - a[1].length).slice(0, n);
+  const today = live.filter((c) => c.date === t).length;
+  const week = live.filter((c) => { const n = dday(c.date); return n !== null && n <= 7; }).length;
+  const [busyDay, busy] = top((c) => c.date, 1)[0] || [];
+  const subj = cur ? [] : top((c) => subjGroup(subjOf(c)));
+  const schools = top((c) => field(c, '학교'));
+  const picks = live.filter((c) => c.moral_link).slice(0, 3);
+  const when = (c) => `${fmtDate(c.date)}${field(c, '교시') || c.time ? ` ${field(c, '교시') || c.time}` : ''}`;
+  return `<section class="brief" aria-label="한눈 브리핑">
+    <h3>한눈 브리핑 <small>다가오는 공개수업 ${live.length}건${cur ? ` · ${esc(cur)}` : ''}</small></h3>
+    <ul>
+      <li>오늘 <b>${today}건</b>, 일주일 안에 <b>${week}건</b>${busy && busy.length > 1 ? ` · 가장 몰린 날은 <b>${esc(fmtDate(busyDay))}</b> (${busy.length}건)` : ''}</li>
+      ${subj.length ? `<li>많은 교과: ${subj.map(([g, a]) => `${esc(g)} ${a.length}`).join(' · ')}</li>` : ''}
+      ${schools.length ? `<li>많이 여는 학교: ${schools.map(([s, a]) => `${esc(s)} ${a.length}`).join(' · ')}</li>` : ''}
+    </ul>
+    ${picks.length ? `<p class="brief-sub">도덕 수업에 가져올 만한 수업</p><ol>${picks.map((c) => `<li><b>${esc(when(c))}</b> ${esc(c.title || '')} <small>${esc(field(c, '학교'))}</small><span>${esc(c.moral_link)}</span></li>`).join('')}</ol>` : ''}
+  </section>`;
 }
 
 // plan: 지도안, 활동 방식별로 묶어 보기
@@ -658,7 +734,7 @@ function lobbyView() {
   const moving = S.uploading.size + reading.length;
   return `<div class="mD">
     <div class="intake">
-      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 PDF · 엑셀 · 사진을 한꺼번에 넣으면 한 묶음으로 읽어요 (한글 파일은 PDF로 바꿔서)</small></label>
+      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 본문(.odt) · PDF · 엑셀 · 사진 · .hwpx를 한꺼번에 넣으면 한 묶음으로 읽어요 (.hwp는 PDF로 바꿔서)</small></label>
       <div class="extra">
         <label>링크 주소 <small>홈페이지 캡쳐라면 주소를 같이 적어 주세요</small><input id="pendLink" type="url" inputmode="url" placeholder="https://" value="${esc(S.pending.link)}"></label>
         <label>메모 <small>예: 3차 연수 과제 안내 / 내 이름 ○○○</small><input id="pendMemo" value="${esc(S.pending.memo)}"></label>
@@ -784,6 +860,7 @@ function openCard(id) {
       <h2>${c.status === 'review' ? '카드 확인하기' : '카드 고치기'}</h2>
       ${side ? '' : viewer(files)}
       <label>보낼 방<select name="room">${roomOptions(c.room)}</select></label>
+      ${c.room === 'links' ? `<label>분류<input name="category" value="${esc(c.category || '')}"></label>` : ''}
       <label>제목<input name="title" value="${esc(c.title)}"></label>
       <div class="two"><label>날짜<input type="date" name="date" value="${esc(c.date)}"></label><label>끝나는 날<input type="date" name="end_date" value="${esc(c.end_date)}"></label></div>
       <div class="two"><label>시간·교시<input name="time" value="${esc(c.time)}"></label><label>장소<input name="place" value="${esc(c.place)}"></label></div>
@@ -817,6 +894,7 @@ async function saveCard(form) {
     }),
     unsure: [],
   };
+  if (form.elements.category) data.category = v('category');
   if (ROOMS[room]?.ai) Object.assign(data, { status: 'done', confirmedAt: serverTimestamp() });
   await updateDoc(doc(db, dbPath(`cards/${c.id}`)), data);
   toast(ROOMS[room]?.ai ? `${roomName(room)}에 보관했어요` : '저장했어요. 방을 고르면 보관돼요.');
@@ -898,9 +976,13 @@ const LIBS = {
   pdfWorker: `${PDFJS}build/pdf.worker.min.js`,
   pdfLib: 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js',
   xlsx: 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+  zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
 };
 const isSheet = (f) => /\.(xlsx|xls|csv)$/i.test(f.name || '') || /spreadsheet|ms-excel|text\/csv/.test(f.type);
-const isHwp = (f) => /\.hwpx?$/i.test(f.name || '');
+// 문서: 업무관리시스템 본문(.odt) · 워드(.docx) · 한글 새 형식(.hwpx). 셋 다 압축 파일 안에 글자 · 표가 XML 로 들어 있어요
+const isDoc = (f) => /\.(odt|docx|hwpx)$/i.test(f.name || '');
+// 읽을 수 없는 옛 형식: 한글 .hwp · 워드 .doc (PDF 로 바꿔서 넣어요)
+const isOld = (f) => /\.(hwp|doc)$/i.test(f.name || '');
 const loaded = {};
 function loadScript(src) {
   loaded[src] ||= new Promise((res, rej) => {
@@ -969,6 +1051,72 @@ async function analyzeSheet(file) {
   }).filter((u) => u.lines.length);
   return { kind: 'xlsx', file, units };
 }
+// 문서(.odt · .docx · .hwpx): 글은 문단마다 한 줄, 표는 한 행이 한 줄 ("칸 | 칸 | 칸"). 글 묶음과 표 하나하나가 따로 넣기 · 빼기 단위
+const isTbl = (n) => n.localName === 'table' || n.localName === 'tbl';
+const nearest = (n, test) => { for (let p = n.parentNode; p; p = p.parentNode) if (p.nodeType === 1 && test(p)) return p; return null; };
+// 문단 글자 (안에 든 표 · 숨은 필드 코드는 빼고, 탭 · 줄바꿈은 띄어쓰기로)
+function ownText(n) {
+  let s = '';
+  for (const c of n.childNodes) {
+    if (c.nodeType === 3) s += c.nodeValue;
+    else if (c.nodeType === 1 && !isTbl(c) && !/^(instrText|delText)$/.test(c.localName)) s += /^(tab|line-break|linebreak|lineBreak|br|cr|s)$/.test(c.localName) ? ' ' : ownText(c);
+  }
+  return s;
+}
+const clean = (s) => s.replace(/\s+/g, ' ').trim();
+function tableLines(t) {
+  const rowTag = t.localName === 'tbl' ? 'tr' : 'table-row', cellTag = t.localName === 'tbl' ? 'tc' : 'table-cell';
+  return [...t.getElementsByTagNameNS('*', rowTag)].filter((r) => nearest(r, isTbl) === t).map((r) => {
+    const cells = [...r.getElementsByTagNameNS('*', cellTag)].filter((c) => nearest(c, isTbl) === t);
+    return cells.map((c) => {
+      const ps = [...c.getElementsByTagNameNS('*', 'p')].filter((p) => nearest(p, isTbl) === t);
+      return clean(ps.length ? ps.map(ownText).join(' ') : c.textContent);
+    }).filter(Boolean).join(' | ');
+  }).filter(Boolean);
+}
+function docBlocks(root) {
+  const out = [];
+  const text = (s) => { const last = out[out.length - 1]; if (last?.type === 'text') last.lines.push(s); else out.push({ type: 'text', lines: [s] }); };
+  const walk = (n) => {
+    for (const c of n.children) {
+      if (isTbl(c)) out.push({ type: 'table', lines: tableLines(c) });
+      else if (c.localName === 'p' || c.localName === 'h') {
+        const s = clean(ownText(c));
+        if (s) text(s);
+        // 한글(.hwpx)은 표가 문단 안에 들어 있어요
+        for (const t of c.getElementsByTagNameNS('*', 'tbl')) if (nearest(t, (x) => x === c || isTbl(x)) === c) out.push({ type: 'table', lines: tableLines(t) });
+      } else walk(c);
+    }
+  };
+  walk(root);
+  return out.filter((b) => b.lines.length);
+}
+async function analyzeDoc(file) {
+  await loadScript(LIBS.zip);
+  const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+  const xmlOf = async (p) => { const s = await zip.file(p)?.async('string'); return s ? new DOMParser().parseFromString(s, 'application/xml').documentElement : null; };
+  let roots;
+  if (/\.odt$/i.test(file.name)) {
+    // 업무관리시스템 본문(.odt)은 기관명 · 수신 · 제목이 머리말에, 시행 번호 · 연락처가 꼬리말에 있어요 (styles.xml)
+    const st = await xmlOf('styles.xml');
+    const part = (tag) => (st ? [...st.getElementsByTagNameNS('*', tag)] : []);
+    roots = [...part('header'), await xmlOf('content.xml'), ...part('footer')];
+  } else if (/\.docx$/i.test(file.name)) {
+    roots = [await xmlOf('word/document.xml')];
+  } else {
+    const secs = Object.keys(zip.files).filter((p) => /^Contents\/section\d+\.xml$/i.test(p)).sort((a, b) => parseInt(a.match(/\d+/)[0], 10) - parseInt(b.match(/\d+/)[0], 10));
+    roots = await Promise.all(secs.map(xmlOf));
+  }
+  const seen = new Set();
+  const blocks = roots.filter(Boolean).flatMap(docBlocks).filter((b) => { const k = b.lines.join('\n'); if (seen.has(k)) return false; seen.add(k); return true; });
+  let t = 0, g = 0;
+  const units = blocks.map((b) => {
+    const roster = looksLikeRoster(b.lines);
+    return { label: b.type === 'table' ? `표 ${++t}` : `글 ${++g}`, lines: b.lines, rows: b.lines.length, roster, keep: !roster };
+  });
+  if (!units.length) throw new Error(`${file.name} 에서 글자를 찾지 못했어요`);
+  return { kind: 'doc', file, units };
+}
 const squash = (s) => s.replace(/\s/g, '');
 // 뺀 쪽 · 시트에서 내 이름이 있는 줄만 (최대 5줄)
 function myLines(list, name) {
@@ -987,13 +1135,27 @@ async function keepPages(a) {
   (await out.copyPages(src, keep)).forEach((p) => out.addPage(p));
   return new File([await out.save()], a.file.name, { type: 'application/pdf' });
 }
-// 남긴 엑셀 시트를 글자로 (시트마다 6천 자, 모두 1만 5천 자까지)
+// 남긴 엑셀 시트 · 문서 글 · 표를 글자로 (한 덩이 8천 자, 모두 4만 자까지)
 function sheetText(list) {
-  const parts = list.filter((a) => a.kind === 'xlsx').flatMap((a) => a.units.filter((u) => u.keep).map((u) => `[첨부 엑셀 ${a.file.name} · ${u.label}]\n${u.lines.join('\n').slice(0, 6000)}`));
-  return parts.join('\n\n').slice(0, 15000);
+  const parts = list.filter((a) => a.kind !== 'pdf').flatMap((a) => a.units.filter((u) => u.keep).map((u) => `[${a.kind === 'xlsx' ? '첨부 엑셀' : '문서'} ${a.file.name} · ${u.label}]\n${u.lines.join('\n').slice(0, 8000)}`));
+  return parts.join('\n\n').slice(0, 40000);
+}
+// PDF · 사진 없이 문서 · 엑셀만 넣었을 때: AI가 읽을 파일이 하나는 있어야 해서, 앞부분 글자로 표지 그림을 만들어요 (내용은 메모 글자로 같이 가요)
+async function coverImage(list) {
+  const first = list.find((a) => a.kind !== 'pdf');
+  const lines = [first.file.name, '', ...first.units.filter((u) => u.keep).flatMap((u) => u.lines)].slice(0, 40);
+  const c = document.createElement('canvas');
+  c.width = 1200; c.height = 120 + lines.length * 34;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#22303a'; g.font = '24px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+  g.fillText('공문 본문 (글자로 함께 보냄)', 40, 60);
+  lines.forEach((l, i) => g.fillText(l.slice(0, 70), 40, 120 + i * 34));
+  const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.9));
+  return new File([blob], '본문 표지.jpg', { type: 'image/jpeg' });
 }
 const pageSpan = (ns) => ns.reduce((acc, n) => { const last = acc[acc.length - 1]; if (last && n === last[1] + 1) last[1] = n; else acc.push([n, n]); return acc; }, []).map(([a, b]) => (a === b ? `${a}쪽` : `${a}~${b}쪽`)).join(', ');
-const outLabel = (a) => { const out = a.units.filter((u) => !u.keep); return a.kind === 'pdf' ? pageSpan(out.map((u) => u.n)) : out.map((u) => `'${u.label}' 시트`).join(', '); };
+const outLabel = (a) => { const out = a.units.filter((u) => !u.keep); return a.kind === 'pdf' ? pageSpan(out.map((u) => u.n)) : out.map((u) => (a.kind === 'xlsx' ? `'${u.label}' 시트` : u.label)).join(', '); };
 
 // 거르기를 못 했을 때: 명단이 없는 공문이면 그대로 넣을 수 있게 물어봐요 (엑셀은 읽지 못하니 빼요)
 function askPlain(reason, pdfs) {
@@ -1007,12 +1169,12 @@ function askPlain(reason, pdfs) {
   dlg.showModal();
   return new Promise((res) => dlg.addEventListener('close', () => res(ok ? { files: pdfs, note: '' } : null), { once: true }));
 }
-// 넣기 전 확인 창: 쪽 · 시트를 누르면 넣기 ↔ 빼기. [이대로 넣기]를 누르면 { files, note }, 닫으면 null
-async function checkFiles(pdfs, sheets) {
+// 넣기 전 확인 창: 쪽 · 시트 · 표를 누르면 넣기 ↔ 빼기. [이대로 넣기]를 누르면 { files, note }, 닫으면 null
+async function checkFiles(pdfs, sheets, docs, hasImgs) {
   toast('명단이 있는지 이 PC 안에서 살펴보고 있어요…');
   let list;
   try {
-    list = await withTimeout(Promise.all([...pdfs.map(analyzePdf), ...sheets.map(analyzeSheet)]), 40000);
+    list = await withTimeout(Promise.all([...pdfs.map(analyzePdf), ...sheets.map(analyzeSheet), ...docs.map(analyzeDoc)]), 40000);
   } catch (e) {
     return askPlain(`${e.message || e}`, pdfs);
   }
@@ -1023,7 +1185,7 @@ async function checkFiles(pdfs, sheets) {
     <h2>넣기 전에 명단 거르기</h2>
     <p class="note">명단으로 보이는 쪽 · 시트는 빼고 넣어요. 뺀 것은 AI에게도, 저장소에도 가지 않아요. 눌러서 넣기 ↔ 빼기를 바꿀 수 있어요.</p>
     <label>명단에서 찾을 내 이름<input id="myName" autocomplete="off" placeholder="예: 홍길동" value="${esc(S.myName || '')}"></label>
-    ${list.map((a, i) => `<section class="pc-file"><h3>${a.kind === 'xlsx' ? '엑셀 · ' : ''}${esc(a.file.name)}</h3><div class="pgrid">${tile(a, i)}</div></section>`).join('')}
+    ${list.map((a, i) => `<section class="pc-file"><h3>${{ xlsx: '엑셀 · ', doc: '문서 · ' }[a.kind] || ''}${esc(a.file.name)}</h3><div class="pgrid">${tile(a, i)}</div></section>`).join('')}
     <div class="found" id="found"></div>
     <div class="dlg-acts"><button value="cancel">취소</button><button type="button" class="yes" id="goPdf">이대로 넣기</button></div>
   </div></form>`;
@@ -1041,7 +1203,7 @@ async function checkFiles(pdfs, sheets) {
     const out = list.filter((a) => a.units.some((u) => !u.keep));
     const name = nameEl.value.trim(), mine = myLines(list, name);
     foundEl.innerHTML = out.length
-      ? `<b>빼는 것</b> ${out.map((a) => `${esc(a.file.name.replace(/\.(pdf|xlsx?|csv)$/i, '').slice(-24))} ${esc(outLabel(a))}`).join(' · ')}
+      ? `<b>빼는 것</b> ${out.map((a) => `${esc(a.file.name.replace(/\.(pdf|xlsx?|csv|odt|docx|hwpx)$/i, '').slice(-24))} ${esc(outLabel(a))}`).join(' · ')}
          <br><b>AI에게 알려 줄 내 줄</b> ${name ? (mine.length ? mine.map(esc).join(' / ') : '명단에 이름이 없어요') : '이름을 적으면 찾아요'}`
       : '<b>빼는 것 없음</b> 명단으로 보이는 쪽 · 시트가 없어서 전부 넣어요.';
   };
@@ -1068,19 +1230,21 @@ async function checkFiles(pdfs, sheets) {
     setDoc(doc(db, dbPath('meta/me')), { name, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
   }
   const files = (await Promise.all(list.filter((a) => a.kind === 'pdf').map(keepPages))).filter(Boolean);
+  if (!files.length && !hasImgs && list.some((a) => a.kind !== 'pdf' && a.units.some((u) => u.keep))) files.push(await coverImage(list));
   return { files, note: [note(), sheetText(list)].filter(Boolean).join('\n\n') };
 }
 
-// 사진만 넣으면 한 장씩 따로 읽고, PDF · 엑셀이 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
+// 사진만 넣으면 한 장씩 따로 읽고, PDF · 엑셀 · 문서가 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
 async function upload(fileList) {
   const all = [...fileList];
-  const pdfs = all.filter(isPdf), sheets = all.filter(isSheet), imgs = all.filter((f) => !isPdf(f) && !isSheet(f) && f.type.startsWith('image/'));
-  if (all.some(isHwp)) toast('한글(HWP) 파일은 읽을 수 없어서 빼고 넣어요. PDF로 바꿔서 넣어 주세요');
-  if (!pdfs.length && !imgs.length) { toast(sheets.length ? '엑셀은 공문 PDF나 사진과 함께 넣어 주세요' : '사진 · PDF · 엑셀 파일만 넣을 수 있어요'); return; }
-  // PDF · 엑셀은 먼저 이 PC 안에서 명단을 걸러요
+  const pdfs = all.filter(isPdf), sheets = all.filter(isSheet), docs = all.filter(isDoc);
+  const imgs = all.filter((f) => !isPdf(f) && !isSheet(f) && !isDoc(f) && f.type.startsWith('image/'));
+  if (all.some(isOld)) toast('한글 .hwp · 워드 .doc 파일은 읽을 수 없어서 빼고 넣어요. PDF로 바꿔서 넣어 주세요');
+  if (!pdfs.length && !imgs.length && !sheets.length && !docs.length) { toast('사진 · PDF · 엑셀 · 문서(.odt · .docx · .hwpx) 파일만 넣을 수 있어요'); return; }
+  // PDF · 엑셀 · 문서는 먼저 이 PC 안에서 명단을 걸러요
   let checked = null;
-  if (pdfs.length || sheets.length) {
-    checked = await checkFiles(pdfs, sheets);
+  if (pdfs.length || sheets.length || docs.length) {
+    checked = await checkFiles(pdfs, sheets, docs, imgs.length > 0);
     if (!checked) return;
     if (!checked.files.length && !imgs.length) { toast('모두 빼서 넣을 것이 없어요'); return; }
   }
@@ -1089,9 +1253,10 @@ async function upload(fileList) {
   S.pending = { link: '', memo: '' };
   if (S.q) { S.q = ''; $('#search').value = ''; }
   if (route() !== 'lobby') location.hash = 'lobby';
-  // PDF · 엑셀이 있으면 사진까지 한 묶음 (엑셀 내용은 메모에 글자로 붙어 같이 가요)
+  // PDF · 엑셀 · 문서가 있으면 사진까지 한 묶음 (엑셀 · 문서 내용은 메모에 글자로 붙어 같이 가요)
   if (checked) {
-    const what = [checked.files.length && `PDF ${checked.files.length}개`, sheets.length && `엑셀 ${sheets.length}개`, imgs.length && `사진 ${imgs.length}장`].filter(Boolean).join(' · ');
+    const pdfN = checked.files.filter(isPdf).length;
+    const what = [docs.length && `문서 ${docs.length}개`, pdfN && `PDF ${pdfN}개`, sheets.length && `엑셀 ${sheets.length}개`, imgs.length && `사진 ${imgs.length}장`].filter(Boolean).join(' · ');
     toast(`${what}를 공문 한 묶음으로 넣었어요. 다 올라가면 읽기 시작해요.`);
     await uploadBundle([...checked.files, ...imgs], link, memo);
     return;
@@ -1222,6 +1387,7 @@ document.addEventListener('click', async (e) => {
       case 'cap': openCapture(cap); break;
       case 'staffpick': openStaffPick(route()); break;
       case 'pickcard': S.pick[route()] = id; render(); break;
+      case 'addLinks': await addLinks(); break;
       case 'reread': if (dlg.open) dlg.close(); await reread(cap); break;
       case 'delcap': await deleteCapture(cap); break;
       case 'close': dlg.close(); break;
@@ -1299,7 +1465,7 @@ window.addEventListener('drop', (e) => {
   if (S.teacher) upload(e.dataTransfer.files);
 });
 document.addEventListener('paste', (e) => {
-  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f) || isSheet(f));
+  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f) || isSheet(f) || isDoc(f));
   if (!S.teacher || !files.length) return;
   e.preventDefault();
   upload(files);

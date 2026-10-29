@@ -33,7 +33,7 @@ export const ROOMS = {
     fields: ['사이트 이름', '어느 연수에서', '중요 안내', '마감일'],
   },
   moral: {
-    name: '도덕실', role: '관람 안내', ai: true, view: 'lesson',
+    name: '도덕교과실', role: '관람 안내', ai: true, view: 'lesson',
     desc: '수업 공개(공개수업) 공문에 나온 수업 가운데 도덕 교과 수업',
     fields: ['수업 제목', '학교', '장소', '학년', '교시', '수업자'],
   },
