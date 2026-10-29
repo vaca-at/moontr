@@ -415,7 +415,7 @@ function floorView(k) {
 function roomContent(k) {
   if (ROOMS[k]?.store) return storeRoom(k);
   if (isGuest()) return guestRoom(k);
-  if (k === 'boss') return bossView(false);
+  if (k === 'boss') return bossRoom();
   if (k === 'lobby') return lobbyView();
   if (k === 'archive') return archiveView();
   const r = ROOMS[k];
@@ -759,6 +759,105 @@ function upcoming() {
   if (isDate(S.task?.due) && S.task.due >= t) list.push({ id: 'task', room: 'task', date: S.task.due, title: `과제 제출 · ${S.task.title || '내 수업 사례'}` });
   return list.sort((a, b) => a.date.localeCompare(b.date));
 }
+// 사장실 탭: 사장실(일정) · 웹앱 현황(moontr.site 모든 웹앱 방문 + 브리핑) · 연수 대장(문서등록대장처럼 한 줄에 연수 하나)
+const BOSS_TABS = [['home', '사장실'], ['web', '웹앱 현황'], ['ledger', '연수 대장']];
+function bossRoom() {
+  const tab = S.bossTab || 'home';
+  const tabs = `<div class="row boss-tabs" role="tablist">${BOSS_TABS.map(([k, l]) => `<button class="chipbtn ${k === tab ? 'on' : ''}" role="tab" aria-selected="${k === tab}" data-act="bosstab" data-v="${k}">${l}</button>`).join('')}</div>`;
+  return tabs + (tab === 'web' ? webView() : tab === 'ledger' ? ledgerView() : bossView(false));
+}
+
+// --- 웹앱 현황: 각 웹앱이 /visit.js 로 남기는 site_counts ("이름__total" · "이름__d2026-10-29") 를 읽어요 ---
+// 이름 · 묶음 · 관리자 화면은 moontr.site 관리자 허브(/admin/)와 같게
+const WEBAPPS = [
+  ['ailab', '문쌤의 AI 연구소', '연구소', '/ailab/#admin'], ['desk', '교무실 타이쿤 (/tycoon)', '수업 도구', '/tycoon/?admin'], ['deskapp', '교무실 타이쿤 안드로이드 앱', '수업 도구', ''],
+  ['app', '생윤 만점 다이어리', '기출 학습', '/app/?admin'], ['idea', '윤사 만점 다이어리', '기출 학습', '/idea/?admin'], ['home', '대문', '대문', '/home-admin/'],
+  ['sonagi', '소나기 연수 실습', '행사 · 연수', '/sonagi/'], ['c22', '통사 학습지 (통합사회2 윤리)', '수업 도구', '/c22/'], ['110', '1학년 10반 관리', '우리반', '/110/?page=admin'],
+  ['vibe', '바이브코딩 매뉴얼', '수업 도구', '/vibe/?admin'], ['note10', '우리반 생기부노트', '우리반', '/note10/#admin'], ['jinseon-gt', '50주년 해외연수', '행사 · 연수', 'https://jinseon50th.com/gt/#admin'],
+  ['drs-booth', '또래상담부 부스 상황판', '행사 · 연수', '/drs/booth/#admin'], ['check04', '출석체크', '수업 도구', '/check04/#teacher'], ['0911', '9월 컨설팅장학 수업 사례', '수업 도구', '/0911/#admin'],
+  ['drs', '또래상담부 DRS', '행사 · 연수', '/drs/?page=admin'], ['simin', '자성동이 AI 공부방', '공부방', 'https://jsun.site/simin/#admin'], ['study', '새싹 AI 공부방', '공부방', 'https://jsun.site/study/#admin'],
+  ['stuvibe', '바이브코딩 진로탐구(이론편)', '바이브코딩 수업', '/vibeadmin/'], ['vibelab', '바이브코딩 진로탐구(실습편)', '바이브코딩 수업', '/vibeadmin/'],
+];
+async function loadSites() {
+  S.sitesLoading = true;
+  const out = {};
+  try {
+    (await getDocs(collection(db, 'site_counts'))).docs.forEach((d) => {
+      const m = d.id.match(/^(.+)__(total|d(\d{4}-\d{2}-\d{2}))$/);
+      if (!m) return;
+      const o = (out[m[1]] ||= { total: 0, days: {} });
+      if (m[2] === 'total') o.total = d.data().n || 0; else o.days[m[3]] = d.data().n || 0;
+    });
+    S.sites = { at: Date.now(), data: out };
+  } catch (e) { S.sites = { at: Date.now(), data: null, error: e.code || e.message }; }
+  S.sitesLoading = false;
+  render();
+}
+const dayAdd = (d, n) => { const x = new Date(`${d}T00:00:00`); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+const sumDays = (o, from, to) => { let n = 0; for (let d = from; d <= to; d = dayAdd(d, 1)) n += o.days[d] || 0; return n; };
+// 잔디: 최근 20주 (20주 전 일요일부터, 칸 하나 = 하루, 진하기는 그 웹앱에서 가장 많은 날 기준) — moontr.site 현황판과 같아요
+function hubGrass(days) {
+  const today = todayStr(), dow = new Date(`${today}T00:00:00`).getDay(), start = dayAdd(today, -(dow + 19 * 7));
+  const vals = [];
+  for (let d = start; d <= today; d = dayAdd(d, 1)) vals.push([d, days[d] || 0]);
+  const max = Math.max(1, ...vals.map((v) => v[1])), lv = (n) => (!n ? '' : n <= max * .25 ? 'l1' : n <= max * .5 ? 'l2' : n <= max * .75 ? 'l3' : 'l4');
+  return `<div class="hub-grass" aria-hidden="true">${vals.map(([d, n]) => `<i class="${lv(n)}" title="${d.slice(5).replace('-', '/')} · ${n}"></i>`).join('')}${'<i class="fut"></i>'.repeat(6 - dow)}</div>`;
+}
+function webView() {
+  if (!S.sites || Date.now() - S.sites.at > 10 * 60e3) { if (!S.sitesLoading) loadSites(); if (!S.sites) return '<p class="empty">웹앱 방문 기록을 불러오는 중이에요…</p>'; }
+  if (!S.sites.data) return `<p class="empty">방문 기록을 읽지 못했어요 (${esc(S.sites.error)}). <button class="chipbtn" data-act="sites">다시 불러오기</button></p>`;
+  const today = todayStr(), wk = dayAdd(today, -6), pwk0 = dayAdd(today, -13), pwk1 = dayAdd(today, -7), two = dayAdd(today, -13);
+  const apps = WEBAPPS.map(([k, name, grp, admin]) => { const o = S.sites.data[k] || { total: 0, days: {} }; return { k, name, grp, admin, ...o, today: o.days[today] || 0, week: sumDays(o, wk, today), prev: sumDays(o, pwk0, pwk1), recent: sumDays(o, two, today), first: Object.keys(o.days).sort()[0] || '' }; })
+    .sort((x, y) => y.today - x.today || y.total - x.total);
+  const used = apps.filter((a) => a.today), sumToday = apps.reduce((n, a) => n + a.today, 0), sumTotal = apps.reduce((n, a) => n + a.total, 0);
+  const card = (a) => `<${a.admin ? `a href="${esc(a.admin)}" target="_blank" rel="noopener"` : 'div'} class="hub-card ${a.k === 'ailab' ? 'me' : ''}"><span class="hd"><b><span class="dot ${a.today ? 'on' : ''}"></span>${esc(a.name)}</b><small>${esc(a.grp)}</small></span><span class="nums"><b>${a.today}</b><small>오늘 방문</small><b>${a.total.toLocaleString()}</b><small>누적</small></span>${hubGrass(a.days)}</${a.admin ? 'a' : 'div'}>`;
+  // 브리핑: 숫자만 보고 규칙대로 (AI 안 써요)
+  const nm = (a) => `<b>${esc(a.name)}</b>`;
+  const rise = apps.filter((a) => a.prev >= 3 && a.week >= a.prev * 1.5).sort((x, y) => y.week / y.prev - x.week / x.prev);
+  const fall = apps.filter((a) => a.prev >= 5 && a.week <= a.prev * .5).sort((x, y) => x.week / x.prev - y.week / y.prev);
+  const quiet = apps.filter((a) => a.total > 0 && !a.recent);
+  const fresh = apps.filter((a) => a.first && a.first >= wk && a.total <= a.week); // 누적이 모두 이번 주 것 = 정말 새로 쓰기 시작한 웹앱
+  const week = [...apps].sort((x, y) => y.week - x.week).filter((a) => a.week).slice(0, 3);
+  const brief = [
+    `오늘 ${apps.length}개 가운데 <b>${used.length}개</b>가 쓰였고, 모두 합쳐 <b>${sumToday}회</b> 방문했어요.`,
+    used.length && `오늘 가장 많이 쓰인 곳: ${used.slice(0, 3).map((a) => `${nm(a)} ${a.today}회`).join(' · ')}`,
+    week.length && `최근 7일: ${week.map((a) => `${nm(a)} ${a.week}회`).join(' · ')}`,
+    rise.length && `지난주보다 많이 늘었어요: ${rise.slice(0, 3).map((a) => `${nm(a)} ${a.prev} → ${a.week}회`).join(' · ')}`,
+    fall.length && `지난주보다 줄었어요: ${fall.slice(0, 3).map((a) => `${nm(a)} ${a.prev} → ${a.week}회`).join(' · ')}`,
+    fresh.length && `이번 주에 처음 방문이 생겼어요: ${fresh.map(nm).join(' · ')}`,
+    quiet.length && `2주 동안 방문이 없어요: ${quiet.map(nm).join(' · ')} <small>(행사가 끝났거나 학기가 바뀐 웹앱이면 정리해도 돼요)</small>`,
+  ].filter(Boolean);
+  return `<div class="hub">
+    <div class="hub-sum"><div><small>오늘 전체</small><b>${sumToday}회</b></div><div><small>누적 전체</small><b>${sumTotal.toLocaleString()}회</b></div><div><small>오늘 쓰인 웹앱</small><b>${used.length} / ${apps.length}개</b></div></div>
+    <div class="hub-cards">${apps.map(card).join('')}</div>
+    <section class="hub-brief"><h3>이용 브리핑 <small>${esc(fmtDate(today))} · 방문 기록으로 정리</small></h3><ul>${brief.map((s) => `<li>${s}</li>`).join('')}</ul>
+      <p class="note">관리자 화면에서 연 것은 세지 않아요. 카드를 누르면 그 웹앱 관리자 화면이 새 탭으로 열려요. <button class="chipbtn" data-act="sites">새로고침</button></p></section>
+  </div>`;
+}
+
+// --- 연수 대장: 연수 기록실 카드를 연수 이름으로 묶어 한 줄씩 (안내 · 대상자 · 이수증이 그 줄에 붙어요) ---
+function ledgerView() {
+  const key = (t) => String(t || '').replace(/20\d\d년?|[「」『』()[\]〔〕'"]/g, '').replace(/(신청|안내|대상자|선발|계획|및|직무연수|연수|중등|과정|신규|\s|·|-|–)/g, '').slice(0, 12);
+  const groups = new Map();
+  for (const c of cardsIn('train')) { const k = key(c.title); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+  const today = todayStr();
+  const rows = [...groups.values()].map((g) => {
+    const kinds = g.map((c) => c.kind || '자료'), title = g.map((c) => c.title || '').sort((a, b) => a.length - b.length)[0];
+    const d = g.map((c) => c.date).filter(isDate).sort()[0] || '', e = g.map((c) => c.end_date || c.date).filter(isDate).sort().pop() || '';
+    const hours = g.flatMap((c) => c.fields || []).find((f) => /이수 시간|차시/.test(f.label) && f.value)?.value || '';
+    const mine = g.flatMap((c) => c.fields || []).find((f) => f.label === '대상자 여부' && f.value)?.value || '';
+    const st = kinds.includes('이수증') ? ['done', '이수'] : kinds.some((k) => /대상자/.test(k)) ? (/아님/.test(mine) ? ['no', '대상 아님'] : e >= today ? ['go', '대상 · 진행 중'] : ['go', '대상 · 끝남']) : kinds.some((k) => /신청/.test(k)) ? ['apply', '신청함'] : ['no', '안내만'];
+    const todo = st[1] === '대상 · 끝남' ? '이수증 넣기' : st[1] === '대상 · 진행 중' ? `${fmtDate(e)} 끝` : st[0] === 'apply' ? '결과 적기' : st[1] === '안내만' && d >= today ? '신청할지 정하기' : '';
+    return { g, title, d, e, hours, st, kinds, todo };
+  }).sort((a, b) => (a.d || '9').localeCompare(b.d || '9'));
+  if (!rows.length) return '<p class="empty">연수 기록실에 카드가 들어오면 여기에 한 줄씩 모여요.</p>';
+  const md = (x) => (x ? `${+x.slice(5, 7)}.${+x.slice(8, 10)}` : '');
+  return `<p class="note">에듀파인 문서등록대장처럼 한 줄에 연수 하나예요. 같은 연수의 안내 · 대상자 · 이수증 카드는 한 줄로 묶여요. 자료 이름을 누르면 그 카드가 열려요.</p>
+    <div class="ledger"><table><thead><tr><th>번호</th><th>연수명</th><th>기간</th><th>시간</th><th>상태</th><th>붙은 자료</th><th>남은 일</th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr><td class="n">${todayStr().slice(0, 4)}-${String(i + 1).padStart(3, '0')}</td><td>${esc(r.title)}</td><td class="d">${md(r.d)}${r.e && r.e !== r.d ? ` ~ ${md(r.e)}` : ''}</td><td class="d">${esc(r.hours.slice(0, 14))}</td><td><span class="lst ${r.st[0]}">${r.st[1]}</span></td><td><div class="docs">${r.g.map((c) => `<button type="button" data-act="edit" data-id="${c.id}">${esc(c.kind || '자료')}</button>`).join('')}</div></td><td>${esc(r.todo)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+
 function bossView(compact) {
   const up = upcoming().slice(0, compact ? 6 : 30);
   const month = todayStr().slice(0, 7);
@@ -1731,6 +1830,8 @@ document.addEventListener('click', async (e) => {
       }
       case 'subj': S.subj = b.dataset.v; render(); break;
       case 'stats': S.stats = null; render(); break;
+      case 'bosstab': S.bossTab = b.dataset.v; render(); break;
+      case 'sites': S.sites = null; render(); break;
       case 'cap': openCapture(cap); break;
       case 'staffpick': openStaffPick(route()); break;
       case 'pickcard': S.pick[route()] = id; render(); break;
