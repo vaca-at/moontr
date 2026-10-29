@@ -4,10 +4,13 @@
 //                   (버킷이 US-EAST1 이라 Storage 이벤트를 받는 이 함수도 같은 지역 us-east1 이어야 해요)
 //   readBundle    : 공문 PDF 묶음(본문 + 첨부, ailab/bundles/{id}/)을 다 올린 뒤 앱이 불러요. 묶음 전체를 공문 하나로 읽어요
 //   rereadCapture : 앱의 [다시 읽기] 단추 (앱이 asia-northeast3 로 불러요). 사진 · 묶음 모두
+//   morningBrief  : 매일 아침 6:30 (서울) 점검원이 카드 · 읽지 못한 자료 · 모든 웹앱 방문 수를 읽고 사장실 브리핑을 써요 (ailab_meta/briefing)
+//   briefNow      : 사장실 [지금 브리핑 받기] 단추
 //
 // 방 목록(rooms.js)은 배포할 때 ../../ailab/rooms.js 에서 자동으로 복사돼요 (copy-rooms.mjs).
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { initializeApp } from 'firebase-admin/app';
@@ -268,6 +271,76 @@ export const readBundle = onCall(
     } catch {
       throw new HttpsError('internal', (await capRef.get()).data()?.error || '읽지 못했어요.');
     }
+  },
+);
+
+// ---------- 3) 점검원 · 아침 브리핑 ----------
+// 웹앱 이름 (site_counts 이름 → 보여 줄 이름). 앱 쪽 WEBAPPS 와 같아요
+const WEBAPP_NAMES = {
+  ailab: '문쌤의 AI 연구소', desk: '교무실 타이쿤(웹)', deskapp: '교무실 타이쿤 안드로이드 앱', app: '생윤 만점 다이어리', idea: '윤사 만점 다이어리', home: '대문',
+  sonagi: '소나기 연수 실습', c22: '통사 학습지(통합사회2 윤리)', 110: '1학년 10반 관리', vibe: '바이브코딩 매뉴얼', note10: '우리반 생기부노트', 'jinseon-gt': '50주년 해외연수',
+  'drs-booth': '또래상담부 부스 상황판', check04: '출석체크', '0911': '9월 컨설팅장학 수업 사례', drs: '또래상담부 DRS', simin: '자성동이 AI 공부방', study: '새싹 AI 공부방',
+  stuvibe: '바이브코딩 진로탐구(이론편)', vibelab: '바이브코딩 진로탐구(실습편)',
+};
+const BRIEF_SYSTEM = `당신은 한국 중·고등학교 도덕 선생님의 자료 연구실(AI Lab) 점검원이에요. 매일 아침 사장실(선생님)에게 짧은 브리핑을 써요.
+받는 자료: 오늘 날짜, 연구소 카드 목록(방 · 종류 · 제목 · 날짜 · 상태 · 대상자 여부 · 요약), 읽지 못한 자료 수, 선생님이 만든 웹앱들의 최근 14일 방문 수.
+규칙:
+- 자료에 있는 것만 써요. 짐작하지 않아요. 문장은 짧고 쉬운 말로, 존댓말(~해요)로.
+- today: 오늘 꼭 할 일 · 오늘 있는 일 (없으면 빈 목록). 최대 4개.
+- soon: 앞으로 14일 안의 일정을 날짜순으로 최대 6개. note 에는 겹치는 일정 · 준비할 것 · 마감 같은 한 줄.
+- checks: 점검원이 찾은 문제 최대 5개. 예: 같은 일정이 겹침, 날짜 없는 카드, 같은 연수 카드가 여러 장, 대상자 공문인데 '명단 확인 필요', 끝난 연수인데 이수증 없음, 확인 전 카드, 읽지 못한 자료. room 은 방 key.
+- webapps: 웹앱 이용 현황 3~5줄. 많이 쓰인 곳, 지난주보다 늘거나 준 곳, 오래 쉬는 곳.
+- headline: 오늘 아침 한 줄 요약.
+- 학생 개인정보 · 다른 사람 이름은 쓰지 않아요.`;
+const BRIEF_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['headline', 'today', 'soon', 'checks', 'webapps'],
+  properties: {
+    headline: str,
+    today: { type: 'array', items: str },
+    soon: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['date', 'title', 'note'], properties: { date: str, title: str, note: str } } },
+    checks: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['title', 'why', 'room'], properties: { title: str, why: str, room: str } } },
+    webapps: { type: 'array', items: str },
+  },
+};
+const addDays = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+async function writeBriefing(by) {
+  const today = seoulToday();
+  const [cards, caps, counts] = await Promise.all([db.collection('ailab_cards').get(), db.collection('ailab_captures').where('status', '==', 'error').get(), db.collection('site_counts').get()]);
+  const cardList = cards.docs.map((d) => d.data()).map((c) => ({
+    room: c.room, kind: c.kind || '', title: c.title || '', date: c.date || '', end: c.end_date || '', time: c.time || '', status: c.status,
+    mine: (c.fields || []).find((f) => f.label === '대상자 여부')?.value || '', summary: String(c.summary || '').slice(0, 80),
+  }));
+  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
+  const sites = {};
+  counts.docs.forEach((d) => {
+    const m = d.id.match(/^(.+)__(total|d(\d{4}-\d{2}-\d{2}))$/);
+    if (!m || !WEBAPP_NAMES[m[1]]) return;
+    const o = (sites[m[1]] ||= { name: WEBAPP_NAMES[m[1]], total: 0, days: {} });
+    if (m[2] === 'total') o.total = d.data().n || 0; else if (days.includes(m[3])) o.days[m[3]] = d.data().n || 0;
+  });
+  const web = Object.values(sites).map((o) => ({ name: o.name, total: o.total, last14: days.map((d) => o.days[d] || 0) }));
+  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+  const response = await client.beta.messages.create({
+    model: MODEL, max_tokens: 6000, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+    output_config: { effort: 'medium', format: { type: 'json_schema', schema: BRIEF_SCHEMA } },
+    system: BRIEF_SYSTEM,
+    messages: [{ role: 'user', content: `오늘 날짜: ${today}\n방 이름: ${JSON.stringify(Object.fromEntries(Object.entries(ROOMS).map(([k, r]) => [k, r.name])))}\n읽지 못한 자료: ${caps.size}개\n\n카드 ${cardList.length}장:\n${JSON.stringify(cardList)}\n\n웹앱 최근 14일 방문 (${days[0]} ~ ${today}, 마지막 칸이 오늘):\n${JSON.stringify(web)}` }],
+  });
+  const text = response.content.find((b) => b.type === 'text')?.text;
+  if (!text) throw new Error('AI 답이 비어 있어요');
+  const brief = JSON.parse(text);
+  await db.doc('ailab_meta/briefing').set({ ...brief, date: today, by, model: response.model || MODEL, at: FieldValue.serverTimestamp() });
+  return brief;
+}
+export const morningBrief = onSchedule(
+  { schedule: '30 6 * * *', timeZone: 'Asia/Seoul', region: 'asia-northeast3', memory: '512MiB', timeoutSeconds: 300, secrets: [ANTHROPIC_API_KEY] },
+  async () => { await writeBriefing('아침 6:30'); },
+);
+export const briefNow = onCall(
+  { region: 'asia-northeast3', memory: '512MiB', timeoutSeconds: 300, maxInstances: 2, secrets: [ANTHROPIC_API_KEY] },
+  async (req) => {
+    if (!isTeacher(req.auth)) throw new HttpsError('permission-denied', '관리자 계정으로 로그인해 주세요.');
+    try { await writeBriefing('지금 받기'); return { ok: true }; } catch (e) { logger.error(e); throw new HttpsError('internal', `브리핑을 쓰지 못했어요 (${e.message})`); }
   },
 );
 

@@ -5,7 +5,7 @@ import {
   getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, getDocs, getDoc,
   serverTimestamp, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js';
 import { APP_NAME, ROOMS, FLOORS } from './rooms.js';
 
@@ -13,7 +13,8 @@ const REGION = 'asia-northeast3';
 const DEFAULT_STEPS = ['주제 정하기', '참고 지도안 고르기', '내 지도안 쓰기', '수업 실행', '성찰 정리·제출'];
 
 // riding = 엘리베이터가 움직이는 중(그동안은 화면을 다시 그리지 않아요), doorsShut = 다음 화면을 문 닫힌 채로 그리고 열기
-const S = { user: null, teacher: false, cards: [], captures: [], task: null, building: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false, riding: false, doorsShut: false, focused: '', pick: {} }; // pick = 두 칸 방에서 고른 카드 { 방: 카드 id }
+const S = { user: null, teacher: false, cards: [], captures: [], task: null, building: null, uploading: new Map(), readStart: {}, // uploading = { 번호: { name, sent, total } }, readStart = 다 올리고 읽기 시작한 시각
+ q: '', subj: '', pending: { link: '', memo: '' }, dirty: false, riding: false, doorsShut: false, focused: '', pick: {} }; // pick = 두 칸 방에서 고른 카드 { 방: 카드 id }
 let auth, db, storage, fns;
 let unsubs = [];
 // 첫 화면 3D 건물 (building3d.js). null = 불러오는 중, false = 이 브라우저에서 3D가 안 돼서 예전 그림으로
@@ -165,6 +166,8 @@ function subscribe() {
   }, denied));
   // 명단에서 찾을 내 이름 (공개되는 코드에 넣지 않고 선생님 계정에만 저장)
   unsubs.push(onSnapshot(doc(db, dbPath('meta/me')), (s) => { S.myName = s.exists() ? s.data().name || '' : ''; }, denied));
+  // 점검원 아침 브리핑 (서버 morningBrief · briefNow 가 써요)
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/briefing')), (s) => { S.brief = s.exists() ? s.data() : null; render(); }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/building')), (s) => {
     if (!s.exists()) return;
     S.building = s.data();
@@ -858,13 +861,29 @@ function ledgerView() {
     </tbody></table></div>`;
 }
 
+// 점검원 브리핑 (AI · 매일 아침 6:30, [지금 브리핑 받기]로 바로)
+function briefCard() {
+  const b = S.brief, busy = S.briefing;
+  const when = b ? `${fmtDate(b.date)} · ${esc(b.by || '')}` : '';
+  const btn = `<button class="chipbtn" data-act="briefnow" ${busy ? 'disabled' : ''}>${busy ? 'AI가 쓰는 중… (30초쯤)' : '지금 브리핑 받기'}</button>`;
+  if (!b) return `<section class="brief"><div class="brief-h"><h3>점검원 브리핑</h3>${btn}</div><p class="note">매일 아침 6시 30분에 AI 점검원이 카드 · 읽지 못한 자료 · 웹앱 방문을 살펴보고 여기에 써 둬요.</p></section>`;
+  const list = (t, xs, f) => (xs?.length ? `<div><h4>${t}</h4><ul>${xs.map(f).join('')}</ul></div>` : '');
+  return `<section class="brief"><div class="brief-h"><h3>점검원 브리핑 <small>${when}</small></h3>${btn}</div>
+    <p class="brief-head">${esc(b.headline || '')}</p>
+    <div class="brief-grid">
+      ${list('오늘', b.today, (s) => `<li>${esc(s)}</li>`)}
+      ${list('앞으로 2주', b.soon, (s) => `<li><b>${esc(fmtDate(s.date) || s.date)}</b> ${esc(s.title)}${s.note ? `<small>${esc(s.note)}</small>` : ''}</li>`)}
+      ${list('점검원이 찾은 것', b.checks, (s) => `<li>${ROOMS[s.room] ? `<a href="#${esc(s.room)}">${esc(s.title)}</a>` : esc(s.title)}<small>${esc(s.why)}</small></li>`)}
+      ${list('웹앱 이용', b.webapps, (s) => `<li>${esc(s)}</li>`)}
+    </div></section>`;
+}
 function bossView(compact) {
   const up = upcoming().slice(0, compact ? 6 : 30);
   const month = todayStr().slice(0, 7);
   const lessons = S.cards.filter((c) => (c.room === 'moral' || c.room === 'others') && (c.date || '').startsWith(month)).length;
   const review = S.cards.filter((c) => c.status === 'review').length;
   const recent = S.cards.filter((c) => !isUnsorted(c)).slice(0, 6);
-  return `<div class="stats">
+  return `${compact ? '' : briefCard()}<div class="stats">
       <a href="#lobby"><b>${review}</b><small>확인 대기</small></a>
       <a href="#moral"><b>${lessons}</b><small>이번 달 수업 공개</small></a>
       <a href="#archive"><b>${S.cards.length}</b><small>정리된 카드</small></a>
@@ -873,6 +892,36 @@ function bossView(compact) {
       : '<p class="empty">날짜가 있는 자료가 들어오면 여기에 D-day 순으로 모여요.</p>'}
     ${!compact && recent.length ? `<h3>방금 정리된 자료</h3><ul class="agenda">${recent.map((c) => `<li><a href="#${c.room}" data-act="edit" data-id="${c.id}"><span class="chip">${esc(roomName(c.room))}</span><div><b>${esc(c.title)}</b><small>${esc(c.summary || '')}</small></div></a></li>`).join('')}</ul>` : ''}`;
 }
+
+// --- 접수처 진행 막대: 올리기는 실제로 올라간 바이트, AI 읽기는 보통 걸리는 시간(사진 75초 · 묶음 150초)으로 어림해서 95%까지 ---
+const readPct = (start, exp) => Math.min(95, Math.max(3, Math.round(((Date.now() - start) / 1000 / exp) * 100)));
+const pctOf = (u) => (u.total ? Math.min(100, Math.round((u.sent / u.total) * 100)) : 0);
+function progressList(reading, moving) {
+  if (!moving) return '<div class="prog-idle">지금 올라가거나 읽는 자료는 없어요</div>';
+  const ups = [...S.uploading.entries()].map(([id, u]) => ({ id, name: u.name, up: true, pct: pctOf(u) }));
+  const rd = reading.filter((c) => !S.uploading.has(c.id)).map((c) => {
+    const start = S.readStart[c.id] || c.createdAt?.toMillis?.() || Date.now(), exp = c.bundle ? 150 : 75;
+    return { id: c.id, name: c.name || '자료', start, exp, pct: readPct(start, exp) };
+  });
+  return `<ul class="prog" aria-live="polite">${[...ups, ...rd].map((p) => `<li class="${p.up ? 'up' : 'read'}" data-prog="${p.id}" ${p.up ? '' : `data-start="${p.start}" data-exp="${p.exp}"`}>
+      <span class="pn">${esc(p.name)}</span><span class="ph">${p.up ? '올리는 중' : 'AI가 읽는 중'}</span><b class="pc">${p.pct}%</b>
+      <span class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.pct}"><i style="width:${p.pct}%"></i></span></li>`).join('')}</ul>
+    ${rd.length ? '<p class="q-note">읽기 %는 보통 걸리는 시간으로 어림한 값이에요 (사진 1분 남짓 · 공문 묶음 2~3분). 다 읽으면 카드가 바로 생겨요.</p>' : ''}`;
+}
+// 화면을 다시 그리지 않고 막대만 바꿔요
+function setBar(id, pct) {
+  const li = document.querySelector(`[data-prog="${id}"]`);
+  if (!li) return;
+  li.querySelector('.bar i').style.width = `${pct}%`;
+  li.querySelector('.bar').setAttribute('aria-valuenow', pct);
+  li.querySelector('.pc').textContent = `${pct}%`;
+}
+setInterval(() => document.querySelectorAll('[data-prog][data-start]').forEach((li) => setBar(li.dataset.prog, readPct(+li.dataset.start, +li.dataset.exp))), 1000);
+// 파일 하나 올리기 (올라간 바이트를 알려 줘요)
+const putFile = (path, blob, contentType, onBytes) => new Promise((res, rej) => {
+  const t = uploadBytesResumable(ref(storage, path), blob, { contentType });
+  t.on('state_changed', (s) => onBytes(s.bytesTransferred), rej, res);
+});
 
 // --- D. 1층 작업 라인 ---
 function station(no, label, n, hot = false, bot = 'bot') {
@@ -898,7 +947,7 @@ function lobbyView() {
       ${station(3, '선생님 확인', review.length, true, 'bot boss')}
       ${station(4, '방에 보관', S.cards.length - review.length)}
     </div>
-    <div class="belt-wrap ${moving ? 'run' : ''}" aria-hidden="true"><div class="belt"></div>${'<span class="belt-item"><span class="doc"></span></span>'.repeat(Math.min(4, moving))}</div>
+    ${progressList(reading, moving)}
     ${errors.length ? `<div class="errs">${errors.map((c) => `<div class="err">${thumb(c.storagePath, 'qthumb')}<div><b>읽지 못한 자료 · ${esc(c.name || '')}</b><small>${esc(c.error || '')}</small></div><button data-act="reread" data-cap="${c.id}">다시 읽기</button><button data-act="delcap" data-cap="${c.id}">지우기</button></div>`).join('')}</div>` : ''}
     <div class="q-h"><span class="pip"></span>확인을 기다리는 카드 ${review.length}장 · 노란 칸만 보면 돼요
       ${(() => { const n = review.filter((c) => !isUnsorted(c)).length; return n ? `<button class="btn primary allok" data-act="confirmAll">✓ ${n}장 한 번에 방으로 보내기</button>` : ''; })()}</div>
@@ -1714,7 +1763,8 @@ async function uploadSet(all, label = '') {
 // sources = 선생님이 넣은 원래 파일 이름 전부 (다음에 같은 파일을 또 넣으면 알려 주려고)
 async function uploadBundle(files, link, memo, sources = files.map((f) => f.name)) {
   const capRef = doc(collection(db, dbPath('captures')));
-  S.uploading.set(capRef.id, files[0].name);
+  const up = { name: sources.length > 1 ? `${sources[0]} 외 ${sources.length - 1}개` : files[0].name, sent: 0, total: 0 };
+  S.uploading.set(capRef.id, up);
   render();
   try {
     const total = files.reduce((n, f) => n + f.size, 0);
@@ -1729,7 +1779,10 @@ async function uploadBundle(files, link, memo, sources = files.map((f) => f.name
     const meta = list.map(({ path, name, type }) => ({ path, name, type }));
     const name = sources.length > 1 ? `${sources[0]} 외 ${sources.length - 1}개` : sources[0] || files[0].name;
     await setDoc(capRef, { status: 'uploading', bundle: true, name, files: meta, sources, storagePath: meta[0].path, link, memo, createdAt: serverTimestamp() });
-    await Promise.all(list.map((x) => uploadBytes(ref(storage, x.path), x.blob, { contentType: x.type })));
+    up.total = list.reduce((n, x) => n + x.blob.size, 0);
+    const sent = list.map(() => 0);
+    await Promise.all(list.map((x, i) => putFile(x.path, x.blob, x.type, (b) => { sent[i] = b; up.sent = sent.reduce((n, v) => n + v, 0); setBar(capRef.id, pctOf(up)); })));
+    S.readStart[capRef.id] = Date.now();
     await updateDoc(capRef, { status: 'reading' });
   } catch (e) {
     await setDoc(capRef, { status: 'error', bundle: true, error: `올리지 못했어요 (${e.code || e.message})`, createdAt: serverTimestamp() }, { merge: true }).catch(() => {});
@@ -1746,13 +1799,16 @@ async function uploadBundle(files, link, memo, sources = files.map((f) => f.name
 
 async function uploadOne(file, link, memo) {
   const capRef = doc(collection(db, dbPath('captures')));
-  S.uploading.set(capRef.id, file.name);
+  const up = { name: file.name || '붙여넣은 이미지', sent: 0, total: 0 };
+  S.uploading.set(capRef.id, up);
   render();
   try {
     const blob = await prepare(file);
+    up.total = blob.size;
     const path = `ailab/captures/${capRef.id}.${OK_TYPES[blob.type] || 'img'}`;
     await setDoc(capRef, { status: 'reading', name: file.name || '붙여넣은 이미지', storagePath: path, link, memo, createdAt: serverTimestamp() });
-    await uploadBytes(ref(storage, path), blob, { contentType: blob.type || 'image/jpeg' });
+    await putFile(path, blob, blob.type || 'image/jpeg', (b) => { up.sent = b; setBar(capRef.id, pctOf(up)); });
+    S.readStart[capRef.id] = Date.now();
   } catch (e) {
     await setDoc(capRef, { status: 'error', error: `올리지 못했어요 (${e.code || e.message})`, createdAt: serverTimestamp() }, { merge: true }).catch(() => {});
   } finally {
@@ -1831,6 +1887,11 @@ document.addEventListener('click', async (e) => {
       case 'subj': S.subj = b.dataset.v; render(); break;
       case 'stats': S.stats = null; render(); break;
       case 'bosstab': S.bossTab = b.dataset.v; render(); break;
+      case 'briefnow':
+        S.briefing = true; render();
+        try { await httpsCallable(fns, 'briefNow', { timeout: 300000 })(); toast('브리핑을 새로 받았어요'); } catch (err) { toast(err.message || '브리핑을 받지 못했어요'); }
+        S.briefing = false; render();
+        break;
       case 'sites': S.sites = null; render(); break;
       case 'cap': openCapture(cap); break;
       case 'staffpick': openStaffPick(route()); break;
