@@ -81,14 +81,27 @@ ${AI_ROOMS.map(([k, r]) => `- ${k} (${r.name}): ${r.desc}\n  세부 항목: ${r.
 - summary 는 선생님이 한눈에 알 수 있는 한 줄 요약. keywords 는 3~6개.
 - kind 는 자료 종류를 짧게 (예: 연수 안내, 대상자 공문, 연수 홈페이지, 수업 공개, 지도안, 과제 안내, 보안 권고, 보안 점검).
 - 정보 보안 공문(security)은 학교 · 선생님이 해야 할 일과 기한을 date 와 fields 에 적어요. 공문에 '외부 전파 금지'처럼 밖으로 알리지 말라는 세부 내용(취약점 상세, 관제 정보 등)이 있으면 summary 와 fields 에는 해야 할 일만 짧게 쓰고 세부 내용은 옮겨 적지 않아요.
-- 읽을 만한 자료가 전혀 없으면 cards 를 빈 목록으로.`;
+- 읽을 만한 자료가 전혀 없으면 cards 를 빈 목록으로.
+
+특별한 화면 두 가지 (이때는 cards 를 빈 목록으로 두고 아래 칸만 채워요):
+- 업무관리시스템 · 에듀파인의 '문서등록대장' · '문서대장' · 공문 목록 검색 화면이면 registry 에 보이는 줄을 빠짐없이 한 줄씩 옮겨요.
+  no 는 문서(등록)번호에서 숫자만 (예: '진선여자고등학교-10941' → '10941'), title 은 제목 그대로, dept 는 발송 · 생산 부서(기관명 포함), date 는 YYYY-MM-DD (없으면 ""),
+  kind 는 '접수' 또는 '생산' 같은 구분(없으면 ""). 결재자 · 담당자 같은 사람 이름은 옮기지 않아요.
+- Anthropic 콘솔(Claude Console)의 결제 · 크레딧(Billing, Credit balance) 화면이면 credit 을 채워요.
+  left 는 남은 크레딧 금액(달러, 숫자만 문자열로 예: "63.42"), expires 는 크레딧 만료일 YYYY-MM-DD (없으면 ""), seen 은 화면에 보이는 기준 날짜 (없으면 "").
+- 해당하지 않으면 registry 는 빈 목록, credit 의 세 칸은 모두 "".`;
 
 const str = { type: 'string' };
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['cards'],
+  required: ['cards', 'registry', 'credit'],
   properties: {
+    registry: {
+      type: 'array',
+      items: { type: 'object', additionalProperties: false, required: ['no', 'title', 'dept', 'date', 'kind'], properties: { no: str, title: str, dept: str, date: str, kind: str } },
+    },
+    credit: { type: 'object', additionalProperties: false, required: ['left', 'expires', 'seen'], properties: { left: str, expires: str, seen: str } },
     cards: {
       type: 'array',
       items: {
@@ -154,7 +167,8 @@ async function readWithClaude(blocks, cap, about) {
   if (response.stop_reason === 'max_tokens') throw new Error('내용이 너무 길어서 끝까지 읽지 못했어요');
   const text = response.content.find((b) => b.type === 'text')?.text;
   if (!text) throw new Error('AI 답이 비어 있어요');
-  return JSON.parse(text).cards || [];
+  const out = JSON.parse(text);
+  return { cards: out.cards || [], registry: out.registry || [], credit: out.credit || {} };
 }
 
 // ---------- 카드 정리 · 저장 ----------
@@ -224,12 +238,29 @@ async function processCapture(capId) {
       ? `공문 파일 ${files.length}개(본문 · 첨부)를 한 묶음으로 넣었어요. 모두 같은 공문이에요. 파일 이름: ${files.map((f) => f.name || f.path.split('/').pop()).join(', ')}`
       : tiles > 1 ? `긴 캡쳐 한 장을 위에서부터 ${tiles}조각으로 나눈 거예요 (조각끼리 조금 겹쳐요).` : '';
     const capInfo = { ...cap, storagePath: cap.storagePath || files[0].path };
-    const cards = (await readWithClaude(blocks, capInfo, about)).map((c) => cleanCard(c, capInfo, capId));
+    const read = await readWithClaude(blocks, capInfo, about);
+    const cards = read.cards.map((c) => cleanCard(c, capInfo, capId));
     const batch = db.batch();
     cards.forEach((c) => batch.set(db.collection('ailab_cards').doc(), c));
+    // 문서대장 화면: 줄마다 문서번호를 열쇠로 ailab_meta/registry 의 rows 에 쌓아요 (같은 번호는 새 값으로)
+    const rows = read.registry.filter((r) => r.title).map((r) => ({ ...r, no: String(r.no || '').replace(/\D/g, ''), date: isDate(r.date) ? r.date : '' }));
+    if (rows.length) {
+      const map = Object.fromEntries(rows.map((r, i) => [r.no || `x${capId.slice(0, 6)}${i}`, { ...r, capId, at: Date.now() }]));
+      batch.set(db.doc('ailab_meta/registry'), { rows: map, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+    // 콘솔 결제 화면: 남은 크레딧을 사장님 계기판에
+    const left = parseFloat(String(read.credit.left || '').replace(/[^0-9.]/g, ''));
+    const credit = Number.isFinite(left);
+    if (credit) {
+      batch.set(db.doc('ailab_meta/desk'), {
+        creditLeft: left, creditAsOf: isDate(read.credit.seen) ? read.credit.seen : seoulToday(),
+        ...(isDate(read.credit.expires) ? { creditExpires: read.credit.expires } : {}), creditFrom: '캡쳐', updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    const note = rows.length ? `문서대장 ${rows.length}줄을 사장실 [문서대장] 탭에 넣었어요` : credit ? `콘솔 남은 크레딧 $${left}를 사장님 계기판에 적었어요` : cards.length ? '' : '읽을 자료를 찾지 못했어요';
     batch.set(capRef, {
       status: 'done', cardCount: cards.length, readAt: FieldValue.serverTimestamp(), error: FieldValue.delete(),
-      note: cards.length ? FieldValue.delete() : '읽을 자료를 찾지 못했어요',
+      note: note || FieldValue.delete(), ...(rows.length ? { registryRows: rows.length } : {}), ...(credit ? { credit: left } : {}),
     }, { merge: true });
     await batch.commit();
     logger.info('ailab capture read', { capId, pdfs, tiles, cards: cards.length });

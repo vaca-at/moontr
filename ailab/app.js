@@ -158,6 +158,8 @@ function subscribe() {
   }, denied));
   unsubs.push(onSnapshot(query(collection(db, dbPath('captures')), orderBy('createdAt', 'desc')), (s) => {
     S.captures = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // 문서대장 · 콘솔 결제 화면을 다 읽으면 어디에 넣었는지 알려 줘요 (카드가 생기지 않아서)
+    s.docChanges().forEach((ch) => { const d = ch.doc.data(); if (ch.type === 'modified' && d.status === 'done' && (d.registryRows || d.credit != null) && d.note) toast(d.note); });
     render();
   }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/task')), (s) => {
@@ -168,6 +170,7 @@ function subscribe() {
   unsubs.push(onSnapshot(doc(db, dbPath('meta/me')), (s) => { S.myName = s.exists() ? s.data().name || '' : ''; }, denied));
   // 사장님 계기판: AI 가 쓴 값(서버가 부를 때마다 쌓아요) · 크레딧 · 할 일 · 메모
   unsubs.push(onSnapshot(doc(db, dbPath('meta/usage')), (s) => { S.usage = s.exists() ? s.data() : null; render(); }, denied));
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/registry')), (s) => { S.registry = s.exists() ? s.data() : null; render(); }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/desk')), (s) => { S.desk = s.exists() ? s.data() : {}; render(); }, denied));
   // 점검원 아침 브리핑 (서버 morningBrief · briefNow 가 써요)
   unsubs.push(onSnapshot(doc(db, dbPath('meta/briefing')), (s) => { S.brief = s.exists() ? s.data() : null; render(); }, denied));
@@ -768,11 +771,34 @@ function upcoming() {
   return list.sort((a, b) => a.date.localeCompare(b.date));
 }
 // 사장실 탭: 사장실(일정) · 웹앱 현황(moontr.site 모든 웹앱 방문 + 브리핑) · 연수 대장(문서등록대장처럼 한 줄에 연수 하나)
-const BOSS_TABS = [['home', '사장실'], ['web', '웹앱 현황'], ['ledger', '연수 대장']];
+const BOSS_TABS = [['home', '사장실'], ['web', '웹앱 현황'], ['ledger', '연수 대장'], ['reg', '문서대장']];
 function bossRoom() {
   const tab = S.bossTab || 'home';
   const tabs = `<div class="row boss-tabs" role="tablist">${BOSS_TABS.map(([k, l]) => `<button class="chipbtn ${k === tab ? 'on' : ''}" role="tab" aria-selected="${k === tab}" data-act="bosstab" data-v="${k}">${l}</button>`).join('')}</div>`;
-  return tabs + (tab === 'web' ? webView() : tab === 'ledger' ? ledgerView() : bossView(false));
+  return tabs + (tab === 'web' ? webView() : tab === 'ledger' ? ledgerView() : tab === 'reg' ? registryView() : bossView(false));
+}
+
+// --- 문서대장: 업무관리시스템 문서등록대장 캡쳐를 AI 가 줄마다 옮긴 표 (ailab_meta/registry) ---
+// 관심 키워드가 들어간 공문, 연구소에 이미 넣은 공문(같은 공문번호)을 표시해요
+const REG_KEYS = ['AI', '인공지능', '디지털', '에듀테크', '바이브', '연수', '윤리', '인권', '독서', 'IB', '수업', '보안'];
+function registryView() {
+  const all = Object.values(S.registry?.rows || {});
+  if (!all.length) return `<p class="empty">문서대장 캡쳐를 1층 접수처에 넣으면 여기에 한 줄씩 쌓여요. 키워드나 보낸 부서로 검색한 화면을 찍어 넣으면 돼요.</p>`;
+  const got = new Set(S.captures.flatMap((c) => [c.name, ...(c.sources || []), ...(c.files || []).map((f) => f.name)]).map(docNo).filter(Boolean));
+  const f = S.regf || {};
+  const keyOf = (r) => REG_KEYS.filter((k) => new RegExp(k, 'i').test(r.title));
+  const rows = all.filter((r) => (!f.key || keyOf(r).includes(f.key)) && (!f.todo || !got.has(r.no)) && (!f.q || `${r.title} ${r.dept} ${r.no}`.includes(f.q)))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || Number(b.no) - Number(a.no));
+  const cnt = (k) => all.filter((r) => keyOf(r).includes(k)).length;
+  return `<div class="reg-bar">
+      <input id="regQ" placeholder="제목 · 부서 · 번호 찾기" value="${esc(f.q || '')}" autocomplete="off">
+      <button class="chipbtn ${f.todo ? 'on' : ''}" data-act="regtodo">안 받은 것만</button>
+      ${REG_KEYS.filter(cnt).map((k) => `<button class="chipbtn ${f.key === k ? 'on' : ''}" data-act="regkey" data-v="${esc(k)}">${esc(k)} <small>${cnt(k)}</small></button>`).join('')}
+    </div>
+    <p class="note">${all.length}건 · 보이는 것 ${rows.length}건 · ✓ = 연구소에 이미 넣은 공문 (파일 이름의 공문번호로 맞춰요)</p>
+    <div class="ledger"><table><thead><tr><th>번호</th><th>날짜</th><th>제목</th><th>보낸 곳</th><th>키워드</th><th>넣음</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td class="n">${esc(r.no)}</td><td class="d">${esc(r.date ? fmtDate(r.date) : '')}</td><td>${esc(r.title)}</td><td>${esc(r.dept)}</td><td><div class="docs">${keyOf(r).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div></td><td>${got.has(r.no) ? '<span class="lst done">✓</span>' : ''}</td></tr>`).join('')}
+    </tbody></table></div>`;
 }
 
 // --- 웹앱 현황: 각 웹앱이 /visit.js 로 남기는 site_counts ("이름__total" · "이름__d2026-10-29") 를 읽어요 ---
@@ -1929,6 +1955,8 @@ document.addEventListener('click', async (e) => {
       case 'subj': S.subj = b.dataset.v; render(); break;
       case 'stats': S.stats = null; render(); break;
       case 'bosstab': S.bossTab = b.dataset.v; render(); break;
+      case 'regkey': S.regf = { ...S.regf, key: S.regf?.key === b.dataset.v ? '' : b.dataset.v }; render(); break;
+      case 'regtodo': S.regf = { ...S.regf, todo: !S.regf?.todo }; render(); break;
       case 'todoDel': saveDesk({ todos: (S.desk?.todos || []).filter((_, i) => i !== Number(b.dataset.i)) }); break;
       case 'briefnow':
         S.briefing = true; render();
@@ -1975,6 +2003,7 @@ document.addEventListener('change', (e) => {
   else if (t.id === 'deskAsOf') saveDesk({ creditAsOf: t.value });
   else if (t.id === 'deskExp') saveDesk({ creditExpires: t.value });
   else if (t.id === 'deskMemo') saveDesk({ memo: t.value });
+  else if (t.id === 'regQ') { S.regf = { ...S.regf, q: t.value.trim() }; t.blur(); render(); }
   else if (t.id === 'taskTitle') saveTask({ title: t.value.trim() });
   else if (t.id === 'taskDue') saveTask({ due: t.value });
   else if (t.id === 'taskNotes') saveTask({ notes: t.value });
