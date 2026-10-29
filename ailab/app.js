@@ -707,14 +707,21 @@ function thumb(path, cls = '', attrs = '') {
     ? `<span class="pdfthumb ${cls}" ${attrs} title="PDF">PDF</span>`
     : `<img class="${cls}" ${attrs} data-path="${esc(path)}" alt="">`;
 }
-// 창 왼쪽에 보여 줄 원본 전부 (공문 묶음이면 본문 · 첨부 PDF 여러 개)
-function viewer(capId, fallbackPath) {
+// 창에 보여 줄 원본 전부 (공문 묶음이면 본문 · 첨부 PDF 여러 개)
+function capFiles(capId, fallbackPath) {
   const cap = S.captures.find((c) => c.id === capId);
   const files = cap?.files?.length ? cap.files : [{ path: cap?.storagePath || fallbackPath, name: cap?.name || '' }];
-  return files.filter((f) => f.path).map((f) => (isPdfPath(f.path)
-    ? `<div class="pdfbox"><a class="chipbtn" data-path="${esc(f.path)}" target="_blank" rel="noopener">${esc(f.name || 'PDF')} · 새 창에서 열기</a><iframe class="pdfview" data-path="${esc(f.path)}" title="${esc(f.name || 'PDF')}"></iframe></div>`
-    : `<img data-path="${esc(f.path)}" alt="원본">`)).join('');
+  return files.filter((f) => f.path);
 }
+const hasImage = (files) => files.some((f) => !isPdfPath(f.path));
+// 사진은 크게 보여 주고, PDF 는 창 안에서 펼치지 않고 작은 파일 칸으로 (누르면 새 창에서 열려요)
+function viewer(files) {
+  const pdfs = files.filter((f) => isPdfPath(f.path));
+  return (pdfs.length ? `<div class="filetiles">${pdfs.map((f) => `<a class="filetile" data-path="${esc(f.path)}" target="_blank" rel="noopener" title="${esc(f.name || 'PDF')} · 새 창에서 열기"><span class="pdfthumb">PDF</span><span class="fn">${esc(f.name || 'PDF')}</span></a>`).join('')}</div>` : '')
+    + files.filter((f) => !isPdfPath(f.path)).map((f) => `<img data-path="${esc(f.path)}" alt="원본">`).join('');
+}
+// 창 오른쪽 위 닫기 단추 (form method="dialog" 라 누르면 저장하지 않고 닫혀요)
+const DLG_X = '<button class="dlg-x" value="cancel" formnovalidate aria-label="닫기" title="닫기 (Esc)">✕</button>';
 
 const urlCache = new Map();
 function hydrateImages(root = document) {
@@ -728,6 +735,7 @@ function hydrateImages(root = document) {
     } catch {
       urlCache.delete(p);
       if (el.tagName === 'IMG') el.alt = '원본 없음';
+      if (el.tagName === 'A') { el.classList.add('gone'); el.title = '저장소에 이 파일이 없어요'; }
     }
   });
 }
@@ -738,10 +746,13 @@ const dlg = $('#dlg');
 function openCard(id) {
   const c = cardById(id);
   if (!c) return;
-  dlg.innerHTML = `<form method="dialog" class="dlg" id="cardForm" data-id="${c.id}">
-    <div class="dlg-img">${viewer(c.captureId, c.storagePath)}</div>
+  const files = capFiles(c.captureId, c.storagePath), side = hasImage(files);
+  dlg.innerHTML = `<form method="dialog" class="dlg ${side ? '' : 'one'}" id="cardForm" data-id="${c.id}">
+    ${DLG_X}
+    ${side ? `<div class="dlg-img">${viewer(files)}</div>` : ''}
     <div class="dlg-form">
       <h2>${c.status === 'review' ? '카드 확인하기' : '카드 고치기'}</h2>
+      ${side ? '' : viewer(files)}
       <label>보낼 방<select name="room">${roomOptions(c.room)}</select></label>
       <label>제목<input name="title" value="${esc(c.title)}"></label>
       <div class="two"><label>날짜<input type="date" name="date" value="${esc(c.date)}"></label><label>끝나는 날<input type="date" name="end_date" value="${esc(c.end_date)}"></label></div>
@@ -785,14 +796,19 @@ function openCapture(id) {
   const cap = S.captures.find((c) => c.id === id);
   if (!cap) return;
   const cards = S.cards.filter((c) => c.captureId === id);
-  dlg.innerHTML = `<form method="dialog" class="dlg">
-    <div class="dlg-img">${viewer(cap.id)}</div>
+  const files = capFiles(cap.id), side = hasImage(files);
+  // 파일이 저장소에 없으면(올리다 막혔을 때) 다시 읽어도 소용없으니, 지우고 다시 넣으라고 알려 줘요
+  const missing = /No such object|올리지 못했어요/.test(cap.error || '');
+  dlg.innerHTML = `<form method="dialog" class="dlg ${side ? '' : 'one'}">
+    ${DLG_X}
+    ${side ? `<div class="dlg-img">${viewer(files)}</div>` : ''}
     <div class="dlg-form">
       <h2>${cap.bundle ? '원본 공문 묶음' : '원본 캡쳐'}</h2>
-      <small>${esc(cap.name || '')} · ${esc(tsDate(cap.createdAt))}에 넣음${cap.note ? ` · ${esc(cap.note)}` : ''}</small>
+      <small>${side ? `${esc(cap.name || '')} · ` : ''}${esc(tsDate(cap.createdAt))}에 넣음${cap.note ? ` · ${esc(cap.note)}` : ''}</small>
+      ${side ? '' : viewer(files)}
       ${cap.link ? `<small>함께 적은 링크: ${esc(cap.link)}</small>` : ''}
       ${cap.memo ? `<small>메모: ${esc(cap.memo)}</small>` : ''}
-      ${cap.error ? `<p class="unsure">${esc(cap.error)}</p>` : ''}
+      ${cap.error ? `<div class="dlg-err"><b>${missing ? '파일이 저장소에 없어요' : '읽지 못했어요'}</b>${missing ? '<p>올리는 중에 막혀서 파일이 저장되지 않았어요. 아래 [원본과 카드 모두 지우기]를 누른 뒤 다시 넣어 주세요.</p>' : ''}<small>${esc(cap.error)}</small></div>` : ''}
       <h3>이 자료에서 나온 카드 ${cards.length}</h3>
       <div class="dlg-list">${cards.map((c) => `<a href="#${esc(c.room)}" data-act="close">${esc(floorOf(c.room).floor)} ${esc(roomName(c.room))} · ${esc(c.title)}${c.status === 'review' ? ' (확인 전)' : ''}</a>`).join('') || '<small>아직 없어요.</small>'}</div>
       <div class="dlg-acts">
@@ -806,6 +822,8 @@ function openCapture(id) {
   dlg.showModal();
 }
 
+// 창 바깥(어두운 곳)을 누르면 닫혀요 (저장은 하지 않아요)
+dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close('cancel'); });
 dlg.addEventListener('close', () => {
   const form = $('#cardForm', dlg);
   if (dlg.returnValue === 'save' && form) saveCard(form).catch((e) => toast(`저장하지 못했어요 (${e.code || e.message})`));
