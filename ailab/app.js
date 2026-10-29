@@ -493,7 +493,7 @@ function withPast(live, past, fn, wrap = (h) => h) {
 function eventCard(c) {
   const when = whenText(c);
   return `<article class="card ${isPast(c) ? 'past' : ''}">
-    <div class="row">${ddChip(c.date, c.end_date)}${reviewTag(c)}${c.kind ? `<span class="chip">${esc(c.kind)}</span>` : ''}</div>
+    <div class="row">${ddChip(c.date, c.end_date)}${reviewTag(c)}${c.kind ? `<span class="chip">${esc(c.kind)}</span>` : ''}${dupTag(c)}</div>
     <h3><span class="${uns(c, 'title')}">${esc(c.title || '(제목 없음)')}</span></h3>
     ${c.summary ? `<p class="sum">${esc(c.summary)}</p>` : ''}
     <dl class="kv">
@@ -526,7 +526,7 @@ function splitView(list, k) {
       ${past.length ? `<p class="sp-sep">지난 자료 ${past.length}건</p>${past.map(pick).join('')}` : ''}
     </div>
     <article class="sp-detail" role="tabpanel">
-      <div class="row">${ddChip(sel.date, sel.end_date)}${reviewTag(sel)}${sel.kind ? `<span class="chip">${esc(sel.kind)}</span>` : ''}</div>
+      <div class="row">${ddChip(sel.date, sel.end_date)}${reviewTag(sel)}${sel.kind ? `<span class="chip">${esc(sel.kind)}</span>` : ''}${dupTag(sel)}</div>
       <h3><span class="${uns(sel, 'title')}">${esc(sel.title || '(제목 없음)')}</span></h3>
       ${sel.summary ? `<p class="sum">${esc(sel.summary)}</p>` : ''}
       <dl class="kv">
@@ -602,7 +602,7 @@ function lessonRow(c, k) {
   return `<li class="lesson ${isPast(c) ? 'past' : ''}">
     <span class="date ${uns(c, 'date')}">${m ? `<b>${m}.${d}</b>${esc(wd)} ${esc(period)}` : '<b>?</b>날짜 없음'}</span>
     <div class="body">
-      <div class="row">${reviewTag(c)}${ddChip(c.date)}</div>
+      <div class="row">${reviewTag(c)}${ddChip(c.date)}${dupTag(c)}</div>
       <h3>${esc(c.title || field(c, '수업 제목') || '(제목 없음)')}</h3>
       ${where ? `<small>${esc(where)}</small>` : ''}
       ${c.moral_link ? `<span class="link-tip">도덕과 연결: ${esc(c.moral_link)}</span>` : ''}
@@ -760,6 +760,25 @@ function roomOptions(current) {
   const ai = Object.entries(ROOMS).filter(([, r]) => r.ai);
   return `${!ROOMS[current]?.ai ? '<option value="unknown" selected>방을 골라 주세요</option>' : ''}${ai.map(([k, r]) => `<option value="${k}" ${k === current ? 'selected' : ''}>${esc(floorOf(k).floor)} ${esc(r.name)}</option>`).join('')}`;
 }
+// 제목이 같은 카드 찾기 (띄어쓰기 · 괄호 · 문장부호는 무시). 같은 공문을 두 번 넣었거나 같은 연수가 또 들어온 걸 알려 줘요
+const titleKey = (t) => (t || '').replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
+let titleIdx = { cards: null, map: new Map() };
+function sameTitle(c) {
+  if (titleIdx.cards !== S.cards) {
+    const map = new Map();
+    S.cards.forEach((x) => { const k = titleKey(x.title); if (k.length >= 4) map.set(k, [...(map.get(k) || []), x]); });
+    titleIdx = { cards: S.cards, map };
+  }
+  // 날짜가 다르면 다른 수업 · 연수로 봐요 (같은 제목 수업을 여러 학교가 여는 경우)
+  return (titleIdx.map.get(titleKey(c.title)) || []).filter((x) => x.id !== c.id && (!c.date || !x.date || x.date === c.date));
+}
+// 확인 표시: 누르면 같은 제목의 다른 카드가 열려요
+function dupTag(c) {
+  const others = sameTitle(c);
+  if (!others.length) return '';
+  const o = others[0];
+  return `<button type="button" class="chip dup" data-act="edit" data-id="${o.id}" title="${esc(`${roomName(o.room)} · ${fmtDate(o.date) || '날짜 없음'}`)}">⚠ 같은 제목 ${others.length + 1}장 · 확인</button>`;
+}
 function reviewCard(c) {
   const when = whenText(c);
   const rows = [
@@ -773,6 +792,7 @@ function reviewCard(c) {
   return `<div class="qc">
     <div class="qc-top">${thumb(c.storagePath, 'qthumb', `data-act="edit" data-id="${c.id}"`)}
       <div><b>${esc(c.kind || '자료')}</b><select data-act="move" data-id="${c.id}" aria-label="보낼 방">${roomOptions(c.room)}</select></div></div>
+    ${dupTag(c)}
     <dl class="fields">${rows.map(([l, v, u]) => `<dt>${esc(l)}</dt><dd><span class="${u}">${esc(v)}</span></dd>`).join('')}</dl>
     ${c.periods?.length ? `<small>교시·흐름 ${c.periods.length}개 · 고치기에서 볼 수 있어요</small>` : ''}
     <div class="btns">
@@ -1333,9 +1353,41 @@ async function checkFiles(pdfs, sheets, docs, hasImgs) {
   return { files, note: [note(), sheetText(list, name)].filter(Boolean).join('\n\n') };
 }
 
+// 전에 넣은 파일 이름 (묶음은 넣은 파일 전부 · 본문 .odt · 엑셀 포함). 'image.png' 같은 붙여넣기 이름은 빼요
+const GENERIC = /^(image|붙여넣은 이미지|본문 표지)(\s*\(\d+\))?\.\w+$/i;
+function dupFiles(files) {
+  const seen = new Map();
+  for (const cap of S.captures) {
+    const names = cap.sources || cap.files?.map((f) => f.name) || [cap.name];
+    names.filter(Boolean).forEach((n) => { if (!seen.has(n)) seen.set(n, cap); });
+  }
+  return files.filter((f) => !GENERIC.test(f.name || '') && seen.has(f.name)).map((f) => ({ file: f, cap: seen.get(f.name) }));
+}
+// 같은 이름 파일이 있으면 물어봐요: 'skip' 같은 파일 빼고 · 'all' 모두 넣기 · null 취소
+function askDup(dups) {
+  dlg.innerHTML = `<form method="dialog" class="dlg one">${DLG_X}<div class="dlg-form">
+    <h2>전에 넣은 파일이 있어요</h2>
+    <p class="note">이름이 같은 파일을 전에 넣었어요. 같은 공문을 또 넣으면 카드가 두 장씩 생겨요.</p>
+    <ul class="dup-list">${dups.map((d) => `<li>${esc(d.file.name)} <small>· ${esc(tsDate(d.cap.createdAt) || '전에')} 넣음</small></li>`).join('')}</ul>
+    <div class="dlg-acts"><button value="cancel">취소</button><button type="button" id="dupAll">그래도 모두 넣기</button><button type="button" class="yes" id="dupSkip">같은 파일 빼고 넣기</button></div>
+  </div></form>`;
+  let choice = null;
+  $('#dupAll', dlg).addEventListener('click', () => { choice = 'all'; dlg.close(); });
+  $('#dupSkip', dlg).addEventListener('click', () => { choice = 'skip'; dlg.close(); });
+  dlg.showModal();
+  return new Promise((res) => dlg.addEventListener('close', () => res(choice), { once: true }));
+}
+
 // 사진만 넣으면 한 장씩 따로 읽고, PDF · 엑셀 · 문서가 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
 async function upload(fileList) {
-  const all = [...fileList];
+  let all = [...fileList];
+  const dups = dupFiles(all);
+  if (dups.length) {
+    const choice = await askDup(dups);
+    if (!choice) return;
+    if (choice === 'skip') all = all.filter((f) => !dups.some((d) => d.file === f));
+    if (!all.length) { toast('모두 전에 넣은 파일이라 넣지 않았어요'); return; }
+  }
   const pdfs = all.filter(isPdf), sheets = all.filter(isSheet), docs = all.filter(isDoc);
   const imgs = all.filter((f) => !isPdf(f) && !isSheet(f) && !isDoc(f) && f.type.startsWith('image/'));
   if (all.some(isOld)) toast('한글 .hwp · 워드 .doc 파일은 읽을 수 없어서 빼고 넣어요. PDF로 바꿔서 넣어 주세요');
@@ -1357,7 +1409,7 @@ async function upload(fileList) {
     const pdfN = checked.files.filter(isPdf).length;
     const what = [docs.length && `문서 ${docs.length}개`, pdfN && `PDF ${pdfN}개`, sheets.length && `엑셀 ${sheets.length}개`, imgs.length && `사진 ${imgs.length}장`].filter(Boolean).join(' · ');
     toast(`${what}를 공문 한 묶음으로 넣었어요. 다 올라가면 읽기 시작해요.`);
-    await uploadBundle([...checked.files, ...imgs], link, memo);
+    await uploadBundle([...checked.files, ...imgs], link, memo, all.map((f) => f.name).filter(Boolean));
     return;
   }
   toast(`1층 접수처에 ${imgs.length}장 들어왔어요. 바로 읽기 시작해요.`);
@@ -1365,7 +1417,8 @@ async function upload(fileList) {
 }
 
 // 공문 묶음: 파일을 ailab/bundles/{번호}/ 에 모두 올린 뒤, 서버 함수 readBundle 에 '다 올렸어요' 하고 읽기를 맡겨요
-async function uploadBundle(files, link, memo) {
+// sources = 선생님이 넣은 원래 파일 이름 전부 (다음에 같은 파일을 또 넣으면 알려 주려고)
+async function uploadBundle(files, link, memo, sources = files.map((f) => f.name)) {
   const capRef = doc(collection(db, dbPath('captures')));
   S.uploading.set(capRef.id, files[0].name);
   render();
@@ -1380,8 +1433,8 @@ async function uploadBundle(files, link, memo) {
       list.push({ path: `ailab/bundles/${capRef.id}/${i + 1}.${pdf ? 'pdf' : OK_TYPES[type] || 'img'}`, name: f.name || `파일 ${i + 1}`, type, blob });
     }
     const meta = list.map(({ path, name, type }) => ({ path, name, type }));
-    const name = files.length > 1 ? `${files[0].name} 외 ${files.length - 1}개` : files[0].name;
-    await setDoc(capRef, { status: 'uploading', bundle: true, name, files: meta, storagePath: meta[0].path, link, memo, createdAt: serverTimestamp() });
+    const name = sources.length > 1 ? `${sources[0]} 외 ${sources.length - 1}개` : sources[0] || files[0].name;
+    await setDoc(capRef, { status: 'uploading', bundle: true, name, files: meta, sources, storagePath: meta[0].path, link, memo, createdAt: serverTimestamp() });
     await Promise.all(list.map((x) => uploadBytes(ref(storage, x.path), x.blob, { contentType: x.type })));
     await updateDoc(capRef, { status: 'reading' });
   } catch (e) {
