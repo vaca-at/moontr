@@ -13,7 +13,7 @@ const REGION = 'asia-northeast3';
 const DEFAULT_STEPS = ['주제 정하기', '참고 지도안 고르기', '내 지도안 쓰기', '수업 실행', '성찰 정리·제출'];
 
 // riding = 엘리베이터가 움직이는 중(그동안은 화면을 다시 그리지 않아요), doorsShut = 다음 화면을 문 닫힌 채로 그리고 열기
-const S = { user: null, teacher: false, cards: [], captures: [], task: null, building: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false, riding: false, doorsShut: false, focused: '' };
+const S = { user: null, teacher: false, cards: [], captures: [], task: null, building: null, uploading: new Map(), q: '', subj: '', pending: { link: '', memo: '' }, dirty: false, riding: false, doorsShut: false, focused: '', pick: {} }; // pick = 두 칸 방에서 고른 카드 { 방: 카드 id }
 let auth, db, storage, fns;
 let unsubs = [];
 // 첫 화면 3D 건물 (building3d.js). null = 불러오는 중, false = 이 브라우저에서 3D가 안 돼서 예전 그림으로
@@ -412,7 +412,7 @@ function roomContent(k) {
   const head = r.task ? taskPanel() : '';
   const list = cardsIn(k);
   if (!list.length) return head + emptyRoom(k);
-  const view = { link: linksView, lesson: lessonsView, plan: plansView }[r.view] || eventsView;
+  const view = { link: linksView, lesson: lessonsView, plan: plansView, split: splitView }[r.view] || eventsView;
   return head + view(list, k);
 }
 
@@ -465,7 +465,7 @@ const groupBy = (list, fn) => list.reduce((m, x) => { (m[fn(x)] ||= []).push(x);
 // --- 카드 부품 ---
 const reviewTag = (c) => (c.status === 'review' ? '<span class="chip warn">확인 전</span>' : '');
 const uns = (c, key) => ((c.unsure || []).includes(key) ? 'unsure' : '');
-const DUP = new Set(['연수명', '수업 제목', '과제명', '수업 주제', '사이트 이름', '일시', '장소', '교과']);
+const DUP = new Set(['연수명', '수업 제목', '과제명', '수업 주제', '사이트 이름', '공문 제목', '일시', '장소', '교과']);
 const extraFields = (c) => (c.fields || []).filter((f) => f.value && !DUP.has(f.label));
 function actions(c, more = '') {
   return `<div class="acts">
@@ -505,6 +505,36 @@ function eventCard(c) {
 function eventsView(list) {
   const { live, past } = sortCards(list);
   return withPast(live, past, eventCard, (h) => `<div class="grid2">${h}</div>`);
+}
+
+// split: 메일함처럼 왼쪽 목록에서 고르면 오른쪽에 그 공문만 크게 (정보 보안실처럼 세부 항목이 긴 방)
+function splitView(list, k) {
+  const { live, past } = sortCards(list);
+  const all = [...live, ...past];
+  const sel = all.find((c) => c.id === S.pick[k]) || all[0];
+  const pick = (c) => `<button type="button" class="sp-pick ${isPast(c) ? 'past' : ''}" data-act="pickcard" data-id="${c.id}" aria-selected="${c === sel}" role="tab">
+      <span class="t">${esc(c.title || '(제목 없음)')}</span>
+      <small>${c.date ? `${esc(fmtDate(c.date))} · ` : ''}${esc(c.kind || '')}${c.status === 'review' ? ' · <b>확인 전</b>' : ''}</small>
+    </button>`;
+  const when = whenText(sel);
+  return `<div class="sp">
+    <div class="sp-list" role="tablist" aria-label="${esc(roomName(k))} 자료">
+      ${live.map(pick).join('')}
+      ${past.length ? `<p class="sp-sep">지난 자료 ${past.length}건</p>${past.map(pick).join('')}` : ''}
+    </div>
+    <article class="sp-detail" role="tabpanel">
+      <div class="row">${ddChip(sel.date, sel.end_date)}${reviewTag(sel)}${sel.kind ? `<span class="chip">${esc(sel.kind)}</span>` : ''}</div>
+      <h3><span class="${uns(sel, 'title')}">${esc(sel.title || '(제목 없음)')}</span></h3>
+      ${sel.summary ? `<p class="sum">${esc(sel.summary)}</p>` : ''}
+      <dl class="kv">
+        ${when ? `<dt>일시</dt><dd><span class="${uns(sel, 'date') || uns(sel, 'time')}">${esc(when)}</span></dd>` : ''}
+        ${sel.place ? `<dt>장소</dt><dd><span class="${uns(sel, 'place')}">${esc(sel.place)}</span></dd>` : ''}
+        ${extraFields(sel).map((f) => `<dt>${esc(f.label)}</dt><dd><span class="${f.unsure ? 'unsure' : ''}">${esc(f.value)}</span></dd>`).join('')}
+      </dl>
+      ${periodsTable(sel)}
+      ${actions(sel)}
+    </article>
+  </div>`;
 }
 
 // link: 홈페이지 즐겨찾기
@@ -994,6 +1024,7 @@ document.addEventListener('click', async (e) => {
       case 'stats': S.stats = null; render(); break;
       case 'cap': openCapture(cap); break;
       case 'staffpick': openStaffPick(route()); break;
+      case 'pickcard': S.pick[route()] = id; render(); break;
       case 'reread': if (dlg.open) dlg.close(); await reread(cap); break;
       case 'delcap': await deleteCapture(cap); break;
       case 'close': dlg.close(); break;

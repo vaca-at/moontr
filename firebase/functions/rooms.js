@@ -12,6 +12,7 @@
 //   link   — 즐겨찾기 타일 (홈페이지)
 //   lesson — 날짜순 수업 목록 (수업 공개)
 //   plan   — 수업 흐름 카드, 활동 방식별 묶음 (지도안)
+//   split  — 왼쪽 목록 + 오른쪽 자세히, 메일함처럼 (정보 보안실)
 
 // 화면에 보이는 이름 (주소는 그대로 moontr.site/ailab)
 export const APP_NAME = '문쌤의 AI 연구소';
@@ -53,7 +54,7 @@ export const ROOMS = {
   },
 
   security: {
-    name: '정보 보안실', role: '보안 담당', ai: true, view: 'event',
+    name: '정보 보안실', role: '보안 담당', ai: true, view: 'split',
     desc: '정보 보안 관련 공문 (보안 점검 · 보안 권고 · 개인정보 보호 · 보안 교육 안내 등). 학교에서 해야 할 일과 기한 위주',
     fields: ['공문 제목', '보낸 곳', '해야 할 일', '대상', '기한', '관련 시스템·프로그램'],
   },
