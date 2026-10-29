@@ -5652,25 +5652,36 @@ const macDesk = port => (() => {
     fillRR(X + WW - 26, Y + 5, 20, 9, 2.5, DK ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)"); mt("오늘", X + WW - 16, Y + 9.6, 4.8, INK, "center", "500");
     g.fillStyle = LN; g.fillRect(X + SW, Y + 24, WW - SW, .5);
     const per = BELL.filter(b => /\d/.test(b[0])), GX = X + SW + 22, GY = Y + 36, CW = (WW - SW - 28)/5, RH = Math.min(19, (WH - 42)/Math.max(1, per.length));
+    // 🍎 맥 캘린더 주간 보기처럼 (2026-10-29): 오늘은 빨간 동그라미 속 흰 날짜, 아주 연한 격자, 연한 색 블록 + 왼쪽 색 띠 + 진한 같은 색 글씨 · 시작 시각, 지금 시각 빨간 표시
+    const HL = DK ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)";
+    const shade = (hex, f) => { const n = parseInt(hex.slice(1), 16), ch = s => Math.round(((n >> s) & 255)*f); return `rgb(${ch(16)},${ch(8)},${ch(0)})`; };   // 같은 색을 진하게(글씨)
     for (let dd = 1; dd <= 5; dd++){ const x = GX + (dd - 1)*CW, today = dd === t.day;
       const dt = new Date(t.d); dt.setDate(t.d.getDate() + (dd - t.day));
-      mt(`${DAYS[dd]} ${dt.getDate()}`, x + CW/2, GY - 7, 5.4, today ? "#FF3B30" : SUB, "center", today ? "700" : "500");
-      g.fillStyle = LN; g.fillRect(x, GY - 2, .5, per.length*RH + 2); }
+      const dn = String(dt.getDate()), cx = x + CW/2;
+      mt(DAYS[dd], cx - 3.6, GY - 7, 5, today ? "#FF3B30" : SUB, "right", "500");
+      if (today){ g.fillStyle = "#FF3B30"; g.beginPath(); g.arc(cx + 2.6, GY - 7, 4.4, 0, Math.PI*2); g.fill(); }
+      mt(dn, cx + 2.6, GY - 7, 5.2, today ? "#FFFFFF" : INK, "center", today ? "700" : "500");
+      if (dd > 1){ g.fillStyle = HL; g.fillRect(x, GY - 2, .5, per.length*RH + 2); } }
     per.forEach(([p, a, b], k) => {
-      const y = GY + k*RH; g.fillStyle = LN; g.fillRect(GX - 20, y, WW - SW - 4, .4);
-      mt(`${p}교시`, GX - 3, y + 4.5, 4.4, SUB, "right", "500"); mt(a, GX - 3, y + 10, 3.8, SUB, "right", "400");
+      const y = GY + k*RH; g.fillStyle = HL; g.fillRect(GX, y, WW - SW - 26, .5);
+      mt(`${p}교시`, GX - 3, y + 3.6, 4.2, SUB, "right", "500"); mt(a, GX - 3, y + 8.6, 3.6, SUB, "right", "400");
       for (let dd = 1; dd <= 5; dd++){
         const r = (TT[dd] || {})[p]; if (!r) continue;
         const x = GX + (dd - 1)*CW, cur = dd === t.day && st.m >= mm(a) && st.m < mm(b), hr = HR && r === HR;
         const c = hr ? "#FF2D55" : isClass(r) ? ["#30D158", "#FF9F0A", "#0A84FF", "#BF5AF2", "#64D2FF", "#FFD60A"][(gradeOf(r) - 1) % 6] : "#8E8E93";
-        g.globalAlpha = cur ? .95 : DK ? .3 : .2; fillRR(x + 1.5, y + 1, CW - 3, RH - 2, 2.5, c); g.globalAlpha = 1; fillRR(x + 1.5, y + 1, 1.4, RH - 2, .7, c);
-        mt(mfit(NAME(r).replace(" 우리 반", ""), CW - 8, 5.2, "600"), x + 5, y + RH/2, 5.2, cur ? "#FFFFFF" : (DK ? "#F5F5F7" : c === "#FFD60A" ? "#8A6D00" : c), "left", "600");
+        const bx = x + 1.2, by = y + .9, bw = CW - 2.4, bh = RH - 1.8, two = bh >= 13;
+        g.globalAlpha = cur ? 1 : DK ? .32 : .18; fillRR(bx, by, bw, bh, 2.6, c); g.globalAlpha = 1;
+        if (!cur){ g.save(); rr0(bx, by, bw, bh, 2.6); g.clip(); g.fillStyle = c; g.fillRect(bx, by, 1.8, bh); g.restore(); }
+        const ink = cur ? "#FFFFFF" : DK ? shade(c, 1.15).replace(/\d+/g, v => Math.min(255, +v)) : shade(c, c === "#FFD60A" ? .55 : c === "#64D2FF" ? .6 : .75);
+        mt(mfit(NAME(r).replace(" 우리 반", ""), bw - 6, 5.2, "700"), bx + 4.2, two ? by + 4.6 : by + bh/2, 5.2, ink, "left", "700");
+        if (two) mt(a, bx + 4.2, by + 10, 3.9, cur ? "rgba(255,255,255,.85)" : ink, "left", "500");
       }
     });
-    // 지금 빨간 줄
+    // 지금 빨간 줄 (맥 캘린더처럼 왼쪽 시간 칸에 빨간 시각)
     if (t.wk){ const k = per.findIndex(([, a, b]) => st.m >= mm(a) && st.m < mm(b)), k2 = k < 0 ? per.findIndex(([, a]) => st.m < mm(a)) : k;
       if (k2 >= 0){ const [, a, b] = per[k2], f = k < 0 ? 0 : clamp((st.m - mm(a))/Math.max(1, mm(b) - mm(a)), 0, 1), y = GY + k2*RH + f*RH, x = GX + (t.day - 1)*CW;
-        g.fillStyle = "#FF3B30"; g.fillRect(x, y - .4, CW, .8); g.beginPath(); g.arc(x, y, 1.6, 0, Math.PI*2); g.fill(); } }
+        g.fillStyle = "#FF3B30"; g.globalAlpha = .35; g.fillRect(GX, y - .25, WW - SW - 26, .5); g.globalAlpha = 1; g.fillRect(x, y - .5, CW, 1); g.beginPath(); g.arc(x, y, 1.7, 0, Math.PI*2); g.fill();
+        const mi0 = Math.floor(st.m), hm = `${Math.floor(mi0/60)}:${String(mi0 % 60).padStart(2, "0")}`; fillRR(GX - 19, y - 3.2, 17, 6.4, 3.2, "#FF3B30"); mt(hm, GX - 10.5, y, 4.2, "#FFFFFF", "center", "700"); } }
     g.restore();
     hot(X + SW, Y, WW - SW, WH, { open:"edit" });
   }
