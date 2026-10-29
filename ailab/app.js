@@ -495,19 +495,37 @@ function withPast(live, past, fn, wrap = (h) => h) {
     ${past.length ? `<details class="pastbox"><summary>지난 자료 ${past.length}건</summary>${wrap(past.map(fn).join(''))}</details>` : ''}`;
 }
 
+// 자료 종류 칩: 종류마다 색이 달라요 (연수 안내 파랑 · 대상자 공문 초록 · 신청 노랑 · 홈페이지 보라 · 과제 주황)
+const KIND_COLORS = [['target', /대상자|선정|명단/], ['apply', /신청|모집|선발/], ['site', /홈페이지|사이트|누리집/], ['task', /과제|제출/], ['guide', /안내|연수|계획/]];
+const kindChip = (c) => (c.kind ? `<span class="chip kind-${(KIND_COLORS.find(([, re]) => re.test(c.kind)) || ['etc'])[0]}">${esc(c.kind)}</span>` : '');
+// 내가 대상자인지: '대상자 여부' 칸을 보고 (AI가 헷갈린 칸이면 확인 필요)
+function meBadge(c) {
+  const f = (c.fields || []).find((x) => x.label === '대상자 여부' && x.value);
+  if (!f) return '';
+  if (f.unsure) return '<span class="me ask">대상자 여부 확인 필요</span>';
+  return /아님|아닙|없음|해당\s*없|미해당|제외/.test(f.value) ? '<span class="me no">대상자 아님</span>' : '<span class="me yes">✓ 나는 대상자</span>';
+}
+
 // event: 연수·과제처럼 날짜·장소·교시가 중요한 방
+// 카드는 모두 같은 크기: 제목 2줄 · 일시 · 요약 2줄 · 칩(장소 · 이수 시간 · 준비물) · 대상자 여부. 나머지는 '자세히'를 누르면 카드 안에서 펼쳐져요
+const PILLS = ['이수 시간', '준비물'];
 function eventCard(c) {
   const when = whenText(c);
-  return `<article class="card ${isPast(c) ? 'past' : ''}">
-    <div class="row">${ddChip(c.date, c.end_date)}${reviewTag(c)}${c.kind ? `<span class="chip">${esc(c.kind)}</span>` : ''}${dupTag(c)}</div>
-    <h3><span class="${uns(c, 'title')}">${esc(c.title || '(제목 없음)')}</span></h3>
-    ${c.summary ? `<p class="sum">${esc(c.summary)}</p>` : ''}
-    <dl class="kv">
-      ${when ? `<dt>일시</dt><dd><span class="${uns(c, 'date') || uns(c, 'time')}">${esc(when)}</span></dd>` : ''}
-      ${c.place ? `<dt>장소</dt><dd><span class="${uns(c, 'place')}">${esc(c.place)}</span></dd>` : ''}
-      ${extraFields(c).map((f) => `<dt>${esc(f.label)}</dt><dd><span class="${f.unsure ? 'unsure' : ''}">${esc(f.value)}</span></dd>`).join('')}
-    </dl>
-    ${periodsTable(c)}
+  const pills = [c.place && ['장소', c.place, uns(c, 'place')], ...PILLS.map((l) => { const f = (c.fields || []).find((x) => x.label === l && x.value); return f && [l === '이수 시간' ? '이수' : l, f.value, f.unsure ? 'unsure' : '']; })].filter(Boolean);
+  const rest = extraFields(c).filter((f) => !PILLS.includes(f.label) && f.label !== '대상자 여부');
+  const more = rest.length + (c.periods?.length ? 1 : 0);
+  return `<article class="card ecard ${isPast(c) ? 'past' : ''}">
+    <div class="row">${ddChip(c.date, c.end_date)}${reviewTag(c)}${kindChip(c)}${dupTag(c)}</div>
+    <h3 title="${esc(c.title || '')}"><span class="${uns(c, 'title')}">${esc(c.title || '(제목 없음)')}</span></h3>
+    <div class="ebody">
+      ${when ? `<p class="ewhen ${uns(c, 'date') || uns(c, 'time')}">${esc(when)}</p>` : ''}
+      ${c.summary ? `<p class="sum">${esc(c.summary)}</p>` : ''}
+      ${pills.length ? `<div class="pills">${pills.map(([k, v, u]) => `<span class="pill ${u}" title="${esc(v)}"><i>${esc(k)}</i>${esc(v)}</span>`).join('')}</div>` : ''}
+      ${meBadge(c)}
+      ${more ? `<details class="emore"><summary>자세히 ▾ <small>${rest.length ? `항목 ${rest.length}` : ''}${rest.length && c.periods?.length ? ' · ' : ''}${c.periods?.length ? `교시 ${c.periods.length}` : ''}</small></summary>
+        ${rest.length ? `<dl class="kv">${rest.map((f) => `<dt>${esc(f.label)}</dt><dd><span class="${f.unsure ? 'unsure' : ''}">${esc(f.value)}</span></dd>`).join('')}</dl>` : ''}
+        ${periodsTable(c)}</details>` : ''}
+    </div>
     ${actions(c)}
   </article>`;
 }
@@ -532,7 +550,7 @@ function splitView(list, k) {
       ${past.length ? `<p class="sp-sep">지난 자료 ${past.length}건</p>${past.map(pick).join('')}` : ''}
     </div>
     <article class="sp-detail" role="tabpanel">
-      <div class="row">${ddChip(sel.date, sel.end_date)}${reviewTag(sel)}${sel.kind ? `<span class="chip">${esc(sel.kind)}</span>` : ''}${dupTag(sel)}</div>
+      <div class="row">${ddChip(sel.date, sel.end_date)}${reviewTag(sel)}${kindChip(sel)}${dupTag(sel)}</div>
       <h3><span class="${uns(sel, 'title')}">${esc(sel.title || '(제목 없음)')}</span></h3>
       ${sel.summary ? `<p class="sum">${esc(sel.summary)}</p>` : ''}
       <dl class="kv">
@@ -1557,6 +1575,14 @@ document.addEventListener('click', async (e) => {
       case 'pickcard': S.pick[route()] = id; render(); break;
       case 'addLinks': await addLinks(); break;
       case 'reload': location.reload(); break;
+      // 강력 새로고침: 화면 파일을 브라우저 저장본 말고 새로 받아 둔 뒤 다시 열어요 (방금 올린 새 화면이 바로 보이게)
+      case 'hardReload': {
+        b.disabled = true;
+        const files = ['./', 'index.html', 'app.js', 'building3d.js', 'rooms.js', 'style.css'];
+        await Promise.allSettled(files.map((f) => fetch(f, { cache: 'reload' })));
+        location.reload();
+        break;
+      }
       // 카드 창에서 그 방으로: 고른 카드가 보이게 (두 칸 방은 그 카드를 고르고, 교과 거르기는 풀어요)
       case 'gocard': { const c = cardById(id); if (!c) break; S.pick[c.room] = id; S.subj = ''; dlg.close(); location.hash = c.room; break; }
       case 'reread': if (dlg.open) dlg.close(); await reread(cap); break;
