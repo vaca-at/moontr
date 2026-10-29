@@ -914,6 +914,7 @@ function deskCard() {
     <div class="desk-grid">
       <div class="dk money"><h4>콘솔 · AI 비용</h4>
         <p class="big">${left != null ? `약 <b>${usd(left)}</b> 남음` : '<b>남은 값</b>을 적어 주세요'}${dExp != null ? ` <span class="${dExp <= 7 ? 'warn' : ''}">· 만료 D-${Math.max(0, dExp)}</span>` : ''}</p>
+        ${d.creditPromo != null ? `<p>프로모션 크레딧 <b>${usd(d.creditPromo)}</b>${d.creditPromoExpires ? ` · ${esc(fmtDate(d.creditPromoExpires))} 만료` : ''} <small>(배치 API · 관리형 에이전트 · Playground 에만 쓰여요. 위 남은 값은 일반 API 에 쓰이는 구매 크레딧이에요)</small></p>` : ''}
         <p>연구소 AI가 쓴 값 · 오늘 ${usd(days[today])} · 7일 ${usd(week)} · 이번 달 ${usd(month)} · 전체 ${usd(u.total)} <small>(${u.calls || 0}번 불렀어요 · 토큰으로 어림)</small></p>
         <details><summary>콘솔에서 본 값 적기</summary>
           <div class="dk-form"><label>남은 크레딧 ($)<input id="deskLeft" type="number" step="0.01" inputmode="decimal" value="${d.creditLeft ?? ''}"></label>
