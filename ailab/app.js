@@ -195,9 +195,7 @@ function render() {
     B3.setMode(band ? 'band' : 'home');
     B3.setVisible(home3d || band);
     if (home3d) { B3.setTop(isGuest() ? guestSide() : homeSide()); S.focused = ''; }
-    if (band && S.focused !== r) { B3.focusRoom(r, S.doorsShut || !S.focused); S.focused = r; }
-    if (band) B3.staffPicker($('.staff-pick'), r);
-  }
+    if (band && S.focused !== r) { B3.focusRoom(r, S.doorsShut || !S.focused); S.focused = r; }  }
   if (S.doorsShut) {
     S.doorsShut = false;
     setTimeout(() => $('.lift')?.classList.remove('shut'), 160);
@@ -392,14 +390,13 @@ function floorView(k) {
       <div class="ev-btns">${FLOORS.map((x) => `<a class="ev-btn ${x === f ? 'on' : ''}" href="#${x.rooms[0]}"><b>${esc(x.floor)}${floorAlert(x) ? '<i></i>' : ''}</b><span>${esc(x.name)}</span></a>`).join('')}</div>
     </nav>
     <section class="flr">
-      <div class="flr-h"><h2>${esc(f.name)}</h2></div>
+      <div class="flr-h"><h2>${esc(f.name)}</h2>${B3 && k !== 'boss' ? `<button type="button" class="staff-btn" data-act="staffpick" aria-label="${esc(roomName(k))} 직원 고르기" title="${esc(roomName(k))} 직원 고르기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.5 5 2.8 5 5.8"/></svg></button>` : ''}</div>
       ${B3 !== false ? `<div class="lift ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div>${sideDoor(f, k, -1)}${sideDoor(f, k, 1)}</div>` : ''}
       <div class="doors" role="tablist">${f.rooms.map((r) => {
         const b = roomBadge(r);
         return `<a class="door ${r === k ? 'on' : ''}" role="tab" aria-selected="${r === k}" href="#${r}">${esc(roomName(r))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</a>`;
       }).join('')}</div>
       <div class="room-body">${roomContent(k)}</div>
-      ${B3 !== false ? '<section class="staff-pick" hidden></section>' : ''}
       <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
     </section>
   </div>`;
@@ -822,6 +819,13 @@ function openCapture(id) {
   dlg.showModal();
 }
 
+// 방 제목 옆 직원 아이콘 → 그 방에서 일할 직원 고르기 창 (고르면 뒤의 3D 방에 바로 보여요)
+function openStaffPick(k) {
+  dlg.innerHTML = `<form method="dialog" class="dlg one">${DLG_X}<div class="dlg-form"><section class="staff-pick"></section></div></form>`;
+  B3.staffPicker($('.staff-pick', dlg), k);
+  dlg.showModal();
+}
+
 // 창 바깥(어두운 곳)을 누르면 닫혀요 (저장은 하지 않아요)
 dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close('cancel'); });
 dlg.addEventListener('close', () => {
@@ -989,6 +993,7 @@ document.addEventListener('click', async (e) => {
       case 'subj': S.subj = b.dataset.v; render(); break;
       case 'stats': S.stats = null; render(); break;
       case 'cap': openCapture(cap); break;
+      case 'staffpick': openStaffPick(route()); break;
       case 'reread': if (dlg.open) dlg.close(); await reread(cap); break;
       case 'delcap': await deleteCapture(cap); break;
       case 'close': dlg.close(); break;
