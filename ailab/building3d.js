@@ -1249,6 +1249,7 @@ function furnish(k, g, { x0, x1, cx, y }) {
   const sid = STATE.assign[k], sd = staffById(sid).def;
   DESK = sd().desk;
   const worker = (x, z, role = 'desk', o = {}) => addChar(g, x, y, z, role, { def: sd(), info: staffInfo(sid, k), ...o });
+  if (TOOL_FURN[k]) { roomTools(k, g, { cx, y }, worker); return; } // 방마다 분류 가구 (2026-10-30)
   switch (k) {
     // 방 한 칸 = 너비 10 (x0 ~ x1). 예전에 한 층을 혼자 쓰던 사장실 · 접수처 · 보관실도 한 칸에 맞췄어요
     case 'boss': {
@@ -1268,76 +1269,9 @@ function furnish(k, g, { x0, x1, cx, y }) {
       ROOMS.boss.focus = { x: cx - 1.7, y: y + 1.35 };
       break;
     }
-    case 'train':
-      wallBoard(g, cx - 3, y + 2.05, zw, 1.9, 1.25, calendarMat());
-      desk(g, cx - 1.9, y, .8); worker(cx - 1.9, 0);
-      desk(g, cx + 1.9, y, .8); worker(cx + 1.9, 0);
-      cabinet(g, x1 - .8, y, zb); cabinet(g, x1 - 1.6, y, zb);
-      plant(g, x0 + .6, y, 1.6);
-      break;
-    case 'links':
-      shelf(g, x0 + 1.1, y, zb, 1.4, 2.3, 11); shelf(g, x0 + 2.6, y, zb, 1.4, 2.3, 23); shelf(g, x0 + 4.1, y, zb, 1.4, 2.3, 5);
-      desk(g, cx + 2.4, y, .9); worker(cx + 2.4, .1);
-      worker(x0 + 1, .9, 'walk', { walk: [x0 + 1, x0 + 4.4, .9] });
-      plant(g, x1 - .6, y, 1.7);
-      break;
-    case 'moral':
-      easel(g, cx - 2, y, -.3, .35);
-      // 한 명은 칠판 앞을 오가며 설명하고, 한 명은 손을 흔들어요 (가만히 서 있지 않게)
-      worker(cx - .6, 1.1, 'walk', { walk: [cx - 1.2, cx + 1.4, 1.1] });
-      worker(cx + 1.9, .3, 'wave');
-      bench(g, cx + 2.9, y, zb + .2);
-      wallBoard(g, cx + .6, y + 2.1, zw, 1.6, 1, posterMat('도덕', P.teal));
-      plant(g, x0 + .6, y, 1.7);
-      break;
+    // 연수 기록실 · 링크 서재 · 도덕교과실 · 지도안 · 과제 · 접수처 · 보관실 · AI 교육 · 보안실은 위 roomTools (분류 가구)
     case 'others':
       library(g, { cx, y }, worker);
-      break;
-    case 'plans':
-      desk(g, cx - 2.1, y, .8); worker(cx - 2.1, 0);
-      desk(g, cx + 1.4, y, .8); worker(cx + 1.4, 0);
-      shelf(g, x1 - .9, y, zb, 1.3, 2.1, 17);
-      wallBoard(g, cx - .4, y + 2.15, zw, 2.2, 1, posterMat('지도안', P.shirt));
-      plant(g, x0 + .55, y, 1.8);
-      break;
-    case 'task':
-      standBoard(g, cx - 2.2, y, zb + .3, checklist('과제 단계', [['주제 정하기', true], ['참고 지도안', true], ['내 지도안', true], ['수업 실행', false], ['성찰·제출', false]]));
-      desk(g, cx + 1.6, y, .9); worker(cx + 1.6, .1);
-      plant(g, x1 - .6, y, 1.7);
-      crates(g, x1 - 1.6, y, zb, 1, 1);
-      break;
-    case 'lobby':
-      mailbox(g, x0 + .7, y, 1.5);
-      crates(g, x0 + .55, y, zb, 2, 2);
-      counter(g, cx - 1.3, y, .9, 2.8);
-      worker(cx - 2, .1, 'stand');
-      worker(cx - .6, .1, 'stand', { face: .2 });
-      belt(g, cx + .7, x1 - .5, y, .6);
-      worker(x0 + 1.6, 1.9, 'walk', { walk: [x0 + 1.6, cx + 1.5, 1] });
-      wallBoard(g, cx - 1.3, y + 2.2, zw, 2.2, .7, posterMat('접수처', P.red));
-      plant(g, x1 - .5, y, 1.9);
-      break;
-    case 'archive':
-      for (let i = 0; i < 4; i++) shelf(g, x0 + .95 + i * 1.45, y, zb, 1.35, 2.2, 31 + i * 7);
-      crates(g, cx + 1.8, y, zb, 2, 3);
-      crates(g, x1 - 1.5, y, .7, 2, 2);
-      worker(x0 + 1.1, 1.4, 'walk', { walk: [x0 + 1.1, cx + 2.2, .8] });
-      lamp(g, x1 - .5, y, zb);
-      break;
-    case 'aiedu':
-      wallBoard(g, cx - 1.6, y + 2.15, zw, 2, 1, posterMat('AI', P.teal));
-      desk(g, cx - 2.2, y, .8); worker(cx - 2.2, 0);
-      desk(g, cx + 1.4, y, .8); worker(cx + 1.4, 0);
-      worker(x0 + 1, 1.9, 'walk', { walk: [x0 + 1, cx + 2.6, 1.9] });
-      shelf(g, x1 - .9, y, zb, 1.3, 2.1, 13);
-      plant(g, x0 + .55, y, 1.6);
-      break;
-    case 'security':
-      wallBoard(g, cx - 2, y + 2.15, zw, 1.8, .9, posterMat('보안', P.red));
-      desk(g, cx - 2, y, .8); worker(cx - 2, 0);
-      desk(g, cx + 1.6, y, .8); worker(cx + 1.6, 0);
-      cabinet(g, x1 - .8, y, zb); cabinet(g, x1 - 1.6, y, zb);
-      plant(g, x0 + .6, y, 1.6);
       break;
     default:
       if (ROOMS[k]?.store) { storeRoom(g, k, { x0, x1, cx, y }); break; }
@@ -1550,6 +1484,160 @@ function libHover(l) {
   libHovered?.spine.material.emissive.set('#000000');
   l?.spine.material.emissive.set('#3a3020');
   libHovered = l;
+}
+
+// ---------- 방마다 분류 가구 (2026-10-30 시안): 가구 한 칸 = 분류. 칸을 누르면 그 방 직원이 가서 꺼내 와 책상에 펼쳐요 ----------
+// 자료는 앱이 setRoomData({ cards, caps }) 로 넣어요. 칸 이름 · 수가 바뀌면 건물을 다시 그려요
+let ROOM_DATA = { cards: [], caps: [] };
+const TOOL_FURN = { train: 'cabinet', links: 'catalog', task: 'kanban', aiedu: 'rack', moral: 'board', plans: 'binder', security: 'safe', lobby: 'mailbox', archive: 'boxes' };
+const TOOL_COLOR = { train: '#c99a5c', links: '#8e6640', task: '#e3b23a', aiedu: '#2f9c8f', moral: '#2f8a5f', plans: '#6e5ea0', security: '#e0693f', lobby: '#e0693f', archive: '#8e6640' };
+const seoulDay = (d = new Date()) => new Date(d.getTime() + 9 * 36e5).toISOString().slice(0, 10);
+const addDay = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+// 방마다 칸 나누기: [[칸 이름, 카드 목록], …] (빈 칸도 이름은 보여요)
+function toolUnits(k) {
+  const all = ROOM_DATA.cards, mine = all.filter((c) => c.room === k), today = seoulDay();
+  const take = (list, re, used = []) => list.filter((c) => !used.includes(c) && re.test(`${c.kind} ${c.title} ${c.subject}`));
+  const restOf = (list, used) => list.filter((c) => !used.includes(c));
+  switch (k) {
+    case 'train': {
+      const done = take(mine, /이수증/), doneT = done.map((c) => c.title.slice(0, 8));
+      const go = mine.filter((c) => /대상자/.test(c.kind) && !doneT.includes(c.title.slice(0, 8)) && !done.includes(c));
+      const apply = take(mine, /신청/, [...done, ...go]);
+      return [['이수 완료', done], ['대상자 · 진행', go], ['신청함', apply], ['안내만', restOf(mine, [...done, ...go, ...apply])]];
+    }
+    case 'links': {
+      const cats = {};
+      mine.forEach((c) => { (cats[c.category || '그 밖'] ||= []).push(c); });
+      const list = Object.entries(cats).sort((a, b) => b[1].length - a[1].length);
+      return list.length ? list.slice(0, 5) : [['연수 사이트', []], ['수업 도구', []], ['포털', []]];
+    }
+    case 'task': {
+      const soon = mine.filter((c) => c.date && c.date >= today && c.date <= addDay(today, 3)), later = mine.filter((c) => c.date > addDay(today, 3));
+      const past = mine.filter((c) => c.date && c.date < today);
+      return [['3일 안', soon], ['앞으로', later], ['날짜 없음', mine.filter((c) => !c.date)], ['지난 과제', past]];
+    }
+    case 'aiedu': {
+      const lesson = take(mine, /특강|수업|강좌|바이브|동아리|방과후/), brief = take(mine, /브리핑/, lesson);
+      return [['내 특강 · 수업', lesson], ['AI교육 브리핑', brief], ['정책 · 포털', restOf(mine, [...lesson, ...brief])]];
+    }
+    case 'moral': {
+      const thought = take(mine, /윤리와 사상|사상|소크라테스/), soc = take(mine, /통합사회|정의|사회/, thought), life = take(mine, /생활과 윤리/, [...thought, ...soc]);
+      return [['윤리와 사상', thought], ['통합사회 · 윤리', soc], ['생활과 윤리', life], ['그 밖', restOf(mine, [...thought, ...soc, ...life])]];
+    }
+    case 'plans': {
+      const debate = take(mine, /토론|논증|토의|문답/), proj = take(mine, /프로젝트|탐구/, debate), ai = take(mine, /AI|인공지능|디지털|에듀테크|웹앱/, [...debate, ...proj]);
+      return [['토론 · 논증', debate], ['프로젝트 · 탐구', proj], ['AI · 디지털 도구', ai], ['그 밖', restOf(mine, [...debate, ...proj, ...ai])]];
+    }
+    case 'security': {
+      const soon = mine.filter((c) => c.date && c.date >= today && c.date <= addDay(today, 3)), month = mine.filter((c) => c.date > addDay(today, 3));
+      return [['기한 3일 안', soon], ['앞으로 할 일', month], ['지난 · 참고', restOf(mine, [...soon, ...month])]];
+    }
+    case 'lobby': {
+      const r = (...ks) => all.filter((c) => ks.includes(c.room) && c.status !== 'review');
+      return [['확인 전', all.filter((c) => c.status === 'review')], ['연수', r('train', 'task', 'links')], ['수업 공개', r('moral', 'others', 'plans')], ['AI 교육', r('aiedu')], ['보안', r('security')]];
+    }
+    case 'archive': {
+      const months = {};
+      ROOM_DATA.caps.forEach((c) => { (months[(c.at || '').slice(0, 7) || '날짜 없음'] ||= []).push({ title: c.name || '자료' }); });
+      const list = Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 4).map(([m, l]) => [m.length === 7 ? `${+m.slice(5)}월` : m, l]);
+      return list.length ? list : [[`${+today.slice(5, 7)}월`, []]];
+    }
+  }
+  return [];
+}
+// 가구 모양 (칸 하나). n = 그 칸의 자료 수, c = 방 색
+const TOOL_BUILD = {
+  cabinet(g, n, c) { B(g, 1.3, 2.2, .6, '#8a8f96', 0, 1.1, 0); for (let i = 0; i < 4; i++) { B(g, 1.16, .46, .05, '#a9b0b8', 0, .35 + i * .5, .31); B(g, .3, .05, .05, '#5d646b', 0, .45 + i * .5, .35); } for (let i = 0; i < Math.min(n, 8); i++) B(g, .9, .03, .4, i % 2 ? P.paper : c, 0, 2.23 + i * .035, 0); },
+  catalog(g, n, c) { B(g, 1.4, 1.1, .6, '#9b6b44', 0, .55, 0); for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) B(g, .28, .26, .05, '#c99a5c', -.48 + k * .32, .2 + r * .32, .31); for (let i = 0; i < Math.min(n, 10); i++) B(g, .06, .3, .2, i % 3 ? P.paper : c, -.5 + i * .11, 1.25, 0); },
+  kanban(g, n) { B(g, 1.4, 1.6, .06, '#f7f3ec', 0, 1.7, -.2); B(g, 1.5, .06, .1, '#7a5232', 0, .88, -.18); const cols = ['#ffe08a', '#a7d8f0', '#c8e6a0', '#f4b6c2']; for (let i = 0; i < Math.min(n, 9); i++) B(g, .28, .24, .02, cols[i % 4], -.45 + (i % 3) * .45, 2.25 - Math.floor(i / 3) * .32, -.15); for (const s of [-1, 1]) B(g, .1, .9, .1, '#7a5232', s * .6, .45, -.18); },
+  rack(g, n, c) { B(g, 1.1, 2.4, .7, '#26313a', 0, 1.2, 0); for (let i = 0; i < 6; i++) { B(g, .96, .3, .05, '#3a4652', 0, .3 + i * .36, .36); B(g, .06, .06, .02, '#55636d', .38, .3 + i * .36, .39, { m: new THREE.MeshBasicMaterial({ color: i < n ? c : '#55636d' }) }); } },
+  board(g, n) { B(g, 1.45, 1.1, .06, '#1f3a2e', 0, 1.75, -.2); B(g, 1.55, .08, .12, '#8a5d3b', 0, 1.17, -.16); for (let i = 0; i < Math.min(n, 4); i++) B(g, .4, .3, .02, '#fbf6e9', -.4 + (i % 2) * .8, 1.95 - Math.floor(i / 2) * .4, -.16); B(g, .7, 1, .45, '#9b6b44', 0, .5, .35); },
+  binder(g, n, c) { B(g, 1.4, 2.2, .45, '#8a5d3b', 0, 1.1, 0); for (let r = 0; r < 3; r++) B(g, 1.3, .05, .42, '#a77a4a', 0, .5 + r * .62, 0); for (let i = 0; i < Math.min(n, 12); i++) B(g, .1 + (i % 2) * .04, .5, .34, i % 2 ? c : '#3c6688', -.55 + (i % 8) * .15, .79 + Math.floor(i / 8) * .62, .02); },
+  safe(g, n, c) { B(g, 1.2, 1.3, .9, '#5d646b', 0, .65, 0); B(g, 1.06, 1.16, .05, '#7d878f', 0, .65, .46); const d = new THREE.Mesh(new THREE.CylinderGeometry(.18, .18, .06, 20), mat('#c9ced3')); d.rotation.x = Math.PI / 2; d.position.set(0, .75, .5); g.add(d); B(g, .16, .16, .02, '#55636d', .4, 1.15, .5, { m: new THREE.MeshBasicMaterial({ color: n ? c : '#55636d' }) }); },
+  mailbox(g, n) { B(g, 1.1, 1.3, .5, '#c99a5c', 0, 1.35, 0); B(g, .96, 1.16, .02, '#7a5232', 0, 1.35, .26); for (let i = 0; i < Math.min(n, 12); i++) B(g, .7, .04, .35, i % 2 ? '#fbf6e9' : '#e6dcc8', 0, .82 + i * .07, .05); B(g, .1, .7, .1, '#7a5232', 0, .35, 0); },
+  boxes(g, n) { for (let i = 0; i < Math.max(1, Math.min(4, Math.ceil(n / 15))); i++) B(g, 1.1 - (i % 2) * .1, .5, .7, i % 2 ? P.crate : P.crateD, 0, .26 + i * .51, 0); B(g, .5, .16, .02, P.paper, 0, .3, .36); },
+};
+const toolSign = (name, n) => memoTex(`tool|${name}|${n}`, () => texMat((g, w, h) => {
+  g.fillStyle = '#2d3a46'; g.fillRect(0, 0, w, h);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#f5efe2'; g.font = `${name.length > 6 ? 44 : 52}px ${FONT}`; g.fillText(name, w / 2, h / 2 - 16);
+  g.fillStyle = '#c9a76a'; g.font = `32px ${FONT}`; g.fillText(`${n}건`, w / 2, h / 2 + 38);
+}, 512, 150));
+const TOOLS = {}; // 방 key → { units, hits, keeper, paper, cap, fetch }
+function roomTools(k, g, { cx, y }, worker) {
+  const units = toolUnits(k), n = units.length, gap = Math.min(1.9, 8.4 / n), x0 = cx - ((n - 1) * gap) / 2, zb = -D / 2 + .85;
+  const T = (TOOLS[k] = { units, hits: [], fetch: null });
+  units.forEach(([name, list], i) => {
+    const u = new THREE.Group();
+    u.position.set(x0 + i * gap, y, zb);
+    g.add(u);
+    TOOL_BUILD[TOOL_FURN[k]](u, list.length, TOOL_COLOR[k]);
+    const wall = TOOL_FURN[k] === 'kanban' || TOOL_FURN[k] === 'board', low = TOOL_FURN[k] === 'safe' || TOOL_FURN[k] === 'catalog';
+    const sign = new THREE.Mesh(UNIT, toolSign(name, list.length));
+    sign.scale.set(Math.min(1.3, gap * .85), .38, .04);
+    sign.position.set(0, low ? 1.75 : 2.85, wall ? -.1 : .35);
+    u.add(sign);
+    const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ visible: false }));
+    hit.scale.set(gap * .9, 2.9, 1.3);
+    hit.position.set(0, 1.45, .1);
+    hit.userData.tool = i;
+    u.add(hit);
+    T.hits.push(hit);
+  });
+  // 일하는 자리: 앞쪽 책상 (꺼내 온 자료를 여기에 펼쳐요)
+  B(g, 2, .1, .9, P.wood, cx + .6, y + .78, 1.6);
+  for (const a of [-1, 1]) for (const b of [-1, 1]) B(g, .08, .75, .08, P.woodD, cx + .6 + a * .9, y + .38, 1.6 + b * .38);
+  B(g, .7, .45, .05, P.screen, cx + .9, y + 1.2, 1.35); B(g, .64, .39, .02, P.monitor, cx + .9, y + 1.2, 1.38, { shadow: false });
+  T.paper = B(g, .5, .02, .36, P.paper, cx + .2, y + .84, 1.65);
+  T.paper.visible = false;
+  const c = worker(cx + 1.9, 1.3, 'librarian', { face: -.35 });
+  c.home = { x: cx + 1.9, z: 1.3, face: -.35 };
+  c.go = null;
+  const tall = new THREE.Box3().setFromObject(c.root).max.y - c.root.position.y;
+  c.carry = B(c.root, .32, .1, .24, P.paper, 0, tall * .45, .34, { m: new THREE.MeshStandardMaterial({ color: P.paper, roughness: .8 }) });
+  c.carry.visible = false;
+  T.keeper = c;
+  T.zTake = zb + .95;
+  T.cap = document.createElement('div');
+  T.cap.className = 'libcap';
+  T.cap.dataset.room = k;
+  T.cap.hidden = true;
+  labelsEl.append(T.cap);
+  labelItems.push({ el: T.cap, pos: new THREE.Vector3(cx + .4, y + 1.6, 1.6) });
+}
+const toolActive = () => TOOLS[selected] && (mode !== 'band' || bandRooms.includes(selected));
+function pickTool() { // pick(e) 가 광선을 맞춘 뒤에 불러요
+  if (!toolActive()) return null;
+  const i = ray.intersectObjects(TOOLS[selected].hits, false)[0]?.object.userData.tool;
+  return i == null ? null : { k: selected, i };
+}
+function toolFetch({ k, i }) {
+  const T = TOOLS[k], [name, list] = T.units[i], c = T.keeper;
+  T.paper.visible = false;
+  c.carry.visible = false;
+  c.go = { x: T.hits[i].parent.position.x, z: T.zTake, face: Math.PI };
+  T.fetch = { i, phase: 'go', wait: 0 };
+  T.cap.hidden = false;
+  T.cap.replaceChildren(`${name} 칸으로 가지러 갔어요…`);
+  if (!list.length) T.cap.replaceChildren(`${name} 칸은 비어 있어요`);
+}
+function stepTools(dt) {
+  for (const T of Object.values(TOOLS)) {
+    const f = T.fetch, c = T.keeper;
+    if (!f || !c) continue;
+    const at = (p) => Math.hypot(p.x - c.root.position.x, p.z - c.root.position.z) < .06;
+    if (f.phase === 'go' && at(c.go)) { f.phase = 'take'; f.wait = .45; }
+    else if (f.phase === 'take' && (f.wait -= dt) <= 0) { c.carry.visible = T.units[f.i][1].length > 0; c.go = null; f.phase = 'back'; }
+    else if (f.phase === 'back' && at(c.home)) {
+      c.carry.visible = false;
+      T.fetch = null;
+      const [name, list] = T.units[f.i];
+      T.paper.visible = list.length > 0;
+      const sm = document.createElement('small');
+      sm.textContent = `${name} · ${list.length}건`;
+      T.cap.replaceChildren(sm, list.length ? list.slice(0, 3).map((x) => x.title).join(' / ') : '비어 있어요');
+    }
+  }
 }
 
 function shaftFloor(g, [x0, x1], y, above) {
@@ -1783,6 +1871,7 @@ function storeRoom(g, k, { x0, x1, cx, y }) {
 function buildWorld() {
   world.clear();
   people.length = 0; docs.length = 0; roomBoxes.length = 0; labelItems.length = 0; anims.length = 0;
+  for (const k of Object.keys(TOOLS)) delete TOOLS[k];
   labelsEl.innerHTML = '';
   Object.assign(P, P0, theme().ground || {}); // 시안마다 땅 · 나무 색
   BW = RBW + (shaftInside() ? SW : 0);
@@ -2065,6 +2154,12 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   const bk = pickBook();
   libHover(bk);
   if (bk) { showTip({ title: bk.title, sub: bk.subject || '교과 미기재', text: '누르면 사서가 가져와 열람대에 펼쳐요.' }, e.clientX, e.clientY); hoverRoom(null); stage.classList.add('hover'); return; }
+  const tl = pickTool();
+  if (tl) {
+    const [name, list] = TOOLS[tl.k].units[tl.i];
+    showTip({ title: name, sub: `${list.length}건`, text: list.length ? list.slice(0, 3).map((x) => x.title).join(' · ') : '아직 비어 있어요.', job: '누르면 직원이 가서 꺼내 와요' }, e.clientX, e.clientY);
+    hoverRoom(null); stage.classList.add('hover'); return;
+  }
   hideTip();
   const k = pick(e);
   stage.classList.toggle('hover', !!k);
@@ -2077,8 +2172,9 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     if (ch) showTip(ch.info, e.clientX, e.clientY); // 휴대폰은 눌러서 설명 보기
     else {
       hideTip();
-      const bk = pickBook();
+      const bk = pickBook(), tl = !bk && pickTool();
       if (bk) libFetch(bk);
+      else if (tl) toolFetch(tl);
       else { const k = pick(e); if (k) chooseRoom(k); }
     }
   }
@@ -2376,6 +2472,7 @@ function loop() {
   t += dt;
   for (const c of people) animate(c, t);
   stepLibrary(dt);
+  stepTools(dt);
   for (const { d, x0, x1, off } of docs) d.position.x = x0 + (((t * .18 + off) % 1) * (x1 - x0));
   if (flag) flag.rotation.y = Math.sin(t * 3) * .25;
   for (const a of anims) a(t);
@@ -2432,6 +2529,18 @@ export function setBadges(map) {
     i.className = r.hot ? 'hot' : '';
     i.hidden = !r.n;
   });
+}
+// 방마다 분류 가구에 넣을 자료: { cards: [{ room, kind, title, subject, date, status, category }], caps: [{ at: 'YYYY-MM-DD', name }] }
+// 칸 이름 · 수가 바뀌었을 때만 건물을 다시 그려요 (카드가 들어올 때마다)
+let toolKey = '';
+export function setRoomData(data) {
+  ROOM_DATA = { cards: data?.cards || [], caps: data?.caps || [] };
+  const key = JSON.stringify(Object.keys(TOOL_FURN).map((k) => toolUnits(k).map(([n, l]) => `${n}:${l.length}`)));
+  if (key === toolKey) return;
+  const first = !toolKey;
+  toolKey = key;
+  if (first && !Object.keys(TOOLS).length) return; // 아직 건물을 안 그렸으면 처음 그릴 때 들어가요
+  rebuild();
 }
 // 타교과실 도서관 책: 그 방 카드들 [{ id, subject, title }] (바뀐 게 없으면 다시 꽂지 않아요)
 export function setLibrary(cards) {

@@ -204,6 +204,11 @@ function render() {
   if (B3) {
     B3.setBadges(Object.fromEntries(Object.keys(ROOMS).map((k) => [k, roomBadge(k)])));
     B3.setLibrary?.(cardsIn('others')); // 타교과실 도서관 책장
+    // 다른 방 분류 가구 (캐비닛 · 칸반 · 금고 …)
+    B3.setRoomData?.({
+      cards: S.cards.map((c) => ({ room: c.room, kind: c.kind || '', title: c.title || '', subject: c.subject || '', date: c.date || '', status: c.status, category: c.category || '' })),
+      caps: S.captures.map((c) => { const d = c.createdAt?.toDate?.(); return { at: d ? dayKey(d) : '', name: c.name || '' }; }),
+    });
     if (band) $('.b3d-slot').append(b3d); // 층 화면: 위쪽 엘리베이터 창 안으로
     B3.setMode(band ? 'band' : 'home');
     B3.setVisible(home3d || band);
