@@ -69,6 +69,7 @@ ${AI_ROOMS.map(([k, r]) => `- ${k} (${r.name}): ${r.desc}\n  세부 항목: ${r.
 - 자료 하나에 여러 건이 있으면 건마다 카드를 따로 만들어요. 예: 수업 공개 공문에 수업이 5개면 카드 5장. 도덕 수업은 moral, 다른 교과는 others.
 - 공문 묶음(본문 + 첨부 PDF)은 모두 같은 공문이에요. 본문과 첨부가 같은 연수 · 같은 수업을 말하면 카드 한 장으로 합쳐요. 교시별 시간표 · 운영 계획은 보통 첨부에 있으니 첨부에서 찾아 periods 에 넣어요.
 - 참여 대상자 명단 같은 다른 사람의 이름 목록은 옮겨 적지 않아요. 선생님 메모에 이름이 있으면 그 이름이 명단에 있는지만 적어요.
+- 대상자 공문(선정 · 명단 안내)은 '선생님 이름'이 명단에 실제로 있을 때만 '대상자 여부'를 "나 (명단에 있음)"으로 적어요. 명단에 없으면 "나 아님 (우리 학교 다른 분)", 명단을 볼 수 없거나 이름을 모르면 "명단 확인 필요"로 적어요. 공문이 '대상자 안내'라는 것만으로 선생님이 대상자라고 하지 않아요.
 - date / end_date 는 YYYY-MM-DD. 연도가 없으면 오늘 날짜를 기준으로 가장 가까운 앞으로의 날짜로 정해요. 하루짜리면 end_date 는 빈 문자열.
 - time 은 "14:00~16:30" 이나 "5교시" 처럼 보이는 그대로 짧게.
 - fields 의 label 은 그 방의 세부 항목 이름을 그대로 써요. 값이 없는 항목은 빼도 돼요.
@@ -113,8 +114,11 @@ const SCHEMA = {
 // blocks: Claude 에게 보낼 자료 (PDF 는 document, 사진 조각은 image), about: 자료가 어떤 모양인지 한 줄
 async function readWithClaude(blocks, cap, about) {
   const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+  // 대상자 명단에서 찾을 선생님 이름 (앱의 '내 이름' 칸 → ailab_meta/me). 공개되는 코드에는 넣지 않아요
+  const myName = await db.doc('ailab_meta/me').get().then((s) => (s.exists ? String(s.data().name || '').trim() : '')).catch(() => '');
   const note = [
     `오늘 날짜: ${seoulToday()}`,
+    myName ? `선생님 이름: ${myName} (대상자 명단에 이 이름이 있는지만 확인해요)` : '선생님 이름: 알 수 없음 (대상자 여부는 "명단 확인 필요")',
     cap.link ? `선생님이 함께 적은 링크 주소: ${cap.link}` : '',
     cap.memo ? `선생님 메모: ${cap.memo}` : '',
     about,
