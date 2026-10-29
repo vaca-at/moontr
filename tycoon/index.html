@@ -18,6 +18,9 @@
 <style>
 /* 손글씨는 모두 언즈체(OngleipUnz)로 통일 */
 @font-face{font-family:'OngleipUnz';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2406-1@1.0/Ownglyph_UNZ-Rg.woff2') format('woff2');font-weight:normal;font-display:swap}
+/* 23 도트 교무실: 도트 글씨 (갈무리, OFL) */
+@font-face{font-family:'Galmuri9';src:url('https://cdn.jsdelivr.net/npm/galmuri@2.39.9/dist/Galmuri9.woff2') format('woff2');font-display:swap}
+@font-face{font-family:'Galmuri11';src:url('https://cdn.jsdelivr.net/npm/galmuri@2.39.9/dist/Galmuri11.woff2') format('woff2');font-display:swap}
 
 /* 교무실 타이쿤(/tycoon, 예전 주소 /desk 는 여기로 넘어와요): 모든 선생님이 자기 시간표로 쓰는 데스크탑. 색 A(네온) · B(따뜻한 타이쿤) */
 :root{
@@ -1076,6 +1079,12 @@ html.appmode.hudoff .navbtn{opacity:0;pointer-events:none}
 :root[data-s="18"] .pins .nt.pinnote::after{content:"";position:absolute;right:.9cqw;top:.7cqw;width:.6cqw;height:.6cqw;border-radius:50%;background:var(--nc)}
 :root[data-s="18"] .pins .pinnote span{color:#D8D8E0}
 @media (max-width:700px){ :root[data-s="6"] .pins .nt.pinnote{width:30cqw} }
+/* 23 도트 교무실: 메모 = 도트 쪽지 (왼쪽 아래 휴게 공간 위) */
+:root[data-s="23"] .pins{left:1.4cqw;right:auto}
+:root[data-s="23"] .pins .nt.pinnote{background:#FFF6DC;color:#2A2733;border:.3cqw solid #2A2733;border-radius:0;box-shadow:.5cqw .5cqw 0 rgba(42,39,51,.35);font:clamp(10px,1.1cqw,14px) 'Galmuri9','Do Hyeon',sans-serif;padding:1.9cqw 1cqw .9cqw;transform:none;margin:0}
+:root[data-s="23"] .pins .nt.pinnote::before{content:"";position:absolute;left:50%;top:-.2cqw;width:3.2cqw;height:1.1cqw;margin-left:-1.6cqw;transform:none;border:0;border-radius:0;box-shadow:none;background:rgba(255,216,74,.85)}
+:root[data-s="23"] .pins .nt.pinnote:hover{transform:translateY(-2px)}
+:root[data-s="23"] .pins .pinnote b{font-weight:400;color:#C2413A}
 /* 31 윈도우 바탕화면: 메모 = 윈도우 '스티커 메모' 그대로 (노란 머리줄 + ⋯ ✕ · 아래 B I U ab 줄), 가로 화면에선 오른쪽 위에 세로로 */
 :root[data-s="31"] .pins .nt.pinnote{width:17cqw;max-height:15cqw;padding:2.9cqw 1.2cqw 3cqw;gap:.25cqw;margin:0;border:.08cqw solid rgba(0,0,0,.12);border-radius:.55cqw;background:color-mix(in srgb,var(--nc) 42%,#FFFDF3);color:#1F1F1F;box-shadow:0 .35cqw 1.2cqw rgba(0,0,0,.4);font:400 clamp(9px,1.08cqw,14px) 'Segoe UI','Malgun Gothic',sans-serif;transform:none;overflow:hidden}
 :root[data-s="31"] .pins .nt.pinnote:hover{transform:none;box-shadow:0 .5cqw 1.6cqw rgba(0,0,0,.5)}
@@ -4565,6 +4574,359 @@ const S22 = toyOffice(false);
 NEWS.push(S22);
 /* ===== END 22 ===== */
 
+/* ===== 23. 도트 교무실 — 위에서 본 책상 8자리. 친한 선생님(없으면 기본 선생님 7명)이 앉아 타자 치고, 수업 가면 빈자리에 팻말 ===== */
+// 벽 · 바닥 · 책상은 한 번 그려 두고(점 하나 = 그림 1칸) 다시 써요. 사람 · 김 · 모니터 빛 · 걷기는 매번 그려요
+// 물건을 누르면: 왼쪽 화이트보드 = 시간표 · 이름판 = 학교 일정 · 게시판 = 메모 · 복사기 = 할 일 · 커피 = 친구 채팅 · 자판기 = 즐겨찾기 · 내 책상 = 시간표
+const pxOffice = port => (() => {
+  const OL = "#2A2733";
+  let N = g;   // 지금 그리는 곳 (한 번 그려 두는 캔버스 또는 화면)
+  const P = (x, y, w, h, c) => { N.fillStyle = c; N.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+  const rb = (x, y, w, h, fill, ol = OL) => { x = Math.round(x); y = Math.round(y); P(x + 1, y, w - 2, 1, ol); P(x + 1, y + h - 1, w - 2, 1, ol); P(x, y + 1, 1, h - 2, ol); P(x + w - 1, y + 1, 1, h - 2, ol); P(x + 1, y + 1, w - 2, h - 2, fill); };
+  const blob = (cx, cy, r, col) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx*dx + dy*dy <= r*r + r*.6) P(cx + dx, cy + dy, 1, 1, col); };
+  const line = (x0, y0, x1, y1, col) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1); for (let i = 0; i <= n; i++) P(Math.round(x0 + (x1 - x0)*i/n), Math.round(y0 + (y1 - y0)*i/n), 1, 1, col); };
+  // 도트 글씨: 작은 캔버스에 쓰고 반 넘게 칠해진 점만 옮겨요 (흐릿한 테두리 없이). 같은 글씨는 한 번만 만들어요
+  const TXC = new Map(), tcx = document.createElement("canvas").getContext("2d", { willReadFrequently:true });
+  const fnt = (size, f) => `${size}px ${f}, 'Do Hyeon', sans-serif`;
+  function txImg(s, col, size = 10, f = "Galmuri9"){
+    const k = `${s}|${col}|${size}|${f}`; if (TXC.has(k)) return TXC.get(k);
+    tcx.font = fnt(size, f); const w = Math.max(1, Math.ceil(tcx.measureText(s).width)) + 2, h = size + 6;
+    tcx.canvas.width = w; tcx.canvas.height = h; tcx.font = fnt(size, f); tcx.textBaseline = "top"; tcx.fillStyle = "#000"; tcx.fillText(s, 1, 2);
+    const dt = tcx.getImageData(0, 0, w, h).data, cv2 = document.createElement("canvas"); cv2.width = w; cv2.height = h;
+    const x2 = cv2.getContext("2d"); x2.fillStyle = col;
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (dt[(j*w + i)*4 + 3] > 120) x2.fillRect(i, j, 1, 1);
+    const o = { c:cv2, w:w - 2 }; if (TXC.size > 400) TXC.clear(); TXC.set(k, o); return o;
+  }
+  const tw = (s, size = 10, f = "Galmuri9") => txImg(s, "#000", size, f).w;
+  function txt(s, x, y, col, al = "left", size = 10, f = "Galmuri9"){ const o = txImg(s, col, size, f); N.drawImage(o.c, Math.round(al === "center" ? x - o.w/2 : al === "right" ? x - o.w : x) - 1, Math.round(y) - 2); return o.w; }
+  const fit = (s, max, size = 10) => { s = String(s || ""); if (tw(s, size) <= max) return s; while (s.length > 1 && tw(s + "…", size) > max) s = s.slice(0, -1); return s + "…"; };
+  const cut = (s, n = 5) => { s = String(s || "").trim(); return s.length > n ? s.slice(0, n) : s; };
+  let BG = { k:"", c:null }, DK = { k:"", c:[] };
+  document.fonts?.load?.("10px Galmuri9", "교무실쌤")?.then(() => { TXC.clear(); BG.k = ""; }).catch(() => {});
+  document.fonts?.load?.("12px Galmuri11", "교무실")?.then(() => { TXC.clear(); BG.k = ""; }).catch(() => {});
+
+  /* ---------- 자리 · 물건 위치 (가로 480×270 / 세로 270×480) ---------- */
+  const LY = port ? {
+    cols:2, rows:4, x0:c => 18 + c*130, sy:r => 84 + r*64, gap:c => c ? 247 : 120, walkY:320, low:324,
+    board:[6, 8, 98], sign:[112, 10, 92, 22], clock:[158, 42], cork:[212, 8], cooler:[246, 6], plants:[],
+    printer:[146, 336], vend:[214, 334], coffee:[140, 440], trash:[104, 452],
+    spot:{ printer:{ x:206, y:394 }, coffee:{ x:206, y:458 }, door:{ x:206, y:H + 20 } },
+  } : {
+    cols:4, rows:2, x0:c => 16 + c*118, sy:r => r ? 152 : 84, gap:c => 16 + c*118 + 96, walkY:197, low:200,
+    board:[30, 8, 98], sign:[178, 10, 124, 22], clock:[240, 42], cork:[446, 8], cooler:[6, 2], plants:[150, 330],
+    printer:[346, 214], vend:[418, 200], coffee:[270, 232], trash:[228, 254],
+    spot:{ printer:{ x:407, y:264 }, coffee:{ x:334, y:250 }, door:{ x:258, y:H + 20 } },
+  };
+  const MYSEAT = 3, OTH = [0, 1, 2, 4, 5, 6, 7];
+  const seat = k => { const c = k % LY.cols, r = Math.floor(k/LY.cols); return { c, r, x0:LY.x0(c), sy:LY.sy(r) }; };
+
+  /* ---------- 사람 생김새 ---------- */
+  const LOOKS = [
+    { name:"박쌤", hair:"#5B3A29", style:"short", shirt:"#4F86E8", mug:"#E85D5D" },
+    { name:"이쌤", hair:"#1E1B22", style:"bun", shirt:"#9B7BD6", collar:"#EFE6FF", mug:"#7FB2F5" },
+    { name:"최부장", hair:"#9097A3", style:"short", glass:true, shirt:"#F4F5F7", vest:"#3E7D4E", plant:true },
+    { name:"정쌤", hair:"#1E1B22", style:"long", shirt:"#F28DB2", collar:"#FFE1EC", mug:"#F2C94C" },
+    { name:"한쌤", hair:"#6B4A2E", style:"mid", shirt:"#5AC08A", plant:true },
+    { name:"윤쌤", hair:"#B5622D", style:"bob", glass:true, shirt:"#F2C94C", collar:"#FFF6D0", mug:"#5AC08A" },
+    { name:"오쌤", hair:"#2A211C", style:"curly", shirt:"#2F3D66", tie:"#C2413A" },
+  ];
+  // 캐릭터 번호(⚙️ 설정에서 고른 것) → 도트 교무실 생김새
+  const lookOfAv = i => { const a = avatarDef(i || 0); return { hair:a.col.h, shirt:a.col.c, style:a.spr === AV_SPR.f0 ? "long" : a.spr === AV_SPR.f1 ? "bob" : a.spr === AV_SPR.m1 ? "mid" : "short" }; };
+  const sideLen = st => st === "long" || st === "bob" ? 7 : st === "mid" ? 5 : 3;
+  function hairBack(x, y, o){ if (o.style === "long") rb(x - 2, y + 3, 18, 20, o.hair); }
+  function head(x, y, o, blink, back){
+    rb(x, y, 14, 13, "#F7CDA6"); P(x + 2, y + 11, 10, 1, "#E9B58C");
+    const hc = o.hair, sl = sideLen(o.style);
+    if (o.style === "curly"){ for (let k = 0; k < 5; k++){ P(x + 1 + k*2.6, y - 2, 3, 3, OL); } for (let k = 0; k < 5; k++) P(x + 2 + k*2.6, y - 1, 2, 2, hc); }
+    rb(x - 1, y - 1, 16, 7, hc); P(x, y + 5, 2, sl, hc); P(x + 12, y + 5, 2, sl, hc); P(x - 1, y + 5, 1, sl, OL); P(x + 14, y + 5, 1, sl, OL);
+    if (o.style === "bun"){ rb(x + 4, y - 5, 6, 5, hc); P(x + 5, y - 4, 2, 1, "rgba(255,255,255,.25)"); }
+    if (back){ rb(x - 1, y - 1, 16, 13, hc); P(x + 2, y + 1, 5, 1, "rgba(255,255,255,.22)"); return; }
+    P(x + 2, y + 5, 3, 1, hc); P(x + 6, y + 5, 2, 2, hc); P(x + 9, y + 5, 3, 1, hc); P(x + 7, y + 6, 1, 1, hc);
+    P(x + 2, y, 5, 1, "rgba(255,255,255,.22)"); P(x + 1, y + 1, 2, 1, "rgba(255,255,255,.22)");
+    if (blink){ P(x + 4, y + 8, 2, 1, OL); P(x + 8, y + 8, 2, 1, OL); } else { P(x + 4, y + 7, 1, 2, OL); P(x + 9, y + 7, 1, 2, OL); }
+    P(x + 2, y + 9, 2, 1, "#F59C9C"); P(x + 10, y + 9, 2, 1, "#F59C9C"); P(x + 6, y + 10, 2, 1, "#B9675C");
+    if (o.glass) [[3, 6], [8, 6]].forEach(([dx, dy]) => { P(x + dx, y + dy, 4, 1, OL); P(x + dx, y + dy + 3, 4, 1, OL); P(x + dx, y + dy, 1, 4, OL); P(x + dx + 3, y + dy, 1, 4, OL); P(x + dx + 1, y + dy + 1, 1, 1, "rgba(255,255,255,.75)"); });
+    if (o.glass) P(x + 7, y + 7, 1, 1, OL);
+  }
+  function torso(x, y, o){   // 어깨 (y = 머리 위)
+    rb(x - 2, y + 12, 18, 12, o.shirt); P(x - 1, y + 13, 16, 1, "rgba(255,255,255,.25)");
+    const cl = o.collar || "#FFFFFF"; P(x + 5, y + 12, 4, 3, cl); P(x + 6, y + 15, 2, 1, cl);
+    if (o.tie) P(x + 6, y + 14, 2, 7, o.tie);
+    if (o.vest){ P(x - 1, y + 14, 4, 9, o.vest); P(x + 11, y + 14, 4, 9, o.vest); }
+  }
+  // 서 있는 사람 (fx = 가운데, fy = 발). 걷는 중이면 다리 · 팔이 번갈아, back = 뒷모습
+  function standing(fx, fy, o, walking, back, hold){
+    const x = Math.round(fx - 7), y = Math.round(fy - 32), f = walking ? Math.floor(T*7) % 2 : 2;
+    P(x - 1, fy - 1, 16, 2, "rgba(0,0,0,.16)");
+    const pants = o.pants || "#3A3F58";
+    rb(x + 2, y + 22 - (f === 0 ? 1 : 0), 4, 10, pants); rb(x + 8, y + 22 - (f === 1 ? 1 : 0), 4, 10, pants);
+    if (o.style === "long") rb(x - 2, y + 1, 18, 20, o.hair);
+    rb(x - 2, y + 10, 18, 14, o.shirt); P(x - 1, y + 11, 16, 1, "rgba(255,255,255,.28)");
+    if (!back){ const cl = o.collar || "#FFFFFF"; P(x + 5, y + 10, 4, 3, cl); if (o.tie) P(x + 6, y + 12, 2, 7, o.tie); }
+    rb(x - 4, y + 12 + (f === 0 ? 1 : 0), 4, 10, o.shirt); rb(x + 14, y + 12 + (f === 1 ? 1 : 0), 4, 10, o.shirt);
+    head(x, y - 2, o, false, back);
+    if (hold === true && !back){ rb(x + 13, y + 15, 10, 12, "#FFFFFF"); P(x + 15, y + 18, 6, 1, "#B8C0CC"); P(x + 15, y + 21, 5, 1, "#B8C0CC"); }
+    if (hold === "cup" && !back){ rb(x + 14, y + 17, 7, 7, "#FFFFFF"); P(x + 15, y + 18, 5, 2, "#6B4426"); }
+  }
+  function student(fx, fy, hairC, k){
+    const x = Math.round(fx - 7), y = Math.round(fy - 32);
+    P(x - 1, fy - 1, 16, 2, "rgba(0,0,0,.16)");
+    rb(x + 2, y + 22, 4, 10, "#2B2F3D"); rb(x + 8, y + 22, 4, 10, "#2B2F3D");
+    rb(x - 1, y + 10, 16, 14, "#24325C"); P(x + 5, y + 10, 4, 4, "#FFFFFF"); P(x + 6, y + 13, 2, 4, "#C2413A");
+    head(x, y - 2, { hair:hairC, style:k % 2 ? "bob" : "short" });
+    rb(x + 12, y + 13, 9, 11, "#FFFFFF"); P(x + 14, y + 16, 5, 1, "#B8C0CC"); P(x + 14, y + 19, 4, 1, "#B8C0CC");
+    const by = y - 16 + (Math.floor(T*2 + k) % 2);
+    rb(x + 14, by, 11, 11, "#FFFFFF"); txt("?", x + 19.5, by + 1, OL, "center");
+  }
+  function tag(cx, y, name, kind){
+    const [fill, dark] = kind === "me" ? ["#F2B705", "#A97E00"] : kind === "away" ? ["#8A93A3", "#5F6878"] : ["#2FA45A", "#1D6E3B"];
+    const w = tw(name), x = Math.round(cx - w/2 - 4);
+    rb(x, y, w + 8, 14, fill); P(x + 1, y + 12, w + 6, 1, dark); P(x + 1, y + 1, w + 6, 1, "rgba(255,255,255,.25)");
+    txt(name, x + 4, y + 2, "#FFFFFF");
+  }
+
+  /* ---------- 한 번 그려 두는 것: 벽 · 바닥 · 아래 휴게 공간 ---------- */
+  function plant(cx, by, big = 1){
+    P(cx - 9, by - 1, 18, 2, "rgba(0,0,0,.15)");
+    rb(cx - 8, by - 13, 16, 13, "#7C889D"); P(cx - 7, by - 12, 3, 11, "#95A1B5"); rb(cx - 9, by - 15, 18, 4, "#8F9BB0");
+    const Lf = [[0, -24], [-6, -20], [6, -20], [-4, -29], [4, -30], [0, -35], [-8, -26], [8, -27]].slice(0, big ? 8 : 5);
+    Lf.forEach(([dx, dy]) => blob(cx + dx, by + dy, 5, "#1D4A2A")); Lf.forEach(([dx, dy]) => blob(cx + dx, by + dy, 4, "#3A8648"));
+    Lf.forEach(([dx, dy]) => { blob(cx + dx - 1, by + dy - 1, 2, "#58AA5C"); P(cx + dx - 2, by + dy - 2, 1, 1, "#8CD67C"); });
+  }
+  function board(x, y, w, chart){
+    rb(x, y, w, 36, "#FFFFFF", "#6E7584"); P(x + 1, y + 1, w - 2, 1, "#D7DBE2"); rb(x + 2, y + 34, w - 4, 4, "#B9C0CA");
+    P(x + 10, y + 36, 6, 1, "#E5484D"); P(x + 18, y + 36, 6, 1, "#3B82F6"); P(x + 26, y + 36, 6, 1, "#2FA45A");
+    if (!chart) return;
+    blob(x + 18, y + 17, 9, OL); blob(x + 18, y + 17, 8, "#5A8DEE");
+    for (let dy = -8; dy <= 0; dy++) for (let dx = 0; dx <= 8; dx++) if (dx*dx + dy*dy <= 70) P(x + 18 + dx, y + 17 + dy, 1, 1, "#E5484D");
+    for (let dy = 0; dy <= 8; dy++) for (let dx = 0; dx <= 8; dx++) if (dx*dx + dy*dy <= 70 && dy > dx*.6) P(x + 18 + dx, y + 17 + dy, 1, 1, "#F2C94C");
+    const pts = [[34, 26], [42, 20], [50, 24], [58, 12], [68, 16]]; for (let k = 1; k < pts.length; k++) line(x + pts[k - 1][0], y + pts[k - 1][1], x + pts[k][0], y + pts[k][1], "#2FA45A");
+    [[36, 28], [44, 28], [52, 28], [60, 28]].forEach(([dx, dy], k) => P(x + dx, y + dy - k*2, 4, 2 + k*2, "#B8C0CC"));
+  }
+  function bg(){
+    const k = `${W}x${H}`; if (BG.k === k) return BG.c;
+    const c = document.createElement("canvas"); c.width = W; c.height = H; N = c.getContext("2d");
+    // 벽
+    P(0, 0, W, 56, "#ECEFF3"); P(0, 0, W, 3, "#C9CFD8"); P(0, 3, W, 1, "#DDE2E8");
+    for (let x = 0; x < W; x += 40) P(x, 4, 1, 42, "#E3E7EC");
+    P(0, 46, W, 7, "#DCE1E7"); P(0, 46, W, 1, "#C9CFD8"); P(0, 53, W, 3, "#B8BFC9");
+    const [cx0, cy0] = LY.cooler;
+    rb(cx0 + 2, cy0 + 4, 14, 16, "#BFE4FF"); P(cx0 + 4, cy0 + 6, 2, 11, "#E6F5FF"); rb(cx0 + 5, cy0, 8, 5, "#9FD3F7");
+    rb(cx0, cy0 + 19, 18, 33, "#E3E7ED"); rb(cx0 + 3, cy0 + 23, 12, 8, "#4A5060"); P(cx0 + 5, cy0 + 26, 3, 3, "#E5484D"); P(cx0 + 10, cy0 + 26, 3, 3, "#3B82F6"); P(cx0 + 2, cy0 + 21, 1, 29, "#F4F6F9"); rb(cx0 + 3, cy0 + 34, 12, 3, "#CDD3DB");
+    board(...LY.board, false);
+    if (!port) board(356, 8, 84, true);
+    const [sx, sy, sw, sh] = LY.sign;
+    rb(sx, sy, sw, sh, "#0D1611"); P(sx + 2, sy + 2, sw - 4, sh - 4, "#101C15"); P(sx + 2, sy + 2, sw - 4, 1, "#1D3324");
+    for (let x = sx + 3; x < sx + sw - 2; x += 2) for (let y = sy + 3; y < sy + sh - 2; y += 2) P(x, y, 1, 1, "#13231A");
+    txt("교무실", sx + sw/2, sy + 6, "#2E7A42", "center", 12, "Galmuri11"); txt("교무실", sx + sw/2, sy + 5, "#8CFF9A", "center", 12, "Galmuri11");
+    const [ckx, cky] = LY.clock; blob(ckx, cky, 6, OL); blob(ckx, cky, 5, "#FFFFFF"); P(ckx - 4, cky, 1, 1, "#C4CAD3"); P(ckx + 4, cky, 1, 1, "#C4CAD3"); P(ckx, cky - 4, 1, 1, "#C4CAD3");
+    const [kx, ky] = LY.cork;
+    rb(kx, ky, 28, 36, "#C68D58"); for (let q = 0; q < 14; q++) P(kx + 2 + (q*7) % 24, ky + 2 + (q*11) % 32, 1, 1, "#B07A48");
+    rb(kx + 3, ky + 3, 10, 12, "#FFFFFF"); P(kx + 5, ky + 6, 6, 1, "#B8C0CC"); P(kx + 5, ky + 9, 5, 1, "#B8C0CC"); P(kx + 7, ky + 3, 2, 2, "#E5484D");
+    rb(kx + 15, ky + 5, 10, 10, "#FFE58A"); P(kx + 17, ky + 8, 6, 1, "#C9A84A"); P(kx + 19, ky + 5, 2, 2, "#3B82F6");
+    rb(kx + 6, ky + 19, 16, 12, "#D9F1FF"); P(kx + 8, ky + 22, 10, 1, "#8DB2F5"); P(kx + 8, ky + 25, 8, 1, "#8DB2F5"); P(kx + 13, ky + 19, 2, 2, "#2FA45A");
+    LY.plants.forEach(px => plant(px, 56));
+    // 나무 바닥
+    const tones = ["#DAB98A", "#D2B080", "#DEC194", "#D6B585"], fh = LY.low - 56;
+    for (let x = 0, q = 0; x < W; x += 9, q++){
+      P(x, 56, 9, fh, tones[q % 4]); P(x + 8, 56, 1, fh, "#BC9766");
+      for (let y = 56 + ((q*23) % 46); y < LY.low; y += 46) P(x, y, 8, 1, "#BC9766");
+      for (let g2 = 0; g2 < Math.ceil(fh/26); g2++){ const gy = 60 + ((q*37 + g2*29) % (fh - 6)); P(x + 2 + (g2 % 3), gy, 1, 3 + (g2 % 2), "rgba(150,110,60,.25)"); }
+    }
+    P(0, 56, W, 3, "rgba(60,40,20,.12)");
+    // 아래: 휴게 공간(왼쪽) · 복도(오른쪽)
+    const lo = LY.low, gx = port ? 128 : 244;
+    P(0, lo, gx, H - lo, "#E7EAEE"); for (let x = 0; x < gx; x += 12) P(x, lo, 1, H - lo, "#D6DAE0"); for (let y = lo + 12; y < H; y += 12) P(0, y, gx, 1, "#D6DAE0");
+    P(gx, lo, W - gx, H - lo, "#EEE8DC"); for (let x = gx; x < W; x += 12) P(x, lo, 1, H - lo, "#DDD4C4"); for (let y = lo + 12; y < H; y += 12) P(gx, y, W - gx, 1, "#DDD4C4");
+    rb(-1, lo, gx + 3, 7, "#D6DBE2"); P(0, lo + 2, gx + 1, 1, "#F2F4F7"); P(0, lo + 7, gx + 1, 6, "#AEB5C0"); P(0, lo + 13, gx + 1, 2, "rgba(0,0,0,.08)");
+    rb(gx, lo, 6, H - lo, "#9AA1AD"); P(gx + 2, lo + 2, 1, H - lo - 4, "#C9CED6");
+    // 긴 의자 · 탁자
+    const nB = port ? 2 : 3, bw = port ? 50 : 38;
+    for (let q = 0; q < nB; q++){ const x = (port ? 10 : 26) + q*(bw + 10), y = lo + 22; rb(x, y, bw, 12, "#B4603A"); P(x + 1, y + 1, bw - 2, 3, "#D07A4E"); P(x + 2, y + 11, 4, 5, "#7A4A2A"); P(x + bw - 6, y + 11, 4, 5, "#7A4A2A"); }
+    const tables = port ? [[8, lo + 44, 112]] : [[20, lo + 38, 96], [124, lo + 38, 96]];
+    tables.forEach(([x, y, w]) => { P(x + 2, y + 30, w, 3, "rgba(0,0,0,.1)"); rb(x, y, w, 24, "#EAD7AE"); P(x + 1, y + 1, w - 2, 1, "#F6EAD0"); rb(x, y + 23, w, 6, "#C9AE7C"); });
+    const [t0x, t0y] = tables[0]; rb(t0x + 20, t0y + 6, 12, 9, "#FFFFFF"); P(t0x + 22, t0y + 9, 8, 1, "#B8C0CC"); rb(t0x + 50, t0y + 8, 5, 6, "#E85D5D");
+    if (tables[1]){ const [x, y] = tables[1]; rb(x + 26, y + 5, 16, 11, "#5A8DEE"); P(x + 28, y + 7, 12, 1, "#8DB2F5"); rb(x + 62, y + 7, 5, 6, "#F2C94C"); }
+    if (port) plant(112, H - 4, 0);
+    // 쓰레기통
+    const [trx, try_] = LY.trash; rb(trx, try_, 11, 14, "#8A93A3"); P(trx + 1, try_ + 1, 9, 2, "#A9B1BE");
+    // 커피 탁자 + 기계
+    const [cfx, cfy] = LY.coffee;
+    P(cfx + 2, cfy + 17, 52, 3, "rgba(0,0,0,.12)"); rb(cfx, cfy, 52, 16, "#9C6A3C"); P(cfx + 1, cfy + 1, 50, 2, "#B5824F"); rb(cfx, cfy + 15, 52, 6, "#7D522C"); rb(cfx + 3, cfy + 20, 4, 8, "#5E3D20"); rb(cfx + 45, cfy + 20, 4, 8, "#5E3D20");
+    rb(cfx + 12, cfy - 21, 22, 23, "#E9EBEF"); rb(cfx + 15, cfy - 18, 16, 7, "#3B404C"); P(cfx + 17, cfy - 16, 3, 3, "#E5484D"); P(cfx + 22, cfy - 16, 7, 1, "#8CFF9A"); rb(cfx + 19, cfy - 8, 8, 7, "#FFFFFF"); P(cfx + 20, cfy - 7, 6, 2, "#6B4426");
+    rb(cfx + 38, cfy - 6, 6, 7, "#FFFFFF"); rb(cfx + 44, cfy - 4, 6, 6, "#F2C94C");
+    // 복사기
+    const [px, py] = LY.printer;
+    P(px + 2, py + 48, 50, 3, "rgba(0,0,0,.12)"); rb(px, py + 8, 50, 22, "#F3F4F6"); rb(px + 4, py + 12, 30, 7, "#3B404C"); P(px + 6, py + 14, 5, 3, "#8CFF9A"); P(px + 13, py + 14, 3, 3, "#F2C94C"); rb(px + 37, py + 12, 9, 7, "#D6DAE0");
+    rb(px + 6, py, 34, 9, "#E3E6EB"); rb(px + 10, py - 4, 26, 5, "#FFFFFF"); rb(px + 2, py + 29, 46, 20, "#D7DBE1"); P(px + 6, py + 36, 38, 1, "#B9C0CA"); P(px + 6, py + 42, 38, 1, "#B9C0CA"); rb(px + 48, py + 16, 6, 4, "#FFFFFF");
+    // 자판기
+    const [vx, vy] = LY.vend;
+    P(vx + 2, vy + 74, 52, 3, "rgba(0,0,0,.15)"); rb(vx, vy, 54, 76, "#2E3443"); P(vx + 1, vy + 1, 52, 2, "#4A5266");
+    rb(vx + 4, vy + 6, 34, 50, "#151A26"); P(vx + 5, vy + 7, 32, 48, "rgba(120,190,255,.12)");
+    const cans = ["#E5484D", "#3B82F6", "#F2C94C", "#2FA45A", "#FF8FB0", "#FFFFFF"];
+    for (let r = 0; r < 4; r++){ for (let q = 0; q < 5; q++){ rb(vx + 6 + q*6, vy + 9 + r*12, 5, 9, cans[(r*2 + q) % 6]); P(vx + 7 + q*6, vy + 10 + r*12, 1, 6, "rgba(255,255,255,.45)"); } P(vx + 5, vy + 18 + r*12, 32, 1, "#3A4255"); }
+    rb(vx + 40, vy + 8, 11, 30, "#3A4152"); for (let q = 0; q < 5; q++) P(vx + 43, vy + 11 + q*5, 5, 3, "#59627A"); P(vx + 42, vy + 40, 7, 4, "#0E1118");
+    rb(vx + 6, vy + 60, 30, 9, "#0E1118");
+    BG = { k, c }; N = g; return c;
+  }
+  // 책상 줄마다 한 장 (사람보다 앞에 그려요)
+  function desks(){
+    const k = `${W}x${H}`; if (DK.k === k) return DK.c;
+    const out = [];
+    for (let r = 0; r < LY.rows; r++){
+      const c = document.createElement("canvas"); c.width = W; c.height = H; N = c.getContext("2d");
+      for (let q = 0; q < LY.cols; q++){
+        const si = r*LY.cols + q, { x0, sy } = seat(si), L0 = si === MYSEAT ? { mug:"#FF8FB0" } : LOOKS[OTH.indexOf(si)] || {};
+        P(x0 + 3, sy + 34, 70, 3, "rgba(70,45,20,.18)");
+        rb(x0, sy, 74, 27, "#F4F5F7"); P(x0 + 1, sy + 1, 72, 1, "#FFFFFF"); P(x0 + 1, sy + 23, 72, 3, "#E6E8EC");
+        rb(x0, sy + 26, 74, 9, "#CBD0D8"); P(x0 + 1, sy + 33, 72, 1, "#B3B9C3"); P(x0 + 46, sy + 29, 22, 1, "#B3B9C3"); P(x0 + 55, sy + 30, 4, 1, "#9AA1AD");
+        rb(x0 + 2, sy + 34, 4, 6, "#9AA1AD"); rb(x0 + 68, sy + 34, 4, 6, "#9AA1AD");
+        rb(x0 + 13, sy + 13, 22, 7, "#D9DDE3"); for (let i = 0; i < 9; i++) P(x0 + 15 + i*2, sy + 15, 1, 1, "#AEB4BF"); for (let i = 0; i < 8; i++) P(x0 + 16 + i*2, sy + 17, 1, 1, "#AEB4BF");
+        rb(x0 + 3, sy + 4, 10, 13, "#FFFFFF"); for (let i = 0; i < 4; i++) P(x0 + 5, sy + 7 + i*2, i === 3 ? 4 : 6, 1, "#B8C0CC"); P(x0 + 4, sy + 16, 9, 1, "#DCE0E6");
+        if (L0.mug){ rb(x0 + 62, sy + 13, 6, 6, L0.mug); P(x0 + 68, sy + 14, 2, 3, OL); P(x0 + 63, sy + 14, 4, 1, "#5A3A22"); }
+        if (L0.plant){ rb(x0 + 63, sy + 14, 7, 6, "#C98E5B"); blob(x0 + 66, sy + 10, 3, "#1F4D2B"); blob(x0 + 66, sy + 10, 2, "#4C9A50"); P(x0 + 65, sy + 9, 1, 1, "#7CCB6E"); }
+        rb(x0 + 42, sy - 19, 28, 21, "#3B404C"); P(x0 + 43, sy - 18, 26, 1, "#565C6A"); P(x0 + 43, sy - 17, 1, 17, "#4A505D");
+        rb(x0 + 53, sy - 12, 6, 6, "#4D5361"); P(x0 + 55, sy - 10, 2, 2, "#6E7686");
+        rb(x0 + 53, sy + 1, 6, 5, "#6B7180"); rb(x0 + 48, sy + 5, 16, 3, "#6B7180");
+      }
+      out.push(c);
+    }
+    DK = { k, c:out }; N = g; return out;
+  }
+
+  /* ---------- 걷기 (자리 ↔ 복사기 · 커피 · 문) ---------- */
+  const SPD = 34;
+  const pathOf = (si, dest) => { const { c, x0, sy } = seat(si), gx = LY.gap(c), d = LY.spot[dest]; return [{ x:x0 + 19, y:sy + 2 }, { x:gx, y:sy + 2 }, { x:gx, y:LY.walkY }, { x:d.x, y:LY.walkY }, { x:d.x, y:d.y }]; };
+  const lenOf = pts => pts.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0);
+  function along(pts, dist){
+    for (let i = 1; i < pts.length; i++){
+      const a = pts[i - 1], b = pts[i], l = Math.hypot(b.x - a.x, b.y - a.y);
+      if (dist <= l || i === pts.length - 1){ const t = l ? Math.min(1, dist/l) : 1; return { x:a.x + (b.x - a.x)*t, y:a.y + (b.y - a.y)*t, up:b.y < a.y - .5 }; }
+      dist -= l;
+    }
+    return { ...pts[pts.length - 1], up:false };
+  }
+  // 다녀오기: t = 출발한 뒤 지난 초. null = 자리에 앉아 있음
+  function trip(si, dest, t, wait = 6){
+    const pts = pathOf(si, dest), l = lenOf(pts), go = l/SPD;
+    if (t < 0 || t > go*2 + wait) return null;
+    if (t < go) return { ...along(pts, t*SPD), walking:true };
+    if (t < go + wait) return { ...pts[pts.length - 1], walking:false, at:dest, up:dest === "printer" || dest === "coffee" };
+    const p = along([...pts].reverse(), (t - go - wait)*SPD); return { ...p, walking:true, back:dest };
+  }
+  let wasIn = null, tr = null;
+
+  /* ---------- 그리기 ---------- */
+  function draw(st){
+    const d = simNow(), day = d.getDay(), wk = day >= 1 && day <= 5, m = st.m;
+    const sm = g.imageSmoothingEnabled; g.imageSmoothingEnabled = false; N = g;
+    g.drawImage(bg(), 0, 0, W, H);
+    const rowsC = desks();
+    const per = SCHOOL ? BELL.find(([p, a, b]) => /\d/.test(p) && m >= mm(a) && m < mm(b)) : null;
+    // 선생님 7명: 친한 선생님을 앞자리부터, 없으면 기본 선생님
+    const fr = FRIENDS.filter(f => f.show !== false).slice(0, 7);
+    const ppl = OTH.map((si, k) => {
+      const f = fr[k], look = f ? { ...LOOKS[k], ...lookOfAv(f.avatar || 0), glass:false, vest:null, tie:null, collar:null, name:cut(f.name) } : LOOKS[k];
+      let away = null;
+      if (!SCHOOL) away = "off";
+      else if (LUNCH) away = k === 6 && !f ? null : "급식";
+      else if (f){ const r = friendRoom(f, d); if (r) away = cut(NAME(r), 4); }
+      else if (per){ const p = parseInt(per[0], 10) || 0; if ((k*5 + p*3 + day) % 7 < 3) away = `${1 + (k + p) % 3}-${1 + (k*2 + p) % 8}`; }
+      return { si, k, look, away, f };
+    });
+    // 나: 교무실에 있으면 자리 (가끔 복사기 · 커피), 아니면 수업 · 급식 팻말
+    const ml = MEAV && MEAV.col ? MEAV : avatarDef(0);
+    const myLook = { hair:ml.col.h, shirt:ml.col.c, style:ml.spr === AV_SPR.f0 ? "long" : ml.spr === AV_SPR.f1 ? "bob" : ml.spr === AV_SPR.m1 ? "mid" : "short", name:cut(ME || "나", 6) };
+    const inOffice = st.place === "office" && !st.lunch;
+    const myAway = st.place === "home" ? "off" : st.lunch ? "급식" : inOffice ? null : cut(NAME(st.place), 4);
+    if (wasIn === null) wasIn = inOffice;
+    if (inOffice !== wasIn){ tr = { t0:T, out:!inOffice }; wasIn = inOffice; }
+    let meW = null;
+    if (tr){
+      const pts = pathOf(MYSEAT, "door"), l = lenOf(pts), t = T - tr.t0;
+      if (t > l/SPD) tr = null; else { const p = along(tr.out ? pts : [...pts].reverse(), t*SPD); meW = { ...p, walking:true, up:tr.out ? p.up : !p.up }; }
+    } else if (inOffice){
+      const cyc = 80, ph = (T + 13) % cyc, n = Math.floor((T + 13)/cyc);
+      meW = trip(MYSEAT, n % 2 ? "coffee" : "printer", ph - 52);
+    }
+    const meSeated = inOffice && !meW && !tr;
+    // 쉬는 시간: 한 분은 커피 다녀오고, 학생 둘이 질문하러 와요
+    const breakWalk = BREAK ? (() => { const who = ppl.find(p => !p.away && [1, 4, 5].includes(p.si)); if (!who) return null; const w = trip(who.si, "coffee", (T + who.k*9) % 40, 5); return w ? { who, w } : null; })() : null;
+    const pNo = per ? parseInt(per[0], 10) || 0 : Math.floor(m/50);
+    const visits = BREAK ? ppl.filter(p => !p.away && (!breakWalk || p !== breakWalk.who) && (p.si + pNo) % 3 === 0).slice(0, 2) : [];
+    const tags = [];
+    // 줄마다: 의자 · 앉은 사람 → (그 줄 뒤를 걷는 나) → 책상 → 손 · 팻말 · 모니터 빛
+    for (let r = 0; r < LY.rows; r++){
+      for (let q = 0; q < LY.cols; q++){
+        const si = r*LY.cols + q, { x0, sy } = seat(si), hx = x0 + 12, hy = sy - 23;
+        const p = si === MYSEAT ? { look:myLook, away:meSeated ? null : (inOffice ? "walk" : myAway), me:true, k:9 } : ppl.find(o => o.si === si);
+        const gone = p.away || (breakWalk && breakWalk.who === p);
+        const sit = !gone;
+        rb(x0 + 9, sy - 21, 20, sit ? 16 : 22, "#3D4352"); P(x0 + 10, sy - 20, 18, 1, "#5A6175"); P(x0 + 11, sy - 19, 1, sit ? 12 : 18, "#4A5163");
+        if (!sit) rb(x0 + 7, sy - 4, 24, 6, "#454B5C");
+        if (sit){
+          const bob = Math.sin(T*1.7 + p.k*1.3) > .93 ? 1 : 0, blink = (T*.9 + p.k*.77) % 4 < .14;
+          hairBack(hx, hy + bob, p.look); torso(hx, hy + bob, p.look); head(hx, hy + bob, p.look, blink);
+        }
+        if (p.me){ if (!meW && p.away !== "off") tags.push([hx + 7, hy - 17, myLook.name, "me"]); }
+        else if (!(breakWalk && breakWalk.who === p) && p.away !== "off") tags.push([hx + 7, hy - 17, p.look.name, gone ? "away" : "on"]);
+      }
+      // 이 줄 책상 뒤를 걷고 있으면 책상보다 먼저 (다리가 책상에 가려요)
+      if (meW && !meW.done && meW.y < LY.sy(r) + 12){ standing(meW.x, meW.y, myLook, meW.walking, meW.up); meW.done = true; }
+      if (breakWalk && !breakWalk.done && breakWalk.w.y < LY.sy(r) + 12){ standing(breakWalk.w.x, breakWalk.w.y, breakWalk.who.look, breakWalk.w.walking, breakWalk.w.up); breakWalk.done = true; }
+      g.drawImage(rowsC[r], 0, 0, W, H);
+      for (let q = 0; q < LY.cols; q++){
+        const si = r*LY.cols + q, { x0, sy } = seat(si);
+        const p = si === MYSEAT ? { look:myLook, away:meSeated ? null : (inOffice ? "walk" : myAway), me:true, k:9 } : ppl.find(o => o.si === si);
+        const gone = p.away || (breakWalk && breakWalk.who === p);
+        if (!gone){
+          const ty = Math.floor(T*6 + p.k*1.7) % 2, skin = "#F7CDA6", typing = Math.floor((T + p.k*3)/4) % 3 !== 2;
+          rb(x0 + 11, sy + 9 - (typing && ty ? 1 : 0), 5, 4, skin); rb(x0 + 23, sy + 9 - (typing && !ty ? 1 : 0), 5, 4, skin);
+          N.globalAlpha = .25 + .15*Math.sin(T*3 + p.k); P(x0 + 41, sy + 2, 2, 8, "#6EB4FF"); N.globalAlpha = 1;
+          if ((T + p.k*7) % 23 < 2.4 && !p.me){ const bx = x0 + 32, by = sy - 31; rb(bx, by, 17, 10, "#FFFFFF"); P(bx + 3, by + 9, 3, 2, "#FFFFFF"); P(bx + 3, by + 10, 1, 2, OL); for (let i = 0; i < 3; i++) if (Math.floor(T*3) % 4 > i) P(bx + 4 + i*4, by + 5, 2, 2, OL); }
+        } else if (p.away && p.away !== "off" && p.away !== "walk"){
+          rb(x0 + 14, sy + 4, 26, 15, "#FFF6DC"); P(x0 + 15, sy + 6, 24, 1, "#E6D7AE"); txt(fit(p.away, 22), x0 + 27, sy + 8, "#C2413A", "center");
+        }
+      }
+    }
+    // 아래 물건 움직임: 커피 김 · 자판기 불빛 · 복사기 종이
+    const [cfx, cfy] = LY.coffee;
+    for (let i = 0; i < 4; i++){ const ph = (T*.8 + i*.25) % 1; N.globalAlpha = .8*(1 - ph); P(cfx + 22 + Math.round(Math.sin(T*2 + i)*1.5), cfy - 26 - ph*14, 2, 2, "#FFFFFF"); } N.globalAlpha = 1;
+    const [vx, vy] = LY.vend; if (Math.floor(T*1.5) % 3) P(vx + 43, vy + 16, 5, 3, "#8CFF9A"); P(vx + 6, vy + 2, 42, 1, `rgba(140,220,255,${.35 + .25*Math.sin(T*2)})`);
+    const [px, py] = LY.printer, printing = meW && meW.at === "printer";
+    if (printing){ const s = (T*1.2) % 1; rb(px + 47, py + 16, 6 + Math.round(s*8), 4, "#FFFFFF"); P(px + 6, py + 14, 5, 3, Math.floor(T*4) % 2 ? "#8CFF9A" : "#2FA45A"); }
+    // 학생 · 걷는 사람 · 나
+    visits.forEach((p, i) => { const { x0, sy } = seat(p.si); student(x0 + 86, sy + 42, ["#2A211C", "#5B3A29"][i % 2], i); });
+    if (breakWalk && !breakWalk.done) standing(breakWalk.w.x, breakWalk.w.y, breakWalk.who.look, breakWalk.w.walking, breakWalk.w.up, breakWalk.w.back === "coffee" ? "cup" : null);
+    if (meW && !meW.done) standing(meW.x, meW.y, myLook, meW.walking, meW.up, meW.back === "printer" ? true : meW.back === "coffee" ? "cup" : null);
+    if (meW) tags.push([meW.x, meW.y - 50, myLook.name, "me"]);
+    if (breakWalk) tags.push([breakWalk.w.x, breakWalk.w.y - 50, breakWalk.who.look.name, "on"]);
+    // 이름표 (맨 위)
+    tags.forEach(([x, y, s, kind]) => tag(x, y, s, kind));
+    // 왼쪽 화이트보드 = 지금 · 다음 (도트 글씨)
+    const [bx, by, bw] = LY.board, nx = wk ? nextClass(day, m) : null;
+    const here = st.place === "home" ? (wk ? st.slot : "주말") : st.lunch ? "급식실" : NAME(st.place);
+    txt(fit(wk ? st.slot : "주말", bw - 10), bx + 5, by + 3, "#C2413A");
+    txt(fit(st.place === "office" || st.place === "home" ? here : `${here} 수업`, bw - 10), bx + 5, by + 13, "#2A2733");
+    txt(fit(nx ? `다음 ${nx.p}교시 ${NAME(nx.r)}` : wk ? "오늘 수업 끝" : "푹 쉬어요", bw - 10), bx + 5, by + 23, "#3B6FD8");
+    // 벽시계 바늘 (진짜 시각)
+    const [ckx, cky] = LY.clock, hA = ((d.getHours() % 12) + d.getMinutes()/60)/12*Math.PI*2, mA = d.getMinutes()/60*Math.PI*2;
+    line(ckx, cky, ckx + Math.round(Math.sin(hA)*3), cky - Math.round(Math.cos(hA)*3), OL); line(ckx, cky, ckx + Math.round(Math.sin(mA)*4), cky - Math.round(Math.cos(mA)*4), "#E5484D");
+    // 학교 밖 시간: 불 꺼진 교무실 (모니터 하나만)
+    if (!SCHOOL){ g.fillStyle = "rgba(12,14,38,.55)"; g.fillRect(0, 0, W, H); const [sx, sy2, sw, sh] = LY.sign; N.globalAlpha = .7; txt("교무실", sx + sw/2, sy2 + 5, "#8CFF9A", "center", 12, "Galmuri11"); N.globalAlpha = 1; }
+    // 누르면 열리는 곳
+    hot(bx, by, bw, 38, { open:"edit" }); hot(LY.sign[0], LY.sign[1], LY.sign[2], LY.sign[3], { open:"dday" });
+    hot(LY.cork[0], LY.cork[1], 28, 36, { open:"memo" }); hot(px, py - 4, 54, 54, { open:"todo" }); hot(cfx, cfy - 22, 52, 50, { open:"friend" }); hot(vx, vy, 54, 76, { open:"links" });
+    { const { x0, sy } = seat(MYSEAT); hot(x0, sy - 24, 74, 64, { open:"edit" }); }
+    ppl.filter(p => p.f).forEach(p => { const { x0, sy } = seat(p.si); hot(x0, sy - 24, 74, 64, { open:"friend" }); });
+    g.imageSmoothingEnabled = sm;
+  }
+  return { name:"도트 교무실", layout:"none", custom:true, draw, port, who:"전 연령 · 귀여운 도트 게임",
+    desc:"<b>위에서 본 도트 교무실</b>이에요. 책상 8자리에 친한 선생님(없으면 기본 선생님 7명)이 이름표를 달고 앉아 타자를 치고, 수업 가면 빈 의자에 '2-1' 같은 팻말이 놓여요. 친구의 수업 시간표대로 자리를 비워요. 나는 노란 이름표로, 시간표대로 교실로 나갔다 들어오고 틈틈이 복사기 · 커피를 다녀와요. 쉬는 시간엔 학생이 질문하러 오고, 점심엔 다 같이 급식실, 퇴근 뒤엔 불이 꺼져요. 화이트보드 = 시간표 · 이름판 = 학교 일정 · 게시판 = 메모 · 복사기 = 할 일 · 커피 = 친구 채팅 · 자판기 = 즐겨찾기." };
+})();
+const S23 = pxOffice(false);
+NEWS.push(S23);
+/* ===== END 23 ===== */
+
 /* ===== 31~40. 무난한 바탕화면 — 누구나 아는 컴퓨터 · 앱 화면에, 작은 귀여운 것 하나가 오가요 ===== */
 // 같이 쓰는 도구: 둥근 상자 · 그림자 카드 · 오늘 요약 · 오가는 꼬마
 function rr0(x, y, w, h, r){ g.beginPath(); g.roundRect(x, y, w, h, r); }
@@ -5939,10 +6301,10 @@ const S39 = messenger(false);
 /* ===== END 39 ===== */
 
 /*NEW_STRUCTS*/
-  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 31:S31, 32:S32, 33:S33, 34:S34, 35:S35, 36:S36, 37:S37, 38:S38, 39:S39 };
+  const ALL = { 1:S1, 2:S2, 5:S5, 6:S6, 7:S7, 8:S8, 9:S9, 10:S10, 11:S11, 12:S12, 15:S15, 18:S18, 21:S21, 22:S22, 23:S23, 31:S31, 32:S32, 33:S33, 34:S34, 35:S35, 36:S36, 37:S37, 38:S38, 39:S39 };
   // 📱 세로 그림: 270×480 크기로 따로 만들어 원래 시안에 .portS 로 붙여요 (아직 없는 시안은 가로 그림 그대로)
   setDims(true);
-  const PORTS = { 1:tower(true), 15:deskWin(true), 21:hud3d(true), 22:toyOffice(true), 11:retroPC(true), 6:sideScroll(true), 5:board(true), 10:planner(true), 18:widget(true),
+  const PORTS = { 1:tower(true), 15:deskWin(true), 21:hud3d(true), 22:toyOffice(true), 23:pxOffice(true), 11:retroPC(true), 6:sideScroll(true), 5:board(true), 10:planner(true), 18:widget(true),
     31:winDesk(true), 32:explorer(true), 33:newTab(true), 34:macDesk(true), 35:calApp(true), 36:docPage(true), 37:lockScreen(true), 38:sheet(true), 39:messenger(true) };
   setDims(false);
   Object.entries(PORTS).forEach(([k, v]) => { ALL[k].portS = v; });
@@ -6083,10 +6445,10 @@ col.addEventListener("pointermove", e => { if (bigOn() && e.pointerType === "mou
 addEventListener("keydown", e => { if (!bigOn()) return; if (e.key === "Escape") setBig(false); else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.target.closest?.("input, textarea, select, [contenteditable]")){ e.preventDefault(); stepDesign(e.key === "ArrowLeft" ? -1 : 1); bigPoke(); } });
 document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && bigFs){ bigFs = false; if (bigOn()) setBig(false); } });   // 브라우저 Esc 로 전체 화면이 풀리면 같이 나가요
 new ResizeObserver(fit).observe(col);
-// 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 21 미드나잇 3D 학교 · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
+// 맨 위 단추 12개 (원래 시안 번호 순서): 1 건물 단면 · 22 3D 교무실 · 5 보드게임 · 15 교실 창가 책상 · 23 도트 교무실(예전 21 미드나잇 3D 학교) · 11 레트로 PC · 8 RPG · 6 횡스크롤 · 7 CCTV · 10 위클리 플래너 · 18 미니멀 위젯 · 9 원형 시계 (20 터미널 탐험은 뺌)
 // 2026-10-27 문쌤이 제일 좋아하는 순서로 1 건물 단면 · 2 3D 교무실 · 3 보드게임 판. 새 시안은 늘 맨 뒤에 붙여요 (앞 번호가 밀리지 않게)
 // 2026-10-27 두 묶음으로: 🎮 레트로 게임 9개(1~9) + 🖥 무난한 PC 9개(10~18). 8 RPG · 7 CCTV · 9 원형 시계는 뺐어요 (원형 시계의 이번 주 칸 모양은 위클리 플래너로)
-const TOP = [1, 22, 5, 15, 21, 11, 6, 10, 18, 31, 32, 33, 34, 35, 36, 37, 38, 39];
+const TOP = [1, 22, 5, 15, 23, 11, 6, 10, 18, 31,   /* 2026-10-29 5번 자리: 21 미드나잇 3D 학교 → 23 도트 교무실 */ 32, 33, 34, 35, 36, 37, 38, 39];
 const isPC = i => TOP[i] >= 31;   // 무난한 PC 묶음인가요
 // 예전 단추 순서들 — 예전 번호로 저장된 '고른 화면 · 순서 · 📌 고정'을 지금 번호로 옮길 때만 써요 (sv 없음 = 1, sv:2, 지금 = 3)
 const OLD_TOPS = { 1:[1, 15, 21, 22, 11, 8, 6, 5, 7, 10, 18, 9], 2:[1, 22, 5, 15, 21, 11, 8, 6, 7, 10, 18, 9, 31, 32, 33, 34, 35, 36] };
