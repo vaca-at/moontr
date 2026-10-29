@@ -223,6 +223,7 @@ const DECO = {
   boss: ['wb', 'boss', 'shelf'], train: ['cal', 'w', 'w'], links: ['shelf', 'w', 'shelf'], moral: ['easel', 'b', 'b'],
   others: ['b', 'b', 'b', 'easel'], plans: ['w', 'w', 'shelf'], task: ['wb', 'w'], lobby: ['mailbox', 'w', 'crates'], archive: ['crates6', 'b', 'crates'],
   security: ['wb', 'w', 'w'],
+  aiedu: ['wb', 'w', 'w', 'shelf'],
 };
 const deco = (k) => (DECO[k] || ['w', 'shelf']).map((p) => PROP[p]).join('');
 

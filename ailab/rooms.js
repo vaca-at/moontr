@@ -53,6 +53,11 @@ export const ROOMS = {
     fields: ['과제명', '제출 기한', '제출 방법', '분량·양식'],
   },
 
+  aiedu: {
+    name: 'AI 교육 연구실', role: 'AI 교육 담당', ai: true, view: 'event',
+    desc: 'AI·디지털 교육 자료. 내가 운영하는 AI·바이브코딩 수업 · 진로특강 · 방과후 · 동아리, AI 교육 브리핑 · 가정통신문, AI 교육주간 같은 AI 교육 정책 공문 (내가 듣는 연수 안내는 연수 기록실로)',
+    fields: ['프로그램명', '대상', '정원', '운영 방법', '생기부 기재', '할 일·기한', '관련 링크'],
+  },
   security: {
     name: '정보 보안실', role: '보안 담당', ai: true, view: 'split',
     desc: '정보 보안 관련 공문 (보안 점검 · 보안 권고 · 개인정보 보호 · 보안 교육 안내 등). 학교에서 해야 할 일과 기한 위주',
@@ -64,14 +69,13 @@ export const ROOMS = {
 
   store2: { name: '창고 2', ...STORE },
   store3: { name: '창고 3', ...STORE },
-  store4: { name: '창고 4', ...STORE },
 };
 
 // 위층부터 아래층 순서. 한 층에 방 4개 (왼쪽 → 오른쪽)
 // penthouse: 옥상 위에 따로 올린 사장실 (유리벽 · 테라스)
 export const FLOORS = [
   { floor: 'PH', name: '펜트하우스', rooms: ['boss'], penthouse: true },
-  { floor: '2F', name: '연수 층', rooms: ['train', 'links', 'task', 'store4'] },
+  { floor: '2F', name: '연수 층', rooms: ['train', 'links', 'task', 'aiedu'] }, // 창고 4 → AI 교육 연구실 (2026-10-29)
   { floor: '1F', name: '수업 층', rooms: ['lobby', 'moral', 'others', 'plans'] },
   { floor: 'B1', name: '보관 · 보안 층', rooms: ['archive', 'security', 'store2', 'store3'] }, // 창고 1 → 정보 보안실 (2026-10-29)
 ];
