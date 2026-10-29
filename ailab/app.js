@@ -111,9 +111,10 @@ async function start() {
   import('./building3d.js').then((m) => {
     B3 = m;
     m.connect({ onRoom: (k) => { location.hash = k; }, onChange: saveBuilding });
-    if (S.building) m.setState(S.building);
+    // 저장된 설정을 그리다 문제가 나도 3D 건물은 그대로 써요 (그림 건물로 바뀌지 않게)
+    if (S.building) try { m.setState(S.building); } catch (e) { console.error('저장된 건물 설정을 그리지 못했어요', e); }
     render();
-  }).catch(() => { B3 = false; render(); });
+  }).catch((e) => { console.error('3D 건물을 불러오지 못했어요', e); B3 = false; S.b3Err = e?.message || String(e); render(); });
 }
 
 // 직원 배치 · 사장실 · 건물 시안: 로그인한 선생님이면 Firebase 에 저장 (어느 기기에서든 같게)
@@ -248,7 +249,9 @@ function homeView() {
         return `<a class="rm" href="#${k}"><span class="rm-sign">${esc(roomName(k))}</span>${b.n ? `<span class="badge ${b.hot ? 'hot' : ''}">${b.n}</span>` : ''}${deco(k)}</a>`;
       }).join('')}
     </div>`).join('');
-  return `<div class="home">
+  // 3D 를 못 불러와 그림 건물로 보일 때: 이유와 새로고침 단추 (인터넷이 잠깐 끊기거나 그래픽이 멈췄을 때가 많아요)
+  const fail = B3 === false ? `<p class="b3-fail">3D 건물을 불러오지 못해서 그림으로 보여 드려요${S.b3Err ? ` (${esc(S.b3Err)})` : ''}. <button class="btn primary" data-act="reload">새로고침</button></p>` : '';
+  return `${fail}<div class="home">
     <section class="bld" aria-label="${esc(APP_NAME)} 건물">
       <div class="roof"><span class="flag"></span><span class="roof-sign">${esc(APP_NAME)}</span></div>
       ${floors}
@@ -391,6 +394,9 @@ function floorView(k) {
       <a class="ev-home" href="#">← 건물 전체</a>
       <div class="ev-disp">${esc(f.floor)}<small>${esc(f.name)}</small></div>
       <div class="ev-btns">${FLOORS.map((x) => `<a class="ev-btn ${x === f ? 'on' : ''}" href="#${x.rooms[0]}"><b>${esc(x.floor)}${floorAlert(x) ? '<i></i>' : ''}</b><span>${esc(x.name)}</span></a>`).join('')}</div>
+      ${(() => { const n = roomBadge('lobby').n; return `<a class="ev-lobby ${k === 'lobby' ? 'on' : ''}" href="#lobby" aria-label="접수처로 가기${n ? ` · 할 일 ${n}` : ''}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h4l1.5 3h5L16 13h4"/><path d="M5.5 6.5 4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5l-1.5-6.5A2 2 0 0 0 16.6 5H7.4a2 2 0 0 0-1.9 1.5Z"/></svg>
+        <span>접수처<small>${n ? `할 일 ${n}` : '자료 넣기'}</small></span>${n ? `<em>${n}</em>` : ''}</a>`; })()}
     </nav>
     <section class="flr">
       <div class="flr-h"><h2>${esc(f.name)}</h2>${B3 && k !== 'boss' ? `<button type="button" class="staff-btn" data-act="staffpick" aria-label="${esc(roomName(k))} 직원 고르기" title="${esc(roomName(k))} 직원 고르기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.5 5 2.8 5 5.8"/></svg></button>` : ''}</div>
@@ -594,10 +600,20 @@ async function addLinks() {
 }
 
 // lesson: 수업 공개
+// 수업 시간은 한 가지로: 시각(15:00~16:00)이 있으면 시각만, 없으면 교시(7교시)만. 학교마다 교시 시각이 달라서 시각이 더 정확해요
+function lessonTime(c) {
+  const s = [c.time, field(c, '교시')].filter(Boolean).join(' ');
+  const range = s.match(/\d{1,2}:\d{2}\s*[~∼-]\s*\d{1,2}:\d{2}/);
+  if (range) return range[0].replace(/\s*[~∼-]\s*/, '~');
+  const at = s.match(/\d{1,2}:\d{2}/);
+  if (at) return at[0];
+  const per = s.match(/\d+\s*교시/);
+  return per ? per[0].replace(/\s+/, '') : s;
+}
 function lessonRow(c, k) {
   const [, m, d] = isDate(c.date) ? c.date.split('-').map(Number) : [];
   const wd = isDate(c.date) ? fmtDate(c.date).slice(-2, -1) : '';
-  const period = field(c, '교시') || c.time;
+  const period = lessonTime(c);
   const where = [field(c, '학교'), c.place || field(c, '장소'), field(c, '학년')].filter(Boolean).join(' · ');
   return `<li class="lesson ${isPast(c) ? 'past' : ''}">
     <span class="date ${uns(c, 'date')}">${m ? `<b>${m}.${d}</b>${esc(wd)} ${esc(period)}` : '<b>?</b>날짜 없음'}</span>
@@ -647,7 +663,7 @@ function lessonBrief(list, cur) {
   const subj = cur ? [] : top((c) => subjGroup(subjOf(c)));
   const schools = top((c) => field(c, '학교'));
   const picks = live.filter((c) => c.moral_link).slice(0, 3);
-  const when = (c) => `${fmtDate(c.date)}${field(c, '교시') || c.time ? ` ${field(c, '교시') || c.time}` : ''}`;
+  const when = (c) => `${fmtDate(c.date)}${lessonTime(c) ? ` ${lessonTime(c)}` : ''}`;
   return `<section class="brief" aria-label="한눈 브리핑">
     <h3>한눈 브리핑 <small>다가오는 공개수업 ${live.length}건${cur ? ` · ${esc(cur)}` : ''}</small></h3>
     <ul>
@@ -719,7 +735,7 @@ function bossView(compact) {
       <a href="#moral"><b>${lessons}</b><small>이번 달 수업 공개</small></a>
       <a href="#archive"><b>${S.cards.length}</b><small>정리된 카드</small></a>
     </div>
-    ${up.length ? `<ul class="agenda">${up.map((c) => `<li><a href="#${c.room}" ${c.id !== 'task' ? `data-act="edit" data-id="${c.id}"` : ''}>${ddChip(c.date, c.end_date)}<div><b>${esc(c.title)}</b><small>${esc([fmtDate(c.date), c.time, roomName(c.room), c.place].filter(Boolean).join(' · '))}</small></div></a></li>`).join('')}</ul>`
+    ${up.length ? `<ul class="agenda">${up.map((c) => `<li><a href="#${c.room}" ${c.id !== 'task' ? `data-act="edit" data-id="${c.id}"` : ''}>${ddChip(c.date, c.end_date)}<div><b>${esc(c.title)}</b><small>${esc([fmtDate(c.date), c.id === 'task' ? '' : lessonTime(c), roomName(c.room), c.place].filter(Boolean).join(' · '))}</small></div></a></li>`).join('')}</ul>`
       : '<p class="empty">날짜가 있는 자료가 들어오면 여기에 D-day 순으로 모여요.</p>'}
     ${!compact && recent.length ? `<h3>방금 정리된 자료</h3><ul class="agenda">${recent.map((c) => `<li><a href="#${c.room}" data-act="edit" data-id="${c.id}"><span class="chip">${esc(roomName(c.room))}</span><div><b>${esc(c.title)}</b><small>${esc(c.summary || '')}</small></div></a></li>`).join('')}</ul>` : ''}`;
 }
@@ -1540,6 +1556,7 @@ document.addEventListener('click', async (e) => {
       case 'staffpick': openStaffPick(route()); break;
       case 'pickcard': S.pick[route()] = id; render(); break;
       case 'addLinks': await addLinks(); break;
+      case 'reload': location.reload(); break;
       // 카드 창에서 그 방으로: 고른 카드가 보이게 (두 칸 방은 그 카드를 고르고, 교과 거르기는 풀어요)
       case 'gocard': { const c = cardById(id); if (!c) break; S.pick[c.room] = id; S.subj = ''; dlg.close(); location.hash = c.room; break; }
       case 'reread': if (dlg.open) dlg.close(); await reread(cap); break;

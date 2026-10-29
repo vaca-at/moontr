@@ -23,7 +23,9 @@ const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, {
 const ME_JOB = '건물 전체를 둘러보며 다가오는 연수·공개수업·과제 마감을 챙겨요.';
 const DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3, aiedu: 11 }, me: 8, friend: 11, gender: 'f', theme: 1, layout: 5 }; // 사장님은 8번 베이지 재킷(여자), 친구는 클로드 // 현관 · 엘리베이터는 5번(가운데 계단 코어)으로 정함 (2026-10-29)
 const saved = (() => { try { return JSON.parse(localStorage.getItem('ailab3d') || 'null'); } catch { return null; } })();
-const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...(saved?.assign || {}) } };
+// 저장된 배치 가운데 지금 있는 방만 (창고를 새 방으로 바꾸면 옛 창고 이름이 남아 있을 수 있어요)
+const onlyRooms = (a) => Object.fromEntries(Object.entries(a || {}).filter(([k]) => ROOMS[k]));
+const STATE = { ...DEFAULT, ...(saved || {}), assign: { ...DEFAULT.assign, ...onlyRooms(saved?.assign) } };
 // 시안 미리 보기: 주소 뒤에 ?layout=3&theme=8&me=6&friend=11 처럼 붙이면 그 모습으로 (저장은 안 해요)
 const PREVIEW = Object.fromEntries(['layout', 'theme', 'me', 'friend'].map((k) => [k, Number(new URLSearchParams(location.search).get(k)) || 0]).filter(([, v]) => v));
 Object.assign(STATE, PREVIEW);
@@ -679,7 +681,8 @@ const FRIEND_ABOUT = {
   13: ['얼음이 가득 든 아이스커피예요.', '바쁜 날에도 시원하게 응원해요.'],
   14: ['동글동글한 하늘색 물고기 친구 뻐끔이예요.', '머리 위로 물방울을 뽀글뽀글 올리며 사장님 곁을 지켜요.'],
 };
-const where = (id) => Object.entries(STATE.assign).filter(([, v]) => v === id).map(([k]) => ROOMS[k].name);
+// 없어진 방(창고 → 새 방으로 바꾼 칸)에 저장돼 있던 배치는 건너뛰어요
+const where = (id) => Object.entries(STATE.assign).filter(([k, v]) => v === id && ROOMS[k]).map(([k]) => ROOMS[k].name);
 const staffInfo = (id, room) => {
   const s = staffById(id);
   return { title: s.name, sub: room ? `${ROOMS[room].name} 직원` : (where(id).join(' · ') || '아직 배치 전'), text: STAFF_ABOUT[id], job: room ? ROOMS[room].job : '' };
@@ -2049,7 +2052,7 @@ export function setState(s) {
   if (!s || performance.now() - lastLocal < 3000) return;
   const keep = JSON.stringify(STATE);
   Object.assign(STATE, {
-    assign: { ...DEFAULT.assign, ...(s.assign || {}) },
+    assign: { ...DEFAULT.assign, ...onlyRooms(s.assign) },
     me: s.me || STATE.me, friend: s.friend || STATE.friend,
     gender: s.gender === 'f' ? 'f' : s.gender === 'm' ? 'm' : STATE.gender,
     theme: s.theme || STATE.theme,
