@@ -162,6 +162,8 @@ function subscribe() {
     S.task = s.exists() ? s.data() : null;
     render();
   }, denied));
+  // 명단에서 찾을 내 이름 (공개되는 코드에 넣지 않고 선생님 계정에만 저장)
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/me')), (s) => { S.myName = s.exists() ? s.data().name || '' : ''; }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/building')), (s) => {
     if (!s.exists()) return;
     S.building = s.data();
@@ -656,7 +658,7 @@ function lobbyView() {
   const moving = S.uploading.size + reading.length;
   return `<div class="mD">
     <div class="intake">
-      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 PDF는 본문과 첨부를 한꺼번에 넣으면 한 묶음으로 읽어요</small></label>
+      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 PDF · 엑셀 · 사진을 한꺼번에 넣으면 한 묶음으로 읽어요 (한글 파일은 PDF로 바꿔서)</small></label>
       <div class="extra">
         <label>링크 주소 <small>홈페이지 캡쳐라면 주소를 같이 적어 주세요</small><input id="pendLink" type="url" inputmode="url" placeholder="https://" value="${esc(S.pending.link)}"></label>
         <label>메모 <small>예: 3차 연수 과제 안내 / 내 이름 ○○○</small><input id="pendMemo" value="${esc(S.pending.memo)}"></label>
@@ -672,7 +674,8 @@ function lobbyView() {
     <div class="belt-wrap ${moving ? 'run' : ''}" aria-hidden="true"><div class="belt"></div>${'<span class="belt-item"><span class="doc"></span></span>'.repeat(Math.min(4, moving))}</div>
     ${errors.length ? `<div class="errs">${errors.map((c) => `<div class="err">${thumb(c.storagePath, 'qthumb')}<div><b>읽지 못한 자료 · ${esc(c.name || '')}</b><small>${esc(c.error || '')}</small></div><button data-act="reread" data-cap="${c.id}">다시 읽기</button><button data-act="delcap" data-cap="${c.id}">지우기</button></div>`).join('')}</div>` : ''}
     <div class="q-h"><span class="pip"></span>확인을 기다리는 카드 ${review.length}장 · 노란 칸만 보면 돼요
-      ${review.filter((c) => !isUnsorted(c)).length > 1 ? '<button class="chipbtn" data-act="confirmAll">방이 정해진 카드 모두 맞아요</button>' : ''}</div>
+      ${(() => { const n = review.filter((c) => !isUnsorted(c)).length; return n ? `<button class="btn primary allok" data-act="confirmAll">✓ ${n}장 한 번에 방으로 보내기</button>` : ''; })()}</div>
+    ${review.some(isUnsorted) ? '<p class="q-note">방이 안 정해진 카드는 한 번에 보내기에서 빠져요. [고치기]에서 방을 골라 주세요.</p>' : ''}
     ${review.length ? `<div class="qcards">${review.map(reviewCard).join('')}</div>` : '<p class="empty">지금은 확인할 카드가 없어요.</p>'}
   </div>`;
 }
@@ -885,18 +888,212 @@ async function prepare(file) {
 
 const isPdf = (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
 
-// 사진만 넣으면 한 장씩 따로 읽고, PDF가 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
+// ---------- 공문 묶음(PDF · 엑셀 · 사진) 넣기 전에 명단 거르기 ----------
+// 명단(이름 · 학교 · 전화번호가 줄줄이)인 PDF 페이지 · 엑셀 시트는 이 PC 안에서만 읽고 빼요. 뺀 것은 AI에게도, 저장소에도 가지 않아요.
+// 뺀 명단에서 선생님 이름이 있는 줄만 찾아 메모에 붙여 AI에게 알려 줘요 (대상자인지 알 수 있게).
+// 명단 전체가 필요하면 업무관리시스템에서 공문을 찾아 보면 돼요 (카드에 공문 번호가 남아요)
+const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';
+const LIBS = {
+  pdf: `${PDFJS}build/pdf.min.js`,
+  pdfWorker: `${PDFJS}build/pdf.worker.min.js`,
+  pdfLib: 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js',
+  xlsx: 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+};
+const isSheet = (f) => /\.(xlsx|xls|csv)$/i.test(f.name || '') || /spreadsheet|ms-excel|text\/csv/.test(f.type);
+const isHwp = (f) => /\.hwpx?$/i.test(f.name || '');
+const loaded = {};
+function loadScript(src) {
+  loaded[src] ||= new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = res;
+    s.onerror = () => { delete loaded[src]; rej(new Error('읽는 도구를 불러오지 못했어요')); };
+    document.head.append(s);
+  });
+  return loaded[src];
+}
+// pdf.js 는 worker 스크립트까지 불러 두면 이 페이지 안에서 바로 돌아요 (학교 PC에서 worker 가 막혀도 괜찮게)
+async function pdfjs() { await loadScript(LIBS.pdf); await loadScript(LIBS.pdfWorker); return window.pdfjsLib; }
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('시간이 너무 오래 걸려요')), ms))]);
+
+// 글자 조각을 높이(y)로 묶어 한 줄씩 (표는 한 행이 한 줄이 돼요)
+function pageLines(items) {
+  const rows = [];
+  for (const it of items) {
+    if (!it.str?.trim()) continue;
+    const [x, y] = [it.transform[4], it.transform[5]];
+    let r = rows.find((row) => Math.abs(row.y - y) < 3);
+    if (!r) rows.push((r = { y, parts: [] }));
+    r.parts.push({ x, s: it.str.trim() });
+  }
+  return rows.sort((a, b) => b.y - a.y).map((r) => r.parts.sort((a, b) => a.x - b.x).map((p) => p.s).join(' ').replace(/\s+/g, ' '));
+}
+const PHONE = /01[016789][-.)\s]?\d{3,4}[-.\s]?\d{4}/g;
+function looksLikeRoster(lines) {
+  const text = lines.join('\n');
+  const phones = (text.match(PHONE) || []).length;
+  const schoolRows = lines.filter((l) => /학교|교육지원청|유치원/.test(l)).length;
+  const header = /성\s*명|이\s*름/.test(text) && /연\s*번|번\s*호|순\s*번|소\s*속|학교명/.test(text);
+  return phones >= 3 || (header && schoolRows >= 4) || schoolRows >= 10;
+}
+// PDF: 쪽마다 글자 · 작은 그림 · 명단인지
+async function analyzePdf(file) {
+  const lib = await pdfjs();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  // 한글 글꼴(CID)을 읽으려면 cmaps 가 있어야 해요. pdf.js 가 받은 사본은 가져가고, 원본 bytes 는 쪽을 자를 때 써요
+  const pdf = await lib.getDocument({ data: bytes.slice(), cMapUrl: `${PDFJS}cmaps/`, cMapPacked: true, standardFontDataUrl: `${PDFJS}standard_fonts/` }).promise;
+  const units = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    const lines = pageLines((await page.getTextContent()).items);
+    const view = page.getViewport({ scale: 120 / page.getViewport({ scale: 1 }).width });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(view.width); canvas.height = Math.round(view.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: view }).promise;
+    const noText = lines.join('').length < 20; // 스캔한 그림 PDF 는 글자를 못 읽어요 → 선생님이 직접 골라요
+    const roster = !noText && looksLikeRoster(lines);
+    units.push({ label: `${n}쪽`, n, canvas, lines, noText, roster, keep: !roster });
+  }
+  pdf.destroy();
+  return { kind: 'pdf', file, bytes, units };
+}
+// 엑셀: 시트마다 한 행이 한 줄. 명단이 아닌 시트는 글자로 바꿔 메모에 붙여 AI가 읽어요 (엑셀 파일 자체는 올리지 않아요)
+async function analyzeSheet(file) {
+  await loadScript(LIBS.xlsx);
+  const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const units = wb.SheetNames.map((name) => {
+    const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
+    const lines = rows.map((r) => r.map((c) => String(c).trim()).filter(Boolean).join(' | ')).filter(Boolean);
+    const roster = looksLikeRoster(lines);
+    return { label: name, lines, rows: lines.length, roster, keep: !roster };
+  }).filter((u) => u.lines.length);
+  return { kind: 'xlsx', file, units };
+}
+const squash = (s) => s.replace(/\s/g, '');
+// 뺀 쪽 · 시트에서 내 이름이 있는 줄만 (최대 5줄)
+function myLines(list, name) {
+  if (!squash(name)) return [];
+  return list.flatMap((a) => a.units.filter((u) => !u.keep).flatMap((u) => u.lines.filter((l) => squash(l).includes(squash(name)))))
+    .slice(0, 5).map((l) => l.slice(0, 200));
+}
+async function keepPages(a) {
+  const keep = a.units.filter((u) => u.keep).map((u) => u.n - 1);
+  if (keep.length === a.units.length) return a.file;
+  if (!keep.length) return null;
+  await loadScript(LIBS.pdfLib);
+  const { PDFDocument } = window.PDFLib;
+  const src = await PDFDocument.load(a.bytes, { ignoreEncryption: true });
+  const out = await PDFDocument.create();
+  (await out.copyPages(src, keep)).forEach((p) => out.addPage(p));
+  return new File([await out.save()], a.file.name, { type: 'application/pdf' });
+}
+// 남긴 엑셀 시트를 글자로 (시트마다 6천 자, 모두 1만 5천 자까지)
+function sheetText(list) {
+  const parts = list.filter((a) => a.kind === 'xlsx').flatMap((a) => a.units.filter((u) => u.keep).map((u) => `[첨부 엑셀 ${a.file.name} · ${u.label}]\n${u.lines.join('\n').slice(0, 6000)}`));
+  return parts.join('\n\n').slice(0, 15000);
+}
+const pageSpan = (ns) => ns.reduce((acc, n) => { const last = acc[acc.length - 1]; if (last && n === last[1] + 1) last[1] = n; else acc.push([n, n]); return acc; }, []).map(([a, b]) => (a === b ? `${a}쪽` : `${a}~${b}쪽`)).join(', ');
+const outLabel = (a) => { const out = a.units.filter((u) => !u.keep); return a.kind === 'pdf' ? pageSpan(out.map((u) => u.n)) : out.map((u) => `'${u.label}' 시트`).join(', '); };
+
+// 거르기를 못 했을 때: 명단이 없는 공문이면 그대로 넣을 수 있게 물어봐요 (엑셀은 읽지 못하니 빼요)
+function askPlain(reason, pdfs) {
+  dlg.innerHTML = `<form method="dialog" class="dlg one">${DLG_X}<div class="dlg-form">
+    <h2>명단 거르기를 못 했어요</h2>
+    <div class="dlg-err"><b>${esc(reason)}</b><p>명단이 없는 공문이면 PDF를 그대로 넣어도 돼요. 명단이 있으면 [취소]를 누르고 잠시 뒤 다시 넣어 주세요.</p></div>
+    <div class="dlg-acts"><button value="cancel">취소</button><button type="button" class="yes" id="goPlain">${pdfs.length ? 'PDF 그대로 넣기' : '사진만 넣기'}</button></div>
+  </div></form>`;
+  let ok = false;
+  $('#goPlain', dlg).addEventListener('click', () => { ok = true; dlg.close(); });
+  dlg.showModal();
+  return new Promise((res) => dlg.addEventListener('close', () => res(ok ? { files: pdfs, note: '' } : null), { once: true }));
+}
+// 넣기 전 확인 창: 쪽 · 시트를 누르면 넣기 ↔ 빼기. [이대로 넣기]를 누르면 { files, note }, 닫으면 null
+async function checkFiles(pdfs, sheets) {
+  toast('명단이 있는지 이 PC 안에서 살펴보고 있어요…');
+  let list;
+  try {
+    list = await withTimeout(Promise.all([...pdfs.map(analyzePdf), ...sheets.map(analyzeSheet)]), 40000);
+  } catch (e) {
+    return askPlain(`${e.message || e}`, pdfs);
+  }
+  const tile = (a, i) => a.units.map((u, j) => `<button type="button" class="pg ${u.keep ? '' : 'out'} ${a.kind}" data-f="${i}" data-p="${j}" aria-pressed="${!u.keep}">
+      ${a.kind === 'pdf' ? '<span class="cv"></span>' : `<span class="sh">${u.rows}줄</span>`}
+      <small>${esc(u.label)}${u.roster ? ' · 명단' : u.noText ? ' · 그림' : ''}</small><b>${u.keep ? '넣기' : '빼기'}</b></button>`).join('');
+  dlg.innerHTML = `<form method="dialog" class="dlg one pdfcheck">${DLG_X}<div class="dlg-form">
+    <h2>넣기 전에 명단 거르기</h2>
+    <p class="note">명단으로 보이는 쪽 · 시트는 빼고 넣어요. 뺀 것은 AI에게도, 저장소에도 가지 않아요. 눌러서 넣기 ↔ 빼기를 바꿀 수 있어요.</p>
+    <label>명단에서 찾을 내 이름<input id="myName" autocomplete="off" placeholder="예: 홍길동" value="${esc(S.myName || '')}"></label>
+    ${list.map((a, i) => `<section class="pc-file"><h3>${a.kind === 'xlsx' ? '엑셀 · ' : ''}${esc(a.file.name)}</h3><div class="pgrid">${tile(a, i)}</div></section>`).join('')}
+    <div class="found" id="found"></div>
+    <div class="dlg-acts"><button value="cancel">취소</button><button type="button" class="yes" id="goPdf">이대로 넣기</button></div>
+  </div></form>`;
+  dlg.querySelectorAll('.pg.pdf').forEach((b) => b.querySelector('.cv').append(list[b.dataset.f].units[b.dataset.p].canvas));
+  const nameEl = $('#myName', dlg), foundEl = $('#found', dlg);
+  const anyOut = () => list.some((a) => a.units.some((u) => !u.keep));
+  const note = () => {
+    const name = nameEl.value.trim();
+    if (!anyOut()) return '';
+    const mine = myLines(list, name);
+    if (!name) return '명단은 개인정보라 빼고 넣었어요.';
+    return mine.length ? `명단에서 찾은 ${name} 줄 (나머지 명단은 개인정보라 빼고 넣었어요): ${mine.join(' / ')}` : `명단은 개인정보라 빼고 넣었어요. 명단에 ${name} 이름은 없었어요.`;
+  };
+  const show = () => {
+    const out = list.filter((a) => a.units.some((u) => !u.keep));
+    const name = nameEl.value.trim(), mine = myLines(list, name);
+    foundEl.innerHTML = out.length
+      ? `<b>빼는 것</b> ${out.map((a) => `${esc(a.file.name.replace(/\.(pdf|xlsx?|csv)$/i, '').slice(-24))} ${esc(outLabel(a))}`).join(' · ')}
+         <br><b>AI에게 알려 줄 내 줄</b> ${name ? (mine.length ? mine.map(esc).join(' / ') : '명단에 이름이 없어요') : '이름을 적으면 찾아요'}`
+      : '<b>빼는 것 없음</b> 명단으로 보이는 쪽 · 시트가 없어서 전부 넣어요.';
+  };
+  dlg.querySelector('.pdfcheck').addEventListener('click', (e) => {
+    const b = e.target.closest('.pg');
+    if (!b) return;
+    const u = list[b.dataset.f].units[b.dataset.p];
+    u.keep = !u.keep;
+    b.classList.toggle('out', !u.keep);
+    b.setAttribute('aria-pressed', String(!u.keep));
+    b.querySelector('b').textContent = u.keep ? '넣기' : '빼기';
+    show();
+  });
+  nameEl.addEventListener('input', show);
+  show();
+  let ok = false;
+  $('#goPdf', dlg).addEventListener('click', () => { ok = true; dlg.close(); });
+  dlg.showModal();
+  await new Promise((res) => dlg.addEventListener('close', res, { once: true }));
+  if (!ok) return null;
+  const name = nameEl.value.trim();
+  if (name !== (S.myName || '')) {
+    S.myName = name;
+    setDoc(doc(db, dbPath('meta/me')), { name, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+  }
+  const files = (await Promise.all(list.filter((a) => a.kind === 'pdf').map(keepPages))).filter(Boolean);
+  return { files, note: [note(), sheetText(list)].filter(Boolean).join('\n\n') };
+}
+
+// 사진만 넣으면 한 장씩 따로 읽고, PDF · 엑셀이 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
 async function upload(fileList) {
   const all = [...fileList];
-  const pdfs = all.filter(isPdf), imgs = all.filter((f) => !isPdf(f) && f.type.startsWith('image/'));
-  if (!pdfs.length && !imgs.length) { toast('사진이나 PDF 파일만 넣을 수 있어요'); return; }
-  const { link, memo } = S.pending;
+  const pdfs = all.filter(isPdf), sheets = all.filter(isSheet), imgs = all.filter((f) => !isPdf(f) && !isSheet(f) && f.type.startsWith('image/'));
+  if (all.some(isHwp)) toast('한글(HWP) 파일은 읽을 수 없어서 빼고 넣어요. PDF로 바꿔서 넣어 주세요');
+  if (!pdfs.length && !imgs.length) { toast(sheets.length ? '엑셀은 공문 PDF나 사진과 함께 넣어 주세요' : '사진 · PDF · 엑셀 파일만 넣을 수 있어요'); return; }
+  // PDF · 엑셀은 먼저 이 PC 안에서 명단을 걸러요
+  let checked = null;
+  if (pdfs.length || sheets.length) {
+    checked = await checkFiles(pdfs, sheets);
+    if (!checked) return;
+    if (!checked.files.length && !imgs.length) { toast('모두 빼서 넣을 것이 없어요'); return; }
+  }
+  const { link } = S.pending;
+  const memo = [S.pending.memo, checked?.note].filter(Boolean).join('\n');
   S.pending = { link: '', memo: '' };
   if (S.q) { S.q = ''; $('#search').value = ''; }
   if (route() !== 'lobby') location.hash = 'lobby';
-  if (pdfs.length) {
-    toast(`PDF ${pdfs.length}개${imgs.length ? `와 사진 ${imgs.length}장` : ''}을 공문 한 묶음으로 넣었어요. 다 올라가면 읽기 시작해요.`);
-    await uploadBundle([...pdfs, ...imgs], link, memo);
+  // PDF · 엑셀이 있으면 사진까지 한 묶음 (엑셀 내용은 메모에 글자로 붙어 같이 가요)
+  if (checked) {
+    const what = [checked.files.length && `PDF ${checked.files.length}개`, sheets.length && `엑셀 ${sheets.length}개`, imgs.length && `사진 ${imgs.length}장`].filter(Boolean).join(' · ');
+    toast(`${what}를 공문 한 묶음으로 넣었어요. 다 올라가면 읽기 시작해요.`);
+    await uploadBundle([...checked.files, ...imgs], link, memo);
     return;
   }
   toast(`1층 접수처에 ${imgs.length}장 들어왔어요. 바로 읽기 시작해요.`);
@@ -1102,7 +1299,7 @@ window.addEventListener('drop', (e) => {
   if (S.teacher) upload(e.dataTransfer.files);
 });
 document.addEventListener('paste', (e) => {
-  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f));
+  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f) || isSheet(f));
   if (!S.teacher || !files.length) return;
   e.preventDefault();
   upload(files);
