@@ -786,7 +786,7 @@ function lobbyView() {
   const moving = S.uploading.size + reading.length;
   return `<div class="mD">
     <div class="intake">
-      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 본문(.odt) · PDF · 엑셀 · 사진 · .hwpx를 한꺼번에 넣으면 한 묶음으로 읽어요 (.hwp는 PDF로 바꿔서)</small></label>
+      <label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 본문(.odt) · PDF · 엑셀 · 사진 · 한글(.hwp · .hwpx)을 한꺼번에 넣으면 공문번호별로 묶어 읽어요 · 폴더째 끌어다 놓아도 돼요</small></label>
       <div class="extra">
         <label>링크 주소 <small>홈페이지 캡쳐라면 주소를 같이 적어 주세요</small><input id="pendLink" type="url" inputmode="url" placeholder="https://" value="${esc(S.pending.link)}"></label>
         <label>메모 <small>예: 3차 연수 과제 안내 / 내 이름 ○○○</small><input id="pendMemo" value="${esc(S.pending.memo)}"></label>
@@ -1052,10 +1052,10 @@ const LIBS = {
   zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
 };
 const isSheet = (f) => /\.(xlsx|xls|csv)$/i.test(f.name || '') || /spreadsheet|ms-excel|text\/csv/.test(f.type);
-// 문서: 업무관리시스템 본문(.odt) · 워드(.docx) · 한글 새 형식(.hwpx). 셋 다 압축 파일 안에 글자 · 표가 XML 로 들어 있어요
-const isDoc = (f) => /\.(odt|docx|hwpx)$/i.test(f.name || '');
-// 읽을 수 없는 옛 형식: 한글 .hwp · 워드 .doc (PDF 로 바꿔서 넣어요)
-const isOld = (f) => /\.(hwp|doc)$/i.test(f.name || '');
+// 문서: 업무관리시스템 본문(.odt) · 워드(.docx) · 한글 새 형식(.hwpx)은 압축 파일 안 XML, 한글 옛 형식(.hwp)은 analyzeHwp 로 이 PC 안에서 글자만 꺼내요
+const isDoc = (f) => /\.(odt|docx|hwpx|hwp)$/i.test(f.name || '');
+// 읽을 수 없는 옛 형식: 워드 .doc (PDF 로 바꿔서 넣어요)
+const isOld = (f) => /\.doc$/i.test(f.name || '');
 const loaded = {};
 function loadScript(src) {
   loaded[src] ||= new Promise((res, rej) => {
@@ -1231,7 +1231,60 @@ function docBlocks(root) {
   walk(root);
   return out.filter((b) => b.lines.length);
 }
+// 한글 옛 형식(.hwp 5.0): 저장 파일(CFB) 안 BodyText/Section0, 1 … 에 문단 글자 기록(HWPTAG_PARA_TEXT = 67)이 들어 있어요.
+// 표 칸 글자도 문단으로 들어 있어서 한 줄씩 나와요 (표 모양은 없어지지만 글자는 다 읽어요). CFB 는 엑셀용 SheetJS 에 들어 있어요
+// 압축이 끝난 뒤에 남는 꼬리 바이트가 있으면 브라우저가 오류를 내요. 그때까지 풀린 내용만 써요
+async function inflateRaw(u8) {
+  const reader = new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+  const parts = [];
+  try { for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); } } catch (e) { if (!parts.length) throw e; }
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+function hwpParaText(b, off, size) {
+  let s = '';
+  for (let i = 0; i + 1 < size;) {
+    const c = b[off + i] | (b[off + i + 1] << 8);
+    if (c >= 32) { s += String.fromCharCode(c); i += 2; continue; }
+    // 한 칸짜리 조종 문자(줄바꿈 · 문단 끝 · 띄어쓰기 종류)와, 8칸(16바이트)을 차지하는 표 · 그림 · 탭 같은 조종 문자
+    if ([0, 10, 13, 24, 25, 26, 27, 28, 29, 30, 31].includes(c)) { if (c === 10 || c >= 30) s += ' '; i += 2; } else { if (c === 9) s += ' '; i += 16; }
+  }
+  return s;
+}
+async function analyzeHwp(file) {
+  await loadScript(LIBS.xlsx);
+  const cfb = window.XLSX.CFB.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+  const entries = cfb.FullPaths.map((p, i) => [p, cfb.FileIndex[i]]);
+  const head = entries.find(([p]) => /\/FileHeader$/i.test(p))?.[1]?.content;
+  if (!head) throw new Error('한글(.hwp) 파일로 열리지 않아요');
+  const flags = head[36] | (head[37] << 8);
+  if (flags & 2) throw new Error('비밀번호가 걸린 한글 파일이에요');
+  if (flags & 4) throw new Error('배포용(읽기 전용) 한글 파일이라 글자를 꺼낼 수 없어요. PDF로 바꿔서 넣어 주세요');
+  const secs = entries.filter(([p]) => /\/BodyText\/Section\d+$/i.test(p)).sort(([a], [b]) => parseInt(a.match(/(\d+)$/)[1], 10) - parseInt(b.match(/(\d+)$/)[1], 10));
+  const lines = [];
+  for (const [, e] of secs) {
+    let b = new Uint8Array(e.content);
+    if (flags & 1) b = await inflateRaw(b);
+    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    for (let p = 0; p + 4 <= b.length;) {
+      const h = dv.getUint32(p, true);
+      p += 4;
+      let size = (h >>> 20) & 0xfff;
+      if (size === 0xfff) { size = dv.getUint32(p, true); p += 4; }
+      if ((h & 0x3ff) === 67) { const s = clean(hwpParaText(b, p, size)); if (s) lines.push(s); }
+      p += size;
+    }
+  }
+  if (!lines.length) throw new Error(`${file.name} 에서 글자를 찾지 못했어요`);
+  // 30줄씩 한 덩어리 (덩어리마다 넣기 · 가리기 · 빼기)
+  const units = [];
+  for (let i = 0; i < lines.length; i += 30) units.push(textUnit(`글 ${units.length + 1}`, lines.slice(i, i + 30)));
+  return { kind: 'doc', file, units };
+}
 async function analyzeDoc(file) {
+  if (/\.hwp$/i.test(file.name)) return analyzeHwp(file);
   await loadScript(LIBS.zip);
   const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
   const xmlOf = async (p) => { const s = await zip.file(p)?.async('string'); return s ? new DOMParser().parseFromString(s, 'application/xml').documentElement : null; };
@@ -1370,7 +1423,7 @@ async function checkFiles(pdfs, sheets, docs, hasImgs, label = '') {
   };
   const show = () => {
     const name = nameEl.value.trim(), mine = myLines(list, name);
-    const line = (mode, label) => { const fs = some(mode); return fs.length ? `<b>${label}</b> ${fs.map((a) => `${esc(a.file.name.replace(/\.(pdf|xlsx?|csv|odt|docx|hwpx)$/i, '').slice(-24))} ${esc(modeLabel(a, mode))}`).join(' · ')}<br>` : ''; };
+    const line = (mode, label) => { const fs = some(mode); return fs.length ? `<b>${label}</b> ${fs.map((a) => `${esc(a.file.name.replace(/\.(pdf|xlsx?|csv|odt|docx|hwpx?)$/i, '').slice(-24))} ${esc(modeLabel(a, mode))}`).join(' · ')}<br>` : ''; };
     const body = line('mask', '가리는 것') + line('out', '빼는 것');
     foundEl.innerHTML = body
       ? `${body}<b>AI에게 알려 줄 내 줄</b> ${name ? (mine.length ? mine.map(esc).join(' / ') : '명단에 이름이 없어요') : '이름을 적으면 찾아요'}`
@@ -1480,8 +1533,8 @@ async function upload(fileList) {
 async function uploadSet(all, label = '') {
   const pdfs = all.filter(isPdf), sheets = all.filter(isSheet), docs = all.filter(isDoc);
   const imgs = all.filter((f) => !isPdf(f) && !isSheet(f) && !isDoc(f) && f.type.startsWith('image/'));
-  if (all.some(isOld)) toast('한글 .hwp · 워드 .doc 파일은 읽을 수 없어서 빼고 넣어요. PDF로 바꿔서 넣어 주세요');
-  if (!pdfs.length && !imgs.length && !sheets.length && !docs.length) { toast(`${label ? `${label}: ` : ''}사진 · PDF · 엑셀 · 문서(.odt · .docx · .hwpx) 파일만 넣을 수 있어요`); return; }
+  if (all.some(isOld)) toast('워드 .doc 파일은 읽을 수 없어서 빼고 넣어요. PDF로 바꿔서 넣어 주세요');
+  if (!pdfs.length && !imgs.length && !sheets.length && !docs.length) { toast(`${label ? `${label}: ` : ''}사진 · PDF · 엑셀 · 문서(.odt · .docx · .hwp · .hwpx) 파일만 넣을 수 있어요`); return; }
   // PDF · 엑셀 · 문서는 먼저 이 PC 안에서 명단을 걸러요
   let checked = null;
   if (pdfs.length || sheets.length || docs.length) {
