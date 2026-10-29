@@ -4,7 +4,7 @@
 //   onChange(state): 직원 배치 · 사장실 · 건물 시안이 바뀌면 → 앱이 Firebase 에 저장
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { APP_NAME, ROOMS as APP_ROOMS, FLOORS } from './rooms.js';
-import { buildForm } from './forms3d.js';
+import { buildForm, FORM_AREAS } from './forms3d.js';
 
 // ---------- 층과 방 (rooms.js) + 그 방 직원이 하는 일 (마우스를 올리면 보여요) ----------
 const JOBS = {
@@ -1916,7 +1916,13 @@ function buildOutside() {
   const rooms = FLOORS.flatMap((f) => f.rooms).filter((k) => !ROOMS[k].store);
   const named = new Set(slots.map((s) => s.key).filter(Boolean));
   const free = slots.filter((s) => !s.key);
-  const take = (k) => slots.find((s) => s.key === k) || (named.has(k) ? null : free.shift());
+  // 같은 층 방은 같은 구역(area)의 빈자리부터
+  const take = (k) => {
+    if (named.has(k)) return slots.find((s) => s.key === k);
+    const fl = FLOORS.find((f) => f.rooms.includes(k))?.floor;
+    const i = Math.max(0, free.findIndex((s) => s.area === fl));
+    return free.splice(i, 1)[0];
+  };
   for (const k of rooms) {
     const s = take(k);
     if (!s) continue;
@@ -2453,6 +2459,8 @@ export function setState(s) {
   rebuild();
   renderTheme();
 }
+// 건물 시안 8~12번이면 그 모양의 층 이름 [한 글자, 이름] (예: 리조트 2F → ['동', '동쪽 방갈로']), 아니면 null
+export function areaOf(floor) { return FORM_AREAS[theme().form]?.[floor] || null; }
 // 첫 화면(home) ↔ 층 화면 위쪽 띠(band)
 export function setMode(m) {
   if (mode === m) return;

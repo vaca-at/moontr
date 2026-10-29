@@ -390,20 +390,22 @@ addEventListener('keydown', (e) => {
   const r = sideRoom(k, e.key === 'ArrowRight' ? 1 : -1);
   if (r) { e.preventDefault(); location.hash = r; }
 });
+// 층 표시: 건물 시안 8~12번(도서관 · 리조트 …)이면 그 모양의 구역 이름 (예: 2F → '동' 동쪽 방갈로)
+const flr = (x) => { const a = B3?.areaOf?.(x.floor); return a ? { code: a[0], name: a[1] } : { code: x.floor, name: x.name }; };
 function floorView(k) {
   const f = floorOf(k);
   const floorAlert = (x) => x.rooms.some((r) => roomBadge(r).hot);
   return `<div class="mB">
     <nav class="ev" aria-label="엘리베이터">
       <a class="ev-home" href="#">← 건물 전체</a>
-      <div class="ev-disp">${esc(f.floor)}<small>${esc(f.name)}</small></div>
-      <div class="ev-btns">${FLOORS.map((x) => `<a class="ev-btn ${x === f ? 'on' : ''}" href="#${x.rooms[0]}"><b>${esc(x.floor)}${floorAlert(x) ? '<i></i>' : ''}</b><span>${esc(x.name)}</span></a>`).join('')}</div>
+      <div class="ev-disp">${esc(flr(f).code)}<small>${esc(flr(f).name)}</small></div>
+      <div class="ev-btns">${FLOORS.map((x) => `<a class="ev-btn ${x === f ? 'on' : ''}" href="#${x.rooms[0]}"><b>${esc(flr(x).code)}${floorAlert(x) ? '<i></i>' : ''}</b><span>${esc(flr(x).name)}</span></a>`).join('')}</div>
       ${(() => { const n = roomBadge('lobby').n; return `<a class="ev-lobby ${k === 'lobby' ? 'on' : ''}" href="#lobby" aria-label="접수처로 가기${n ? ` · 할 일 ${n}` : ''}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h4l1.5 3h5L16 13h4"/><path d="M5.5 6.5 4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5l-1.5-6.5A2 2 0 0 0 16.6 5H7.4a2 2 0 0 0-1.9 1.5Z"/></svg>
         <span>접수처<small>${n ? `할 일 ${n}` : '자료 넣기'}</small></span>${n ? `<em>${n}</em>` : ''}</a>`; })()}
     </nav>
     <section class="flr">
-      <div class="flr-h"><h2>${esc(f.name)}</h2>${B3 && k !== 'boss' ? `<button type="button" class="staff-btn" data-act="staffpick" aria-label="${esc(roomName(k))} 직원 고르기" title="${esc(roomName(k))} 직원 고르기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.5 5 2.8 5 5.8"/></svg></button>` : ''}</div>
+      <div class="flr-h"><h2>${esc(flr(f).name)}</h2>${B3 && k !== 'boss' ? `<button type="button" class="staff-btn" data-act="staffpick" aria-label="${esc(roomName(k))} 직원 고르기" title="${esc(roomName(k))} 직원 고르기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.5 5 2.8 5 5.8"/></svg></button>` : ''}</div>
       ${B3 !== false ? `<div class="lift ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div>${sideDoor(f, k, -1)}${sideDoor(f, k, 1)}</div>` : ''}
       <div class="doors" role="tablist">${f.rooms.map((r) => {
         const b = roomBadge(r);

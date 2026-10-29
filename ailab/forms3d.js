@@ -6,8 +6,18 @@
 //   g     : 모형을 넣을 그룹 (building3d 가 크기를 키워요)
 //   mat   : 색 → 재질 (building3d 와 같은 재질을 나눠 써요)
 //   glass : 창문 재질 (밤에 불이 켜지게 building3d 가 모아 둬요)
-//   slots : [{ key, box: [x, y, z, w, h, d] }] — key 가 있으면 그 방 자리(사장실 · 접수처 · 보관실 · 보안실), 없으면 아무 방이나
+//   slots : [{ key, area, box: [x, y, z, w, h, d] }] — key 가 있으면 그 방 자리(사장실 · 접수처 · 보관실 · 보안실),
+//           없으면 area 층(rooms.js 의 2F · 1F)의 방이 먼저 들어가요. 그래서 같은 층 방은 겉모양에서도 한 구역에 모여요
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+// 모양마다 층 이름: [엘리베이터 단추에 쓰는 한 글자, 이름] (rooms.js 의 PH · 2F · 1F · B1 자리)
+export const FORM_AREAS = {
+  library: { PH: ['탑', '등탑'], '2F': ['동', '동쪽 날개'], '1F': ['서', '서쪽 날개 · 둥근 홀'], B1: ['지', '지하 서고 · 문지기'] },
+  manor: { PH: ['다', '다락방'], '2F': ['2', '본채 2층 · 별채'], '1F': ['1', '본채 1층 · 정원'], B1: ['창', '정원 창고 · 대문'] },
+  resort: { PH: ['라', '라운지'], '2F': ['동', '동쪽 방갈로'], '1F': ['서', '서쪽 방갈로 · 선착장'], B1: ['등', '섬 창고 · 등대'] },
+  village: { PH: ['탑', '시계탑'], '2F': ['윗', '윗마을'], '1F': ['아', '아랫마을'], B1: ['창', '창고 · 망루'] },
+  tree: { PH: ['꼭', '꼭대기 오두막'], '2F': ['윗', '윗가지'], '1F': ['아', '아랫가지'], B1: ['뿌', '뿌리 · 망루'] },
+};
 
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
 const geoCache = new Map();
@@ -15,7 +25,7 @@ const geo = (k, make) => { if (!geoCache.has(k)) geoCache.set(k, make()); return
 
 export function buildForm(kind, g, { mat, glass }) {
   const slots = [];
-  const slot = (key, x, y, z, w, h, d) => slots.push({ key, box: [x, y, z, w, h, d] });
+  const slot = (key, x, y, z, w, h, d, area = '') => slots.push({ key, area, box: [x, y, z, w, h, d] });
   const put = (m, x, y, z) => { m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
   const box = (w, h, d, c, x, y, z, ry = 0) => { const m = put(new THREE.Mesh(UNIT, mat(c)), x, y, z); m.scale.set(w, h, d); m.rotation.y = ry; return m; };
   const cyl = (rt, rb, h, c, x, y, z, seg = 24) => put(new THREE.Mesh(geo(`c${rt}|${rb}|${h}|${seg}`, () => new THREE.CylinderGeometry(rt, rb, h, seg)), mat(c)), x, y, z);
@@ -66,13 +76,13 @@ const FORMS = {
       add(gable(2.6, 3.6, 1.2, '#b6573f', 0, 2.6, 5.1));
       for (const s of [-1, 1]) for (let k = 0; k < 2; k++) add(win(.06, .9, s * 1.32, 1.4, 4.4 + k * 1.3));
       add(win(1.1, 1.4, 0, 1.25, 6.93));
-      slot(null, Math.sin(ry) * 5.1, 1.9, Math.cos(ry) * 5.1, 3.2, 3.8, 3.2);
+      slot(null, Math.sin(ry) * 5.1, 1.9, Math.cos(ry) * 5.1, 3.2, 3.8, 3.2, Math.sin(ry) > 0 ? '2F' : '1F'); // 오른쪽(동쪽) 날개 = 2층 방들
     }
     // 앞뜰 정자 2개
     for (const s of [-1, 1]) {
       cyl(1, 1, 1.6, '#f4ece0', s * 7.4, .8, 6.8, 8); cone(1.5, 1.1, '#3f6e8c', s * 7.4, 1.6, 6.8, 8);
       win(.8, .8, s * 7.4, .9, 7.78, 0, '#ffe39a');
-      slot(null, s * 7.4, 1.35, 6.8, 2.4, 2.7, 2.4);
+      slot(null, s * 7.4, 1.35, 6.8, 2.4, 2.7, 2.4, s > 0 ? '2F' : '1F');
     }
     // 문지기 초소 = 보안실, 뒤뜰 지하 서고 입구 = 보관실
     box(1, 1.4, 1, '#e9eff2', 3.2, .7, 8.4); pyramid(1.4, .6, '#e0693f', 3.2, 1.4, 8.4); win(.5, .4, 3.2, .9, 8.91);
@@ -92,22 +102,22 @@ const FORMS = {
     box(1.6, 2.2, .3, '#5a3b2a', 0, 1.1, 2.6); box(2.6, .2, 1.5, '#7c4f3a', 0, 2.5, 3.1);
     for (const s of [-1, 1]) box(.15, 2.4, .15, '#ffffff', s * 1.2, 1.2, 3.75);
     slot('lobby', 0, 1.2, 3.1, 2.6, 2.4, 1.6);
-    for (const s of [-1, 1]) for (const y of [1.15, 3.45]) slot(null, s * 2.9, y, 0, 3.2, 2.3, 5);
-    // 양옆 별채
+    for (const s of [-1, 1]) for (const y of [1.15, 3.45]) slot(null, s * 2.9, y, 0, 3.2, 2.3, 5, y > 2 ? '2F' : '1F');
+    // 양옆 별채 (2층 방들)
     for (const s of [-1, 1]) {
       box(4, 3, 4, '#e8dcc8', s * 6.6, 1.5, .4); gable(4, 4, 1.6, '#93624a', s * 6.6, 3, .4, Math.PI / 2);
       win(1.6, 1, s * 6.6, 1.6, 2.43);
-      slot(null, s * 6.6, 1.9, .4, 4.2, 3.8, 4.2);
+      slot(null, s * 6.6, 1.9, .4, 4.2, 3.8, 4.2, '2F');
     }
     cyl(.5, .5, 2, '#d0c4b0', 3.2, 6, -1, 10);
     // 온실 · 연못 정자
     box(2.8, 1.8, 2.2, '#bfe3f2', 7, .9, 6.6).material = glass('#cfeef0');
     gable(2.8, 2.2, .7, '#e8f6f7', 7, 1.8, 6.6, Math.PI / 2);
-    slot(null, 7, 1.2, 6.6, 3, 2.6, 2.4);
+    slot(null, 7, 1.2, 6.6, 3, 2.6, 2.4, '1F');
     box(5, .1, 2.6, '#7fc4e2', -4, .06, 6.6); box(5.4, .2, .3, '#d8d0c2', -4, .1, 5.15);
     for (const [x, z] of [[-9.6, 2.8], [-8, 2.8], [-9.6, 4.4], [-8, 4.4]]) box(.15, 1.4, .15, '#ffffff', x, .7, z);
     pyramid(2.4, .9, '#3f6e8c', -8.8, 1.4, 3.6);
-    slot(null, -8.8, 1.1, 3.6, 2.2, 2.3, 2.2);
+    slot(null, -8.8, 1.1, 3.6, 2.2, 2.3, 2.2, '1F');
     // 정원 창고 = 보관실, 대문 옆 초소 = 보안실
     box(2, 1.6, 2, '#c9a77c', -10, .8, -5); gable(2, 2, .8, '#7c4f3a', -10, 1.6, -5, Math.PI / 2); box(.7, 1.1, .06, '#5a3b2a', -10, .55, -3.98);
     slot('archive', -10, 1.2, -5, 2.2, 2.6, 2.2);
@@ -141,7 +151,7 @@ const FORMS = {
       win(.7, .5, x + Math.cos(a) * .96, 2, z + Math.sin(a) * .96, Math.PI / 2 - a, '#ffe39a');
       pyramid(2.9, 1.5, '#c9a35a', x, 2.55, z);
       for (let s = 5.4; s < r - 1.2; s += .45) box(.9, .08, .3, '#c49a66', Math.cos(a) * s, .45, Math.sin(a) * s, Math.PI / 2 - a);
-      slot(null, x, 2.1, z, 2.8, 4.2, 2.8);
+      slot(null, x, 2.1, z, 2.8, 4.2, 2.8, x > 0 ? '2F' : '1F'); // 오른쪽(동쪽) 방갈로 = 2층 방들
     }
     // 선착장 = 접수처
     box(1.4, .15, 5, '#c49a66', 0, .4, 7.9); box(2.8, .6, 1.6, '#ffffff', 1.8, .4, 10); box(1.4, .5, .9, '#e0693f', 1.8, .95, 10);
@@ -172,7 +182,7 @@ const FORMS = {
       box(w, h, 2.4, walls[i % 4], x, h / 2, z);
       gable(w, 2.4, 1.2, roofs[i], x, h, z);
       win(.6, .6, x - .5, h * .6, z + f * 1.23, 0, '#ffe39a'); box(.55, 1, .06, '#7a5a3c', x + .55, .5, z + f * 1.23);
-      slot(null, x, (h + 1.2) / 2, z, w + .4, h + 1.2, 2.8);
+      slot(null, x, (h + 1.2) / 2, z, w + .4, h + 1.2, 2.8, z < 0 ? '2F' : '1F'); // 뒷줄 = 윗마을(2층), 앞줄 = 아랫마을(1층)
     });
     // 우체국 = 접수처, 곡식 창고 = 보관실, 망루 = 보안실
     box(3, 2.2, 2.2, '#e9eff2', -10.4, 1.1, 0); gable(3, 2.2, 1, '#e0693f', -10.4, 2.2, 0); box(.5, .7, .4, '#e0693f', -8.6, .35, .9); win(.8, .6, -10.4, 1.3, 1.13);
@@ -199,7 +209,7 @@ const FORMS = {
       gable(1.6, 1.6, .8, roofs[i], x, y + 1.37, z, -a + Math.PI / 2);
       box(r - 1.2, .25, .25, '#7a4e2e', Math.cos(a) * (r / 2 + .5), y - .1, Math.sin(a) * (r / 2 + .5), -a);
       win(.5, .45, x + Math.cos(a) * .82, y + .8, z + Math.sin(a) * .82, -a + Math.PI / 2, '#ffe39a');
-      slot(i === 8 ? 'security' : null, x, y + .9, z, 2, 2, 2);
+      slot(i === 8 ? 'security' : null, x, y + .9, z, 2, 2, 2, i >= 4 ? '2F' : '1F'); // 위쪽 가지 = 2층 방들
     }
     // 꼭대기 = 사장실
     box(2.6, .2, 2.6, '#b88a5a', 0, 15.4, 0); box(1.9, 1.5, 1.9, '#fff6e6', 0, 16.2, 0); pyramid(2.6, 1.2, '#e0693f', 0, 16.95, 0);
