@@ -1638,7 +1638,19 @@ function markSigns() {
   const on = (k) => target && (target.kind === 'room' ? target.key === k : FLOORS.find((f) => f.floor === target.key)?.rooms.includes(k));
   labelsEl.querySelectorAll('.sign').forEach((s) => s.classList.toggle('on', s.dataset.room === selected || !!on(s.dataset.room)));
 }
+// 층 화면에서는 고른 방 한 칸만 잘라 보여요 (방 양옆을 칼로 자르듯). 옆방으로 가면 자르는 자리도 같이 미끄러져요
+const clipL = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0), clipR = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
+const clip = { a: 0, b: 0 }, clipGoal = { a: 0, b: 0 };
+function placeClip() {
+  if (mode !== 'band') { renderer.clippingPlanes = []; return; }
+  clip.a += (clipGoal.a - clip.a) * .09;
+  clip.b += (clipGoal.b - clip.b) * .09;
+  clipL.constant = -clip.a;
+  clipR.constant = clip.b;
+  renderer.clippingPlanes = [clipL, clipR];
+}
 function placeCamera() {
+  placeClip();
   const k = .09;
   view.target.lerp(goal.target, k);
   view.dist += (goal.dist - view.dist) * k;
@@ -1813,6 +1825,7 @@ const STAFF_FLOORS = FLOORS.map((f) => ({ ...f, rooms: f.rooms.filter(staffable)
 
 // 서랍이 닫혀 있으면 그 방 화면으로 들어가고, 서랍(배치판)이 열려 있으면 배치할 방으로 골라요
 function chooseRoom(k) {
+  if (mode === 'band' && !bandRooms.includes(k)) return; // 잘려 안 보이는 옆방은 누르지 않아요
   if (!drawer.classList.contains('open') && hooks.onRoom) { hideTip(); hooks.onRoom(k); return; }
   if (k === 'boss') { target = null; enter('boss'); renderBoard(); return; }
   target = { kind: 'room', key: k };
@@ -2046,26 +2059,49 @@ export function setMode(m) {
   if (m === 'home') { target = null; overview(); renderBoard(); } else { hideTip(); setDrawer(false); }
   resize();
 }
-// 층 화면: 그 방이 있는 층으로 카메라가 가고, 그 방 이름표에 불이 들어와요
-// instant = 엘리베이터 문이 닫혀 있는 동안 도착해 있도록 바로 옮기기
+// 층 화면: 그 방이 있는 층으로 카메라가 가서 그 방 한 칸만 보여요
+// instant = 엘리베이터 문이 닫혀 있는 동안 도착해 있도록 바로 옮기기 (같은 층 옆방이면 옆으로 미끄러져요)
 export function focusRoom(k, instant = false) {
   const f = FLOORS.find((x) => x.rooms.includes(k));
   if (!f) return;
   target = null;
   enterFloor(f.floor);
   selected = k;
-  bandRooms = f.rooms;
+  bandRooms = [k];
   bandFloor = f.floor;
   applyBandVis();
+  const b = ROOMS[k].box;
   goal.yaw = -.12;
-  // 층 화면 창이 좁으면(휴대폰 등) 방 4개가 너무 작아지니, 고른 방을 가운데 두고 가까이 봐요
-  if (camera.aspect < 2.4) {
-    const b = ROOMS[k].box;
-    goal.target.x = b.cx;
-    goal.dist = fitDist(b.w * 1.5, FH + 1) + D / 2;
-  }
+  goal.target.x = b.cx;
+  goal.dist = fitDist(b.w + 1, FH + .8) + D / 2;
+  clipGoal.a = b.cx - b.w / 2 - .3;
+  clipGoal.b = b.cx + b.w / 2 + .3;
   markSigns();
-  if (instant) { view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch; }
+  if (instant) { view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch; Object.assign(clip, clipGoal); }
+}
+// 층 화면 아래: 그 방에서 일할 직원 고르기 (앱이 자리를 만들어 주면 채워요)
+export function staffPicker(el, k) {
+  if (!el) return;
+  el.hidden = !staffable(k);
+  if (el.hidden) return;
+  const now = STATE.assign[k];
+  const empty = ROOMS[k].store ? `<button type="button" class="pc none ${now ? '' : 'on'}" data-id="0" aria-pressed="${!now}"><span>비우기</span></button>` : '';
+  el.innerHTML = `<h3>${ROOMS[k].name}에서 일할 직원</h3>
+    <div class="sp-row">${empty}${STAFF.map((s) => `<button type="button" class="pc ${now === s.id ? 'on' : ''}" data-id="${s.id}" aria-pressed="${now === s.id}"><canvas aria-hidden="true"></canvas><small>${s.name}</small></button>`).join('')}</div>`;
+  // 서랍의 직원 그림을 그대로 옮겨 그려요 (새로 찍지 않아서 빨라요)
+  const src = staffEl.querySelectorAll('canvas');
+  el.querySelectorAll('canvas').forEach((c, i) => { c.width = src[i].width; c.height = src[i].height; c.getContext('2d').drawImage(src[i], 0, 0); });
+  el.onclick = (e) => {
+    const b = e.target.closest('.pc');
+    if (!b) return;
+    const id = Number(b.dataset.id);
+    if (id) STATE.assign[k] = id; else delete STATE.assign[k];
+    save();
+    rebuild();
+    staffPicker(el, k);
+  };
+  el.onpointermove = (e) => { const c = e.target.closest('.pc'); if (c && Number(c.dataset.id)) showTip(staffInfo(Number(c.dataset.id)), e.clientX, e.clientY); else hideTip(); };
+  el.onpointerleave = hideTip;
 }
 // 서랍 맨 위에 앱이 넣는 내용 (로그인 안내 · 다가오는 일정 등)
 export function setTop(html) { document.getElementById('b3dTop').innerHTML = html; }

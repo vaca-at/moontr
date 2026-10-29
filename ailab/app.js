@@ -196,6 +196,7 @@ function render() {
     B3.setVisible(home3d || band);
     if (home3d) { B3.setTop(isGuest() ? guestSide() : homeSide()); S.focused = ''; }
     if (band && S.focused !== r) { B3.focusRoom(r, S.doorsShut || !S.focused); S.focused = r; }
+    if (band) B3.staffPicker($('.staff-pick'), r);
   }
   if (S.doorsShut) {
     S.doorsShut = false;
@@ -366,6 +367,21 @@ function adminView() {
 }
 
 // --- B. 엘리베이터 층 화면 ---
+// 3D 창 양옆 화살표: 같은 층 옆방으로 (끝 방이면 그쪽 화살표는 없어요)
+const sideRoom = (k, step) => { const rooms = floorOf(k).rooms; return rooms[rooms.indexOf(k) + step]; };
+function sideDoor(f, k, step) {
+  const r = sideRoom(k, step);
+  if (!r) return '';
+  const label = `${step < 0 ? '왼쪽' : '오른쪽'} 방: ${roomName(r)}`;
+  return `<a class="lift-nav ${step < 0 ? 'prev' : 'next'}" href="#${r}" aria-label="${esc(label)}" title="${esc(label)}">${step < 0 ? '‹' : '›'}</a>`;
+}
+addEventListener('keydown', (e) => {
+  const k = route();
+  if (!ROOMS[k] || S.q || S.riding || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable]') || $('#dlg')?.open) return;
+  const r = sideRoom(k, e.key === 'ArrowRight' ? 1 : -1);
+  if (r) { e.preventDefault(); location.hash = r; }
+});
 function floorView(k) {
   const f = floorOf(k);
   const floorAlert = (x) => x.rooms.some((r) => roomBadge(r).hot);
@@ -377,12 +393,13 @@ function floorView(k) {
     </nav>
     <section class="flr">
       <div class="flr-h"><h2>${esc(f.name)}</h2></div>
-      ${B3 !== false ? `<div class="lift ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div></div>` : ''}
+      ${B3 !== false ? `<div class="lift ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div>${sideDoor(f, k, -1)}${sideDoor(f, k, 1)}</div>` : ''}
       <div class="doors" role="tablist">${f.rooms.map((r) => {
         const b = roomBadge(r);
         return `<a class="door ${r === k ? 'on' : ''}" role="tab" aria-selected="${r === k}" href="#${r}">${esc(roomName(r))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</a>`;
       }).join('')}</div>
       <div class="room-body">${roomContent(k)}</div>
+      ${B3 !== false ? '<section class="staff-pick" hidden></section>' : ''}
       <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
     </section>
   </div>`;
