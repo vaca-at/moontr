@@ -166,6 +166,9 @@ function subscribe() {
   }, denied));
   // 명단에서 찾을 내 이름 (공개되는 코드에 넣지 않고 선생님 계정에만 저장)
   unsubs.push(onSnapshot(doc(db, dbPath('meta/me')), (s) => { S.myName = s.exists() ? s.data().name || '' : ''; }, denied));
+  // 사장님 계기판: AI 가 쓴 값(서버가 부를 때마다 쌓아요) · 크레딧 · 할 일 · 메모
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/usage')), (s) => { S.usage = s.exists() ? s.data() : null; render(); }, denied));
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/desk')), (s) => { S.desk = s.exists() ? s.data() : {}; render(); }, denied));
   // 점검원 아침 브리핑 (서버 morningBrief · briefNow 가 써요)
   unsubs.push(onSnapshot(doc(db, dbPath('meta/briefing')), (s) => { S.brief = s.exists() ? s.data() : null; render(); }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/building')), (s) => {
@@ -863,6 +866,43 @@ function ledgerView() {
     </tbody></table></div>`;
 }
 
+// --- 사장님 계기판: 콘솔 크레딧 · 연구소 AI 가 쓴 값 · 급한 일 · 할 일 · 메모 (ailab_meta/desk, usage) ---
+// 남은 크레딧은 Anthropic 이 API 로 알려 주지 않아요 → 콘솔에서 본 남은 값과 날짜를 적어 두면, 그 뒤에 연구소가 쓴 값을 빼서 보여 줘요
+const usd = (n) => `$${(n || 0).toFixed(n >= 10 ? 1 : 2)}`;
+const saveDesk = (patch) => setDoc(doc(db, dbPath('meta/desk')), { ...patch, updatedAt: serverTimestamp() }, { merge: true }).catch((e) => toast(`저장하지 못했어요 (${e.code})`));
+function deskCard() {
+  const d = S.desk || {}, u = S.usage || {}, days = u.days || {}, today = todayStr();
+  const since = (from) => Object.entries(days).filter(([k]) => k >= from).reduce((n, [, v]) => n + v, 0);
+  const month = since(today.slice(0, 8) + '01'), week = since(dayAdd(today, -6));
+  const left = d.creditLeft != null && d.creditAsOf ? d.creditLeft - since(d.creditAsOf) : null;
+  const dExp = isDate(d.creditExpires) ? Math.round((new Date(`${d.creditExpires}T00:00:00`) - new Date(`${today}T00:00:00`)) / 864e5) : null;
+  const urgent = [
+    ...upcoming().filter((c) => c.date && c.date >= today && c.date <= dayAdd(today, 3)).map((c) => `${ddChip(c.date, c.end_date)} ${esc(c.title)}`),
+    ...(S.cards.some((c) => c.status === 'review') ? [`확인 기다리는 카드 ${S.cards.filter((c) => c.status === 'review').length}장 <a href="#lobby">접수처로</a>`] : []),
+    ...(S.captures.some((c) => c.status === 'error') ? [`읽지 못한 자료 ${S.captures.filter((c) => c.status === 'error').length}개 <a href="#lobby">다시 읽기</a>`] : []),
+    ...(dExp != null && dExp >= 0 && dExp <= 7 ? [`콘솔 크레딧이 ${dExp ? `${dExp}일 뒤` : '오늘'} 끝나요`] : []),
+  ];
+  const todos = d.todos || [];
+  return `<section class="desk">
+    <div class="desk-h"><h3>사장님 계기판</h3><small>사장님 = 개발자 · 한눈에</small></div>
+    <div class="desk-grid">
+      <div class="dk money"><h4>콘솔 · AI 비용</h4>
+        <p class="big">${left != null ? `약 <b>${usd(left)}</b> 남음` : '<b>남은 값</b>을 적어 주세요'}${dExp != null ? ` <span class="${dExp <= 7 ? 'warn' : ''}">· 만료 D-${Math.max(0, dExp)}</span>` : ''}</p>
+        <p>연구소 AI가 쓴 값 · 오늘 ${usd(days[today])} · 7일 ${usd(week)} · 이번 달 ${usd(month)} · 전체 ${usd(u.total)} <small>(${u.calls || 0}번 불렀어요 · 토큰으로 어림)</small></p>
+        <details><summary>콘솔에서 본 값 적기</summary>
+          <div class="dk-form"><label>남은 크레딧 ($)<input id="deskLeft" type="number" step="0.01" inputmode="decimal" value="${d.creditLeft ?? ''}"></label>
+          <label>본 날짜<input id="deskAsOf" type="date" value="${esc(d.creditAsOf || today)}"></label>
+          <label>만료일<input id="deskExp" type="date" value="${esc(d.creditExpires || '')}"></label></div>
+          <small>콘솔 Billing 화면의 남은 금액을 적어요. 교무실 타이쿤 · 아이아이노트도 같은 키를 쓰면 그쪽 사용은 여기 안 잡혀서, 가끔 콘솔 값으로 다시 맞춰 주세요. <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">콘솔 열기</a></small>
+        </details>
+      </div>
+      <div class="dk"><h4>급하게 할 일 <small>3일 안</small></h4>${urgent.length ? `<ul>${urgent.map((x) => `<li>${x}</li>`).join('')}</ul>` : '<p class="note">급한 일이 없어요.</p>'}</div>
+      <div class="dk"><h4>아직 안 한 일 <small>${todos.filter((t) => !t.done).length}개</small></h4>
+        <ul class="todo">${todos.map((t, i) => `<li class="${t.done ? 'done' : ''}"><label><input type="checkbox" data-act="todo" data-i="${i}" ${t.done ? 'checked' : ''}> ${esc(t.t)}</label><button class="x" data-act="todoDel" data-i="${i}" aria-label="지우기">✕</button></li>`).join('')}</ul>
+        <input id="todoNew" placeholder="할 일 적고 Enter" autocomplete="off"></div>
+      <div class="dk"><h4>메모</h4><textarea id="deskMemo" rows="5" placeholder="아이디어 · 다음에 고칠 것 · 기억할 것">${esc(d.memo || '')}</textarea></div>
+    </div></section>`;
+}
 // 점검원 브리핑 (AI · 매일 아침 6:30, [지금 브리핑 받기]로 바로)
 function briefCard() {
   const b = S.brief, busy = S.briefing;
@@ -885,7 +925,7 @@ function bossView(compact) {
   const lessons = S.cards.filter((c) => (c.room === 'moral' || c.room === 'others') && (c.date || '').startsWith(month)).length;
   const review = S.cards.filter((c) => c.status === 'review').length;
   const recent = S.cards.filter((c) => !isUnsorted(c)).slice(0, 6);
-  return `${compact ? '' : briefCard()}<div class="stats">
+  return `${compact ? '' : deskCard() + briefCard()}<div class="stats">
       <a href="#lobby"><b>${review}</b><small>확인 대기</small></a>
       <a href="#moral"><b>${lessons}</b><small>이번 달 수업 공개</small></a>
       <a href="#archive"><b>${S.cards.length}</b><small>정리된 카드</small></a>
@@ -1889,6 +1929,7 @@ document.addEventListener('click', async (e) => {
       case 'subj': S.subj = b.dataset.v; render(); break;
       case 'stats': S.stats = null; render(); break;
       case 'bosstab': S.bossTab = b.dataset.v; render(); break;
+      case 'todoDel': saveDesk({ todos: (S.desk?.todos || []).filter((_, i) => i !== Number(b.dataset.i)) }); break;
       case 'briefnow':
         S.briefing = true; render();
         try { await httpsCallable(fns, 'briefNow', { timeout: 300000 })(); toast('브리핑을 새로 받았어요'); } catch (err) { toast(err.message || '브리핑을 받지 못했어요'); }
@@ -1928,7 +1969,13 @@ document.addEventListener('change', (e) => {
   } else if (t.matches('input[data-act=step]')) {
     const steps = taskSteps().map((s, i) => (i === Number(t.dataset.i) ? { ...s, done: t.checked } : s));
     saveTask({ steps });
-  } else if (t.id === 'taskTitle') saveTask({ title: t.value.trim() });
+  } else if (t.matches('input[data-act=todo]')) {
+    saveDesk({ todos: (S.desk?.todos || []).map((x, i) => (i === Number(t.dataset.i) ? { ...x, done: t.checked } : x)) });
+  } else if (t.id === 'deskLeft') saveDesk({ creditLeft: t.value === '' ? null : Number(t.value), creditAsOf: $('#deskAsOf')?.value || todayStr() });
+  else if (t.id === 'deskAsOf') saveDesk({ creditAsOf: t.value });
+  else if (t.id === 'deskExp') saveDesk({ creditExpires: t.value });
+  else if (t.id === 'deskMemo') saveDesk({ memo: t.value });
+  else if (t.id === 'taskTitle') saveTask({ title: t.value.trim() });
   else if (t.id === 'taskDue') saveTask({ due: t.value });
   else if (t.id === 'taskNotes') saveTask({ notes: t.value });
   else if (t.id === 'fileInput') { upload(t.files); t.value = ''; }
@@ -1985,6 +2032,14 @@ window.addEventListener('drop', (e) => {
   dragDepth = 0;
   $('#dropOverlay').hidden = true;
   if (S.teacher) dropFiles(e.dataTransfer).then((files) => (files.length ? upload(files) : toast('폴더 안에 넣을 파일이 없어요'))).catch((err) => toast(`폴더를 열지 못했어요 (${err.message || err})`));
+});
+// 계기판 할 일: 적고 Enter
+document.addEventListener('keydown', (e) => {
+  if (e.target.id !== 'todoNew' || e.key !== 'Enter' || e.isComposing) return;
+  const t = e.target.value.trim();
+  if (!t) return;
+  e.target.value = '';
+  saveDesk({ todos: [...(S.desk?.todos || []), { t, done: false }] });
 });
 document.addEventListener('paste', (e) => {
   const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f) || isSheet(f) || isDoc(f));

@@ -114,6 +114,16 @@ const SCHEMA = {
   },
 };
 
+// AI 를 부를 때마다 쓴 값을 어림해서 ailab_meta/usage 에 날짜별로 쌓아요 (사장실 계기판). Opus 5.5 값: 입력 $4 · 출력 $20 · 캐시 읽기 $0.2 · 캐시 쓰기 $5 (100만 토큰마다)
+async function logUsage(kind, u) {
+  if (!u) return;
+  const usd = ((u.input_tokens || 0) * 4 + (u.output_tokens || 0) * 20 + (u.cache_read_input_tokens || 0) * 0.2 + (u.cache_creation_input_tokens || 0) * 5) / 1e6;
+  await db.doc('ailab_meta/usage').set({
+    total: FieldValue.increment(usd), calls: FieldValue.increment(1),
+    days: { [seoulToday()]: FieldValue.increment(usd) }, kinds: { [kind]: FieldValue.increment(usd) }, updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true }).catch((e) => logger.warn('사용량 기록 실패', e));
+}
+
 // blocks: Claude 에게 보낼 자료 (PDF 는 document, 사진 조각은 image), about: 자료가 어떤 모양인지 한 줄
 async function readWithClaude(blocks, cap, about) {
   const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
@@ -139,6 +149,7 @@ async function readWithClaude(blocks, cap, about) {
       content: [...blocks, { type: 'text', text: note }],
     }],
   });
+  await logUsage('read', response.usage);
   if (response.stop_reason === 'refusal') throw new Error('AI가 이 자료를 읽지 않겠다고 했어요');
   if (response.stop_reason === 'max_tokens') throw new Error('내용이 너무 길어서 끝까지 읽지 못했어요');
   const text = response.content.find((b) => b.type === 'text')?.text;
@@ -326,6 +337,7 @@ async function writeBriefing(by) {
     system: BRIEF_SYSTEM,
     messages: [{ role: 'user', content: `오늘 날짜: ${today}\n방 이름: ${JSON.stringify(Object.fromEntries(Object.entries(ROOMS).map(([k, r]) => [k, r.name])))}\n읽지 못한 자료: ${caps.size}개\n\n카드 ${cardList.length}장:\n${JSON.stringify(cardList)}\n\n웹앱 최근 14일 방문 (${days[0]} ~ ${today}, 마지막 칸이 오늘):\n${JSON.stringify(web)}` }],
   });
+  await logUsage('brief', response.usage);
   const text = response.content.find((b) => b.type === 'text')?.text;
   if (!text) throw new Error('AI 답이 비어 있어요');
   const brief = JSON.parse(text);
