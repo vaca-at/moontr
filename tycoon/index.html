@@ -4612,7 +4612,7 @@ const pxOffice = port => (() => {
     spot:{ printer:{ x:206, y:394 }, coffee:{ x:206, y:458 }, door:{ x:206, y:H + 20 } },
   } : {
     cols:4, rows:2, x0:c => 16 + c*118, sy:r => r ? 152 : 84, gap:c => 16 + c*118 + 96, walkY:197, low:200,
-    board:[30, 8, 98], sign:[178, 10, 124, 22], clock:[240, 42], cork:[446, 8], cooler:[6, 2], plants:[150, 330],
+    board:[30, 8, 98], sign:[178, 10, 124, 22], clock:[218, 42], cork:[446, 8],   /* 시계는 '이쌤' · '최부장' 이름표 사이 빈 벽에 */ cooler:[6, 2], plants:[150, 330],
     printer:[346, 214], vend:[418, 200], coffee:[270, 232], trash:[228, 254],
     spot:{ printer:{ x:407, y:264 }, coffee:{ x:334, y:250 }, door:{ x:258, y:H + 20 } },
   };
@@ -4718,7 +4718,10 @@ const pxOffice = port => (() => {
     rb(sx, sy, sw, sh, "#0D1611"); P(sx + 2, sy + 2, sw - 4, sh - 4, "#101C15"); P(sx + 2, sy + 2, sw - 4, 1, "#1D3324");
     for (let x = sx + 3; x < sx + sw - 2; x += 2) for (let y = sy + 3; y < sy + sh - 2; y += 2) P(x, y, 1, 1, "#13231A");
     txt("교무실", sx + sw/2, sy + 6, "#2E7A42", "center", 12, "Galmuri11"); txt("교무실", sx + sw/2, sy + 5, "#8CFF9A", "center", 12, "Galmuri11");
-    const [ckx, cky] = LY.clock; blob(ckx, cky, 6, OL); blob(ckx, cky, 5, "#FFFFFF"); P(ckx - 4, cky, 1, 1, "#C4CAD3"); P(ckx + 4, cky, 1, 1, "#C4CAD3"); P(ckx, cky - 4, 1, 1, "#C4CAD3");
+    // 디지털 벽시계 판 (간판과 같은 초록 전광판, 숫자는 아래 움직이는 그림에서) — 2026-10-29: 작은 바늘 시계가 잘 안 보여서
+    { const [ckx, cky] = LY.clock; P(ckx - 1, cky - 10, 2, 3, "#5A6070");
+      rb(ckx - 25, cky - 7, 50, 17, "#0D1611"); P(ckx - 23, cky - 5, 46, 13, "#101C15"); P(ckx - 23, cky - 5, 46, 1, "#1D3324");
+      for (let x = ckx - 22; x < ckx + 23; x += 2) for (let y = cky - 4; y < cky + 8; y += 2) P(x, y, 1, 1, "#13231A"); }
     const [kx, ky] = LY.cork;
     rb(kx, ky, 28, 36, "#C68D58"); for (let q = 0; q < 14; q++) P(kx + 2 + (q*7) % 24, ky + 2 + (q*11) % 32, 1, 1, "#B07A48");
     rb(kx + 3, ky + 3, 10, 12, "#FFFFFF"); P(kx + 5, ky + 6, 6, 1, "#B8C0CC"); P(kx + 5, ky + 9, 5, 1, "#B8C0CC"); P(kx + 7, ky + 3, 2, 2, "#E5484D");
@@ -4844,10 +4847,8 @@ const pxOffice = port => (() => {
     if (tr){
       const pts = pathOf(MYSEAT, "door"), l = lenOf(pts), t = T - tr.t0;
       if (t > l/SPD) tr = null; else { const p = along(tr.out ? pts : [...pts].reverse(), t*SPD); meW = { ...p, walking:true, up:tr.out ? p.up : !p.up }; }
-    } else if (inOffice){
-      const cyc = 80, ph = (T + 13) % cyc, n = Math.floor((T + 13)/cyc);
-      meW = trip(MYSEAT, n % 2 ? "coffee" : "printer", ph - 52);
     }
+    // 공강(교무실에 있을 때)은 내 자리에 앉아 있어요. 걸어 다니는 건 수업 가고 올 때만 (2026-10-29: 커피 · 복사기 다녀오는 게 수업 가는 것처럼 보여서 뺐어요)
     const meSeated = inOffice && !meW && !tr;
     // 쉬는 시간: 한 분은 커피 다녀오고, 학생 둘이 질문하러 와요
     const breakWalk = BREAK ? (() => { const who = ppl.find(p => !p.away && [1, 4, 5].includes(p.si)); if (!who) return null; const w = trip(who.si, "coffee", (T + who.k*9) % 40, 5); return w ? { who, w } : null; })() : null;
@@ -4908,11 +4909,16 @@ const pxOffice = port => (() => {
     txt(fit(wk ? st.slot : "주말", bw - 10), bx + 5, by + 3, "#C2413A");
     txt(fit(st.place === "office" || st.place === "home" ? here : `${here} 수업`, bw - 10), bx + 5, by + 13, "#2A2733");
     txt(fit(nx ? `다음 ${nx.p}교시 ${NAME(nx.r)}` : wk ? "오늘 수업 끝" : "푹 쉬어요", bw - 10), bx + 5, by + 23, "#3B6FD8");
-    // 벽시계 바늘 (진짜 시각)
-    const [ckx, cky] = LY.clock, hA = ((d.getHours() % 12) + d.getMinutes()/60)/12*Math.PI*2, mA = d.getMinutes()/60*Math.PI*2;
-    line(ckx, cky, ckx + Math.round(Math.sin(hA)*3), cky - Math.round(Math.cos(hA)*3), OL); line(ckx, cky, ckx + Math.round(Math.sin(mA)*4), cky - Math.round(Math.cos(mA)*4), "#E5484D");
+    // 디지털 벽시계 (진짜 시각, 가운데 두 점은 1초마다 깜빡) — 불 꺼진 교무실에서도 간판처럼 은은하게
+    const clock = (a = 1) => { const [ckx, cky] = LY.clock, hh = String(d.getHours()).padStart(2, "0"), mi = String(d.getMinutes()).padStart(2, "0");
+      N.globalAlpha = a;
+      txt(hh, ckx - 3, cky - 3, "#2E7A42", "right", 12, "Galmuri11"); txt(mi, ckx + 4, cky - 3, "#2E7A42", "left", 12, "Galmuri11");
+      txt(hh, ckx - 3, cky - 4, "#8CFF9A", "right", 12, "Galmuri11"); txt(mi, ckx + 4, cky - 4, "#8CFF9A", "left", 12, "Galmuri11");
+      if (d.getSeconds() % 2 === 0){ P(ckx, cky - 1, 1, 2, "#8CFF9A"); P(ckx, cky + 4, 1, 2, "#8CFF9A"); }
+      N.globalAlpha = 1; };
+    clock();
     // 학교 밖 시간: 불 꺼진 교무실 (모니터 하나만)
-    if (!SCHOOL){ g.fillStyle = "rgba(12,14,38,.55)"; g.fillRect(0, 0, W, H); const [sx, sy2, sw, sh] = LY.sign; N.globalAlpha = .7; txt("교무실", sx + sw/2, sy2 + 5, "#8CFF9A", "center", 12, "Galmuri11"); N.globalAlpha = 1; }
+    if (!SCHOOL){ g.fillStyle = "rgba(12,14,38,.55)"; g.fillRect(0, 0, W, H); const [sx, sy2, sw, sh] = LY.sign; N.globalAlpha = .7; txt("교무실", sx + sw/2, sy2 + 5, "#8CFF9A", "center", 12, "Galmuri11"); N.globalAlpha = 1; clock(.7); }
     // 누르면 열리는 곳
     hot(bx, by, bw, 38, { open:"edit" }); hot(LY.sign[0], LY.sign[1], LY.sign[2], LY.sign[3], { open:"dday" });
     hot(LY.cork[0], LY.cork[1], 28, 36, { open:"memo" }); hot(px, py - 4, 54, 54, { open:"todo" }); hot(cfx, cfy - 22, 52, 50, { open:"friend" }); hot(vx, vy, 54, 76, { open:"links" });
