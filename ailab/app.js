@@ -718,9 +718,9 @@ function bossView(compact) {
       <a href="#moral"><b>${lessons}</b><small>이번 달 수업 공개</small></a>
       <a href="#archive"><b>${S.cards.length}</b><small>정리된 카드</small></a>
     </div>
-    ${up.length ? `<ul class="agenda">${up.map((c) => `<li><a href="#${c.room}">${ddChip(c.date, c.end_date)}<div><b>${esc(c.title)}</b><small>${esc([fmtDate(c.date), c.time, roomName(c.room), c.place].filter(Boolean).join(' · '))}</small></div></a></li>`).join('')}</ul>`
+    ${up.length ? `<ul class="agenda">${up.map((c) => `<li><a href="#${c.room}" ${c.id !== 'task' ? `data-act="edit" data-id="${c.id}"` : ''}>${ddChip(c.date, c.end_date)}<div><b>${esc(c.title)}</b><small>${esc([fmtDate(c.date), c.time, roomName(c.room), c.place].filter(Boolean).join(' · '))}</small></div></a></li>`).join('')}</ul>`
       : '<p class="empty">날짜가 있는 자료가 들어오면 여기에 D-day 순으로 모여요.</p>'}
-    ${!compact && recent.length ? `<h3>방금 정리된 자료</h3><ul class="agenda">${recent.map((c) => `<li><a href="#${c.room}"><span class="chip">${esc(roomName(c.room))}</span><div><b>${esc(c.title)}</b><small>${esc(c.summary || '')}</small></div></a></li>`).join('')}</ul>` : ''}`;
+    ${!compact && recent.length ? `<h3>방금 정리된 자료</h3><ul class="agenda">${recent.map((c) => `<li><a href="#${c.room}" data-act="edit" data-id="${c.id}"><span class="chip">${esc(roomName(c.room))}</span><div><b>${esc(c.title)}</b><small>${esc(c.summary || '')}</small></div></a></li>`).join('')}</ul>` : ''}`;
 }
 
 // --- D. 1층 작업 라인 ---
@@ -870,6 +870,7 @@ function openCard(id) {
       <label>교시·수업 흐름 <small>한 줄에 하나씩 “1교시 | 내용”</small><textarea name="periods" rows="4">${esc((c.periods || []).map((p) => `${p.label} | ${p.content}`).join('\n'))}</textarea></label>
       <div class="dlg-acts">
         <button type="button" data-act="del" data-id="${c.id}">버리기</button>
+        ${ROOMS[c.room] && route() !== c.room ? `<button type="button" data-act="gocard" data-id="${c.id}">${esc(roomName(c.room))}로 가기</button>` : ''}
         <button value="cancel" formnovalidate>닫기</button>
         <button class="yes" value="save">저장하고 보관</button>
       </div>
@@ -1388,6 +1389,8 @@ document.addEventListener('click', async (e) => {
       case 'staffpick': openStaffPick(route()); break;
       case 'pickcard': S.pick[route()] = id; render(); break;
       case 'addLinks': await addLinks(); break;
+      // 카드 창에서 그 방으로: 고른 카드가 보이게 (두 칸 방은 그 카드를 고르고, 교과 거르기는 풀어요)
+      case 'gocard': { const c = cardById(id); if (!c) break; S.pick[c.room] = id; S.subj = ''; dlg.close(); location.hash = c.room; break; }
       case 'reread': if (dlg.open) dlg.close(); await reread(cap); break;
       case 'delcap': await deleteCapture(cap); break;
       case 'close': dlg.close(); break;

@@ -1189,8 +1189,9 @@ function furnish(k, g, { x0, x1, cx, y }) {
       break;
     case 'moral':
       easel(g, cx - 2, y, -.3, .35);
-      worker(cx + .2, .9, 'stand', { face: -.9 });
-      worker(cx + 1.7, .3, 'stand', { face: -1.1 });
+      // 한 명은 칠판 앞을 오가며 설명하고, 한 명은 손을 흔들어요 (가만히 서 있지 않게)
+      worker(cx - .6, 1.1, 'walk', { walk: [cx - 1.2, cx + 1.4, 1.1] });
+      worker(cx + 1.9, .3, 'wave');
       bench(g, cx + 2.9, y, zb + .2);
       wallBoard(g, cx + .6, y + 2.1, zw, 1.6, 1, posterMat('도덕', P.teal));
       plant(g, x0 + .6, y, 1.7);
