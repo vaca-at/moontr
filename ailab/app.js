@@ -526,12 +526,28 @@ function eventCard(c) {
       ${more ? `<details class="emore"><summary>자세히 ▾ <small>${rest.length ? `항목 ${rest.length}` : ''}${rest.length && c.periods?.length ? ' · ' : ''}${c.periods?.length ? `교시 ${c.periods.length}` : ''}</small></summary>
         ${rest.length ? `<dl class="kv">${rest.map((f) => `<dt>${esc(f.label)}</dt><dd><span class="${f.unsure ? 'unsure' : ''}">${esc(f.value)}</span></dd>`).join('')}</dl>` : ''}
         ${periodsTable(c)}</details>` : ''}
+      ${c._older ? `<details class="emore series"><summary>지난 호 ${c._older.length}개 ▾</summary><ul>${c._older.map((o) => `<li><span class="t">${esc(o.title || '')}</span><small>${esc(fmtDate(o.date) || '')}</small>${actions(o)}</li>`).join('')}</ul></details>` : ''}
     </div>
     ${actions(c)}
   </article>`;
 }
+// 'AI교육 브리핑(10월호)'처럼 달마다 나오는 공문은 한 장으로 묶고, 최신 호를 위에 · 지난 호는 펼쳐 보기로
+const MONTHLY = /\(?\s*\d{1,2}\s*월\s*호\s*\)?/;
+function seriesFold(list) {
+  const by = new Map();
+  for (const c of list) {
+    const k = MONTHLY.test(c.title || '') ? `s:${c.title.replace(MONTHLY, '').replace(/\s+/g, ' ').trim()}` : c.id;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(c);
+  }
+  return [...by.values()].map((g) => {
+    if (g.length < 2) return g[0];
+    g.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    return { ...g[0], _older: g.slice(1) };
+  });
+}
 function eventsView(list) {
-  const { live, past } = sortCards(list);
+  const { live, past } = sortCards(seriesFold(list));
   return withPast(live, past, eventCard, (h) => `<div class="grid2">${h}</div>`);
 }
 
@@ -1309,7 +1325,7 @@ function askPlain(reason, pdfs) {
   return new Promise((res) => dlg.addEventListener('close', () => res(ok ? { files: pdfs, note: '' } : null), { once: true }));
 }
 // 넣기 전 확인 창: 쪽 · 시트 · 표를 누를 때마다 넣기 → 가리기 → 빼기. [이대로 넣기]를 누르면 { files, note }, 닫으면 null
-async function checkFiles(pdfs, sheets, docs, hasImgs) {
+async function checkFiles(pdfs, sheets, docs, hasImgs, label = '') {
   toast('이름 · 연락처가 있는지 이 PC 안에서 살펴보고 있어요…');
   // 파일마다 따로 읽어서, 비밀번호가 걸렸거나 못 읽는 파일은 그 파일만 빼고 넣어요 (명단 엑셀에 비밀번호를 거는 공문이 많아요)
   const jobs = [...pdfs.map((f) => [f, analyzePdf]), ...sheets.map((f) => [f, analyzeSheet]), ...docs.map((f) => [f, analyzeDoc])];
@@ -1334,7 +1350,7 @@ async function checkFiles(pdfs, sheets, docs, hasImgs) {
       ${a.kind === 'pdf' ? '<span class="cv"></span>' : `<span class="sh">${u.rows}줄</span>`}
       <small>${esc(u.label)}${tag(u)}</small><b>${MODES[u.mode]}</b></button>`).join('');
   dlg.innerHTML = `<form method="dialog" class="dlg one pdfcheck">${DLG_X}<div class="dlg-form">
-    <h2>넣기 전에 개인정보 가리기</h2>
+    <h2>넣기 전에 개인정보 가리기${label ? ` <small>${esc(label)}</small>` : ''}</h2>
     <p class="note">이름 세 글자 · 휴대폰 번호 · 메일 주소로 보이는 곳은 까맣게 <b>가리고</b> 넣어요. 가린 쪽은 그림으로 다시 만들어서 가린 글자가 AI에게도, 저장소에도 가지 않아요. 누를 때마다 <b>넣기 → 가리기 → 빼기</b>로 바뀌어요.</p>
     ${skippedBox}
     <label>내 이름 <small>(내 이름은 가리지 않고, 명단에 있는지 AI에게 알려 줘요)</small><input id="myName" autocomplete="off" placeholder="예: 홍길동" value="${esc(S.myName || '')}"></label>
@@ -1391,12 +1407,15 @@ async function checkFiles(pdfs, sheets, docs, hasImgs) {
 // 전에 넣은 파일 이름 (묶음은 넣은 파일 전부 · 본문 .odt · 엑셀 포함). 'image.png' 같은 붙여넣기 이름은 빼요
 const GENERIC = /^(image|붙여넣은 이미지|본문 표지)(\s*\(\d+\))?\.\w+$/i;
 function dupFiles(files) {
+  // 파일 이름 모양이 달라도(번호가 앞 · 뒤) 공문번호와 본문 · 첨부가 같으면 같은 파일로 봐요
+  const sig = (n) => { const no = docNo(n); return no ? `#${no}|${/\(첨부\)/.test(n) ? '첨부' : '본문'}|${n.split('.').pop().toLowerCase()}` : ''; };
   const seen = new Map();
   for (const cap of S.captures) {
     const names = cap.sources || cap.files?.map((f) => f.name) || [cap.name];
-    names.filter(Boolean).forEach((n) => { if (!seen.has(n)) seen.set(n, cap); });
+    names.filter(Boolean).forEach((n) => { for (const k of [n, sig(n)]) if (k && !seen.has(k)) seen.set(k, cap); });
   }
-  return files.filter((f) => !GENERIC.test(f.name || '') && seen.has(f.name)).map((f) => ({ file: f, cap: seen.get(f.name) }));
+  const hit = (f) => seen.get(f.name) || (sig(f.name) && seen.get(sig(f.name)));
+  return files.filter((f) => !GENERIC.test(f.name || '') && hit(f)).map((f) => ({ file: f, cap: hit(f) }));
 }
 // 같은 이름 파일이 있으면 물어봐요: 'skip' 같은 파일 빼고 · 'all' 모두 넣기 · null 취소
 function askDup(dups) {
@@ -1413,7 +1432,28 @@ function askDup(dups) {
   return new Promise((res) => dlg.addEventListener('close', () => res(choice), { once: true }));
 }
 
-// 사진만 넣으면 한 장씩 따로 읽고, PDF · 엑셀 · 문서가 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
+// 업무관리시스템에서 받은 파일 이름 속 공문번호 (두 모양 다): '… [진선여자고등학교-10941 (본문)].pdf' · '(진선여자고등학교-10941 (첨부) …) ….pdf'
+const docNo = (name) => String(name || '').match(/[가-힣A-Za-z]+-(\d{3,7})\s*\((?:본문|첨부)/)?.[1] || '';
+// 폴더째 끌어다 놓으면 안쪽 파일을 모두 꺼내요 (하위 폴더까지)
+async function dropFiles(dt) {
+  const entries = [...(dt.items || [])].map((it) => it.webkitGetAsEntry?.()).filter(Boolean);
+  if (!entries.some((e) => e.isDirectory)) return [...dt.files];
+  const out = [];
+  const walk = async (e) => {
+    if (e.isFile) { out.push(await new Promise((res, rej) => e.file(res, rej))); return; }
+    const reader = e.createReader();
+    for (;;) {
+      const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+      if (!batch.length) break;
+      for (const x of batch) await walk(x);
+    }
+  };
+  for (const e of entries) await walk(e);
+  return out.filter((f) => !/^(\.|~\$|thumbs\.db$|desktop\.ini$)/i.test(f.name));
+}
+
+// 파일 여러 개를 넣으면 이름 속 공문번호로 나눠서, 공문마다 본문 + 첨부를 한 묶음으로 차례로 읽어요
+// 번호가 없는 PDF · 문서는 지금처럼 한 묶음, 사진은 한 장씩
 async function upload(fileList) {
   let all = [...fileList];
   const dups = dupFiles(all);
@@ -1423,15 +1463,30 @@ async function upload(fileList) {
     if (choice === 'skip') all = all.filter((f) => !dups.some((d) => d.file === f));
     if (!all.length) { toast('모두 전에 넣은 파일이라 넣지 않았어요'); return; }
   }
+  const groups = new Map();
+  for (const f of all) { const k = docNo(f.name) || '-'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
+  const sets = [...groups.entries()].sort(([a], [b]) => (a === '-') - (b === '-') || Number(a) - Number(b));
+  if (sets.length < 2) { await uploadSet(all); return; }
+  toast(`공문 ${sets.length - (groups.has('-') ? 1 : 0)}건으로 나눠서 차례로 넣을게요`);
+  const pending = { ...S.pending };
+  for (const [i, [no, files]] of sets.entries()) {
+    S.pending = { ...pending };
+    const label = `${i + 1} / ${sets.length} · ${no === '-' ? '번호 없는 파일' : `공문 ${no}번`}`;
+    if ((await uploadSet(files, label)) === 'cancel') { toast(`${label}에서 멈췄어요`); break; }
+  }
+  S.pending = { link: '', memo: '' };
+}
+// 공문 한 묶음 넣기 (label: 여러 공문을 차례로 넣을 때 확인 창에 보이는 순서). 확인 창에서 취소하면 'cancel'
+async function uploadSet(all, label = '') {
   const pdfs = all.filter(isPdf), sheets = all.filter(isSheet), docs = all.filter(isDoc);
   const imgs = all.filter((f) => !isPdf(f) && !isSheet(f) && !isDoc(f) && f.type.startsWith('image/'));
   if (all.some(isOld)) toast('한글 .hwp · 워드 .doc 파일은 읽을 수 없어서 빼고 넣어요. PDF로 바꿔서 넣어 주세요');
-  if (!pdfs.length && !imgs.length && !sheets.length && !docs.length) { toast('사진 · PDF · 엑셀 · 문서(.odt · .docx · .hwpx) 파일만 넣을 수 있어요'); return; }
+  if (!pdfs.length && !imgs.length && !sheets.length && !docs.length) { toast(`${label ? `${label}: ` : ''}사진 · PDF · 엑셀 · 문서(.odt · .docx · .hwpx) 파일만 넣을 수 있어요`); return; }
   // PDF · 엑셀 · 문서는 먼저 이 PC 안에서 명단을 걸러요
   let checked = null;
   if (pdfs.length || sheets.length || docs.length) {
-    checked = await checkFiles(pdfs, sheets, docs, imgs.length > 0);
-    if (!checked) return;
+    checked = await checkFiles(pdfs, sheets, docs, imgs.length > 0, label);
+    if (!checked) return 'cancel';
     if (!checked.files.length && !imgs.length) { toast('모두 빼서 넣을 것이 없어요'); return; }
   }
   const { link } = S.pending;
@@ -1660,7 +1715,7 @@ window.addEventListener('drop', (e) => {
   e.preventDefault();
   dragDepth = 0;
   $('#dropOverlay').hidden = true;
-  if (S.teacher) upload(e.dataTransfer.files);
+  if (S.teacher) dropFiles(e.dataTransfer).then((files) => (files.length ? upload(files) : toast('폴더 안에 넣을 파일이 없어요'))).catch((err) => toast(`폴더를 열지 못했어요 (${err.message || err})`));
 });
 document.addEventListener('paste', (e) => {
   const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f) || isSheet(f) || isDoc(f));
