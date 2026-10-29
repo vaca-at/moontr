@@ -999,17 +999,65 @@ function loadScript(src) {
 async function pdfjs() { await loadScript(LIBS.pdf); await loadScript(LIBS.pdfWorker); return window.pdfjsLib; }
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('시간이 너무 오래 걸려요')), ms))]);
 
-// 글자 조각을 높이(y)로 묶어 한 줄씩 (표는 한 행이 한 줄이 돼요)
-function pageLines(items) {
+// ---- 개인정보 찾기: 이름 세 글자 · 휴대폰 번호 · 메일 주소 ----
+// 이름은 '흔한 성으로 시작하는 한글 세 글자'이면서, 명단 머리(성명 · 이름)가 있는 쪽이거나 같은 줄에 학교 · 직위 · 전화번호가 있을 때만 (낱말을 이름으로 잘못 가리지 않게)
+const SURNAME = '김이박최정강조윤장임한오서신권황안송류유전홍고문양손배백허남심노하곽성차주우구민진나지엄채원천방공현함변염여추석길';
+const NOT_NAME = new Set(('신청서 신청자 안내문 안내서 이수증 이수자 이메일 정보과 정보부 한국사 한문과 전문가 장학사 장학관 지원청 지원자 지도안 유치원 서울시 서초구 송파구 강남구 강동구 강서구 강북구 구로구 노원구 성동구 성북구 '
+  + '하반기 상반기 방과후 방학중 공문서 공개수 담당자 남학생 여학생 고등학 전학년 진로과 주관처 원격연 연수원 심사표 심사위 채점표 배정표 성적표 추천서 홍보물 최종본 조직도 우수자 문의처 유의사 '
+  + '전화번 이수시 신규자 정규직 강의실 강사료 조사서 장소는 임용자 오전에 오후에 서명란 서식을 신청은 권역별 안전한 송부용 전체적 고사장 양식은 허가서 남부청 차시별 주제명 민원인 진행자 지역별 원본은 공문은 변경시 추진단 길잡이 '
+  + '주무관 교육감 교육장 행정실 교무실 정보실 과학실 상담실 보건실 도서실 전산실 방송실 음악실 미술실 체육관 교무부 진로부 학생부 연구부 안전부 부장님 담임반 전담교 정교사 기간제 강사님').split(' '));
+const NAME_CTX = /학교|고등|중학|초등|여고|여중|교육지원청|교육청|교사|교감|교장|부장|주무관|장학사|연구사|01[016789]/;
+const HEAD_CTX = /성\s*명|이\s*름/;
+const EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g;
+// 글자 한 줄에서 가릴 곳 [시작, 끝] 목록 (내 이름은 빼요)
+function maskHits(text, pageCtx, myName) {
+  const hits = [], me = squash(myName || '');
+  const ctx = pageCtx || NAME_CTX.test(text) || HEAD_CTX.test(text);
+  for (const re of [/(?<![가-힣])([가-힣])\s?([가-힣])\s?([가-힣])(?![가-힣])/g]) {
+    for (const m of text.matchAll(re)) {
+      const w = m[1] + m[2] + m[3];
+      if (!SURNAME.includes(w[0]) || NOT_NAME.has(w) || w === me) continue;
+      const after = text.slice(m.index + m[0].length, m.index + m[0].length + 6);
+      if (!ctx && !/^\s*(선생님|교사|교감|교장|님|부장|주무관|장학사)/.test(after)) continue;
+      hits.push([m.index, m.index + m[0].length]);
+    }
+  }
+  for (const re of [new RegExp(PHONE.source, 'g'), EMAIL]) for (const m of text.matchAll(re)) hits.push([m.index, m.index + m[0].length]);
+  return hits;
+}
+const maskText = (line, pageCtx, myName) => maskHits(line, pageCtx, myName).sort((a, b) => b[0] - a[0]).reduce((s, [a, b]) => s.slice(0, a) + '■■■' + s.slice(b), line);
+
+// 글자 조각을 높이(y)로 묶어 한 줄씩 (표는 한 행이 한 줄). 줄 글자마다 어느 조각 몇 번째 글자인지 기억해 두면, 가릴 곳의 자리를 알 수 있어요
+function pageRows(items) {
   const rows = [];
   for (const it of items) {
     if (!it.str?.trim()) continue;
-    const [x, y] = [it.transform[4], it.transform[5]];
-    let r = rows.find((row) => Math.abs(row.y - y) < 3);
-    if (!r) rows.push((r = { y, parts: [] }));
-    r.parts.push({ x, s: it.str.trim() });
+    let r = rows.find((row) => Math.abs(row.y - it.transform[5]) < 3);
+    if (!r) rows.push((r = { y: it.transform[5], items: [] }));
+    r.items.push(it);
   }
-  return rows.sort((a, b) => b.y - a.y).map((r) => r.parts.sort((a, b) => a.x - b.x).map((p) => p.s).join(' ').replace(/\s+/g, ' '));
+  return rows.sort((a, b) => b.y - a.y).map((r) => {
+    let text = '';
+    const map = [];
+    r.items.sort((a, b) => a.transform[4] - b.transform[4]).forEach((it) => {
+      if (text) { text += ' '; map.push(null); }
+      [...it.str].forEach((ch, off) => { text += ch; map.push({ it, off }); });
+    });
+    return { text, map };
+  });
+}
+// 줄의 [시작, 끝] 글자 범위 → PDF 좌표 상자 [x1, y1, x2, y2]
+function hitBox(row, [s, e]) {
+  let box = null;
+  for (let i = s; i < e; i++) {
+    const c = row.map[i];
+    if (!c) continue;
+    const { it, off } = c, tx = it.transform, len = Math.max(1, it.str.length);
+    const h = Math.hypot(tx[2], tx[3]) || it.height || 10;
+    const b = [tx[4] + (it.width * off) / len, tx[5] - h * 0.3, tx[4] + (it.width * (off + 1)) / len, tx[5] + h * 0.95];
+    box = box ? [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])] : b;
+  }
+  return box;
 }
 const PHONE = /01[016789][-.)\s]?\d{3,4}[-.\s]?\d{4}/g;
 function looksLikeRoster(lines) {
@@ -1019,7 +1067,19 @@ function looksLikeRoster(lines) {
   const header = /성\s*명|이\s*름/.test(text) && /연\s*번|번\s*호|순\s*번|소\s*속|학교명/.test(text);
   return phones >= 3 || (header && schoolRows >= 4) || schoolRows >= 10;
 }
-// PDF: 쪽마다 글자 · 작은 그림 · 명단인지
+// 넣는 방법: keep 넣기 · mask 이름 가리고 넣기 · out 빼기. 가릴 곳이 있으면 처음부터 '가리기'
+const MODES = { keep: '넣기', mask: '가리기', out: '빼기' };
+const nextMode = (u) => { const order = u.hits ? ['keep', 'mask', 'out'] : ['keep', 'out']; return order[(order.indexOf(u.mode) + 1) % order.length]; };
+// 가릴 곳을 작은 그림 위 덧그림에 검게 (가리기일 때만 보여요)
+function drawBoxes(canvas, view, boxes) {
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#000';
+  for (const b of boxes) {
+    const [x1, y1, x2, y2] = view.convertToViewportRectangle(b.r);
+    g.fillRect(Math.min(x1, x2) - 1, Math.min(y1, y2) - 1, Math.abs(x2 - x1) + 2, Math.abs(y2 - y1) + 2);
+  }
+}
+// PDF: 쪽마다 글자 · 작은 그림 · 가릴 곳
 async function analyzePdf(file) {
   const lib = await pdfjs();
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -1028,27 +1088,34 @@ async function analyzePdf(file) {
   const units = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     const page = await pdf.getPage(n);
-    const lines = pageLines((await page.getTextContent()).items);
+    const rows = pageRows((await page.getTextContent()).items);
+    const lines = rows.map((r) => r.text.replace(/\s+/g, ' ').trim());
+    const pageCtx = HEAD_CTX.test(lines.join('\n'));
+    const boxes = rows.flatMap((r) => maskHits(r.text, pageCtx, S.myName).map((h) => ({ r: hitBox(r, h), w: squash(r.text.slice(h[0], h[1])) }))).filter((b) => b.r);
     const view = page.getViewport({ scale: 120 / page.getViewport({ scale: 1 }).width });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(view.width); canvas.height = Math.round(view.height);
+    const canvas = document.createElement('canvas'), over = document.createElement('canvas');
+    canvas.width = over.width = Math.round(view.width); canvas.height = over.height = Math.round(view.height);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport: view }).promise;
+    drawBoxes(over, view, boxes);
     const noText = lines.join('').length < 20; // 스캔한 그림 PDF 는 글자를 못 읽어요 → 선생님이 직접 골라요
     const roster = !noText && looksLikeRoster(lines);
-    units.push({ label: `${n}쪽`, n, canvas, lines, noText, roster, keep: !roster });
+    units.push({ label: `${n}쪽`, n, canvas, over, lines, boxes, hits: boxes.length, noText, roster, mode: boxes.length ? 'mask' : 'keep' });
   }
-  pdf.destroy();
-  return { kind: 'pdf', file, bytes, units };
+  return { kind: 'pdf', file, bytes, pdf, units };
 }
-// 엑셀: 시트마다 한 행이 한 줄. 명단이 아닌 시트는 글자로 바꿔 메모에 붙여 AI가 읽어요 (엑셀 파일 자체는 올리지 않아요)
+// 글자 덩이(엑셀 시트 · 문서 글 · 표): 가릴 곳 수를 세어 두고, 넣을 때 ■■■ 로 바꿔요
+function textUnit(label, lines) {
+  const pageCtx = HEAD_CTX.test(lines.slice(0, 3).join('\n'));
+  const hits = lines.reduce((n, l) => n + maskHits(l, pageCtx, S.myName).length, 0);
+  return { label, lines, rows: lines.length, pageCtx, hits, roster: looksLikeRoster(lines), mode: hits ? 'mask' : 'keep' };
+}
+// 엑셀: 시트마다 한 행이 한 줄. 글자로 바꿔 메모에 붙여 AI가 읽어요 (엑셀 파일 자체는 올리지 않아요)
 async function analyzeSheet(file) {
   await loadScript(LIBS.xlsx);
   const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const units = wb.SheetNames.map((name) => {
     const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, defval: '' });
-    const lines = rows.map((r) => r.map((c) => String(c).trim()).filter(Boolean).join(' | ')).filter(Boolean);
-    const roster = looksLikeRoster(lines);
-    return { label: name, lines, rows: lines.length, roster, keep: !roster };
+    return textUnit(name, rows.map((r) => r.map((c) => String(c).trim()).filter(Boolean).join(' | ')).filter(Boolean));
   }).filter((u) => u.lines.length);
   return { kind: 'xlsx', file, units };
 }
@@ -1111,40 +1178,55 @@ async function analyzeDoc(file) {
   const seen = new Set();
   const blocks = roots.filter(Boolean).flatMap(docBlocks).filter((b) => { const k = b.lines.join('\n'); if (seen.has(k)) return false; seen.add(k); return true; });
   let t = 0, g = 0;
-  const units = blocks.map((b) => {
-    const roster = looksLikeRoster(b.lines);
-    return { label: b.type === 'table' ? `표 ${++t}` : `글 ${++g}`, lines: b.lines, rows: b.lines.length, roster, keep: !roster };
-  });
+  const units = blocks.map((b) => textUnit(b.type === 'table' ? `표 ${++t}` : `글 ${++g}`, b.lines));
   if (!units.length) throw new Error(`${file.name} 에서 글자를 찾지 못했어요`);
   return { kind: 'doc', file, units };
 }
 const squash = (s) => s.replace(/\s/g, '');
-// 뺀 쪽 · 시트에서 내 이름이 있는 줄만 (최대 5줄)
+// 가리거나 뺀 쪽 · 시트에서 내 이름이 있는 줄만 (최대 5줄)
 function myLines(list, name) {
   if (!squash(name)) return [];
-  return list.flatMap((a) => a.units.filter((u) => !u.keep).flatMap((u) => u.lines.filter((l) => squash(l).includes(squash(name)))))
+  return list.flatMap((a) => a.units.filter((u) => u.mode !== 'keep').flatMap((u) => u.lines.filter((l) => squash(l).includes(squash(name)))))
     .slice(0, 5).map((l) => l.slice(0, 200));
 }
-async function keepPages(a) {
-  const keep = a.units.filter((u) => u.keep).map((u) => u.n - 1);
-  if (keep.length === a.units.length) return a.file;
-  if (!keep.length) return null;
-  await loadScript(LIBS.pdfLib);
-  const { PDFDocument } = window.PDFLib;
-  const src = await PDFDocument.load(a.bytes, { ignoreEncryption: true });
-  const out = await PDFDocument.create();
-  (await out.copyPages(src, keep)).forEach((p) => out.addPage(p));
-  return new File([await out.save()], a.file.name, { type: 'application/pdf' });
+// PDF 다시 만들기: 넣기 쪽은 그대로, 가리기 쪽은 그림으로 그려 검은 상자를 칠해서 (글자층이 남지 않게), 빼기 쪽은 없이
+async function keepPages(a, myName) {
+  try {
+    if (a.units.every((u) => u.mode === 'keep')) return a.file;
+    if (a.units.every((u) => u.mode === 'out')) return null;
+    await loadScript(LIBS.pdfLib);
+    const { PDFDocument } = window.PDFLib;
+    const src = await PDFDocument.load(a.bytes, { ignoreEncryption: true });
+    const out = await PDFDocument.create();
+    const me = squash(myName || '');
+    for (const u of a.units) {
+      if (u.mode === 'keep') { const [p] = await out.copyPages(src, [u.n - 1]); out.addPage(p); }
+      if (u.mode !== 'mask') continue;
+      const page = await a.pdf.getPage(u.n);
+      const base = page.getViewport({ scale: 1 }), view = page.getViewport({ scale: 2 });
+      const c = document.createElement('canvas');
+      c.width = Math.round(view.width); c.height = Math.round(view.height);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: view }).promise;
+      drawBoxes(c, view, u.boxes.filter((b) => !me || b.w !== me));
+      const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.85));
+      const img = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+      out.addPage([base.width, base.height]).drawImage(img, { x: 0, y: 0, width: base.width, height: base.height });
+    }
+    return new File([await out.save()], a.file.name, { type: 'application/pdf' });
+  } finally {
+    a.pdf?.destroy();
+  }
 }
-// 남긴 엑셀 시트 · 문서 글 · 표를 글자로 (한 덩이 8천 자, 모두 4만 자까지)
-function sheetText(list) {
-  const parts = list.filter((a) => a.kind !== 'pdf').flatMap((a) => a.units.filter((u) => u.keep).map((u) => `[${a.kind === 'xlsx' ? '첨부 엑셀' : '문서'} ${a.file.name} · ${u.label}]\n${u.lines.join('\n').slice(0, 8000)}`));
+// 넣는 엑셀 시트 · 문서 글 · 표를 글자로 (가리기는 ■■■, 한 덩이 8천 자, 모두 4만 자까지)
+const unitText = (u, myName) => (u.mode === 'mask' ? u.lines.map((l) => maskText(l, u.pageCtx, myName)) : u.lines);
+function sheetText(list, myName) {
+  const parts = list.filter((a) => a.kind !== 'pdf').flatMap((a) => a.units.filter((u) => u.mode !== 'out').map((u) => `[${a.kind === 'xlsx' ? '첨부 엑셀' : '문서'} ${a.file.name} · ${u.label}]\n${unitText(u, myName).join('\n').slice(0, 8000)}`));
   return parts.join('\n\n').slice(0, 40000);
 }
 // PDF · 사진 없이 문서 · 엑셀만 넣었을 때: AI가 읽을 파일이 하나는 있어야 해서, 앞부분 글자로 표지 그림을 만들어요 (내용은 메모 글자로 같이 가요)
-async function coverImage(list) {
+async function coverImage(list, myName) {
   const first = list.find((a) => a.kind !== 'pdf');
-  const lines = [first.file.name, '', ...first.units.filter((u) => u.keep).flatMap((u) => u.lines)].slice(0, 40);
+  const lines = [first.file.name, '', ...first.units.filter((u) => u.mode !== 'out').flatMap((u) => unitText(u, myName))].slice(0, 40);
   const c = document.createElement('canvas');
   c.width = 1200; c.height = 120 + lines.length * 34;
   const g = c.getContext('2d');
@@ -1156,13 +1238,13 @@ async function coverImage(list) {
   return new File([blob], '본문 표지.jpg', { type: 'image/jpeg' });
 }
 const pageSpan = (ns) => ns.reduce((acc, n) => { const last = acc[acc.length - 1]; if (last && n === last[1] + 1) last[1] = n; else acc.push([n, n]); return acc; }, []).map(([a, b]) => (a === b ? `${a}쪽` : `${a}~${b}쪽`)).join(', ');
-const outLabel = (a) => { const out = a.units.filter((u) => !u.keep); return a.kind === 'pdf' ? pageSpan(out.map((u) => u.n)) : out.map((u) => (a.kind === 'xlsx' ? `'${u.label}' 시트` : u.label)).join(', '); };
+const modeLabel = (a, mode) => { const us = a.units.filter((u) => u.mode === mode); return a.kind === 'pdf' ? pageSpan(us.map((u) => u.n)) : us.map((u) => (a.kind === 'xlsx' ? `'${u.label}' 시트` : u.label)).join(', '); };
 
-// 거르기를 못 했을 때: 명단이 없는 공문이면 그대로 넣을 수 있게 물어봐요 (엑셀은 읽지 못하니 빼요)
+// 거르기를 못 했을 때: 개인정보가 없는 공문이면 그대로 넣을 수 있게 물어봐요 (엑셀 · 문서는 읽지 못하니 빼요)
 function askPlain(reason, pdfs) {
   dlg.innerHTML = `<form method="dialog" class="dlg one">${DLG_X}<div class="dlg-form">
-    <h2>명단 거르기를 못 했어요</h2>
-    <div class="dlg-err"><b>${esc(reason)}</b><p>명단이 없는 공문이면 PDF를 그대로 넣어도 돼요. 명단이 있으면 [취소]를 누르고 잠시 뒤 다시 넣어 주세요.</p></div>
+    <h2>개인정보 거르기를 못 했어요</h2>
+    <div class="dlg-err"><b>${esc(reason)}</b><p>이름 · 연락처가 없는 공문이면 PDF를 그대로 넣어도 돼요. 있으면 [취소]를 누르고 잠시 뒤 다시 넣어 주세요.</p></div>
     <div class="dlg-acts"><button value="cancel">취소</button><button type="button" class="yes" id="goPlain">${pdfs.length ? 'PDF 그대로 넣기' : '사진만 넣기'}</button></div>
   </div></form>`;
   let ok = false;
@@ -1170,52 +1252,53 @@ function askPlain(reason, pdfs) {
   dlg.showModal();
   return new Promise((res) => dlg.addEventListener('close', () => res(ok ? { files: pdfs, note: '' } : null), { once: true }));
 }
-// 넣기 전 확인 창: 쪽 · 시트 · 표를 누르면 넣기 ↔ 빼기. [이대로 넣기]를 누르면 { files, note }, 닫으면 null
+// 넣기 전 확인 창: 쪽 · 시트 · 표를 누를 때마다 넣기 → 가리기 → 빼기. [이대로 넣기]를 누르면 { files, note }, 닫으면 null
 async function checkFiles(pdfs, sheets, docs, hasImgs) {
-  toast('명단이 있는지 이 PC 안에서 살펴보고 있어요…');
+  toast('이름 · 연락처가 있는지 이 PC 안에서 살펴보고 있어요…');
   let list;
   try {
     list = await withTimeout(Promise.all([...pdfs.map(analyzePdf), ...sheets.map(analyzeSheet), ...docs.map(analyzeDoc)]), 40000);
   } catch (e) {
     return askPlain(`${e.message || e}`, pdfs);
   }
-  const tile = (a, i) => a.units.map((u, j) => `<button type="button" class="pg ${u.keep ? '' : 'out'} ${a.kind}" data-f="${i}" data-p="${j}" aria-pressed="${!u.keep}">
+  const tag = (u) => (u.hits ? ` · 이름 등 ${u.hits}곳` : u.roster ? ' · 명단 같음' : u.noText ? ' · 그림' : '');
+  const tile = (a, i) => a.units.map((u, j) => `<button type="button" class="pg ${u.mode} ${a.kind}" data-f="${i}" data-p="${j}">
       ${a.kind === 'pdf' ? '<span class="cv"></span>' : `<span class="sh">${u.rows}줄</span>`}
-      <small>${esc(u.label)}${u.roster ? ' · 명단' : u.noText ? ' · 그림' : ''}</small><b>${u.keep ? '넣기' : '빼기'}</b></button>`).join('');
+      <small>${esc(u.label)}${tag(u)}</small><b>${MODES[u.mode]}</b></button>`).join('');
   dlg.innerHTML = `<form method="dialog" class="dlg one pdfcheck">${DLG_X}<div class="dlg-form">
-    <h2>넣기 전에 명단 거르기</h2>
-    <p class="note">명단으로 보이는 쪽 · 시트는 빼고 넣어요. 뺀 것은 AI에게도, 저장소에도 가지 않아요. 눌러서 넣기 ↔ 빼기를 바꿀 수 있어요.</p>
-    <label>명단에서 찾을 내 이름<input id="myName" autocomplete="off" placeholder="예: 홍길동" value="${esc(S.myName || '')}"></label>
+    <h2>넣기 전에 개인정보 가리기</h2>
+    <p class="note">이름 세 글자 · 휴대폰 번호 · 메일 주소로 보이는 곳은 까맣게 <b>가리고</b> 넣어요. 가린 쪽은 그림으로 다시 만들어서 가린 글자가 AI에게도, 저장소에도 가지 않아요. 누를 때마다 <b>넣기 → 가리기 → 빼기</b>로 바뀌어요.</p>
+    <label>내 이름 <small>(내 이름은 가리지 않고, 명단에 있는지 AI에게 알려 줘요)</small><input id="myName" autocomplete="off" placeholder="예: 홍길동" value="${esc(S.myName || '')}"></label>
     ${list.map((a, i) => `<section class="pc-file"><h3>${{ xlsx: '엑셀 · ', doc: '문서 · ' }[a.kind] || ''}${esc(a.file.name)}</h3><div class="pgrid">${tile(a, i)}</div></section>`).join('')}
     <div class="found" id="found"></div>
     <div class="dlg-acts"><button value="cancel">취소</button><button type="button" class="yes" id="goPdf">이대로 넣기</button></div>
   </div></form>`;
-  dlg.querySelectorAll('.pg.pdf').forEach((b) => b.querySelector('.cv').append(list[b.dataset.f].units[b.dataset.p].canvas));
+  dlg.querySelectorAll('.pg.pdf').forEach((b) => { const u = list[b.dataset.f].units[b.dataset.p]; b.querySelector('.cv').append(u.canvas, u.over); });
   const nameEl = $('#myName', dlg), foundEl = $('#found', dlg);
-  const anyOut = () => list.some((a) => a.units.some((u) => !u.keep));
+  const some = (mode) => list.filter((a) => a.units.some((u) => u.mode === mode));
   const note = () => {
-    const name = nameEl.value.trim();
-    if (!anyOut()) return '';
+    const name = nameEl.value.trim(), masked = some('mask').length, out = some('out').length;
+    if (!masked && !out) return '';
+    const what = [masked && '이름 · 연락처는 까맣게 가리고', out && '명단 일부는 빼고'].filter(Boolean).join(', ');
     const mine = myLines(list, name);
-    if (!name) return '명단은 개인정보라 빼고 넣었어요.';
-    return mine.length ? `명단에서 찾은 ${name} 줄 (나머지 명단은 개인정보라 빼고 넣었어요): ${mine.join(' / ')}` : `명단은 개인정보라 빼고 넣었어요. 명단에 ${name} 이름은 없었어요.`;
+    return `개인정보라 ${what} 넣었어요.${name ? (mine.length ? ` 명단에서 찾은 ${name} 줄: ${mine.join(' / ')}` : ` 가린 명단에 ${name} 이름은 없었어요.`) : ''}`;
   };
   const show = () => {
-    const out = list.filter((a) => a.units.some((u) => !u.keep));
     const name = nameEl.value.trim(), mine = myLines(list, name);
-    foundEl.innerHTML = out.length
-      ? `<b>빼는 것</b> ${out.map((a) => `${esc(a.file.name.replace(/\.(pdf|xlsx?|csv|odt|docx|hwpx)$/i, '').slice(-24))} ${esc(outLabel(a))}`).join(' · ')}
-         <br><b>AI에게 알려 줄 내 줄</b> ${name ? (mine.length ? mine.map(esc).join(' / ') : '명단에 이름이 없어요') : '이름을 적으면 찾아요'}`
-      : '<b>빼는 것 없음</b> 명단으로 보이는 쪽 · 시트가 없어서 전부 넣어요.';
+    const line = (mode, label) => { const fs = some(mode); return fs.length ? `<b>${label}</b> ${fs.map((a) => `${esc(a.file.name.replace(/\.(pdf|xlsx?|csv|odt|docx|hwpx)$/i, '').slice(-24))} ${esc(modeLabel(a, mode))}`).join(' · ')}<br>` : ''; };
+    const body = line('mask', '가리는 것') + line('out', '빼는 것');
+    foundEl.innerHTML = body
+      ? `${body}<b>AI에게 알려 줄 내 줄</b> ${name ? (mine.length ? mine.map(esc).join(' / ') : '명단에 이름이 없어요') : '이름을 적으면 찾아요'}`
+      : '<b>가리거나 빼는 것 없음</b> 이름 · 연락처로 보이는 곳이 없어서 그대로 넣어요.';
   };
   dlg.querySelector('.pdfcheck').addEventListener('click', (e) => {
     const b = e.target.closest('.pg');
     if (!b) return;
     const u = list[b.dataset.f].units[b.dataset.p];
-    u.keep = !u.keep;
-    b.classList.toggle('out', !u.keep);
-    b.setAttribute('aria-pressed', String(!u.keep));
-    b.querySelector('b').textContent = u.keep ? '넣기' : '빼기';
+    b.classList.remove(u.mode);
+    u.mode = nextMode(u);
+    b.classList.add(u.mode);
+    b.querySelector('b').textContent = MODES[u.mode];
     show();
   });
   nameEl.addEventListener('input', show);
@@ -1224,15 +1307,16 @@ async function checkFiles(pdfs, sheets, docs, hasImgs) {
   $('#goPdf', dlg).addEventListener('click', () => { ok = true; dlg.close(); });
   dlg.showModal();
   await new Promise((res) => dlg.addEventListener('close', res, { once: true }));
-  if (!ok) return null;
+  if (!ok) { list.forEach((a) => a.pdf?.destroy()); return null; }
   const name = nameEl.value.trim();
   if (name !== (S.myName || '')) {
     S.myName = name;
     setDoc(doc(db, dbPath('meta/me')), { name, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
   }
-  const files = (await Promise.all(list.filter((a) => a.kind === 'pdf').map(keepPages))).filter(Boolean);
-  if (!files.length && !hasImgs && list.some((a) => a.kind !== 'pdf' && a.units.some((u) => u.keep))) files.push(await coverImage(list));
-  return { files, note: [note(), sheetText(list)].filter(Boolean).join('\n\n') };
+  toast('개인정보를 가린 파일을 만들고 있어요…');
+  const files = (await Promise.all(list.filter((a) => a.kind === 'pdf').map((a) => keepPages(a, name)))).filter(Boolean);
+  if (!files.length && !hasImgs && list.some((a) => a.kind !== 'pdf' && a.units.some((u) => u.mode !== 'out'))) files.push(await coverImage(list, name));
+  return { files, note: [note(), sheetText(list, name)].filter(Boolean).join('\n\n') };
 }
 
 // 사진만 넣으면 한 장씩 따로 읽고, PDF · 엑셀 · 문서가 하나라도 있으면 같이 넣은 파일 전부를 공문 한 묶음으로 읽어요
