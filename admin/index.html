@@ -378,6 +378,9 @@ const ADMIN_GROUPS = [
     { name:'도진이의 수학 연산 대모험', admin:'https://jsun.site/leader/#admin', student:'https://jsun.site/leader/', login:'gg', privacy:'https://jsun.site/leader/privacy.html', terms:'https://jsun.site/leader/terms.html' },
     { name:'윤아의 지구마불 세계여행', admin:'https://jsun.site/cat/#admin', student:'https://jsun.site/cat/', login:'gg', privacy:'https://jsun.site/cat/privacy.html', terms:'https://jsun.site/cat/terms.html' }
   ]},
+  { title:'템플스테이', icon:'lotus', items:[
+    { name:'큰법당 템플스테이', admin:'https://templestay.site/admin.html', student:'https://templestay.site/', login:'gg' }
+  ]},
   { title:'아이아이노트', icon:'note', items:[
     { name:'아이아이노트 운영 현황', admin:'https://iinote.co.kr/admin.html', student:'https://iinote.co.kr/', login:'gg' }
   ]},
@@ -647,6 +650,7 @@ const toDay = v => {
 };
 /* 관리자 화면 주소 → 방문 기록이 있는 곳
    site: /visit.js 로 세는 앱 이름 (site_counts)
+   relay: 자기 서버(Cloudflare)에서 방문 수를 세는 앱 → 여기서 로그인한 관리자 구글 계정으로 그 서버에 직접 물어봐요
    seed: 앱이 따로 남기던 기록이 있으면, 웹앱 왼쪽 아래에 보이는 누적 수를 그 기록에 맞춰 올려 둡니다 */
 const STATS = {
   '/home-admin/':       { site:'home', unit:'방문' },
@@ -667,6 +671,8 @@ const STATS = {
   'https://jsun.site/simin/#admin': { site:'simin', unit:'방문' },
   'https://jsun.site/study/#admin': { site:'study', unit:'방문' },
   '/c22/':              { site:'c22', unit:'방문' },
+  /* 큰법당 템플스테이: 방 중계 서버가 날짜별 방문 수(최근 90일)를 갖고 있어요. 같은 Firebase(moon-d528d)라 허브 로그인 그대로 */
+  'https://templestay.site/admin.html': { relay:'https://templestay-rooms.bellachord.workers.dev', unit:'방문' },
   'https://jinseon50th.com/#admin':    { col:'jinsun50_visits', day:x => toDay(x.d || x.startMs), unit:'방문' },
   'https://jinseon50th.com/gt/#admin': { col:'gt_logs', filter:x => x.type === 'visit', day:x => toDay(x.at), unit:'방문', seed:'jinseon-gt' }
 };
@@ -697,6 +703,18 @@ async function loadStats(){
     });
   } catch {}
   await Promise.all(Object.entries(STATS).map(async ([key, st]) => {
+    if (st.relay){
+      try {
+        /* 구글 로그인 증표 → 템플스테이 서버 입장권 → 방문 수 (지금 접속한 사람 수도 같이 와요) */
+        const idToken = await auth.currentUser.getIdToken();
+        const t = await fetch(`${st.relay}/admin/google`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ idToken }) }).then(r => r.json());
+        if (!t.token) throw new Error(t.error || '로그인 안 됨');
+        const s = await fetch(`${st.relay}/admin/stats`, { headers:{ Authorization:`Bearer ${t.token}` } }).then(r => r.json());
+        if (s.error) throw new Error(s.error);
+        out[key] = { today: s.days?.[today] || 0, total: s.total || 0, days: s.days || {}, note: `지금 접속 ${s.online || 0}명` };
+      } catch (e) { out[key] = { error: e.message }; }
+      return;
+    }
     if (st.site){
       const o = siteData[st.site] || { total:0, days:{} };
       out[key] = { today: o.days[today] || 0, total: o.total, days: o.days };
@@ -767,7 +785,7 @@ async function renderHome(force){
     const body = d.error
       ? `<p class="msg">기록을 읽지 못했습니다 (${esc(d.error)})</p>`
       : `<div class="nums"><span><b>${d.today}</b><small>오늘 ${unit}</small></span><span class="tot"><b>${d.total.toLocaleString()}</b><small>누적</small></span></div>
-         ${grass(d.days)}${d.devices ? `<p class="msg">기기 ${d.devices}대 · 잔디는 날짜별 들어온 기기 수</p>` : ''}`;
+         ${grass(d.days)}${d.devices ? `<p class="msg">기기 ${d.devices}대 · 잔디는 날짜별 들어온 기기 수</p>` : ''}${d.note ? `<p class="msg">${esc(d.note)}</p>` : ''}`;
     return `<div class="card" role="button" tabindex="0" data-open="${esc(a.admin)}">
       <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}${waitCount(a) ? ` <span class="nbadge" title="학생이 기다리는 것">${waitCount(a)}</span>` : ''}<span class="grp">${esc(g.title)}</span>${goLinks(a)}</span>${body}</div>`;
   }).join('');
