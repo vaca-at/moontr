@@ -1688,10 +1688,10 @@ const DRAW = {
       <div class="login-btns">
         <button type="button" class="big google" id="gIn">G&nbsp; 구글로 시작하기</button>
         <button type="button" class="big kakao" id="kIn">💬&nbsp; 카카오로 시작하기</button>
-        <button type="button" class="big ghost" id="demoIn">먼저 둘러보기</button>
+        <button type="button" class="big ghost" id="guestIn">🙋&nbsp; 로그인 없이 시작</button>
       </div>
       <p class="err" id="lgErr" role="alert"></p>
-      <p class="note">시작하면 아래 <a href="#policy" id="lgPolicy" style="color:inherit">이용약관 · 개인정보 처리방침</a>에 동의하는 것으로 봐요.<br>구글로 시작했다가 나중에 카카오도 연결할 수 있어요 (한 데스크탑으로).</p>
+      <p class="note">로그인 없이 시작하면 <b>이 기기에만</b> 저장돼요. 나중에 ⚙️ 설정에서 구글 · 카카오로 연결하면 그대로 옮겨져 다른 기기에서도 써요.<br>시작하면 아래 <a href="#policy" id="lgPolicy" style="color:inherit">이용약관 · 개인정보 처리방침</a>에 동의하는 것으로 봐요.</p>
     </div>
   </div>
 </div>
@@ -6928,7 +6928,57 @@ fit(); requestAnimationFrame(loop);
    ============================================================ */
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, initializeAuth, inMemoryPersistence, browserPopupRedirectResolver, onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, linkWithPopup, signInWithCredential, deleteUser, signOut, GoogleAuthProvider, OAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, waitForPendingWrites, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, addDoc, query, orderBy, limit, where, onSnapshot, arrayUnion, getCountFromServer, writeBatch, deleteField, serverTimestamp, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, waitForPendingWrites, doc as fsDoc, getDoc as fsGetDoc, setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, collection as fsCollection, getDocs as fsGetDocs, addDoc as fsAddDoc, query as fsQuery, orderBy, limit, where, onSnapshot, arrayUnion, getCountFromServer, writeBatch, deleteField, serverTimestamp, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ---------- 🙋 로그인 없이 시작 (이 기기에만 저장) ----------
+   손님 책상은 desk_users/guest-… 아래 경로를 Firestore 대신 이 기기 localStorage(desk-guest-db)에 같은 모양으로 적어요.
+   그래서 아래 doc · getDoc · setDoc … 은 손님 경로면 기기 저장, 아니면 Firestore 그대로예요 (나머지 코드는 손대지 않아요).
+   나중에 구글 · 카카오로 연결하면 migrateGuest() 가 기기 내용을 계정으로 옮겨요. */
+const GUEST_DB = "desk-guest-db", GUEST_ID = "desk-guest-id", GUEST_ON = "desk-guest-on";
+const lsJ = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+const guestId = () => { let id = ""; try { id = localStorage.getItem(GUEST_ID) || ""; if (!id){ id = "guest-" + crypto.randomUUID().replace(/-/g, "").slice(0, 16); localStorage.setItem(GUEST_ID, id); } } catch (e) { id = "guest-tmp"; } return id; };
+const isGuestPath = p => /^desk_(users|links)\/guest-/.test(p);
+const gRead = () => lsJ(GUEST_DB, {}), gWrite = o => { try { localStorage.setItem(GUEST_DB, JSON.stringify(o)); } catch (e) { throw Object.assign(new Error("이 기기 저장 공간이 가득 찼어요"), { code:"quota" }); } };
+// 평범한 값만 남겨요 (arrayUnion · deleteField · serverTimestamp 같은 Firestore 표시는 기기 저장에선 뺌)
+const plain = v => v === null || typeof v !== "object" || Array.isArray(v) || Object.getPrototypeOf(v) === Object.prototype;
+const clean = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => plain(v)).map(([k, v]) => [k, v && typeof v === "object" && !Array.isArray(v) ? clean(v) : v]));
+const gSnap = (path, d) => ({ id:path.split("/").pop(), ref:{ __local:true, path }, exists:() => d != null, data:() => (d == null ? undefined : JSON.parse(JSON.stringify(d))) });
+const gNewId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function doc(a, ...rest){
+  if (a && a.__local && a.type === "collection") return { __local:true, type:"doc", path:`${a.path}/${rest[0] || gNewId()}`, get id(){ return this.path.split("/").pop(); } };
+  if (a && a.type === "collection" && !a.__local && !rest.length) return fsDoc(a);
+  const path = rest.join("/");
+  if (a && !a.__local && isGuestPath(path)) return { __local:true, type:"doc", path, id:rest[rest.length - 1] };
+  return fsDoc(a, ...rest);
+}
+function collection(a, ...rest){ const path = rest.join("/"); return isGuestPath(path) ? { __local:true, type:"collection", path } : fsCollection(a, ...rest); }
+function query(c, ...q){ return c && c.__local ? c : fsQuery(c, ...q); }
+async function getDoc(r){ return r && r.__local ? gSnap(r.path, gRead()[r.path]) : fsGetDoc(r); }
+async function getDocs(c){
+  if (!(c && c.__local)) return fsGetDocs(c);
+  const all = gRead(), pre = c.path + "/";
+  const docs = Object.keys(all).filter(k => k.startsWith(pre) && !k.slice(pre.length).includes("/")).map(k => gSnap(k, all[k])).sort((a, b) => (b.data().at || 0) - (a.data().at || 0));
+  return { docs, empty:!docs.length, size:docs.length, forEach:f => docs.forEach(f) };
+}
+async function setDoc(r, d, o){ if (!(r && r.__local)) return fsSetDoc(r, d, o); const all = gRead(); all[r.path] = o && o.merge ? { ...(all[r.path] || {}), ...clean(d) } : clean(d); gWrite(all); }
+async function updateDoc(r, d){ if (!(r && r.__local)) return fsUpdateDoc(r, d); const all = gRead(); all[r.path] = { ...(all[r.path] || {}), ...clean(d) }; gWrite(all); }
+async function deleteDoc(r){ if (!(r && r.__local)) return fsDeleteDoc(r); const all = gRead(); delete all[r.path]; gWrite(all); }
+async function addDoc(c, d){ if (!(c && c.__local)) return fsAddDoc(c, d); const r = doc(c); await setDoc(r, d); return r; }
+const makeGuest = () => ({ uid:guestId(), isGuest:true, email:"", providerData:[] });
+const isGuest = () => !!(user && user.isGuest);
+// 손님 기록을 방금 연결한 계정으로 옮겨요 (계정에 시간표가 이미 있으면 계정 것을 그대로 두고 손님 기록은 이 기기에 남겨요)
+async function migrateGuest(){
+  const all = gRead(), gid = lsJ(GUEST_ID, null) || (() => { try { return localStorage.getItem(GUEST_ID); } catch (e) { return null; } })();
+  if (!gid || !deskId || deskId.startsWith("guest-")) return false;
+  const pre = `desk_users/${gid}/`, keys = Object.keys(all).filter(k => k.startsWith(pre));
+  if (!keys.length) return false;
+  if (cfg){ $("saved").textContent = "이 계정에는 이미 시간표가 있어서 계정 것을 그대로 썼어요 (로그인 없이 쓰던 기록은 이 기기에 남아 있어요)"; return false; }
+  for (const k of keys) await fsSetDoc(fsDoc(db, "desk_users", deskId, ...k.slice(pre.length).split("/")), all[k]);
+  for (const k of Object.keys(all)) if (k.startsWith(`desk_users/${gid}`)) delete all[k];
+  gWrite(all); try { localStorage.removeItem(GUEST_ON); } catch (e) {}
+  return true;
+}
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
@@ -7012,7 +7062,10 @@ async function signIn(kind){
 }
 $("gIn").addEventListener("click", () => signIn("google"));
 $("kIn").addEventListener("click", () => signIn("kakao"));
-$("demoIn").addEventListener("click", startDemo);
+// 🙋 로그인 없이 시작: 이 기기 손님 책상을 열어요 (다음에 들어와도 저절로)
+async function startGuest(){ try { localStorage.setItem(GUEST_ON, "1"); } catch (e) {} user = makeGuest(); hide("shLogin"); await openDesk(); window.bootDone?.(); }
+$("guestIn").addEventListener("click", startGuest);
+document.addEventListener("click", e => { const b = e.target.closest("[data-gconnect]"); if (!b) return; hide("shSet"); signIn(b.dataset.gconnect); });
 $("lgPolicy").addEventListener("click", e => { e.preventDefault(); openPolicy(); });
 // 맨 아래 이용약관 · 개인정보 처리방침: 접고 펴지 않고 팝업 창으로
 function openPolicy(){ $("polBody").innerHTML = document.querySelector("#policy .pol").innerHTML; show("shPolicy"); $("shPolicy").querySelector(".close").focus(); }
@@ -7047,6 +7100,11 @@ function needLogin(what){
   if (!demo && user) return false;
   hide("demoBar"); show("shLogin"); $("lgErr").textContent = `${what}은(는) 로그인한 뒤에 쓸 수 있어요.`; return true;
 }
+// 친구 · 문의처럼 계정이 있어야 되는 기능: 로그인 없이 쓰는 중이면 연결 안내
+function needAccount(what){
+  if (!isGuest()) return needLogin(what);
+  show("shLogin"); $("lgErr").textContent = `${what}은(는) 구글 · 카카오로 연결하면 쓸 수 있어요. 지금까지 넣은 시간표 · 할 일 · 메모는 그대로 옮겨져요.`; return true;
+}
 
 /* ---------- 로그인 상태가 바뀌면 ---------- */
 onAuthStateChanged(auth, async u => {
@@ -7055,8 +7113,10 @@ onAuthStateChanged(auth, async u => {
   if (ADMIN_PAGE){ renderAdmin(); return; }
   // 구글 · 카카오가 아닌 로그인(이메일 등)은 쓰지 않아요 → 로그아웃하고 로그인 화면으로
   if (u && !kindsOf(u).length){ await signOut(auth); return; }
-  if (!u){ closeDesk(); if (NATIVE) FA()?.signOut().catch(() => {}); if (!demo) show("shLogin"); window.bootDone?.(); return; }   // 앱: 휴대폰 구글 로그인도 풀어서 다음에 계정을 다시 고르게
+  if (!u){ closeDesk(); if (NATIVE) FA()?.signOut().catch(() => {}); if (lsJ(GUEST_ON, 0)) return startGuest(); if (!demo) show("shLogin"); window.bootDone?.(); return; }   // 앱: 휴대폰 구글 로그인도 풀어서 다음에 계정을 다시 고르게 · 손님으로 쓰던 기기면 바로 손님 책상
   await openDesk();
+  const moved = await migrateGuest().catch(() => false); try { localStorage.removeItem(GUEST_ON); } catch (e) {}
+  if (moved){ await openDesk(); $("saved").textContent = "로그인 없이 쓰던 시간표 · 할 일 · 메모를 이 계정으로 옮겼어요 ✓"; }
   window.bootDone?.();   // 📱 앱 로딩 화면 닫기
   // 로그인한 뒤 아직 시간표를 안 넣었으면: 내 설정 넣기(단계별) 또는 계속 둘러보기 (이번 접속에 한 번만)
   let asked = false; try { asked = sessionStorage.getItem("desk-start-asked") === "1"; } catch (e) {}
@@ -7175,7 +7235,7 @@ async function openDesk(){
   // 아직 시간표를 저장하지 않은 선생님: 예시(김쌤) 대신 빈 시간표 + '등록된 시간표가 없어요' 안내 (종 시간만 고등학교 예시로 하루가 흘러가요)
   if (cfg) useConfig(); else { window.DESK.applyConfig({ empty:true, name:"", level:"high", grades:3, classes:10, hr:"", bell:bellOf("high"), week:{} }); window.DESK.setDayTT({}); window.DESK.setHrDayTT({}); renderSched({}); $("whoName").textContent = "아직 등록된 시간표가 없어요"; }
   guide();
-  watchRooms(); watchReqs(); ensureEmail(); setTimeout(publishMe, 1500);   // 👥 친구: 친구방 · 신청 지켜보기 · 이메일로 찾히게 · 내 시간표 알리기
+  if (!isGuest()){ watchRooms(); watchReqs(); ensureEmail(); setTimeout(publishMe, 1500); }   // 👥 친구: 친구방 · 신청 지켜보기 · 이메일로 찾히게 · 내 시간표 알리기
   // 오늘 처음 들어왔으면 마지막 접속일 · 로그인 종류를 적어요 (운영 현황용)
   const today = dkey(new Date());
   const lp = cfg ? lookPub() : null;
@@ -7184,7 +7244,7 @@ async function openDesk(){
     updateDoc(deskRef(), { lastAt:Date.now(), lastDay:today, ...(kinds.length ? { kinds:arrayUnion(...kinds) } : {}) }).catch(() => {});
   }
   if (lp && !lookSame(me.look, lp)) updateDoc(deskRef(), { look:lp }).then(() => { me.look = lp; }).catch(() => {});   // 따로 적어요 (규칙이 아직 없어도 접속일 기록은 그대로)
-  loadDay(today); loadExtras(); watchChat();
+  loadDay(today); loadExtras(); if (!isGuest()) watchChat();
   // 학교에서 이 PC에만 저장해 둔 것이 있으면, 서버에 올라가는 대로 알려 줘요
   if (lsGet("desk-pending", 0)) waitForPendingWrites(db).then(() => { lsSet("desk-pending", 0); $("saved").textContent = "학교에서 저장해 둔 내용이 서버에도 올라갔어요 ✓"; }).catch(() => {});
 }
@@ -7314,6 +7374,7 @@ async function sendDm(t){
   } catch (e){ frMsg = saveErr(e); renderFriendTab(); }
 }
 function renderFriendTab(keepInput){
+  if (isGuest()){ $("setBody").innerHTML = `<div class="sec" style="margin-top:0">👥 친구</div><p class="note">이메일로 친한 선생님을 찾고 서로의 시간표를 보는 기능은 구글 · 카카오로 연결하면 쓸 수 있어요.</p><div class="row" style="gap:6px"><button type="button" class="big google" data-gconnect="google">G 구글로 연결</button><button type="button" class="big kakao" data-gconnect="kakao">💬 카카오로 연결</button></div>`; return; }
   if (setTab !== "friend") return;
   const box = $("setBody");
   if (demo){ box.innerHTML = `<p class="note">체험 중에는 친구를 맺을 수 없어요. 구글 · 카카오로 로그인하면 이메일로 친구를 찾을 수 있어요.</p>`; return; }
@@ -8699,7 +8760,7 @@ function watchChat(){
 const when = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const msgHtml = (m, mine) => `<div class="cm ${m.by === mine ? "me" : "admin"}">${esc(m.t)}<small>${m.by === "admin" ? "관리자" : "나"} · ${when(m.at)}</small></div>`;
 function openChat(){
-  if (needLogin("관리자에게 묻기")) return;
+  if (needAccount("관리자에게 묻기")) return;
   if (!deskId || !cfg) return;
   show("shChat"); $("chatList").innerHTML = `<p class="note">불러오는 중…</p>`;
   msgUnsub?.();
@@ -8951,9 +9012,12 @@ function renderSet(){  document.querySelectorAll("#setTabs [data-tab]").forEach(
   if (setTab !== "acct") return renderHist();
   const linked = k => kindsOf(user).includes(k) || (me && (me.kinds || []).includes(k));
   const L = loginInfo(), icon = { google:"G", kakao:"💬", password:"✉" }[L.kind] || "?";
-  $("setBody").innerHTML = `
+  $("setBody").innerHTML = (isGuest() ? `
+    <div class="sec" style="margin-top:0">로그인 없이 쓰는 중</div>
+    <div class="nowacct"><span class="ic">🙋</span><div><b>이 기기에만 저장돼요</b><small>브라우저 데이터를 지우면 사라져요. 구글 · 카카오로 연결하면 지금 기록이 그대로 옮겨지고, 다른 기기 · 친구 · 문의도 쓸 수 있어요.</small></div></div>
+    <div class="row" style="gap:6px;margin-top:8px"><button type="button" class="big google" data-gconnect="google">G 구글로 연결</button><button type="button" class="big kakao" data-gconnect="kakao">💬 카카오로 연결</button></div>` : `
     <div class="sec" style="margin-top:0">지금 로그인한 계정</div>
-    <div class="nowacct nowacct-${L.kind || "x"}"><span class="ic">${icon}</span><div><b>${esc(L.name)}(으)로 들어왔어요</b><small>${esc(L.who || "계정 정보를 불러오지 못했어요")}</small></div></div>
+    <div class="nowacct nowacct-${L.kind || "x"}"><span class="ic">${icon}</span><div><b>${esc(L.name)}(으)로 들어왔어요</b><small>${esc(L.who || "계정 정보를 불러오지 못했어요")}</small></div></div>`) + `
     <p class="note" style="margin:6px 0 0">처음 만든 날 ${fmtDay(me && me.createdAt)} · 마지막 접속 ${fmtDay(me && me.lastAt)}</p>
     ${schoolForm()}
     <div class="sec">내 캐릭터</div>
@@ -9463,7 +9527,7 @@ $("setBody").addEventListener("click", e => {
   if (go.dataset.go === "edit"){ hide("shSet"); openEdit(false); }
   if (go.dataset.go === "export") exportAll();
   if (go.dataset.go === "pdf") sFlush().then(ok => { if (ok){ hide("shSet"); $("bPdf").click(); } });   // 설정을 닫고 PDF 창으로 (머리 줄 단추는 뺐어요)
-  if (go.dataset.go === "logout" && confirm("로그아웃할까요?")){ hide("shSet"); signOut(auth); }
+  if (go.dataset.go === "logout" && confirm(isGuest() ? "로그인 없이 쓰던 화면에서 나갈까요? (기록은 이 기기에 남아 있어요)" : "로그아웃할까요?")){ hide("shSet"); if (isGuest()){ try { localStorage.removeItem(GUEST_ON); } catch (e) {} user = null; closeDesk(); show("shLogin"); } else signOut(auth); }
   if (go.dataset.go === "delete") deleteAll();
 });
 const say = t => { setMsg = t; const el = $("setErr"); if (el) el.textContent = t; };
