@@ -111,7 +111,9 @@ async function start() {
   setHdr();
   import('./building3d.js').then((m) => {
     B3 = m;
-    m.connect({ onRoom: (k) => { location.hash = k; }, onChange: saveBuilding });
+    m.connect({ onRoom: (k) => { location.hash = k; }, onChange: saveBuilding,
+      onFurn: (room, id) => { if (room !== route()) return; const f = furnitureOf(room); openFurn(f.some((x) => x[0] === id) ? id : f[0][0]); },
+      furnInfo: ({ room, id }) => { const f = furnitureOf(room).find((x) => x[0] === id) || furnitureOf(room)[0]; return { title: f[1], sub: roomName(room), text: FURN_TIP[id] || '', job: '누르면 내용이 창으로 떠요' }; } });
     // 저장된 설정을 그리다 문제가 나도 3D 건물은 그대로 써요 (그림 건물로 바뀌지 않게)
     if (S.building) try { m.setState(S.building); } catch (e) { console.error('저장된 건물 설정을 그리지 못했어요', e); }
     render();
@@ -417,6 +419,22 @@ const ICO = {
   box: '<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>', safe: '<rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M15.5 12H17"/>',
   frame: '<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 16l5-5 4 4 3-3 4 4"/>', drawer: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 9h16M4 15h16M10 6h4M10 12h4M10 18h4"/>',
 };
+// 마우스를 올리면 보이는 설명 (가구 단추 · 그림 속 가구 같음)
+const FURN_TIP = {
+  desk: '남은 크레딧 · 만료 D-day · AI 쓴 값 · 급한 일 · 할 일 · 메모를 한눈에 보는 사장님 계기판이에요.',
+  sofa: '점검원이 매일 아침 6:30에 정리한 브리핑을 읽어요. 지금 새로 받을 수도 있어요.',
+  cal: '날짜가 있는 자료를 D-day 순으로 모아 보여 줘요.',
+  mon: 'moontr.site 모든 웹앱의 방문 잔디와 이용 브리핑이에요.',
+  shelf: '연수 기록실 카드를 연수별 한 줄로 정리한 연수 대장이에요.',
+  file: '업무관리시스템 문서등록대장 캡쳐를 옮긴 표예요. 키워드로 찾고, 넣은 공문은 ✓.',
+  tray: '사진 · PDF · 한글 파일을 넣으면 AI가 읽고 알맞은 방으로 보내요. 확인 전 자료도 여기 있어요.',
+  box: '넣은 원본 파일을 고치지 않고 그대로 보관해요. 다시 읽기도 여기서.',
+  add: '연수 사이트 주소를 직접 꽂아 둘 수 있어요.',
+  wb: '과제 단계와 제출일을 보고 체크해요.',
+  bench: '과제 안내 카드를 모아 봐요.',
+  main: '이 방으로 정리된 자료 카드를 모아 봐요. 카드를 누르면 고칠 수 있어요.',
+  store: '아직 비어 있는 창고예요. 새 방이 필요하면 여기를 방으로 바꿔요.',
+};
 // 방마다 가구 [id, 이름, 아이콘, 내용]. 내용은 예전 화면을 그대로 써요
 function furnitureOf(k) {
   // 로그인 전에도 가구 이름은 그대로 보여 주고, 누르면 '로그인 후에 볼 수 있어요' 안내
@@ -443,7 +461,7 @@ function floorView(k) {
     <nav class="r2-top"><a class="r2-back" href="village/">← 마을</a><h2>${esc(roomName(k))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</h2>
       ${k !== 'lobby' ? `<a class="r2-lobby" href="#lobby">접수처 · 자료 넣기</a>` : ''}</nav>
     ${B3 !== false ? `<div class="lift r2-pic ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div></div>` : ''}
-    <div class="r2-bar" role="group" aria-label="${esc(roomName(k))} 가구">${furn.map(([id, label, ic]) => `<button type="button" class="r2-btn" data-act="furn" data-v="${id}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[ic] || ''}</svg><span>${esc(label)}</span></button>`).join('')}</div>
+    <div class="r2-bar" role="group" aria-label="${esc(roomName(k))} 가구">${furn.map(([id, label, ic]) => `<button type="button" class="r2-btn" data-act="furn" data-v="${id}" title="${esc(FURN_TIP[id] || '')}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[ic] || ''}</svg><span>${esc(label)}</span></button>`).join('')}</div>
     <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
   </div>`;
 }

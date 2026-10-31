@@ -104,7 +104,7 @@ function person({ shirt = 0x3f6b55, pants = 0x2f3a52, hair = 0x3a2a20, long = fa
   return g;
 }
 function animate(p, dt, moving, act) {
-  const u = p.userData; u.phase += dt * (moving ? 9 : 2);
+  const u = p.userData; u.phase += dt * (moving ? (p === me?.g ? 9 : 5) : 2);   // 직원은 발걸음도 느리게
   const s = moving ? Math.sin(u.phase) * 0.6 : 0;
   u.legL.rotation.x = s; u.legR.rotation.x = -s; u.armL.rotation.x = -s * 0.8; u.armR.rotation.x = s * 0.8; u.armL.rotation.z = 0; u.armR.rotation.z = 0;
   u.body.position.y = moving ? Math.abs(Math.sin(u.phase)) * 0.06 : 0;
@@ -287,13 +287,13 @@ function spawnPeople() {
     const g = person({ shirt: SHIRTS[i % SHIRTS.length], hair: [0x3a2a20, 0x1f1a16, 0x6a4a2a][i % 3], long: i % 3 === 0 });
     const tag = label(JOB(k) || NAME(k)); tag.scale.multiplyScalar(0.55); tag.position.y = 2.75; g.add(tag);
     const home = door(SPOTS.find((s) => s.key === k)); g.position.copy(home); scene.add(g);
-    npcs.push({ g, key: k, home, path: [], wait: rnd() * 6, act: null, speed: 2.2 + rnd() * 0.6 });
+    npcs.push({ g, key: k, home, path: [], wait: rnd() * 6, act: null, speed: 1.1 + rnd() * 0.4 });   // 사장님(5)보다 훨씬 천천히
   });
   // 비서: 사장님 집 ↔ 접수처, 친구 셋: 광장 둘레
   const sec = person({ shirt: 0x1f2a3a, hair: 0x2a1d16, long: true }); const st = label('비서'); st.scale.multiplyScalar(0.55); st.position.y = 2.75; sec.add(st); scene.add(sec);
   const bossDoor = door(SPOTS.find((s) => s.key === 'boss')); sec.position.copy(bossDoor).add(new THREE.Vector3(2, 0, 0));
-  npcs.push({ g: sec, key: 'secretary', home: sec.position.clone(), path: [], wait: 3, act: null, speed: 2.4 });
-  for (let i = 0; i < 3; i++) { const f = person({ shirt: [0xe2603d, 0xf2c94c, 0x7fb3d5][i], hair: 0x4a3020, long: i === 1 }); const a = i * 2.1; f.position.set(Math.sin(a) * 5, 0, Math.cos(a) * 5); scene.add(f); npcs.push({ g: f, key: 'friend', home: f.position.clone(), path: [], wait: rnd() * 4, act: null, speed: 1.6 }); }
+  npcs.push({ g: sec, key: 'secretary', home: sec.position.clone(), path: [], wait: 3, act: null, speed: 1.3 });
+  for (let i = 0; i < 3; i++) { const f = person({ shirt: [0xe2603d, 0xf2c94c, 0x7fb3d5][i], hair: 0x4a3020, long: i === 1 }); const a = i * 2.1; f.position.set(Math.sin(a) * 5, 0, Math.cos(a) * 5); scene.add(f); npcs.push({ g: f, key: 'friend', home: f.position.clone(), path: [], wait: rnd() * 4, act: null, speed: 0.9 }); }
   // 사장님
   const g = person({ shirt: 0xf2c94c, pants: 0x3a4a6a, hair: 0x3a2418, long: true });
   const tag = label('사장님', true); tag.scale.multiplyScalar(0.6); tag.position.y = 2.85; g.add(tag);

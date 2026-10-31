@@ -33,7 +33,7 @@ Object.assign(STATE, PREVIEW);
 // 캐릭터 느낌: STATE.look (0 각진 복셀 · 2 반질 비닐, 미리 보기 ?look=1 클레이 · 3 만화) · ?noon=1 이면 시각과 상관없이 한낮 빛으로 (비교 사진용)
 let LOOK = STATE.look || 0;
 const NOON = new URLSearchParams(location.search).has('noon');
-const hooks = { onRoom: null, onChange: null };
+const hooks = { onRoom: null, onChange: null, onFurn: null, furnInfo: null };
 const root = document.getElementById('b3d');
 let visible = !root.hidden;
 // home = 첫 화면(화면 가득) · band = 층 화면 위쪽 띠(그 층만 보여 줘요)
@@ -1267,6 +1267,11 @@ function furnish(k, g, { x0, x1, cx, y }) {
       const f = addChar(g, cx - .9, y + fr.lift, 1.35, fr.move, { def: fr.def(), face: -.3, info: friendInfo(fr.id) });
       if (fr.id === 9) f.flapGhost = true;
       ROOMS.boss.focus = { x: cx - 1.7, y: y + 1.35 };
+      furnHit(g, 'boss', 'cal', cx - 3.2, y, zb + .3, 1.6, 2.2, 1);     // 일정 보드
+      furnHit(g, 'boss', 'desk', cx + .6, y, -.6, 2.2, 1.4, 1.4);       // 책상
+      furnHit(g, 'boss', 'mon', cx + .6, y + 1.4, zw + .3, 1.6, 1.4, .8); // 벽 모니터(D-7)
+      furnHit(g, 'boss', 'shelf', cx + 2.9, y, zb, 1.4, 2.3, .9);       // 책장
+      furnHit(g, 'boss', 'file', cx + 4.2, y, zb, 1.2, 2.3, .9);        // 서류장
       break;
     }
     // 연수 기록실 · 링크 서재 · 도덕교과실 · 지도안 · 과제 · 접수처 · 보관실 · AI 교육 · 보안실은 위 roomTools (분류 가구)
@@ -1686,6 +1691,7 @@ function penthouse(g, f, y) {
   // 라운지 (왼쪽)
   B(g, 8, .03, 3.6, '#c9a07a', -6.5, y + .02, .6, { shadow: false }); // 깔개
   sofa(g, -7.8, y, -.9); sofa(g, -4.2, y, -.9);
+  furnHit(g, 'boss', 'sofa', -6, y, -.4, 7.6, 1.3, 2.4);   // 소파 = 아침 브리핑
   B(g, 2, .45, 1, P.wood, -6, y + .23, .9); B(g, .5, .25, .5, P.leaf, -6, y + .58, .9); // 탁자와 화분
   lamp(g, x0 + .8, y, -1.6); plant(g, x0 + .7, y, 2, true);
   B(g, .08, 1.6, .08, P.metal, -6, y + FH - 1.1, .3, { shadow: false }); // 샹들리에
@@ -1721,6 +1727,12 @@ function terrace() {
 }
 
 // 방 하나의 누르는 상자 + 이름표
+// 방 그림 속 가구를 누르면 앱이 그 가구 팝업을 열어요 (hooks.onFurn). 보이지 않는 상자로 맞혀요
+const furnBoxes = [];
+function furnHit(g, room, id, x, y, z, w, h, d) {
+  const m = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0, depthWrite: false }));
+  m.scale.set(w, h, d); m.position.set(x, y + h / 2, z); m.userData.furn = { room, id }; g.add(m); furnBoxes.push(m); return m;
+}
 function hitAndSign(g, k, cx, w, y) {
   const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: '#2b7ea1', transparent: true, opacity: 0, depthWrite: false }));
   hit.scale.set(w - .2, FH - .35, D);
@@ -2160,6 +2172,9 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     showTip({ title: name, sub: `${list.length}건`, text: list.length ? list.slice(0, 3).map((x) => x.title).join(' · ') : '아직 비어 있어요.', job: '누르면 직원이 가서 꺼내 와요' }, e.clientX, e.clientY);
     hoverRoom(null); stage.classList.add('hover'); return;
   }
+  const fu = mode === 'band' && pickFurn();
+  if (fu) { hooks.furnInfo && showTip(hooks.furnInfo(fu), e.clientX, e.clientY); furnHover(fu); hoverRoom(null); stage.classList.add('hover'); return; }
+  furnHover(null);
   hideTip();
   const k = pick(e);
   stage.classList.toggle('hover', !!k);
@@ -2172,8 +2187,11 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     if (ch) showTip(ch.info, e.clientX, e.clientY); // 휴대폰은 눌러서 설명 보기
     else {
       hideTip();
-      const bk = pickBook(), tl = !bk && pickTool();
-      if (bk) libFetch(bk);
+      const fu = mode === 'band' && pickFurn();
+      const bk = !fu && pickBook(), tl = !fu && !bk && pickTool();
+      if (fu) hooks.onFurn?.(fu.room, fu.id);
+      else if (mode === 'band' && tl && hooks.onFurn) hooks.onFurn(tl.k, 'main');   // 방 화면: 분류 가구 = 그 방 주 가구 팝업
+      else if (bk) libFetch(bk);
       else if (tl) toolFetch(tl);
       else { const k = pick(e); if (k) chooseRoom(k); }
     }
@@ -2181,6 +2199,9 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   drag = null;
 });
 renderer.domElement.addEventListener('pointerleave', () => { hoverRoom(null); libHover(null); hideTip(); });
+function pickFurn() { const h = ray.intersectObjects(furnBoxes, false)[0]; return h ? h.object.userData.furn : null; }
+let furnLit = null;
+function furnHover(f) { if (furnLit === f) return; furnBoxes.forEach((b) => { b.material.opacity = f && b.userData.furn === f ? .18 : 0; }); furnLit = f; }
 // 캐릭터를 맞혔는지 (pick 이 광선을 맞춘 뒤에 불러요)
 function pickChar(e) {
   pick(e);
