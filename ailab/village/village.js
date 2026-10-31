@@ -1,5 +1,6 @@
 // AI 연구소 마을 — 방 하나 = 단층 건물 한 채. 직원은 블록 캐릭터 NPC, 나는 사장님.
-// 테마 3가지: 안다즈 파타야(해변 리조트) · 몰디브(수상 빌라) · 교토(옛 절집 거리). 건물 자리는 같고 모양만 바뀌어요.
+// 동네 3곳: 파타야(해변 리조트) · 몰디브(수상 빌라) · 교토(옛 절집 거리). 건물 자리는 같고 모양만 바뀌어요.
+// 직원 머리 위 말풍선: 지금 시각(아침 · 점심 · 저녁 …)과 자기 방 일에 맞는 인사. 푸드코트: 그 나라에서 꼭 먹어야 하는 음식 노점 4곳.
 // 건물을 누르면 연구소의 그 방(../#방이름)으로 가요. 자료는 연구소 화면 그대로 써요.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -31,15 +32,15 @@ const DESC = {
 // ───────── 테마 ─────────
 const THEMES = {
   andaz: {
-    name: '안다즈 파타야', sky: 0x9fd3ea, fog: 0xcfe9f2, sun: 0xfff3dc, hemiG: 0x8aa070,
+    name: '파타야', hello: '사와디캅~', sky: 0x9fd3ea, fog: 0xcfe9f2, sun: 0xfff3dc, hemiG: 0x8aa070,
     ground: 0x8fc46a, plaza: 0xeee8da, path: 0xeee8da, shore: 20, sand: 0xeadcb1, water: 0x3fb0cf, waterNear: 0x5fcbd8,
   },
   maldives: {
-    name: '몰디브', sky: 0x8fd0f0, fog: 0xd5f1f6, sun: 0xffffff, hemiG: 0x9ad6c8,
+    name: '몰디브', hello: '아쌀라무 알라이쿰~', sky: 0x8fd0f0, fog: 0xd5f1f6, sun: 0xffffff, hemiG: 0x9ad6c8,
     ground: 0xbfe08a, plaza: 0xf6eed6, path: 0xf6eed6, island: 31, sand: 0xf7efd8, water: 0x2aa6c8, waterNear: 0x7fe0dc,
   },
   kyoto: {
-    name: '교토', sky: 0xb9d4e4, fog: 0xe6ece8, sun: 0xffeccc, hemiG: 0x6f8a5a,
+    name: '교토', hello: '곤니치와~', sky: 0xb9d4e4, fog: 0xe6ece8, sun: 0xffeccc, hemiG: 0x6f8a5a,
     ground: 0x6f9a52, plaza: 0xd9d4c6, path: 0xcfc6b2, shore: 20, sand: 0x8f8a7c, water: 0x5f8f8a, waterNear: 0x6fa19a,
   },
 };
@@ -62,6 +63,7 @@ addEventListener('resize', resize); resize();
 
 const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, ...o });
 function box(parent, w, h, d, c, x, y, z, o) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), c.isMaterial ? c : M(c, o)); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; }
+const ball = (parent, r, c, x, y, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), M(c)); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
 function cyl(parent, r1, r2, h, c, x, y, z, seg = 10) { const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg), c.isMaterial ? c : M(c)); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; }
 // 지붕: 네모 바닥에서 꼭대기로 모이는 모임지붕 (열대 · 이엉 · 기와 모두 이걸로, 처마 길이와 높이만 달리)
 function hipRoof(parent, w, d, h, c, y, { eave = 0.6, flare = false } = {}) {
@@ -112,11 +114,15 @@ function animate(p, dt, moving, act) {
   if (act === 'wave') { u.armR.rotation.x = -2.8; u.armR.rotation.z = Math.sin(u.phase * 3) * 0.35; }
   if (act === 'kite') { u.armR.rotation.x = -2.2; }
   if (act === 'carry') { u.armL.rotation.x = -1.2; u.armR.rotation.x = -1.2; }
-  if (act === 'sit') { u.legL.rotation.x = -1.5; u.legR.rotation.x = -1.5; u.body.position.y = -0.3; u.armL.rotation.x = -0.4; u.armR.rotation.x = -0.4 + Math.sin(u.phase * 0.7) * 0.15; u.head.rotation.y = Math.sin(u.phase * 0.4) * 0.4; }
+  if (act === 'sit' || act === 'eat') { u.legL.rotation.x = -1.5; u.legR.rotation.x = -1.5; u.body.position.y = -0.3; u.armL.rotation.x = -0.4; u.armR.rotation.x = -0.4 + Math.sin(u.phase * 0.7) * 0.15; u.head.rotation.y = Math.sin(u.phase * 0.4) * 0.4; }
+  if (act === 'eat') { u.armR.rotation.x = -0.9 - Math.max(0, Math.sin(u.phase * 1.1)) * 1.1; u.armL.rotation.x = -0.9; u.head.rotation.y = 0; }
+  if (act === 'hold') { u.armR.rotation.x = -1.1; }
+  if (act === 'cook') { u.armR.rotation.x = -1 + Math.sin(u.phase * 3) * 0.35; u.armL.rotation.x = -0.9; }
   if (act === 'icecream') { u.armR.rotation.x = -1.6 - Math.max(0, Math.sin(u.phase * 0.9)) * 0.9; u.head.rotation.x = 0.1; }
   if (act === 'npckite') { u.armR.rotation.x = -2.3 + Math.sin(u.phase) * 0.15; u.head.rotation.x = -0.4; }
   if (act !== 'npckite' && act !== 'icecream') u.head.rotation.x = 0;
   if (act !== 'sit') u.head.rotation.y = 0;
+  if (u.hand) u.hand.rotation.x = -u.armR.rotation.x;   // 손에 든 음식은 늘 수평으로
   if (act === 'bike') { u.legL.rotation.x = -1 + Math.sin(u.phase) * 0.5; u.legR.rotation.x = -1 - Math.sin(u.phase) * 0.5; u.armL.rotation.x = -1.2; u.armR.rotation.x = -1.2; u.body.position.y = 0.45; }
 }
 
@@ -139,8 +145,8 @@ function buildWorld(id) {
   const land = new THREE.Group(); world.add(land);
   if (id === 'maldives') {
     const near = new THREE.Mesh(new THREE.CircleGeometry(52, 64), M(T.waterNear, { roughness: 0.2 })); near.rotation.x = -Math.PI / 2; near.position.y = -0.3; world.add(near);
-    const sand = new THREE.Mesh(new THREE.CylinderGeometry(T.island + 1.5, T.island + 3, 0.6, 64), M(T.sand)); sand.position.y = -0.2; sand.scale.z = 1.05; sand.receiveShadow = true; land.add(sand);
-    const grass = new THREE.Mesh(new THREE.CylinderGeometry(T.island - 2.5, T.island - 2.5, 0.62, 64), M(T.ground)); grass.position.y = -0.19; grass.receiveShadow = true; land.add(grass);
+    const sand = new THREE.Mesh(new THREE.CylinderGeometry(T.island + 1.5, T.island + 3, 0.6, 64), M(T.sand)); sand.position.y = -0.33; sand.scale.z = 1.05; sand.receiveShadow = true; land.add(sand);
+    const grass = new THREE.Mesh(new THREE.CylinderGeometry(T.island - 2.5, T.island - 2.5, 0.62, 64), M(T.ground)); grass.position.y = -0.31; grass.receiveShadow = true; land.add(grass);
   } else {
     const g = new THREE.Mesh(new THREE.BoxGeometry(130, 0.6, 60 + T.shore), M(T.ground)); g.position.set(0, -0.3, (T.shore - 60) / 2); g.receiveShadow = true; land.add(g);
     const b = new THREE.Mesh(new THREE.BoxGeometry(130, 0.5, 6), M(T.sand)); b.position.set(0, -0.33, T.shore + 3); b.receiveShadow = true; land.add(b);
@@ -172,6 +178,7 @@ function buildWorld(id) {
   }
   ({ andaz: decoAndaz, maldives: decoMaldives, kyoto: decoKyoto }[id])();
   buildPlaza(id);
+  buildFoodCourt(id);
 
   function jetty(s) {
     const a = Math.atan2(s.x, s.z), r0 = T.island - 1, r1 = Math.hypot(s.x, s.z) - s.d / 2 - 0.5, len = r1 - r0;
@@ -182,7 +189,7 @@ function buildWorld(id) {
   }
 }
 
-// 안다즈: 하얀 벽 · 티크 처마의 모던 빌라(평지붕), 접수처 · 교과실 · 사장님 집은 태국식 높은 지붕
+// 파타야(안다즈 느낌): 하얀 벽 · 티크 처마의 모던 빌라(평지붕), 접수처 · 교과실 · 사장님 집은 태국식 높은 지붕
 function buildAndaz(g, s) {
   const thai = ['lobby', 'moral', 'others', 'boss'].includes(s.key);
   const h = s.boss ? 3.4 : 3;
@@ -258,7 +265,7 @@ function buildPlaza(id) {
   }
   // 꽃밭 넷
   const fc = id === 'kyoto' ? [0xc0392b, 0xe67e22] : id === 'maldives' ? [0xff8fb1, 0xffd166] : [0xe8789a, 0xf2c94c];
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2, r = 9.4; const g = new THREE.Group(); g.position.set(Math.sin(a) * r, 0, Math.cos(a) * r); world.add(g); box(g, 2.6, 0.3, 1.4, 0x8a6a46, 0, 0.15, 0); for (let j = 0; j < 8; j++) box(g, 0.35, 0.35, 0.35, fc[j % 2], -1 + (j % 4) * 0.66, 0.45, j < 4 ? -0.3 : 0.3, { flatShading: true }); }
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + Math.PI / 4, r = 9.4; const g = new THREE.Group(); g.position.set(Math.sin(a) * r, 0, Math.cos(a) * r); world.add(g); box(g, 2.6, 0.3, 1.4, 0x8a6a46, 0, 0.15, 0); for (let j = 0; j < 8; j++) box(g, 0.35, 0.35, 0.35, fc[j % 2], -1 + (j % 4) * 0.66, 0.45, j < 4 ? -0.3 : 0.3, { flatShading: true }); }
   // 아이스크림 수레 (줄무늬 차양)
   const c = new THREE.Group(); c.position.set(-7.5, 0, 6.5); c.rotation.y = 0.7; world.add(c);
   box(c, 2, 1.1, 1.1, 0xf4f1ea, 0, 0.75, 0); box(c, 2.05, 0.2, 1.15, 0xff8fb1, 0, 1.0, 0);
@@ -273,6 +280,153 @@ function buildPlaza(id) {
 }
 
 // 소품
+// ───────── 푸드코트: 그 나라에 가면 꼭 먹어야 하는 음식 노점 4곳 + 파라솔 식탁 4개(16자리) ─────────
+// kind = 그릇 모양 (plate 접시 · bowl 국그릇 · glass 유리잔 · skewer 꼬치 · balls 동그란 튀김), col = 음식 색, sign = 노점 색
+const FOODS = {
+  andaz: [
+    { name: '팟타이', kind: 'plate', col: 0xe0a050, sign: 0xd9483b, say: '팟타이엔 땅콩 듬뿍!' },
+    { name: '똠얌꿍', kind: 'bowl', col: 0xe0602a, sign: 0xe2873a, say: '똠얌꿍 새콤 매콤해요!' },
+    { name: '망고 찹쌀밥', kind: 'plate', col: 0xffc93c, sign: 0x3f9a5a, say: '망고 찹쌀밥 달콤해요~' },
+    { name: '쏨땀', kind: 'plate', col: 0x9fd36a, sign: 0x2f7a96, say: '쏨땀 아삭아삭!' },
+  ],
+  maldives: [
+    { name: '마스후니', kind: 'plate', col: 0xf3ead2, sign: 0x2aa6c8, say: '마스후니를 로시 빵에 싸 먹어요' },
+    { name: '가루디야', kind: 'bowl', col: 0xd9c08a, sign: 0x3f7a4f, say: '가루디야 생선 국물 시원해요' },
+    { name: '마스 리하', kind: 'bowl', col: 0xd98a2a, sign: 0xe2603d, say: '참치 커리 마스 리하 최고!' },
+    { name: '굴라', kind: 'balls', col: 0xc98a3a, sign: 0x9a5a7a, say: '굴라 한 입에 쏙!' },
+  ],
+  kyoto: [
+    { name: '유도후', kind: 'bowl', col: 0xf7f3e8, bowl: 0x3a2a1a, sign: 0x4f6a8f, say: '유도후 따끈하고 부드러워요' },
+    { name: '니신 소바', kind: 'bowl', col: 0x8a5a2a, bowl: 0xa33b2a, sign: 0x6e4c30, say: '니신 소바 국물 진하다' },
+    { name: '말차 파르페', kind: 'glass', col: 0x6f9a42, sign: 0x3f7a4f, say: '말차 파르페 쌉싸름 달콤!' },
+    { name: '미타라시 당고', kind: 'skewer', col: 0xd9b07a, sign: 0xb4523a, say: '당고 소스가 달짝지근해요' },
+  ],
+};
+// 자리: C 안쪽, 타교과실과 링크 서재 사이 (길 두 갈래가 푸드코트 바닥을 지나가요)
+const FC = (() => { const a = -62.5 * Math.PI / 180, r = 18; return { x: Math.sin(a) * r, z: -Math.cos(a) * r, ry: Math.atan2(Math.sin(a) * r * -1, Math.cos(a) * r) }; })();
+const FCW = (x, z) => new THREE.Vector3(x, 0, z).applyAxisAngle(new THREE.Vector3(0, 1, 0), FC.ry).add(new THREE.Vector3(FC.x, 0, FC.z));
+const STALLS = [], FOOD_SEATS = [], VENDORS = [];
+function dish(f, k = 1) {
+  const g = new THREE.Group();
+  if (f.kind === 'plate' || f.kind === 'balls') cyl(g, 0.3, 0.26, 0.05, 0xffffff, 0, 0.025, 0, 14);
+  if (f.kind === 'plate') cyl(g, 0.21, 0.24, 0.1, f.col, 0, 0.09, 0, 10);
+  if (f.kind === 'balls') for (const [x, z] of [[-0.1, 0.05], [0.1, 0.05], [0, -0.1]]) ball(g, 0.08, f.col, x, 0.12, z);
+  if (f.kind === 'bowl') { cyl(g, 0.26, 0.15, 0.2, f.bowl ?? 0xf4f1ea, 0, 0.1, 0, 14); cyl(g, 0.23, 0.23, 0.02, f.col, 0, 0.19, 0, 14); }
+  if (f.kind === 'glass') { const gl = cyl(g, 0.11, 0.07, 0.42, 0xffffff, 0, 0.21, 0, 10); gl.material.transparent = true; gl.material.opacity = 0.45; cyl(g, 0.09, 0.06, 0.32, f.col, 0, 0.17, 0, 10); ball(g, 0.09, 0xfff8e8, 0, 0.42, 0); }
+  if (f.kind === 'skewer') { cyl(g, 0.015, 0.015, 0.55, 0xc9a86a, 0, 0.27, 0, 5); for (const y of [0.22, 0.35, 0.48]) ball(g, 0.07, f.col, 0, y, 0); }
+  g.scale.setScalar(k); return g;
+}
+function buildFoodCourt(id) {
+  STALLS.length = 0; FOOD_SEATS.length = 0; VENDORS.length = 0;
+  const T = THEMES[id], foods = FOODS[id];
+  const floor = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 7.5, 0.07, 40), M(id === 'kyoto' ? 0xa8a294 : T.plaza)); floor.position.set(FC.x, 0.04, FC.z); floor.receiveShadow = true; world.add(floor);
+  const sign = label('푸드코트'); sign.scale.multiplyScalar(0.8); sign.position.copy(FCW(0, -1.5)).setY(5.4); world.add(sign);
+  // 노점: 뒤쪽 2곳(가운데를 보고), 양옆 2곳(안쪽을 보고)
+  [[-1.7, -3.6, 0], [1.7, -3.6, 0], [-6.2, -1, Math.PI / 2], [6.2, -1, -Math.PI / 2]].forEach(([x, z, r], i) => {
+    const f = foods[i], s = new THREE.Group(); s.position.copy(FCW(x, z)); s.rotation.y = FC.ry + r; world.add(s);
+    const wood = id === 'kyoto' ? 0x5a3a24 : id === 'maldives' ? 0xc49a6a : 0xf4f1ea;
+    box(s, 2.4, 1, 1, wood, 0, 0.5, 0); box(s, 2.5, 0.1, 1.15, id === 'kyoto' ? 0x3a2a1a : 0xe6dfcf, 0, 1.05, 0.05);
+    for (const sx of [-1.15, 1.15]) box(s, 0.1, 2.6, 0.1, 0x6e4c30, sx, 1.3, -0.45);
+    if (id === 'kyoto') {   // 교토: 기와 지붕 + 노렌(가게 앞 천)
+      box(s, 2.8, 0.18, 1.6, 0x2e2a26, 0, 2.65, 0);
+      for (let j = 0; j < 4; j++) box(s, 0.55, 0.6, 0.03, f.sign, -0.85 + j * 0.57, 2.25, 0.55);
+    } else {   // 줄무늬 차양
+      for (let j = 0; j < 7; j++) { const a = box(s, 0.36, 0.08, 1.6, j % 2 ? 0xffffff : f.sign, -1.08 + j * 0.36, 2.55, 0.25); a.rotation.x = 0.22; }
+      if (id === 'maldives') box(s, 2.7, 0.25, 1.7, 0xc9a46a, 0, 2.75, 0.2);   // 몰디브: 야자잎 지붕
+    }
+    const big = dish(f, 1.7); big.position.set(0.55, 1.1, 0.15); s.add(big);
+    const small = dish(f, 1.2); small.position.set(-0.6, 1.1, 0.2); s.add(small);
+    const tag = label(f.name); tag.scale.multiplyScalar(0.5); tag.position.set(0, 3.4, 0); s.add(tag);
+    const v = person({ shirt: 0xffffff, pants: 0x3a3a3a, hair: 0x2a1d16, hat: id === 'kyoto' ? f.sign : 0xffffff }); v.position.set(0, 0, -0.95); s.add(v);
+    box(v.userData.body, 0.72, 0.6, 0.05, f.sign, 0, 1.05, 0.21);   // 앞치마
+    const vendor = { g: v, chat: 6 + rnd() * 20, vendor: true, food: f }; VENDORS.push(vendor);
+    STALLS.push({ food: f, vendor, order: FCW(x + Math.sin(r) * 1.4, z + Math.cos(r) * 1.4) });
+  });
+  // 파라솔 식탁 넷, 식탁마다 의자 네 개
+  const top = id === 'kyoto' ? 0x6e4c30 : 0xf4f1ea, para = id === 'kyoto' ? [0xc0392b] : id === 'maldives' ? [0xf6eed6, 0x7fe0dc] : [0xff8fb1, 0xf2c94c, 0x43c9dc];
+  [[0, 0.4], [0, 3.6], [-6, 3], [6, 3]].forEach(([tx, tz], i) => {
+    const p = FCW(tx, tz);
+    cyl(world, 0.85, 0.85, 0.08, top, p.x, 0.85, p.z, 16); cyl(world, 0.1, 0.1, 0.85, 0x555555, p.x, 0.42, p.z, 6);
+    cyl(world, 0.05, 0.05, 2.2, 0xdddddd, p.x, 1.95, p.z, 6);
+    const u = new THREE.Mesh(new THREE.ConeGeometry(1.7, 0.6, 8), M(para[i % para.length], { side: THREE.DoubleSide })); u.position.set(p.x, 3.1, p.z); u.castShadow = true; world.add(u);
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4, sx = p.x + Math.sin(a) * 1.15, sz = p.z + Math.cos(a) * 1.15;
+      cyl(world, 0.25, 0.22, 0.5, id === 'kyoto' ? 0x3a2a1a : 0xb98a5a, sx, 0.25, sz, 8);
+      FOOD_SEATS.push({ pos: new THREE.Vector3(sx, 0, sz), rot: Math.atan2(p.x - sx, p.z - sz), taken: null });
+    }
+  });
+}
+
+// ───────── 말풍선: 머리 위에 몇 초 동안 ─────────
+// 시간대: 새벽 · 아침 · 오전 · 점심 · 오후 · 저녁 · 밤 (보는 사람 컴퓨터 시계 기준)
+function slot() { const h = new Date().getHours() + new Date().getMinutes() / 60; return h < 5 ? 'dawn' : h < 9 ? 'morning' : h < 12 ? 'am' : h < 13.5 ? 'lunch' : h < 18 ? 'pm' : h < 21 ? 'evening' : 'night'; }
+const HELLO = {
+  dawn: ['아직 안 주무세요?', '새벽 공기 차가워요', '일찍 나오셨네요!'],
+  morning: ['좋은 아침이에요!', '아침 드셨어요?', '오늘도 반가워요!'],
+  am: ['오전도 힘내세요!', '커피 한잔 하셨어요?', '안녕하세요, 사장님!'],
+  lunch: ['점심 맛있게 드세요!', '점심 뭐 드실 거예요?', '푸드코트 같이 가실래요?'],
+  pm: ['오후도 화이팅!', '나른한 오후네요', '간식 시간이에요~'],
+  evening: ['오늘도 수고하셨어요', '저녁 노을 예쁘죠?', '퇴근 준비 하세요~'],
+  night: ['늦게까지 계시네요', '푹 쉬세요!', '밤바람이 시원해요'],
+};
+// 방마다 하는 일 (시간대에 맞는 말이 없으면 any 에서 골라요)
+const WORK = {
+  train: { morning: ['오늘 연수 일정 챙겨 둘게요'], am: ['연수 기록 정리하는 중이에요'], lunch: ['연수 사진 정리하고 밥 먹으러 가요'], pm: ['연수 소감 받아 적는 중'], evening: ['오늘 연수 기록 마감!'], night: ['연수 기록 백업해 둘게요'], any: ['새 연수 기록이 왔어요'] },
+  links: { morning: ['새 링크 꽂으러 가요'], am: ['책장 분류 다시 했어요'], pm: ['안 열리는 링크 고쳐 둘게요'], evening: ['오늘 모은 링크 정리 끝'], any: ['좋은 사이트 찾았어요!'] },
+  moral: { morning: ['도덕 수업 자료 열어 둘게요'], am: ['도덕 수업 자료 구경 오세요'], pm: ['토론 수업 자료 새로 걸었어요'], evening: ['전시실 불 끄러 가요'], any: ['오늘 수업 자료 둘러보세요'] },
+  others: { morning: ['타교과 자료실 문 열었어요'], am: ['다른 과목 자료도 구경 오세요'], pm: ['미술 · 과학 자료 새로 왔어요'], evening: ['자료실 정리하고 갈게요'], any: ['다른 과목에서 배울 게 많아요'] },
+  plans: { morning: ['오늘 지도안 초안 시작!'], am: ['지도안 다듬는 중이에요'], pm: ['활동지도 같이 만들었어요'], evening: ['지도안 서랍 정리 끝'], night: ['내일 수업 준비 거의 다 됐어요'], any: ['좋은 수업 아이디어 있어요?'] },
+  task: { morning: ['오늘 마감 과제 확인할게요'], am: ['할 일 체크리스트 정리 중'], pm: ['마감 다가온 과제 있어요!'], evening: ['오늘 할 일 거의 끝!'], any: ['작업대 깨끗이 비워 뒀어요'] },
+  aiedu: { morning: ['아침 AI 소식 정리했어요'], am: ['새 AI 도구 써 보는 중'], pm: ['AI 수업 아이디어 메모 중'], evening: ['오늘 배운 AI 도구 정리'], any: ['새 AI 소식 모으는 중이에요'] },
+  security: { morning: ['아침 문단속 확인 끝!'], am: ['수상한 메일 없나 보는 중'], pm: ['비밀번호 바꿀 때 됐어요'], evening: ['퇴근 전 잠금 확인할게요'], night: ['밤에도 지키고 있어요'], any: ['보안 점검 이상 없어요'] },
+  lobby: { morning: ['접수처 문 열었어요!'], am: ['새 자료 오면 바로 나눌게요'], pm: ['들어온 서류 분류 중이에요'], evening: ['오늘 접수 마감했어요'], any: ['자료 넣으실 거 있으세요?'] },
+  archive: { morning: ['보관함 열쇠 챙겼어요'], evening: ['보관실 잠그고 갈게요'], any: ['원본은 안전하게 보관 중이에요'] },
+  secretary: { morning: ['사장님, 브리핑 준비됐어요'], am: ['오늘 일정 정리해 둘게요'], lunch: ['점심은 푸드코트 어떠세요?'], pm: ['오후 일정 알려 드릴게요'], evening: ['오늘 일정 다 끝났어요'], night: ['내일 일정도 챙겨 둘게요'], any: ['사장님 찾으시는 분 있어요'] },
+  friend: { lunch: ['푸드코트 가 볼까?'], any: ['오늘 날씨 좋다~', '연구소 마을 산책 최고', '광장 분수 시원하다'] },
+};
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+function workLine(k) { const w = WORK[k] || WORK.friend; return pick(w[slot()] || w.any || HELLO[slot()]); }
+const helloLine = () => pick(HELLO[slot()]);
+function hello(n) { const h = THEMES[theme].hello; return n.key === 'friend' || n.vendor ? (theme === 'kyoto' && slot() === 'morning' ? '오하요~' : h) + ' ' + helloLine() : helloLine(); }
+function lineFor(n) {
+  if (n.vendor) return pick([`${n.food.name} 드시고 가세요~`, `${n.food.name} 맛있어요!`, THEMES[theme].hello]);
+  const d = n.doing;
+  if (d?.act === 'eat') return d.food.say;
+  if (d?.act === 'sit') return pick(['잠깐 쉬었다 갈게요', '벤치 그늘이 시원해요', '오늘 하늘 예쁘다']);
+  if (d?.act === 'icecream') return pick(['아이스크림 최고!', '녹기 전에 얼른 먹어요']);
+  if (d?.act === 'npckite') return pick(['바람 딱 좋다~', '연이 높이 올라가요!']);
+  if (n.holding) return n.key === 'secretary' ? '사장님께 드릴 서류예요' : '접수처에 서류 갖다 줄게요';
+  return workLine(n.key);
+}
+function bubbleTex(text) {
+  const c = document.createElement('canvas'), g = c.getContext('2d'), F = `44px "Ownglyph_UNZ-Rg", sans-serif`;
+  g.font = F; const w = Math.ceil(g.measureText(text).width) + 48; c.width = w; c.height = 96; g.font = F;
+  g.fillStyle = '#fff'; g.strokeStyle = 'rgba(31,42,36,.5)'; g.lineWidth = 4;
+  g.beginPath(); g.roundRect(3, 3, w - 6, 64, 30); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(w / 2 - 13, 64); g.lineTo(w / 2, 90); g.lineTo(w / 2 + 13, 64); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(w / 2 - 13, 67); g.lineTo(w / 2, 90); g.lineTo(w / 2 + 13, 67); g.stroke();
+  g.fillStyle = '#1f2a24'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, 37);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return { t, w };
+}
+let talking = 0;
+function say(n, text, sec = 4) {
+  const { t, w } = bubbleTex(text);
+  if (!n.say) { n.say = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true })); n.say.renderOrder = 11; n.g.add(n.say); }
+  else n.say.material.map?.dispose();
+  if (!(n.sayT > 0)) talking++;
+  n.say.material.map = t; n.say.material.needsUpdate = true; n.say.scale.set(w / 96 * 1.15, 1.15, 1); n.say.position.y = n.vendor ? 3.2 : 3.55; n.say.visible = true; n.sayT = sec;
+}
+function chatter(dt) {
+  for (const n of [...npcs, ...VENDORS]) {
+    if (n.metT > 0) n.metT -= dt;
+    if (n.sayT > 0) { n.sayT -= dt; if (n.sayT <= 0) { n.say.visible = false; talking--; if (n.queue) { say(n, n.queue); n.queue = null; } } continue; }
+    // 사장님이 가까이 오면 시간대 인사 + 자기 일 이야기
+    if (!n.vendor && !(n.metT > 0) && talking < 5 && me && n.g.position.distanceTo(me.g.position) < 4.5) { say(n, hello(n), 2.6); n.queue = lineFor(n); n.metT = 45; continue; }
+    n.chat = (n.chat ?? 5 + Math.random() * 25) - dt;
+    if (n.chat <= 0) { n.chat = 18 + Math.random() * 30; if (talking < 5) say(n, Math.random() < 0.2 ? hello(n) : lineFor(n)); }
+  }
+}
+
 function palm(x, z, k = 1) {
   const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g); const lean = (rnd() - 0.5) * 0.5;
   for (let i = 0; i < 7; i++) box(g, 0.32, 0.8, 0.32, 0x8a6a46, lean * i * 0.4, 0.4 + i * 0.75 * k, 0);
@@ -281,7 +435,7 @@ function palm(x, z, k = 1) {
   return g;
 }
 function tree(x, z, c, k = 1) { const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g); box(g, 0.4 * k, 1.6 * k, 0.4 * k, 0x6e4a2c, 0, 0.8 * k, 0); box(g, 2.4 * k, 1.8 * k, 2.4 * k, c, 0, 2.4 * k, 0, { flatShading: true }); box(g, 1.6 * k, 1.2 * k, 1.6 * k, c, 0, 3.6 * k, 0); return g; }
-const freeAt = (x, z, pad = 2.5) => Math.hypot(x, z) > 8 && !SPOTS.some((s) => Math.abs(x - s.x) < s.w / 2 + pad && Math.abs(z - s.z) < s.d / 2 + pad);
+const freeAt = (x, z, pad = 2.5) => Math.hypot(x, z) > 8 && Math.hypot(x - FC.x, z - FC.z) > 8.5 && !SPOTS.some((s) => Math.abs(x - s.x) < s.w / 2 + pad && Math.abs(z - s.z) < s.d / 2 + pad);
 
 function decoAndaz() {
   const T = THEMES.andaz;
@@ -332,6 +486,7 @@ const door = (s) => { const a = Math.atan2(s.x, s.z), r = Math.hypot(s.x, s.z) -
 const npcs = [];
 let me = null;
 function spawnPeople() {
+  talking = 0;
   for (const p of npcs) { scene.remove(p.g); if (p.doing?.obj) scene.remove(p.doing.obj, p.doing.line); } npcs.length = 0; if (me) scene.remove(me.g);
   STAFF_KEYS.forEach((k, i) => {
     const g = person({ shirt: SHIRTS[i % SHIRTS.length], hair: [0x3a2a20, 0x1f1a16, 0x6a4a2a][i % 3], long: i % 3 === 0 });
@@ -355,10 +510,11 @@ function spawnPeople() {
 // 직원 하루: 문 앞 → 광장 → 접수처(서류 받기) → 광장 → 문 앞. 비서는 사장님 집 ↔ 접수처, 친구는 광장 둘레
 function nextPlan(n) {
   const lobby = door(LOBBY), plazaPt = () => new THREE.Vector3((rnd() - 0.5) * 12, 0, (rnd() - 0.5) * 12);
-  if (n.key === 'friend') { const a = rnd() * Math.PI * 2, r = 5 + rnd() * 8; n.path = [new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r)]; n.wait = 2 + rnd() * 5; return; }
+  if (n.key === 'friend') { if (rnd() < (slot() === 'lunch' ? 0.6 : 0.25) && foodPlan(n)) return; const a = rnd() * Math.PI * 2, r = 5 + rnd() * 8; n.path = [new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r)]; n.wait = 2 + rnd() * 5; return; }
   if (n.key === 'secretary') { n.path = [new THREE.Vector3(0, 0, 4), lobby, new THREE.Vector3(0, 0, 4), n.home]; n.carry = 1; n.wait = 6 + rnd() * 6; return; }
   // 광장에서 쉬는 일 (앉기 · 아이스크림 · 연날리기) 아니면 서류 배달
   const r = rnd();
+  if ((slot() === 'lunch' ? r < 0.7 : r > 0.62 && r < 0.78) && foodPlan(n)) return;   // 점심때는 푸드코트가 북적여요
   if (r < 0.3) { const seat = SEATS.filter((x) => !x.taken)[Math.floor(rnd() * 12)] || SEATS.find((x) => !x.taken); if (seat) { seat.taken = n; n.path = [seat.pos.clone()]; n.then = { act: 'sit', seat, dur: 14 + rnd() * 16 }; n.carry = 0; n.wait = 0; return; } }
   if (r < 0.5 && CART) { n.path = [CART.clone().add(new THREE.Vector3((rnd() - 0.5) * 1.5, 0, rnd())), plazaPt()]; n.then = { act: 'icecream', dur: 12 + rnd() * 10, cone: true }; n.carry = 0; n.wait = 0; return; }
   if (r < 0.62) { const k = KITE_SPOTS.filter((x) => !x.kite)[0]; if (k) { k.kite = n; n.path = [k.pos.clone()]; n.then = { act: 'npckite', spot: k, dur: 18 + rnd() * 14 }; n.carry = 0; n.wait = 0; return; } }
@@ -366,9 +522,18 @@ function nextPlan(n) {
   else { n.path = [plazaPt(), n.home]; n.carry = 0; }
   n.wait = 4 + rnd() * 8;
 }
+// 푸드코트: 노점에서 주문 → 음식 받아 들고 → 빈 의자에 앉아 먹기
+function foodPlan(n) {
+  const free = FOOD_SEATS.filter((x) => !x.taken); if (!free.length || !STALLS.length) return false;
+  const seat = free[Math.floor(rnd() * free.length)], st = STALLS[Math.floor(rnd() * STALLS.length)];
+  seat.taken = n; n.path = [st.order.clone().add(new THREE.Vector3((rnd() - 0.5) * 0.6, 0, (rnd() - 0.5) * 0.6)), seat.pos.clone()];
+  n.stall = st; n.then = { act: 'eat', seat, food: st.food, dur: 16 + rnd() * 14 }; n.carry = 0; n.wait = 0; return true;
+}
+function holdIt(n, obj) { obj.position.set(0, -0.78, 0.16); n.g.userData.armR.add(obj); n.hand = obj; n.g.userData.hand = obj; }
+function dropIt(n) { if (n.hand) { n.hand.removeFromParent(); n.hand = null; n.g.userData.hand = null; } }
 function startDoing(n) {
   const d = { ...n.then, t: 0 }; n.then = null; n.doing = d;
-  if (d.cone) { n.cone = new THREE.Group(); const c = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 8), M(0xd9a35a)); c.rotation.x = Math.PI; n.cone.add(c); const sc = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), M([0xffd1dc, 0xfff1b8, 0xbfe8d0][Math.floor(rnd() * 3)])); sc.position.y = 0.2; n.cone.add(sc); n.cone.position.set(0, -0.72, 0.12); n.g.userData.armR.add(n.cone); }
+  if (d.cone) { const cone = new THREE.Group(); const c = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 8), M(0xd9a35a)); c.rotation.x = Math.PI; cone.add(c); ball(cone, 0.13, [0xffd1dc, 0xfff1b8, 0xbfe8d0][Math.floor(rnd() * 3)], 0, 0.2, 0); holdIt(n, cone); }
   if (d.act === 'npckite') {
     d.obj = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 4), M([0x2f7a96, 0xf2c94c, 0x9a5a7a][Math.floor(rnd() * 3)], { side: THREE.DoubleSide })); d.obj.scale.z = 0.1;
     d.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffffff })); scene.add(d.obj, d.line);
@@ -409,7 +574,7 @@ function setAct(a) {
     me.g.add(bike); loop = { pts: shoreLoop(), i: 0, speed: 6 }; toast('물가 자전거길을 달려요');
   }
   if (me.act === 'walk') { loop = { pts: plazaLoop(), i: 0, speed: 2.2 }; toast('광장 둘레를 천천히 걸어요'); }
-  if (me.act === 'wave') { setTimeout(() => { if (me.act === 'wave') setAct('wave'); }, 2600); const near = npcs.filter((n) => n.g.position.distanceTo(me.g.position) < 6); if (near.length) { near.forEach((n) => { n.wave = 2.2; n.g.lookAt(me.g.position.x, 0, me.g.position.z); }); toast('직원들이 손을 흔들어 인사해요'); } else toast('손을 흔들었어요'); }
+  if (me.act === 'wave') { setTimeout(() => { if (me.act === 'wave') setAct('wave'); }, 2600); const near = npcs.filter((n) => n.g.position.distanceTo(me.g.position) < 6); if (near.length) { near.forEach((n) => { n.wave = 2.2; n.g.lookAt(me.g.position.x, 0, me.g.position.z); say(n, hello(n), 2.6); n.queue = lineFor(n); n.metT = 45; }); toast('직원들이 손을 흔들어 인사해요'); } else toast('손을 흔들었어요'); }
   if (loop) { let best = 0, bd = 1e9; loop.pts.forEach((p, i) => { const d = p.distanceTo(me.g.position); if (d < bd) { bd = d; best = i; } }); loop.i = best; }
   document.querySelectorAll('[data-act]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.act === me.act)));
 }
@@ -495,27 +660,29 @@ function tick() {
     if (n.wave > 0) { n.wave -= dt; animate(n.g, dt, false, 'wave'); continue; }
     if (n.doing) {   // 광장에서 쉬는 중
       const d = n.doing; d.t += dt;
-      if (d.act === 'sit') { n.g.position.copy(d.seat.pos).setY(0.2); n.g.rotation.y = d.seat.rot; }
+      if (d.seat) { n.g.position.copy(d.seat.pos).setY(0.2); n.g.rotation.y = d.seat.rot; }
       if (d.act === 'npckite' && d.obj) { const back = new THREE.Vector3(-Math.sin(n.g.rotation.y), 0, -Math.cos(n.g.rotation.y)), t = performance.now() / 1000; d.obj.position.copy(n.g.position).addScaledVector(back, 6).add(new THREE.Vector3(Math.sin(t * 0.8 + d.t) * 1.5, 7 + Math.sin(t * 1.3) * 0.6, 0)); d.obj.rotation.z = Math.sin(t * 1.7) * 0.3; d.line.geometry.setFromPoints([n.g.position.clone().add(new THREE.Vector3(0, 2.1, 0)), d.obj.position]); }
       animate(n.g, dt, false, d.act);
       if (d.t >= d.dur) {
         if (d.seat) d.seat.taken = null; if (d.spot) d.spot.kite = null;
-        if (d.obj) scene.remove(d.obj, d.line); if (n.cone) { n.g.remove(n.cone); n.cone = null; }
+        if (d.obj) scene.remove(d.obj, d.line); dropIt(n);
         n.g.position.y = 0; n.doing = null; n.path = [n.home]; n.wait = 0;
       }
       continue;
     }
     if (n.wait > 0) { n.wait -= dt; if (n.wait <= 0 && !n.path.length) nextPlan(n); }
-    else if (n.path.length) { if (stepPerson(n.g, n.path[0], n.speed, dt)) { n.path.shift(); if (n.carry && n.path.length === n.carry) n.holding = true; if (!n.path.length) { n.holding = false; if (n.then) { startDoing(n); } else { nextPlan(n); n.wait = 3 + rnd() * 6; } } } mv = true; }
+    else if (n.path.length) { if (stepPerson(n.g, n.path[0], n.speed, dt)) { n.path.shift(); if (n.carry && n.path.length === n.carry) n.holding = true; if (n.stall && n.path.length === 1) { const st = n.stall; n.stall = null; holdIt(n, dish(st.food)); n.wait = 1.6; say(n, `${st.food.name} 하나 주세요!`, 2.2); say(st.vendor, `${st.food.name} 나왔어요~`, 2.4); } if (!n.path.length) { n.holding = false; if (n.then) { startDoing(n); } else { nextPlan(n); n.wait = 3 + rnd() * 6; } } } mv = true; }
     else if (n.then) startDoing(n);
     else nextPlan(n);
-    animate(n.g, dt, mv, n.holding ? 'carry' : null);
+    animate(n.g, dt, mv, n.holding ? 'carry' : n.hand ? 'hold' : null);
     if (n.holding && !n.paper) { n.paper = box(n.g, 0.5, 0.08, 0.36, 0xf8f6ee, 0, 1.25, 0.45); }
     if (!n.holding && n.paper) { n.g.remove(n.paper); n.paper = null; }
   }
-  // 물결 반짝
+  for (const v of VENDORS) animate(v.g, dt, false, 'cook');
+  chatter(dt);
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
+window.__village = { camera, controls, me: () => me, FC };   // 화면 점검용
