@@ -193,7 +193,9 @@ function render() {
   const b3d = $('#b3d');
   document.body.append(b3d); // 화면을 다시 그리기 전에 3D 무대를 잠깐 빼 두어요 (캔버스는 그대로)
   const admin = !S.q && r === 'admin';
-  const home3d = !S.q && !admin && !ROOMS[r] && B3 !== false;
+  // 첫 화면은 이제 마을이에요 (예전 건물 첫 화면은 뺐어요)
+  if (!S.q && !admin && !ROOMS[r]) { location.replace('village/'); return; }
+  const home3d = false;
   const band = !S.q && !!ROOMS[r] && !!B3;
   document.body.classList.toggle('home3d', home3d);
   if (home3d) {
@@ -219,6 +221,7 @@ function render() {
     setTimeout(() => $('.lift')?.classList.remove('shut'), 160);
   }
   hydrateImages();
+  if ($('#furn')?.open) fillFurn();
   document.body.classList.toggle('busy', S.uploading.size > 0 || S.captures.some((c) => c.status === 'reading'));
 }
 
@@ -403,29 +406,55 @@ addEventListener('keydown', (e) => {
 });
 // 층 표시: 건물 시안 8~12번(도서관 · 리조트 …)이면 그 모양의 구역 이름 (예: 2F → '동' 동쪽 방갈로)
 const flr = (x) => { const a = B3?.areaOf?.(x.floor); return a ? { code: a[0], name: a[1] } : { code: x.floor, name: x.name }; };
+// --- 방 화면 (2026-10-31~): 위는 방 그림(3D), 아래는 가구 단추 줄. 단추를 누르면 그 가구의 내용이 팝업으로 떠요 ---
+// 예전 게시판 · 엘리베이터 · 문 탭은 뺐어요. 다른 방으로는 마을(village/)에서 건물을 눌러 가요.
+const ICO = {
+  desk: '<path d="M3 10h18M5 10v9M19 10v9M8 10V6h8v4"/>', sofa: '<path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3"/><path d="M3 11h18v5H3zM5 16v3M19 16v3"/>',
+  cal: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>', mon: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M9 20h6M12 16v4"/>',
+  shelf: '<path d="M4 4h16v16H4zM4 10h16M4 15h16M8 4v6M12 10v5"/>', file: '<path d="M4 7h16v13H4zM8 7V4h8v3M9 12h6"/>', board: '<rect x="3" y="4" width="18" height="13" rx="1"/><path d="M8 20l4-3 4 3M7 8h5M7 11h8"/>',
+  pin: '<path d="M12 21v-6M7 9l5-6 5 6-2 6H9z"/>', book: '<path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/>', plus: '<path d="M12 5v14M5 12h14"/>',
+  tray: '<path d="M4 13h4l1.5 3h5L16 13h4"/><path d="M5.5 6.5 4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5l-1.5-6.5A2 2 0 0 0 16.6 5H7.4a2 2 0 0 0-1.9 1.5Z"/>',
+  box: '<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>', safe: '<rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M15.5 12H17"/>',
+  frame: '<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 16l5-5 4 4 3-3 4 4"/>', drawer: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 9h16M4 15h16M10 6h4M10 12h4M10 18h4"/>',
+};
+// 방마다 가구 [id, 이름, 아이콘, 내용]. 내용은 예전 화면을 그대로 써요
+function furnitureOf(k) {
+  // 로그인 전에도 가구 이름은 그대로 보여 주고, 누르면 '로그인 후에 볼 수 있어요' 안내
+  if (isGuest() && !ROOMS[k]?.store) return furnitureList(k).map(([id, l, ic]) => [id, l, ic, () => guestRoom(k)]);
+  return furnitureList(k);
+}
+function furnitureList(k) {
+  if (ROOMS[k]?.store) return [['store', '빈 창고', 'box', () => storeRoom(k)]];
+  if (k === 'boss') return [
+    ['desk', '책상 · 계기판', 'desk', () => deskCard()], ['sofa', '소파 · 아침 브리핑', 'sofa', () => briefCard()], ['cal', '달력 · 일정', 'cal', () => bossView(true)],
+    ['mon', '모니터 · 웹앱 현황', 'mon', () => webView()], ['shelf', '책장 · 연수 대장', 'shelf', () => ledgerView()], ['file', '서류함 · 문서대장', 'file', () => registryView()],
+  ];
+  if (k === 'lobby') return [['tray', '창구 · 자료 넣기', 'tray', () => lobbyView()]];
+  if (k === 'archive') return [['box', '캐비닛 · 원본', 'box', () => archiveView()]];
+  const r = ROOMS[k], list = () => cardsIn(k), body = () => { const l = list(); if (!l.length) return emptyRoom(k); return ({ link: linksView, lesson: lessonsView, plan: plansView, split: splitView }[r.view] || eventsView)(l, k); };
+  if (k === 'links') return [['shelf', '책장 · 링크', 'book', body], ['add', '새 링크 꽂기', 'plus', () => linkForm()]];
+  if (r.task) return [['wb', '화이트보드 · 진행', 'board', () => taskPanel()], ['bench', '작업대 · 과제', 'desk', body]];
+  const name = { event: ['게시판', 'pin'], lesson: ['액자 · 공개수업', 'frame'], plan: ['서랍장 · 지도안', 'drawer'], split: ['금고 · 할 일', 'safe'] }[r.view] || ['게시판', 'pin'];
+  return [['main', name[0], name[1], body], ['cal', '달력 · 날짜순', 'cal', () => { const l = list().filter((c) => c.date).sort((a, b) => (a.date > b.date ? 1 : -1)); return l.length ? eventsView(l, k) : '<p class="empty">날짜가 있는 자료가 들어오면 여기에 날짜순으로 모여요.</p>'; }]];
+}
 function floorView(k) {
-  const f = floorOf(k);
-  const floorAlert = (x) => x.rooms.some((r) => roomBadge(r).hot);
-  return `<div class="mB">
-    <nav class="ev" aria-label="엘리베이터">
-      <a class="ev-home" href="#">← 건물 전체</a>
-      <div class="ev-disp">${esc(flr(f).code)}<small>${esc(flr(f).name)}</small></div>
-      <div class="ev-btns">${FLOORS.map((x) => `<a class="ev-btn ${x === f ? 'on' : ''}" href="#${x.rooms[0]}"><b>${esc(flr(x).code)}${floorAlert(x) ? '<i></i>' : ''}</b><span>${esc(flr(x).name)}</span></a>`).join('')}</div>
-      ${(() => { const n = roomBadge('lobby').n; return `<a class="ev-lobby ${k === 'lobby' ? 'on' : ''}" href="#lobby" aria-label="접수처로 가기${n ? ` · 할 일 ${n}` : ''}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h4l1.5 3h5L16 13h4"/><path d="M5.5 6.5 4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5l-1.5-6.5A2 2 0 0 0 16.6 5H7.4a2 2 0 0 0-1.9 1.5Z"/></svg>
-        <span>접수처<small>${n ? `할 일 ${n}` : '자료 넣기'}</small></span>${n ? `<em>${n}</em>` : ''}</a>`; })()}
-    </nav>
-    <section class="flr">
-      <div class="flr-h"><h2>${esc(flr(f).name)}</h2>${B3 && k !== 'boss' ? `<button type="button" class="staff-btn" data-act="staffpick" aria-label="${esc(roomName(k))} 직원 고르기" title="${esc(roomName(k))} 직원 고르기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.5 5 2.8 5 5.8"/></svg></button>` : ''}</div>
-      ${B3 !== false ? `<div class="lift ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div>${sideDoor(f, k, -1)}${sideDoor(f, k, 1)}</div>` : ''}
-      <div class="doors" role="tablist">${f.rooms.map((r) => {
-        const b = roomBadge(r);
-        return `<a class="door ${r === k ? 'on' : ''}" role="tab" aria-selected="${r === k}" href="#${r}">${esc(roomName(r))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</a>`;
-      }).join('')}</div>
-      <div class="room-body">${roomContent(k)}</div>
-      <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
-    </section>
+  const furn = furnitureOf(k), b = roomBadge(k);
+  return `<div class="room2">
+    <nav class="r2-top"><a class="r2-back" href="village/">← 마을</a><h2>${esc(roomName(k))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</h2>
+      ${k !== 'lobby' ? `<a class="r2-lobby" href="#lobby">접수처 · 자료 넣기</a>` : ''}</nav>
+    ${B3 !== false ? `<div class="lift r2-pic ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div></div>` : ''}
+    <div class="r2-bar" role="group" aria-label="${esc(roomName(k))} 가구">${furn.map(([id, label, ic]) => `<button type="button" class="r2-btn" data-act="furn" data-v="${id}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[ic] || ''}</svg><span>${esc(label)}</span></button>`).join('')}</div>
+    <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
   </div>`;
+}
+// 가구 팝업: 열려 있는 동안 자료가 바뀌면(render) 내용도 새로 채워요
+function openFurn(id) { S.furn = { room: route(), id }; fillFurn(); const d = $('#furn'); if (!d.open) d.showModal(); }
+function fillFurn() {
+  const d = $('#furn'); if (!S.furn || !d) return;
+  const f = furnitureOf(S.furn.room).find((x) => x[0] === S.furn.id); if (!f) { if (d.open) d.close(); return; }
+  const ae = document.activeElement; if (ae && d.contains(ae) && ae.matches('textarea, input:not([type=checkbox]):not([type=date])')) { S.dirty = true; return; }
+  d.innerHTML = `<div class="furn-h"><b>${esc(roomName(S.furn.room))} · ${esc(f[1])}</b><button type="button" class="furn-x" data-act="furnclose" aria-label="닫기">✕</button></div><div class="furn-b room-body">${f[3]()}</div>`;
+  hydrateImages();
 }
 
 function roomContent(k) {
@@ -1235,6 +1264,7 @@ function openStaffPick(k) {
 
 // 창 바깥(어두운 곳)을 누르면 닫혀요 (저장은 하지 않아요)
 dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close('cancel'); });
+$('#furn').addEventListener('click', (e) => { if (e.target.id === 'furn') e.target.close(); });   // 팝업 바깥을 누르면 닫혀요
 dlg.addEventListener('close', () => {
   const form = $('#cardForm', dlg);
   if (dlg.returnValue === 'save' && form) saveCard(form).catch((e) => toast(`저장하지 못했어요 (${e.code || e.message})`));
@@ -1964,6 +1994,8 @@ document.addEventListener('click', async (e) => {
       case 'subj': S.subj = b.dataset.v; render(); break;
       case 'stats': S.stats = null; render(); break;
       case 'bosstab': S.bossTab = b.dataset.v; render(); break;
+      case 'furn': openFurn(b.dataset.v); break;
+      case 'furnclose': $('#furn').close(); break;
       case 'regkey': S.regf = { ...S.regf, key: S.regf?.key === b.dataset.v ? '' : b.dataset.v }; render(); break;
       case 'regtodo': S.regf = { ...S.regf, todo: !S.regf?.todo }; render(); break;
       case 'todoDel': saveDesk({ todos: (S.desk?.todos || []).filter((_, i) => i !== Number(b.dataset.i)) }); break;
