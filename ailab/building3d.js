@@ -1679,23 +1679,58 @@ function shaftFloor(g, [x0, x1], y, above) {
 const shaftUnderPH = () => HAS_PH && layout().shaft === 'center';
 function penthouse(g, f, y) {
   const TH = theme(), h = FH - .3, cy = y + h / 2, x0 = -PW / 2, x1 = PW / 2;
-  B(g, PW, h, .2, TH.wall, 0, cy, -D / 2 + .1);
-  windows(g, -6.5, 10, 2, y); windows(g, 6.5, 10, 2, y);
+  const TEAK = '#8a5a34', TEAKD = '#5a3622', CREAM = '#f4ecdc', ORANGE = '#e0803a';
+  // 리조트 스위트 느낌 (2026-10-31): 크림 벽 · 티크 바닥 · 흰 서까래 천장 · 바다로 열린 유리 미닫이
+  B(g, PW, h, .2, CREAM, 0, cy, -D / 2 + .1);
   for (const sx of [-1, 1]) {
     B(g, .08, h, D, '#9fd3ea', sx * PW / 2, cy, .15, { m: glassWall, shadow: false });
-    for (const z of [-D / 2, 0, D / 2]) B(g, .22, h, .22, TH.pillar, sx * PW / 2, cy, z);
+    for (const z of [-D / 2, 0, D / 2]) B(g, .22, h, .22, TEAKD, sx * PW / 2, cy, z);
   }
+  B(g, PW, .04, D, TEAK, 0, y + .02, .15, { shadow: false });   // 티크 바닥
   B(g, PW + .6, .35, D + .6, TH.slab, 0, y + FH - .12, .15);
+  B(g, PW, .08, D, '#fbf8f2', 0, y + h - .02, .15, { shadow: false });   // 흰 천장
+  for (let x = x0 + 1; x < x1; x += 1.6) B(g, .14, .16, D, '#efe6d6', x, y + h - .12, .15, { shadow: false });   // 서까래
   B(g, PW + 2.2, .18, D + 1.6, TH.edge, 0, y + FH + .12, .3); // 넓은 처마
   B(g, PW + .6, .3, .14, TH.edge, 0, y + FH - .15, D / 2 + .45);
-  // 라운지 (왼쪽)
-  B(g, 8, .03, 3.6, '#c9a07a', -6.5, y + .02, .6, { shadow: false }); // 깔개
-  sofa(g, -7.8, y, -.9); sofa(g, -4.2, y, -.9);
-  furnHit(g, 'boss', 'sofa', -6, y, -.4, 7.6, 1.3, 2.4);   // 소파 = 아침 브리핑
-  B(g, 2, .45, 1, P.wood, -6, y + .23, .9); B(g, .5, .25, .5, P.leaf, -6, y + .58, .9); // 탁자와 화분
-  lamp(g, x0 + .8, y, -1.6); plant(g, x0 + .7, y, 2, true);
-  B(g, .08, 1.6, .08, P.metal, -6, y + FH - 1.1, .3, { shadow: false }); // 샹들리에
-  B(g, 1.2, .35, 1.2, P.gold, -6, y + FH - 1.95, .3, { m: mat(P.gold, { emissive: P.gold, emissiveIntensity: .6 }), shadow: false });
+  // 바다로 열린 유리 미닫이 + 양옆 커튼
+  const sea = memoTex('suite-sea', () => texMat((c, w, hh) => {
+    const sky = c.createLinearGradient(0, 0, 0, hh * .55); sky.addColorStop(0, '#7cc6ee'); sky.addColorStop(1, '#d6f0fa'); c.fillStyle = sky; c.fillRect(0, 0, w, hh * .55);
+    const sea = c.createLinearGradient(0, hh * .55, 0, hh); sea.addColorStop(0, '#2a9fc8'); sea.addColorStop(1, '#6fe0dc'); c.fillStyle = sea; c.fillRect(0, hh * .55, w, hh * .45);
+    c.fillStyle = '#c9a06a'; c.fillRect(0, hh * .82, w, hh * .18);   // 데크
+    c.fillStyle = '#ffffff'; c.fillRect(0, hh * .66, w, 6); for (let x = 10; x < w; x += 46) c.fillRect(x, hh * .66, 5, hh * .16);   // 흰 난간
+    c.fillStyle = '#c9a46a'; for (let x = 0; x < w; x += 14) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x + 14, 0); c.lineTo(x + 7, 26 + (x % 28)); c.fill(); }   // 이엉 처마 끝
+  }, 512, 360));
+  const dx = -2.6, dw = 4.2, dh = 3.3;
+  B(g, dw + .3, dh + .3, .08, TEAKD, dx, y + dh / 2 + .1, -D / 2 + .22);
+  B(g, dw, dh, .04, '#9fd3ea', dx, y + dh / 2 + .1, -D / 2 + .28, { m: sea, shadow: false });
+  B(g, .08, dh, .06, TEAKD, dx, y + dh / 2 + .1, -D / 2 + .31, { shadow: false });
+  for (const sx of [-1, 1]) B(g, .5, dh + .4, .12, '#e8d9bc', dx + sx * (dw / 2 + .35), y + (dh + .4) / 2, -D / 2 + .32);
+  B(g, dw + 1.6, .08, .08, TEAKD, dx, y + dh + .45, -D / 2 + .32, { shadow: false });
+  // 침대: 티크 머리판 · 흰 이불 · 주황 러너 · 흰 베개, 옆 탁자와 스탠드 · 헬리코니아 꽃병
+  const bx = -6.6, bz = -1.05;
+  B(g, 2.6, 1.3, .14, TEAKD, bx, y + .65, -D / 2 + .3);
+  B(g, 2.4, .35, 2.7, TEAKD, bx, y + .18, bz);
+  B(g, 2.3, .3, 2.6, '#fbfbf8', bx, y + .5, bz);
+  B(g, 2.34, .08, .7, ORANGE, bx, y + .66, bz + .75);
+  for (const sx of [-.55, .55]) B(g, .9, .22, .45, '#ffffff', bx + sx, y + .74, -D / 2 + .7);
+  B(g, .6, .55, .5, TEAKD, x0 + .5, y + .28, -D / 2 + .55);
+  B(g, .08, .4, .08, P.metal, x0 + .5, y + .75, -D / 2 + .55); B(g, .34, .3, .34, '#fbf4e4', x0 + .5, y + 1.05, -D / 2 + .55, { m: mat('#fbf4e4', { emissive: '#ffd9a0', emissiveIntensity: .45 }) });
+  B(g, .2, .4, .2, '#d9cfc0', bx + 1.6, y + .76, -D / 2 + .5); for (const [ox, c] of [[-.08, '#d9483b'], [.06, '#e2873a'], [0, '#3f8a44']]) B(g, .06, .6, .06, c, bx + 1.6 + ox, y + 1.2, -D / 2 + .5, { shadow: false });
+  // 라운지: 크림 소파 + 주황 쿠션, 둥근 티크 탁자 + 과일 그릇, 흰 갓 스탠드
+  const sx0 = dx, sz0 = -.75;
+  B(g, 2.6, .42, .85, CREAM, sx0, y + .26, sz0); B(g, 2.6, .6, .22, CREAM, sx0, y + .62, sz0 - .36);
+  for (const s2 of [-1, 1]) B(g, .22, .55, .85, '#ece2cf', sx0 + s2 * 1.3, y + .38, sz0);
+  for (const ox of [-.8, .8]) B(g, .5, .45, .14, ORANGE, sx0 + ox, y + .66, sz0 - .18);
+  furnHit(g, 'boss', 'sofa', sx0, y, sz0 + .2, 3, 1.3, 1.5);   // 소파 = 아침 브리핑
+  B(g, 2.8, .03, 2.4, '#efe6d4', sx0, y + .05, .55, { shadow: false });   // 깔개
+  const tbl = new THREE.Mesh(new THREE.CylinderGeometry(.55, .55, .08, 18), mat(TEAKD)); tbl.position.set(sx0, y + .48, .75); tbl.castShadow = true; g.add(tbl);
+  B(g, .14, .44, .14, TEAKD, sx0, y + .24, .75);
+  const bowl = new THREE.Mesh(new THREE.SphereGeometry(.2, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), mat('#e8dcc4')); bowl.position.set(sx0, y + .7, .75); g.add(bowl);
+  for (const [ox, c] of [[-.08, '#f2c94c'], [.08, '#e0803a']]) { const f = new THREE.Mesh(new THREE.SphereGeometry(.09, 8, 6), mat(c)); f.position.set(sx0 + ox, y + .66, .75); g.add(f); }
+  B(g, .06, 1.5, .06, P.metal, -.25, y + .75, -1.9); B(g, .5, .45, .5, '#fbf4e4', -.25, y + 1.6, -1.9, { m: mat('#fbf4e4', { emissive: '#ffd9a0', emissiveIntensity: .45 }) });
+  // 천장 선풍기
+  B(g, .06, .5, .06, TEAKD, -4.6, y + h - .45, .2, { shadow: false }); B(g, .3, .14, .3, TEAKD, -4.6, y + h - .72, .2, { shadow: false });
+  for (const r of [0, Math.PI / 2]) { const bl = B(g, 2.2, .03, .26, TEAK, -4.6, y + h - .74, .2, { shadow: false }); bl.rotation.y = r + .4; }
   if (shaftUnderPH()) { // 엘리베이터 도착하는 유리 칸
     for (const sx of [-1, 1]) B(g, .06, h, 2.2, '#9fd3ea', sx * (SW / 2), cy, -D / 2 + 1.3, { m: glassWall, shadow: false });
     B(g, SW, h, .05, '#9fd3ea', 0, cy, -D / 2 + 2.4, { m: glassWall, shadow: false });
