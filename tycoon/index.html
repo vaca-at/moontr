@@ -725,6 +725,9 @@ html.appmode.hudoff .navbtn{opacity:0;pointer-events:none}
 .wstep ol{margin:0;padding-left:20px}
 /* 메모 찾기 · 휴지통 */
 .mtools{display:flex;gap:6px;margin:0 0 10px}
+.mmhelp{margin:12px 0 8px}
+.nt.draft .when{visibility:hidden}
+.nt .nb.save{font-weight:700}
 .mtools input{flex:1;min-width:0;font:15px var(--body);color:var(--ink);background:var(--field);border:2px solid var(--line);border-radius:var(--box-r);padding:6px 9px}
 .mtools input:focus{border-color:var(--accent);outline:none}
 .nt .when{font:11px var(--body);color:rgba(42,36,22,.55);text-align:right}
@@ -1710,9 +1713,9 @@ const DRAW = {
   <div class="pane box wide" role="dialog" aria-modal="true" aria-labelledby="mmTitle">
     <header><h2 id="mmTitle">📝 메모</h2><button type="button" class="big" id="mmAdd" style="min-height:40px;padding:6px 14px">+ 새 메모</button><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
     <div class="body">
-      <p class="note">날짜와 상관없이 적어 두는 쪽지예요. 적으면 바로 저장돼요. <b>📌 고정</b>한 메모가 게임 화면 오른쪽 아래에 스티커로 떠요 — <b>최대 3개</b>, 1 · 2개만 고정하면 그만큼만 떠요. 고정한 게 없으면 가장 최근에 고친 메모 1개가 떠요. [지우기]하면 휴지통으로 가요. 학생 개인정보는 적지 말아 주세요. <span id="pinCount"></span></p>
-      <div class="mtools"><input id="mmSearch" type="search" placeholder="🔍 메모 찾기 (제목 · 내용)" aria-label="메모 찾기" autocomplete="off"><button type="button" class="btn" id="mmTrashBtn">🗑 휴지통 (0)</button></div>
       <div class="notes" id="noteList"></div>
+      <p class="note mmhelp">적으면 바로 저장돼요. <b>📌 고정</b>한 메모(최대 3개)가 게임 화면 오른쪽 아래에 스티커로 떠요. <span id="pinCount"></span><br>[지우기]하면 휴지통으로 가요. 학생 이름 · 연락처 같은 개인정보는 적지 말아 주세요.</p>
+      <div class="mtools"><input id="mmSearch" type="search" placeholder="🔍 메모 찾기 (제목 · 내용)" aria-label="메모 찾기" autocomplete="off"><button type="button" class="btn" id="mmTrashBtn">🗑 휴지통 (0)</button></div>
     </div>
     <div class="foot"><span class="msg" id="mmMsg"></span><button type="button" class="big ghost" data-close>닫기</button></div>
   </div>
@@ -7548,6 +7551,7 @@ setInterval(() => { const k = dkey(new Date()); if (k !== todayKey){ const was =
    게임 화면에는 📌 고정한 메모(없으면 가장 최근에 고친 메모)와 즐겨찾기 앞쪽 몇 개가 보여요
    ============================================================ */
 const NOTE_COLORS = [["y", "노랑"], ["p", "분홍"], ["b", "하늘"], ["g", "연두"], ["w", "흰색"]];
+const DRAFT_COLORS = ["y", "g", "b"];   // 미리 펼쳐 두는 빈 쪽지 색: 노랑 · 연두 · 하늘
 const NOTE_BG = { y:"#FFF3A6", p:"#FFD3E2", b:"#D4ECFF", g:"#D9F2D0", w:"#FFFFFF" };
 const DEMO_NOTES = [{ id:"d1", title:"이번 주 챙길 것", t:"목요일 15:00 학년 협의회\n금요일까지 수행평가 채점\n가정통신문 회신 걷기", color:"y", pin:true, order:0, at:1, createdAt:1 }];
 const DEMO_LINKS = [{ id:"l1", name:"나이스", url:"https://www.neis.go.kr/", icon:"🏫", order:0 }, { id:"l2", name:"에듀넷", url:"https://www.edunet.net/", icon:"📚", order:1 }, { id:"l3", name:"EBS", url:"https://www.ebs.co.kr/", icon:"📺", order:2 }];
@@ -7628,13 +7632,22 @@ function renderNotes(){
       : `<p class="none">${noteQ ? "찾는 메모가 휴지통에 없어요." : "휴지통이 비어 있어요."}</p>`;
     return;
   }
-  $("noteList").innerHTML = list.length ? list.map(n => { const i = all.indexOf(n); return `<div class="nt" data-id="${esc(n.id)}" style="--nc:${NOTE_BG[n.color] || NOTE_BG.y}">
+  // 메모가 3장보다 적으면 빈 쪽지(노랑 · 연두 · 하늘)를 미리 펼쳐 둬요. 적거나 [저장] · [📌 고정]을 누르면 진짜 메모가 돼요
+  const drafts = noteQ ? [] : DRAFT_COLORS.filter(c => !all.some(n => (n.color || "y") === c)).slice(0, Math.max(0, 3 - all.length));
+  const draftHtml = drafts.map(c => `<div class="nt draft" data-draft="${c}" style="--nc:${NOTE_BG[c]}">
+      <input class="ntt" maxlength="60" placeholder="제목 (비워도 돼요)" aria-label="메모 제목">
+      <textarea class="ntx" maxlength="5000" placeholder="여기에 적어요" aria-label="메모 내용"></textarea>
+      <div class="nbar">${NOTE_COLORS.map(([k, nm]) => `<button type="button" class="sw ${k === c ? "on" : ""}" data-color="${k}" style="background:${NOTE_BG[k]}" aria-label="${nm}" title="${nm}"></button>`).join("")}
+        <span style="flex:1"></span><button type="button" class="nb" data-pin aria-pressed="false" aria-label="게임 화면에 띄우기 (최대 3개)">📌 고정</button><button type="button" class="nb save" data-save>저장</button><button type="button" class="nb del" data-delnote aria-label="비우기">지우기</button></div>
+      <small class="when">새 메모</small>
+    </div>`).join("");
+  $("noteList").innerHTML = list.length || drafts.length ? list.map(n => { const i = all.indexOf(n); return `<div class="nt" data-id="${esc(n.id)}" style="--nc:${NOTE_BG[n.color] || NOTE_BG.y}">
       <input class="ntt" maxlength="60" placeholder="제목 (비워도 돼요)" value="${esc(n.title || "")}" aria-label="메모 제목">
       <textarea class="ntx" maxlength="5000" placeholder="여기에 적어요" aria-label="메모 내용">${esc(n.t || "")}</textarea>
       <div class="nbar">${NOTE_COLORS.map(([c, nm]) => `<button type="button" class="sw ${c === (n.color || "y") ? "on" : ""}" data-color="${c}" style="background:${NOTE_BG[c]}" aria-label="${nm}" title="${nm}"></button>`).join("")}
-        <span style="flex:1"></span><button type="button" class="nb mv" data-mv="-1" aria-label="앞으로 옮기기" ${noteQ || i === 0 || !!all[i - 1].pin !== !!n.pin ? "disabled" : ""}>◀</button><button type="button" class="nb mv" data-mv="1" aria-label="뒤로 옮기기" ${noteQ || i === all.length - 1 || !!all[i + 1].pin !== !!n.pin ? "disabled" : ""}>▶</button><button type="button" class="nb ${n.pin ? "on" : ""}" data-pin aria-pressed="${!!n.pin}" aria-label="게임 화면에 띄우기 (최대 3개)">📌 고정</button><button type="button" class="nb del" data-delnote aria-label="휴지통으로 옮기기">지우기</button></div>
+        <span style="flex:1"></span><button type="button" class="nb mv" data-mv="-1" aria-label="앞으로 옮기기" ${noteQ || i === 0 || !!all[i - 1].pin !== !!n.pin ? "disabled" : ""}>◀</button><button type="button" class="nb mv" data-mv="1" aria-label="뒤로 옮기기" ${noteQ || i === all.length - 1 || !!all[i + 1].pin !== !!n.pin ? "disabled" : ""}>▶</button><button type="button" class="nb ${n.pin ? "on" : ""}" data-pin aria-pressed="${!!n.pin}" aria-label="게임 화면에 띄우기 (최대 3개)">📌 고정</button><button type="button" class="nb save" data-save>저장</button><button type="button" class="nb del" data-delnote aria-label="휴지통으로 옮기기">지우기</button></div>
       <small class="when">마지막 수정 ${fmtWhen(n.at)}</small>
-    </div>`; }).join("")
+    </div>`; }).join("") + draftHtml
     : `<p class="none">${noteQ ? "찾는 메모가 없어요." : "아직 메모가 없어요. 위 [+ 새 메모]를 눌러 보세요."}</p>`;
 }
 // 10/26(월) 15:20 처럼
@@ -7667,13 +7680,29 @@ $("mmAdd").addEventListener("click", () => {
   notes.push(n); renderNotes(); saveNote(n, true);
   $("noteList").querySelector(`[data-id="${CSS.escape(id)}"] .ntt`)?.focus();
 });
+// 빈 쪽지 → 진짜 메모 (처음 적거나 [저장] · [📌 고정]을 누를 때)
+function fromDraft(card){
+  if (notes.length >= 50){ $("mmMsg").textContent = "메모는 50개까지 적을 수 있어요"; return null; }
+  const now = Date.now(), id = demo || !deskId ? "n" + now : doc(collection(db, "desk_users", deskId, "notes")).id;
+  const n = { id, title:card.querySelector(".ntt").value, t:card.querySelector(".ntx").value, color:card.dataset.draft, pin:false, order:0, at:now, createdAt:now };
+  notes.push(n); card.classList.remove("draft"); delete card.dataset.draft; card.dataset.id = id; saveNote(n, true); return n;
+}
 $("noteList").addEventListener("input", e => {
+  const dc = e.target.closest(".nt.draft"); if (dc && !fromDraft(dc)) return;
   const card = e.target.closest(".nt"), n = card && notes.find(x => x.id === card.dataset.id); if (!n) return;
   if (e.target.classList.contains("ntt")) n.title = e.target.value; else if (e.target.classList.contains("ntx")) n.t = e.target.value; else return;
   n.at = Date.now(); saveNote(n);
 });
 $("noteList").addEventListener("click", async e => {
+  const dc = e.target.closest(".nt.draft");
+  if (dc){   // 빈 쪽지: 색은 바로 바꾸고, 지우기는 칸만 비우고, 저장 · 고정은 진짜 메모로 만든 뒤에
+    const dcol = e.target.closest("[data-color]");
+    if (dcol){ dc.dataset.draft = dcol.dataset.color; dc.style.setProperty("--nc", NOTE_BG[dcol.dataset.color]); dc.querySelectorAll("[data-color]").forEach(b => b.classList.toggle("on", b === dcol)); return; }
+    if (e.target.closest("[data-delnote]")){ dc.querySelector(".ntt").value = ""; dc.querySelector(".ntx").value = ""; return; }
+    if (!e.target.closest("[data-pin],[data-save]") || !fromDraft(dc)) return;
+  }
   const card = e.target.closest(".nt"), n = card && notes.find(x => x.id === card.dataset.id); if (!n) return;
+  if (e.target.closest("[data-save]")){ n.at = Date.now(); saveNote(n, true); const b = e.target.closest("[data-save]"); b.textContent = "저장됨 ✓"; setTimeout(() => { b.textContent = "저장"; }, 1500); if (demo) $("mmMsg").textContent = "체험 중이라 저장되지 않아요"; return; }
   const c = e.target.closest("[data-color]");
   if (c){ n.color = c.dataset.color; card.style.setProperty("--nc", NOTE_BG[n.color]); card.querySelectorAll("[data-color]").forEach(b => b.classList.toggle("on", b === c)); saveNote(n, true); return; }
   if (e.target.closest("[data-pin]")){
