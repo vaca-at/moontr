@@ -223,6 +223,7 @@ function render() {
     setTimeout(() => $('.lift')?.classList.remove('shut'), 160);
   }
   hydrateImages();
+  drawPlates();
   if ($('#furn')?.open) fillFurn();
   document.body.classList.toggle('busy', S.uploading.size > 0 || S.captures.some((c) => c.status === 'reading'));
 }
@@ -458,12 +459,20 @@ function furnitureList(k) {
 function floorView(k) {
   const furn = furnitureOf(k), b = roomBadge(k);
   return `<div class="room2">
-    <nav class="r2-top"><a class="r2-back" href="village/">← 마을</a><h2>${esc(roomName(k))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</h2>
+    <nav class="r2-top"><a class="r2-back" href="village/">← 마을</a><canvas class="r2-plate" data-plate="${k}" width="112" height="112" aria-hidden="true"></canvas><h2>${esc(roomName(k))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</h2>
       ${k !== 'lobby' ? `<a class="r2-lobby" href="#lobby">접수처 · 자료 넣기</a>` : ''}</nav>
     ${B3 !== false ? `<div class="lift r2-pic ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div></div>` : ''}
     <div class="r2-bar" role="group" aria-label="${esc(roomName(k))} 가구">${furn.map(([id, label, ic]) => `<button type="button" class="r2-btn" data-act="furn" data-v="${id}" title="${esc(FURN_TIP[id] || '')}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[ic] || ''}</svg><span>${esc(label)}</span></button>`).join('')}</div>
     <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
   </div>`;
+}
+// 방 문패: 언즈체가 다 받아진 뒤에 그려요 (village/plates.js)
+let platesMod = null;
+async function drawPlates() {
+  const els = document.querySelectorAll('canvas[data-plate]'); if (!els.length) return;
+  platesMod ||= import('./village/plates.js');
+  const [{ drawPlate }] = await Promise.all([platesMod, document.fonts.load('40px "Ownglyph_UNZ-Rg"').catch(() => {})]);
+  els.forEach((c) => drawPlate(c.dataset.plate, 112, c));
 }
 // 가구 팝업: 열려 있는 동안 자료가 바뀌면(render) 내용도 새로 채워요
 function openFurn(id) { S.furn = { room: route(), id }; fillFurn(); const d = $('#furn'); if (!d.open) d.showModal(); }

@@ -271,7 +271,7 @@ function texMat(draw, w = 512, h = 320) {
   t.anisotropy = 4;
   return new THREE.MeshStandardMaterial({ map: t, roughness: .7, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: .25 });
 }
-const FONT = '"Jua", "IBM Plex Sans KR", sans-serif';
+const FONT = '"Ownglyph_UNZ-Rg", "IBM Plex Sans KR", sans-serif';
 const checklist = (title, items) => memoTex(`cl|${title}|${JSON.stringify(items)}`, () => drawChecklist(title, items));
 function drawChecklist(title, items) {
   return texMat((g, w, h) => {

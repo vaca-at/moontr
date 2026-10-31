@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ROOMS } from '../rooms.js';
+import { drawPlate } from './plates.js';
 
 const $ = (s) => document.querySelector(s);
 const store = { get(k, d) { try { return localStorage.getItem('ailab-village:' + k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem('ailab-village:' + k, v); } catch {} } };
@@ -71,9 +72,9 @@ function hipRoof(parent, w, d, h, c, y, { eave = 0.6, flare = false } = {}) {
   return m;
 }
 function label(text, gold) {
-  const c = document.createElement('canvas'), g = c.getContext('2d'); const f = 44;
-  g.font = `${f}px Jua, sans-serif`; const w = Math.ceil(g.measureText(text).width) + 44; c.width = w; c.height = 72;
-  g.font = `${f}px Jua, sans-serif`; g.fillStyle = gold ? 'rgba(212,161,46,.95)' : 'rgba(31,42,36,.82)';
+  const c = document.createElement('canvas'), g = c.getContext('2d'); const f = 50;
+  g.font = `${f}px "Ownglyph_UNZ-Rg", sans-serif`; const w = Math.ceil(g.measureText(text).width) + 44; c.width = w; c.height = 72;
+  g.font = `${f}px "Ownglyph_UNZ-Rg", sans-serif`; g.fillStyle = gold ? 'rgba(212,161,46,.95)' : 'rgba(31,42,36,.82)';
   g.beginPath(); g.roundRect(0, 4, w, 64, 32); g.fill(); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, 38);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); s.scale.set(w / 72 * 1.1, 1.1, 1); s.renderOrder = 10; return s;
@@ -159,6 +160,12 @@ function buildWorld(id) {
     if (s.lot) buildLot(g, s, id);
     else ({ andaz: buildAndaz, maldives: buildMaldives, kyoto: buildKyoto }[id])(g, s, over);
     if (over) jetty(s);
+    // 문패: 문 앞 기둥에 방마다 다른 정사각형 문패
+    { const tex = new THREE.CanvasTexture(drawPlate(s.key, 256)); tex.colorSpace = THREE.SRGBColorSpace;
+      const post = new THREE.Group(); post.position.set(s.w / 2 - 0.4, (over ? 0.9 : 0), s.d / 2 + 1.3); g.add(post);
+      box(post, 0.14, 1.5, 0.14, 0x6e4c30, 0, 0.75, 0);
+      const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 })); pl.position.set(0, 2.15, 0.09); pl.castShadow = true; post.add(pl);
+      const back = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), M(0x6e4c30)); back.rotation.y = Math.PI; back.position.set(0, 2.15, 0.07); post.add(back); }
     const tag = label(NAME(s.key), s.boss); tag.position.set(0, (s.boss ? 7.4 : 6.2), 0); g.add(tag);
     g.traverse((o) => { if (o.isMesh) o.userData.spot = s; });
     pickables.push(g);
@@ -452,6 +459,7 @@ function setTheme(id) {
   $('#card').hidden = true;
 }
 document.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => setTheme(b.dataset.theme)));
+await document.fonts.load('50px "Ownglyph_UNZ-Rg"').catch(() => {});   // 이름표 글씨가 언즈체로 그려지게
 setTheme(theme);
 
 // ───────── 매 프레임 ─────────
