@@ -111,6 +111,11 @@ function animate(p, dt, moving, act) {
   if (act === 'wave') { u.armR.rotation.x = -2.8; u.armR.rotation.z = Math.sin(u.phase * 3) * 0.35; }
   if (act === 'kite') { u.armR.rotation.x = -2.2; }
   if (act === 'carry') { u.armL.rotation.x = -1.2; u.armR.rotation.x = -1.2; }
+  if (act === 'sit') { u.legL.rotation.x = -1.5; u.legR.rotation.x = -1.5; u.body.position.y = -0.3; u.armL.rotation.x = -0.4; u.armR.rotation.x = -0.4 + Math.sin(u.phase * 0.7) * 0.15; u.head.rotation.y = Math.sin(u.phase * 0.4) * 0.4; }
+  if (act === 'icecream') { u.armR.rotation.x = -1.6 - Math.max(0, Math.sin(u.phase * 0.9)) * 0.9; u.head.rotation.x = 0.1; }
+  if (act === 'npckite') { u.armR.rotation.x = -2.3 + Math.sin(u.phase) * 0.15; u.head.rotation.x = -0.4; }
+  if (act !== 'npckite' && act !== 'icecream') u.head.rotation.x = 0;
+  if (act !== 'sit') u.head.rotation.y = 0;
   if (act === 'bike') { u.legL.rotation.x = -1 + Math.sin(u.phase) * 0.5; u.legR.rotation.x = -1 - Math.sin(u.phase) * 0.5; u.armL.rotation.x = -1.2; u.armR.rotation.x = -1.2; u.body.position.y = 0.45; }
 }
 
@@ -159,6 +164,7 @@ function buildWorld(id) {
     pickables.push(g);
   }
   ({ andaz: decoAndaz, maldives: decoMaldives, kyoto: decoKyoto }[id])();
+  buildPlaza(id);
 
   function jetty(s) {
     const a = Math.atan2(s.x, s.z), r0 = T.island - 1, r1 = Math.hypot(s.x, s.z) - s.d / 2 - 0.5, len = r1 - r0;
@@ -222,6 +228,43 @@ function buildLot(g, s, id) {
   box(g, 1.6, 1, 0.1, 0xf2c94c, 0, 1.2, 0); cyl(g, 0.06, 0.06, 1.2, c, 0, 0.6, 0);
 }
 
+// 마을 가운데 광장: 둥근 벤치 6개(앉을 자리 12) · 아이스크림 수레 · 꽃밭 · 연 날리는 잔디밭
+const SEATS = [], KITE_SPOTS = [];
+let CART = null;
+function buildPlaza(id) {
+  SEATS.length = 0; KITE_SPOTS.length = 0;
+  const wood = id === 'kyoto' ? 0x6e4c30 : 0xb98a5a, stone = id === 'kyoto' ? 0x9a9488 : 0xe8e2d4;
+  // 광장 바닥을 넓게: 돌판 원 + 가운데 분수(교토는 돌 연못)
+  const floor = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 0.07, 48), M(stone)); floor.position.set(0, 0.035, 0); floor.receiveShadow = true; world.add(floor);
+  const f = new THREE.Group(); world.add(f);
+  cyl(f, 2.4, 2.6, 0.6, id === 'kyoto' ? 0x7a7468 : 0xd9d2c0, 0, 0.3, 0, 24);
+  cyl(f, 2.1, 2.1, 0.62, id === 'kyoto' ? 0x4f7a72 : 0x5fcbe0, 0, 0.32, 0, 24);
+  if (id !== 'kyoto') { cyl(f, 0.25, 0.35, 1.8, 0xd9d2c0, 0, 0.9, 0); cyl(f, 0.9, 0.5, 0.25, 0xd9d2c0, 0, 1.85, 0, 16); const w = cyl(f, 0.2, 0.6, 0.9, 0x9fe6f2, 0, 2.4, 0, 12); w.material.transparent = true; w.material.opacity = 0.6; }
+  else { for (const [x, z, k] of [[-0.6, 0.3, 0.6], [0.7, -0.4, 0.45]]) box(f, k, k * 0.8, k, 0x6e6a62, x, 0.6 + k * 0.4, z, { flatShading: true }); }
+  // 벤치: 분수 둘레 6개, 벤치마다 두 자리
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6, r = 5.2, x = Math.sin(a) * r, z = Math.cos(a) * r;
+    const b = new THREE.Group(); b.position.set(x, 0, z); b.rotation.y = a + Math.PI; world.add(b);
+    box(b, 2.4, 0.12, 0.7, wood, 0, 0.55, 0); box(b, 2.4, 0.6, 0.1, wood, 0, 0.9, -0.33);
+    for (const sx of [-1, 1]) box(b, 0.12, 0.55, 0.6, 0x3a3a3a, sx * 1.05, 0.27, 0);
+    for (const sx of [-0.55, 0.55]) { const p = new THREE.Vector3(sx, 0, 0.1).applyAxisAngle(new THREE.Vector3(0, 1, 0), a + Math.PI).add(new THREE.Vector3(x, 0, z)); SEATS.push({ pos: p, rot: a, taken: null }); }
+  }
+  // 꽃밭 넷
+  const fc = id === 'kyoto' ? [0xc0392b, 0xe67e22] : id === 'maldives' ? [0xff8fb1, 0xffd166] : [0xe8789a, 0xf2c94c];
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2, r = 9.4; const g = new THREE.Group(); g.position.set(Math.sin(a) * r, 0, Math.cos(a) * r); world.add(g); box(g, 2.6, 0.3, 1.4, 0x8a6a46, 0, 0.15, 0); for (let j = 0; j < 8; j++) box(g, 0.35, 0.35, 0.35, fc[j % 2], -1 + (j % 4) * 0.66, 0.45, j < 4 ? -0.3 : 0.3, { flatShading: true }); }
+  // 아이스크림 수레 (줄무늬 차양)
+  const c = new THREE.Group(); c.position.set(-7.5, 0, 6.5); c.rotation.y = 0.7; world.add(c);
+  box(c, 2, 1.1, 1.1, 0xf4f1ea, 0, 0.75, 0); box(c, 2.05, 0.2, 1.15, 0xff8fb1, 0, 1.0, 0);
+  for (const x of [-0.7, 0.7]) { const w = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.07, 6, 14), M(0x333333)); w.position.set(x, 0.28, 0.6); c.add(w); }
+  for (const x of [-0.95, 0.95]) box(c, 0.07, 1.2, 0.07, 0xb0b0b0, x, 1.9, 0);
+  for (let i = 0; i < 6; i++) box(c, 0.36, 0.08, 1.4, i % 2 ? 0xffffff : 0xff6b8a, -0.9 + i * 0.36, 2.5, 0);
+  for (const [x, col] of [[-0.5, 0xffd1dc], [0, 0xfff1b8], [0.5, 0xbfe8d0]]) { cyl(c, 0.14, 0.14, 0.18, col, x, 1.4, 0, 10); }
+  const cl = label('아이스크림'); cl.scale.multiplyScalar(0.55); cl.position.y = 3.3; c.add(cl);
+  CART = c.position.clone().add(new THREE.Vector3(0.9, 0, 1.6));
+  // 연 날리는 잔디밭: 마당 물가 쪽 빈 곳
+  for (const [x, z] of [[-12, 12], [-4, 14], [5, 13], [11, 10]]) KITE_SPOTS.push({ pos: new THREE.Vector3(x, 0, z), kite: null });
+}
+
 // 소품
 function palm(x, z, k = 1) {
   const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g); const lean = (rnd() - 0.5) * 0.5;
@@ -241,7 +284,7 @@ function decoAndaz() {
   for (let x = -36; x <= 36; x += 3) { if (Math.abs(x - 17) < 6) continue; box(world, 0.9, 0.25, 2, 0xf4f1ea, x, 0.15, T.shore + 3.6); }
   for (const x of [-30, -12, 4, 32]) { cyl(world, 0.06, 0.06, 2.6, 0xb98a5a, x, 1.3, T.shore + 4.6); hipRoof(world, 2.4, 2.4, 0.6, 0xf4f1ea, 2.6, { eave: 0 }).position.set(x, 2.6, T.shore + 4.6); }
   // 정원 가운데 태국식 정자(살라)
-  const sala = new THREE.Group(); sala.position.set(-9, 0, 4);   // 광장 옆 (가운데 두면 처음 보는 화면을 가려요) world.add(sala);
+  const sala = new THREE.Group(); sala.position.set(-15, 0, 10);   // 광장 옆 (가운데 두면 처음 보는 화면을 가려요) world.add(sala);
   for (const [x, z] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) cyl(sala, 0.15, 0.15, 3, 0x7a5232, x, 1.5, z);
   box(sala, 5, 0.25, 5, 0xc49a6a, 0, 0.12, 0); hipRoof(sala, 4.4, 4.4, 2.6, 0x3a2a20, 3, { eave: 0.7 });
   for (let i = 0; i < 70; i++) { const x = (rnd() - 0.5) * 110, z = -50 + rnd() * 66; if (Math.hypot(x, z) < R - 5 && z > -R + 6) continue; if (freeAt(x, z)) (rnd() < 0.5 ? palm(x, z, 0.8 + rnd() * 0.3) : tree(x, z, 0x3f8a44, 0.9)); }
@@ -253,7 +296,7 @@ function decoMaldives() {
   for (let i = 0; i < 30; i++) { const a = (i / 30) * Math.PI * 2, r = T.island + 0.3; const x = Math.sin(a) * r, z = Math.cos(a) * r; if (freeAt(x, z, 2)) palm(x, z, 0.9); }
   for (let i = 0; i < 8; i++) { const a = Math.PI * 0.2 + i * 0.28, r = T.island - 0.5; box(world, 0.9, 0.25, 2, 0xf4f1ea, Math.sin(a) * r, 0.25, Math.cos(a) * r).rotation.y = a; }
   // 광장 가운데 모래 둥근 정자
-  const g = new THREE.Group(); g.position.set(-9, 0, 4); world.add(g); for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; cyl(g, 0.15, 0.15, 3, 0x8a6a46, Math.sin(a) * 2.4, 1.5, Math.cos(a) * 2.4); }
+  const g = new THREE.Group(); g.position.set(-15, 0, 10); world.add(g); for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; cyl(g, 0.15, 0.15, 3, 0x8a6a46, Math.sin(a) * 2.4, 1.5, Math.cos(a) * 2.4); }
   hipRoof(g, 5, 5, 2.4, 0xc9a46a, 3, { eave: 0.6 });
 }
 function decoKyoto() {
@@ -282,7 +325,7 @@ const door = (s) => { const a = Math.atan2(s.x, s.z), r = Math.hypot(s.x, s.z) -
 const npcs = [];
 let me = null;
 function spawnPeople() {
-  for (const p of npcs) scene.remove(p.g); npcs.length = 0; if (me) scene.remove(me.g);
+  for (const p of npcs) { scene.remove(p.g); if (p.doing?.obj) scene.remove(p.doing.obj, p.doing.line); } npcs.length = 0; if (me) scene.remove(me.g);
   STAFF_KEYS.forEach((k, i) => {
     const g = person({ shirt: SHIRTS[i % SHIRTS.length], hair: [0x3a2a20, 0x1f1a16, 0x6a4a2a][i % 3], long: i % 3 === 0 });
     const tag = label(JOB(k) || NAME(k)); tag.scale.multiplyScalar(0.55); tag.position.y = 2.75; g.add(tag);
@@ -307,9 +350,23 @@ function nextPlan(n) {
   const lobby = door(LOBBY), plazaPt = () => new THREE.Vector3((rnd() - 0.5) * 12, 0, (rnd() - 0.5) * 12);
   if (n.key === 'friend') { const a = rnd() * Math.PI * 2, r = 5 + rnd() * 8; n.path = [new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r)]; n.wait = 2 + rnd() * 5; return; }
   if (n.key === 'secretary') { n.path = [new THREE.Vector3(0, 0, 4), lobby, new THREE.Vector3(0, 0, 4), n.home]; n.carry = 1; n.wait = 6 + rnd() * 6; return; }
+  // 광장에서 쉬는 일 (앉기 · 아이스크림 · 연날리기) 아니면 서류 배달
+  const r = rnd();
+  if (r < 0.3) { const seat = SEATS.filter((x) => !x.taken)[Math.floor(rnd() * 12)] || SEATS.find((x) => !x.taken); if (seat) { seat.taken = n; n.path = [seat.pos.clone()]; n.then = { act: 'sit', seat, dur: 14 + rnd() * 16 }; n.carry = 0; n.wait = 0; return; } }
+  if (r < 0.5 && CART) { n.path = [CART.clone().add(new THREE.Vector3((rnd() - 0.5) * 1.5, 0, rnd())), plazaPt()]; n.then = { act: 'icecream', dur: 12 + rnd() * 10, cone: true }; n.carry = 0; n.wait = 0; return; }
+  if (r < 0.62) { const k = KITE_SPOTS.filter((x) => !x.kite)[0]; if (k) { k.kite = n; n.path = [k.pos.clone()]; n.then = { act: 'npckite', spot: k, dur: 18 + rnd() * 14 }; n.carry = 0; n.wait = 0; return; } }
   if (rnd() < 0.55) { n.path = [plazaPt(), lobby, plazaPt(), n.home]; n.carry = 2; }
   else { n.path = [plazaPt(), n.home]; n.carry = 0; }
   n.wait = 4 + rnd() * 8;
+}
+function startDoing(n) {
+  const d = { ...n.then, t: 0 }; n.then = null; n.doing = d;
+  if (d.cone) { n.cone = new THREE.Group(); const c = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 8), M(0xd9a35a)); c.rotation.x = Math.PI; n.cone.add(c); const sc = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), M([0xffd1dc, 0xfff1b8, 0xbfe8d0][Math.floor(rnd() * 3)])); sc.position.y = 0.2; n.cone.add(sc); n.cone.position.set(0, -0.72, 0.12); n.g.userData.armR.add(n.cone); }
+  if (d.act === 'npckite') {
+    d.obj = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 4), M([0x2f7a96, 0xf2c94c, 0x9a5a7a][Math.floor(rnd() * 3)], { side: THREE.DoubleSide })); d.obj.scale.z = 0.1;
+    d.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffffff })); scene.add(d.obj, d.line);
+    n.g.rotation.y = 0;   // 물 쪽을 바라보고 날려요
+  }
 }
 function stepPerson(p, target, speed, dt) {
   const d = target.clone().sub(p.position).setY(0), L = d.length();
@@ -428,8 +485,21 @@ function tick() {
   for (const n of npcs) {
     let mv = false;
     if (n.wave > 0) { n.wave -= dt; animate(n.g, dt, false, 'wave'); continue; }
+    if (n.doing) {   // 광장에서 쉬는 중
+      const d = n.doing; d.t += dt;
+      if (d.act === 'sit') { n.g.position.copy(d.seat.pos).setY(0.2); n.g.rotation.y = d.seat.rot; }
+      if (d.act === 'npckite' && d.obj) { const back = new THREE.Vector3(-Math.sin(n.g.rotation.y), 0, -Math.cos(n.g.rotation.y)), t = performance.now() / 1000; d.obj.position.copy(n.g.position).addScaledVector(back, 6).add(new THREE.Vector3(Math.sin(t * 0.8 + d.t) * 1.5, 7 + Math.sin(t * 1.3) * 0.6, 0)); d.obj.rotation.z = Math.sin(t * 1.7) * 0.3; d.line.geometry.setFromPoints([n.g.position.clone().add(new THREE.Vector3(0, 2.1, 0)), d.obj.position]); }
+      animate(n.g, dt, false, d.act);
+      if (d.t >= d.dur) {
+        if (d.seat) d.seat.taken = null; if (d.spot) d.spot.kite = null;
+        if (d.obj) scene.remove(d.obj, d.line); if (n.cone) { n.g.remove(n.cone); n.cone = null; }
+        n.g.position.y = 0; n.doing = null; n.path = [n.home]; n.wait = 0;
+      }
+      continue;
+    }
     if (n.wait > 0) { n.wait -= dt; if (n.wait <= 0 && !n.path.length) nextPlan(n); }
-    else if (n.path.length) { if (stepPerson(n.g, n.path[0], n.speed, dt)) { n.path.shift(); if (n.carry && n.path.length === n.carry) n.holding = true; if (!n.path.length) { n.holding = false; nextPlan(n); n.wait = 3 + rnd() * 6; } } mv = true; }
+    else if (n.path.length) { if (stepPerson(n.g, n.path[0], n.speed, dt)) { n.path.shift(); if (n.carry && n.path.length === n.carry) n.holding = true; if (!n.path.length) { n.holding = false; if (n.then) { startDoing(n); } else { nextPlan(n); n.wait = 3 + rnd() * 6; } } } mv = true; }
+    else if (n.then) startDoing(n);
     else nextPlan(n);
     animate(n.g, dt, mv, n.holding ? 'carry' : null);
     if (n.holding && !n.paper) { n.paper = box(n.g, 0.5, 0.08, 0.36, 0xf8f6ee, 0, 1.25, 0.45); }
