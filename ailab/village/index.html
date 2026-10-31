@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI 연구소 마을 · 문쌤의 AI 연구소</title>
+<link rel="icon" href="../favicon.svg">
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<style>
+  :root { --ink: #1f2a24; --glass: rgba(255, 255, 255, .82); --btn: rgba(31, 52, 44, .62); --gold: #d4a12e; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #9fd3e6; font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif; color: var(--ink); -webkit-tap-highlight-color: transparent; }
+  canvas#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .ui { position: fixed; z-index: 2; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; }
+  .ui > * { pointer-events: auto; }
+  .b { font: 15px "Jua", sans-serif; border: 1px solid rgba(255,255,255,.18); background: var(--btn); color: #fff; padding: 9px 14px; border-radius: 14px; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .b[aria-pressed="true"] { background: #fff; color: var(--ink); }
+  .b:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  #top { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); justify-content: space-between; }
+  #top .grp { display: flex; gap: 6px; flex-wrap: wrap; }
+  #title { font: 20px "Jua", sans-serif; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.35); align-self: center; margin-right: 6px; }
+  #themes .b { padding: 8px 12px; }
+  #right { right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); flex-direction: column; align-items: stretch; width: 112px; }
+  #places { left: max(12px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom)); right: max(12px, env(safe-area-inset-right)); justify-content: center; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding-bottom: 2px; }
+  #places::-webkit-scrollbar { display: none; }
+  #places .b { flex: 0 0 auto; padding: 8px 11px; font-size: 14px; }
+  #card { position: fixed; z-index: 3; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 58px); transform: translateX(-50%); width: min(420px, calc(100% - 24px)); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 18px; padding: 14px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.18); display: grid; gap: 6px; }
+  #card[hidden] { display: none; }
+  #card h2 { margin: 0; font: 22px "Jua", sans-serif; }
+  #card p { margin: 0; font-size: 14px; line-height: 1.55; }
+  #card .who { color: #3f5a4c; font-size: 13px; }
+  #card .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+  #card .row a, #card .row button { font: 15px "Jua", sans-serif; text-decoration: none; padding: 8px 14px; border-radius: 12px; border: 0; cursor: pointer; }
+  #card .go { background: #1f342c; color: #fff; }
+  #card .x { background: rgba(0,0,0,.08); color: var(--ink); }
+  #toast { position: fixed; z-index: 4; left: 50%; top: calc(max(12px, env(safe-area-inset-top)) + 60px); transform: translateX(-50%); background: rgba(31,42,36,.85); color: #fff; padding: 8px 16px; border-radius: 999px; font: 15px "Jua", sans-serif; opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap; }
+  #toast.on { opacity: 1; }
+  #help { position: fixed; z-index: 2; left: max(12px, env(safe-area-inset-left)); top: calc(max(12px, env(safe-area-inset-top)) + 56px); color: #fff; font-size: 12.5px; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .policy-foot { position: fixed; z-index: 1; right: 10px; bottom: 2px; font-size: 10px; color: rgba(255,255,255,.75); }
+  .policy-foot a { color: inherit; }
+  @media (max-width: 640px) {
+    #title { font-size: 17px; width: 100%; }
+    #right { width: 96px; top: auto; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); transform: none; }
+    #right .b { padding: 8px 6px; font-size: 13.5px; }
+    #places { justify-content: flex-start; }
+    #help { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="AI 연구소 마을 3D 화면"></canvas>
+<div id="top" class="ui">
+  <div class="grp"><span id="title">AI 연구소 마을</span><a class="b" href="../" style="text-decoration:none">← 연구소</a></div>
+  <div class="grp" id="themes" role="group" aria-label="마을 테마">
+    <button class="b" data-theme="andaz" aria-pressed="false">안다즈 파타야</button>
+    <button class="b" data-theme="maldives" aria-pressed="false">몰디브</button>
+    <button class="b" data-theme="kyoto" aria-pressed="false">교토</button>
+  </div>
+</div>
+<p id="help">화면을 누르면 그곳으로 걸어가요 · 방향키 / WASD · 끌어서 둘러보기 · 건물을 누르면 방 안내</p>
+<div id="right" class="ui" role="group" aria-label="사장님 동작">
+  <button class="b" data-act="wave" aria-pressed="false">손 흔들기</button>
+  <button class="b" data-act="kite" aria-pressed="false">연날리기</button>
+  <button class="b" data-act="bike" aria-pressed="false">자전거</button>
+  <button class="b" data-act="walk" aria-pressed="false">산책(자동)</button>
+</div>
+<nav id="places" class="ui" aria-label="건물로 가기"></nav>
+<div id="card" hidden role="dialog" aria-labelledby="cardT">
+  <h2 id="cardT"></h2>
+  <p id="cardD"></p>
+  <p class="who" id="cardW"></p>
+  <div class="row"><button class="x" type="button" id="cardX">닫기</button><a class="go" id="cardGo" href="../">방 열기</a></div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<footer class="policy-foot"><a href="../policy/">이용약관 · 개인정보 처리방침</a></footer>
+<script type="module" src="village.js"></script>
+<script type="module" src="/visit.js?app=ailab&hide=1"></script>
+<script src="/refresh.js" defer></script>
+</body>
+</html>

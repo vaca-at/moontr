@@ -19,6 +19,7 @@
 | `firebase-config.js` | Firebase 프로젝트 moon-d528d 설정 |
 | `policy/index.html` | 이용약관 · 개인정보 처리방침 |
 | `og.png` · `favicon.svg` · `apple-touch-icon.png` | 링크 미리보기(OG 2: 설명 + 숲속 건물) · 아이콘(작은 건물) |
+| `village/index.html` · `village/village.js` | **AI 연구소 마을** (2026-10-31): 방 하나 = 단층 건물 한 채인 걸어 다니는 3D 마을. 테마 3가지(안다즈 파타야 · 몰디브 · 교토, `?theme=` 로도 고름), 직원은 블록 캐릭터 NPC(접수처에서 서류를 받아 자기 건물로), 사장님은 물가에서 연날리기 · 자전거. 건물을 누르면 연구소의 그 방(`../#방이름`)으로. 방 이름은 `rooms.js` 를 그대로 씀 |
 | `3d/index.html` | 예전 시안 주소 → `/ailab/` 로 넘겨요 |
 | `../firebase/` | 사진 읽는 Cloud Functions (`README.md`에 배포 방법) |
 | `../firestore.rules` · `../storage.rules` | 보안 규칙 (AI Lab 부분: `ailab_cards` · `ailab_captures` · `ailab_meta`, Storage `ailab/captures/`) |
