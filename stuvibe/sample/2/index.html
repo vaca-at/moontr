@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시험기간 집중 타이머</title>
+<style>
+  /* 색과 글자 모양 */
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+         background: #EEF4FF; font-family: "Malgun Gothic", sans-serif; color: #1E2A55; }
+  body.rest { background: #EAFBF1; }
+  h1 { margin: 0; font-size: 30px; }
+  .modes { display: flex; gap: 8px; }
+  .modes button { padding: 8px 18px; border: 2px solid #1E2A55; border-radius: 999px; background: #fff; font-size: 16px; cursor: pointer; }
+  .modes button.on { background: #1E2A55; color: #fff; }
+  .ring { position: relative; width: 260px; height: 260px; }
+  svg { transform: rotate(-90deg); }
+  #time { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 60px; font-weight: bold; }
+  .btns { display: flex; gap: 10px; }
+  .btns button { padding: 14px 30px; border: none; border-radius: 16px; background: #4F6BFF; color: #fff; font-size: 20px; font-weight: bold; cursor: pointer; }
+  .btns button.gray { background: #B8C0D9; }
+  #count { font-size: 18px; }
+</style>
+</head>
+<body>
+  <h1>⏰ 시험기간 집중 타이머</h1>
+  <div class="modes">
+    <button id="mFocus" class="on">📚 집중 25분</button>
+    <button id="mRest">☕ 쉬기 5분</button>
+  </div>
+  <div class="ring">
+    <svg width="260" height="260">
+      <circle cx="130" cy="130" r="115" fill="none" stroke="#D6DEFA" stroke-width="16" />
+      <circle id="bar" cx="130" cy="130" r="115" fill="none" stroke="#4F6BFF" stroke-width="16" stroke-linecap="round" />
+    </svg>
+    <div id="time">25:00</div>
+  </div>
+  <div class="btns">
+    <button id="go">시작</button>
+    <button id="reset" class="gray">처음으로</button>
+  </div>
+  <div id="count">오늘 집중한 횟수: 🍅 0번</div>
+
+<script>
+  // ✏️ 여기 분을 바꾸면 시간이 바뀌어요
+  const FOCUS_MIN = 25;
+  const REST_MIN = 5;
+
+  let total = FOCUS_MIN * 60;   // 이번 타이머 전체 초
+  let left = total;             // 남은 초
+  let timer = null;             // 돌아가는 중이면 여기에 번호가 들어가요
+  let mode = "focus";
+  let done = 0;                 // 집중을 끝낸 횟수
+  const bar = document.getElementById("bar");
+  const full = 2 * Math.PI * 115;
+  bar.style.strokeDasharray = full;
+
+  // 화면 새로 그리기
+  function show() {
+    const m = String(Math.floor(left / 60)).padStart(2, "0");
+    const s = String(left % 60).padStart(2, "0");
+    document.getElementById("time").textContent = `${m}:${s}`;
+    bar.style.strokeDashoffset = full * (1 - left / total);
+    document.title = `${m}:${s} · 집중 타이머`;
+  }
+
+  // 모드 바꾸기 (집중 / 쉬기)
+  function setMode(next) {
+    mode = next;
+    stop();
+    total = (mode === "focus" ? FOCUS_MIN : REST_MIN) * 60;
+    left = total;
+    document.getElementById("mFocus").classList.toggle("on", mode === "focus");
+    document.getElementById("mRest").classList.toggle("on", mode === "rest");
+    document.body.classList.toggle("rest", mode === "rest");
+    bar.style.stroke = mode === "focus" ? "#4F6BFF" : "#2DBE7E";
+    show();
+  }
+
+  function stop() { clearInterval(timer); timer = null; document.getElementById("go").textContent = "시작"; }
+
+  // 시작 · 멈춤 단추
+  document.getElementById("go").onclick = () => {
+    if (timer) { stop(); return; }
+    document.getElementById("go").textContent = "멈춤";
+    timer = setInterval(() => {
+      left--;
+      show();
+      if (left <= 0) {
+        stop();
+        if (mode === "focus") {
+          done++;
+          document.getElementById("count").textContent = `오늘 집중한 횟수: 🍅 ${done}번`;
+          alert("수고했어요! 5분 쉬어요 ☕");
+          setMode("rest");
+        } else {
+          alert("다시 집중해 볼까요? 📚");
+          setMode("focus");
+        }
+      }
+    }, 1000);
+  };
+  document.getElementById("reset").onclick = () => setMode(mode);
+  document.getElementById("mFocus").onclick = () => setMode("focus");
+  document.getElementById("mRest").onclick = () => setMode("rest");
+  show();
+</script>
+</body>
+</html>
