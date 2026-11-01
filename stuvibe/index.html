@@ -241,6 +241,12 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 /* 계획서 저장 줄 · 고치기 단추 */
 .plan-form .who-line{display:none;align-items:center;gap:.75rem;flex-wrap:wrap;background:color-mix(in srgb,var(--c) 10%,#fff);border-radius:.75rem;padding:.375rem .75rem;font-size:.9375rem}
 .plan-form.has-me .who-line{display:flex}
+.me-wrap{display:inline-flex;align-items:center}
+.me-wrap .me-pill.in{border-top-right-radius:0;border-bottom-right-radius:0;border-right-width:1px}
+.me-out{border-top-left-radius:0!important;border-bottom-left-radius:0!important;border-left-width:1px!important;color:#C2410C;font-weight:700}
+.me-out:hover{background:#FFF1EB}
+.admin-out{background:#2F3640;color:#fff;border-color:#2F3640}
+.admin-out:hover{background:#E5484D;border-color:#E5484D}
 .me-pill{max-width:16rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .me-pill.need{background:linear-gradient(135deg,var(--g1,#FF8FB3),var(--g2,#B98CF0));color:#fff;border-color:transparent}
 /* 모둠 채팅방 · 선생님 말풍선 · 대시보드 */
@@ -565,7 +571,10 @@ em.chg{font-style:normal;background:#FFE58A;color:#3B2F2A;border-radius:.25rem;p
 .tn-row{display:flex;gap:.375rem;align-items:center;justify-content:space-between;font-size:.9375rem;color:var(--ink2)}
 .tn-go{background:#fff;border-radius:999px;padding:.0625rem .625rem;color:var(--rose);text-decoration:none}
 a.tn-go:hover{background:var(--rose);color:#fff}
-.tn-del{position:absolute;top:.375rem;right:.375rem;border:0;background:rgba(255,255,255,.85);border-radius:.5rem;padding:.0625rem .3125rem;cursor:pointer}
+.tn-tools{position:absolute;top:.375rem;right:.375rem;display:flex;gap:.25rem;z-index:2}
+.try-note{margin:0 0 .75rem;padding:.5rem .75rem;border-radius:.75rem;background:color-mix(in srgb,var(--c) 14%,#fff);font-size:.9375rem}
+.tn-del{border:0;background:rgba(255,255,255,.85);border-radius:.5rem;padding:.0625rem .3125rem;cursor:pointer}
+.tn-del:hover{background:#fff}
 .try-how{margin:0 0 .75rem;padding:.625rem .875rem .625rem 2rem;border-radius:.875rem;background:color-mix(in srgb,var(--c) 10%,#fff)}
 .try-form{display:flex;flex-direction:column;gap:.625rem}
 .try-big{height:min(70vh,46rem);border:2px solid var(--line);border-radius:.875rem;overflow:hidden;background:#fff;position:relative}
@@ -971,7 +980,8 @@ html.dash-only #dlgAdmin .doc-head{display:none}
         <button type="button" data-ban="A">A반<small>11/2 월</small></button>
         <button type="button" data-ban="B">B반<small>11/4 수</small></button>
       </div>
-      <button type="button" class="pill me-pill" id="meBtn" data-me-open>🙋 나 확인하기</button>
+      <button type="button" class="pill admin-out" id="adminOutBtn" hidden title="관리자 모드에서 나가요">👩‍🏫 관리자 · 로그아웃</button>
+      <span class="me-wrap"><button type="button" class="pill me-pill" id="meBtn" data-me-open>🙋 나 확인하기</button><button type="button" class="pill me-out" id="meOutBtn" hidden title="이 기기에서 나가요 (다음 친구가 쓸 수 있게)">로그아웃</button></span>
       <button type="button" class="pill" data-dlg="dlgStyle">🎨 꾸미기</button>
       <button type="button" class="pill" id="reloadBtn">↻ 새로고침</button>
       <button type="button" class="pill" id="pdfBtn" title="슬라이드 전체를 교안으로 인쇄하거나 PDF로 저장해요">📄 PDF 교안</button>
@@ -1051,7 +1061,7 @@ html.dash-only #dlgAdmin .doc-head{display:none}
       <p class="muted" style="margin:0">🔒 닉네임과 학번은 내 계획서·성찰을 다시 불러올 때 쓰는 열쇠예요. 학번은 저장하지 않고 암호(해시)로만 써요. 친구들에게는 '학생 A'처럼 보여요. 이 기기에 기억해 두니 한 번만 넣으면 돼요.</p>
       <p class="muted" style="margin:0">🔑 다른 기기에서 다시 열려면 <b>닉네임과 학번</b>을 꼭 기억해 두세요.</p>
       <p class="muted" style="margin:0">🗓️ 이 수업에서 저장한 모든 기록(계획서 · 피드백)은 <b>2026년 12월 31일에 모두 삭제</b>해요.</p>
-      <p style="margin:0;text-align:center"><button type="button" class="link" data-close>선생님 · 구경만 할게요</button></p>
+      <p style="margin:0;text-align:center"><button type="button" class="link" data-close>선생님 · 구경만 할게요</button><span id="meOutRow" hidden> · <button type="button" class="link" data-me-out>🚪 로그아웃</button></span></p>
     </form>
   </div>
 </dialog>
@@ -1377,6 +1387,12 @@ async function saveTry(d, w) {
   if (LIVE) { const ref = db.collection(COL_TRY).doc(), b = db.batch(); b.set(ref, data); b.set(db.collection(COL_TRY_WHO).doc(ref.id), who); await b.commit(); return ref.id; }
   const id = newId(); const arr = localGet(COL_TRY); arr.push({ ...data, id }); localSet(COL_TRY, arr);
   const ws = localGet(COL_TRY_WHO); ws.push({ ...who, id }); localSet(COL_TRY_WHO, ws); localEmit(COL_TRY); return id;
+}
+// 고치기: 웹앱 이름 · 코드 · 링크만 바꿀 수 있어요 (반 · 붙인 사람 열쇠는 그대로)
+async function updateTry(id, d) {
+  const data = { title: d.title, html: d.html, url: d.url, updatedAt: Date.now() };
+  if (LIVE) return db.collection(COL_TRY).doc(id).update(data);
+  localSet(COL_TRY, localGet(COL_TRY).map(x => x.id === id ? { ...x, ...data } : x)); localEmit(COL_TRY);
 }
 async function deleteTry(id) {
   if (LIVE) { const b = db.batch(); b.delete(db.collection(COL_TRY).doc(id)); b.delete(db.collection(COL_TRY_WHO).doc(id)); return b.commit(); }
@@ -2290,7 +2306,25 @@ function paintMe() {
   const b = document.getElementById("meBtn"), m = getMe(); if (!b) return;
   b.textContent = m ? `🙋 ${m.ban}반 ${m.name}` : "🙋 나 확인하기";
   b.classList.toggle("need", !m);
+  b.classList.toggle("in", !!m);
+  document.getElementById("meOutBtn").hidden = !m;
+  document.getElementById("meOutRow").hidden = !m;
 }
+// 🚪 학생 로그아웃: 이 기기에 남은 '나'와 내 글(임시 저장 · AI 대답 · 고른 문장 등)을 지우고 처음 화면으로
+// 글꼴 · 디자인 · 반 · 효과음 같은 기기 설정은 그대로 둬요. 저장소에 낸 계획서 · 글은 지워지지 않아요
+const KEEP_KEYS = ["vt_ban", "vt_font", "vt_theme", "vt_wide", "vt_eg_snd"];
+function meLogout() {
+  const m = getMe(); if (!m) return;
+  if (!confirm(`${m.ban}반 ${m.name}, 이 기기에서 로그아웃할까요?\n(제출한 계획서와 글은 그대로 남아요. 다시 들어올 때는 같은 학번 · 닉네임을 넣어요)`)) return;
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith("vt_") && !KEEP_KEYS.includes(k) && !(LIVE ? false : /^vt_(vibe|stuvibe)_/.test(k)))
+      .forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+  toast("로그아웃했어요");
+  setTimeout(() => location.reload(), 400);
+}
+document.getElementById("meOutBtn").addEventListener("click", meLogout);
+document.addEventListener("click", e => { if (e.target.closest("[data-me-out]")) { const d = document.getElementById("dlgMe"); if (d.open) d.close(); meLogout(); } });
 function openMeDlg() {
   const f = document.getElementById("meForm"), m = getMe();
   f.ban.value = m ? m.ban : ban; f.sid.value = m ? m.sid : ""; f.name.value = m ? m.name : "";
@@ -2553,29 +2587,40 @@ let tries = [];
 const TRY_SLOTS = 10, TRY_ROW = 5;
 const myTryIds = () => { try { return JSON.parse(localStorage.getItem("vt_mytry") || "[]"); } catch (e) { return []; } };
 const addMyTry = id => { try { const a = myTryIds(); a.push(id); localStorage.setItem("vt_mytry", JSON.stringify(a)); } catch (e) {} };
+let myTryWid = "", myTryKey = "";
+async function refreshTryWid() {
+  const m = getMe(), k = m ? m.ban + m.sid + m.name : "";
+  if (k === myTryKey) return false;
+  myTryKey = k; myTryWid = m ? await wallWid(m) : ""; return true;
+}
+const isMyTry = x => (myTryWid && x.wid === myTryWid) || myTryIds().includes(x.id);
+const myTry = () => triesOfBan().filter(isMyTry).pop() || null;
 const triesOfBan = () => tries.filter(x => x.ban === ban).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-const tryFrame = (x, big) => x.html ? pvFrame(x.html, big) : `<div class="g-ph"><span>🔗</span>${esc(x.title)}<small>링크로 열어 봐요</small></div>`;
+const tryFrame = (x, big) => x.html ? pvFrame(x.html, big) : `<div class="g-ph"><span>🔗</span>${esc(x.title)}<small>${isMyTry(x) ? "✏️ 고치기에서 코드를 붙이면 미리보기가 보여요" : "링크로 열어 봐요"}</small></div>`;
 function renderTry() {
   const box = document.getElementById("tryWall"); if (!box) return;
-  const list = triesOfBan(), mine = myTryIds();
+  refreshTryWid().then(changed => { if (changed) renderTry(); });
+  const list = triesOfBan();
   const n = Math.max(TRY_SLOTS, Math.ceil((list.length + 1) / TRY_ROW) * TRY_ROW);
   box.innerHTML = Array.from({ length: n }, (_, i) => {
     const x = list[i];
     if (!x) return `<div class="tn empty">${i === list.length ? `<button type="button" data-try-add>＋ 여기에 내 웹앱이 붙어요 📌</button>` : ""}</div>`;
-    const me = mine.includes(x.id), u = safeUrl(x.url);
+    const me = isMyTry(x), u = safeUrl(x.url);
     return `<article class="tn ${me ? "mine" : ""}" data-try="${x.id}" tabindex="0" role="button" title="눌러서 크게 보기">
-      ${teacher ? `<button type="button" class="tn-del" data-try-del="${x.id}" title="지우기">🗑</button>` : ""}
+      ${me || teacher ? `<div class="tn-tools">${me ? `<button type="button" class="tn-del" data-try-edit="${x.id}" title="고치기">✏️</button>` : ""}${teacher ? `<button type="button" class="tn-del" data-try-del="${x.id}" title="지우기">🗑</button>` : ""}</div>` : ""}
       <h4>${esc(x.title)}</h4>
       <div class="tn-thumb">${tryFrame(x, false)}</div>
       <div class="tn-row"><span>${me ? "🙋 내 웹앱" : `#${i + 1}`}</span>${u ? `<a class="tn-go" href="${esc(u)}" target="_blank" rel="noopener">열기 ↗</a>` : `<span class="tn-go">크게 보기</span>`}</div>
     </article>`;
   }).join("");
 }
-function openTryAdd() {
+async function openTryAdd(editId) {
   const m = getMe();
   if (!m) { toast("먼저 나를 알려 주세요"); openMeDlg(); return; }
-  document.getElementById("dlgTryT").textContent = "📌 내 웹앱 붙이기";
-  document.getElementById("tryBody").innerHTML = `
+  await refreshTryWid();
+  const old = editId ? tries.find(x => x.id === editId) : myTry();
+  document.getElementById("dlgTryT").textContent = old ? "✏️ 내 웹앱 고치기" : "📌 내 웹앱 붙이기";
+  document.getElementById("tryBody").innerHTML = `${old ? `<p class="try-note">이미 붙인 웹앱이에요. 코드나 링크를 바꾸고 <b>고쳐서 다시 붙이기</b>를 눌러요. <b>코드</b>를 넣어야 담벼락에 미리보기가 보여요.</p>` : ""}
     <ol class="try-how">
       <li>Gemini 캔버스 위쪽의 <b>코드</b> 단추를 눌러요</li>
       <li>코드를 모두 골라(<kbd>Ctrl</kbd>+<kbd>A</kbd>) 복사해요(<kbd>Ctrl</kbd>+<kbd>C</kbd>)</li>
@@ -2585,12 +2630,13 @@ function openTryAdd() {
       <label>웹앱 이름<input name="title" maxlength="40" required placeholder="예: 하굣길 디저트 룰렛"></label>
       <label>캔버스 코드<textarea name="html" rows="6" placeholder="&lt;!DOCTYPE html&gt; 로 시작하는 코드를 붙여 넣어요"></textarea></label>
       <label>Gemini 공유 링크 <small>(있으면 넣어요 · 없어도 돼요)</small><input name="url" type="url" inputmode="url" maxlength="300" placeholder="https://gemini.google.com/share/…"></label>
-      <button class="btn" type="submit">📌 담벼락에 붙이기</button>
-      <p class="muted" style="margin:0">🔒 우리 반 친구들이 모두 볼 수 있어요. 앱 안에 진짜 이름 · 전화번호 · 사진은 넣지 않아요. 붙인 것은 선생님만 지울 수 있어요.</p>
+      <button class="btn" type="submit">${old ? "✏️ 고쳐서 다시 붙이기" : "📌 담벼락에 붙이기"}</button>
+      <p class="muted" style="margin:0">💡 링크만 넣어도 붙지만, 미리보기는 <b>코드</b>를 넣어야 보여요. 나중에 ✏️ 고치기로 코드를 더할 수 있어요.<br>🔒 우리 반 친구들이 모두 볼 수 있어요. 앱 안에 진짜 이름 · 전화번호 · 사진은 넣지 않아요. 지우기는 선생님만 할 수 있어요.</p>
     </form>`;
   openDlg("dlgTry");
   const f = document.getElementById("tryForm");
-  f.title.focus();
+  if (old) { f.title.value = old.title || ""; f.html.value = old.html || ""; f.url.value = old.url || ""; }
+  (old && !old.html ? f.html : f.title).focus();
   f.addEventListener("submit", async e => {
     e.preventDefault();
     const title = f.title.value.trim(), html = pickHTML(f.html.value), url = f.url.value.trim();
@@ -2601,11 +2647,16 @@ function openTryAdd() {
     if (!html && !url) { toast("코드나 공유 링크 중 하나는 넣어 주세요"); f.html.focus(); return; }
     const btn = f.querySelector("[type=submit]"); btn.disabled = true;
     try {
-      const wid = await wallWid(m);
-      const id = await saveTry({ ban: m.ban, title, html, url, wid }, { name: m.name });
-      if (id) addMyTry(id);
+      if (old) {
+        await updateTry(old.id, { title, html, url });
+        toast(html ? "고쳤어요! 담벼락에 미리보기가 보여요" : "고쳤어요!");
+      } else {
+        const wid = await wallWid(m);
+        const id = await saveTry({ ban: m.ban, title, html, url, wid }, { name: m.name });
+        if (id) addMyTry(id);
+        toast("담벼락에 붙였어요! 친구들 웹앱도 눌러 봐요");
+      }
       document.getElementById("dlgTry").close();
-      toast("담벼락에 붙였어요! 친구들 웹앱도 눌러 봐요");
       renderTry();
     } catch (err) { console.error(err); toast("붙이지 못했어요. 인터넷 연결을 확인하세요"); btn.disabled = false; }
   });
@@ -2615,7 +2666,7 @@ function openTryView(id) {
   const u = safeUrl(x.url);
   document.getElementById("dlgTryT").textContent = "📌 " + x.title;
   document.getElementById("tryBody").innerHTML = `<div class="try-big">${tryFrame(x, true)}</div>
-    <div class="try-big-bar">${u ? `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">Gemini에서 열기 ↗</a>` : ""}${teacher ? `<button type="button" class="link" data-try-del="${x.id}">🗑 지우기</button>` : ""}</div>`;
+    <div class="try-big-bar">${isMyTry(x) ? `<button type="button" class="btn sm" data-try-edit="${x.id}">✏️ 고치기</button>` : ""}${u ? `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">Gemini에서 열기 ↗</a>` : ""}${teacher ? `<button type="button" class="link" data-try-del="${x.id}">🗑 지우기</button>` : ""}</div>`;
   openDlg("dlgTry");
 }
 async function delTry(id) {
@@ -2630,6 +2681,7 @@ document.addEventListener("click", e => {
   if (t.closest("[data-try-down]")) { const w = document.getElementById("trySec"); if (w) w.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   if (t.closest("[data-try-top]")) { stageEl.scrollTo({ top: 0, behavior: "smooth" }); return; }
   if (t.closest("[data-try-add]")) { openTryAdd(); return; }
+  const ed = t.closest("[data-try-edit]"); if (ed) { e.stopPropagation(); openTryAdd(ed.dataset.tryEdit); return; }
   const d = t.closest("[data-try-del]"); if (d) { e.stopPropagation(); delTry(d.dataset.tryDel); return; }
   if (t.closest(".tn-go[href]")) return;
   const c = t.closest("[data-try]"); if (c) openTryView(c.dataset.try);
@@ -3198,6 +3250,7 @@ function setTeacher(on) {
   b.classList.toggle("on", on);
   b.textContent = on ? "🔓 로그아웃" : "🔒 관리자 로그인";
   document.getElementById("dashBtn").hidden = !on;
+  document.getElementById("adminOutBtn").hidden = !on;
   stopAdmin.forEach(f => f()); stopAdmin = [];
   people = {}; writers = {}; visits = [];
   if (on) {
@@ -3688,6 +3741,7 @@ stageEl.addEventListener("click", async e => {
 });
 
 document.getElementById("dashBtn").addEventListener("click", () => { showDash(); });
+document.getElementById("adminOutBtn").addEventListener("click", () => document.getElementById("adminBtn").click());   // 위쪽 단추도 아래 로그아웃과 같아요
 document.getElementById("dashBox").addEventListener("submit", async e => {
   const f = e.target.closest("[data-tform]"); if (!f) return;
   e.preventDefault();

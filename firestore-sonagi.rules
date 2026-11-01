@@ -188,8 +188,18 @@ service cloud.firestore {
         && vibeText(request.resource.data, 'url', 0, 300)
         && vibeText(request.resource.data, 'wid', 0, 16)
         && (request.resource.data.html.size() > 0 || request.resource.data.url.size() > 0)
+        && (request.resource.data.url == '' || request.resource.data.url.matches('^https://[^ ]+$'))
         && request.resource.data.createdAt is int
         && existsAfter(/databases/$(database)/documents/vibe_try_who/$(id));
+      // 고치기: 웹앱 이름 · 코드 · 링크 · 고친 시각만 바꿀 수 있어요 (반 · 붙인 사람 열쇠 · 붙인 시각은 그대로)
+      // 로그인이 없어 '내 것'을 규칙으로 완전히 잠글 수는 없어요 (계획서와 같아요) → 화면에서 내 것에만 고치기 단추가 보여요
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','html','url','updatedAt'])
+        && vibeText(request.resource.data, 'title', 1, 40)
+        && vibeText(request.resource.data, 'html', 0, 300000)
+        && vibeText(request.resource.data, 'url', 0, 300)
+        && (request.resource.data.html.size() > 0 || request.resource.data.url.size() > 0)
+        && (request.resource.data.url == '' || request.resource.data.url.matches('^https://[^ ]+$'))
+        && request.resource.data.updatedAt is int;
       allow delete: if isTeacher();
     }
     match /vibe_try_who/{id} {
