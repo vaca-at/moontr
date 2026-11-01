@@ -177,6 +177,28 @@ service cloud.firestore {
       allow read, delete: if isTeacher();
     }
 
+    // 3번 슬라이드 첫 웹앱 담벼락: 웹앱 이름 · 캔버스 코드(미리보기) · 공유 링크(선택)
+    // 누구나 보기(이름 없이), 붙인 사람 닉네임은 vibe_try_who 에만(관리자만 보기), 지우기는 관리자만
+    match /vibe_try/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['ban','title','html','url','wid','createdAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && vibeText(request.resource.data, 'title', 1, 40)
+        && vibeText(request.resource.data, 'html', 0, 300000)
+        && vibeText(request.resource.data, 'url', 0, 300)
+        && vibeText(request.resource.data, 'wid', 0, 16)
+        && (request.resource.data.html.size() > 0 || request.resource.data.url.size() > 0)
+        && request.resource.data.createdAt is int
+        && existsAfter(/databases/$(database)/documents/vibe_try_who/$(id));
+      allow delete: if isTeacher();
+    }
+    match /vibe_try_who/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['name'])
+        && vibeStudent(request.resource.data)
+        && existsAfter(/databases/$(database)/documents/vibe_try/$(id));
+      allow read, delete: if isTeacher();
+    }
+
     // 익명 접속 기록 (기기 종류·브라우저·날짜만): 누구나 남기기(정해진 항목만), 관리자만 보기·지우기
     match /stuvibe_visits/{id} {
       allow create: if request.resource.data.keys().hasOnly(['d','h','dev','os','br','w','vid']);
