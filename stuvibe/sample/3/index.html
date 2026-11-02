@@ -3,79 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>나의 진로 유형 퀴즈</title>
+<title>롤스의 정의론 OX 퀴즈</title>
 <style>
-  /* 색과 글자 모양 */
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
          background: #F6F0FF; font-family: "Malgun Gothic", sans-serif; color: #2E2245; }
   .card { width: min(92vw, 440px); background: #fff; border-radius: 24px; padding: 28px; box-shadow: 0 10px 30px rgba(90, 60, 160, .15); text-align: center; }
   h1 { margin: 0 0 6px; font-size: 26px; }
-  .bar { height: 10px; background: #EEE6FF; border-radius: 999px; overflow: hidden; margin: 14px 0 20px; }
-  .bar div { height: 100%; width: 0; background: #8B5CF6; transition: width .3s; }
-  #q { font-size: 20px; font-weight: bold; margin: 0 0 18px; min-height: 56px; }
-  .choices { display: grid; gap: 10px; }
-  .choices button { padding: 14px; border: 2px solid #E2D6FF; border-radius: 14px; background: #FBF8FF; font-size: 17px; cursor: pointer; }
-  .choices button:hover { border-color: #8B5CF6; background: #F1EAFF; }
-  .big { font-size: 64px; margin: 10px 0; }
-  .again { margin-top: 18px; padding: 12px 30px; border: none; border-radius: 999px; background: #8B5CF6; color: #fff; font-size: 17px; cursor: pointer; }
+  #q { font-size: 20px; font-weight: bold; margin: 18px 0; min-height: 84px; line-height: 1.5; }
+  .ox { display: flex; gap: 14px; justify-content: center; }
+  .ox button { width: 110px; height: 90px; border: none; border-radius: 20px; font-size: 48px; font-weight: bold; color: #fff; cursor: pointer; }
+  .o { background: #3B82F6; }
+  .x { background: #EF4444; }
+  #why { min-height: 60px; margin-top: 16px; line-height: 1.5; }
+  .next { margin-top: 10px; padding: 10px 28px; border: none; border-radius: 999px; background: #8B5CF6; color: #fff; font-size: 16px; cursor: pointer; }
 </style>
 </head>
 <body>
   <div class="card" id="card"></div>
 
 <script>
-  // ✏️ 질문과 답을 바꿔 보세요. 답 순서: 탐구형 · 예술형 · 사회형 · 실천형
-  const QUESTIONS = [
-    { q: "쉬는 날, 가장 끌리는 것은?", a: ["궁금한 걸 찾아보기", "그림 · 음악 · 영상 만들기", "친구들과 수다 떨기", "몸으로 뭔가 만들기"] },
-    { q: "모둠 활동에서 나는?", a: ["자료 조사 담당", "꾸미기 · 발표 자료 담당", "의견 모으는 담당", "직접 만들고 실험하는 담당"] },
-    { q: "가장 재미있는 수업은?", a: ["과학 · 수학", "미술 · 음악", "사회 · 국어 토론", "기술 · 체육"] },
-    { q: "친구가 고민을 말하면 나는?", a: ["원인을 차근차근 따져 봐요", "기분 좋아질 노래를 추천해요", "끝까지 들어 주고 공감해요", "바로 도와줄 방법을 찾아요"] },
-    { q: "10년 뒤 나는 어디에 있을까?", a: ["연구실 · 실험실", "작업실 · 무대", "학교 · 상담실 · 병원", "현장 · 공방 · 운동장"] },
-  ];
-  const TYPES = [
-    { e: "🔬", name: "탐구형", say: "왜 그럴까? 끝까지 파고드는 사람", jobs: "과학자 · 개발자 · 의사" },
-    { e: "🎨", name: "예술형", say: "생각을 그림 · 소리 · 영상으로 표현하는 사람", jobs: "디자이너 · 작가 · 영상 크리에이터" },
-    { e: "🤝", name: "사회형", say: "사람을 돕고 마음을 잇는 사람", jobs: "교사 · 상담가 · 간호사" },
-    { e: "🛠", name: "실천형", say: "직접 해 보며 뚝딱 만들어 내는 사람", jobs: "엔지니어 · 셰프 · 운동선수" },
+  // ✏️ 문제와 정답(O 또는 X), 풀이를 바꿔 보세요
+  const QUIZ = [
+    { q: "롤스는 '무지의 베일'을 쓰고 정의의 원칙을 정해야 한다고 했다.", a: "O",
+      why: "내가 부자인지, 가난한지 모르는 상태여야 모두에게 공정한 규칙을 고를 수 있다고 봤어요." },
+    { q: "롤스는 사회의 모든 불평등을 없애야 한다고 했다.", a: "X",
+      why: "차등의 원칙: 가장 불리한 사람에게 가장 큰 이익이 되는 불평등은 허용할 수 있다고 했어요." },
+    { q: "롤스는 기본적인 자유를 모든 사람에게 똑같이 보장해야 한다고 했다.", a: "O",
+      why: "평등한 자유의 원칙: 생각 · 말 · 종교의 자유 같은 기본적 자유는 모두에게 똑같이!" },
   ];
 
-  let step = 0;
-  let score = [0, 0, 0, 0];
+  let n = 0;
+  let score = 0;
   const card = document.getElementById("card");
 
-  // 질문 보여 주기
-  function ask() {
-    const now = QUESTIONS[step];
+  // 문제 보여 주기
+  function show() {
     card.innerHTML = `
-      <h1>🧭 나의 진로 유형 퀴즈</h1>
-      <div>${step + 1} / ${QUESTIONS.length}</div>
-      <div class="bar"><div style="width:${step / QUESTIONS.length * 100}%"></div></div>
-      <p id="q">${now.q}</p>
-      <div class="choices">${now.a.map((t, i) => `<button onclick="pick(${i})">${t}</button>`).join("")}</div>`;
+      <h1>⚖️ 롤스의 정의론 OX 퀴즈</h1>
+      <div>${n + 1} / ${QUIZ.length}</div>
+      <p id="q">${QUIZ[n].q}</p>
+      <div class="ox"><button class="o" onclick="answer('O')">O</button><button class="x" onclick="answer('X')">X</button></div>
+      <div id="why"></div>`;
   }
 
   // 답 고르기
-  function pick(i) {
-    score[i]++;
-    step++;
-    if (step < QUESTIONS.length) ask(); else result();
+  function answer(pick) {
+    const right = pick === QUIZ[n].a;
+    if (right) score++;
+    document.querySelector(".ox").innerHTML = "";
+    document.getElementById("why").innerHTML = `
+      <b>${right ? "⭕ 정답!" : "❌ 아쉬워요! 정답은 " + QUIZ[n].a}</b><br>${QUIZ[n].why}<br>
+      <button class="next" onclick="next()">${n + 1 < QUIZ.length ? "다음 문제" : "결과 보기"}</button>`;
   }
 
-  // 결과 보여 주기 (가장 많이 고른 유형)
-  function result() {
-    const best = score.indexOf(Math.max(...score));
-    const t = TYPES[best];
+  function next() {
+    n++;
+    if (n < QUIZ.length) { show(); return; }
     card.innerHTML = `
-      <h1>나의 진로 유형은?</h1>
-      <div class="big">${t.e}</div>
-      <h2>${t.name}</h2>
-      <p>${t.say}</p>
-      <p>어울리는 직업: <b>${t.jobs}</b></p>
-      <button class="again" onclick="restart()">다시 하기</button>`;
+      <h1>⚖️ 결과</h1>
+      <p style="font-size:56px;margin:10px 0">${score} / ${QUIZ.length}</p>
+      <p>${score === QUIZ.length ? "롤스 박사님 인정! 🎓" : "다시 도전해 볼까요?"}</p>
+      <button class="next" onclick="n = 0; score = 0; show()">다시 하기</button>`;
   }
-
-  function restart() { step = 0; score = [0, 0, 0, 0]; ask(); }
-  ask();
+  show();
 </script>
 </body>
 </html>

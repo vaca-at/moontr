@@ -3,107 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>시험기간 집중 타이머</title>
+<title>4명 사다리 게임</title>
 <style>
-  /* 색과 글자 모양 */
-  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
          background: #EEF4FF; font-family: "Malgun Gothic", sans-serif; color: #1E2A55; }
-  body.rest { background: #EAFBF1; }
   h1 { margin: 0; font-size: 30px; }
-  .modes { display: flex; gap: 8px; }
-  .modes button { padding: 8px 18px; border: 2px solid #1E2A55; border-radius: 999px; background: #fff; font-size: 16px; cursor: pointer; }
-  .modes button.on { background: #1E2A55; color: #fff; }
-  .ring { position: relative; width: 260px; height: 260px; }
-  svg { transform: rotate(-90deg); }
-  #time { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 60px; font-weight: bold; }
-  .btns { display: flex; gap: 10px; }
-  .btns button { padding: 14px 30px; border: none; border-radius: 16px; background: #4F6BFF; color: #fff; font-size: 20px; font-weight: bold; cursor: pointer; }
-  .btns button.gray { background: #B8C0D9; }
-  #count { font-size: 18px; }
+  .row { display: grid; grid-template-columns: repeat(4, 80px); gap: 0; text-align: center; }
+  .row button { margin: 0 6px; padding: 10px 0; border: none; border-radius: 12px; background: #4F6BFF; color: #fff; font-size: 17px; font-weight: bold; cursor: pointer; }
+  .row div { margin: 0 6px; padding: 10px 0; border-radius: 12px; background: #fff; font-weight: bold; }
+  canvas { width: 320px; height: 300px; }
+  #again { padding: 10px 26px; border: 2px solid #4F6BFF; border-radius: 999px; background: #fff; color: #4F6BFF; font-size: 16px; cursor: pointer; }
 </style>
 </head>
 <body>
-  <h1>⏰ 시험기간 집중 타이머</h1>
-  <div class="modes">
-    <button id="mFocus" class="on">📚 집중 25분</button>
-    <button id="mRest">☕ 쉬기 5분</button>
-  </div>
-  <div class="ring">
-    <svg width="260" height="260">
-      <circle cx="130" cy="130" r="115" fill="none" stroke="#D6DEFA" stroke-width="16" />
-      <circle id="bar" cx="130" cy="130" r="115" fill="none" stroke="#4F6BFF" stroke-width="16" stroke-linecap="round" />
-    </svg>
-    <div id="time">25:00</div>
-  </div>
-  <div class="btns">
-    <button id="go">시작</button>
-    <button id="reset" class="gray">처음으로</button>
-  </div>
-  <div id="count">오늘 집중한 횟수: 🍅 0번</div>
+  <h1>🪜 4명 사다리 게임</h1>
+  <div class="row" id="names"></div>
+  <canvas id="ladder" width="320" height="300"></canvas>
+  <div class="row" id="prizes"></div>
+  <button id="again">새 사다리</button>
 
 <script>
-  // ✏️ 여기 분을 바꾸면 시간이 바뀌어요
-  const FOCUS_MIN = 25;
-  const REST_MIN = 5;
+  // ✏️ 이름과 결과를 바꿔 보세요
+  const NAMES = ["민준", "서연", "하준", "지우"];
+  const PRIZES = ["청소", "꽝", "간식", "꽝"];
+  const COLORS = ["#FF6B6B", "#FFB020", "#2DBE7E", "#B05CFF"];
 
-  let total = FOCUS_MIN * 60;   // 이번 타이머 전체 초
-  let left = total;             // 남은 초
-  let timer = null;             // 돌아가는 중이면 여기에 번호가 들어가요
-  let mode = "focus";
-  let done = 0;                 // 집중을 끝낸 횟수
-  const bar = document.getElementById("bar");
-  const full = 2 * Math.PI * 115;
-  bar.style.strokeDasharray = full;
+  const canvas = document.getElementById("ladder");
+  const pen = canvas.getContext("2d");
+  const X = [40, 120, 200, 280];   // 세로줄 4개의 위치
+  const STEPS = 8;                  // 가로줄을 놓을 수 있는 칸 수
+  let rungs = [];                   // rungs[칸][줄] = true 면 그 줄과 오른쪽 줄 사이에 가로줄
 
-  // 화면 새로 그리기
-  function show() {
-    const m = String(Math.floor(left / 60)).padStart(2, "0");
-    const s = String(left % 60).padStart(2, "0");
-    document.getElementById("time").textContent = `${m}:${s}`;
-    bar.style.strokeDashoffset = full * (1 - left / total);
-    document.title = `${m}:${s} · 집중 타이머`;
-  }
-
-  // 모드 바꾸기 (집중 / 쉬기)
-  function setMode(next) {
-    mode = next;
-    stop();
-    total = (mode === "focus" ? FOCUS_MIN : REST_MIN) * 60;
-    left = total;
-    document.getElementById("mFocus").classList.toggle("on", mode === "focus");
-    document.getElementById("mRest").classList.toggle("on", mode === "rest");
-    document.body.classList.toggle("rest", mode === "rest");
-    bar.style.stroke = mode === "focus" ? "#4F6BFF" : "#2DBE7E";
-    show();
-  }
-
-  function stop() { clearInterval(timer); timer = null; document.getElementById("go").textContent = "시작"; }
-
-  // 시작 · 멈춤 단추
-  document.getElementById("go").onclick = () => {
-    if (timer) { stop(); return; }
-    document.getElementById("go").textContent = "멈춤";
-    timer = setInterval(() => {
-      left--;
-      show();
-      if (left <= 0) {
-        stop();
-        if (mode === "focus") {
-          done++;
-          document.getElementById("count").textContent = `오늘 집중한 횟수: 🍅 ${done}번`;
-          alert("수고했어요! 5분 쉬어요 ☕");
-          setMode("rest");
-        } else {
-          alert("다시 집중해 볼까요? 📚");
-          setMode("focus");
-        }
+  // 새 사다리 만들기 (가로줄이 붙어 있지 않게)
+  function makeLadder() {
+    rungs = [];
+    for (let s = 0; s < STEPS; s++) {
+      const line = [false, false, false];
+      for (let c = 0; c < 3; c++) {
+        if (Math.random() < 0.5 && !(c > 0 && line[c - 1])) line[c] = true;
       }
-    }, 1000);
-  };
-  document.getElementById("reset").onclick = () => setMode(mode);
-  document.getElementById("mFocus").onclick = () => setMode("focus");
-  document.getElementById("mRest").onclick = () => setMode("rest");
-  show();
+      rungs.push(line);
+    }
+    draw();
+  }
+
+  // 사다리 그리기
+  function draw() {
+    pen.clearRect(0, 0, 320, 300);
+    pen.strokeStyle = "#B8C3E6";
+    pen.lineWidth = 4;
+    X.forEach(x => { pen.beginPath(); pen.moveTo(x, 0); pen.lineTo(x, 300); pen.stroke(); });
+    rungs.forEach((line, s) => line.forEach((on, c) => {
+      if (!on) return;
+      const y = 30 + s * 32;
+      pen.beginPath(); pen.moveTo(X[c], y); pen.lineTo(X[c + 1], y); pen.stroke();
+    }));
+  }
+
+  // 이름을 누르면: 사다리를 따라 내려가요
+  function go(start) {
+    let col = start;
+    const path = [[X[col], 0]];
+    rungs.forEach((line, s) => {
+      const y = 30 + s * 32;
+      if (line[col]) { path.push([X[col], y], [X[col + 1], y]); col++; }
+      else if (col > 0 && line[col - 1]) { path.push([X[col], y], [X[col - 1], y]); col--; }
+    });
+    path.push([X[col], 300]);
+    // 한 칸씩 천천히 그려요
+    let i = 1;
+    pen.strokeStyle = COLORS[start];
+    pen.lineWidth = 6;
+    const timer = setInterval(() => {
+      pen.beginPath(); pen.moveTo(...path[i - 1]); pen.lineTo(...path[i]); pen.stroke();
+      i++;
+      if (i >= path.length) {
+        clearInterval(timer);
+        setTimeout(() => alert(`${NAMES[start]} → ${PRIZES[col]}`), 100);
+      }
+    }, 150);
+  }
+
+  document.getElementById("names").innerHTML = NAMES.map((n, i) => `<button onclick="go(${i})">${n}</button>`).join("");
+  document.getElementById("prizes").innerHTML = PRIZES.map(p => `<div>${p}</div>`).join("");
+  document.getElementById("again").onclick = makeLadder;
+  makeLadder();
 </script>
 </body>
 </html>
