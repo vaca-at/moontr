@@ -209,6 +209,38 @@ service cloud.firestore {
       allow read, delete: if isTeacher();
     }
 
+    // 9번 갤러리 좋아요: 문서 이름 = 계획서번호_열쇠(반·학번·닉네임 해시 12글자) → 한 사람이 한 카드에 한 번
+    // 누구나 보기(숫자만, 닉네임 없음). 다시 누르면 취소(지우기) — 로그인이 없어 '내 것'만으로 잠글 수는 없어요
+    match /vibe_like/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['planId','ban','at'])
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.planId is string
+        && id.matches('^' + request.resource.data.planId + '_[0-9a-f]{12}$')
+        && exists(/databases/$(database)/documents/vibe_plans/$(request.resource.data.planId))
+        && request.resource.data.at is int;
+      allow delete: if true;
+    }
+
+    // 8번 AI 윤리 게임 순위: 문서 이름 = 반·학번·닉네임 해시 16글자 → 한 사람 한 기록
+    // disp 는 닉네임 첫 글자만(예: 하○). 더 빠른 기록으로만 바꿀 수 있어요. 지우기는 관리자만
+    function vibeGame(d) {
+      return d.keys().hasOnly(['ban','disp','ms','moves','at'])
+        && d.ban in ['A', 'B']
+        && vibeText(d, 'disp', 1, 10)
+        && d.ms is int && d.ms >= 5000 && d.ms <= 3600000
+        && d.moves is int && d.moves >= 7 && d.moves <= 999
+        && d.at is int;
+    }
+    match /vibe_game/{id} {
+      allow read: if true;
+      allow create: if id.matches('^[0-9a-f]{16}$') && vibeGame(request.resource.data);
+      allow update: if vibeGame(request.resource.data)
+        && request.resource.data.ban == resource.data.ban
+        && request.resource.data.ms < resource.data.ms;
+      allow delete: if isTeacher();
+    }
+
     // 익명 접속 기록 (기기 종류·브라우저·날짜만): 누구나 남기기(정해진 항목만), 관리자만 보기·지우기
     match /stuvibe_visits/{id} {
       allow create: if request.resource.data.keys().hasOnly(['d','h','dev','os','br','w','vid']);
