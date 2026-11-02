@@ -142,7 +142,8 @@ service cloud.firestore {
     match /vibe_reflect/{key} {
       allow get: if true;
       allow create, update: if key.size() == 64
-        && request.resource.data.keys().hasOnly(['ban','name','appName','learned','felt','wonder','picks','aiDraft','final','createdAt','updatedAt'])
+        && request.resource.data.keys().hasOnly(['ban','name','appName','learned','felt','wonder','picks','aiDraft','orig','final','createdAt','updatedAt'])
+        && (!('orig' in request.resource.data) || vibeText(request.resource.data, 'orig', 0, 3000))
         && request.resource.data.ban in ['A', 'B']
         && vibeStudent(request.resource.data)
         && vibeText(request.resource.data, 'appName', 0, 100)
@@ -171,7 +172,9 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
     match /vibe_wall_who/{id} {
-      allow create: if request.resource.data.keys().hasOnly(['name'])
+      // orig: AI로 다듬기 전 학생이 처음 쓴 문장 (선생님만 봐요)
+      allow create: if request.resource.data.keys().hasOnly(['name','orig'])
+        && (!('orig' in request.resource.data) || vibeText(request.resource.data, 'orig', 0, 300))
         && vibeStudent(request.resource.data)
         && existsAfter(/databases/$(database)/documents/vibe_wall/$(id));
       allow read, delete: if isTeacher();

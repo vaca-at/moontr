@@ -448,6 +448,19 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 /* 9번: 문장 담벼락 */
 .steps-mini{margin:0 0 .75rem;padding-left:1.25rem;line-height:1.7;font-size:.9375rem}
 .wall-form{gap:.375rem}
+.rf-step{margin:.25rem 0 0;font-size:.875rem;color:var(--ink)}
+.rf-step .rn{font-style:normal;display:inline-grid;place-items:center;width:1.25rem;height:1.25rem;border-radius:50%;background:var(--c);color:#fff;font-size:.75rem;margin-right:.25rem}
+.rf-sub{margin:0 0 .5rem;padding:.4375rem .625rem;border-radius:.75rem;background:color-mix(in srgb,var(--c) 10%,#fff);font-size:.875rem}
+.wall-polished[hidden],[data-pol-row][hidden]{display:none!important}
+.form.wall-form .wall-polished label{display:grid;grid-template-columns:6.25rem minmax(0,1fr)}   /* 위 칸들과 같은 모양 */
+.wall-polished label small{display:none}
+.wall-polished textarea{width:100%}
+.wall-polished{display:flex;flex-direction:column;gap:.375rem;padding:.5rem .625rem;border-radius:.75rem;background:color-mix(in srgb,var(--lav) 8%,#fff);border:1.5px solid color-mix(in srgb,var(--lav) 35%,#fff)}
+/* 10번 가운데 칸: 담벼락이 칸을 꽉 채워요 */
+.col.wallcol .col-body{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.col.wallcol #wallBox{flex:1;min-height:0}
+.col.wallcol .wall{border:0;border-radius:0}
+.col.wallcol .wall-head{background:color-mix(in srgb,var(--c) 14%,#fff);color:var(--ink)}
 .wall-form textarea{min-height:2.375rem!important;padding:.3125rem .625rem}
 .form.wall-form label{display:grid;grid-template-columns:6.25rem minmax(0,1fr);align-items:center;gap:.5rem;font-size:.9375rem;text-align:left}   /* 칸 이름을 입력칸 왼쪽에 (높이를 줄여요) */
 /* 메모리 게임: 뒤집을 때 살짝 들렸다 내려앉고, 맞추면 통 튀어요 */
@@ -1394,6 +1407,7 @@ ol.num > li::before{content:counter(n);position:absolute;left:0;top:.125rem;widt
     <p class="ai-step">② AI의 대답을 여기에 붙여 넣어요</p>
     <textarea id="aiAnswer" rows="4" placeholder="AI가 준 대답을 그대로 붙여 넣으면 아래에 보기 좋게 정리돼요"></textarea>
     <div id="aiAnsView" class="ai-ans"></div>
+    <p id="aiToRf" hidden style="margin:.5rem 0 0"><button type="button" class="btn sm" data-ai-to-rf>✍️ 이 초안을 성찰 칸에 넣기</button> <small class="muted">초안은 선생님께도 그대로 보관돼요. 성찰 칸에서 내 말로 고쳐요.</small></p>
     <p class="muted" style="margin:.5rem 0 0">무료로 쓰는 방법이에요. 붙여 넣은 대답은 이 기기에만 하루 동안 남아요.</p>
   </div>
 </dialog>
@@ -1630,7 +1644,7 @@ async function loadReflect(m) {
 
 // 담벼락 문장 저장 · 지우기
 async function saveWall(d, w) {
-  const now = Date.now(), data = { ...d, createdAt: now }, who = { name: w.name };
+  const now = Date.now(), data = { ...d, createdAt: now }, who = { name: w.name, ...(w.orig ? { orig: w.orig } : {}) };
   if (LIVE) { const ref = db.collection(COL_WALL).doc(), b = db.batch(); b.set(ref, data); b.set(db.collection(COL_WALL_WHO).doc(ref.id), who); return b.commit(); }
   const id = newId(); const arr = localGet(COL_WALL); arr.push({ ...data, id }); localSet(COL_WALL, arr);
   const ws = localGet(COL_WALL_WHO); ws.push({ ...who, id }); localSet(COL_WALL_WHO, ws); localEmit(COL_WALL); localEmit(COL_WALL_WHO);
@@ -2376,22 +2390,14 @@ ${PLAN_FORM("planForm")}` },
   ]
 },
 {
-  tab: "수업 성찰", sub: "문장 담벼락 · 나의 성찰", color: C.lav, time: 10, kind: "reflect",
-  title: "수업 성찰 · 기록 남기기", lead: "생각을 담벼락에 나누고, 공감한 문장으로 나만의 성찰을 써요",
+  tab: "수업 성찰", sub: "내 생각 · 담벼락 · 나의 성찰", color: C.lav, time: 10, kind: "reflect",
+  title: "수업 성찰 · 기록 남기기", lead: "내 생각을 다듬어 담벼락에 나누고, 공감한 문장으로 나만의 성찰을 써요",
+  // 가로 3칸: ① 내 생각 쓰기(→ AI로 다듬어 붙이기) ② 문장 담벼락(공감 5개 고르기) ③ 나의 성찰(고른 5문장으로 AI 초안 → 내 말로)
   cols: [
-    { t: "오늘을 돌아봐요", c: C.lav, cls: "narrow", html: `
-      <p class="big">친구 생각을 읽고 <span class="mark">내 말로 정리</span>해요.</p>
-      <ol class="steps-mini">
-        <li><b>쓰기</b> 배운 점 · 느낀 점 · 알고 싶은 점</li>
-        <li><b>나누기</b> 아래 담벼락에서 친구 생각 읽기</li>
-        <li><b>고르기</b> 공감되는 문장 <b>5개</b> 누르기</li>
-        <li><b>다듬기</b> 🤖 AI 초안을 <b>내 목소리</b>로 고쳐 저장</li>
-      </ol>
-      <p class="muted" style="margin:.25rem 0 0">📝 저장한 성찰은 선생님이 <b>진로탐구수업 활동 기록</b>을 쓸 때 참고해요.</p>` },
     { t: "내 생각 쓰기", act: true, c: C.pink, html: `${DEMO}<div id="wallWriteBox"></div>` },
-    { t: "나의 성찰", act: true, c: C.green, cls: "wide", html: `<div id="reflectBox"></div>` }
-  ],
-  below: `<div id="wallBox"></div>`
+    { t: "문장 담벼락", act: true, c: C.lav, cls: "wide wallcol", html: `<div id="wallBox"></div>` },
+    { t: "나의 성찰", act: true, c: C.green, html: `<p class="rf-sub">🤖 고른 <b>다섯 개의 문장</b>을 AI가 성찰 글로 다듬어 줘요. 마지막은 <b>내 말</b>로 고쳐요.</p><div id="reflectBox"></div>` }
+  ]
 }
 ];
 
@@ -2515,7 +2521,7 @@ function neededSize() {
   const root = document.documentElement;
   root.style.fontSize = "";
   stageEl.classList.add("fitting");
-  const bodies = [...stageEl.querySelectorAll(".col-body")].filter(b => !b.querySelector("form, .plist, .empty, #planListBox, #myPlanBox, #galleryBox, #pairBox, [id^=peerBox], #reflectBox, #wallWriteBox, .fit-skip") && !b.closest(".k-try"));   // 3번 위 4칸은 칸 안에서 스크롤해요
+  const bodies = [...stageEl.querySelectorAll(".col-body")].filter(b => !b.querySelector("form, .plist, .empty, #planListBox, #myPlanBox, #galleryBox, #pairBox, [id^=peerBox], #reflectBox, #wallWriteBox, #wallBox, .fit-skip") && !b.closest(".k-try"));   // 3번 위 4칸은 칸 안에서 스크롤해요
   const over = () => bodies.some(b => b.scrollHeight - b.clientHeight > 2);
   let size = parseFloat(getComputedStyle(root).fontSize);
   for (let i = 0; i < 40 && size > 11 && over(); i++) {
@@ -3379,34 +3385,77 @@ const isMine = w => myWallIds().includes(w.id) || (teacher && wallWho[w.id] && g
 
 function renderReflect() { renderWallWrite(); renderWall(); renderMyReflect(); }
 
+// 내가 처음 쓴 문장 (이 기기에 기억 → 성찰을 저장할 때 선생님께 함께 보내요. 담벼락에는 다듬은 문장만)
+const wallOrigs = () => { try { return JSON.parse(localStorage.getItem("vt_wallorig") || "{}"); } catch (e) { return {}; } };
+const addWallOrig = (id, t) => { try { const o = wallOrigs(); o[id] = t; localStorage.setItem("vt_wallorig", JSON.stringify(o)); } catch (e) {} };
+const kindLabel = k => (WALL_KINDS.find(x => x[0] === k) || [, ""])[1].replace(/^\S+ /, "");   // "배운 점"
 function renderWallWrite() {
   const box = document.getElementById("wallWriteBox"); if (!box) return;
   if (box.querySelector("form")) return;   // 쓰는 중인 글은 그대로
   box.innerHTML = `<form class="form wall-form" id="wallForm" autocomplete="off">
+      <p class="rf-step"><i class="rn">1</i> 오늘 수업을 떠올리며 <b>한 문장씩</b> 써요</p>
       ${WALL_KINDS.map(([k, n, ph]) => `<label>${n}<textarea name="${k}" rows="1" maxlength="200" placeholder="${ph}을 한 문장으로"></textarea></label>`).join("")}
+      <p class="rf-step"><i class="rn">2</i> <button type="button" class="pcopy ai-polish" data-wall-ai>🤖 Gemini로 문장 다듬기</button></p>
+      <div class="polish-step" data-wall-step hidden>✅ 부탁 문장을 복사하고 Gemini 창을 열었어요. Gemini에 <b>붙여 넣기(Ctrl+V)</b> → 대답을 <b>복사</b>한 뒤
+        <button type="button" class="btn sm" data-wall-paste>📋 다듬은 문장 붙여 넣기</button></div>
+      <div class="wall-polished" data-wall-pol hidden>
+        <p class="rf-step"><i class="rn">3</i> 다듬은 문장을 확인하고, <b>내 뜻과 다르면</b> 고쳐요</p>
+        ${WALL_KINDS.map(([k, n]) => `<label data-pol-row="${k}" hidden>${n} <small class="muted">(다듬은 문장)</small><textarea name="p_${k}" rows="2" maxlength="200"></textarea></label>`).join("")}
+      </div>
       <button class="btn" type="submit">📌 담벼락에 붙이기</button>
-      <p class="muted" style="margin:0">쓴 칸만 붙어요. 담벼락에는 <b>이름 없이</b> 보여요. 더 생각나면 또 붙여도 돼요.</p>
+      <p class="muted" style="margin:0">담벼락에는 <b>다듬은 문장</b>이 이름 없이 붙어요 (다듬지 않으면 쓴 그대로). 처음 쓴 문장은 <b>선생님만</b> 봐요.</p>
     </form>`;
   const f = document.getElementById("wallForm");
   f.addEventListener("submit", async e => {
     e.preventDefault();
     const m = getMe(); if (!m) { toast("먼저 나를 알려 주세요"); openMeDlg(); return; }
-    const items = WALL_KINDS.map(([k]) => [k, f[k].value.trim()]).filter(x => x[1]);
+    const items = WALL_KINDS.map(([k]) => [k, f[k].value.trim(), (f["p_" + k].value || "").trim()]).filter(x => x[1]);
     if (!items.length) { toast("한 칸 이상 써 주세요"); return; }
     const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
     try {
       const wid = await wallWid(m);   // 같은 사람이 쓴 쪽지를 같은 색으로 (이름은 알 수 없는 짧은 열쇠)
-      for (const [kind, text] of items) {
+      for (const [kind, orig, pol] of items) {
+        const text = (pol || orig).slice(0, 300);
         const before = new Set(localGet(COL_WALL).map(x => x.id));
-        if (LIVE) { const ref = db.collection(COL_WALL).doc(), b = db.batch(); b.set(ref, { ban: m.ban, kind, text, wid, createdAt: Date.now() }); b.set(db.collection(COL_WALL_WHO).doc(ref.id), { name: m.name }); await b.commit(); addMyWall(ref.id); }
-        else { await saveWall({ ban: m.ban, kind, text, wid }, { name: m.name }); const nw = localGet(COL_WALL).find(x => !before.has(x.id)); if (nw) addMyWall(nw.id); }
+        if (LIVE) { const ref = db.collection(COL_WALL).doc(), b = db.batch(); b.set(ref, { ban: m.ban, kind, text, wid, createdAt: Date.now() }); b.set(db.collection(COL_WALL_WHO).doc(ref.id), { name: m.name, orig }); await b.commit(); addMyWall(ref.id); addWallOrig(ref.id, orig); }
+        else { await saveWall({ ban: m.ban, kind, text, wid }, { name: m.name, orig }); const nw = localGet(COL_WALL).find(x => !before.has(x.id)); if (nw) { addMyWall(nw.id); addWallOrig(nw.id, orig); } }
       }
-      WALL_KINDS.forEach(([k]) => { f[k].value = ""; });
+      WALL_KINDS.forEach(([k]) => { f[k].value = ""; f["p_" + k].value = ""; });
+      f.querySelector("[data-wall-pol]").hidden = true; f.querySelector("[data-wall-step]").hidden = true;
       toast(`담벼락에 ${items.length}장 붙였어요!`); renderWall();
     } catch (err) { console.error(err); toast("붙이지 못했어요. 인터넷 연결을 확인하세요"); }
     btn.disabled = false;
   });
 }
+// 🤖 내 생각 다듬기: 부탁 문장 복사 + Gemini 열기 → 대답을 붙여 넣으면 '배운 점: …' 줄을 칸마다 나눠 넣어요
+function fillPolished(f, raw) {
+  const filled = WALL_KINDS.filter(([k]) => f[k].value.trim()).map(([k]) => k);
+  const lines = String(raw || "").replace(/\*\*/g, "").split(/\n+/).map(x => x.trim()).filter(Boolean);
+  let got = 0;
+  for (const [k] of WALL_KINDS) {
+    const lab = kindLabel(k), ln = lines.find(x => x.replace(/^[-•*\d.\s]+/, "").startsWith(lab));
+    if (ln) { f["p_" + k].value = ln.replace(/^[-•*\d.\s]+/, "").slice(lab.length).replace(/^\s*[:：]\s*/, "").replace(/^["“]|["”]$/g, "").trim(); got++; }
+  }
+  if (!got && filled.length === 1) { f["p_" + filled[0]].value = lines.join(" ").replace(/^["“]|["”]$/g, ""); got = 1; }
+  if (!got) { toast("다듬은 문장을 찾지 못했어요. 아래 칸에 직접 붙여 넣어요"); }
+  f.querySelector("[data-wall-pol]").hidden = false;
+  WALL_KINDS.forEach(([k]) => { f.querySelector(`[data-pol-row="${k}"]`).hidden = !f[k].value.trim(); });
+  if (got) toast("다듬은 문장을 넣었어요! 내 뜻과 같은지 확인해요");
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-wall-ai]"), pz = e.target.closest("[data-wall-paste]"); if (!a && !pz) return;
+  e.preventDefault();
+  const f = (a || pz).closest("form");
+  if (a) {
+    const rows = WALL_KINDS.map(([k]) => [kindLabel(k), f[k].value.trim()]).filter(x => x[1]);
+    if (!rows.length) { toast("먼저 한 문장 이상 써 주세요"); return; }
+    const q = `아래는 고등학생이 진로탐구 수업을 마치고 쓴 문장이야. 뜻은 그대로 두고 맞춤법과 표현만 자연스럽게 조금 다듬어 줘.\n\n${rows.map(([l, v]) => `${l}: ${v}`).join("\n")}\n\n- 위와 같은 머리말(${rows.map(([l]) => l + ":").join(" ")})을 붙여 한 줄에 하나씩\n- 문장마다 한 문장으로, ~요 체로\n- 새로운 내용을 지어내지 마\n- 다듬은 문장만 보여 줘`;
+    copyText(q).then(ok => { window.open("https://gemini.google.com/app", "_blank", "noopener"); f.querySelector("[data-wall-step]").hidden = false; toast(ok ? "부탁 문장을 복사했어요 · Gemini에 붙여 넣어요" : "복사하지 못했어요"); });
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(t => t && t.trim() ? fillPolished(f, t) : toast("복사한 글이 없어요. Gemini 대답을 먼저 복사해요")).catch(() => { fillPolished(f, ""); });
+  else fillPolished(f, "");
+});
 
 // 쓴 사람 열쇠: 반 · 학번 · 닉네임으로 만든 짧은 해시 (계획서 열쇠와 다르게 섞어서 닉네임을 알 수 없어요)
 async function wallWid(m) { return (await keyOf("wall-" + m.ban, m.sid, m.name)).slice(0, 10); }
@@ -3426,7 +3475,7 @@ function renderWall() {
     <div class="wall-head"><b>🧱 ${ban}반 문장 담벼락</b><span>${list.length}장 · 공감되는 문장을 눌러 <b>${PICK_MAX}개</b> 골라요 (${picks.length}/${PICK_MAX})</span>
       <span class="wall-key">${WALL_KINDS.map(([, n]) => `<i>${n}</i>`).join("")}<i>🎨 같은 색 = 같은 친구</i></span></div>
     <div class="wall-body">${list.length ? list.map(w => `<button type="button" class="note ${picks.includes(w.id) ? "on" : ""} ${isMine(w) ? "mine" : ""}" style="--wc:${wallColor(w)}" data-pick="${w.id}"><span class="nk">${wallIcon(w.kind)}</span>${nl(w.text)}${isMine(w) ? '<i class="tag-me">나</i>' : ""}${picks.includes(w.id) ? '<i class="tag-on">★</i>' : ""}${teacher ? `<span class="del" data-delwall="${w.id}">삭제</span>` : ""}</button>`).join("")
-      : `<div class="chat-empty">아직 붙은 문장이 없어요.<br>위 <b>내 생각 쓰기</b>에서 첫 문장을 붙여 보세요!</div>`}</div></div>`;
+      : `<div class="chat-empty">아직 붙은 문장이 없어요.<br>왼쪽 <b>내 생각 쓰기</b>에서 첫 문장을 붙여 보세요!</div>`}</div></div>`;
   const nb = box.querySelector(".wall-body"); if (nb && keepTop) nb.scrollTop = keepTop;
 }
 
@@ -3439,9 +3488,9 @@ function renderMyReflect(keepText) {
     <div class="pick-list">${picks.length ? picks.map(w => `<div class="rpick ${w.kind}"><span>${kindName(w.kind)}</span>${nl(w.text)}<button type="button" class="link" data-pick="${w.id}">빼기</button></div>`).join("") : `<div class="chat-empty">아래 담벼락에서 공감되는 문장을 <b>${PICK_MAX}개</b> 눌러 주세요.</div>`}</div>
     <div class="plan-act" style="margin:.5rem 0"><button type="button" class="edit-plan-btn ai-full" data-ai="reflect">🤖 AI 초안 받기 (복사)</button><span class="muted">${picks.length}/${PICK_MAX} 골랐어요</span></div>
     <form class="form" id="rfForm" autocomplete="off">
-      <label>✍️ 내 목소리로 다듬은 성찰<textarea id="rfFinal" name="final" rows="3" maxlength="2000" placeholder="AI 초안을 붙여 넣고, 내 말투와 내 경험으로 고쳐 써요"></textarea></label>
+      <label>✍️ 내 목소리로 다듬은 성찰<textarea id="rfFinal" name="final" rows="5" maxlength="2000" placeholder="AI 초안 창에서 [✍️ 이 초안을 성찰 칸에 넣기]를 누르고, 내 말투와 내 경험으로 고쳐 써요"></textarea></label>
       <div class="plan-act"><button class="btn" type="submit">💾 성찰 저장하기</button><span class="draft-st" data-draft-st></span></div>
-      <p class="muted" style="margin:0">저장한 성찰은 <b>선생님만</b> 봐요. 다시 저장하면 새 내용으로 바뀌어요. 모든 기록은 <b>2026년 12월 31일</b>에 삭제해요.</p>
+      <p class="muted" style="margin:0">저장하면 <b>처음 쓴 문장 · 다듬은 문장 · 고른 5문장 · AI 초안 · 내 성찰</b>이 함께 선생님께 가요. 저장한 성찰은 <b>선생님만</b> 봐요. 다시 저장하면 새 내용으로 바뀌어요. 모든 기록은 <b>2026년 12월 31일</b>에 삭제해요.</p>
     </form>`;
   const f = document.getElementById("rfForm"), ta = f.final;
   const dkey = "vt_rf_" + (m ? m.sid + m.name : "");
@@ -3457,8 +3506,11 @@ function renderMyReflect(keepText) {
     const mine = plans.find(x => x.id === myPlanId);
     const mineWall = wallOfBan().filter(w => myWallIds().includes(w.id));
     const pick = (k) => mineWall.filter(w => w.kind === k).map(w => w.text).join(" / ");
+    const origs = wallOrigs(), orig = mineWall.filter(w => origs[w.id] && origs[w.id] !== w.text).map(w => `${kindLabel(w.kind)}: ${origs[w.id]}`).join(" / ");
+    const aiD = (draftRead(aiAnsKey("reflect")) || {}).v || "";
     const d = { ban: me2.ban, sid: me2.sid, name: me2.name, appName: mine ? mine.appName : "", learned: pick("learned"), felt: pick("felt"), wonder: pick("wonder"),
-      picks: getPicks().map(id => (wall.find(w => w.id === id) || {}).text).filter(Boolean).join(" / "), final };
+      picks: getPicks().map(id => (wall.find(w => w.id === id) || {}).text).filter(Boolean).join(" / "), final,
+      orig: orig.slice(0, 3000), aiDraft: String(aiD).trim().slice(0, 4000) };   // 처음 쓴 문장 · AI 초안도 선생님께
     const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
     try { const again = await saveReflect(d); draftStamp(f, "☁️ 저장했어요 " + hhmm()); toast(again ? "고친 성찰을 저장했어요" : "성찰을 저장했어요. 수고했어요!"); }
     catch (err) { console.error(err); toast("저장하지 못했어요. 인터넷 연결을 확인하세요"); }
@@ -3608,11 +3660,22 @@ async function aiCopy(kind) {
   box.dataset.raw = r.text; box.querySelector("[data-out]").innerHTML = nl(r.text);
   document.getElementById("aiNote").textContent = r.note || "";
   const o = draftRead(aiAnsKey(kind)); document.getElementById("aiAnswer").value = o ? o.v : ""; renderAiAns();
+  document.getElementById("aiToRf").hidden = kind !== "reflect";
   openDlg("dlgAI");
   const ok = await copyText(r.text);
   toast(ok ? "질문을 복사했어요! AI 창에 붙여 넣고, 대답은 이 창에 붙여 넣어요" : "질문 복사 단추를 눌러 복사해요");
 }
 document.getElementById("aiAnswer").addEventListener("input", e => { draftWrite(aiAnsKey(aiKind), { v: e.target.value }); renderAiAns(); });
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-ai-to-rf]")) return;
+  const v = document.getElementById("aiAnswer").value.trim(), ta = document.getElementById("rfFinal");
+  if (!v) { toast("먼저 AI의 대답을 위 칸에 붙여 넣어요"); return; }
+  if (!ta) { toast("10번 나의 성찰에서 눌러 주세요"); return; }
+  if (ta.value.trim() && !confirm("성찰 칸에 쓴 글을 AI 초안으로 바꿀까요?")) return;
+  ta.value = v; ta.dispatchEvent(new Event("input", { bubbles: true }));
+  document.getElementById("dlgAI").close(); ta.focus();
+  toast("초안을 넣었어요! 내 말투와 내 경험으로 고쳐 저장해요");
+});
 document.getElementById("aiCopyAgain").addEventListener("click", async () => { const ok = await copyText(document.getElementById("aiPromptBox").dataset.raw); toast(ok ? "질문을 복사했어요" : "복사하지 못했어요"); });
 const AI_HELP = `<div class="ai-help">
     <div class="ai-head">🤖 AI 도우미 <small>누르면 질문 창이 열려요 → AI에게 묻고 대답을 붙여 넣기</small></div>
@@ -3684,7 +3747,7 @@ function setTeacher(on) {
     stopAdmin.push(listen(COL_CHECKIN, l => { checkins = l; renderDash(); }));
     stopAdmin.push(listen(COL_VISITS, list => { visits = list; renderDash(); }));
     stopAdmin.push(listen(COL_REFLECT, list => { reflects = list; renderDash(); }));
-    stopAdmin.push(listen(COL_WALL_WHO, list => { wallWho = {}; list.forEach(x => { wallWho[x.id] = { name: x.name }; }); }));
+    stopAdmin.push(listen(COL_WALL_WHO, list => { wallWho = {}; list.forEach(x => { wallWho[x.id] = { name: x.name, orig: x.orig || "" }; }); }));
   } else document.getElementById("dlgAdmin").close();
   renderSlide();
 }
@@ -3888,8 +3951,8 @@ function renderDash() {
     </table></div>
     <h4>📓 ${ban}반 수업 성찰 ${reflects.filter(r => r.ban === ban).length}건 <button type="button" class="btn sm" data-csv="rf">엑셀 저장</button><span class="muted" style="font-size:.875rem">생기부 작성 참고용</span></h4>
     <div class="tbl"><table>
-      <tr><th>닉네임</th><th>웹앱</th><th>✍️ 나의 성찰</th><th>담벼락에 쓴 생각</th><th>공감한 문장</th><th>시각</th></tr>
-      ${reflects.some(r => r.ban === ban) ? reflects.filter(r => r.ban === ban).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko")).map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.appName || "-")}</td><td>${nl(r.final || "")}</td><td>${[["📚", r.learned], ["💗", r.felt], ["🔍", r.wonder || r.more]].filter(x => x[1]).map(x => x[0] + " " + nl(x[1])).join("<br>")}</td><td>${nl(r.picks || "")}</td><td>${fmtTime(r.updatedAt)}</td></tr>`).join("") : `<tr><td class="tbl-empty" colspan="6">아직 저장한 성찰이 없어요.</td></tr>`}
+      <tr><th>닉네임</th><th>웹앱</th><th>① 처음 쓴 문장</th><th>② AI가 다듬은 문장 (담벼락)</th><th>③ 고른 5문장</th><th>④ AI 초안</th><th>⑤ 마지막 성찰</th><th>시각</th></tr>
+      ${reflects.some(r => r.ban === ban) ? reflects.filter(r => r.ban === ban).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko")).map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.appName || "-")}</td><td>${r.orig ? nl(r.orig.split(" / ").join("\n")) : `<span class="muted">(다듬지 않음 · ②와 같음)</span>`}</td><td>${[["📚", r.learned], ["💗", r.felt], ["🔍", r.wonder || r.more]].filter(x => x[1]).map(x => x[0] + " " + nl(x[1])).join("<br>")}</td><td>${nl(String(r.picks || "").split(" / ").join("\n"))}</td><td class="muted">${nl(r.aiDraft || "")}</td><td>${nl(r.final || "")}</td><td>${fmtTime(r.updatedAt)}</td></tr>`).join("") : `<tr><td class="tbl-empty" colspan="8">아직 저장한 성찰이 없어요.</td></tr>`}
     </table></div>`;
 }
 
@@ -4250,8 +4313,8 @@ document.getElementById("dashBox").addEventListener("click", async e => {
   if (t.dataset.csv === "plan") return planCSV();
   if (t.dataset.csv === "fb") return fbCSV();
   if (t.dataset.csv === "rf") {
-    const rows = [["반", "닉네임", "웹앱 이름", "나의 성찰", "배운 점", "느낀 점", "알고 싶은 점", "공감한 문장", "저장 시각"]];
-    reflects.filter(r => r.ban === ban).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko")).forEach(r => rows.push([r.ban, r.name, r.appName, r.final, r.learned, r.felt, r.wonder || r.more, r.picks, fmtTime(r.updatedAt)]));
+    const rows = [["반", "닉네임", "웹앱 이름", "① 처음 쓴 문장", "② 다듬은 배운 점", "② 다듬은 느낀 점", "② 다듬은 알고 싶은 점", "③ 고른 5문장", "④ AI 초안", "⑤ 마지막 성찰", "저장 시각"]];
+    reflects.filter(r => r.ban === ban).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko")).forEach(r => rows.push([r.ban, r.name, r.appName, r.orig || "", r.learned, r.felt, r.wonder || r.more, r.picks, r.aiDraft || "", r.final, fmtTime(r.updatedAt)]));
     return saveCSV(rows, `수업성찰_${ban}반.csv`);
   }
   if (t.closest("[data-visit-clear]")) return clearVisits();
