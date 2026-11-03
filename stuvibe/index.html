@@ -4226,6 +4226,30 @@ function sumPrompt(b, recs) {
 [학생 기록]
 ${recs.map(recordText).join("\n\n")}`;
 }
+// 🧑‍🎓 학생용 총평: 개인 피드백 출력물 맨 위 '우리 반 수업 이야기' (교사용 총평과 따로 · 학생 번호 · 이름 없이)
+function stuPrompt(b, recs) {
+  return `나는 서울의 여자고등학교에서 고1 · 고2 학생 대상 진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편, 100분)」을 한 교사야.
+아래 ${b}반 학생 ${recs.length}명의 활동 기록을 보고, 이 반 학생들에게 나눠 줄 '우리 반 수업 이야기'를 써 줘.
+학생 한 명 한 명이 받는 개인 피드백 종이 맨 위에 똑같이 들어가는 글이야. 교사용 평가가 아니라, 학생이 읽고 '우리가 이런 수업을 했구나' 하고 이해하는 설명이야.
+
+[수업 흐름] 바이브코딩이란 → 핵심 개념(HTML · CSS · JS, 프론트엔드 · 백엔드 · DB) → 0단계 AI 채팅창에서 첫 웹앱 만들기 → 깃허브 배포 → 웹앱 계획서 쓰기 → 웹앱 만들 때 주의할 점 → AI 윤리 메모리 게임 → 친구 피드백(미리보기 · 좋아요 · 댓글) → 수업 성찰
+
+[쓰는 방식 — 꼭 지켜 줘]
+- 아래 제목 그대로 4칸으로, 각 칸 3~5줄
+## 1. 우리가 함께한 수업 흐름
+## 2. 수업에서 다룬 것
+## 3. 친구들이 만든 웹앱 · 테스트 유형 (첫 웹앱과 계획한 웹앱이 어떤 종류였는지: 퀴즈 · 테스트, 생활 도우미, 공부 도구 등)
+## 4. 우리 반이 함께 배운 점
+- S01 같은 학생 번호, 이름, 닉네임은 절대 쓰지 마. 한 학생만 떠올릴 수 있는 문장을 그대로 옮기지도 마 (여러 친구의 경향으로 묶어서)
+- 교사에게 하는 말(다음 수업 조언, 어려워한 학생 지적, 제출 인원 같은 숫자 통계)은 쓰지 마
+- 학생에게 말하듯 다정한 존댓말(~했어요 / ~해요), 쉬운 우리말로
+- 기록에 있는 내용만 쓰고 지어내지 마
+
+[학생 기록]
+${recs.map(recordText).join("\n\n")}`;
+}
+// 학생용 글에서 혹시 남은 학생 번호(S01 · (S03, S07) …)는 지워요
+const stuClean = t => String(t || "").replace(/\s*[(\[]\s*S\d{2}(?:\s*[,·/와과및]\s*S\d{2})*\s*[)\]]/g, "").replace(/\bS\d{2}\b\s*(?:학생|친구)?\s*(?:은|는|이|가|의)?\s*/g, "").replace(/[ \t]{2,}/g, " ");
 function fbPrompt(b, recs) {
   return `나는 고등학교 진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편)」을 한 교사야.
 아래 학생 ${recs.length}명의 활동 기록을 보고, 학생마다 직접 읽을 개인 피드백을 써 줘.
@@ -4276,7 +4300,8 @@ async function renderAiReport(kind) {
     box.innerHTML = `<h4>🤖 ${b}반 AI 총평 <span class="muted" style="font-size:.875rem">교사용 · 수업 전체를 돌아보는 글</span></h4>${how}
       <textarea id="aiSumIn" class="ai-in" rows="6" placeholder="AI가 쓴 총평을 여기에 붙여 넣어요">${esc(saved.text || "")}</textarea>
       <div class="plan-act"><button type="button" class="btn" data-ai-print="sum">🖨 출력 · PDF로 저장</button><span class="muted">${saved.at ? "저장 " + fmtTime(saved.at) : ""}</span></div>
-      <div class="ai-doc" id="aiSumView">${saved.text ? mdLite(saved.text) : `<p class="muted">붙여 넣으면 여기에 보기 좋게 정리돼요.</p>`}</div>`;
+      <div class="ai-doc" id="aiSumView">${saved.text ? mdLite(saved.text) : `<p class="muted">붙여 넣으면 여기에 보기 좋게 정리돼요.</p>`}</div>
+      ${stuBlock(b)}`;
     return;
   }
   const sv = fbStore(b), notes = sv.notes || {};
@@ -4294,7 +4319,8 @@ async function renderAiReport(kind) {
       <label class="muted"><input type="checkbox" data-fbopt="real" ${sv.real ? "checked" : ""}> 학번 · 이름 넣기</label>
       <label class="muted"><input type="checkbox" data-fbopt="inT" ${sv.inT !== false ? "checked" : ""}> 🧑‍🏫 선생님 피드백</label>
       <label class="muted"><input type="checkbox" data-fbopt="inAi" ${sv.inAi !== false ? "checked" : ""}> 🤖 AI 피드백</label>
-      <span class="muted">선생님 피드백 ${nT}/${n} · AI 피드백 ${nAi}/${n}</span></div>
+      <label class="muted"><input type="checkbox" data-fbopt="inSum" ${sv.inSum !== false ? "checked" : ""}> 📚 우리 반 수업 이야기</label>
+      <span class="muted">선생님 피드백 ${nT}/${n} · AI 피드백 ${nAi}/${n} · 수업 이야기 ${(aiGet(b, "stu") || {}).text ? "있음" : `없음 (🤖 ${b}반 AI 총평 탭 아래 '학생용 총평'에 붙여 넣어요)`}</span></div>
     <div class="ai-cards">${aiRecs.map(r => { const nt = notes[r.nick] || r.tnote; return `<div class="ai-card"><div class="ai-card-h"><b>${r.code}</b> ${esc(r.nick)}${r.real ? ` <span class="real">${esc(r.real.sid)} ${esc(r.real.name || "")}</span>` : ""}
         <span class="ai-flags">${r.plan ? "📝" : "<s>📝</s>"}${r.preview ? " 🖼" : ""}${r.walls.length ? ` 🧱${r.walls.length}` : ""}${r.rf && r.rf.final ? " ✍️" : ""}${r.likes ? ` ♥${r.likes}` : ""}</span>
         <button type="button" class="link" data-ai-print1="${esc(r.nick)}">🖨 이 학생만</button></div>
@@ -4303,6 +4329,16 @@ async function renderAiReport(kind) {
       <label class="ai-lab">💡 선생님 메모 · 개선할 점<textarea class="ai-note" data-note="bad" data-nick="${esc(r.nick)}" rows="2">${esc(nt.bad || "")}</textarea></label>
       <label class="ai-lab t">🧑‍🏫 선생님 피드백 (늘려 쓴 글 · 출력됨)<textarea class="ai-fb" data-tf="${esc(r.nick)}" rows="5">${esc((sv.tf || {})[r.nick] || "")}</textarea></label>
       <label class="ai-lab a">🤖 AI 피드백 (출력됨)<textarea class="ai-fb" data-aifb="${esc(r.nick)}" rows="4">${esc((sv.ai || {})[r.nick] || "")}</textarea></label></div>`; }).join("") || `<p class="muted">아직 이 반 학생 기록이 없어요.</p>`}</div>`;
+}
+// 🧑‍🎓 학생용 총평 칸 (AI 총평 탭 아래): 개인 피드백 출력물에 '우리 반 수업 이야기'로 함께 나가요
+function stuBlock(b) {
+  const sv = aiGet(b, "stu") || {}, left = /\bS\d{2}\b/.test(sv.text || "");
+  return `<h4 style="margin-top:22px">🧑‍🎓 ${b}반 학생용 총평 <span class="muted" style="font-size:.875rem">학생에게 설명하는 글 · 개인 피드백 출력물 맨 위에 '우리 반 수업 이야기'로 들어가요</span></h4>
+    <ol class="ai-how"><li><button type="button" class="btn sm" data-ai-copy="stu">📋 학생용 질문 복사</button> <a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini 열기</a> <a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener">Claude 열기</a> <span class="muted">수업 흐름 · 다룬 것 · 친구들이 만든 웹앱 · 테스트 유형 · 함께 배운 점 (학생 번호 · 이름 없이)</span></li>
+      <li>AI의 대답을 아래 칸에 붙여 넣고, 학생이 읽어도 괜찮은지 한 번 읽어 봐요 <span class="muted">(이 기기에 저장돼요)</span></li></ol>
+    <textarea id="aiStuIn" class="ai-in" rows="6" placeholder="AI가 쓴 학생용 총평을 여기에 붙여 넣어요">${esc(sv.text || "")}</textarea>
+    <p class="muted" id="aiStuWarn" ${left ? "" : "hidden"}>⚠️ 글에 S01 같은 학생 번호가 남아 있어요. 출력할 때는 번호를 지우고 내보내지만, 문장이 어색하면 칸에서 직접 고쳐 주세요.</p>
+    <div class="ai-doc" id="aiStuView">${sv.text ? mdLite(stuClean(sv.text)) : `<p class="muted">붙여 넣으면 여기에 학생이 보게 될 모양으로 정리돼요.</p>`}</div>`;
 }
 // 개인 피드백 저장 모양: { ai: {닉네임: 글}, tf: {닉네임: 글}, notes: {닉네임: {good, bad}}, real, inT, inAi } (예전 map(S01 번호) 은 닉네임으로 옮겨요)
 function fbStore(b) {
@@ -4316,13 +4352,14 @@ document.addEventListener("click", async e => {
   const c = t.closest("[data-ai-copy]");
   if (c) {
     if (c.dataset.aiCopy === "tf") { const tq = tPrompt(ban, aiRecs, fbStore(ban).notes || {}); if (!tq.n) { toast("먼저 학생 카드에 선생님 메모(좋은 점 · 개선할 점)를 써 주세요"); return; } const ok = await copyText(tq.text); toast(ok ? `${tq.n}명 늘려 쓰기 질문을 복사했어요 · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return; }
-    const q = c.dataset.aiCopy === "sum" ? sumPrompt(ban, aiRecs) : fbPrompt(ban, aiRecs); const ok = await copyText(q); toast(ok ? `질문을 복사했어요 (${q.length.toLocaleString()}자) · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return; }
+    const q = c.dataset.aiCopy === "sum" ? sumPrompt(ban, aiRecs) : c.dataset.aiCopy === "stu" ? stuPrompt(ban, aiRecs) : fbPrompt(ban, aiRecs); const ok = await copyText(q); toast(ok ? `질문을 복사했어요 (${q.length.toLocaleString()}자) · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return; }
   const pr = t.closest("[data-ai-print]"), p1 = t.closest("[data-ai-print1]");
   if (pr || p1) printAi(pr ? pr.dataset.aiPrint : "fb", p1 ? p1.dataset.aiPrint1 : null);
 });
 document.addEventListener("input", e => {
   const t = e.target, b = ban;
   if (t.id === "aiSumIn") { aiSet(b, "sum", { text: t.value, at: Date.now() }); const v = document.getElementById("aiSumView"); if (v) v.innerHTML = mdLite(t.value); return; }
+  if (t.id === "aiStuIn") { aiSet(b, "stu", { text: t.value, at: Date.now() }); const v = document.getElementById("aiStuView"), w = document.getElementById("aiStuWarn"); if (v) v.innerHTML = mdLite(stuClean(t.value)); if (w) w.hidden = !/\bS\d{2}\b/.test(t.value); return; }
   if (t.id === "aiFbIn" || t.id === "aiTfIn") {   // 붙여 넣은 대답 → 학생마다 (S01 → 닉네임)
     const got = parseFb(t.value), keys = Object.keys(got); if (!keys.length) return;
     const k = t.id === "aiFbIn" ? "ai" : "tf";
@@ -4372,7 +4409,8 @@ table.kv th{background:#FFF7F2;color:#9B8782;font-weight:500;white-space:nowrap;
 table.list{width:100%;border-collapse:collapse;font-size:8.5pt;margin-top:1mm}
 table.list th,table.list td{border:1px solid #F2DDD6;padding:1.2mm 1.8mm;text-align:left;vertical-align:top}
 table.list th{background:#FFF7F2;color:#9B8782;font-weight:500}
-table.list tr:nth-child(even) td{background:#FFFCFA}`;
+table.list tr:nth-child(even) td{background:#FFFCFA}
+.story{display:grid;grid-template-columns:1fr 1fr;gap:0 3mm}.story .card{margin:0 0 2.5mm;padding:2mm 3mm;font-size:9pt;line-height:1.55}.story .card h3{font-size:12pt}`;
 const PR_COL = ["pink", "blue", "green", "mus", "pur"], PR_HEX = { pink: "#E27399", blue: "#5E97C9", green: "#5DAE7C", mus: "#C18E2C", pur: "#8D6BCF" };
 const chipsOf = r => [[r.plan, "📝 계획서", "green"], [r.preview, "🖼 미리보기", "blue"], [r.likes, `♥ 좋아요 ${r.likes}`, "pink"], [r.recv.length, `💬 받은 댓글 ${r.recv.length}`, "pink"], [r.gave.length, `✏️ 쓴 피드백 ${r.gave.length}`, "mus"], [r.walls.length, `🧱 성찰 문장 ${r.walls.length}`, "mus"], [r.rf && r.rf.final, "✍️ 성찰 저장", "pur"], [r.tr.length, "🚀 첫 웹앱", "blue"], [r.game, r.game ? `🎮 윤리 게임 ${msTxt(r.game.ms)}` : "🎮 윤리 게임", "green"]]
   .map(([on, t, c]) => `<span class="chip ${on ? "c-" + c : "c-off"}">${esc(t)}</span>`).join("");
@@ -4407,12 +4445,16 @@ function printAi(kind, only) {
       ${foot}</div>`;
   } else {
     const fs = fbStore(b), real = !!fs.real, inT = fs.inT !== false, inAi = fs.inAi !== false, A = fs.ai || {}, T = fs.tf || {};
+    // 📚 우리 반 수업 이야기 = 학생용 총평 (학생 번호는 지우고, 모든 학생 종이에 똑같이)
+    const stu = fs.inSum !== false ? stuClean((aiGet(b, "stu") || {}).text).trim() : "";
+    const story = stu ? `<div class="sec s-blue">📚 우리 반 수업 이야기<small>${b}반 모두에게 · AI가 반 전체 활동 기록을 읽고 정리한 글</small></div><div class="story">${sumCards(stu)}</div>` : "";
     const list = aiRecs.filter(r => (!only || r.nick === only) && ((inT && T[r.nick]) || (inAi && A[r.nick])));
     if (!list.length) { toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
     body = list.map(r => `<div class="page">
       <div class="ban"><span class="em">🌱</span><div><h1>나의 바이브코딩 수업 피드백</h1><p>진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편)」</p></div><span class="tag">${b}반</span></div>
       <table class="kv"><tr><th>반</th><td>${b}반</td><th>${real && r.real ? "학번 · 이름" : "닉네임"}</th><td>${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + ` <span style="color:#9B8782">(${esc(r.nick)})</span>` : esc(r.nick)}</td><th>날짜</th><td>${date}</td></tr></table>
       <div class="chips">${chipsOf(r)}</div>
+      ${story}
       ${r.plan ? `<div class="sec s-green">📱 내가 계획한 웹앱</div>
       <table class="kv"><tr><th>웹앱 이름</th><td><b>${esc(r.plan.appName)}</b></td></tr>
         ${r.plan.content ? `<tr><th>웹앱 내용</th><td>${nl(cut(r.plan.content, 420))}</td></tr>` : ""}
