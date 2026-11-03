@@ -225,6 +225,7 @@ function filters() {
       <button class="chip ${F.dept ? 'on' : ''}" data-act="dept">창의미래교육과만</button>
       <input class="search" id="q" placeholder="제목 · 부서 · 번호 찾기" value="${esc(F.q)}" autocomplete="off">
       ${F.hide.length ? `<button class="chip" data-act="unhide">숨긴 공문 ${F.hide.length}건 되돌리기</button>` : ''}
+      <button class="chip" data-act="csv" title="지금 보이는 공문을 갈래 · 주제 · 할 일 · 반복 · ★ 와 함께 엑셀(CSV)로">📥 엑셀로 내려받기</button>
       <span class="note">칩 · 숨김은 이 기기에 기억돼요</span></div>
   </div>`;
 }
@@ -252,6 +253,13 @@ document.addEventListener('click', async e => {
   if (b.dataset.cat !== undefined) { const v = b.dataset.cat; F.cats = !v ? [] : F.cats.includes(v) ? F.cats.filter(x => x !== v) : [...F.cats, v]; save(); return draw(); }
   if (b.dataset.year) { F.year = b.dataset.year; save(); return draw(); }
   if (b.dataset.act === 'dept') { F.dept = !F.dept; save(); return draw(); }
+  if (b.dataset.act === 'csv') {   // 엑셀로: 보이는 공문 + 붙인 분류 (분류 낱말을 다듬을 때 Claude 에게 이 파일을 주면 돼요)
+    const rows = [['날짜', '공문번호', '제목', '보낸 곳', '갈래', '주제', '할 일', '매년', '별', '다른 해 같은 공문 수']]
+      .concat(visible().sort(byDate).map(x => [x.d, x.no, x.t, x.dept, x.cat, x.tp.join(' / '), x.a, x.rep ? x.rep + '월' : '', x.st, x.sib.length]));
+    const csv = '\ufeff' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: `공문레이더_${new Date().toISOString().slice(0, 10)}.csv` });
+    a.click(); toast(`${rows.length - 1}건을 내려받았어요`); return;
+  }
   if (b.dataset.act === 'unhide') { F.hide = []; save(); toast('숨긴 공문을 되돌렸어요'); return draw(); }
   if (b.dataset.more) { F.lim[b.dataset.more] = (F.lim[b.dataset.more] || 30) + 30; save(); return draw(); }
   if (b.dataset.copy) { try { await navigator.clipboard.writeText(b.dataset.copy); toast('제목을 복사했어요'); } catch (x) { toast('복사하지 못했어요'); } return; }
