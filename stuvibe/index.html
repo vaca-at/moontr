@@ -4071,7 +4071,7 @@ async function classRecords(b) {
   const list = [...names].sort((x, y) => { const rx = realOf(b, x), ry = realOf(b, y); return String(rx ? rx.sid : "z" + x).localeCompare(String(ry ? ry.sid : "z" + y)); });
   return Promise.all(list.map(async (nick, i) => {
     const real = realOf(b, nick), plan = plans.find(p => p.ban === b && (people[p.id] || {}).name === nick);
-    const recv = plan ? cmtOf(plan.id).filter(f => f.fromPlan !== plan.id && f.fromPlan !== TEACHER) : [];
+    const recv = plan ? cmtOf(plan.id).filter(f => f.fromPlan !== plan.id) : [];   // 받은 댓글: 친구 + 선생님 댓글
     const gave = feedbacks.filter(f => f.ban === b && (writers[f.id] || {}).name === nick && (!plan || f.planId !== plan.id) && !/^💬 안녕하세요 👋/.test(f.good || ""));
     const walls = wall.filter(w => w.ban === b && (wallWho[w.id] || {}).name === nick).map(w => ({ kind: kindLabel(w.kind), text: w.text, orig: (wallWho[w.id] || {}).orig || "" }));
     const rf = reflects.find(r => r.ban === b && r.name === nick) || null;
@@ -4095,7 +4095,7 @@ function recordText(r) {   // AI 에게 보낼 한 학생 기록 (이름 · 학�
     if (r.plan.content) L.push(`  · 최종 웹앱 내용: ${cut(r.plan.content, 300)}`);
     L.push(`  · Gemini로 미리보기 만들기: ${r.preview ? "함" : "안 함"} · 받은 좋아요 ${r.likes}개`);
   } else L.push("- 웹앱 계획: 제출 안 함");
-  if (r.recv.length) L.push(`- 친구에게 받은 피드백 ${r.recv.length}개: ${r.recv.slice(0, 4).map(f => cut(fbLine(f), 80)).join(" | ")}`);
+  if (r.recv.length) L.push(`- 받은 피드백 ${r.recv.length}개 (친구 · 선생님): ${r.recv.slice(0, 4).map(f => (f.fromPlan === TEACHER ? "[선생님] " : "") + cut(fbLine(f), 80)).join(" | ")}`);
   if (r.gave.length) L.push(`- 친구에게 쓴 피드백 ${r.gave.length}개: ${r.gave.slice(0, 4).map(f => cut(fbLine(f), 80)).join(" | ")}`);
   if (r.walls.length) L.push(`- 수업 성찰 문장: ${r.walls.map(w => `${w.kind} "${cut(w.orig || w.text, 120)}"`).join(" / ")}`);
   if (r.rf && r.rf.final) L.push(`- 최종 성찰 글: ${cut(r.rf.final, 500)}`);
@@ -4249,7 +4249,7 @@ function printAi(kind, only) {
     if (!list.length) { toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
     body = list.map(r => `<div class="page"><h2>🌱 나의 바이브코딩 수업 피드백</h2>
       <p class="meta">진로탐구수업 「바이브코딩으로 웹앱 만들기」 · ${b}반 · ${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + " · " : ""}${esc(r.nick)} · ${date}</p>
-      ${r.plan ? `<div class="box"><b>📱 내가 계획한 웹앱</b><p><b style="color:#222">${esc(r.plan.appName)}</b></p><p>${nl(cut(r.plan.content || [r.plan.problem, r.plan.features].filter(Boolean).join(" / "), 400))}</p>${r.likes || r.recv.length ? `<p style="color:#777;font-size:9.5pt">친구들에게 받은 ♥ ${r.likes}개 · 댓글 ${r.recv.length}개</p>` : ""}</div>` : ""}
+      ${r.plan ? `<div class="box"><b>📱 내가 계획한 웹앱</b><p><b style="color:#222">${esc(r.plan.appName)}</b></p><p>${nl(cut(r.plan.content || [r.plan.problem, r.plan.features].filter(Boolean).join(" / "), 400))}</p>${r.likes || r.recv.length ? `<p style="color:#777;font-size:9.5pt">받은 ♥ ${r.likes}개 · 받은 댓글 ${r.recv.length}개 (친구 · 선생님)</p>` : ""}</div>` : ""}
       ${inT && T[r.nick] ? `<h3>🧑‍🏫 선생님 피드백</h3><div class="fb">${esc(T[r.nick])}</div><p class="sign">진로탐구수업 담당 교사</p>` : ""}
       ${inAi && A[r.nick] ? `<div class="aibox"><h3>🤖 AI 피드백</h3><p class="ainote">AI(인공지능)가 이 수업에서 남긴 활동 기록(계획서 · 친구 피드백 · 성찰)을 읽고 쓴 내용이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
       ${r.rf && r.rf.final ? `<div class="box"><b>✍️ 내가 쓴 성찰</b><p>${nl(cut(r.rf.final, 500))}</p></div>` : ""}
