@@ -846,6 +846,12 @@ dialog.doc.wide{width:min(110rem, calc(100vw - 1.5rem));height:90vh;height:90dvh
 .ai-card-h{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap}
 .ai-card-h .link{margin-left:auto}
 .ai-flags{font-size:.8125rem;color:var(--ink2)}
+.ai-steps{display:grid;grid-template-columns:1fr 1fr;gap:.625rem;margin:.25rem 0 .5rem}
+@media(max-width:900px){.ai-steps{grid-template-columns:1fr}}
+.ai-step2{border:1.5px solid var(--line);border-radius:.875rem;padding:.5rem .625rem;display:flex;flex-direction:column;gap:.375rem}
+.ai-lab{display:block;margin-top:.375rem;font-size:.8125rem;color:var(--ink2)}
+.ai-lab.t{color:#B23A64}.ai-lab.a{color:#3F5BA9}
+.ai-note{width:100%;border:1.5px dashed var(--line);border-radius:.5rem;padding:.25rem .5rem;font:inherit;font-size:max(16px,.8125rem);background:#FFFDF6}
 .ai-fb{width:100%;margin-top:.375rem;border:1.5px solid var(--line);border-radius:.625rem;padding:.375rem .5rem;font:inherit;font-size:max(16px,.875rem)}
 #dlgAdmin .t-rooms{grid-template-columns:repeat(auto-fill,minmax(24rem,1fr))}
 #dlgAdmin .t-log{max-height:26rem;min-height:12rem}
@@ -4065,14 +4071,16 @@ async function classRecords(b) {
   const list = [...names].sort((x, y) => { const rx = realOf(b, x), ry = realOf(b, y); return String(rx ? rx.sid : "z" + x).localeCompare(String(ry ? ry.sid : "z" + y)); });
   return Promise.all(list.map(async (nick, i) => {
     const real = realOf(b, nick), plan = plans.find(p => p.ban === b && (people[p.id] || {}).name === nick);
-    const recv = plan ? cmtOf(plan.id).filter(f => f.fromPlan !== plan.id) : [];
+    const recv = plan ? cmtOf(plan.id).filter(f => f.fromPlan !== plan.id && f.fromPlan !== TEACHER) : [];
     const gave = feedbacks.filter(f => f.ban === b && (writers[f.id] || {}).name === nick && (!plan || f.planId !== plan.id) && !/^💬 안녕하세요 👋/.test(f.good || ""));
     const walls = wall.filter(w => w.ban === b && (wallWho[w.id] || {}).name === nick).map(w => ({ kind: kindLabel(w.kind), text: w.text, orig: (wallWho[w.id] || {}).orig || "" }));
     const rf = reflects.find(r => r.ban === b && r.name === nick) || null;
     const tr = tries.filter(t => t.ban === b && tryWho[t.id] === nick);
     let game = null;
     if (real && real.sid) { const gk = (await keyOf("game-" + b, real.sid, nick)).slice(0, 16), g = games.find(x => x.id === gk); if (g) game = g; }
-    return { code: "S" + String(i + 1).padStart(2, "0"), nick, real, plan, preview: !!(plan && previews[plan.id] && previews[plan.id].html), likes: plan ? likeCnt(plan.id) : 0, recv, gave, walls, rf, tr, game };
+    const tc = plan ? cmtOf(plan.id).filter(f => f.fromPlan === TEACHER) : [];   // 9번 갤러리에서 선생님이 남긴 댓글 = 선생님 메모
+    const tnote = { good: tc.filter(f => tagOf(f.good) === "👍").map(f => f.good.slice(3).trim()).join("\n"), bad: tc.filter(f => tagOf(f.good) !== "👍").map(f => { const t = tagOf(f.good); return t ? f.good.slice(t.length + 1).trim() : f.good; }).join("\n") };
+    return { code: "S" + String(i + 1).padStart(2, "0"), nick, real, plan, tnote, preview: !!(plan && previews[plan.id] && previews[plan.id].html), likes: plan ? likeCnt(plan.id) : 0, recv, gave, walls, rf, tr, game };
   }));
 }
 const fbLine = f => { const t = tagOf(f.good); return t ? `${TAG_NAME[t]}: ${f.good.slice(t.length + 1)}` : [f.good, f.question, f.idea].filter(Boolean).join(" / "); };
@@ -4132,6 +4140,23 @@ function fbPrompt(b, recs) {
 [학생 기록]
 ${recs.map(recordText).join("\n\n")}`;
 }
+// 🧑‍🏫 선생님 메모(좋은 점 · 개선할 점) → 선생님이 학생에게 건네는 긴 피드백으로 늘려 쓰기 (메모가 있는 학생만)
+function tPrompt(b, recs, notes) {
+  const rows = recs.map(r => ({ r, n: notes[r.nick] || r.tnote })).filter(x => (x.n.good || "").trim() || (x.n.bad || "").trim());
+  return { n: rows.length, text: `나는 고등학교 진로탐구수업 「바이브코딩으로 웹앱 만들기」를 가르친 교사야.
+아래는 학생들의 웹앱 계획과, 그 웹앱을 보고 내가 짧게 적은 메모(좋은 점 · 개선할 점)야.
+이 메모를 바탕으로, 내가 학생에게 직접 건네는 피드백 글로 늘려 써 줘.
+
+[쓰는 방식 — 꼭 지켜 줘]
+- 학생마다 "### S01" 처럼 번호 한 줄로 시작하고, 그 아래에 피드백만
+- 내 메모의 내용과 판단은 그대로 살리고 하나도 빠뜨리지 마. 메모에 없는 새 칭찬 · 새 지적은 덧붙이지 마
+- 웹앱 계획 내용을 근거로 풀어 써 줘: 좋은 점은 '왜 좋은지', 개선할 점은 '어떻게 고치면 좋을지' 방법 1~2가지
+- 학생 한 명에 6~8문장, 교사가 학생에게 쓰는 다정한 존댓말(~해요). '선생님은 ~라고 생각해요'처럼 써도 돼
+- 번호 순서대로, 아래 학생 모두
+
+[학생 웹앱과 내 메모]
+${rows.map(({ r, n }) => [`### ${r.code}`, r.plan ? `- 웹앱: ${cut(r.plan.appName, 60)} — ${cut(r.plan.content || [r.plan.problem, r.plan.features].filter(Boolean).join(" / "), 300)}` : "- 웹앱: (계획서 없음)", n.good ? `- 내가 쓴 좋은 점: ${n.good}` : "", n.bad ? `- 내가 쓴 개선할 점: ${n.bad}` : ""].filter(Boolean).join("\n")).join("\n\n")}` };
+}
 // 붙여 넣은 개인 피드백 → { S01: "…" }
 function parseFb(raw) {
   const out = {}, re = /^\s*#{1,4}\s*\**\s*(S\d{2})\b[^\n]*\n([\s\S]*?)(?=^\s*#{1,4}\s*\**\s*S\d{2}\b|$(?![\s\S]))/gm; let m;
@@ -4154,54 +4179,81 @@ async function renderAiReport(kind) {
       <div class="ai-doc" id="aiSumView">${saved.text ? mdLite(saved.text) : `<p class="muted">붙여 넣으면 여기에 보기 좋게 정리돼요.</p>`}</div>`;
     return;
   }
-  const fb = saved.map || {};
-  box.innerHTML = `<h4>🧑‍🎓 ${b}반 AI 개인 피드백 <span class="muted" style="font-size:.875rem">학생별 · 한 사람에 한 쪽씩 출력</span></h4>${how}
-    <textarea id="aiFbIn" class="ai-in" rows="4" placeholder="AI의 대답(### S01 … ### S02 …)을 통째로 붙여 넣으면 학생마다 나눠 들어가요"></textarea>
-    <div class="plan-act"><button type="button" class="btn" data-ai-print="fb">🖨 전체 출력 · PDF (${n}명)</button><label class="muted"><input type="checkbox" id="aiRealName" ${saved.real ? "checked" : ""}> 출력에 학번 · 이름 넣기</label><span class="muted">${Object.keys(fb).length}/${n}명 피드백 있음</span></div>
-    <div class="ai-cards">${aiRecs.map(r => `<div class="ai-card"><div class="ai-card-h"><b>${r.code}</b> ${esc(r.nick)}${r.real ? ` <span class="real">${esc(r.real.sid)} ${esc(r.real.name || "")}</span>` : ""}
+  const sv = fbStore(b), notes = sv.notes || {};
+  const nAi = aiRecs.filter(r => (sv.ai || {})[r.nick]).length, nT = aiRecs.filter(r => (sv.tf || {})[r.nick]).length, tq = tPrompt(b, aiRecs, notes);
+  box.innerHTML = `<h4>🧑‍🎓 ${b}반 개인 피드백 <span class="muted" style="font-size:.875rem">학생별 · 🧑‍🏫 선생님 피드백 + 🤖 AI 피드백을 따로 · 한 사람에 한 쪽씩 출력</span></h4>
+    <div class="ai-steps">
+      <div class="ai-step2"><b>🧑‍🏫 선생님 피드백 늘려 쓰기</b> <span class="muted">9번 갤러리에서 남기신 선생님 댓글(👍 좋은 점 · 💡❓ 개선할 점)을 아래 카드에 모았어요. 고치거나 더 써도 돼요 · 메모가 있는 학생 ${tq.n}명</span>
+        <div><button type="button" class="btn sm" data-ai-copy="tf">📋 늘려 쓰기 질문 복사</button> <a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener">Claude 열기</a> <a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini 열기</a></div>
+        <textarea id="aiTfIn" class="ai-in" rows="2" placeholder="AI가 늘려 쓴 대답(### S01 …)을 통째로 붙여 넣으면 학생마다 '선생님 피드백' 칸에 들어가요 (출력 전에 꼭 읽고 고쳐요)"></textarea></div>
+      <div class="ai-step2"><b>🤖 AI 피드백</b> <span class="muted">AI가 학생 활동 기록을 보고 쓰는 피드백 · 출력물에 'AI 피드백'이라고 따로 적혀요</span>
+        <div><button type="button" class="btn sm" data-ai-copy="fb">📋 AI 피드백 질문 복사</button> <a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini 열기</a> <a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener">Claude 열기</a> <span class="muted">이름 · 학번 · 닉네임은 빼고 S01 번호로만</span></div>
+        <textarea id="aiFbIn" class="ai-in" rows="2" placeholder="AI의 대답(### S01 … ### S02 …)을 통째로 붙여 넣으면 학생마다 'AI 피드백' 칸에 들어가요"></textarea></div>
+    </div>
+    <div class="plan-act"><button type="button" class="btn" data-ai-print="fb">🖨 전체 출력 · PDF (${n}명)</button>
+      <label class="muted"><input type="checkbox" data-fbopt="real" ${sv.real ? "checked" : ""}> 학번 · 이름 넣기</label>
+      <label class="muted"><input type="checkbox" data-fbopt="inT" ${sv.inT !== false ? "checked" : ""}> 🧑‍🏫 선생님 피드백</label>
+      <label class="muted"><input type="checkbox" data-fbopt="inAi" ${sv.inAi !== false ? "checked" : ""}> 🤖 AI 피드백</label>
+      <span class="muted">선생님 피드백 ${nT}/${n} · AI 피드백 ${nAi}/${n}</span></div>
+    <div class="ai-cards">${aiRecs.map(r => { const nt = notes[r.nick] || r.tnote; return `<div class="ai-card"><div class="ai-card-h"><b>${r.code}</b> ${esc(r.nick)}${r.real ? ` <span class="real">${esc(r.real.sid)} ${esc(r.real.name || "")}</span>` : ""}
         <span class="ai-flags">${r.plan ? "📝" : "<s>📝</s>"}${r.preview ? " 🖼" : ""}${r.walls.length ? ` 🧱${r.walls.length}` : ""}${r.rf && r.rf.final ? " ✍️" : ""}${r.likes ? ` ♥${r.likes}` : ""}</span>
-        <button type="button" class="link" data-ai-print1="${r.code}">🖨 이 학생만</button></div>
+        <button type="button" class="link" data-ai-print1="${esc(r.nick)}">🖨 이 학생만</button></div>
       <div class="muted">${r.plan ? "📱 " + esc(r.plan.appName) : "계획서 없음"}</div>
-      <textarea class="ai-fb" data-ai-fb="${r.code}" rows="4" placeholder="AI 피드백이 여기에 들어가요 (직접 고쳐도 돼요)">${esc(fb[r.code] || "")}</textarea></div>`).join("") || `<p class="muted">아직 이 반 학생 기록이 없어요.</p>`}</div>`;
+      <label class="ai-lab">👍 선생님 메모 · 좋은 점<textarea class="ai-note" data-note="good" data-nick="${esc(r.nick)}" rows="2">${esc(nt.good || "")}</textarea></label>
+      <label class="ai-lab">💡 선생님 메모 · 개선할 점<textarea class="ai-note" data-note="bad" data-nick="${esc(r.nick)}" rows="2">${esc(nt.bad || "")}</textarea></label>
+      <label class="ai-lab t">🧑‍🏫 선생님 피드백 (늘려 쓴 글 · 출력됨)<textarea class="ai-fb" data-tf="${esc(r.nick)}" rows="5">${esc((sv.tf || {})[r.nick] || "")}</textarea></label>
+      <label class="ai-lab a">🤖 AI 피드백 (출력됨)<textarea class="ai-fb" data-aifb="${esc(r.nick)}" rows="4">${esc((sv.ai || {})[r.nick] || "")}</textarea></label></div>`; }).join("") || `<p class="muted">아직 이 반 학생 기록이 없어요.</p>`}</div>`;
 }
+// 개인 피드백 저장 모양: { ai: {닉네임: 글}, tf: {닉네임: 글}, notes: {닉네임: {good, bad}}, real, inT, inAi } (예전 map(S01 번호) 은 닉네임으로 옮겨요)
+function fbStore(b) {
+  const sv = aiGet(b, "fb") || {};
+  if (sv.map && aiRecs.length) { sv.ai = sv.ai || {}; aiRecs.forEach(r => { if (sv.map[r.code] && !sv.ai[r.nick]) sv.ai[r.nick] = sv.map[r.code]; }); delete sv.map; aiSet(b, "fb", sv); }
+  return sv;
+}
+const fbSave = (b, f) => { const sv = fbStore(b); f(sv); aiSet(b, "fb", sv); };
 document.addEventListener("click", async e => {
   const t = e.target;
   const c = t.closest("[data-ai-copy]");
-  if (c) { const q = c.dataset.aiCopy === "sum" ? sumPrompt(ban, aiRecs) : fbPrompt(ban, aiRecs); const ok = await copyText(q); toast(ok ? `질문을 복사했어요 (${q.length.toLocaleString()}자) · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return; }
+  if (c) {
+    if (c.dataset.aiCopy === "tf") { const tq = tPrompt(ban, aiRecs, fbStore(ban).notes || {}); if (!tq.n) { toast("먼저 학생 카드에 선생님 메모(좋은 점 · 개선할 점)를 써 주세요"); return; } const ok = await copyText(tq.text); toast(ok ? `${tq.n}명 늘려 쓰기 질문을 복사했어요 · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return; }
+    const q = c.dataset.aiCopy === "sum" ? sumPrompt(ban, aiRecs) : fbPrompt(ban, aiRecs); const ok = await copyText(q); toast(ok ? `질문을 복사했어요 (${q.length.toLocaleString()}자) · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return; }
   const pr = t.closest("[data-ai-print]"), p1 = t.closest("[data-ai-print1]");
   if (pr || p1) printAi(pr ? pr.dataset.aiPrint : "fb", p1 ? p1.dataset.aiPrint1 : null);
 });
 document.addEventListener("input", e => {
   const t = e.target, b = ban;
   if (t.id === "aiSumIn") { aiSet(b, "sum", { text: t.value, at: Date.now() }); const v = document.getElementById("aiSumView"); if (v) v.innerHTML = mdLite(t.value); return; }
-  if (t.id === "aiFbIn") {
+  if (t.id === "aiFbIn" || t.id === "aiTfIn") {   // 붙여 넣은 대답 → 학생마다 (S01 → 닉네임)
     const got = parseFb(t.value), keys = Object.keys(got); if (!keys.length) return;
-    const sv = aiGet(b, "fb") || {}, map = { ...(sv.map || {}), ...got }; aiSet(b, "fb", { ...sv, map, at: Date.now() });
-    keys.forEach(k => { const ta = document.querySelector(`[data-ai-fb="${k}"]`); if (ta) ta.value = got[k]; });
-    toast(`${keys.length}명 피드백을 나눠 넣었어요`); t.value = ""; renderAiReport("fb"); return;
+    const k = t.id === "aiFbIn" ? "ai" : "tf";
+    fbSave(b, sv => { sv[k] = sv[k] || {}; keys.forEach(code => { const r = aiRecs.find(x => x.code === code); if (r) sv[k][r.nick] = got[code]; }); });
+    toast(`${keys.length}명 ${k === "ai" ? "AI 피드백" : "선생님 피드백"}을 나눠 넣었어요${k === "tf" ? " · 출력 전에 꼭 읽고 고쳐요" : ""}`); t.value = ""; renderAiReport("fb"); return;
   }
-  if (t.dataset && t.dataset.aiFb) { const sv = aiGet(b, "fb") || {}; sv.map = { ...(sv.map || {}), [t.dataset.aiFb]: t.value }; aiSet(b, "fb", sv); }
+  if (t.dataset && t.dataset.aifb) { fbSave(b, sv => { sv.ai = { ...(sv.ai || {}), [t.dataset.aifb]: t.value }; }); return; }
+  if (t.dataset && t.dataset.tf) { fbSave(b, sv => { sv.tf = { ...(sv.tf || {}), [t.dataset.tf]: t.value }; }); return; }
+  if (t.dataset && t.dataset.note) { const nick = t.dataset.nick, r = aiRecs.find(x => x.nick === nick); fbSave(b, sv => { sv.notes = sv.notes || {}; const cur = sv.notes[nick] || { ...(r ? r.tnote : {}) }; cur[t.dataset.note] = t.value; sv.notes[nick] = cur; }); return; }
 });
-document.addEventListener("change", e => { if (e.target.id === "aiRealName") { const sv = aiGet(ban, "fb") || {}; sv.real = e.target.checked; aiSet(ban, "fb", sv); } });
+document.addEventListener("change", e => { const o = e.target.dataset && e.target.dataset.fbopt; if (o) fbSave(ban, sv => { sv[o] = e.target.checked; }); });
 // 🖨 출력: 새 창에 출력용 문서를 만들고 인쇄 창을 열어요 (인쇄 창에서 'PDF로 저장'을 고르면 PDF)
 function printAi(kind, only) {
   const b = ban, date = new Date().toLocaleDateString("ko-KR"), sv = aiGet(b, kind) || {};
-  const css = `@page{size:A4;margin:16mm}body{font-family:'Gowun Dodum','Malgun Gothic',sans-serif;color:#222;line-height:1.7;font-size:11pt}h1{font-size:18pt;margin:0 0 2mm}h2{font-size:14pt;margin:0 0 3mm}h3{font-size:12pt;margin:5mm 0 1mm;color:#B23A64}.meta{color:#777;font-size:9.5pt;margin:0 0 5mm;border-bottom:1.5px solid #ddd;padding-bottom:3mm}.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.box{border:1.5px solid #eee;border-radius:3mm;padding:3mm 4mm;margin:3mm 0;background:#FFFBF8}.box b{color:#B23A64}.fb{font-size:11.5pt;white-space:pre-wrap}.sign{margin-top:8mm;text-align:right;color:#777;font-size:9.5pt}li{margin:.5mm 0}p{margin:1.5mm 0}`;
+  const css = `@page{size:A4;margin:16mm}body{font-family:'Gowun Dodum','Malgun Gothic',sans-serif;color:#222;line-height:1.7;font-size:11pt}h1{font-size:18pt;margin:0 0 2mm}h2{font-size:14pt;margin:0 0 3mm}h3{font-size:12pt;margin:5mm 0 1mm;color:#B23A64}.meta{color:#777;font-size:9.5pt;margin:0 0 5mm;border-bottom:1.5px solid #ddd;padding-bottom:3mm}.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.box{border:1.5px solid #eee;border-radius:3mm;padding:3mm 4mm;margin:3mm 0;background:#FFFBF8}.box b{color:#B23A64}.fb{font-size:11.5pt;white-space:pre-wrap}.sign{margin:2mm 0 4mm;text-align:right;color:#777;font-size:9.5pt}.aibox{border:1.5px dashed #9AA3C7;border-radius:3mm;padding:2mm 4mm 3mm;margin:4mm 0;background:#F6F8FD}.aibox h3{color:#3F5BA9;margin-top:1mm}.ainote{color:#5F6B8A;font-size:9pt;margin:0 0 2mm}li{margin:.5mm 0}p{margin:1.5mm 0}`;
   let body = "";
   if (kind === "sum") {
     if (!sv.text) { toast("먼저 AI 총평을 붙여 넣어 주세요"); return; }
     const n = aiRecs.length, has = f => aiRecs.filter(f).length;
     body = `<div class="page"><h1>진로탐구수업 「바이브코딩으로 웹앱 만들기」 수업 총평</h1><p class="meta">${b}반 · 학생 ${n}명 · 계획서 ${has(r => r.plan)}명 · 미리보기 ${has(r => r.preview)}명 · 성찰 ${has(r => r.rf && r.rf.final)}명 · ${date} · 교사용</p>${mdLite(sv.text)}</div>`;
   } else {
-    const map = sv.map || {}, real = document.getElementById("aiRealName") ? document.getElementById("aiRealName").checked : !!sv.real;
-    const list = aiRecs.filter(r => (!only || r.code === only) && map[r.code]);
-    if (!list.length) { toast("먼저 AI 피드백을 붙여 넣어 주세요"); return; }
+    const fs = fbStore(b), real = !!fs.real, inT = fs.inT !== false, inAi = fs.inAi !== false, A = fs.ai || {}, T = fs.tf || {};
+    const list = aiRecs.filter(r => (!only || r.nick === only) && ((inT && T[r.nick]) || (inAi && A[r.nick])));
+    if (!list.length) { toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
     body = list.map(r => `<div class="page"><h2>🌱 나의 바이브코딩 수업 피드백</h2>
       <p class="meta">진로탐구수업 「바이브코딩으로 웹앱 만들기」 · ${b}반 · ${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + " · " : ""}${esc(r.nick)} · ${date}</p>
       ${r.plan ? `<div class="box"><b>📱 내가 계획한 웹앱</b><p><b style="color:#222">${esc(r.plan.appName)}</b></p><p>${nl(cut(r.plan.content || [r.plan.problem, r.plan.features].filter(Boolean).join(" / "), 400))}</p>${r.likes || r.recv.length ? `<p style="color:#777;font-size:9.5pt">친구들에게 받은 ♥ ${r.likes}개 · 댓글 ${r.recv.length}개</p>` : ""}</div>` : ""}
-      <h3>💌 선생님이 전하는 피드백</h3><div class="fb">${esc(map[r.code])}</div>
+      ${inT && T[r.nick] ? `<h3>🧑‍🏫 선생님 피드백</h3><div class="fb">${esc(T[r.nick])}</div><p class="sign">진로탐구수업 담당 교사</p>` : ""}
+      ${inAi && A[r.nick] ? `<div class="aibox"><h3>🤖 AI 피드백</h3><p class="ainote">AI(인공지능)가 이 수업에서 남긴 활동 기록(계획서 · 친구 피드백 · 성찰)을 읽고 쓴 내용이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
       ${r.rf && r.rf.final ? `<div class="box"><b>✍️ 내가 쓴 성찰</b><p>${nl(cut(r.rf.final, 500))}</p></div>` : ""}
-      <p class="sign">진로탐구수업 담당 교사</p></div>`).join("");
+    </div>`).join("");
   }
   const w = window.open("", "_blank"); if (!w) { toast("새 창이 막혔어요. 팝업을 허용해 주세요"); return; }
   w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${kind === "sum" ? `${b}반 AI 총평` : `${b}반 개인 피드백`}</title><link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet"><style>${css}</style></head><body>${body}<script>document.fonts.ready.then(()=>setTimeout(()=>print(),300))<\/script></body></html>`);
