@@ -403,6 +403,18 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .gcard:nth-child(3n+1){transform:rotate(-.6deg)} .gcard:nth-child(3n+2){transform:rotate(.5deg)}
 .gcard:hover,.gcard:focus-visible{transform:translateY(-3px) rotate(0)}
 .gcard::before{content:"📌";position:absolute;top:-.625rem;left:50%;transform:translateX(-50%);font-size:1rem}
+.grp-head{display:inline-flex;align-items:center;gap:.25rem;border:2px solid color-mix(in srgb,var(--teal) 55%,#fff);background:color-mix(in srgb,var(--teal) 10%,#fff);border-radius:999px;padding:.125rem .75rem;font-size:.875rem;white-space:nowrap}
+.grp-head u{text-decoration:none;background:var(--teal);color:#fff;border-radius:999px;padding:0 .375rem}
+.g-no{display:inline-block;background:color-mix(in srgb,var(--teal) 16%,#fff);color:#1E7B6E;border-radius:999px;padding:0 .4rem;font-size:.6875rem}
+.grp-wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:.75rem}
+.grp-card{border:2px solid var(--line);border-radius:1rem;padding:.625rem .75rem;background:#fff}
+.grp-card.me{border-color:var(--teal);background:color-mix(in srgb,var(--teal) 7%,#fff)}
+.grp-card h4{margin:0 0 .375rem;font-family:var(--hand);font-weight:var(--hw);font-size:1.5rem;display:flex;align-items:baseline;gap:.375rem}
+.grp-card h4 small{font-size:.9rem;color:#1E7B6E}
+.grp-card h4 span{margin-left:auto;font-family:var(--body);font-size:.8125rem;color:var(--ink2)}
+.grp-row{display:flex;align-items:center;gap:.5rem;padding:.25rem 0;border-top:1px dashed var(--line);font-size:1.0625rem}
+.grp-row b{flex:none;width:4.5rem}
+.grp-row em{margin-left:auto;font-style:normal;background:var(--teal);color:#fff;border-radius:999px;padding:0 .5rem;font-size:.8125rem}
 .grp-box{margin:.625rem 0;padding:.5rem .625rem;border:2px solid color-mix(in srgb,var(--teal) 45%,#fff);border-radius:.875rem;background:color-mix(in srgb,var(--teal) 7%,#fff)}
 .grp-box.all{border-color:#7FC59A;background:#F1FAF4}
 .grp-box h4{margin:0 0 .375rem;font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;display:flex;align-items:baseline;gap:.375rem}
@@ -1459,6 +1471,12 @@ ol.num > li::before{content:counter(n);position:absolute;left:0;top:.125rem;widt
 </dialog>
 
 <!-- 💡 예시 계획서 (6번 슬라이드 아이디어 칩을 누르면 열려요) -->
+<!-- 👥 모둠 보기 (9번 · 전자칠판에 크게) -->
+<dialog class="doc wide" id="dlgGroups" aria-labelledby="dlgGroupsT" style="--c:var(--teal)">
+  <div class="doc-head"><h3 id="dlgGroupsT">👥 우리 반 모둠</h3><button type="button" data-close>닫기</button></div>
+  <div class="doc-body" id="groupsBody"></div>
+</dialog>
+
 <dialog class="doc" id="dlgIdea" aria-labelledby="dlgIdeaT" style="--c:var(--lav)">
   <div class="doc-head"><h3 id="dlgIdeaT">💡 예시 계획서</h3><button type="button" data-close>닫기</button></div>
   <div class="doc-body" id="ideaBody"></div>
@@ -2543,7 +2561,7 @@ ${PLAN_FORM("planForm")}` },
 {
   tab: "친구와 피드백", sub: "칭찬·질문·제안", color: C.teal, time: 12, kind: "feedback",
   title: "친구들과 피드백하기", lead: "우리 반 계획서를 둘러보고 댓글로 함께 키워요",
-  headBtn: `<button type="button" class="edit-plan-btn" data-dlg="dlgTips">💬 피드백 팁 · 살펴볼 점</button><button type="button" class="edit-plan-btn ai-full" data-ai="full" title="내 계획서 + 피드백 팁 · 살펴볼 점 + 받은 피드백을 담은 질문을 복사해요">🤖 AI 도우미 피드백 받기</button>`,
+  headBtn: `<span class="grp-head" id="myGrpChip"></span><button type="button" class="edit-plan-btn" data-act="groups">👥 모둠 보기</button><button type="button" class="edit-plan-btn" data-dlg="dlgTips">💬 피드백 팁 · 살펴볼 점</button><button type="button" class="edit-plan-btn ai-full" data-ai="full" title="내 계획서 + 피드백 팁 · 살펴볼 점 + 받은 피드백을 담은 질문을 복사해요">🤖 AI 도우미 피드백 받기</button>`,
   cols: [
     { t: "내 계획서", c: C.sky, cls: "narrow", html: `${DEMO}<div id="myPlanBox"></div>` },
     { t: "우리 반 계획서 갤러리", act: true, c: C.teal, cls: "wide", html: `<div id="galleryBox"></div>` }
@@ -2958,14 +2976,30 @@ function groupOf(id) {
 const isHello = f => /^💬 안녕하세요 👋/.test(f.good || "");
 const commented = (fromId, toId) => !!fromId && feedbacks.some(f => f.fromPlan === fromId && f.planId === toId && !isHello(f));
 const myMates = () => myPlanId ? groupOf(myPlanId).filter(p => p.id !== myPlanId) : [];
+const groupNo = id => { const i = allGroups().findIndex(g => g.some(p => p.id === id)); return i < 0 ? 0 : i + 1; };   // 몇 모둠 (1부터)
+// 제목 줄 칩: 👥 나는 1모둠 · 학생 A · B · C
+function myGroupChip() {
+  const el = document.getElementById("myGrpChip"); if (!el) return;
+  const n = myPlanId ? groupNo(myPlanId) : 0, g = n ? groupOf(myPlanId) : [];
+  el.innerHTML = n ? `👥 나는 <b>${n}모둠</b> · ${g.map(p => p.id === myPlanId ? "<u>나</u>" : esc(stu(p.id).replace("학생 ", ""))).join(" · ")}` : "👥 계획서를 저장하면 모둠이 정해져요";
+}
 function groupBoxHTML() {
   if (!myPlanId) return "";
   const mates = myMates();
   if (!mates.length) return `<div class="grp-box"><h4>👥 내 모둠 · 꼭 댓글 달 친구</h4><p class="muted" style="margin:0">친구들이 계획서를 저장하면 모둠이 정해져요 (저장한 순서대로 세 명씩).</p></div>`;
   const done = mates.filter(p => commented(myPlanId, p.id)).length;
-  return `<div class="grp-box ${done === mates.length ? "all" : ""}"><h4>👥 내 모둠 · 꼭 댓글 달 친구 <small>${done}/${mates.length} 완료</small></h4>
+  return `<div class="grp-box ${done === mates.length ? "all" : ""}"><h4>👥 나는 ${groupNo(myPlanId)}모둠 · 꼭 댓글 달 친구 <small>${done}/${mates.length} 완료</small></h4>
     ${mates.map(p => { const ok = commented(myPlanId, p.id); return `<button type="button" class="grp-mate ${ok ? "ok" : ""}" data-card="${p.id}"><span>${ok ? "✅" : "✍️"}</span><b>${esc(stu(p.id))}</b> ${esc(p.appName)}<em>${ok ? "댓글 완료" : previews[p.id] && previews[p.id].html ? "댓글 달기 →" : "미리보기 전 · 계획서에 댓글 →"}</em></button>`; }).join("")}
     <p class="muted" style="margin:.25rem 0 0">다른 친구 웹앱에도 얼마든지 댓글을 달 수 있어요.</p></div>`;
+}
+// 👥 모둠 보기: 모둠마다 학생 A · 웹앱 이름 · 모둠 안 댓글 (닉네임은 안 보여요)
+function openGroups() {
+  const gs = allGroups();
+  document.getElementById("dlgGroupsT").textContent = `👥 ${ban}반 모둠 · ${gs.length}모둠`;
+  document.getElementById("groupsBody").innerHTML = gs.length ? `<p class="muted" style="margin:0 0 .75rem">계획서를 저장한 순서대로 세 명씩 한 모둠이에요. <b>내 모둠 친구 웹앱에는 댓글을 꼭</b> 달아요. 다른 친구 웹앱에도 자유롭게 댓글을 달 수 있어요.</p>
+    <div class="grp-wall">${gs.map((g, i) => { const pairs = g.flatMap(p => g.filter(x => x.id !== p.id).map(x => commented(p.id, x.id))), ok = pairs.filter(Boolean).length;
+      return `<div class="grp-card ${g.some(p => p.id === myPlanId) ? "me" : ""}"><h4>${i + 1}모둠${g.some(p => p.id === myPlanId) ? " <small>· 내 모둠</small>" : ""}<span>댓글 ${ok}/${pairs.length}</span></h4>${g.map(p => `<div class="grp-row"><b>${esc(stu(p.id))}</b><span>${esc(p.appName)}</span>${p.id === myPlanId ? "<em>나</em>" : ""}</div>`).join("")}</div>`; }).join("")}</div>` : `<p class="muted">아직 계획서를 저장한 친구가 없어요.</p>`;
+  openDlg("dlgGroups");
 }
 // 반 전체 모둠 목록 (대시보드)
 function allGroups() {
@@ -3031,10 +3065,10 @@ function renderMyPlan(full) {
   }
   if (!m) { box.innerHTML = planView(null) + `<p class="muted">🙋 <button type="button" class="link" data-me-open>나를 알려 주면</button> 내 계획서를 쓰고 갤러리에 올릴 수 있어요.</p>`; return; }
   box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.name)}<span data-me-tag>${subState(mine)}</span></span><button type="button" class="link" data-me-open>내가 아니에요</button></div>
+    <div data-grp-box>${groupBoxHTML()}</div>
     ${MINI_FORM("myPlanForm")}
     <p class="muted" style="margin:.5rem 0 0">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>계획서 최종 저장하기</b>를 누르면 아래에서 <b>내 웹앱 미리보기</b>를 만들 수 있어요. 미리보기를 만들면 오른쪽 갤러리에 내 카드가 붙어요.</p>
     ${pvMakeHTML(mine)}
-    <div data-grp-box>${groupBoxHTML()}</div>
     ${AI_HELP}`;
   const f = document.getElementById("myPlanForm");
   const dr = getDraft();
@@ -3259,7 +3293,7 @@ function renderGallery(full) {
       return `<article class="gcard ${mine ? "mine" : ""}" data-card="${p.id}" tabindex="0" role="button" aria-haspopup="dialog" title="눌러서 계획서 보고 댓글 남기기">
         <div class="g-thumb">${pvOf(p)}</div>
         <h4>${esc(p.appName)}</h4>
-        <div class="g-who">${stu(p.id)}${mine ? " · <b>내 계획서</b>" : ""}</div>
+        <div class="g-who">${groupNo(p.id) ? `<span class="g-no">${groupNo(p.id)}모둠</span> ` : ""}${stu(p.id)}${mine ? " · <b>내 계획서</b>" : ""}</div>
         <div class="g-row" data-cnt>${cntHTML(p)}</div>
       </article>`;
     }).join("")}</div>`;
@@ -3293,7 +3327,7 @@ async function toggleLike(id) {
 function paintLikes() {   // 숫자만 바꿔요 (미리보기가 깜빡이지 않게)
   document.querySelectorAll("[data-like]").forEach(b => { const p = plans.find(x => x.id === b.dataset.like); if (p) b.outerHTML = likeBtn(p); });
 }
-function renderFeedback(full) { renderMyPlan(full); renderGallery(full); if (document.getElementById("dlgCard").open) renderCard(false); }
+function renderFeedback(full) { myGroupChip(); renderMyPlan(full); renderGallery(full); if (document.getElementById("dlgCard").open) renderCard(false); }
 
 // 카드 창: 왼쪽 계획서 · 큰 미리보기, 오른쪽 댓글 (누구나 여러 번 남길 수 있어요)
 let cardId = "", cardTag = "👍";
@@ -4749,6 +4783,7 @@ stageEl.addEventListener("click", async e => {
   if (sb) { egSound = !egSound; try { localStorage.setItem("vt_eg_snd", egSound ? "1" : "0"); } catch (x) {} sb.textContent = egSound ? "🔊 소리" : "🔇 소리"; if (egSound) egPlay("flip"); return; }
   if (t.closest("[data-eg-sum]")) return openEthicsSum();
   const gs = t.closest("[data-gsort]"); if (gs) { gallerySort = gs.dataset.gsort; return renderGallery(true); }
+  if (t.closest('[data-act="groups"]')) return openGroups();
   const lk = t.closest("[data-like]"); if (lk) { e.stopPropagation(); return toggleLike(lk.dataset.like); }
   const gc = t.closest("[data-card]"); if (gc) return openCard(gc.dataset.card);
   if (t.closest("[data-pv-ai]")) return pvAction("ai");
