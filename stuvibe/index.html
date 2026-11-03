@@ -403,6 +403,19 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .gcard:nth-child(3n+1){transform:rotate(-.6deg)} .gcard:nth-child(3n+2){transform:rotate(.5deg)}
 .gcard:hover,.gcard:focus-visible{transform:translateY(-3px) rotate(0)}
 .gcard::before{content:"📌";position:absolute;top:-.625rem;left:50%;transform:translateX(-50%);font-size:1rem}
+.grp-box{margin:.625rem 0;padding:.5rem .625rem;border:2px solid color-mix(in srgb,var(--teal) 45%,#fff);border-radius:.875rem;background:color-mix(in srgb,var(--teal) 7%,#fff)}
+.grp-box.all{border-color:#7FC59A;background:#F1FAF4}
+.grp-box h4{margin:0 0 .375rem;font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;display:flex;align-items:baseline;gap:.375rem}
+.grp-box h4 small{margin-left:auto;font-family:var(--body);font-size:.8125rem;color:var(--ink2)}
+.grp-mate{display:flex;align-items:center;gap:.375rem;width:100%;text-align:left;border:1.5px solid var(--line);background:#fff;border-radius:.625rem;padding:.3125rem .5rem;margin:.25rem 0;font-size:.875rem;cursor:pointer}
+.grp-mate em{margin-left:auto;font-style:normal;font-size:.75rem;color:var(--rose);white-space:nowrap}
+.grp-mate.ok em{color:#2E7D4F}
+.grp-mate:hover{border-color:var(--teal)}
+.g-mate{border-radius:999px;padding:0 .45rem;font-size:.6875rem;background:#FFF0C2;color:#7A5A00;white-space:nowrap}
+.g-mate.ok{background:#E3F4EA;color:#1E7B4F}
+.grp-chip{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 .4rem;font-size:.8125rem;margin:.1rem 0;color:var(--ink2)}
+.grp-chip.ok{background:#E3F4EA;border-color:#9FD3B1;color:#1E7B4F}
+.grp-done{color:#1E7B4F;font-weight:700}.grp-miss{color:#C0392B;font-weight:700}
 .gcard.mine{background:#FFF3F8;outline:3px solid color-mix(in srgb,var(--pink) 60%,#fff)}
 .gcard h4{margin:0;font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .g-who{font-size:.75rem;color:var(--ink2)}
@@ -1481,7 +1494,7 @@ ol.num > li::before{content:counter(n);position:absolute;left:0;top:.125rem;widt
     <table>
       <tr><th>활동</th><th>받는 정보</th></tr>
       <tr><td>웹앱 계획서 제출</td><td>반, 닉네임(한글 2~5글자), 계획서 내용(웹앱 이름, 해결할 불편, 기능, 화면 모습, AI에게 보낼 프롬프트). 학번은 저장하지 않고 암호(해시)로만 써요.</td></tr>
-      <tr><td>친구 피드백 · 모둠 채팅</td><td>쓴 사람의 닉네임, 피드백 내용</td></tr>
+      <tr><td>친구 피드백(댓글)</td><td>쓴 사람의 닉네임, 피드백 내용</td></tr>
       <tr><td>좋아요 · AI 윤리 게임 순위</td><td>누른 카드(이름을 알 수 없는 짧은 열쇠로만 구분), 게임 시간 · 뒤집은 횟수와 닉네임 첫 글자(예: 하○)</td></tr>
       <tr><td>첫 웹앱 담벼락</td><td>붙인 사람의 닉네임, 웹앱 이름, 웹앱 코드, 공유 링크(넣은 경우)</td></tr>
       <tr><td>문장 담벼락</td><td>쓴 사람의 닉네임, 배운 점 · 느낀 점 · 알고 싶은 점 한 문장</td></tr>
@@ -2941,6 +2954,19 @@ function groupOf(id) {
   const size = (n % 3 === 1 && g === n - 4) ? 4 : Math.min(3, n - g);
   return list.slice(g, g + size);
 }
+// 👥 모둠은 채팅방 없이 '꼭 댓글 달 친구'로만 써요. 결과(갤러리)는 반 모두에게 보이고, 모둠 친구 웹앱에는 댓글을 꼭 달아요
+const isHello = f => /^💬 안녕하세요 👋/.test(f.good || "");
+const commented = (fromId, toId) => !!fromId && feedbacks.some(f => f.fromPlan === fromId && f.planId === toId && !isHello(f));
+const myMates = () => myPlanId ? groupOf(myPlanId).filter(p => p.id !== myPlanId) : [];
+function groupBoxHTML() {
+  if (!myPlanId) return "";
+  const mates = myMates();
+  if (!mates.length) return `<div class="grp-box"><h4>👥 내 모둠 · 꼭 댓글 달 친구</h4><p class="muted" style="margin:0">친구들이 계획서를 저장하면 모둠이 정해져요 (저장한 순서대로 세 명씩).</p></div>`;
+  const done = mates.filter(p => commented(myPlanId, p.id)).length;
+  return `<div class="grp-box ${done === mates.length ? "all" : ""}"><h4>👥 내 모둠 · 꼭 댓글 달 친구 <small>${done}/${mates.length} 완료</small></h4>
+    ${mates.map(p => { const ok = commented(myPlanId, p.id); return `<button type="button" class="grp-mate ${ok ? "ok" : ""}" data-card="${p.id}"><span>${ok ? "✅" : "✍️"}</span><b>${esc(stu(p.id))}</b> ${esc(p.appName)}<em>${ok ? "댓글 완료" : previews[p.id] && previews[p.id].html ? "댓글 달기 →" : "미리보기 전 · 계획서에 댓글 →"}</em></button>`; }).join("")}
+    <p class="muted" style="margin:.25rem 0 0">다른 친구 웹앱에도 얼마든지 댓글을 달 수 있어요.</p></div>`;
+}
 // 반 전체 모둠 목록 (대시보드)
 function allGroups() {
   const out = [], seen = new Set();
@@ -2998,6 +3024,7 @@ function renderMyPlan(full) {
   const form = document.getElementById("myPlanForm");
   if (!full && form && m && form.sid.value === m.sid && form.name.value === m.name) {   // 쓰는 중에는 칸을 다시 그리지 않아요
     const tag = box.querySelector("[data-me-tag]"); if (tag) tag.innerHTML = subState(mine);
+    const gb = box.querySelector("[data-grp-box]"); if (gb) gb.innerHTML = groupBoxHTML();
     const pvb = box.querySelector("[data-pv-box]");
     if (pvb) { const old = document.getElementById("pvCode"), keep = old ? old.value : ""; pvb.outerHTML = pvMakeHTML(mine); const nw = document.getElementById("pvCode"); if (nw && keep) nw.value = keep; }   // 붙여 넣던 코드는 그대로
     return;
@@ -3007,6 +3034,7 @@ function renderMyPlan(full) {
     ${MINI_FORM("myPlanForm")}
     <p class="muted" style="margin:.5rem 0 0">✍️ 고치는 내용은 저절로 임시 저장돼요. <b>계획서 최종 저장하기</b>를 누르면 아래에서 <b>내 웹앱 미리보기</b>를 만들 수 있어요. 미리보기를 만들면 오른쪽 갤러리에 내 카드가 붙어요.</p>
     ${pvMakeHTML(mine)}
+    <div data-grp-box>${groupBoxHTML()}</div>
     ${AI_HELP}`;
   const f = document.getElementById("myPlanForm");
   const dr = getDraft();
@@ -3237,8 +3265,8 @@ function renderGallery(full) {
     }).join("")}</div>`;
 }
 function cntHTML(p) {
-  const n = cmtOf(p.id).length;
-  return `${likeBtn(p)}${n ? `<span>💬 ${n}개</span>` : `<span class="g-new">🙋 첫 댓글을!</span>`}<span class="g-st">${fmtTime(p.updatedAt)}</span>`;
+  const n = cmtOf(p.id).length, mate = myMates().some(x => x.id === p.id), ok = mate && commented(myPlanId, p.id);
+  return `${mate ? `<span class="g-mate ${ok ? "ok" : ""}">${ok ? "✅ 댓글 완료" : "👥 내 모둠 · 댓글 꼭!"}</span>` : ""}${likeBtn(p)}${n ? `<span>💬 ${n}개</span>` : `<span class="g-new">🙋 첫 댓글을!</span>`}<span class="g-st">${fmtTime(p.updatedAt)}</span>`;
 }
 /* ----- ♥ 좋아요: 한 사람이 한 카드에 한 번 (다시 누르면 취소), 숫자만 보이고 누가 눌렀는지는 안 보여요 -----
    문서 이름 = 계획서번호_열쇠(반 · 학번 · 닉네임으로 만든 12글자, 닉네임은 알 수 없어요) */
@@ -4374,16 +4402,20 @@ function renderDash() {
   });
   const ps = plansOfBan(), fs = fbOfBan();
   // 반마다 묶어서 늘 다 보여요 (B반 탭을 눌러도 A반 AI 탭이 사라지지 않게)
-  const TABS = [["visit", "📱 기기 접속 현황"], ["rollA", "✅ A반 출석부"], ["planA", "📝 A반 계획서"], ["chatA", "💬 A반 채팅방"], ["aisumA", "🤖 A반 AI 총평"], ["aifbA", "🧑‍🎓 A반 개인 피드백"],
-    ["rollB", "✅ B반 출석부"], ["planB", "📝 B반 계획서"], ["chatB", "💬 B반 채팅방"], ["aisumB", "🤖 B반 AI 총평"], ["aifbB", "🧑‍🎓 B반 개인 피드백"]];
+  const TABS = [["visit", "📱 기기 접속 현황"], ["rollA", "✅ A반 출석부"], ["planA", "📝 A반 계획서"], ["chatA", "👥 A반 모둠 댓글"], ["aisumA", "🤖 A반 AI 총평"], ["aifbA", "🧑‍🎓 A반 개인 피드백"],
+    ["rollB", "✅ B반 출석부"], ["planB", "📝 B반 계획서"], ["chatB", "👥 B반 모둠 댓글"], ["aisumB", "🤖 B반 AI 총평"], ["aifbB", "🧑‍🎓 B반 개인 피드백"]];
   const tabBar = `<div class="dash-tabs" role="tablist">${TABS.map(([k, n]) => `<button type="button" role="tab" class="${dashTab === k ? "on" : ""}" data-dtab="${k}">${n}</button>`).join("")}</div>`;
   if (dashTab === "visit") { box.innerHTML = tabBar + visitStatsHTML(); return; }
   if (dashTab.startsWith("aisum") || dashTab.startsWith("aifb")) { box.innerHTML = tabBar + `<div id="aiReportBox"><p class="muted">학생 기록을 모으는 중…</p></div>`; renderAiReport(dashTab.startsWith("aisum") ? "sum" : "fb"); return; }
   if (dashTab.startsWith("roll")) { box.innerHTML = tabBar + rosterHTML(ban); setTimeout(() => { box.scrollTop = boxTop; }); return; }
   if (dashTab.startsWith("chat")) {
+    const gs = allGroups(), all = gs.flatMap(g => g.flatMap(p => g.filter(x => x.id !== p.id).map(x => commented(p.id, x.id)))), okN = all.filter(Boolean).length;
     box.innerHTML = tabBar + `
-    <h4>🗨️ ${ban}반 모둠 채팅방 <button type="button" class="btn sm" data-csv="fb">채팅 기록 저장</button><span class="muted" style="font-size:.875rem">모둠마다 한 방 · 선생님도 말을 보낼 수 있어요 · 피드백 ${fs.length}개</span></h4>
-    ${ps.length ? `<div class="t-rooms">${allGroups().map((g, gi) => teacherRoomHTML(g, gi)).join("")}</div>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}`;
+    <h4>👥 ${ban}반 모둠 댓글 <button type="button" class="btn sm" data-csv="fb">댓글 기록 저장</button><span class="muted" style="font-size:.875rem">채팅방 없이 · 모둠 친구 웹앱에 댓글을 꼭 달기 · 완료 ${okN}/${all.length}</span></h4>
+    ${ps.length ? `<div class="tbl"><table><tr><th>모둠</th><th>학생</th><th>닉네임</th><th>웹앱</th><th>모둠 친구에게 댓글</th><th>완료</th><th>받은 댓글</th></tr>
+      ${gs.map((g, gi) => g.map((p, k) => { const mates = g.filter(x => x.id !== p.id), d = mates.filter(x => commented(p.id, x.id)).length; return `<tr>${k === 0 ? `<td rowspan="${g.length}"><b>${gi + 1}모둠</b></td>` : ""}<td><b>${stu(p.id)}</b></td><td>${esc((people[p.id] || {}).name || "-")}${realTag(ban, (people[p.id] || {}).name)}</td><td>${esc(p.appName)}</td>
+        <td>${mates.map(x => `<span class="grp-chip ${commented(p.id, x.id) ? "ok" : ""}">${commented(p.id, x.id) ? "✅" : "⬜"} ${stu(x.id)}</span>`).join(" ")}</td><td class="${d === mates.length ? "grp-done" : "grp-miss"}">${d}/${mates.length}</td><td>${cmtOf(p.id).filter(f => f.fromPlan !== p.id).length}</td></tr>`; }).join("")).join("")}</table></div>
+      <p class="muted">모둠은 계획서를 저장한 순서대로 세 명씩이에요 (마지막에 한 명이 남으면 앞 모둠에 넣어 넷). 댓글 내용은 9번 갤러리 카드에서 보고 고칠 수 있어요.</p>` : `<div class="empty">아직 제출한 계획서가 없어요.</div>`}`;
     return;
   }
   const who = w => w && w.name ? esc(w.name) + realTag(ban, w.name) : `<span class="muted">-</span>`;
