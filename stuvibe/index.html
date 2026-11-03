@@ -568,7 +568,8 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .chat{display:flex;flex-direction:column;border:2px solid var(--line);border-radius:1rem;background:linear-gradient(180deg,#FFF9FB,#F6FBFF);overflow:hidden}
 .chat-log{display:flex;flex-direction:column;gap:.5rem;padding:.75rem;max-height:22rem;min-height:12rem;overflow-y:auto}
 .chat-empty{margin:auto;text-align:center;color:var(--ink2);font-size:.9rem;line-height:1.6}
-.b-edit textarea{width:100%;border:1.5px solid var(--line);border-radius:.5rem;padding:.25rem .5rem;font:inherit;font-size:max(16px,.875rem)}
+.bubble.editing{max-width:100%;width:100%;align-self:stretch}
+.b-edit textarea{min-height:6rem;resize:vertical;width:100%;border:1.5px solid var(--line);border-radius:.5rem;padding:.25rem .5rem;font:inherit;font-size:max(16px,.875rem)}
 .b-edit > div{margin-top:.25rem}
 .del.edit{color:var(--ink2)}
 .bubble{max-width:85%;padding:.4375rem .6875rem;border-radius:1rem;font-size:.9rem;line-height:1.5;box-shadow:0 1px 2px rgba(0,0,0,.06)}
@@ -3333,8 +3334,9 @@ async function sendCard(cf) {
       e.stopPropagation();
       const f = feedbacks.find(x => x.id === ed.dataset.editfb); if (!f) return;
       const tag = tagOf(f.good), body = tag ? f.good.slice(tag.length + 1) : f.good;
-      const box = ed.closest(".bubble").querySelector(".b-text");
-      box.innerHTML = `<div class="b-edit"><textarea rows="3" maxlength="300">${esc(body)}</textarea><div><button type="button" class="btn sm" data-fbsave="${f.id}">저장</button> <button type="button" class="link" data-fbcancel>취소</button></div></div>`;
+      const bub = ed.closest(".bubble"), box = bub.querySelector(".b-text");
+      bub.classList.add("editing");   // 고치는 동안은 말풍선을 칸 너비만큼 넓게
+      box.innerHTML = `<div class="b-edit"><textarea rows="4" maxlength="300">${esc(body)}</textarea><div><button type="button" class="btn sm" data-fbsave="${f.id}">저장</button> <button type="button" class="link" data-fbcancel>취소</button></div></div>`;
       const ta = box.querySelector("textarea"); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
       return;
     }
@@ -3344,7 +3346,7 @@ async function sendCard(cf) {
       if (!f || !v) { toast("내용을 써 주세요"); return; }
       const tag = tagOf(f.good);
       try { sv.disabled = true; await updateFeedback(f.id, (tag ? tag + " " : "") + v); toast("댓글을 고쳤어요"); renderCard(true); }
-      catch (x) { console.error(x); toast("고치지 못했어요"); sv.disabled = false; }
+      catch (x) { console.error(x); toast(x && x.code === "permission-denied" ? "고칠 권한이 없어요 · Firebase 보안 규칙(댓글 고치기)을 게시해야 해요" : "고치지 못했어요 (" + ((x && (x.code || x.message)) || "") + ")"); sv.disabled = false; }
       return;
     }
     if (e.target.closest("[data-fbcancel]")) { renderCard(true); return; }
