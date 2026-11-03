@@ -4266,28 +4266,96 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("change", e => { const o = e.target.dataset && e.target.dataset.fbopt; if (o) fbSave(ban, sv => { sv[o] = e.target.checked; }); });
 // 🖨 출력: 새 창에 출력용 문서를 만들고 인쇄 창을 열어요 (인쇄 창에서 'PDF로 저장'을 고르면 PDF)
+// 모양은 우리반 생기부노트(note10) 상담 카드처럼: 파스텔 색 · 얇은 선 · 색 띠 제목(언즈체) · 표 · 박스 · 칩
+const PR_CSS = `@font-face{font-family:'OngleipUnz';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2406-1@1.0/Ownglyph_UNZ-Rg.woff2') format('woff2');size-adjust:125%}
+@page{size:A4;margin:12mm 13mm}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#4B3A3A;font-size:10pt;line-height:1.65;background:#fff}
+.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}
+.hand{font-family:'OngleipUnz','Pretendard',sans-serif;font-weight:400}
+.ban{display:flex;align-items:center;gap:4mm;background:linear-gradient(120deg,#FDE8EF,#FFF7F2 60%,#EFE9FB);border:1px solid #F2DDD6;border-radius:5mm;padding:4mm 5mm;margin:0 0 4mm}
+.ban .em{font-size:22pt;line-height:1}
+.ban h1{margin:0;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:22pt;line-height:1.1;color:#4B3A3A}
+.ban p{margin:1mm 0 0;color:#9B8782;font-size:9pt}
+.ban .tag{margin-left:auto;align-self:flex-start;background:#fff;border:1px solid #EE8FAD;color:#D2557F;border-radius:99px;padding:.5mm 3mm;font-size:8.5pt;white-space:nowrap}
+table.kv{width:100%;border-collapse:collapse;margin:0 0 3mm;font-size:9.5pt}
+table.kv th,table.kv td{border:1px solid #F2DDD6;padding:1.6mm 2.4mm;text-align:left;vertical-align:top}
+table.kv th{background:#FFF7F2;color:#9B8782;font-weight:500;white-space:nowrap;width:1%}
+.chips{display:flex;flex-wrap:wrap;gap:1.5mm;margin:0 0 4mm}
+.chip{display:inline-block;border-radius:99px;padding:.4mm 2.6mm;font-size:8.5pt;border:1px solid}
+.c-pink{background:#FDE8EF;border-color:#EE8FAD;color:#B23A64}.c-green{background:#E7F6ED;border-color:#7FC59A;color:#2E7D4F}.c-blue{background:#E6F0FB;border-color:#7AAEDB;color:#2F6A9E}.c-mus{background:#FBF1DD;border-color:#D9A74C;color:#8A6215}.c-pur{background:#EFE9FB;border-color:#A78BDC;color:#6243A8}.c-off{background:#fff;border-color:#E8E2DE;color:#C2B8B3;text-decoration:line-through}
+.sec{display:flex;align-items:center;gap:2mm;margin:4mm 0 2mm;padding:1.2mm 3mm;border-radius:2.5mm;color:#fff;font-family:'OngleipUnz',sans-serif;font-size:14pt;line-height:1.2}
+.sec small{font-family:'Pretendard',sans-serif;font-size:8pt;opacity:.92;margin-left:auto}
+.s-pink{background:#EE8FAD}.s-green{background:#7FC59A}.s-blue{background:#7AAEDB}.s-mus{background:#D9A74C}.s-pur{background:#A78BDC}
+.box{border:1px solid #F2DDD6;border-radius:3mm;padding:3mm 4mm;margin:0 0 2mm;background:#fff}
+.b-pink{background:#FDE8EF;border-color:#F6C3D4}.b-green{background:#E7F6ED;border-color:#BFE3CC}.b-blue{background:#E6F0FB;border-color:#C2DAF1}.b-mus{background:#FBF1DD;border-color:#EFD8A8}.b-pur{background:#EFE9FB;border-color:#D5C7F1}
+.fb{white-space:pre-wrap;font-size:10.5pt;line-height:1.8}
+.note{color:#9B8782;font-size:8pt;margin:0 0 1.5mm}
+.sign{text-align:right;color:#9B8782;font-size:8.5pt;margin:1mm 0 0}
+.foot{margin-top:5mm;padding-top:2mm;border-top:1px solid #F2DDD6;color:#B9ABA5;font-size:7.5pt;display:flex;justify-content:space-between}
+.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:2mm;margin:0 0 4mm}
+.tile{border:1px solid #F2DDD6;border-radius:3mm;padding:2mm 2.5mm;text-align:center}
+.tile b{display:block;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:20pt;line-height:1.1}
+.tile small{color:#9B8782;font-size:8pt}
+.card{border:1px solid #F2DDD6;border-left:2.2mm solid var(--c);border-radius:3mm;padding:2.5mm 4mm;margin:0 0 3mm;break-inside:avoid;background:#fff}
+.card h3{margin:0 0 1mm;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:14pt;color:var(--c)}
+.card ul{margin:.5mm 0;padding-left:4.5mm}.card li{margin:.6mm 0}.card p{margin:.8mm 0}
+table.list{width:100%;border-collapse:collapse;font-size:8.5pt;margin-top:1mm}
+table.list th,table.list td{border:1px solid #F2DDD6;padding:1.2mm 1.8mm;text-align:left;vertical-align:top}
+table.list th{background:#FFF7F2;color:#9B8782;font-weight:500}
+table.list tr:nth-child(even) td{background:#FFFCFA}`;
+const PR_COL = ["pink", "blue", "green", "mus", "pur"], PR_HEX = { pink: "#E27399", blue: "#5E97C9", green: "#5DAE7C", mus: "#C18E2C", pur: "#8D6BCF" };
+const chipsOf = r => [[r.plan, "📝 계획서", "green"], [r.preview, "🖼 미리보기", "blue"], [r.likes, `♥ 좋아요 ${r.likes}`, "pink"], [r.recv.length, `💬 받은 댓글 ${r.recv.length}`, "pink"], [r.gave.length, `✏️ 쓴 피드백 ${r.gave.length}`, "mus"], [r.walls.length, `🧱 성찰 문장 ${r.walls.length}`, "mus"], [r.rf && r.rf.final, "✍️ 성찰 저장", "pur"], [r.tr.length, "🚀 첫 웹앱", "blue"], [r.game, r.game ? `🎮 윤리 게임 ${msTxt(r.game.ms)}` : "🎮 윤리 게임", "green"]]
+  .map(([on, t, c]) => `<span class="chip ${on ? "c-" + c : "c-off"}">${esc(t)}</span>`).join("");
+// 마크다운 비슷한 총평 → '## 제목' 마다 색 띠 카드
+function sumCards(text) {
+  const parts = String(text || "").split(/^\s*#{1,3}\s+/m).map(x => x.trim()).filter(Boolean);
+  return parts.map((p, i) => {
+    const [h, ...rest] = p.split("\n"), c = PR_HEX[PR_COL[i % PR_COL.length]];
+    const body = rest.join("\n").trim().split("\n").map(l => l.trim()).filter(Boolean);
+    let html = "", inUl = false;
+    body.forEach(l => { const b = /^[-*•]\s+/.test(l); if (b && !inUl) { html += "<ul>"; inUl = true; } if (!b && inUl) { html += "</ul>"; inUl = false; } const t = esc(l.replace(/^[-*•]\s+/, "")).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); html += b ? `<li>${t}</li>` : `<p>${t}</p>`; });
+    if (inUl) html += "</ul>";
+    return rest.length || parts.length > 1 ? `<div class="card" style="--c:${c}"><h3>${esc(h.replace(/\*\*/g, ""))}</h3>${html}</div>` : `<div class="card" style="--c:${c}"><p>${esc(h)}</p></div>`;
+  }).join("");
+}
 function printAi(kind, only) {
-  const b = ban, date = new Date().toLocaleDateString("ko-KR"), sv = aiGet(b, kind) || {};
-  const css = `@page{size:A4;margin:16mm}body{font-family:'Gowun Dodum','Malgun Gothic',sans-serif;color:#222;line-height:1.7;font-size:11pt}h1{font-size:18pt;margin:0 0 2mm}h2{font-size:14pt;margin:0 0 3mm}h3{font-size:12pt;margin:5mm 0 1mm;color:#B23A64}.meta{color:#777;font-size:9.5pt;margin:0 0 5mm;border-bottom:1.5px solid #ddd;padding-bottom:3mm}.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.box{border:1.5px solid #eee;border-radius:3mm;padding:3mm 4mm;margin:3mm 0;background:#FFFBF8}.box b{color:#B23A64}.fb{font-size:11.5pt;white-space:pre-wrap}.sign{margin:2mm 0 4mm;text-align:right;color:#777;font-size:9.5pt}.aibox{border:1.5px dashed #9AA3C7;border-radius:3mm;padding:2mm 4mm 3mm;margin:4mm 0;background:#F6F8FD}.aibox h3{color:#3F5BA9;margin-top:1mm}.ainote{color:#5F6B8A;font-size:9pt;margin:0 0 2mm}li{margin:.5mm 0}p{margin:1.5mm 0}`;
+  const b = ban, date = new Date().toLocaleDateString("ko-KR"), foot = `<div class="foot"><span>진로탐구수업 「바이브코딩으로 웹앱 만들기」 · ${b}반</span><span>moontr.site/stuvibe · ${date}</span></div>`;
   let body = "";
   if (kind === "sum") {
+    const sv = aiGet(b, "sum") || {};
     if (!sv.text) { toast("먼저 AI 총평을 붙여 넣어 주세요"); return; }
-    const n = aiRecs.length, has = f => aiRecs.filter(f).length;
-    body = `<div class="page"><h1>진로탐구수업 「바이브코딩으로 웹앱 만들기」 수업 총평</h1><p class="meta">${b}반 · 학생 ${n}명 · 계획서 ${has(r => r.plan)}명 · 미리보기 ${has(r => r.preview)}명 · 성찰 ${has(r => r.rf && r.rf.final)}명 · ${date} · 교사용</p>${mdLite(sv.text)}</div>`;
+    const R = aiRecs, has = f => R.filter(f).length;
+    const tiles = [[R.length, "학생"], [has(r => r.plan), "계획서"], [has(r => r.preview), "미리보기"], [has(r => r.rf && r.rf.final), "성찰 저장"], [R.reduce((s, r) => s + r.gave.length, 0), "친구 피드백"], [R.reduce((s, r) => s + r.likes, 0), "좋아요"]];
+    body = `<div class="page">
+      <div class="ban"><span class="em">📊</span><div><h1>수업 총평</h1><p>진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편)」 · ${b}반 · ${date}</p></div><span class="tag">교사용</span></div>
+      <div class="tiles">${tiles.map(([n, t], i) => `<div class="tile b-${PR_COL[i % 5]}"><b>${n}</b><small>${t}</small></div>`).join("")}</div>
+      <div class="sec s-pur">🤖 AI 총평<small>AI가 학생 활동 기록을 읽고 쓴 글이에요 · 참고용</small></div>
+      ${sumCards(sv.text)}
+      <div class="sec s-green">📋 학생별 활동 한눈에<small>이름 대신 닉네임 · 번호는 AI에게 보낸 번호</small></div>
+      <table class="list"><tr><th>번호</th><th>닉네임</th><th>웹앱</th><th>활동</th><th>♥</th><th>댓글</th></tr>
+      ${R.map(r => `<tr><td>${r.code}</td><td>${esc(r.nick)}</td><td>${r.plan ? esc(r.plan.appName) : '<span style="color:#C2B8B3">계획서 없음</span>'}</td><td>${[r.plan && "📝", r.preview && "🖼", r.walls.length && "🧱", r.rf && r.rf.final && "✍️", r.tr.length && "🚀", r.game && "🎮"].filter(Boolean).join(" ")}</td><td>${r.likes}</td><td>${r.recv.length}</td></tr>`).join("")}</table>
+      ${foot}</div>`;
   } else {
     const fs = fbStore(b), real = !!fs.real, inT = fs.inT !== false, inAi = fs.inAi !== false, A = fs.ai || {}, T = fs.tf || {};
     const list = aiRecs.filter(r => (!only || r.nick === only) && ((inT && T[r.nick]) || (inAi && A[r.nick])));
     if (!list.length) { toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
-    body = list.map(r => `<div class="page"><h2>🌱 나의 바이브코딩 수업 피드백</h2>
-      <p class="meta">진로탐구수업 「바이브코딩으로 웹앱 만들기」 · ${b}반 · ${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + " · " : ""}${esc(r.nick)} · ${date}</p>
-      ${r.plan ? `<div class="box"><b>📱 내가 계획한 웹앱</b><p><b style="color:#222">${esc(r.plan.appName)}</b></p><p>${nl(cut(r.plan.content || [r.plan.problem, r.plan.features].filter(Boolean).join(" / "), 400))}</p>${r.likes || r.recv.length ? `<p style="color:#777;font-size:9.5pt">받은 ♥ ${r.likes}개 · 받은 댓글 ${r.recv.length}개 (친구 · 선생님)</p>` : ""}</div>` : ""}
-      ${inT && T[r.nick] ? `<h3>🧑‍🏫 선생님 피드백</h3><div class="fb">${esc(T[r.nick])}</div><p class="sign">진로탐구수업 담당 교사</p>` : ""}
-      ${inAi && A[r.nick] ? `<div class="aibox"><h3>🤖 AI 피드백</h3><p class="ainote">AI(인공지능)가 이 수업에서 남긴 활동 기록(계획서 · 친구 피드백 · 성찰)을 읽고 쓴 내용이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
-      ${r.rf && r.rf.final ? `<div class="box"><b>✍️ 내가 쓴 성찰</b><p>${nl(cut(r.rf.final, 500))}</p></div>` : ""}
-    </div>`).join("");
+    body = list.map(r => `<div class="page">
+      <div class="ban"><span class="em">🌱</span><div><h1>나의 바이브코딩 수업 피드백</h1><p>진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편)」</p></div><span class="tag">${b}반</span></div>
+      <table class="kv"><tr><th>반</th><td>${b}반</td><th>${real && r.real ? "학번 · 이름" : "닉네임"}</th><td>${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + ` <span style="color:#9B8782">(${esc(r.nick)})</span>` : esc(r.nick)}</td><th>날짜</th><td>${date}</td></tr></table>
+      <div class="chips">${chipsOf(r)}</div>
+      ${r.plan ? `<div class="sec s-green">📱 내가 계획한 웹앱</div>
+      <table class="kv"><tr><th>웹앱 이름</th><td><b>${esc(r.plan.appName)}</b></td></tr>
+        ${r.plan.content ? `<tr><th>웹앱 내용</th><td>${nl(cut(r.plan.content, 420))}</td></tr>` : ""}
+        ${!r.plan.content && r.plan.problem ? `<tr><th>누가 · 어떤 불편</th><td>${nl(cut(r.plan.problem, 260))}</td></tr>` : ""}
+        ${r.plan.features ? `<tr><th>꼭 필요한 기능</th><td>${nl(cut(r.plan.features, 260))}</td></tr>` : ""}</table>` : ""}
+      ${inT && T[r.nick] ? `<div class="sec s-pink">🧑‍🏫 선생님 피드백</div><div class="box b-pink"><div class="fb">${esc(T[r.nick])}</div><p class="sign">진로탐구수업 담당 교사</p></div>` : ""}
+      ${inAi && A[r.nick] ? `<div class="sec s-pur">🤖 AI 피드백<small>참고용</small></div><div class="box b-pur"><p class="note">※ AI(인공지능)가 이 수업에서 남긴 활동 기록(계획서 · 친구 피드백 · 성찰)을 읽고 쓴 글이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
+      ${r.rf && r.rf.final ? `<div class="sec s-mus">✍️ 내가 쓴 성찰</div><div class="box b-mus"><div class="fb">${esc(cut(r.rf.final, 520))}</div></div>` : ""}
+      ${foot}</div>`).join("");
   }
   const w = window.open("", "_blank"); if (!w) { toast("새 창이 막혔어요. 팝업을 허용해 주세요"); return; }
-  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${kind === "sum" ? `${b}반 AI 총평` : `${b}반 개인 피드백`}</title><link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet"><style>${css}</style></head><body>${body}<script>document.fonts.ready.then(()=>setTimeout(()=>print(),300))<\/script></body></html>`);
+  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${kind === "sum" ? `${b}반 수업 총평` : `${b}반 개인 피드백`}</title><link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"><style>${PR_CSS}</style></head><body>${body}<script>document.fonts.ready.then(()=>setTimeout(()=>print(),400))<\/script></body></html>`);
   w.document.close();
 }
 
