@@ -568,6 +568,9 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .chat{display:flex;flex-direction:column;border:2px solid var(--line);border-radius:1rem;background:linear-gradient(180deg,#FFF9FB,#F6FBFF);overflow:hidden}
 .chat-log{display:flex;flex-direction:column;gap:.5rem;padding:.75rem;max-height:22rem;min-height:12rem;overflow-y:auto}
 .chat-empty{margin:auto;text-align:center;color:var(--ink2);font-size:.9rem;line-height:1.6}
+.b-edit textarea{width:100%;border:1.5px solid var(--line);border-radius:.5rem;padding:.25rem .5rem;font:inherit;font-size:max(16px,.875rem)}
+.b-edit > div{margin-top:.25rem}
+.del.edit{color:var(--ink2)}
 .bubble{max-width:85%;padding:.4375rem .6875rem;border-radius:1rem;font-size:.9rem;line-height:1.5;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .bubble.you{align-self:flex-start;background:#fff;border:1.5px solid var(--line);border-bottom-left-radius:.25rem}
 .bubble.me{align-self:flex-end;background:color-mix(in srgb,var(--c) 22%,#fff);border-bottom-right-radius:.25rem}
@@ -1775,6 +1778,11 @@ async function deletePlan(id) {
   [COL_PLANS, COL_KEYS, COL_FB, COL_WHO].forEach(localEmit);
 }
 
+// 댓글 고치기: 글(good)만 바꿔요. 👍 같은 꼬리표는 그대로
+async function updateFeedback(id, good) {
+  if (LIVE) return db.collection(COL_FB).doc(id).update({ good, updatedAt: Date.now() });
+  localSet(COL_FB, localGet(COL_FB).map(x => x.id === id ? { ...x, good, updatedAt: Date.now() } : x)); localEmit(COL_FB);
+}
 async function deleteFeedback(id) {
   if (LIVE) {
     const b = db.batch();
@@ -2952,7 +2960,7 @@ function bubbleHTML(f, meId, opt = {}) {
   return `<div class="bubble ${mine ? "me" : t ? "you t" : "you"}">
     <div class="b-who">${mine ? "나" : esc(whoLabel(f.fromPlan))}${tag && !t ? ` <span class="b-tag">${tag} ${TAG_NAME[tag]}</span>` : ""}${target ? ` <span class="b-to">${target}</span>` : ""}</div>
     <div class="b-text">${text}</div>
-    <div class="b-time">${fmtTime(f.createdAt)}${opt.del ? ` <button type="button" class="del" data-delfb="${f.id}">삭제</button>` : ""}</div>
+    <div class="b-time">${fmtTime(f.createdAt)}${f.updatedAt && f.updatedAt - (f.createdAt || 0) > 2000 ? " · 고침" : ""}${opt.edit && !hi && (teacher || mine) ? ` <button type="button" class="del edit" data-editfb="${f.id}">고치기</button>` : ""}${opt.del ? ` <button type="button" class="del" data-delfb="${f.id}">삭제</button>` : ""}</div>
   </div>`;
 }
 function chatHTML(ids, meId, opt) {
@@ -3271,6 +3279,7 @@ function renderCard(full) {
   const log = document.getElementById("cardLog");
   if (!full && log) {   // 쓰는 중인 댓글은 그대로 두고 댓글 목록 · 미리보기 정보만 바꿔요
     const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    if (log.querySelector(".b-edit")) { const c = document.getElementById("cardCnt"); if (c) c.textContent = list.length; return; }   // 고치는 중이면 그대로
     log.innerHTML = cardLogHTML(list);
     if (atEnd) log.scrollTop = log.scrollHeight;
     const c = document.getElementById("cardCnt"); if (c) c.textContent = list.length;
@@ -3299,7 +3308,7 @@ function renderCard(full) {
   cf.msg.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); cf.requestSubmit(); } });
 }
 const cardLogHTML = list => list.length
-  ? list.map(f => bubbleHTML(f, myPlanId, { del: teacher, noTo: true })).join("")
+  ? list.map(f => bubbleHTML(f, myPlanId, { del: teacher, noTo: true, edit: true })).join("")
   : `<div class="chat-empty">아직 댓글이 없어요.<br>먼저 <b>👍 좋은 점</b>부터 남겨 볼까요?</div>`;
 async function sendCard(cf) {
   const text = cf.msg.value.trim(), p = plans.find(x => x.id === cardId); if (!text || !p) return;
@@ -3319,6 +3328,26 @@ async function sendCard(cf) {
     const tg = e.target.closest("[data-tag]");
     if (tg) { cardTag = tg.dataset.tag; d.querySelectorAll("[data-tag]").forEach(x => x.classList.toggle("on", x === tg)); const f = document.getElementById("cardForm"); if (f) f.msg.focus(); return; }
     if (e.target.closest("[data-card-full]")) { const fr = d.querySelector(".card-pv iframe"); if (fr && fr.requestFullscreen) fr.requestFullscreen(); return; }
+    const ed = e.target.closest("[data-editfb]");
+    if (ed) {
+      e.stopPropagation();
+      const f = feedbacks.find(x => x.id === ed.dataset.editfb); if (!f) return;
+      const tag = tagOf(f.good), body = tag ? f.good.slice(tag.length + 1) : f.good;
+      const box = ed.closest(".bubble").querySelector(".b-text");
+      box.innerHTML = `<div class="b-edit"><textarea rows="3" maxlength="300">${esc(body)}</textarea><div><button type="button" class="btn sm" data-fbsave="${f.id}">저장</button> <button type="button" class="link" data-fbcancel>취소</button></div></div>`;
+      const ta = box.querySelector("textarea"); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+      return;
+    }
+    const sv = e.target.closest("[data-fbsave]");
+    if (sv) {
+      const f = feedbacks.find(x => x.id === sv.dataset.fbsave), ta = sv.closest(".b-edit").querySelector("textarea"), v = ta.value.trim();
+      if (!f || !v) { toast("내용을 써 주세요"); return; }
+      const tag = tagOf(f.good);
+      try { sv.disabled = true; await updateFeedback(f.id, (tag ? tag + " " : "") + v); toast("댓글을 고쳤어요"); renderCard(true); }
+      catch (x) { console.error(x); toast("고치지 못했어요"); sv.disabled = false; }
+      return;
+    }
+    if (e.target.closest("[data-fbcancel]")) { renderCard(true); return; }
     const dl = e.target.closest("[data-delfb]");
     if (dl && teacher) { e.stopPropagation(); if (confirm("이 댓글을 지울까요?")) { try { await deleteFeedback(dl.dataset.delfb); toast("지웠어요"); } catch (x) { toast("지우지 못했어요"); } } }
   });

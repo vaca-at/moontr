@@ -114,6 +114,12 @@ service cloud.firestore {
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int
         && existsAfter(/databases/$(database)/documents/vibe_fb_who/$(id));
+      // 고치기: 글(good) · 고친 시각만. 선생님 댓글(fromPlan 'teacher')은 선생님만 고쳐요
+      // 로그인이 없어 학생 '내 것'을 규칙으로 완전히 잠글 수는 없어요 (계획서와 같아요) → 화면에서 내 댓글에만 고치기 단추
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['good','updatedAt'])
+        && vibeText(request.resource.data, 'good', 1, 1000)
+        && request.resource.data.updatedAt is int
+        && (resource.data.fromPlan != 'teacher' || isTeacher());
       allow delete: if isTeacher();
     }
 
