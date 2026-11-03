@@ -499,6 +499,13 @@ const V = (c, id, prog, t, full, key, q) => ({ e: "🎬", t, c, key, tags: [prog
   html: `${NOEMBED.has(id) ? `<a class="vid" href="${yt(id)}" target="_blank" rel="noopener"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt=""><span class="vid-go">▶ 유튜브에서 보기</span></a>` : `<div class="vid"><iframe src="https://www.youtube-nocookie.com/embed/${id}" title="${full}" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>`}
   <p class="muted">${prog} · 유튜브 제목: ${full} ${A(yt(id), "▶ 유튜브에서 보기")}</p>
   <h4>💭 생각하며 보기</h4>${UL(q)}${formBox("video")}` });
+// VS(색, 프로그램, 카드 제목, 한 줄 소개, [[유튜브ID, 유튜브 제목, 시작 초, 끝 초(없으면 0)], ...], [생각하며 볼 질문])
+// 정해진 구간만 팝업 안에서 바로 봐요 (전자칠판에서 유튜브가 안 열려도 볼 수 있게). 시작 · 끝은 초 단위 (12분 30초 = 750)
+const mmss = n => `${Math.floor(n / 60)}분${n % 60 ? ` ${n % 60}초` : ""}`;
+const VS = (c, prog, t, key, clips, q) => ({ e: "🎬", t, c, key, tags: [prog, `${clips.length}편 이어 보기`], thumb: clips[0][0],
+  html: clips.map(([id, full, st, en], i) => `<h4>${["①", "②", "③", "④"][i] || i + 1} ${full} <small class="muted">· ${st ? mmss(st) + "부터" : "처음부터"}${en ? " " + mmss(en) + "까지" : " 끝까지"}</small></h4>
+  <div class="vid"><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0${st ? "&start=" + st : ""}${en ? "&end=" + en : ""}" title="${full}" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>
+  <p class="muted">${A(`https://youtu.be/${id}${st ? "?t=" + st : ""}`, "▶ 유튜브에서 보기")} · 영상 오른쪽 아래 ⛶ 로 크게 볼 수 있어요</p>`).join("") + `<h4>💭 생각하며 보기</h4>${UL(q)}${formBox("video")}` });
 // BK(색, 이모지, 사상가, [[책 제목, 펴낸 해, 읽을 부분], ...], 한 줄 소개, [읽으며 생각할 질문])
 const BK = (c, e, who, books, key, q) => ({ e, t: who, c, key, tags: books.map(b => b[0]),
   html: `<table class="cmp"><tr><th>책</th><th>펴낸 해</th><th>먼저 읽을 부분</th></tr>${books.map(b => `<tr><td><b>${b[0]}</b></td><td>${b[1]}</td><td>${b[2]}</td></tr>`).join("")}</table>
@@ -555,6 +562,10 @@ const CONTRACT = {
 const R = C.coral;
 const JUSTICE = {
   video: [
+    VS(R, "EBS 다큐프라임", "법과 정의 3부 (002 · 003)", `처벌은 <span class="mark">무엇을 바로잡는</span> 걸까?`, [
+      ["JEfAl4zJ_xI", "EBS 다큐프라임 - 법과 정의 3부 #002", 750, 0],
+      ["6AxevFRxdYo", "EBS 다큐프라임 - 법과 정의 3부 #003", 0, 677]
+    ], ["영상 속 사례에서 ‘잘못을 바로잡는다’는 것은 무엇을 뜻할까요? (교정적 정의)", "응보주의와 공리주의는 이 사례의 처벌을 각각 어떻게 평가할까요?", "공정한 처벌의 조건(학습지 5쪽)에 비추어 영상 속 처벌을 평가해요."]),
     V(R, "xX1hGaUIy2s", "EBS 5분 특강", "아리스토텔레스의 정의", "저 너머에 있는 것 말고 지금 여기에서, 아리스토텔레스의 정의 | 5분 특강, 생각을 움직이는 생각", `분배적 정의와 <span class="mark">교정적 정의</span>의 출발점`, ["교정적 정의는 왜 ‘사람’이 아니라 ‘손해’를 보고 바로잡을까?", "분배적 정의와 교정적 정의의 차이를 예를 들어 설명해요."]),
     V(R, "TEfXhRmqVHQ", "EBS 5분 특강", "칸트의 사형론", "사형수를 위해서(?) 사형을 하는 것이 좋겠다는 칸트 | 5분 특강, 세상을 움직이는 생각", `사형이 오히려 <span class="mark">인격 존중</span>이라고?`, ["칸트는 왜 형벌이 ‘다른 목적의 수단’이 되면 안 된다고 했을까?", "‘동등성의 원리’는 모든 범죄에 적용될 수 있을까?"]),
     V(R, "mJJOM7HVew0", "EBS 5분 특강", "벤담과 밀의 공리주의", "벤담과 밀의 공리주의 | 5분 특강, 세상을 움직이는 생각", `처벌도 <span class="mark">최대 행복</span>의 계산으로?`, ["공리주의는 처벌을 왜 ‘그 자체로 악’이라고 볼까?", "예방 효과만 크다면 무고한 사람을 벌해도 될까? 공리주의의 약점을 생각해요."]),
@@ -562,8 +573,7 @@ const JUSTICE = {
     V(R, "Yd535xO_Nbo", "EBS 5분 특강", "루소의 사형론", "네 이익을 위해 죽일 수 있다면, 죽을 수도 있는 거겠지 | 5분 특강, 세상을 움직이는 생각", `계약을 깬 사람은 <span class="mark">더 이상 시민이 아니다</span>?`, ["루소와 베카리아는 같은 사회 계약에서 출발했는데 왜 결론이 다를까?", "사회 계약을 깼다는 것만으로 생명을 빼앗을 수 있을까?"]),
     V(R, "1vGaRzoX0bk", "EBS 5분 특강", "벤담의 판옵티콘", "벤담, 원형 감옥 판옵티콘? | 5분 특강, 세상을 움직이는 생각", `보이지 않는 감시자, <span class="mark">효율적인 교정</span>일까?`, ["판옵티콘은 공리주의의 어떤 생각에서 나왔을까?", "CCTV와 SNS로 가득한 오늘의 사회는 판옵티콘일까?"]),
     V(R, "Y7t4X5q2qzM", "EBS 지식채널e", "사형 집행 중 일어난 논란", "사형 집행 중 일어난 논란에 관하여 | 지식채널e", `사형 집행 과정이 던지는 <span class="mark">인권</span>의 질문`, ["‘비인도적 형벌’이라는 사형 반대 근거와 이 영상은 어떻게 이어질까?", "사형 찬성 입장이라면 이 문제에 어떻게 답할까?"]),
-    V(R, "TOYrlV1YjWo", "EBS 지식채널e", "AI가 범죄자를 지목한다면", "[EBS] AI가 당신을 범죄자로 지목한다면? | 드디어 AI가 범인까지 예측하는 시대 | #지식채널e", `범죄 <span class="mark">예측</span>으로 미리 처벌해도 될까?`, ["죄형 법정주의의 ‘유죄 조건’과 범죄 예측 기술은 부딪히지 않을까?", "공리주의라면 범죄 예측을 어떻게 평가할까?"]),
-    V(R, "2xonQZn6DfM", "EBS 다큐프라임", "법과 정의 1부", "EBS 다큐프라임 - 법과 정의 1부 #001", `법은 언제나 <span class="mark">정의로울까</span>?`, ["법과 정의가 어긋나는 사례를 하나 찾아요.", "공정한 처벌의 조건(학습지 5쪽)으로 이 영상의 사례를 평가해요."])
+    V(R, "TOYrlV1YjWo", "EBS 지식채널e", "AI가 범죄자를 지목한다면", "[EBS] AI가 당신을 범죄자로 지목한다면? | 드디어 AI가 범인까지 예측하는 시대 | #지식채널e", `범죄 <span class="mark">예측</span>으로 미리 처벌해도 될까?`, ["죄형 법정주의의 ‘유죄 조건’과 범죄 예측 기술은 부딪히지 않을까?", "공리주의라면 범죄 예측을 어떻게 평가할까?"])
   ],
   book: [
     BK(R, "🏛️", "아리스토텔레스", [["『니코마코스 윤리학』", "기원전 4세기", "5권(정의) — 특히 4장 교정적 정의"]], `교정적 정의라는 말이 <span class="mark">처음 나온 책</span>`, ["교정적 정의에서 ‘산술적 비례’는 무엇을 뜻할까?", "재판관을 ‘살아 있는 정의’라고 한 까닭은?"]),
