@@ -286,6 +286,25 @@ details.more.pt .pop-panel:has(> .dom-card){background:none;border:0;padding:0} 
 .chk li{display:flex;gap:.4375rem;align-items:flex-start;background:#fff;border:1.5px solid var(--line);border-radius:.75rem;padding:.3125rem .5rem;font-size:.875rem;line-height:1.4}
 .chk li span{flex:none}
 .chk li small{display:block;color:var(--ink2);font-size:.86em}   /* 피드백 체크리스트 */
+/* 📜 계획서가 바뀐 과정 */
+.hist-note{margin:.5rem 0 0;padding:.625rem .75rem;border-radius:.75rem;background:color-mix(in srgb,var(--sky) 12%,#fff);border:1px dashed color-mix(in srgb,var(--sky) 55%,#fff);font-size:.875rem;line-height:1.6;color:var(--ink)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid color-mix(in srgb,var(--sky) 60%,#fff);box-shadow:none}
+.hist-sum{display:flex;flex-wrap:wrap;gap:.375rem;margin:0 0 .75rem}
+.hist-sum span{padding:.25rem .625rem;border-radius:99px;background:color-mix(in srgb,var(--sky) 14%,#fff);font-size:.8125rem}
+.hist-v{border:1px solid color-mix(in srgb,var(--sky) 35%,#fff);border-radius:.875rem;padding:.75rem .875rem;margin:0 0 .625rem;background:#fff}
+.hist-v.now{border-width:2px;border-color:var(--sky)}
+.hist-h{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem .625rem;margin:0 0 .375rem;font-size:.875rem}
+.hist-h b{font-size:1rem}
+.hist-h .src{padding:.125rem .5rem;border-radius:99px;font-size:.75rem;background:#F1F3F7}
+.hist-h .src.gemini{background:#EFE9FB;color:#6243A8}.hist-h .src.plan6{background:#E7F6ED;color:#2E7D4F}.hist-h .src.plan9{background:#E6F0FB;color:#2F6A9E}.hist-h .src.before{background:#FBF1DD;color:#8A6215}
+.hist-h .fb{color:#B23A64;font-size:.8125rem}
+.hist-h .len{margin-left:auto;color:var(--muted);font-size:.8125rem}
+.hist-diff{white-space:pre-wrap;word-break:break-word;font-size:.9375rem;line-height:1.75;background:#FAFBFD;border-radius:.625rem;padding:.5rem .75rem;max-height:22rem;overflow:auto}
+.hist-diff ins{background:#D9F5E3;color:#1E6B42;text-decoration:none;border-radius:.2rem}
+.hist-diff del{background:#FDE3E3;color:#B3261E;border-radius:.2rem}
+.hist-legend{font-size:.8125rem;color:var(--muted);margin:0 0 .625rem}
+.hist-legend ins{background:#D9F5E3;color:#1E6B42;text-decoration:none;padding:0 .25rem}.hist-legend del{background:#FDE3E3;color:#B3261E;padding:0 .25rem}
+.hist-btn{border:0;background:none;color:var(--sky);font:inherit;font-weight:700;cursor:pointer;padding:0;text-decoration:underline}
 /* 계획서 저장 줄 · 고치기 단추 */
 .plan-form .who-line{display:none;align-items:center;gap:.75rem;flex-wrap:wrap;background:color-mix(in srgb,var(--c) 10%,#fff);border-radius:.75rem;padding:.375rem .75rem;font-size:.9375rem}
 .plan-form.has-me .who-line{display:flex}
@@ -570,6 +589,7 @@ header > .tools{margin-left:auto}   /* 오른쪽 단추들은 그대로 오른�
 @keyframes editPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 @media (prefers-reduced-motion:reduce){.edit-plan-btn{animation:none}}
 /* 8번: 내 계획서 · 짝 친구 계획서 카드 */
+.me-locked{opacity:.6;cursor:not-allowed}.me-locked :disabled{cursor:not-allowed}   /* 나를 알려 주기 전: 칸은 그대로 보이고 잠겨요 */
 .me-bar{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.9375rem}
 .who-form{margin-bottom:.75rem}
 .btn.sm{font-size:1.125rem;padding:.375rem .875rem}
@@ -1425,6 +1445,12 @@ ol.num > li::before{content:counter(n);position:absolute;left:0;top:.125rem;widt
   <div class="doc-body" id="cardBody"></div>
 </dialog>
 
+<!-- 📜 계획서가 바뀐 과정 (학생: 내 계획서 · 선생님: 대시보드) -->
+<dialog class="doc wide" id="dlgHist" aria-labelledby="dlgHistT" style="--c:var(--sky)">
+  <div class="doc-head"><h3 id="dlgHistT">📜 계획서가 바뀐 과정</h3><button type="button" data-close>닫기</button></div>
+  <div class="doc-body" id="histBody"></div>
+</dialog>
+
 <!-- 📌 3번 첫 웹앱 담벼락: 붙이기 · 크게 보기 -->
 <dialog class="doc wide" id="dlgTry" aria-labelledby="dlgTryT" style="--c:var(--mustard)">
   <div class="doc-head"><h3 id="dlgTryT">📌 우리 반 첫 웹앱</h3><button type="button" data-close>닫기</button></div>
@@ -1625,6 +1651,7 @@ const ADMIN_EMAILS = ["bellachord@gmail.com", "anstjsdud@sen.go.kr"];   // 관�
 const isAdminEmail = e => ADMIN_EMAILS.includes(e);
 // 화면에는 닉네임 대신 '학생 A'처럼 제출 순서로만 보여요.
 const COL_PLANS = "vibe_plans";     // 계획서 (누구나 보기, 닉네임 없음)
+const COL_HIST = "vibe_plan_hist";  // 📜 계획서가 바뀐 과정: 저장할 때마다 그때 내용을 한 장씩 (덮어쓰지 않아요 · 계획서처럼 닉네임 없음)
 const COL_KEYS = "vibe_plan_keys";  // 문서 이름 = 반·닉네임·학번의 해시 → 계획서 번호·반·닉네임 (관리자만 목록 보기, 학번은 저장 안 함)
 const COL_FB = "vibe_feedback";     // 피드백 (누구나 보기, 쓴 사람은 '학생 A'·'친구'로만)
 const COL_PREVIEW = "vibe_preview"; // 계획서 미리보기: AI가 만든 index.html 코드 (문서 이름 = 계획서 번호, 누구나 보기)
@@ -1692,6 +1719,11 @@ async function findPlanId(banX, sid, name) {
 }
 
 // 계획서 저장: 같은 반·닉네임·학번이면 새 내용으로 바꿔요. 바꿨으면 true
+// 📜 바뀐 과정: 저장할 때마다 그때 내용을 vibe_plan_hist 에 한 장씩 더 남겨요 (예전 내용을 덮어쓰지 않아요)
+//   src = 어디서 저장했는지: plan6 (6번 계획서) · plan9 (9번 내 계획서) · gemini (Gemini로 다듬어 붙여 넣은 뒤) · before (이 기록을 시작하기 전 마지막 내용)
+let polishUsed = false;   // 9번에서 [📋 웹앱 내용 칸에 붙여 넣기]를 눌렀으면 다음 저장은 'Gemini로 다듬은 뒤'
+const HIST_KEYS = ["appName", "problem", "features", "look", "prompt", "content", "url"];
+const histRow = (planId, banX, p, src, at) => { const r = { planId, ban: banX, src, at }; HIST_KEYS.forEach(k => { r[k] = String((p && p[k]) || ""); }); return r; };
 async function savePlan(d) {
   const { sid, name } = d; delete d.sid; delete d.name;
   const now = Date.now();
@@ -1700,23 +1732,100 @@ async function savePlan(d) {
   // 칸이 다른 양식(6번 네 칸 · 9번 세 칸)에서 저장해도, 이 양식에 없는 칸은 예전 내용을 그대로 지켜요
   const keep = {}; PLAN_TEXT.forEach(k => { keep[k] = (old && old[k]) || ""; });
   const data = { ...keep, ...d, createdAt: (old && old.createdAt) || now, updatedAt: now };
+  const src = "content" in d ? (polishUsed ? "gemini" : "plan9") : "plan6";
+  const changed = !old || HIST_KEYS.some(k => String(old[k] || "") !== String(data[k] || ""));
   if (LIVE) {
     const planRef = planId ? db.collection(COL_PLANS).doc(planId) : db.collection(COL_PLANS).doc();
     const b = db.batch();
     b.set(planRef, data);
     if (!planId) b.set(db.collection(COL_KEYS).doc(key), { planId: planRef.id, ban: d.ban, name });
+    if (changed) {
+      // 이 기록을 시작하기 전에 낸 계획서면, 고치기 전 내용을 첫 장으로 먼저 남겨요
+      if (old) { try { if ((await db.collection(COL_HIST).where("planId", "==", planId).limit(1).get()).empty) b.set(db.collection(COL_HIST).doc(), histRow(planId, d.ban, old, "before", old.updatedAt || old.createdAt || now - 1)); } catch (e) {} }
+      b.set(db.collection(COL_HIST).doc(), histRow(planRef.id, d.ban, data, src, now));
+    }
     await b.commit();
+    if (changed) { polishUsed = false; delete planHist[planRef.id]; }
     return !!planId;
   }
   const arr = localGet(COL_PLANS);
+  let id = planId;
   if (planId) { const i = arr.findIndex(p => p.id === planId); arr[i] = { ...data, id: planId }; }
   else {
-    const id = newId(); arr.push({ ...data, id });
+    id = newId(); arr.push({ ...data, id });
     const ks = localGet(COL_KEYS); ks.push({ id: key, planId: id, ban: d.ban, name }); localSet(COL_KEYS, ks); localEmit(COL_KEYS);
+  }
+  if (changed) {
+    const hs = localGet(COL_HIST);
+    if (old && !hs.some(h => h.planId === planId)) hs.push({ ...histRow(planId, d.ban, old, "before", old.updatedAt || now - 1), id: newId() });
+    hs.push({ ...histRow(id, d.ban, data, src, now), id: newId() }); localSet(COL_HIST, hs);
+    polishUsed = false; delete planHist[id];
   }
   localSet(COL_PLANS, arr); localEmit(COL_PLANS);
   return !!planId;
 }
+// 📜 바뀐 과정 불러오기: 계획서 하나 (학생 · 갤러리) 또는 전부 (선생님 대시보드 · AI 피드백)
+let planHist = {}, histAllAt = 0;
+const histSort = l => l.sort((a, b) => (a.at || 0) - (b.at || 0));
+async function loadHist(planId) {
+  if (!planId) return [];
+  if (planHist[planId]) return planHist[planId];
+  const list = LIVE ? (await db.collection(COL_HIST).where("planId", "==", planId).get()).docs.map(x => ({ id: x.id, ...x.data() })) : localGet(COL_HIST).filter(h => h.planId === planId);
+  return (planHist[planId] = histSort(list));
+}
+async function loadAllHist(force) {
+  if (!force && Date.now() - histAllAt < 60000) return false;
+  histAllAt = Date.now();
+  try {
+    const all = LIVE ? (await db.collection(COL_HIST).get()).docs.map(x => ({ id: x.id, ...x.data() })) : localGet(COL_HIST);
+    const next = {}; all.forEach(h => { (next[h.planId] = next[h.planId] || []).push(h); }); Object.values(next).forEach(histSort);
+    planHist = next; return true;
+  } catch (e) { console.error("바뀐 과정", e); return false; }
+}
+const HIST_SRC = { plan6: "📝 6번 계획서에서 저장", plan9: "💾 9번 최종 저장", gemini: "🤖 Gemini로 다듬은 뒤 저장", before: "🗂 기록을 시작하기 전 내용" };
+const histText = h => planContent(h);
+// 두 글을 낱말 단위로 비교해서 더한 곳은 초록 <ins>, 뺀 곳은 빨강 <del> (아주 길면 줄 단위로)
+function diffHTML(a, b) {
+  let A = String(a || "").match(/\s+|[^\s]+/g) || [], B = String(b || "").match(/\s+|[^\s]+/g) || [];
+  if (A.length * B.length > 1.2e7) { A = String(a || "").split(/(?<=\n)/); B = String(b || "").split(/(?<=\n)/); }
+  if (A.length * B.length > 1.2e7) return `<ins>${esc(b)}</ins>`;
+  const n = A.length, m = B.length, dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  const push = (t, s) => { const l = out[out.length - 1]; if (l && l[0] === t) l[1] += s; else out.push([t, s]); };
+  while (i < n && j < m) { if (A[i] === B[j]) { push("=", A[i]); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) { push("-", A[i]); i++; } else { push("+", B[j]); j++; } }
+  while (i < n) push("-", A[i++]); while (j < m) push("+", B[j++]);
+  return out.map(([t, s]) => t === "=" ? esc(s) : t === "+" ? `<ins>${esc(s)}</ins>` : /^\s+$/.test(s) ? "" : `<del>${esc(s)}</del>`).join("");
+}
+// 한 계획서의 바뀐 과정 요약 (화면 · AI 질문 · 출력에서 같이 써요)
+function histStat(planId, list) {
+  const L = list || planHist[planId] || [], recvIn = (from, to) => feedbacks.filter(f => f.planId === planId && f.fromPlan !== planId && (f.createdAt || 0) > from && (f.createdAt || 0) <= to).length;
+  const steps = L.map((h, i) => ({ h, i, recv: i ? recvIn(L[i - 1].at || 0, h.at || 0) : 0, len: histText(h).length }));
+  return { n: L.length, steps, afterFb: steps.filter(s => s.i && s.recv).length, gemini: L.filter(h => h.src === "gemini").length, first: L[0], last: L[L.length - 1] };
+}
+async function openHist(planId) {
+  const dlg = document.getElementById("dlgHist"), body = document.getElementById("histBody");
+  if (!planId) { toast("아직 저장한 계획서가 없어요. 먼저 저장해 보세요"); return; }
+  body.innerHTML = `<p class="muted">바뀐 과정을 불러오는 중…</p>`; if (!dlg.open) dlg.showModal();
+  if (teacher) delete planHist[planId];   // 선생님은 늘 새로
+  let list = [];
+  try { list = await loadHist(planId); } catch (e) { console.error(e); body.innerHTML = `<p class="muted">기록을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>`; return; }
+  const cur = plans.find(p => p.id === planId);
+  if (!list.length && cur) list = [{ ...cur, src: "before", at: cur.updatedAt || cur.createdAt }];   // 이 기록을 시작하기 전에 낸 계획서
+  if (!list.length) { body.innerHTML = `<p class="muted">아직 기록이 없어요.</p>`; return; }
+  const S = histStat(planId, list);
+  document.getElementById("dlgHistT").textContent = `📜 ${teacher ? stu(planId) + " · " : ""}계획서가 바뀐 과정`;
+  body.innerHTML = `<div class="hist-sum"><span>💾 저장 <b>${S.n}</b>번</span><span>📅 ${fmtTime(S.first.at)} → ${fmtTime(S.last.at)}</span><span>✍️ 글자 ${histText(S.first).length.toLocaleString()} → <b>${histText(S.last).length.toLocaleString()}</b>자</span><span>💬 피드백 받고 고친 저장 <b>${S.afterFb}</b>번</span><span>🤖 Gemini로 다듬은 저장 <b>${S.gemini}</b>번</span></div>
+    <p class="hist-legend">위가 가장 최근이에요. 바로 전 저장과 비교해 <ins>더한 말</ins>은 초록, <del>뺀 말</del>은 빨강으로 보여요.</p>
+    ${[...S.steps].reverse().map(({ h, i, recv, len }) => { const prev = i ? list[i - 1] : null, d = prev ? len - histText(prev).length : 0;
+      return `<div class="hist-v ${i === list.length - 1 ? "now" : ""}"><div class="hist-h"><b>${i + 1}번째 저장${i === list.length - 1 ? " · 지금" : ""}</b><span>${fmtTime(h.at)}</span><span class="src ${esc(h.src || "")}">${HIST_SRC[h.src] || "저장"}</span>${recv ? `<span class="fb">💬 바로 전 저장 뒤 받은 피드백 ${recv}개</span>` : ""}<span class="len">${len.toLocaleString()}자${prev ? ` (${d >= 0 ? "+" : ""}${d.toLocaleString()})` : ""}</span></div>
+        ${prev && prev.appName !== h.appName ? `<p style="margin:0 0 .375rem">웹앱 이름: <del>${esc(prev.appName)}</del> → <ins style="text-decoration:none;background:#D9F5E3">${esc(h.appName)}</ins></p>` : `<p style="margin:0 0 .375rem">📱 <b>${esc(h.appName)}</b></p>`}
+        <div class="hist-diff">${prev ? diffHTML(histText(prev), histText(h)) : esc(histText(h)) || '<span class="muted">(웹앱 내용 없음)</span>'}</div></div>`; }).join("")}`;
+}
+document.addEventListener("click", e => {
+  const me1 = e.target.closest("[data-hist-me]"); if (me1) { e.preventDefault(); openHist(myPlanId); return; }
+  const h = e.target.closest("[data-hist]"); if (h) { e.preventDefault(); openHist(h.dataset.hist); }
+});
 
 // 수업 성찰 저장 · 불러오기: 같은 반 · 닉네임 · 학번이면 새 내용으로 바꿔요 (학번은 저장하지 않아요)
 async function saveReflect(d0) {
@@ -1802,6 +1911,7 @@ async function deletePlan(id) {
     b.delete(db.collection(COL_PLANS).doc(id));
     b.delete(db.collection(COL_PREVIEW).doc(id));
     (await db.collection(COL_KEYS).where("planId", "==", id).get()).forEach(x => b.delete(x.ref));
+    (await db.collection(COL_HIST).where("planId", "==", id).get()).forEach(x => b.delete(x.ref));   // 📜 바뀐 과정도 함께
     (await db.collection(COL_FB).where("planId", "==", id).get()).forEach(x => {
       b.delete(x.ref); b.delete(db.collection(COL_WHO).doc(x.id));
     });
@@ -1998,15 +2108,15 @@ const PLAN_FORM = fid => `
         <div class="who-line">🙋 <b data-who-text></b><button type="button" class="link" data-me-open>바꾸기</button><button type="button" class="link" data-load-plan>📂 저장한 계획서 다시 불러오기</button></div>
         <label>웹앱 이름<input name="appName" maxlength="30" placeholder="예: 오늘의 영단어" required></label>
         <div class="pair">
-          <label>누가 쓰나요? 어떤 불편을 해결하나요?<textarea name="problem" rows="3" maxlength="500" required placeholder="예: 단어 외우기가 지루한 우리 반 친구들"></textarea></label>
-          <label>꼭 필요한 기능 3가지<textarea name="features" rows="3" maxlength="500" required placeholder="1. &#10;2. &#10;3. "></textarea></label>
+          <label>누가 쓰나요? 어떤 불편을 해결하나요?<textarea name="problem" rows="3" maxlength="2000" required placeholder="예: 단어 외우기가 지루한 우리 반 친구들"></textarea></label>
+          <label>꼭 필요한 기능 3가지<textarea name="features" rows="3" maxlength="2000" required placeholder="1. &#10;2. &#10;3. "></textarea></label>
         </div>
         <div class="pair">
-          <label>화면 모습<textarea name="look" rows="3" maxlength="500" required placeholder="색깔, 분위기, 첫 화면에 보이는 것"></textarea></label>
-          <label><span class="lbl-row">AI에게 보낼 프롬프트<button type="button" class="pcopy" data-pcopy title="프롬프트 복사하기">📋 복사</button></span><textarea name="prompt" rows="3" maxlength="500" required placeholder="누가·무엇을·어떤 모습·기능을 넣어서"></textarea></label>
+          <label>화면 모습<textarea name="look" rows="3" maxlength="2000" required placeholder="색깔, 분위기, 첫 화면에 보이는 것"></textarea></label>
+          <label><span class="lbl-row">AI에게 보낼 프롬프트<button type="button" class="pcopy" data-pcopy title="프롬프트 복사하기">📋 복사</button></span><textarea name="prompt" rows="3" maxlength="2000" required placeholder="누가·무엇을·어떤 모습·기능을 넣어서"></textarea></label>
         </div>
-        <div class="plan-act"><button class="btn" type="submit">💾 저장하기</button><span class="draft-st" data-draft-st></span></div>
-        <p class="muted" style="margin:0">✍️ 쓰는 내용은 이 기기에 <b>저절로 임시 저장</b>돼요. [저장하기]를 누르면 선생님과 짝 친구가 볼 수 있어요.<br>고친 뒤 다시 저장하면 <b>마지막에 저장한 내용이 최종안</b>이 돼요. 모든 기록은 <b>2026년 12월 31일</b>에 삭제해요. <button type="button" class="link" data-dlg="dlgPrivacy">개인정보처리방침</button></p>
+        <div class="plan-act"><button class="btn" type="submit">💾 저장하기</button><button type="button" class="btn sm ghost" data-hist-me>📜 바뀐 과정 보기</button><span class="draft-st" data-draft-st></span></div>
+        <p class="muted" style="margin:0">✍️ 쓰는 내용은 이 기기에 <b>저절로 임시 저장</b>돼요. [저장하기]를 누르면 선생님과 짝 친구가 볼 수 있어요.<br>고친 뒤 다시 저장하면 <b>마지막에 저장한 내용이 최종안</b>이 되고, <b>📜 저장할 때마다 그때의 계획서도 기록으로 하나씩 남아요</b> (덮어쓰지 않아요 · 선생님 피드백에 반영돼요). 모든 기록은 <b>2026년 12월 31일</b>에 삭제해요. <button type="button" class="link" data-dlg="dlgPrivacy">개인정보처리방침</button></p>
       </form>`;
 
 // 🐙 깃허브 화면에 나오는 작은 그림들 (톱니 · 창 · 가지 · 폴더 · 연필 · 바깥 링크)
@@ -3040,10 +3150,11 @@ const MINI_FORM = fid => `
       <form class="form plan-form mini" id="${fid}" autocomplete="off" data-nofill="1">
         <input type="hidden" name="ban"><input type="hidden" name="sid"><input type="hidden" name="name">
         <label>웹앱 이름<input name="appName" maxlength="30" placeholder="예: 오늘의 영단어" required></label>
-        <label><span class="lbl-row">웹앱 내용<button type="button" class="pcopy ai-polish" data-polish title="6번 계획서를 Gemini가 자연스러운 글로 다듬어 줘요">🤖 Gemini로 자연스럽게 다듬기</button></span><textarea name="content" rows="6" maxlength="1500" required placeholder="누가 쓰나요? 어떤 불편을 해결하나요?&#10;꼭 필요한 기능 3가지&#10;화면 모습 등"></textarea></label>
+        <label><span class="lbl-row">웹앱 내용<button type="button" class="pcopy ai-polish" data-polish title="6번 계획서를 Gemini가 자연스러운 글로 다듬어 줘요">🤖 Gemini로 자연스럽게 다듬기</button></span><textarea name="content" rows="8" maxlength="10000" required placeholder="누가 쓰나요? 어떤 불편을 해결하나요?&#10;꼭 필요한 기능 3가지&#10;화면 모습 등"></textarea></label>
         <div class="polish-step" data-polish-step hidden>✅ 부탁 문장을 복사하고 Gemini 창을 열었어요. Gemini 입력창에 <b>붙여 넣기(Ctrl+V)</b> → 대답을 <b>복사</b>한 뒤
           <button type="button" class="btn sm" data-polish-paste>📋 웹앱 내용 칸에 붙여 넣기</button><small>붙여 넣은 뒤 <b>내 말투로 고치고</b> 💾 저장하기를 눌러요. 지어낸 기능이 있으면 지워요.</small></div>
-        <div class="plan-act"><button class="btn sm" type="submit">💾 계획서 최종 저장하기</button><span class="draft-st" data-draft-st></span></div>
+        <div class="plan-act"><button class="btn sm" type="submit">💾 계획서 최종 저장하기</button><button type="button" class="btn sm ghost" data-hist-me>📜 바뀐 과정 보기</button><span class="draft-st" data-draft-st></span></div>
+        <p class="hist-note">📜 <b>저장할 때마다 그때의 계획서가 하나씩 기록으로 남아요</b> (덮어쓰지 않아요). 친구 · 선생님 피드백을 받고 고친 것, Gemini와 다시 이야기해 다듬은 것까지 <b>모든 과정이 기록</b>되고, 선생님 피드백에도 반영돼요. [📜 바뀐 과정 보기]로 내 계획서가 어떻게 자라 왔는지 볼 수 있어요.</p>
       </form>`;
 // 8번 ③ 모둠 친구 계획서: 내 칸과 같은 모양(분홍)으로 읽기만 해요
 // 9번 계획서 보기: 웹앱 이름 · 웹앱 내용 · 웹앱 링크 (6번에서 쓴 자세한 계획서는 아래 펼치기)
@@ -3069,7 +3180,17 @@ function renderMyPlan(full) {
     if (pvb) { const old = document.getElementById("pvCode"), keep = old ? old.value : ""; pvb.outerHTML = pvMakeHTML(mine); const nw = document.getElementById("pvCode"); if (nw && keep) nw.value = keep; }   // 붙여 넣던 코드는 그대로
     return;
   }
-  if (!m) { box.innerHTML = planView(null) + `<p class="muted">🙋 <button type="button" class="link" data-me-open>나를 알려 주면</button> 내 계획서를 쓰고 갤러리에 올릴 수 있어요.</p>`; return; }
+  // 나를 알려 주기 전에도 로그인한 뒤와 같은 칸을 모두 보여 줘요 (모둠 · 계획서 칸 · 미리보기 · AI 도우미). 칸은 잠가 두고 '나를 알려 주기'만 눌러져요 (2026-11-04)
+  if (!m) {
+    box.innerHTML = `<div class="me-bar"><span>🙋 아직 누구인지 몰라요 · <span class="sub-no">⏳ 아직 저장 전</span></span><button type="button" class="link" data-me-open>나를 알려 주기</button></div>
+    <div class="grp-box"><h4>👥 내 모둠 · 꼭 댓글 달 친구</h4><p class="muted" style="margin:0">🙋 <button type="button" class="link" data-me-open>나를 알려 주고</button> 계획서를 저장하면 모둠이 정해져요 (저장한 순서대로 세 명씩).</p></div>
+    <div class="me-locked">${MINI_FORM("myPlanFormLocked")}</div>
+    <p class="muted" style="margin:.5rem 0 0">🙋 <button type="button" class="link" data-me-open>나를 알려 주면</button> 내 계획서를 쓰고 갤러리에 올릴 수 있어요. <b>계획서 최종 저장하기</b>를 누르면 아래에서 <b>내 웹앱 미리보기</b>를 만들 수 있어요.</p>
+    ${pvMakeHTML(null)}
+    <div class="me-locked">${AI_HELP}</div>`;
+    box.querySelectorAll(".me-locked input, .me-locked textarea, .me-locked button").forEach(el => { el.disabled = true; });
+    return;
+  }
   box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.name)}<span data-me-tag>${subState(mine)}</span></span><button type="button" class="link" data-me-open>내가 아니에요</button></div>
     <div data-grp-box>${groupBoxHTML()}</div>
     ${MINI_FORM("myPlanForm")}
@@ -4162,6 +4283,7 @@ const aiGet = (b, k) => { try { return JSON.parse(localStorage.getItem(AI_KEY(b,
 const aiSet = (b, k, v) => { try { localStorage.setItem(AI_KEY(b, k), JSON.stringify(v)); } catch (e) {} };
 // 반 학생 한 명씩 기록 모으기 (닉네임 기준)
 async function classRecords(b) {
+  await loadAllHist(true);   // 📜 계획서가 바뀐 과정도 함께
   const names = new Set();
   plans.filter(p => p.ban === b).forEach(p => { const n = (people[p.id] || {}).name; if (n) names.add(n); });
   reflects.filter(r => r.ban === b).forEach(r => r.name && names.add(r.name));
@@ -4179,7 +4301,7 @@ async function classRecords(b) {
     if (real && real.sid) { const gk = (await keyOf("game-" + b, real.sid, nick)).slice(0, 16), g = games.find(x => x.id === gk); if (g) game = g; }
     const tc = plan ? cmtOf(plan.id).filter(f => f.fromPlan === TEACHER) : [];   // 9번 갤러리에서 선생님이 남긴 댓글 = 선생님 메모
     const tnote = { good: tc.filter(f => tagOf(f.good) === "👍").map(f => f.good.slice(3).trim()).join("\n"), bad: tc.filter(f => tagOf(f.good) !== "👍").map(f => { const t = tagOf(f.good); return t ? f.good.slice(t.length + 1).trim() : f.good; }).join("\n") };
-    return { code: "S" + String(i + 1).padStart(2, "0"), nick, real, plan, tnote, preview: !!(plan && previews[plan.id] && previews[plan.id].html), likes: plan ? likeCnt(plan.id) : 0, recv, gave, walls, rf, tr, game };
+    return { code: "S" + String(i + 1).padStart(2, "0"), nick, real, plan, tnote, hs: plan ? histStat(plan.id) : null, preview: !!(plan && previews[plan.id] && previews[plan.id].html), likes: plan ? likeCnt(plan.id) : 0, recv, gave, walls, rf, tr, game };
   }));
 }
 const fbLine = f => { const t = tagOf(f.good); return t ? `${TAG_NAME[t]}: ${f.good.slice(t.length + 1)}` : [f.good, f.question, f.idea].filter(Boolean).join(" / "); };
@@ -4193,6 +4315,10 @@ function recordText(r) {   // AI 에게 보낼 한 학생 기록 (이름 · 학�
     if (r.plan.look) L.push(`  · 화면: ${cut(r.plan.look, 120)}`);
     if (r.plan.content) L.push(`  · 최종 웹앱 내용: ${cut(r.plan.content, 300)}`);
     L.push(`  · Gemini로 미리보기 만들기: ${r.preview ? "함" : "안 함"} · 받은 좋아요 ${r.likes}개`);
+    if (r.hs && r.hs.n > 1) {   // 📜 바뀐 과정: 몇 번 고쳤는지 · 피드백 뒤 · Gemini로 다듬은 뒤 · 처음과 지금
+      L.push(`  · 계획서 바뀐 과정: 저장 ${r.hs.n}번 (피드백을 받은 뒤 고친 저장 ${r.hs.afterFb}번 · Gemini로 다듬은 뒤 저장 ${r.hs.gemini}번), 글자 ${histText(r.hs.first).length}자 → ${histText(r.hs.last).length}자`);
+      L.push(`  · 처음 저장한 내용: ${r.hs.first.appName !== r.hs.last.appName ? `[웹앱 이름 "${cut(r.hs.first.appName, 30)}"] ` : ""}${cut(histText(r.hs.first), 200)}`);
+    }
   } else L.push("- 웹앱 계획: 제출 안 함");
   if (r.recv.length) L.push(`- 받은 피드백 ${r.recv.length}개 (친구 · 선생님): ${r.recv.slice(0, 4).map(f => (f.fromPlan === TEACHER ? "[선생님] " : "") + cut(fbLine(f), 80)).join(" | ")}`);
   if (r.gave.length) L.push(`- 친구에게 쓴 피드백 ${r.gave.length}개: ${r.gave.slice(0, 4).map(f => cut(fbLine(f), 80)).join(" | ")}`);
@@ -4209,7 +4335,7 @@ function sumPrompt(b, recs) {
 이 기록을 바탕으로 교사용 수업 총평을 써 줘.
 
 [수업 흐름] 바이브코딩이란 → 핵심 개념(HTML · CSS · JS, 프론트엔드 · 백엔드 · DB) → 0단계 AI 채팅창에서 첫 웹앱 만들기 → 깃허브 배포 → 웹앱 계획서 쓰기 → 웹앱 만들 때 주의할 점 → AI 윤리 메모리 게임 → 친구 피드백(미리보기 · 좋아요 · 댓글) → 수업 성찰
-[숫자] 계획서 제출 ${has(r => r.plan)}명 · 미리보기 만든 학생 ${has(r => r.preview)}명 · 성찰 저장 ${has(r => r.rf && r.rf.final)}명 · 첫 웹앱 담벼락 ${has(r => r.tr.length)}명 · 피드백 ${recs.reduce((s, r) => s + r.gave.length, 0)}개
+[숫자] 계획서 제출 ${has(r => r.plan)}명 · 계획서를 다시 고쳐 저장한 학생 ${has(r => r.hs && r.hs.n > 1)}명 · 미리보기 만든 학생 ${has(r => r.preview)}명 · 성찰 저장 ${has(r => r.rf && r.rf.final)}명 · 첫 웹앱 담벼락 ${has(r => r.tr.length)}명 · 피드백 ${recs.reduce((s, r) => s + r.gave.length, 0)}개
 
 [쓰는 방식]
 - 아래 제목 그대로 6칸으로, 각 칸 3~6줄
@@ -4256,6 +4382,7 @@ function fbPrompt(b, recs) {
 [쓰는 방식 — 꼭 지켜 줘]
 - 학생마다 "### S01" 처럼 번호 한 줄로 시작하고, 그 아래에 피드백만 써 줘 (번호 줄 말고 다른 제목은 쓰지 마)
 - 학생 한 명에 4~6문장: ① 이 학생이 실제로 잘한 점(기록에서 구체적으로) ② 웹앱 계획에서 더 다듬으면 좋을 점 하나 ③ 실습편에서 해 볼 것 하나 ④ 따뜻한 격려 한마디
+- 계획서를 여러 번 고쳐 저장한 학생은(기록의 "계획서 바뀐 과정") 피드백을 받고 고친 노력과, 처음 계획서에서 무엇이 달라졌는지를 구체적으로 짚어 줘
 - 학생에게 말하듯 다정한 존댓말(~해요). 이름 대신 '여러분' · '나'를 쓰지 말고 그냥 바로 말해 줘
 - 기록에 없는 일은 지어내지 마. 기록이 거의 없는 학생은 참여를 북돋는 짧은 피드백으로
 - ${recs.length}명 모두 빠짐없이, 번호 순서대로
@@ -4273,12 +4400,13 @@ function tPrompt(b, recs, notes) {
 [쓰는 방식 — 꼭 지켜 줘]
 - 학생마다 "### S01" 처럼 번호 한 줄로 시작하고, 그 아래에 피드백만
 - 내 메모의 내용과 판단은 그대로 살리고 하나도 빠뜨리지 마. 메모에 없는 새 칭찬 · 새 지적은 덧붙이지 마
+- 계획서를 여러 번 고쳤으면(아래 "고친 과정") 고쳐 온 노력도 한 문장 넣어 줘
 - 웹앱 계획 내용을 근거로 풀어 써 줘: 좋은 점은 '왜 좋은지', 개선할 점은 '어떻게 고치면 좋을지' 방법 1~2가지
 - 학생 한 명에 6~8문장, 교사가 학생에게 쓰는 다정한 존댓말(~해요). '선생님은 ~라고 생각해요'처럼 써도 돼
 - 번호 순서대로, 아래 학생 모두
 
 [학생 웹앱과 내 메모]
-${rows.map(({ r, n }) => [`### ${r.code}`, r.plan ? `- 웹앱: ${cut(r.plan.appName, 60)} — ${cut(r.plan.content || [r.plan.problem, r.plan.features].filter(Boolean).join(" / "), 300)}` : "- 웹앱: (계획서 없음)", n.good ? `- 내가 쓴 좋은 점: ${n.good}` : "", n.bad ? `- 내가 쓴 개선할 점: ${n.bad}` : ""].filter(Boolean).join("\n")).join("\n\n")}` };
+${rows.map(({ r, n }) => [`### ${r.code}`, r.plan ? `- 웹앱: ${cut(r.plan.appName, 60)} — ${cut(r.plan.content || [r.plan.problem, r.plan.features].filter(Boolean).join(" / "), 300)}` : "- 웹앱: (계획서 없음)", r.hs && r.hs.n > 1 ? `- 고친 과정: 저장 ${r.hs.n}번 · 피드백 받은 뒤 고친 저장 ${r.hs.afterFb}번 · 처음 "${cut(histText(r.hs.first), 120)}"` : "", n.good ? `- 내가 쓴 좋은 점: ${n.good}` : "", n.bad ? `- 내가 쓴 개선할 점: ${n.bad}` : ""].filter(Boolean).join("\n")).join("\n\n")}` };
 }
 // 붙여 넣은 개인 피드백 → { S01: "…" }
 function parseFb(raw) {
@@ -4412,6 +4540,7 @@ table.list tr:nth-child(even) td{background:#FFFCFA}
 .story{display:grid;grid-template-columns:1fr 1fr;gap:0 3mm}.story .card{margin:0 0 2.5mm;padding:2mm 3mm;font-size:9pt;line-height:1.55}.story .card h3{font-size:12pt}`;
 const PR_COL = ["pink", "blue", "green", "mus", "pur"], PR_HEX = { pink: "#E27399", blue: "#5E97C9", green: "#5DAE7C", mus: "#C18E2C", pur: "#8D6BCF" };
 const chipsOf = r => [[r.plan, "📝 계획서", "green"], [r.preview, "🖼 미리보기", "blue"], [r.likes, `♥ 좋아요 ${r.likes}`, "pink"], [r.recv.length, `💬 받은 댓글 ${r.recv.length}`, "pink"], [r.gave.length, `✏️ 쓴 피드백 ${r.gave.length}`, "mus"], [r.walls.length, `🧱 성찰 문장 ${r.walls.length}`, "mus"], [r.rf && r.rf.final, "✍️ 성찰 저장", "pur"], [r.tr.length, "🚀 첫 웹앱", "blue"], [r.game, r.game ? `🎮 윤리 게임 ${msTxt(r.game.ms)}` : "🎮 윤리 게임", "green"]]
+  .concat([[r.hs && r.hs.n > 1, r.hs && r.hs.n > 1 ? `📜 ${r.hs.n}번 고쳐 저장` : "📜 고쳐 저장", "blue"]])
   .map(([on, t, c]) => `<span class="chip ${on ? "c-" + c : "c-off"}">${esc(t)}</span>`).join("");
 // 마크다운 비슷한 총평 → '## 제목' 마다 색 띠 카드
 function sumCards(text) {
@@ -4459,6 +4588,9 @@ function printAi(kind, only) {
         ${r.plan.content ? `<tr><th>웹앱 내용</th><td>${nl(cut(r.plan.content, 420))}</td></tr>` : ""}
         ${!r.plan.content && r.plan.problem ? `<tr><th>누가 · 어떤 불편</th><td>${nl(cut(r.plan.problem, 260))}</td></tr>` : ""}
         ${r.plan.features ? `<tr><th>꼭 필요한 기능</th><td>${nl(cut(r.plan.features, 260))}</td></tr>` : ""}</table>` : ""}
+      ${r.hs && r.hs.n > 1 ? `<div class="sec s-blue">📜 내 계획서가 바뀐 과정<small>저장할 때마다 남은 기록 · ${r.hs.n}번</small></div>
+      <table class="list"><tr><th>몇 번째</th><th>날짜</th><th>어떻게</th><th>웹앱 이름</th><th>글자 수</th><th>그 사이 받은 피드백</th></tr>
+        ${r.hs.steps.map(({ h, i, recv, len }) => `<tr><td>${i + 1}번째</td><td>${fmtTime(h.at)}</td><td>${esc((HIST_SRC[h.src] || "저장").replace(/^\S+ /, ""))}</td><td>${esc(h.appName)}</td><td>${len.toLocaleString()}자</td><td>${i ? recv + "개" : "-"}</td></tr>`).join("")}</table>` : ""}
       ${inT && T[r.nick] ? `<div class="sec s-pink">🧑‍🏫 선생님 피드백</div><div class="box b-pink"><div class="fb">${esc(T[r.nick])}</div><p class="sign">진로탐구수업 담당 교사</p></div>` : ""}
       ${inAi && A[r.nick] ? `<div class="sec s-pur">🤖 AI 피드백<small>참고용</small></div><div class="box b-pur"><p class="note">※ AI(인공지능)가 이 수업에서 남긴 활동 기록(계획서 · 친구 피드백 · 성찰)을 읽고 쓴 글이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
       ${r.rf && r.rf.final ? `<div class="sec s-mus">✍️ 내가 쓴 성찰</div><div class="box b-mus"><div class="fb">${esc(cut(r.rf.final, 520))}</div></div>` : ""}
@@ -4501,18 +4633,20 @@ function renderDash() {
     return;
   }
   const who = w => w && w.name ? esc(w.name) + realTag(ban, w.name) : `<span class="muted">-</span>`;
+  loadAllHist().then(ok => { if (ok && dashTab.startsWith("plan")) renderDash(); });   // 📜 바뀐 과정 (1분에 한 번 새로)
+  const histCell = p => { const S = histStat(p.id); return S.n ? `<button type="button" class="hist-btn" data-hist="${p.id}">📜 ${S.n}번 저장</button><br><small class="muted">💬 피드백 뒤 ${S.afterFb} · 🤖 ${S.gemini}</small>` : `<button type="button" class="hist-btn" data-hist="${p.id}">보기</button>`; };
   box.innerHTML = tabBar + `
-    <h4>📝 ${ban}반 계획서 ${ps.length}건 <button type="button" class="btn sm" data-csv="plan">엑셀 저장</button></h4>
+    <h4>📝 ${ban}반 계획서 ${ps.length}건 <button type="button" class="btn sm" data-csv="plan">엑셀 저장</button><span class="muted" style="font-size:.875rem">📜 = 저장할 때마다 남은 기록 (누르면 바뀐 과정 비교)</span></h4>
     <div class="tbl"><table>
-      <tr><th>표시</th><th>닉네임</th><th>웹앱 이름</th><th>누가 쓰나요? 어떤 불편?</th><th>꼭 필요한 기능</th><th>화면 모습</th><th>AI에게 보낼 프롬프트</th><th>받은 피드백</th><th>쓴 피드백</th><th>제출 시각</th><th></th></tr>
+      <tr><th>표시</th><th>닉네임</th><th>웹앱 이름</th><th>📜 바뀐 과정</th><th>웹앱 내용 (9번 최종)</th><th>누가 쓰나요? 어떤 불편?</th><th>꼭 필요한 기능</th><th>화면 모습</th><th>AI에게 보낼 프롬프트</th><th>받은 피드백</th><th>쓴 피드백</th><th>제출 시각</th><th></th></tr>
       ${ps.length ? ps.map(p => `<tr>
         <td><b>${stu(p.id)}</b></td><td>${esc((people[p.id] || {}).name || "-")}${realTag(ban, (people[p.id] || {}).name)}</td>
-        <td>${esc(p.appName)}</td><td>${nl(p.problem || "")}</td><td>${nl(p.features || "")}</td><td>${nl(p.look || "")}</td><td>${nl(p.prompt || "")}</td>
+        <td>${esc(p.appName)}</td><td>${histCell(p)}</td><td>${nl(cut(p.content || "", 400))}</td><td>${nl(p.problem || "")}</td><td>${nl(p.features || "")}</td><td>${nl(p.look || "")}</td><td>${nl(p.prompt || "")}</td>
         <td>${feedbacks.filter(f => f.planId === p.id).length}</td>
         <td>${feedbacks.filter(f => f.fromPlan === p.id).length}</td>
         <td>${fmtTime(p.updatedAt)}</td>
         <td><button type="button" class="del" data-delplan="${p.id}">삭제</button></td>
-      </tr>`).join("") : `<tr><td class="tbl-empty" colspan="11">아직 제출한 계획서가 없어요.</td></tr>`}
+      </tr>`).join("") : `<tr><td class="tbl-empty" colspan="13">아직 제출한 계획서가 없어요.</td></tr>`}
     </table></div>
     <h4>📓 ${ban}반 수업 성찰 ${reflects.filter(r => r.ban === ban).length}건 <button type="button" class="btn sm" data-csv="rf">엑셀 저장</button><span class="muted" style="font-size:.875rem">생기부 작성 참고용</span></h4>
     <div class="tbl"><table>
@@ -4751,7 +4885,7 @@ document.addEventListener("click", e => {
   const pp = e.target.closest("[data-polish-paste]"); if (pp) {
     e.preventDefault();
     const f = pp.closest("form"), ta = f.content;
-    const put = t => { ta.value = t.trim().replace(/^["“'']+|["”'']+$/g, "").slice(0, 1500); ta.dispatchEvent(new Event("input", { bubbles: true })); ta.focus(); toast("붙여 넣었어요! 내 말투로 고치고 저장해요"); };
+    const put = t => { ta.value = t.trim().replace(/^["“'']+|["”'']+$/g, "").slice(0, 10000); polishUsed = true; ta.dispatchEvent(new Event("input", { bubbles: true })); ta.focus(); toast("붙여 넣었어요! 내 말투로 고치고 저장해요"); };
     if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(t => t && t.trim() ? put(t) : toast("복사한 글이 없어요. Gemini 대답을 먼저 복사해요")).catch(() => { ta.focus(); toast("웹앱 내용 칸을 누르고 Ctrl+V로 붙여 넣어요"); });
     else { ta.focus(); toast("웹앱 내용 칸을 누르고 Ctrl+V로 붙여 넣어요"); }
     return;
