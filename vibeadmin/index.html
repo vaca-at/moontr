@@ -52,6 +52,38 @@ td.course{min-width:15rem}
 .st{white-space:nowrap;margin-top:.25rem}
 .st button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:0 .5rem;margin:0 .125rem .125rem 0;font-size:.8125rem}
 .st button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.views{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:0 0 .75rem}
+.views button[data-view]{border:2px solid var(--line);background:#fff;border-radius:999px;padding:.3rem .9rem;font-size:.95rem;cursor:pointer}
+.views button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.views .muted{font-size:.875rem}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;align-items:start}
+@media(max-width:1100px){.board{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.board{grid-template-columns:1fr}}
+.bcol{background:#fff;border:2px solid var(--line);border-radius:1rem;overflow:hidden}
+.bcol.theory{--bc:#E86E99;--bl:#FFF0F5}.bcol.lab{--bc:#2E9E6A;--bl:#EEF9F3}
+.bhead{background:var(--bl);border-bottom:2px solid var(--line);padding:.6rem .75rem}
+.bhead > b{font-family:var(--hand);font-weight:400;font-size:1.45rem;color:var(--bc)}
+.bhead > small{display:block;color:var(--ink2);font-size:.8125rem}
+.bnum{display:flex;gap:.6rem;margin:.35rem 0 .3rem;font-size:.85rem;color:var(--ink2)}
+.bnum b{color:var(--ink);font-size:1.1rem}
+.bbar{height:7px;border-radius:99px;background:#fff;overflow:hidden;margin-bottom:.45rem}
+.bbar i{display:block;height:100%;background:var(--bc);border-radius:99px}
+.bact{display:flex;gap:.3rem;flex-wrap:wrap}
+.pill.sm{font-size:.8rem;padding:.15rem .6rem}
+.blist{max-height:62vh;overflow-y:auto}
+.brow{display:flex;flex-direction:column;gap:.2rem;padding:.4rem .6rem;border-bottom:1px solid var(--line)}
+.brow.s-출석{background:#F0FBF4}.brow.s-지각,.brow.s-조퇴{background:#FFF8E6}.brow.s-결석{background:#FFF0F0}
+.bwho{font-size:.92rem;display:flex;flex-wrap:wrap;gap:.25rem .4rem;align-items:center}
+.bwho .nick{font-size:.78rem;color:var(--ink2)}
+.mv{display:inline-block;background:#FFF3C4;color:#7A5A00;border-radius:999px;padding:0 .45rem;font-size:.72rem;margin-left:.25rem}
+.bst{display:flex;gap:.2rem;align-items:center}
+.bst button{border:1.5px solid var(--line);background:#fff;border-radius:.5rem;padding:.05rem .35rem;font-size:.85rem;cursor:pointer;opacity:.55}
+.bst button.on{opacity:1;border-color:var(--bc);background:var(--bl)}
+.bst .mvbtn{margin-left:auto;opacity:1;font-size:.76rem;color:var(--ink2);padding:.05rem .5rem;border-radius:999px}
+.bst .mvbtn:hover{border-color:var(--accent);color:var(--accent)}
+.bstray{background:#FFF8E6;padding:.5rem .6rem;font-size:.82rem}
+.bstray > b{display:block;margin-bottom:.25rem;color:#8A6215}
+.srow{display:flex;align-items:center;gap:.4rem;justify-content:space-between;padding:.2rem 0}
 td.s-출석{background:#F0FBF4} td.s-지각,td.s-조퇴{background:#FFF8E6} td.s-결석{background:#FFF0F0}
 .none{color:#C9BDB6}
 .notice{background:#FFF8E6;border:1.5px solid #F2D38A;border-radius:.75rem;padding:.5rem .75rem;font-size:.875rem;margin:.75rem 0 0}
@@ -180,8 +212,53 @@ function cellHTML(course, sid) {
   const r = recOf(course, sid);
   if (!r) return `<td class="course none">신청 안 함</td>`;
   const c = inOf(course, r.ban, sid);
-  return `<td class="course ${r.st ? "s-" + r.st : ""}"><span class="ban">${r.ban}반</span>${c ? `<span class="nick">🙋 ${esc(c.name)} · ${fmtTime(c.at)}</span>` : `<span class="muted" style="font-size:.8125rem">로그인 전</span>`}
+  return `<td class="course ${r.st ? "s-" + r.st : ""}"><span class="ban">${r.ban}반 · ${dayWord(r.ban)}</span>${r.moved ? `<span class="mv">${esc(r.moved.replace("A", "월").replace("B", "수"))}</span>` : ""}${c ? `<span class="nick">🙋 ${esc(c.name)} · ${fmtTime(c.at)}</span>` : `<span class="muted" style="font-size:.8125rem">로그인 전</span>`}
     <div class="st">${ST.map(([k, e]) => `<button type="button" class="${r.st === k ? "on" : ""}" data-st="${r.id}" data-v="${k}">${e} ${k}</button>`).join("")}</div></td>`;
+}
+/* ===== 🗂 4칸 보기: 이론편 월 · 수 · 실습편 월 · 수 출석부를 나란히 (반 옮기기 · 명단에 넣기) ===== */
+let rollView = (() => { try { return localStorage.getItem("va_rollview") || "board"; } catch (e) { return "board"; } })();
+const dayWord = ban => ban === "A" ? "월" : "수";
+const otherBan = ban => ban === "A" ? "B" : "A";
+function boardHTML() {
+  return `<div class="board">${CLASSES.map(c => {
+    const list = roster.filter(r => r.course === c.course && r.ban === c.ban).sort((a, b) => String(a.sid).localeCompare(String(b.sid)));
+    const ok = list.filter(r => r.st === "출석" || r.st === "지각").length, lin = list.filter(r => inOf(c.course, c.ban, r.sid)).length;
+    const strays = checkins.filter(x => x.course === c.course && x.ban === c.ban && !list.some(r => r.sid === x.sid));
+    const to = otherBan(c.ban), toWord = dayWord(to);
+    return `<section class="bcol ${c.course}">
+      <div class="bhead"><b>${c.course === "lab" ? "🧪" : "📘"} ${c.label.replace(/[AB]반/, "")}${dayWord(c.ban)}요일</b><small>${c.day} · ${c.ban}반</small>
+        <div class="bnum"><span>명단 <b>${list.length}</b></span><span>출석 <b>${ok}</b></span><span>로그인 <b>${lin}</b></span></div>
+        <div class="bbar"><i style="width:${list.length ? Math.round(ok / list.length * 100) : 0}%"></i></div>
+        <div class="bact"><button type="button" class="pill sm" data-in="${keyOf(c)}">🙋 로그인한 학생 출석</button><button type="button" class="pill sm" data-all="${keyOf(c)}">✅ 남은 학생 모두</button></div></div>
+      <div class="blist">${list.map(r => { const ci = inOf(c.course, c.ban, r.sid); return `<div class="brow ${r.st ? "s-" + r.st : ""}">
+          <div class="bwho"><b>${esc(r.sid)}</b> ${esc(r.name || "")}${r.moved ? ` <span class="mv">${esc(r.moved.replace("A", "월").replace("B", "수"))}${r.prev && r.prev.st ? ` · ${dayWord(r.prev.ban)} ${esc(r.prev.st)}` : ""}</span>` : ""}
+            ${ci ? `<span class="nick">🙋 ${esc(ci.name)}</span>` : ""}</div>
+          <div class="bst">${ST.map(([k, e]) => `<button type="button" class="${r.st === k ? "on" : ""}" data-st="${r.id}" data-v="${k}" title="${k}">${e}</button>`).join("")}
+            <button type="button" class="mvbtn" data-move="${r.id}" title="${c.label.replace(/[AB]반/, "")}${toWord}요일(${to}반)로 옮기기">${to === "B" ? `→ ${toWord}요일로` : `← ${toWord}요일로`}</button></div></div>`; }).join("") || `<p class="muted" style="margin:.5rem">명단이 비어 있어요</p>`}</div>
+      ${strays.length ? `<div class="bstray"><b>⚠️ 이 반에 로그인했지만 명단에 없어요</b>${strays.map(x => { const there = roster.find(r => r.course === c.course && r.sid === x.sid);
+        return `<div class="srow"><span><b>${esc(x.sid)}</b> 🙋 ${esc(x.name)}</span>${there ? `<button type="button" class="pill sm" data-move="${there.id}">${dayWord(there.ban)}요일 명단에서 이 반으로 옮기기</button>` : `<button type="button" class="pill sm" data-add="${keyOf(c)}_${esc(x.sid)}">명단에 넣기</button>`}</div>`; }).join("")}</div>` : ""}
+    </section>`;
+  }).join("")}</div>`;
+}
+// 반 옮기기: 같은 강좌의 다른 반(월 ↔ 수)으로. 예전 반의 출석은 prev 에 남겨요
+async function moveStudent(id) {
+  const r = roster.find(x => x.id === id); if (!r) return;
+  const to = otherBan(r.ban), nid = `${r.course}_${to}_${r.sid}`, cname = r.course === "lab" ? "실습편" : "이론편";
+  if (roster.some(x => x.id === nid)) { toast(`이미 ${cname} ${dayWord(to)}요일 명단에 있어요`); return; }
+  if (!confirm(`${r.sid} ${r.name || ""} 학생을\n${cname} ${dayWord(r.ban)}요일(${r.ban}반) → ${dayWord(to)}요일(${to}반)로 옮길까요?\n출석은 새 반에서 다시 체크해요.${r.st ? `\n(${dayWord(r.ban)}요일 '${r.st}' 기록은 남겨 둬요)` : ""}`)) return;
+  const b = db.batch();
+  b.set(db.collection("vibe_roster").doc(nid), { course: r.course, ban: to, sid: r.sid, name: r.name || "", st: "", at: 0, moved: `${r.ban}→${to}`, movedAt: Date.now(), ...(r.st ? { prev: { ban: r.ban, st: r.st, at: r.at || 0 } } : {}) });
+  b.delete(db.collection("vibe_roster").doc(r.id));
+  await b.commit();
+  toast(`${r.name || r.sid} 학생을 ${cname} ${dayWord(to)}요일로 옮겼어요`);
+}
+// 명단에 넣기: 로그인했지만 명단에 없는 학번 (이름은 다른 강좌 명단에서 찾거나 물어봐요)
+async function addStudent(key) {
+  const [course, ban, sid] = key.split("_"), known = roster.find(r => r.sid === sid);
+  const name = known ? known.name : (prompt(`${sid} 학생 이름을 적어 주세요 (출석부에 들어가요)`) || "").trim();
+  if (!known && !name) return;
+  await db.collection("vibe_roster").doc(`${course}_${ban}_${sid}`).set({ course, ban, sid, name, st: "", at: 0 });
+  toast(`${sid} ${name} 학생을 명단에 넣었어요`);
 }
 function renderRoll() {
   const box = $("rollPane");
@@ -191,14 +268,16 @@ function renderRoll() {
   const nameOf = sid => (roster.find(r => r.sid === sid) || {}).name || "";
   const stat = c => { const l = roster.filter(r => r.course === c.course && r.ban === c.ban); return { n: l.length, ok: l.filter(r => r.st === "출석" || r.st === "지각").length, in: l.filter(r => inOf(c.course, c.ban, r.sid)).length }; };
   const strays = checkins.filter(c => !roster.some(r => r.course === c.course && r.ban === c.ban && r.sid === c.sid));
-  box.innerHTML = `
+  const views = `<div class="views"><button type="button" class="${rollView === "board" ? "on" : ""}" data-view="board">🗂 4칸 보기</button><button type="button" class="${rollView === "table" ? "on" : ""}" data-view="table">📋 학번별 표</button>
+    <span class="muted">월요일에 못 온 학생 · 수요일로 옮기는 학생은 4칸 보기의 <b>[→ 수요일로]</b>로 옮겨요</span><button type="button" class="pill" data-csv style="margin-left:auto">⬇️ 엑셀 저장</button></div>`;
+  if (rollView === "board") { box.innerHTML = views + (roster.length || checkins.length ? boardHTML() : `<div class="gate">아직 출석부가 없어요.<br>이론편 · 실습편 대시보드의 <b>출석부</b> 탭에서 명단을 붙여 넣어 주세요.</div>`); return; }
+  box.innerHTML = views + `
     <div class="sum">
       <button type="button" class="${filter === "all" ? "on" : ""}" data-filter="all"><b>👥 전체 학생</b><small>${new Set(roster.map(r => r.sid)).size}명</small></button>
       ${CLASSES.map(c => { const s = stat(c); return `<button type="button" class="${filter === keyOf(c) ? "on" : ""}" data-filter="${keyOf(c)}"><b>${c.label}</b><small>${c.day} · 출석 ${s.ok}/${s.n} · 로그인 ${s.in}</small></button>`; }).join("")}
     </div>
     <div class="tools">
       ${sel ? `<button type="button" class="btn" data-in="${keyOf(sel)}">🙋 로그인한 학생 출석</button><button type="button" class="pill" data-all="${keyOf(sel)}">✅ 남은 학생 모두 출석</button>` : `<span class="muted">위에서 반을 고르면 [로그인한 학생 출석] · [남은 학생 모두 출석]을 쓸 수 있어요.</span>`}
-      <button type="button" class="pill" data-csv>⬇️ 엑셀 저장</button>
       <span class="muted">명단 넣기 · 학생 빼기는 이론편 · 실습편 대시보드의 출석부 탭에서 해요.</span>
     </div>
     ${sids.length ? `<table>
@@ -265,17 +344,21 @@ $("rollPane").addEventListener("click", async e => {
   const t = e.target;
   try {
     const f = t.closest("[data-filter]"); if (f) { filter = f.dataset.filter; return renderRoll(); }
+    const vw = t.closest("[data-view]"); if (vw) { rollView = vw.dataset.view; try { localStorage.setItem("va_rollview", rollView); } catch (x) {} return renderRoll(); }
+    const mv = t.closest("[data-move]"); if (mv) return moveStudent(mv.dataset.move);
+    const ad = t.closest("[data-add]"); if (ad) return addStudent(ad.dataset.add);
     const s = t.closest("[data-st]"); if (s) { const r = roster.find(x => x.id === s.dataset.st); const v = r && r.st === s.dataset.v ? "" : s.dataset.v; await db.collection("vibe_roster").doc(s.dataset.st).set({ st: v, at: v ? Date.now() : 0 }, { merge: true }); return; }
     const pick = k => { const [course, ban] = k.split("_"); return roster.filter(r => r.course === course && r.ban === ban); };
     const i = t.closest("[data-in]"); if (i) { const xs = pick(i.dataset.in).filter(r => !r.st && inOf(r.course, r.ban, r.sid)); for (const r of xs) await db.collection("vibe_roster").doc(r.id).set({ st: "출석", at: Date.now() }, { merge: true }); toast(xs.length ? `로그인한 학생 ${xs.length}명을 출석으로 했어요` : "새로 출석할 학생이 없어요"); return; }
     const a = t.closest("[data-all]"); if (a) { const xs = pick(a.dataset.all).filter(r => !r.st); for (const r of xs) await db.collection("vibe_roster").doc(r.id).set({ st: "출석", at: Date.now() }, { merge: true }); toast(`${xs.length}명을 출석으로 했어요`); return; }
     if (t.closest("[data-csv]")) {
-      const rows = [["학번", "이름", "이론편 반", "이론편 닉네임", "이론편 출석", "실습편 반", "실습편 닉네임", "실습편 출석"]];
+      const rows = [["학번", "이름", "이론편 반", "이론편 닉네임", "이론편 출석", "이론편 옮김", "실습편 반", "실습편 닉네임", "실습편 출석", "실습편 옮김"]];
+      const mvTxt = r => r && r.moved ? r.moved.replace("A", "월").replace("B", "수") + (r.prev && r.prev.st ? ` (${dayWord(r.prev.ban)} ${r.prev.st})` : "") : "";
       [...new Set(roster.map(r => r.sid))].sort().forEach(sid => {
         const th = recOf("theory", sid), lb = recOf("lab", sid);
         rows.push([sid, (th || lb || {}).name || "",
-          th ? th.ban : "", th ? (inOf("theory", th.ban, sid) || {}).name || "" : "", th ? th.st || "미체크" : "신청 안 함",
-          lb ? lb.ban : "", lb ? (inOf("lab", lb.ban, sid) || {}).name || "" : "", lb ? lb.st || "미체크" : "신청 안 함"]);
+          th ? th.ban + "반(" + dayWord(th.ban) + ")" : "", th ? (inOf("theory", th.ban, sid) || {}).name || "" : "", th ? th.st || "미체크" : "신청 안 함", mvTxt(th),
+          lb ? lb.ban + "반(" + dayWord(lb.ban) + ")" : "", lb ? (inOf("lab", lb.ban, sid) || {}).name || "" : "", lb ? lb.st || "미체크" : "신청 안 함", mvTxt(lb)]);
       });
       const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
       const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); link.download = "바이브코딩_통합출석부.csv"; link.click();
