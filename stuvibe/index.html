@@ -4290,8 +4290,11 @@ async function classRecords(b) {
   wall.filter(w => w.ban === b).forEach(w => { const n = (wallWho[w.id] || {}).name; if (n) names.add(n); });
   checkins.filter(c => c.ban === b && c.course === COURSE).forEach(c => c.name && names.add(c.name));
   const list = [...names].sort((x, y) => { const rx = realOf(b, x), ry = realOf(b, y); return String(rx ? rx.sid : "z" + x).localeCompare(String(ry ? ry.sid : "z" + y)); });
+  const rollUsed = rosterOf(b).some(r => r.st);   // ✅ 출석부에서 출석 체크를 했을 때만 출석 상태를 붙여요
   return Promise.all(list.map(async (nick, i) => {
-    const real = realOf(b, nick), plan = plans.find(p => p.ban === b && (people[p.id] || {}).name === nick);
+    const real = realOf(b, nick), rr = rollUsed && real ? rosterOf(b).find(x => x.sid === real.sid) : null;
+    const att = rollUsed ? (rr ? rr.st || "미체크" : "출석부에 없음") : "";
+    const plan = plans.find(p => p.ban === b && (people[p.id] || {}).name === nick);
     const recv = plan ? cmtOf(plan.id).filter(f => f.fromPlan !== plan.id) : [];   // 받은 댓글: 친구 + 선생님 댓글
     const gave = feedbacks.filter(f => f.ban === b && (writers[f.id] || {}).name === nick && (!plan || f.planId !== plan.id) && !/^💬 안녕하세요 👋/.test(f.good || ""));
     const walls = wall.filter(w => w.ban === b && (wallWho[w.id] || {}).name === nick).map(w => ({ kind: kindLabel(w.kind), text: w.text, orig: (wallWho[w.id] || {}).orig || "" }));
@@ -4301,13 +4304,17 @@ async function classRecords(b) {
     if (real && real.sid) { const gk = (await keyOf("game-" + b, real.sid, nick)).slice(0, 16), g = games.find(x => x.id === gk); if (g) game = g; }
     const tc = plan ? cmtOf(plan.id).filter(f => f.fromPlan === TEACHER) : [];   // 9번 갤러리에서 선생님이 남긴 댓글 = 선생님 메모
     const tnote = { good: tc.filter(f => tagOf(f.good) === "👍").map(f => f.good.slice(3).trim()).join("\n"), bad: tc.filter(f => tagOf(f.good) !== "👍").map(f => { const t = tagOf(f.good); return t ? f.good.slice(t.length + 1).trim() : f.good; }).join("\n") };
-    return { code: "S" + String(i + 1).padStart(2, "0"), nick, real, plan, tnote, hs: plan ? histStat(plan.id) : null, preview: !!(plan && previews[plan.id] && previews[plan.id].html), likes: plan ? likeCnt(plan.id) : 0, recv, gave, walls, rf, tr, game };
+    return { code: "S" + String(i + 1).padStart(2, "0"), nick, real, att, plan, tnote, hs: plan ? histStat(plan.id) : null, preview: !!(plan && previews[plan.id] && previews[plan.id].html), likes: plan ? likeCnt(plan.id) : 0, recv, gave, walls, rf, tr, game };
   }));
 }
 const fbLine = f => { const t = tagOf(f.good); return t ? `${TAG_NAME[t]}: ${f.good.slice(t.length + 1)}` : [f.good, f.question, f.idea].filter(Boolean).join(" / "); };
 const cut = (s, n = 220) => { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n) + "…" : s; };
+// ✅ 출석 상태 → AI 에게 알려 줄 말 (결석은 미제출이 아니에요)
+const ATT_NOTE = { 결석: "수업에 오지 않음 · 활동이 없어도 미제출이 아님", 지각: "늦게 옴 · 앞부분 활동이 없을 수 있음", 조퇴: "일찍 감 · 뒷부분 활동이 없을 수 있음", 미체크: "출석 체크 안 함", "출석부에 없음": "출석부 명단에 없음" };
+const hasAct = r => !!(r.plan || r.walls.length || (r.rf && r.rf.final) || r.tr.length || r.game || r.gave.length);
 function recordText(r) {   // AI 에게 보낼 한 학생 기록 (이름 · 학번 · 닉네임 없이)
   const L = [`### ${r.code}`];
+  if (r.att) L.push(`- 출석: ${r.att}${ATT_NOTE[r.att] ? ` (${ATT_NOTE[r.att]})` : ""}`);
   if (r.plan) {
     L.push(`- 웹앱 계획: ${cut(r.plan.appName, 60)}`);
     if (r.plan.problem) L.push(`  · 누가/어떤 불편: ${cut(r.plan.problem)}`);
@@ -4328,15 +4335,29 @@ function recordText(r) {   // AI 에게 보낼 한 학생 기록 (이름 · 학�
   if (r.game) L.push(`- AI 윤리 메모리 게임: ${msTxt(r.game.ms)} (뒤집기 ${r.game.moves}번)`);
   return L.join("\n");
 }
+// ✅ 출석부 → 교사용 총평에 쓰는 출석 요약 (출석 체크를 안 했으면 null)
+function attSum(b, recs) {
+  const RL = rosterOf(b); if (!RL.some(r => r.st)) return null;
+  const c = k => RL.filter(r => (r.st || "미체크") === k).length;
+  const shown = recs.filter(r => r.att !== "결석" || hasAct(r)), present = shown.filter(r => r.att !== "결석");
+  return { total: RL.length, 출석: c("출석"), 지각: c("지각"), 조퇴: c("조퇴"), 결석: c("결석"), 미체크: c("미체크"), shown, present, cameN: c("출석") + c("지각") + c("조퇴") };
+}
 function sumPrompt(b, recs) {
-  const n = recs.length, has = f => recs.filter(f).length;
+  const at = attSum(b, recs), R = at ? at.shown : recs, P = at ? at.present : recs, n = R.length, has = f => P.filter(f).length;
+  const attLine = at ? `[출석] 출석부 ${at.total}명 · 출석 ${at.출석} · 지각 ${at.지각} · 조퇴 ${at.조퇴} · 결석 ${at.결석}${at.미체크 ? ` · 출석 체크 안 함 ${at.미체크}` : ""} → 수업에 온 학생 ${at.cameN}명` : "";
   return `나는 서울의 여자고등학교에서 고1 · 고2 학생 대상 진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편, 100분)」을 한 교사야.
 아래는 ${b}반 학생 ${n}명의 수업 활동 기록이야 (학생은 S01 같은 번호로만 적었어).
 이 기록을 바탕으로 교사용 수업 총평을 써 줘.
 
 [수업 흐름] 바이브코딩이란 → 핵심 개념(HTML · CSS · JS, 프론트엔드 · 백엔드 · DB) → 0단계 AI 채팅창에서 첫 웹앱 만들기 → 깃허브 배포 → 웹앱 계획서 쓰기 → 웹앱 만들 때 주의할 점 → AI 윤리 메모리 게임 → 친구 피드백(미리보기 · 좋아요 · 댓글) → 수업 성찰
-[숫자] 계획서 제출 ${has(r => r.plan)}명 · 계획서를 다시 고쳐 저장한 학생 ${has(r => r.hs && r.hs.n > 1)}명 · 미리보기 만든 학생 ${has(r => r.preview)}명 · 성찰 저장 ${has(r => r.rf && r.rf.final)}명 · 첫 웹앱 담벼락 ${has(r => r.tr.length)}명 · 피드백 ${recs.reduce((s, r) => s + r.gave.length, 0)}개
-
+${attLine ? attLine + "\n" : ""}[숫자${at ? ` · 결석한 학생은 빼고 수업에 온 학생 기록 ${P.length}명 기준` : ""}] 계획서 제출 ${has(r => r.plan)}명 · 계획서를 다시 고쳐 저장한 학생 ${has(r => r.hs && r.hs.n > 1)}명 · 미리보기 만든 학생 ${has(r => r.preview)}명 · 성찰 저장 ${has(r => r.rf && r.rf.final)}명 · 첫 웹앱 담벼락 ${has(r => r.tr.length)}명 · 피드백 ${P.reduce((s, r) => s + r.gave.length, 0)}개
+${at ? `
+[출석 — 꼭 지켜 줘]
+- 결석한 학생은 수업에 오지 않았으니 활동이 없어도 '미제출 · 참여 부족'으로 쓰지 마. 결석한 학생은 기록에서 뺐어 (결석했지만 활동이 있는 학생만 '- 출석: 결석'으로 남겼어)
+- 제출률 · 참여율은 결석을 뺀, 수업에 온 학생 기준으로 말해 줘
+- 지각한 학생은 앞부분 활동(0단계 첫 웹앱 등), 조퇴한 학생은 뒷부분 활동(친구 피드백 · 성찰)이 없을 수 있어. 그래서 빠진 활동은 '어려워한 점'으로 보지 마
+- 학생마다 '- 출석:' 줄을 보고 판단해
+` : ""}
 [쓰는 방식]
 - 아래 제목 그대로 6칸으로, 각 칸 3~6줄
 ## 1. 수업 한눈에 보기
@@ -4349,10 +4370,11 @@ function sumPrompt(b, recs) {
 - 쉬운 우리말, 교사가 바로 출력해 보는 문서 말투(~했다 / ~함)로.
 
 [학생 기록]
-${recs.map(recordText).join("\n\n")}`;
+${R.map(recordText).join("\n\n")}`;
 }
 // 🧑‍🎓 학생용 총평: 개인 피드백 출력물 맨 위 '우리 반 수업 이야기' (교사용 총평과 따로 · 학생 번호 · 이름 없이)
 function stuPrompt(b, recs) {
+  const at = attSum(b, recs); if (at) recs = at.shown;   // 결석하고 활동도 없는 학생은 빼요
   return `나는 서울의 여자고등학교에서 고1 · 고2 학생 대상 진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편, 100분)」을 한 교사야.
 아래 ${b}반 학생 ${recs.length}명의 활동 기록을 보고, 이 반 학생들에게 나눠 줄 '우리 반 수업 이야기'를 써 줘.
 학생 한 명 한 명이 받는 개인 피드백 종이 맨 위에 똑같이 들어가는 글이야. 교사용 평가가 아니라, 학생이 읽고 '우리가 이런 수업을 했구나' 하고 이해하는 설명이야.
@@ -4424,7 +4446,10 @@ async function renderAiReport(kind) {
   const how = `<ol class="ai-how"><li><button type="button" class="btn sm" data-ai-copy="${kind}">📋 질문 복사</button> <a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini 열기</a> <a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener">Claude 열기</a> <span class="muted">학생 ${n}명 기록이 담겨요 · 이름 · 학번 · 닉네임은 빼고 S01 번호로만</span></li>
     <li>AI 창에 붙여 넣고(Ctrl+V) 보내요</li><li>AI의 대답을 통째로 복사해 아래 칸에 붙여 넣어요 <span class="muted">(이 기기에 저장돼요)</span></li></ol>`;
   if (kind === "sum") {
-    box.innerHTML = `<h4>🤖 ${b}반 AI 총평 <span class="muted" style="font-size:.875rem">교사용 · 수업 전체를 돌아보는 글</span></h4>${how}
+    const at = attSum(b, aiRecs);
+    const attP = at ? `<p class="notice">✅ 출석부 반영: 출석 ${at.출석} · 지각 ${at.지각} · 조퇴 ${at.조퇴} · 결석 ${at.결석}${at.미체크 ? ` · 미체크 ${at.미체크}` : ""} / ${at.total}명 — 결석한 학생은 미제출로 보지 않고, 제출률은 수업에 온 학생 기준으로 질문에 담겨요${at.미체크 ? ` <span class="muted">(미체크 학생은 수업에 온 것으로 계산해요 · 결석이면 ✅ ${b}반 출석부에서 먼저 체크해 주세요)</span>` : ""}</p>`
+      : `<p class="notice">⚠️ ${b}반 출석 체크가 아직 없어요. ✅ ${b}반 출석부에서 출석 · 결석을 체크한 뒤 질문을 복사하면, 결석한 학생을 미제출로 보지 않아요.</p>`;
+    box.innerHTML = `<h4>🤖 ${b}반 AI 총평 <span class="muted" style="font-size:.875rem">교사용 · 수업 전체를 돌아보는 글</span></h4>${attP}${how}
       <textarea id="aiSumIn" class="ai-in" rows="6" placeholder="AI가 쓴 총평을 여기에 붙여 넣어요">${esc(saved.text || "")}</textarea>
       <div class="plan-act"><button type="button" class="btn" data-ai-print="sum">🖨 출력 · PDF로 저장</button><span class="muted">${saved.at ? "저장 " + fmtTime(saved.at) : ""}</span></div>
       <div class="ai-doc" id="aiSumView">${saved.text ? mdLite(saved.text) : `<p class="muted">붙여 넣으면 여기에 보기 좋게 정리돼요.</p>`}</div>
@@ -4529,7 +4554,7 @@ table.kv th{background:#FFF7F2;color:#9B8782;font-weight:500;white-space:nowrap;
 .tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:2mm;margin:0 0 4mm}
 .tile{border:1px solid #F2DDD6;border-radius:3mm;padding:2mm 2.5mm;text-align:center}
 .tile b{display:block;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:20pt;line-height:1.1}
-.tile small{color:#9B8782;font-size:8pt}
+.tile small{color:#9B8782;font-size:8pt}.tile b i{font-style:normal;font-size:11pt;color:#9B8782}
 .card{border:1px solid #F2DDD6;border-left:2.2mm solid var(--c);border-radius:3mm;padding:2.5mm 4mm;margin:0 0 3mm;break-inside:avoid;background:#fff}
 .card h3{margin:0 0 1mm;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:14pt;color:var(--c)}
 .card ul{margin:.5mm 0;padding-left:4.5mm}.card li{margin:.6mm 0}.card p{margin:.8mm 0}
@@ -4576,16 +4601,18 @@ function printAi(kind, only) {
   if (kind === "sum") {
     const sv = aiGet(b, "sum") || {};
     if (!sv.text) { toast("먼저 AI 총평을 붙여 넣어 주세요"); return; }
-    const R = aiRecs, has = f => R.filter(f).length;
-    const tiles = [[R.length, "학생"], [has(r => r.plan), "계획서"], [has(r => r.preview), "미리보기"], [has(r => r.rf && r.rf.final), "성찰 저장"], [R.reduce((s, r) => s + r.gave.length, 0), "친구 피드백"], [R.reduce((s, r) => s + r.likes, 0), "좋아요"]];
+    const at = attSum(b, aiRecs), R = aiRecs, P = at ? at.present : R, has = f => P.filter(f).length, of = at ? `<i>/${P.length}</i>` : "";
+    const tiles = [at ? [`${at.cameN}<i>/${at.total}</i>`, `출석 (결석 ${at.결석})`] : [R.length, "학생"], [has(r => r.plan) + of, "계획서"], [has(r => r.preview) + of, "미리보기"], [has(r => r.rf && r.rf.final) + of, "성찰 저장"], [P.reduce((s, r) => s + r.gave.length, 0), "친구 피드백"], [P.reduce((s, r) => s + r.likes, 0), "좋아요"]];
+    const attCell = r => !r.att ? "" : `<td style="color:${{ 결석: "#C0392B", 지각: "#8A6215", 조퇴: "#8A6215", 출석: "#2E7D4F" }[r.att] || "#9B8782"}">${esc(r.att)}</td>`;
     body = `<div class="page">
       <div class="ban"><span class="em">📊</span><div><h1>수업 총평</h1><p>진로탐구수업 「바이브코딩으로 웹앱 만들기 (이론편)」 · ${b}반 · ${date}</p></div><span class="tag">교사용</span></div>
       <div class="tiles">${tiles.map(([n, t], i) => `<div class="tile b-${PR_COL[i % 5]}"><b>${n}</b><small>${t}</small></div>`).join("")}</div>
       <div class="sec s-pur">🤖 AI 총평<small>AI가 학생 활동 기록을 읽고 쓴 글이에요 · 참고용</small></div>
       ${sumCards(sv.text)}
       <div class="sec s-green">📋 학생별 활동 한눈에<small>이름 대신 닉네임 · 번호는 AI에게 보낸 번호</small></div>
-      <table class="list"><tr><th>번호</th><th>닉네임</th><th>웹앱</th><th>활동</th><th>♥</th><th>댓글</th></tr>
-      ${R.map(r => `<tr><td>${r.code}</td><td>${esc(r.nick)}</td><td>${r.plan ? esc(r.plan.appName) : '<span style="color:#C2B8B3">계획서 없음</span>'}</td><td>${[r.plan && "📝", r.preview && "🖼", r.walls.length && "🧱", r.rf && r.rf.final && "✍️", r.tr.length && "🚀", r.game && "🎮"].filter(Boolean).join(" ")}</td><td>${r.likes}</td><td>${r.recv.length}</td></tr>`).join("")}</table>
+      ${at ? `<p class="note">${at.cameN === at.total ? "" : `결석 ${at.결석}명은 미제출로 세지 않았어요 · `}계획서 · 미리보기 · 성찰 숫자는 수업에 온 학생 ${P.length}명 기준${at.미체크 ? ` · 출석 체크 안 한 학생 ${at.미체크}명` : ""}</p>` : ""}
+      <table class="list"><tr><th>번호</th><th>닉네임</th>${at ? "<th>출석</th>" : ""}<th>웹앱</th><th>활동</th><th>♥</th><th>댓글</th></tr>
+      ${R.map(r => `<tr${r.att === "결석" ? ' style="color:#B9ABA5"' : ""}><td>${r.code}</td><td>${esc(r.nick)}</td>${at ? attCell(r) || "<td>-</td>" : ""}<td>${r.plan ? esc(r.plan.appName) : '<span style="color:#C2B8B3">계획서 없음</span>'}</td><td>${[r.plan && "📝", r.preview && "🖼", r.walls.length && "🧱", r.rf && r.rf.final && "✍️", r.tr.length && "🚀", r.game && "🎮"].filter(Boolean).join(" ")}</td><td>${r.likes}</td><td>${r.recv.length}</td></tr>`).join("")}</table>
       ${foot}</div>`;
   } else {
     const fs = fbStore(b), real = !!fs.real, inT = fs.inT !== false, inAi = fs.inAi !== false, A = fs.ai || {}, T = fs.tf || {};
