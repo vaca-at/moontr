@@ -99,6 +99,27 @@ service cloud.firestore {
       allow list, delete: if isTeacher();
     }
 
+    // 📜 계획서가 바뀐 과정: 저장할 때마다 그때 내용을 한 장씩 (계획서처럼 닉네임 없음). 누구나 보기,
+    // 그 계획서가 있을 때만 새로 쓰기(고치기 없음), 관리자만 지우기
+    match /vibe_plan_hist/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(
+          ['planId','ban','src','at','appName','problem','features','look','prompt','content','url'])
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.src in ['plan6', 'plan9', 'gemini', 'before']
+        && request.resource.data.planId is string
+        && existsAfter(/databases/$(database)/documents/vibe_plans/$(request.resource.data.planId))
+        && request.resource.data.at is int
+        && vibeText(request.resource.data, 'appName', 0, 100)
+        && vibeText(request.resource.data, 'problem', 0, 2000)
+        && vibeText(request.resource.data, 'features', 0, 2000)
+        && vibeText(request.resource.data, 'look', 0, 2000)
+        && vibeText(request.resource.data, 'prompt', 0, 2000)
+        && vibeText(request.resource.data, 'content', 0, 3000)
+        && vibeText(request.resource.data, 'url', 0, 500);
+      allow delete: if isTeacher();
+    }
+
     // 친구 피드백 내용: 누구나 보기(쓴 사람은 '학생 ○'·'친구'로만 표시), 관리자만 지우기
     match /vibe_feedback/{id} {
       allow read: if true;

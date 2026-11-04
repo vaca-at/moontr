@@ -1756,16 +1756,22 @@ async function savePlan(d) {
   const changed = !old || HIST_KEYS.some(k => String(old[k] || "") !== String(data[k] || ""));
   if (LIVE) {
     const planRef = planId ? db.collection(COL_PLANS).doc(planId) : db.collection(COL_PLANS).doc();
+    // ① 계획서 저장 (계획서 + 열쇠). 이것만 되면 저장 성공이에요
     const b = db.batch();
     b.set(planRef, data);
     if (!planId) b.set(db.collection(COL_KEYS).doc(key), { planId: planRef.id, ban: d.ban, name });
-    if (changed) {
-      // 이 기록을 시작하기 전에 낸 계획서면, 고치기 전 내용을 첫 장으로 먼저 남겨요
-      if (old) { try { if ((await db.collection(COL_HIST).where("planId", "==", planId).limit(1).get()).empty) b.set(db.collection(COL_HIST).doc(), histRow(planId, d.ban, old, "before", old.updatedAt || old.createdAt || now - 1)); } catch (e) {} }
-      b.set(db.collection(COL_HIST).doc(), histRow(planRef.id, d.ban, data, src, now));
-    }
     await b.commit();
-    if (changed) { polishUsed = false; delete planHist[planRef.id]; }
+    // ② 📜 바뀐 과정 기록은 따로 (보안 규칙이 아직 없거나 막혀도 계획서 저장은 되게 — 2026-11-04 B반 저장 안 되던 문제)
+    if (changed) {
+      polishUsed = false; delete planHist[planRef.id];
+      try {
+        const h = db.batch();
+        // 이 기록을 시작하기 전에 낸 계획서면, 고치기 전 내용을 첫 장으로 먼저 남겨요
+        if (old) { try { if ((await db.collection(COL_HIST).where("planId", "==", planId).limit(1).get()).empty) h.set(db.collection(COL_HIST).doc(), histRow(planId, d.ban, old, "before", old.updatedAt || old.createdAt || now - 1)); } catch (e) {} }
+        h.set(db.collection(COL_HIST).doc(), histRow(planRef.id, d.ban, data, src, now));
+        await h.commit();
+      } catch (e) { console.warn("바뀐 과정 기록은 저장하지 못했어요 (소나기 보안 규칙에 vibe_plan_hist 를 게시해야 해요)", e); }
+    }
     return !!planId;
   }
   const arr = localGet(COL_PLANS);
