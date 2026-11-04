@@ -2980,7 +2980,7 @@ function bindPlanForm(f = document.getElementById("planForm")) {
     const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
     try {
       const replaced = await savePlan({ ...d });
-      setMe({ ban: d.ban, sid: d.sid, name: d.name }); me = { sid: d.sid, name: d.name }; setDraft(d); paintMe();
+      setMe({ ban: d.ban, sid: d.sid, name: d.name }); me = { sid: d.sid, name: d.name }; setDraft(d); paintMe(); lockBan();
       await resolveMine();
       if (code && myPlanId) await savePreview(myPlanId, d.ban, code);
       draftStamp(f, "☁️ 저장했어요 " + hhmm());
@@ -4158,6 +4158,7 @@ function setTeacher(on) {
     stopAdmin.push(listen(COL_TRY_WHO, list => { tryWho = {}; list.forEach(x => { tryWho[x.id] = x.name; }); }));
     stopAdmin.push(listen(COL_WALL_WHO, list => { wallWho = {}; list.forEach(x => { wallWho[x.id] = { name: x.name, orig: x.orig || "" }; }); }));
   } else document.getElementById("dlgAdmin").close();
+  lockBan();   // 선생님이면 두 반 단추, 학생이면 자기 반만
   renderSlide();
 }
 
@@ -5130,12 +5131,24 @@ async function deleteClick(t) {
   } catch (err) { console.error(err); toast("삭제하지 못했어요. 관리자 로그인을 확인하세요"); }
 }
 
+/* 학생 화면에서는 자기 반 활동만 보여요 (다른 반 계획서 · 갤러리 · 담벼락 · 순위가 안 보이게)
+   - '나 확인'을 했으면 그 반, 안 했으면 수업 요일로: 월요일 = A반, 수요일 = B반
+   - 선생님(관리자 로그인)은 두 반을 마음대로 골라 볼 수 있어요 */
+const DAY_BAN = { 1: "A", 3: "B" };
+function studentBan() { const m = getMe(); return (m && m.ban) || DAY_BAN[new Date().getDay()] || ban; }
 function setBan(b) {
+  if (!teacher) b = studentBan();
   ban = b; try { localStorage.setItem("vt_ban", ban); } catch (e) {}
   selPlan = null; openPlan = null; paintBan(); renderSlide(); renderDash();
 }
 document.querySelectorAll("header .seg button").forEach(b => b.addEventListener("click", () => setBan(b.dataset.ban)));
-function paintBan() { document.querySelectorAll("header .seg button").forEach(b => b.classList.toggle("on", b.dataset.ban === ban)); }
+function paintBan() {
+  document.querySelectorAll("header .seg button").forEach(b => {
+    b.classList.toggle("on", b.dataset.ban === ban);
+    b.hidden = !teacher && b.dataset.ban !== ban;   // 학생에게는 자기 반 단추 하나만
+  });
+}
+function lockBan() { if (!teacher && ban !== studentBan()) setBan(studentBan()); else paintBan(); }
 
 document.getElementById("reloadBtn").addEventListener("click", () => location.reload());
 
@@ -5162,6 +5175,7 @@ document.addEventListener("keydown", e => {
    ========================================================= */
 const h = parseInt(location.hash.slice(1), 10);
 if (h >= 1 && h <= SLIDES.length) cur = h;
+if (!teacher) ban = studentBan();
 paintBan(); renderTabs(); renderSlide(); paintMe();
 // 🙋 나 확인 창은 첫 화면이 아니라, 로그인이 필요한 활동 화면에 처음 들어갔을 때 한 번만 떠요
 // 이미 로그인해 둔 기기도 이 수업에 들어오면 접속 기록을 남겨요 (한 번)
