@@ -1122,6 +1122,10 @@ html.dash-only #dlgAdmin .doc-head{display:none}
   #printBook button,#printBook .copy,#printBook .pop-close,#printBook .pop-title,#printBook form,#printBook input,#printBook textarea{display:none!important}
   #printBook a{color:inherit;text-decoration:none}
   #printBook .pb-below{margin-top:4mm}
+  #printBook .pb-col > div > details.pb-span{column-span:all;margin:2mm 0}
+  #printBook .pb-span .act-keys{grid-template-columns:repeat(4,1fr)}
+  #printBook .pb-span .pb-two{display:grid;grid-template-columns:1.2fr 1fr;gap:4mm;align-items:start}
+  #printBook .pb-span .chg-list{display:flex;flex-direction:column;gap:1.5mm}
   #printBook .pb-ln{margin:0 0 2.5mm;break-inside:avoid}
   #printBook .pb-ln span{display:block;font-size:9.5pt;color:color-mix(in srgb,var(--c) 70%,#333);font-weight:600}
   #printBook .pb-ln i{display:block;height:7.5mm;border-bottom:1px solid #C9C2BE}
@@ -2793,6 +2797,21 @@ function printBook() {
       const n = d.textContent.replace(/\s/g, "").length;
       if (d.querySelector(".pb-fill")) d.classList.add("one"); else if (n < 120) d.classList.add("one"); else if (n > 600) d.classList.add("three");
     }
+  });
+  // 긴 활동 창(코드 바꿔 보기 등)은 좁은 단에 끼우지 않고 칸 너비 전체로 펴요: 순서 4칸은 한 줄, 코드와 바꿀 곳은 나란히
+  box.querySelectorAll(".pb-col > div > details.pop.act").forEach(d => {
+    const pn = d.querySelector(".pop-panel");
+    if (!pn || !pn.querySelector(".act-keys")) return;
+    d.classList.add("pb-span");
+    const code = pn.querySelector(":scope > .code.full");
+    if (!code) return;
+    const two = document.createElement("div"); two.className = "pb-two";
+    const L = document.createElement("div"), R = document.createElement("div");
+    code.before(two); two.append(L, R);
+    L.append(code);
+    let n = two.nextElementSibling;
+    if (n && n.matches("p.muted")) { L.append(n); n = two.nextElementSibling; }
+    while (n) { const nx = n.nextElementSibling; R.append(n); n = nx; }
   });
   box.querySelectorAll(".pb-below").forEach(d => { if (!d.textContent.replace(/\s/g, "") || d.querySelector(".try-sec")) d.remove(); });   // 빈 칸 · 3번 담벼락은 빼요
   document.body.appendChild(box);
