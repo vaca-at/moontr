@@ -157,7 +157,7 @@ function subscribe() {
   };
   unsubs.push(onSnapshot(query(collection(db, dbPath('cards')), orderBy('createdAt', 'desc')), (s) => {
     S.cards = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-    if (!S.teacher) { S.teacher = true; updateAuthUI(); }
+    if (!S.teacher) { S.teacher = true; updateAuthUI(); loadTycoon(); }
     render();
   }, denied));
   unsubs.push(onSnapshot(query(collection(db, dbPath('captures')), orderBy('createdAt', 'desc')), (s) => {
@@ -847,10 +847,26 @@ function taskPanel() {
 }
 
 // --- 5F 사장실 ---
+// 🕹 타이쿤 달력(학교 · 내 일정)을 원본으로 읽어 와요 — 같은 구글 계정으로 타이쿤에 로그인한 책상의 data/main.events · dday (읽기만, 고치기는 타이쿤에서)
+// 책상 찾기는 타이쿤과 같아요: desk_links/{로그인}이 있으면 그 책상, 없으면 내 로그인 번호의 책상
+async function loadTycoon() {
+  try {
+    const uid = auth.currentUser?.uid; if (!uid) return;
+    let desk = uid;
+    try { const l = await getDoc(doc(db, 'desk_links', uid)); if (l.exists() && l.data().desk) desk = l.data().desk; } catch (e) { /* 합친 로그인이 없으면 그대로 */ }
+    const m = await getDoc(doc(db, 'desk_users', desk, 'data', 'main'));
+    const c = m.exists() ? m.data() : {};
+    S.tycoon = { ok: m.exists(), events: (c.events || []).filter((e) => isDate(e.d) && e.t), dday: isDate(c.dday?.d) && c.dday.t ? c.dday : null };
+  } catch (e) { S.tycoon = { ok: false, events: [], error: e.code || e.message }; }
+  render();
+}
 function upcoming() {
   const t = todayStr();
   const list = S.cards.filter((c) => !isUnsorted(c) && isDate(c.date) && (c.end_date || c.date) >= t);
   if (isDate(S.task?.due) && S.task.due >= t) list.push({ id: 'task', room: 'task', date: S.task.due, title: `과제 제출 · ${S.task.title || '내 수업 사례'}` });
+  const ty = S.tycoon?.events || [], dd = S.tycoon?.dday;
+  ty.filter((e) => e.d >= t).forEach((e, i) => list.push({ id: `ty${i}`, room: 'tycoon', date: e.d, title: e.t }));
+  if (dd && dd.d >= t && !ty.some((e) => e.d === dd.d && e.t === dd.t)) list.push({ id: 'tyd', room: 'tycoon', date: dd.d, title: `🎯 ${dd.t}` });
   return list.sort((a, b) => a.date.localeCompare(b.date));
 }
 // 사장실 탭: 사장실(일정) · 웹앱 현황(moontr.site 모든 웹앱 방문 + 브리핑) · 연수 대장(문서등록대장처럼 한 줄에 연수 하나)
@@ -1052,8 +1068,11 @@ function bossView(compact) {
       <a href="#moral"><b>${lessons}</b><small>이번 달 수업 공개</small></a>
       <a href="#archive"><b>${S.cards.length}</b><small>정리된 카드</small></a>
     </div>
-    ${up.length ? `<ul class="agenda">${up.map((c) => `<li><a href="#${c.room}" ${c.id !== 'task' ? `data-act="edit" data-id="${c.id}"` : ''}>${ddChip(c.date, c.end_date)}<div><b>${esc(c.title)}</b><small>${esc([fmtDate(c.date), c.id === 'task' ? '' : lessonTime(c), roomName(c.room), c.place].filter(Boolean).join(' · '))}</small></div></a></li>`).join('')}</ul>`
+    ${up.length ? `<ul class="agenda">${up.map((c) => c.room === 'tycoon'
+      ? `<li class="ty"><a href="/tycoon/" target="_blank" rel="noopener">${ddChip(c.date)}<div><b>${esc(c.title)}</b><small>${esc(fmtDate(c.date))} · 🕹 학교 일정 (타이쿤 달력)</small></div></a></li>`
+      : `<li><a href="#${c.room}" ${c.id !== 'task' ? `data-act="edit" data-id="${c.id}"` : ''}>${ddChip(c.date, c.end_date)}<div><b>${esc(c.title)}</b><small>${esc([fmtDate(c.date), c.id === 'task' ? '' : lessonTime(c), roomName(c.room), c.place].filter(Boolean).join(' · '))}</small></div></a></li>`).join('')}</ul>`
       : '<p class="empty">날짜가 있는 자료가 들어오면 여기에 D-day 순으로 모여요.</p>'}
+    <p class="note ty-note">${!S.tycoon ? '🕹 타이쿤 달력 일정을 불러오는 중…' : S.tycoon.ok ? `🕹 타이쿤 달력의 학교 일정 ${S.tycoon.events.length}개를 함께 보여요 · 일정은 <a href="/tycoon/" target="_blank" rel="noopener">타이쿤 달력</a>에서만 적고 고쳐요` : `🕹 타이쿤 달력을 찾지 못했어요${S.tycoon.error ? ` (${esc(S.tycoon.error)})` : ''} — 타이쿤에도 이 관리자 구글 계정으로 로그인해 쓰면 학교 일정이 여기에 함께 떠요`}</p>
     ${!compact && recent.length ? `<h3>방금 정리된 자료</h3><ul class="agenda">${recent.map((c) => `<li><a href="#${c.room}" data-act="edit" data-id="${c.id}"><span class="chip">${esc(roomName(c.room))}</span><div><b>${esc(c.title)}</b><small>${esc(c.summary || '')}</small></div></a></li>`).join('')}</ul>` : ''}`;
 }
 
@@ -1101,6 +1120,7 @@ const isAI = (t) => /AI|인공지능/i.test(t || ''), isCMF = (t) => /창의미�
 const REG_WATCH = [
   { id: 'aicmf', name: 'AI + 창의미래교육과', byWord: (w, s) => isAI(w) && isCMF(s.sender), guess: (rows) => rows.length > 0 && rows.every((r) => isAI(r.title) && isCMF(r.dept)) },
   { id: 'ai', name: 'AI 키워드 연수', byWord: (w) => isAI(w), guess: (rows) => rows.filter((r) => isAI(r.title)).length >= rows.length * 0.8 },
+  { id: 'moral', name: '도덕과 키워드', byWord: (w) => /도덕/.test(w), guess: (rows) => rows.filter((r) => /도덕/.test(r.title || '')).length >= rows.length * 0.8 },
   { id: 'cmf', name: '창의미래교육과', byWord: (w, s) => !w || isCMF(s.sender), guess: () => true },
 ];
 const REG_FROM = '2025-01-01';   // 이 날부터 빠진 기간을 찾아요
@@ -2041,7 +2061,7 @@ async function uploadSet(all, label = '') {
 // 📒 문서대장 캡쳐가 어떤 검색인지: ① 폴더 이름(예: '창의미래교육과' 폴더째 넣기) ② 접수처에서 고른 것. 둘 다 없으면 나중에 짐작
 function regTagOf(f) {
   const dir = (f.webkitRelativePath || f.relDir || '').split('/').slice(0, -1).join('/');
-  const byDir = !dir ? '' : isAI(dir) && isCMF(dir) ? 'aicmf' : isAI(dir) ? 'ai' : isCMF(dir) ? 'cmf' : '';
+  const byDir = !dir ? '' : isAI(dir) && isCMF(dir) ? 'aicmf' : isAI(dir) ? 'ai' : /도덕/.test(dir) ? 'moral' : isCMF(dir) ? 'cmf' : '';
   return byDir || S.regPick || '';
 }
 
