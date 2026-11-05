@@ -254,8 +254,9 @@ body.editing .del{display:inline-block}
 .sec-h small{font-weight:400;color:var(--muted);font-size:.8rem}
 .panels{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:.8rem}
 .panel{grid-column:span 6;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;min-width:0}
-.panel.wide{grid-column:span 8}.panel.narrow{grid-column:span 4}.panel.full{grid-column:1 / -1}.panel.third{grid-column:span 4}
-@media (max-width:1100px){ .panel,.panel.wide,.panel.narrow,.panel.third{grid-column:1 / -1} }
+.panel.wide{grid-column:span 8}.panel.narrow{grid-column:span 4}.panel.full{grid-column:1 / -1}.panel.third{grid-column:span 4}.panel.mv-card{grid-column:span 3}
+@media (max-width:1100px){ .panel,.panel.wide,.panel.narrow,.panel.third{grid-column:1 / -1} .panel.mv-card{grid-column:span 6} }
+@media (max-width:640px){ .panel.mv-card{grid-column:1 / -1} }
 .panel h3{display:flex;align-items:baseline;gap:.5rem;margin:0 0 .7rem;font-size:.95rem}
 .panel h3 small{font-weight:400;color:var(--muted);font-size:.78rem}
 .panel h3 .lg{margin-left:auto;display:flex;gap:.7rem;font-weight:400;font-size:.75rem;color:var(--muted)}
@@ -349,7 +350,7 @@ body.editing .del{display:inline-block}
     <div class="insights" id="homeInsights"></div>
     <h2 class="sec-h">📈 방문 흐름 <small>그래프에 마우스를 올리면 숫자가 보여요</small></h2>
     <div class="panels" id="homeCharts"></div>
-    <h2 class="sec-h">🏯 메타버스 3곳 · 🏫 교무실 타이쿤 <small>지금 접속 · 동시접속 최고 · 머문 시간 · 가입</small></h2>
+    <h2 class="sec-h">🏯 메타버스 4곳 · 🏫 교무실 타이쿤 <small>지금 접속 · 동시접속 최고 · 머문 시간 · 가입</small></h2>
     <div class="panels" id="homeMeta"></div>
     <h2 class="sec-h">🗂 웹앱별 카드 <small>오늘 방문이 많은 순 · 30일 그래프 · 최근 20주 잔디</small></h2>
     <div class="cards" id="homeCards"></div>
@@ -445,7 +446,8 @@ const ADMIN_GROUPS = [
   { title:'메타버스', icon:'cube', items:[   // 3D 공간 웹앱 (중계 서버 숫자는 홈의 🏯 메타버스 카드에)
     { name:'큰법당 템플스테이', admin:'https://templestay.site/admin.html', student:'https://templestay.site/', login:'gg' },
     { name:'캠핑장', admin:'https://campingjang.site/admin.html', student:'https://campingjang.site/', login:'gg' },
-    { name:'소호랩 SOHO LAB', admin:'https://soho-lab.site/admin.html', student:'https://soho-lab.site/', login:'gg' }   // 1인 개발자 3D 사무실 (저장소 vaca-at/soho-lab)
+    { name:'소호랩 SOHO LAB', admin:'https://soho-lab.site/admin.html', student:'https://soho-lab.site/', login:'gg' },   // 1인 개발자 3D 사무실 (저장소 vaca-at/soho-lab)
+    { name:'스냅주 Snapzoo', admin:'https://snapzoo.site/admin/', student:'https://snapzoo.site/', login:'pw' }   // 노을 진 섬 힐링 메타버스 (저장소 vaca-at/snapzoo)
   ]},
   { title:'아이아이노트', icon:'note', items:[
     { name:'아이아이노트 운영 현황', admin:'https://iinote.co.kr/admin.html', student:'https://iinote.co.kr/', login:'gg' }
@@ -746,6 +748,8 @@ const STATS = {
   'https://campingjang.site/admin.html': { relay:'https://campingjang-rooms.bellachord.workers.dev', unit:'방문' },
   /* 소호랩: 같은 방식 (1인 개발자 3D 사무실) */
   'https://soho-lab.site/admin.html': { relay:'https://soho-lab-rooms.bellachord.workers.dev', unit:'방문' },
+  /* 스냅주: 같은 방식 (어른용 섬의 공개 숫자 /public/visits, 아이용 동물 왕국 숫자는 빼고) */
+  'https://snapzoo.site/admin/': { relay:'https://snapzoo-rooms.bellachord.workers.dev', unit:'방문' },
   'https://jinseon50th.com/#admin':    { col:'jinsun50_visits', day:x => toDay(x.d || x.startMs), unit:'방문' },
   'https://jinseon50th.com/gt/#admin': { col:'gt_logs', filter:x => x.type === 'visit', day:x => toDay(x.at), unit:'방문', seed:'jinseon-gt' }
 };
@@ -969,24 +973,24 @@ function renderCharts(series, all, relays){
   const week = barChart([1,2,3,4,5,6,0].map(d => ({ k: DOW[d], v: dw[d], light: d === 0 || d === 6, tip: `${DOW[d]}요일 평균 ${dw[d]}회` })), { every: 1, color: '#2BA38A', W: 300, h: 220 });
   const share = series.map(x => ({ x, v: sumK(x.d.days, k30) })).filter(r => r.v).sort((p, q) => q.v - p.v), stot = share.reduce((s, r) => s + r.v, 0) || 1, smax = share[0]?.v || 1;
   const shareHTML = share.slice(0, 10).map((r, i) => `<button type="button" class="share-row" ${r.x.admin ? `data-open="${esc(r.x.admin)}"` : `data-site="${esc(r.x.site)}"`}><span class="nm">${esc(r.x.name)}</span><span class="bar"><i style="width:${Math.round(r.v / smax * 100)}%;background:${CHART_COLORS[i % CHART_COLORS.length]}"></i></span><span class="v">${r.v.toLocaleString()}</span><span class="p">${Math.round(r.v / stot * 100)}%</span></button>`).join('') || '<p class="msg">최근 30일 방문이 없어요.</p>';
-  const k7 = dayKeys(7), MV = ['#E0698F', '#2BA38A', '#8A63D2'];
-  const hrs = Array.from({ length: 24 }, (_, h) => ({ k: h, parts: relays.map((r, i) => ({ name: r.a.name, color: MV[i % 3], v: k7.reduce((s, k) => s + ((r.d.pub.hours || {})[k]?.[h] || 0), 0) })) }));
+  const k7 = dayKeys(7), MV = ['#E0698F', '#2BA38A', '#8A63D2', '#E0952B'];
+  const hrs = Array.from({ length: 24 }, (_, h) => ({ k: h, parts: relays.map((r, i) => ({ name: r.a.name, color: MV[i % 4], v: k7.reduce((s, k) => s + ((r.d.pub.hours || {})[k]?.[h] || 0), 0) })) }));
   $('#homeCharts').innerHTML = `
     <div class="panel wide"><h3>날짜별 방문 <small>최근 60일 · 전체 웹앱 합계</small><span class="lg"><span><i style="background:#3B6FD4"></i>방문</span><span><i style="background:#17243B;height:3px"></i>7일 평균</span><span><i style="background:#3B6FD4;opacity:.45"></i>주말</span></span></h3>${day60}</div>
     <div class="panel narrow"><h3>요일별 평균 <small>최근 8주</small></h3>${week}</div>
     <div class="panel"><h3>웹앱별 비중 <small>최근 30일 · 많은 순 10개 · 누르면 그 화면</small></h3>${shareHTML}</div>
-    <div class="panel"><h3>시간대별 방문 <small>메타버스 3곳 · 최근 7일 (다른 앱은 시간 기록이 없어요)</small><span class="lg">${relays.map((r, i) => `<span><i style="background:${MV[i % 3]}"></i>${esc(r.a.name)}</span>`).join('')}</span></h3>${relays.length ? stackChart(hrs) : '<p class="msg">메타버스 숫자를 불러오지 못했어요.</p>'}</div>`;
+    <div class="panel"><h3>시간대별 방문 <small>메타버스 4곳 · 최근 7일 (다른 앱은 시간 기록이 없어요)</small><span class="lg">${relays.map((r, i) => `<span><i style="background:${MV[i % 4]}"></i>${esc(r.a.name)}</span>`).join('')}</span></h3>${relays.length ? stackChart(hrs) : '<p class="msg">메타버스 숫자를 불러오지 못했어요.</p>'}</div>`;
 }
-/* ---------- 🏯 메타버스 3곳 · 🏫 교무실 타이쿤 ---------- */
+/* ---------- 🏯 메타버스 4곳 · 🏫 교무실 타이쿤 ---------- */
 function renderMeta(relays){
-  const today = ymd(new Date()), k7 = dayKeys(7), MV = ['#E0698F', '#2BA38A', '#8A63D2'];
+  const today = ymd(new Date()), k7 = dayKeys(7), MV = ['#E0698F', '#2BA38A', '#8A63D2', '#E0952B'];
   const mmss = sec => sec >= 60 ? `${Math.floor(sec / 60)}분 ${Math.round(sec % 60)}초` : `${Math.round(sec)}초`;
   const mv = relays.map((r, i) => {
     const p = r.d.pub, st = sumK(p.staySec, k7), sn = sumK(p.stayN, k7);
     return `<div class="panel third mv-card"><div class="hd">${esc(r.a.name)}<span class="live ${p.online ? '' : 'off'}">지금 ${p.online || 0}명</span></div>
       <div class="kv"><div><small>오늘 방문</small><b>${(p.today || 0).toLocaleString()}</b></div><div><small>누적</small><b>${(p.total || 0).toLocaleString()}</b></div><div><small>오늘 입장</small><b>${(p.joins?.[today] || 0).toLocaleString()}</b></div>
         <div><small>동시접속 최고</small><b>${p.best?.n || 0}명</b>${p.best?.at ? `<small>${mdw(ymd(new Date(p.best.at)))}</small>` : ''}</div><div><small>평균 머문 시간</small><b>${sn ? mmss(st / sn) : '-'}</b><small>최근 7일</small></div>${p.wishTotal != null ? `<div><small>연등</small><b>${p.wishTotal.toLocaleString()}개</b></div>` : ''}</div>
-      ${spark(p.days, 14, MV[i % 3])}<small class="updated">최근 14일 방문</small>
+      ${spark(p.days, 14, MV[i % 4])}<small class="updated">최근 14일 방문</small>
       <div class="lnk"><button type="button" class="btn" data-open="${esc(r.a.admin)}">관리자 화면</button><a class="btn" href="${esc(r.a.student)}" target="_blank" rel="noopener">홈페이지 ↗</a></div></div>`;
   }).join('');
   const t = tyStat || {}, web = siteData.desk || { total:0, days:{} }, app = siteData.deskapp || { total:0, days:{} };
