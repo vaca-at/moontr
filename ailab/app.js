@@ -1944,7 +1944,7 @@ function askDup(dups) {
 // 파일 이름 속 공문번호로 맞춰요. 고르는 창에서 [모두 넣기]도 할 수 있어요. 돌려주는 것: 올릴 파일 목록 (취소하면 [])
 async function folderPick(files) {
   const rows = S.registry?.rows || {};
-  if (!Object.keys(rows).length) return files;   // 문서대장이 아직 없으면 예전처럼 모두
+  // 다운로드 폴더처럼 큰 폴더도 고를 수 있어서, 공문번호가 없는 파일(사진 · 다른 문서 …)은 어떤 단추로도 올리지 않아요
   const got = new Set(S.captures.flatMap((c) => [c.name, ...(c.sources || []), ...(c.files || []).map((f) => f.name)]).map(docNo).filter(Boolean));
   const by = { fresh: new Map(), done: new Map(), out: new Map(), none: [] };
   for (const f of files) {
@@ -1957,18 +1957,18 @@ async function folderPick(files) {
   const li = (no) => `<li><b>${esc(no)}</b> ${esc(rows[no]?.title || '')} <small>${esc(rows[no]?.date ? fmtDate(rows[no].date) : '')}</small></li>`;
   dlg.innerHTML = `<form method="dialog" class="dlg one">${DLG_X}<div class="dlg-form">
     <h2>📁 폴더에서 무엇을 넣을까요?</h2>
-    <p class="note">파일 ${files.length}개를 공문번호로 문서대장 캡쳐 명단과 맞춰 봤어요.</p>
+    <p class="note">파일 ${files.length}개를 공문번호로 문서대장 캡쳐 명단과 맞춰 봤어요. 아직 아무것도 올라가지 않았어요.${by.fresh.size ? ` 공문 하나를 AI가 읽는 데 약 200원쯤 들어요 (${by.fresh.size}건 ≈ ${(by.fresh.size * 200).toLocaleString()}원).` : ''}</p>
     <ul class="fp-sum">
       <li class="ok">✅ <b>명단에 있고 아직 안 넣은 공문 ${by.fresh.size}건</b> (파일 ${nF(by.fresh)}개)</li>
       <li>✓ 이미 넣은 공문 ${by.done.size}건 (파일 ${nF(by.done)}개) — 빼요</li>
       <li>· 문서대장 명단에 없는 공문 ${by.out.size}건 (파일 ${nF(by.out)}개)</li>
-      ${by.none.length ? `<li>· 공문번호가 없는 파일 ${by.none.length}개</li>` : ''}
+      ${by.none.length ? `<li>· 공문번호가 없는 파일 ${by.none.length}개 — 업무관리시스템 공문 파일이 아니라서 올리지 않아요</li>` : ''}
     </ul>
     ${by.fresh.size ? `<details open><summary>새로 넣을 공문 보기</summary><ul class="dup-list">${[...by.fresh.keys()].sort((a, b) => String(rows[b]?.date).localeCompare(String(rows[a]?.date))).map(li).join('')}</ul></details>` : '<p class="note">명단에 있는 공문은 모두 이미 넣었어요.</p>'}
-    <div class="dlg-acts"><button value="cancel">취소</button><button type="button" id="fpAll">명단과 상관없이 안 넣은 것 모두</button>${by.fresh.size ? `<button type="button" class="yes" id="fpNew">명단에 있는 새 공문 ${by.fresh.size}건만 넣기</button>` : ''}</div>
+    <div class="dlg-acts"><button value="cancel">취소</button>${by.out.size ? `<button type="button" id="fpAll">명단에 없는 공문 ${by.out.size}건도 함께</button>` : ''}${by.fresh.size ? `<button type="button" class="yes" id="fpNew">명단에 있는 새 공문 ${by.fresh.size}건만 넣기</button>` : ''}</div>
   </div></form>`;
   let pick = [];
-  $('#fpAll', dlg).addEventListener('click', () => { pick = [...[...by.fresh.values()].flat(), ...[...by.out.values()].flat(), ...by.none]; dlg.close(); });
+  $('#fpAll', dlg)?.addEventListener('click', () => { if (by.out.size > 30 && !confirm(`명단에 없는 공문 ${by.out.size}건까지 모두 올릴까요? AI가 하나씩 읽어서 크레딧이 들어요.`)) return; pick = [...[...by.fresh.values()].flat(), ...[...by.out.values()].flat()]; dlg.close(); });
   $('#fpNew', dlg)?.addEventListener('click', () => { pick = [...by.fresh.values()].flat(); dlg.close(); });
   dlg.showModal();
   return new Promise((res) => dlg.addEventListener('close', () => res(pick), { once: true }));
