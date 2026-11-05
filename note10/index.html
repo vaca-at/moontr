@@ -292,6 +292,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
   <div class="right">
     <span class="badge" id="syncBadge">🔒 로그인 전</span>
     <button class="pill dash" id="adminBtn" style="display:none" onclick="openDash()">🛠 관리</button>
+    <button class="pill dash" id="subjBtn" style="display:none" onclick="openSubjBulk()">📘 선택과목 넣기</button>
     <button class="pill dash" id="clubBtn" style="display:none" onclick="openClub()">🎨 동아리 업무</button>
     <span class="badge">🔒 이름 없음</span>
     <button class="pill" onclick="cycleTheme()">🎨 꾸미기</button>
@@ -543,6 +544,7 @@ function setSync(st) {
   $('#syncBadge').textContent = st === 'cloud' ? '☁️ 클라우드 저장 중' : '🔒 로그인 전';
   $('#adminBtn').style.display = st === 'cloud' ? '' : 'none';
   $('#clubBtn').style.display = st === 'cloud' ? '' : 'none';
+  $('#subjBtn').style.display = st === 'cloud' ? '' : 'none';
   render();
   // 주소 끝이 #admin(관리자 허브)이어도 관리 창은 저절로 열지 않아요 — 로그인 뒤 달력 홈부터 (관리는 위쪽 🛠 관리 단추로)
 }
@@ -2722,7 +2724,8 @@ function weekRecords(ws) {
 }
 async function weeklyRun(btn) {
   const W = weekRecords(V.week || monday(today())), seen = W.by.filter(x => x.items.length);
-  if (!seen.length) return toast('이 주에는 기록이 없어요');
+  if (!seen.length) return toast('🗞 이 주에는 일화 · 상담 · 활동 · 공통 행사 기록이 없어요. 기록을 남기거나, 오른쪽 위에서 다른 주를 골라 주세요');
+  if (!S.apiKey) { openSettings(); return toast('🤖 주간 총평은 AI가 써요. 설정에서 AI 키를 먼저 넣어 주세요'); }
   const codes = {}; seen.forEach((x, i) => codes[code(i)] = x.st.id);
   const txt = seen.map((x, i) => x.items.map(([d, k, t]) => `[${code(i)}] ${d} (${k}) ${t}`).join('\n')).join('\n');
   await withBusy(btn, async () => {
@@ -2756,7 +2759,7 @@ function viewWeekly() {
       <div>${r ? `<div class="mini">${ago(r.at)} · 기록 ${r.n}명 읽음</div><div class="ai-out">${decode(r.text, r.codes)}</div>
           <button class="btn ghost sm" style="margin-top:8px" onclick="weeklyRun(this)">🗞 다시 만들기</button>`
         : seen.length ? `<div class="empty">이 주 기록 ${n}개를 읽고 눈에 띈 장면 · 다음 주에 볼 것을 한 장으로 정리해요<br><button class="btn ai" style="margin-top:10px" onclick="weeklyRun(this)">🗞 주간 총평 만들기</button><div class="mini" style="margin-top:6px">AI에는 동물 이름 대신 A · B · C 기호만 보내요</div></div>`
-        : `<div class="empty">이 주에는 아직 기록이 없어요.<br>일화 · 상담 · 공통 행사를 남기면 총평을 만들 수 있어요 🌱</div>`}</div>
+        : `<div class="empty">이 주에는 아직 기록이 없어요.<br>일화 · 상담 · 공통 행사를 남기면 총평을 만들 수 있어요 🌱<br><button class="btn ai" style="margin-top:10px" onclick="weeklyRun(this)">🗞 주간 총평 만들기</button><div class="mini" style="margin-top:6px">위에서 다른 주를 고를 수도 있어요</div></div>`}</div>
     </div>
   </div></div>`;
 }
@@ -2960,6 +2963,11 @@ function openDash(tab) {
   if (tab) DASH.tab = tab;
   openModal('🛠 관리', viewDash(), true);
   $('#modal .sheet').classList.toggle('xwide', DASH.tab === 'school');
+}
+// 📘 맨 위 '선택과목 넣기' 단추: 관리 → 우리반 명단의 '선택과목 최종 한꺼번에 넣기' 칸으로 바로
+function openSubjBulk() {
+  openDash('roster');
+  setTimeout(() => { const el = $('#sbPaste'); if (el) { el.closest('section').scrollIntoView({ behavior: 'smooth', block: 'start' }); el.focus(); } }, 120);
 }
 function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
 function viewDash() {
