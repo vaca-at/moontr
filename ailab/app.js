@@ -475,6 +475,7 @@ function floorView(k) {
   return `<div class="room2">
     <nav class="r2-top"><a class="r2-back" href="village/">← 마을</a><canvas class="r2-plate" data-plate="${k}" width="112" height="112" aria-hidden="true"></canvas><h2>${esc(roomName(k))}${b.n ? `<span class="cnt">${b.n}</span>` : ''}</h2>
       ${k !== 'lobby' ? `<a class="r2-lobby" href="#lobby">접수처 · 자료 넣기</a>` : ''}</nav>
+    ${k === 'lobby' ? pickBar() : ''}
     ${B3 !== false ? `<div class="lift r2-pic ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div></div>` : ''}
     <div class="r2-bar" role="group" aria-label="${esc(roomName(k))} 가구">${furn.map(([id, label, ic]) => `<button type="button" class="r2-btn" data-act="furn" data-v="${id}" title="${esc(FURN_TIP[id] || '')}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[ic] || ''}</svg><span>${esc(label)}</span></button>`).join('')}</div>
     <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
@@ -1133,6 +1134,13 @@ function regCoverage() {
     };
   });
 }
+// 📒 '지금 붙이는 공문' 큰 단추 줄: 접수처 방 화면 · [창구 · 자료 넣기] 창 맨 위. 고른 것이 이제부터 넣는 캡쳐에 붙어요
+function pickBar() {
+  const cur = S.regPick || '';
+  const opts = [['', '📄 보통 자료', '공문 · 연수 안내 · 수업 공개 …'], ...REG_WATCH.map((w) => [w.id, `📒 ${w.name}`, '문서대장 캡쳐'])];
+  return `<div class="pickbar" role="group" aria-label="지금 붙이는 공문"><span class="pb-h">지금 붙이는 것<small>Ctrl+V 하기 전에 골라요</small></span>
+    ${opts.map(([v, t, s]) => `<button type="button" class="pb ${v === cur ? 'on' : ''}" data-act="regpick" data-v="${v}" aria-pressed="${v === cur}"><b>${esc(t)}</b><small>${esc(s)}</small></button>`).join('')}</div>`;
+}
 function regCoverageBox() {
   if (!S.registry) return '';
   const caps = regCaps(), guessed = caps.filter((x) => x.guessed).length;
@@ -1152,6 +1160,7 @@ function lobbyView() {
   const review = S.cards.filter((c) => c.status === 'review');
   const moving = S.uploading.size + reading.length;
   return `<div class="mD">
+    ${pickBar()}
     <div class="intake">
       <div class="intake-l"><label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 본문(.odt) · PDF · 엑셀 · 사진 · 한글(.hwp · .hwpx)을 한꺼번에 넣으면 공문번호별로 묶어 읽어요 · 폴더째 끌어다 놓아도 돼요</small></label>
       <label class="btn folder-btn" for="folderInput">📁 폴더 고르기 <small>폴더 안 파일을 공문번호별로 한꺼번에</small></label></div>
@@ -1915,7 +1924,7 @@ async function dropFiles(dt) {
   if (!entries.some((e) => e.isDirectory)) return [...dt.files];
   const out = [];
   const walk = async (e) => {
-    if (e.isFile) { out.push(await new Promise((res, rej) => e.file(res, rej))); return; }
+    if (e.isFile) { const f = await new Promise((res, rej) => e.file(res, rej)); f.relDir = e.fullPath || ''; out.push(f); return; }   // 폴더 이름으로 문서대장 검색 종류를 알아요
     const reader = e.createReader();
     for (;;) {
       const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
@@ -1979,8 +1988,15 @@ async function uploadSet(all, label = '') {
     await uploadBundle([...checked.files, ...imgs], link, memo, all.map((f) => f.name).filter(Boolean));
     return;
   }
-  toast(`1층 접수처에 ${imgs.length}장 들어왔어요. 바로 읽기 시작해요.`);
-  await Promise.all(imgs.map((f) => uploadOne(f, link, memo)));
+  const tags = [...new Set(imgs.map(regTagOf).filter(Boolean))].map((v) => REG_WATCH.find((w) => w.id === v)?.name).filter(Boolean);
+  toast(`1층 접수처에 ${imgs.length}장 들어왔어요${tags.length ? ` (📒 ${tags.join(' · ')} 문서대장)` : ''}. 바로 읽기 시작해요.`);
+  await Promise.all(imgs.map((f) => uploadOne(f, link, memo, regTagOf(f))));
+}
+// 📒 문서대장 캡쳐가 어떤 검색인지: ① 폴더 이름(예: '창의미래교육과' 폴더째 넣기) ② 접수처에서 고른 것. 둘 다 없으면 나중에 짐작
+function regTagOf(f) {
+  const dir = (f.webkitRelativePath || f.relDir || '').split('/').slice(0, -1).join('/');
+  const byDir = dir && REG_WATCH.find((w) => dir.includes(w.name) || dir.includes(w.name.split(' ')[0]) || (w.id === 'cmf' && /창의미래/.test(dir)));
+  return byDir?.id || S.regPick || '';
 }
 
 // 공문 묶음: 파일을 ailab/bundles/{번호}/ 에 모두 올린 뒤, 서버 함수 readBundle 에 '다 올렸어요' 하고 읽기를 맡겨요
@@ -2021,7 +2037,7 @@ async function uploadBundle(files, link, memo, sources = files.map((f) => f.name
     .catch((e) => toast(`공문 묶음을 읽지 못했어요 (${e.message})`));
 }
 
-async function uploadOne(file, link, memo) {
+async function uploadOne(file, link, memo, regTag = '') {
   const capRef = doc(collection(db, dbPath('captures')));
   const up = { name: file.name || '붙여넣은 이미지', sent: 0, total: 0 };
   S.uploading.set(capRef.id, up);
@@ -2030,7 +2046,7 @@ async function uploadOne(file, link, memo) {
     const blob = await prepare(file);
     up.total = blob.size;
     const path = `ailab/captures/${capRef.id}.${OK_TYPES[blob.type] || 'img'}`;
-    await setDoc(capRef, { status: 'reading', name: file.name || '붙여넣은 이미지', storagePath: path, link, memo, createdAt: serverTimestamp() });
+    await setDoc(capRef, { status: 'reading', name: file.name || '붙여넣은 이미지', storagePath: path, link, memo, ...(regTag ? { regTag } : {}), createdAt: serverTimestamp() });
     await putFile(path, blob, blob.type || 'image/jpeg', (b) => { up.sent = b; setBar(capRef.id, pctOf(up)); });
     S.readStart[capRef.id] = Date.now();
   } catch (e) {
@@ -2081,6 +2097,12 @@ document.addEventListener('click', async (e) => {
         if (isGuest()) { toast('선생님 로그인 후에 사진을 넣을 수 있어요'); await login(); } else $('#fileInput').click();
         break;
       case 'login': await login(); break;
+      case 'regpick': {   // 📒 지금 붙이는 공문 (문서대장 검색 종류)
+        S.regPick = b.dataset.v || '';
+        const w = REG_WATCH.find((x) => x.id === S.regPick);
+        toast(w ? `지금부터 붙이는 캡쳐는 '${w.name}' 문서대장으로 넣어요` : '지금부터는 보통 자료(공문 · 연수 안내 …)로 넣어요');
+        render(); break;
+      }
       case 'logout': await signOut(auth); break;
       case 'confirm':
         await updateDoc(doc(db, dbPath(`cards/${id}`)), { status: 'done', unsure: [], confirmedAt: serverTimestamp() });
