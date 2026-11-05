@@ -1916,6 +1916,39 @@ function askDup(dups) {
   return new Promise((res) => dlg.addEventListener('close', () => res(choice), { once: true }));
 }
 
+// 📁 폴더째 넣을 때: 문서대장 캡쳐 명단(ailab_meta/registry)에 있고 아직 안 넣은 공문만 골라 올려요
+// 파일 이름 속 공문번호로 맞춰요. 고르는 창에서 [모두 넣기]도 할 수 있어요. 돌려주는 것: 올릴 파일 목록 (취소하면 [])
+async function folderPick(files) {
+  const rows = S.registry?.rows || {};
+  if (!Object.keys(rows).length) return files;   // 문서대장이 아직 없으면 예전처럼 모두
+  const got = new Set(S.captures.flatMap((c) => [c.name, ...(c.sources || []), ...(c.files || []).map((f) => f.name)]).map(docNo).filter(Boolean));
+  const by = { fresh: new Map(), done: new Map(), out: new Map(), none: [] };
+  for (const f of files) {
+    const no = docNo(f.name);
+    if (!no) { by.none.push(f); continue; }
+    const m = got.has(no) ? by.done : rows[no] ? by.fresh : by.out;
+    if (!m.has(no)) m.set(no, []); m.get(no).push(f);
+  }
+  const nF = (m) => [...m.values()].reduce((n, l) => n + l.length, 0);
+  const li = (no) => `<li><b>${esc(no)}</b> ${esc(rows[no]?.title || '')} <small>${esc(rows[no]?.date ? fmtDate(rows[no].date) : '')}</small></li>`;
+  dlg.innerHTML = `<form method="dialog" class="dlg one">${DLG_X}<div class="dlg-form">
+    <h2>📁 폴더에서 무엇을 넣을까요?</h2>
+    <p class="note">파일 ${files.length}개를 공문번호로 문서대장 캡쳐 명단과 맞춰 봤어요.</p>
+    <ul class="fp-sum">
+      <li class="ok">✅ <b>명단에 있고 아직 안 넣은 공문 ${by.fresh.size}건</b> (파일 ${nF(by.fresh)}개)</li>
+      <li>✓ 이미 넣은 공문 ${by.done.size}건 (파일 ${nF(by.done)}개) — 빼요</li>
+      <li>· 문서대장 명단에 없는 공문 ${by.out.size}건 (파일 ${nF(by.out)}개)</li>
+      ${by.none.length ? `<li>· 공문번호가 없는 파일 ${by.none.length}개</li>` : ''}
+    </ul>
+    ${by.fresh.size ? `<details open><summary>새로 넣을 공문 보기</summary><ul class="dup-list">${[...by.fresh.keys()].sort((a, b) => String(rows[b]?.date).localeCompare(String(rows[a]?.date))).map(li).join('')}</ul></details>` : '<p class="note">명단에 있는 공문은 모두 이미 넣었어요.</p>'}
+    <div class="dlg-acts"><button value="cancel">취소</button><button type="button" id="fpAll">명단과 상관없이 안 넣은 것 모두</button>${by.fresh.size ? `<button type="button" class="yes" id="fpNew">명단에 있는 새 공문 ${by.fresh.size}건만 넣기</button>` : ''}</div>
+  </div></form>`;
+  let pick = [];
+  $('#fpAll', dlg).addEventListener('click', () => { pick = [...[...by.fresh.values()].flat(), ...[...by.out.values()].flat(), ...by.none]; dlg.close(); });
+  $('#fpNew', dlg)?.addEventListener('click', () => { pick = [...by.fresh.values()].flat(); dlg.close(); });
+  dlg.showModal();
+  return new Promise((res) => dlg.addEventListener('close', () => res(pick), { once: true }));
+}
 // 업무관리시스템에서 받은 파일 이름 속 공문번호 (두 모양 다): '… [진선여자고등학교-10941 (본문)].pdf' · '(진선여자고등학교-10941 (첨부) …) ….pdf'
 const docNo = (name) => String(name || '').match(/[가-힣A-Za-z]+-(\d{3,7})\s*\((?:본문|첨부)/)?.[1] || '';
 // 폴더째 끌어다 놓으면 안쪽 파일을 모두 꺼내요 (하위 폴더까지)
@@ -2194,7 +2227,7 @@ document.addEventListener('change', (e) => {
   else if (t.id === 'taskDue') saveTask({ due: t.value });
   else if (t.id === 'taskNotes') saveTask({ notes: t.value });
   else if (t.id === 'fileInput') { upload(t.files); t.value = ''; }
-  else if (t.id === 'folderInput') { const fs = [...t.files].filter(notJunk); t.value = ''; if (fs.length) upload(fs); else toast('폴더 안에 넣을 파일이 없어요'); }
+  else if (t.id === 'folderInput') { const fs = [...t.files].filter(notJunk); t.value = ''; if (fs.length) folderPick(fs).then((p) => { if (p.length) upload(p); }); else toast('폴더 안에 넣을 파일이 없어요'); }
 });
 
 document.addEventListener('input', (e) => {
@@ -2247,7 +2280,8 @@ window.addEventListener('drop', (e) => {
   e.preventDefault();
   dragDepth = 0;
   $('#dropOverlay').hidden = true;
-  if (S.teacher) dropFiles(e.dataTransfer).then((files) => (files.length ? upload(files) : toast('폴더 안에 넣을 파일이 없어요'))).catch((err) => toast(`폴더를 열지 못했어요 (${err.message || err})`));
+  const isDir = [...(e.dataTransfer.items || [])].some((it) => it.webkitGetAsEntry?.()?.isDirectory);
+  if (S.teacher) dropFiles(e.dataTransfer).then(async (files) => { if (!files.length) return toast('폴더 안에 넣을 파일이 없어요'); const fs = isDir ? await folderPick(files) : files; if (fs.length) upload(fs); }).catch((err) => toast(`폴더를 열지 못했어요 (${err.message || err})`));
 });
 // 계기판 할 일: 적고 Enter
 document.addEventListener('keydown', (e) => {
