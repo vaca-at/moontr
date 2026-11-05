@@ -315,6 +315,7 @@
           <label>창가 <select id="lWin"><option value="left">왼쪽</option><option value="right">오른쪽</option></select></label>
           <label class="opt"><input type="checkbox" id="lPair"> 둘씩 짝</label>
         </div>
+        <p class="note" id="layMsg" hidden></p>
         <div id="layoutRoom"></div>
       </div>
       <div class="panel">
@@ -736,16 +737,52 @@ function renderLayout() {
   $('lRows').value = L().rows; $('lCols').value = L().cols; $('lWin').value = L().win; $('lPair').checked = !!L().pair;
   $('layoutRoom').innerHTML = roomHTML(S.current, { layoutEdit: true });
 }
-function changeLayout() {
+// 앞쪽 빈자리부터 번호 순서대로 앉혀요 → 자리가 모자라 못 앉은 친구 수
+function fillEmpty(map, nos) {
+  const free = activeSeats().filter((i) => map[i] == null), list = nos.slice().sort((a, b) => a - b);
+  list.forEach((no, k) => { if (free[k] != null) map[free[k]] = no; });
+  return Math.max(0, list.length - free.length);
+}
+// 줄 · 칸 위치 그대로 옮기고, 새 틀 밖으로 나간 친구는 빈자리로 (아무도 빠지지 않아요)
+function remapSeats(m, move) {
+  const out = {}, lost = [];
+  for (const [s, no] of Object.entries(m || {})) { const t = move(+s); if (t != null && out[t] == null) out[t] = no; else lost.push(no); }
+  fillEmpty(out, lost);
+  return out;
+}
+// 번호 순서대로 앞에서부터 앉히고, 남는 자리는 맨 뒤에서 없는 자리로
+function seatInOrder() {
+  const n = seatCount(), list = S.students.slice().sort((a, b) => a.no - b.no), extra = Math.max(0, n - list.length);
+  S.layout.off = Array.from({ length: extra }, (_, k) => n - extra + k);
+  S.current = {};
+  list.slice(0, n).forEach((s, i) => { S.current[i] = s.no; });
+}
+async function changeLayout() {
+  await loadCaps();   // 캡쳐도 함께 옮겨요 (기다린 뒤에 지금 틀을 읽어야 연달아 바꿔도 안 어긋나요)
   const rows = Math.max(1, Math.min(10, +$('lRows').value || 1)), cols = Math.max(1, Math.min(12, +$('lCols').value || 1));
-  const oldC = L().cols;
+  const win = $('lWin').value, pair = $('lPair').checked, oldC = L().cols, oldR = L().rows, resized = rows !== oldR || cols !== oldC;
+  // 칸을 먼저 줄이면 줄을 늘리기 전까지 자리가 모자라요 → 다 앉을 수 있는 틀이 될 때까지 기다려요 (그 사이에 아무도 빠지지 않게)
+  const need = S.students.length, msg = $('layMsg');
+  msg.hidden = !(resized && rows * cols < need);
+  if (!msg.hidden) { msg.textContent = `⏳ ${rows}줄 × ${cols}칸은 ${rows * cols}자리라 ${need}명이 다 못 앉아요. 줄이나 칸을 더 늘리면 그때 바뀌어요.`; return; }
   // 줄 · 칸 수가 바뀌면 자리 번호를 줄 · 칸 위치 그대로 옮겨요
   const move = (i) => { const r = Math.floor(i / oldC), c = i % oldC; return r < rows && c < cols ? r * cols + c : null; };
-  const cur = {}; for (const [s, no] of Object.entries(S.current)) { const t = move(+s); if (t != null) cur[t] = no; }
-  S.current = cur;
-  S.layout = { ...L(), rows, cols, win: $('lWin').value, pair: $('lPair').checked, off: (L().off || []).map(move).filter((x) => x != null) };
+  S.layout = { ...L(), rows, cols, win, pair, off: resized ? [] : (L().off || []) };
   S.students.forEach((s) => { if (s.fix != null) s.fix = move(s.fix); });
-  save(); renderLayout();
+  if (resized) {
+    S.history.forEach((h) => { h.seats = remapSeats(h.seats, move); });
+    CAPS.forEach((c) => { c.seats = remapSeats(c.seats, move); saveCap(c); });
+    if (S.sample) seatInOrder();   // 예시 자리는 새 틀에 번호 순서대로
+    else {
+      S.current = remapSeats(S.current, move);
+      fillEmpty(S.current, unseated().map((s) => s.no));   // 전에 빠져 있던 친구도 함께
+      // 남는 자리는 맨 뒤 빈자리부터 없는 자리로
+      const off = []; for (let i = seatCount() - 1, left = seatCount() - need; i >= 0 && left > 0 && S.current[i] == null; i--, left--) off.unshift(i);
+      S.layout.off = off;
+    }
+  }
+  save(); renderLayout(); renderFix();
+  if (resized) renderStudents();
 }
 ['lRows', 'lCols', 'lWin', 'lPair'].forEach((id) => $(id).addEventListener('change', changeLayout));
 $('layoutRoom').addEventListener('click', (e) => {
@@ -754,7 +791,7 @@ $('layoutRoom').addEventListener('click', (e) => {
   const off = new Set(L().off || []);
   if (off.has(i)) off.delete(i); else { off.add(i); delete S.current[i]; }
   S.layout.off = [...off].sort((a, b) => a - b);
-  save(); renderLayout();
+  save(); renderLayout(); renderFix();
 });
 // 번호 바꾸기: 지금 자리 · 기록 · 캡쳐의 번호도 함께 바꿔요. 바꿀 번호가 이름 없는 칸이면 하나로 합쳐요
 function moveNoInMap(m, from, to) {
@@ -785,10 +822,28 @@ function rosterIssue() {
   const n = S.students.length, odd = S.students.filter((s) => s.no > n && s.name), empty = S.students.filter((s) => !s.name);
   return odd.length === 1 && empty.length === 1 ? { from: odd[0], to: empty[0] } : null;
 }
+// 명단에 있는데 지금 자리에 없는 친구
+const unseated = () => { const on = new Set(Object.values(S.current).map(Number)); return S.students.filter((s) => !on.has(s.no)).sort((a, b) => a.no - b.no); };
 function renderFix() {
-  const b = $('fixBar'), x = rosterIssue();
-  b.hidden = !x; if (!x) { b.innerHTML = ''; return; }
-  b.innerHTML = `⚠️ <b>${x.from.no}번 ${esc(x.from.name)}</b> 학생의 번호가 이상하고, <b>${x.to.no}번</b>은 이름이 없어요. 같은 친구라면 <button class="btn primary" id="fixNo">${x.from.no}번 → ${x.to.no}번으로 고치기</button> <span class="note">지금 자리 · 기록 · 캡쳐의 번호도 함께 바뀌어요</span>`;
+  const b = $('fixBar'), x = rosterIssue(), lost = unseated(), parts = [];
+  const free = activeSeats().filter((i) => S.current[i] == null).length;
+  const again = () => showTab(document.querySelector('.tabs button[aria-selected="true"]')?.dataset.tab || 'now');
+  if (x) parts.push(`⚠️ <b>${x.from.no}번 ${esc(x.from.name)}</b> 학생의 번호가 이상하고, <b>${x.to.no}번</b>은 이름이 없어요. 같은 친구라면 <button class="btn primary" id="fixNo">${x.from.no}번 → ${x.to.no}번으로 고치기</button> <span class="note">지금 자리 · 기록 · 캡쳐의 번호도 함께 바뀌어요</span>`);
+  if (lost.length) {
+    const who = `⚠️ 자리가 없는 친구 <b>${lost.length}명</b>: ${lost.map((s) => `${s.no}번`).join(', ')}`;
+    // 전자칠판은 학생도 만질 수 있어서 단추 없이 알림만
+    parts.push(BOARD ? `${who} — 선생님 화면에서 앉혀 주세요.`
+      : `${who} ${free >= lost.length ? '<button class="btn primary" id="fixFill">빈자리에 앉히기</button>' : `<span class="note">빈자리가 ${free}개뿐이에요. 없는 자리를 되살려 주세요.</span>`} <button class="btn" id="fixOrder">번호 순서대로 다시 놓기</button>`);
+  }
+  b.hidden = !parts.length; b.innerHTML = parts.join('<br>');
+  if ($('fixFill')) $('fixFill').onclick = () => {
+    fillEmpty(S.current, lost.map((s) => s.no)); save(); again();
+  };
+  if ($('fixOrder')) $('fixOrder').onclick = () => {
+    if (!confirm('모든 친구를 번호 순서대로 앞에서부터 다시 앉힐까요? 남는 자리는 맨 뒤에서 없는 자리가 돼요.')) return;
+    pushHistory('번호 순서로 다시 놓기 전'); seatInOrder(); save(); again();
+  };
+  if (!x) return;
   $('fixNo').onclick = async () => {
     const from = x.from.no, to = x.to.no, both = Object.values(S.current).some((v) => +v === from);
     const freed = both ? Object.keys(S.current).filter((k) => +S.current[k] === to).map((k) => +k + 1) : [];
