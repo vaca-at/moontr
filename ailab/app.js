@@ -1187,7 +1187,12 @@ function lobbyView() {
   return `<div class="mD">
     <div class="intake">
       <div class="intake-l"><label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 본문(.odt) · PDF · 엑셀 · 사진 · 한글(.hwp · .hwpx)을 한꺼번에 넣으면 공문번호별로 묶어 읽어요 · 폴더째 끌어다 놓아도 돼요</small></label>
-      <label class="btn folder-btn" for="folderInput">📁 폴더 고르기 <small>폴더 안 파일을 공문번호별로 한꺼번에</small></label></div>
+      <label class="btn folder-btn" for="folderInput">📁 폴더 고르기 <small>문서대장 목록에 있고 아직 안 넣은 공문만</small></label>
+      <ol class="folder-how">
+        <li><b>다운로드</b> 폴더를 그대로 골라도 돼요 (업무관리시스템에서 받은 공문 파일이 있는 곳)</li>
+        <li>크롬이 '파일 ○○개를 업로드하시겠습니까?' 하고 물으면 <b>[업로드]</b> — 아직 아무것도 올라가지 않아요. 연구소가 파일 이름만 봐요</li>
+        <li>뜨는 창에서 <b>[명단에 있는 새 공문 ○건만 넣기]</b> — 공문번호가 없는 파일(사진 · 다른 문서)은 절대 올리지 않아요</li>
+      </ol></div>
       <div class="extra">
         <label>링크 주소 <small>홈페이지 캡쳐라면 주소를 같이 적어 주세요</small><input id="pendLink" type="url" inputmode="url" placeholder="https://" value="${esc(S.pending.link)}"></label>
         <label>메모 <small>예: 3차 연수 과제 안내 / 내 이름 ○○○</small><input id="pendMemo" value="${esc(S.pending.memo)}"></label>
