@@ -114,6 +114,19 @@
   .print-area .side-label.win{ background:#fff; border:1px solid #999; color:#333; }
   .print-area .side-label.hall{ background:#fff; border:1px solid #ccc; }
 
+  /* ===== 🥶 창가 체크 ===== */
+  .cold-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:10px; }
+  .cold-grid button{ height:84px; border-radius:16px; border:2px solid var(--line); background:#fff; font-size:30px; font-weight:800; color:var(--ink); transition:transform .1s; }
+  .cold-grid button small{ display:block; font-size:12px; font-weight:600; color:var(--muted); }
+  .cold-grid button.on{ background:var(--cold-bg); border-color:var(--cold); color:var(--cold); }
+  .cold-grid button:active{ transform:scale(.95); }
+  /* ===== 📺 전자칠판 모드 (?board → body.bmode): 번호만 크게 ===== */
+  body.bmode .seat{ min-height:84px; }
+  body.bmode .seat .nm{ font-size:30px; font-weight:800; }
+  body.bmode .seat .no{ font-size:12px; }
+  body.bmode .board{ font-size:16px; }
+  body.bmode [data-tab="print"], body.bmode [data-tab="students"], body.bmode [data-tab="caps"], body.bmode [data-tab="history"], body.bmode #editNow, body.bmode .legend, body.bmode .policy-foot{ display:none !important; }
+
   /* ===== 📸 지난 자리 넣기 ===== */
   .cap-drop{ border:2px dashed var(--dawn); border-radius:16px; padding:22px; text-align:center; background:var(--paper-2); line-height:1.8; outline:none; }
   .cap-drop:focus, .cap-drop.over{ border-color:var(--dawn-deep); background:#d6f1ea; }
@@ -186,11 +199,12 @@
 <div id="app" hidden>
   <header class="top">
     <div class="in">
-      <div class="eyebrow display">1학년 10반 · SEAT</div>
+      <div class="eyebrow display" id="eyebrow">1학년 10반 · SEAT</div>
       <h1 class="display">🪑 자리 바꾸기</h1>
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="now" aria-selected="true">📋 지금 자리</button>
         <button role="tab" data-tab="shuffle">🎲 자리 바꾸기</button>
+        <button role="tab" data-tab="cold">🥶 창가 체크</button>
         <button role="tab" data-tab="print">🖨️ 출력</button>
         <button role="tab" data-tab="students">👥 명단 · 교실</button>
         <button role="tab" data-tab="caps">📸 지난 자리 넣기</button>
@@ -259,6 +273,16 @@
           <button class="btn primary" id="confirmShuffle">✅ 이 자리로 확정</button>
         </div>
         <div id="previewRoom"></div>
+      </div>
+    </section>
+
+    <!-- 🥶 창가 체크: 창가가 추워서 싫은 친구가 자기 번호를 눌러요 (번호만 보여요) -->
+    <section id="tab-cold" class="tab" hidden>
+      <div class="panel">
+        <div class="row" style="margin-bottom:6px;"><h2 style="margin:0;">🥶 창가 자리가 추운 친구?</h2><span class="chip" id="coldCount"></span><span class="status" id="coldStatus"></span></div>
+        <p class="sub">창가 자리가 추워서 피하고 싶은 친구는 <b>자기 번호</b>를 눌러요. 다시 누르면 빠져요. 체크한 친구는 랜덤 자리 바꾸기에서 창가에 앉지 않아요.</p>
+        <div id="coldGrid" class="cold-grid"></div>
+        <div class="row" style="margin-top:14px;"><button class="btn" id="coldReset">모두 지우기</button><span class="note">창가 자리가 모자라지 않게, 너무 많이 체크하면 자리 바꾸기에서 알려 줘요</span></div>
       </div>
     </section>
 
@@ -382,7 +406,7 @@
       </div>
     </details>
   </footer>
-  <a class="admin-fab" href="../?page=admin" title="1학년 10반 관리자 화면">우리반 관리</a>
+  <a class="admin-fab" id="backLink" href="../?page=admin" title="1학년 10반 관리자 화면">우리반 관리</a>
 </div>
 
 <script type="module">
@@ -436,7 +460,15 @@ let editing = false, picked = null;
 
 // ----- 저장 · 불러오기 -----
 let saveTimer = null, useLocal = false;
-const DEMO = new URLSearchParams(location.search).has('demo');   // 시험용 예시 화면: 저장하지 않아요
+const DEMO = new URLSearchParams(location.search).has('demo');
+const BOARD = new URLSearchParams(location.search).has('board');   // 📺 전자칠판: 이름 없이 번호만, 명단 · 기록 · 출력 탭은 숨겨요
+if (BOARD) {
+  document.body.classList.add('bmode');   // (body 에 'board' 를 붙이면 칠판 모양 CSS 가 몸 전체에 걸려요)
+  document.title = '1학년 10반 자리 (전자칠판)';
+  $('eyebrow').textContent = '1학년 10반 · 전자칠판 · 번호만 보여요';
+  $('backLink').href = '../'; $('backLink').textContent = '우리반 홈';
+  document.querySelector('#loginView .sub').innerHTML = '전자칠판에서 처음 한 번만 <b>선생님 계정</b>으로 로그인해 주세요.<br>칠판에는 이름 없이 번호만 보여요.';
+}   // 시험용 예시 화면: 저장하지 않아요
 function setStatus(t, err) { const s = $('saveStatus'); s.textContent = t; s.className = 'status' + (err ? ' err' : ''); }
 function save() {
   clearTimeout(saveTimer);
@@ -467,7 +499,7 @@ const activeSeats = () => Array.from({ length: seatCount() }, (_, i) => i).filte
 // 짝: 둘씩 짝이면 (0,1) (2,3) … 같은 줄의 옆 칸
 const partnerOf = (i) => { if (!L().pair) return null; const c = colOf(i), pc = c % 2 ? c - 1 : c + 1; return pc < L().cols ? rowOf(i) * L().cols + pc : null; };
 const stu = (no) => S.students.find((s) => s.no === no);
-const nameOf = (no) => { const s = stu(no); return s ? (s.name || `${s.no}번`) : ''; };
+const nameOf = (no) => { const s = stu(no); return s ? (BOARD ? `${s.no}번` : (s.name || `${s.no}번`)) : ''; };
 // 지금 자리 + 기록에서 최근 n번 (지금 자리 포함)
 function recentMaps(n) {
   const maps = [...(S.sample ? [] : [S.current]), ...S.history.slice().reverse().map((h) => h.seats)];   // 예시 자리는 세지 않아요
@@ -503,9 +535,9 @@ function roomHTML(map, opt = {}) {
       const s = no != null ? stu(no) : null;
       const off = isOff(i);
       const cls = ['seat', isWin(i) ? 'win' : '', off ? 'off' : '', !off && !s ? 'empty' : '', (edit || layoutEdit) ? 'clickable' : '', picked === i ? 'pick' : '', moved?.has(i) ? 'moved' : ''].join(' ');
-      const tags = s ? `${s.cold ? '🥶' : ''}${s.front ? '👓' : ''}${s.fix != null ? '🔒' : ''}` : '';
-      const label = off ? '없는 자리' : s ? esc(s.name || `${s.no}번`) : '빈자리';
-      const sub = layoutEdit ? `자리 ${i + 1}` : s && showNo && s.name ? `${s.no}번` : `자리 ${i + 1}`;
+      const tags = s && !BOARD ? `${s.cold ? '🥶' : ''}${s.front ? '👓' : ''}${s.fix != null ? '🔒' : ''}` : '';   // 전자칠판엔 배려 표시를 안 보여요
+      const label = off ? '없는 자리' : s ? (BOARD ? `${s.no}` : esc(s.name || `${s.no}번`)) : '빈자리';
+      const sub = layoutEdit || BOARD ? `자리 ${i + 1}` : s && showNo && s.name ? `${s.no}번` : `자리 ${i + 1}`;
       if (input) cells += `<div class="seat${isWin(i) ? ' win' : ''}${off ? ' off' : ''}" data-seat="${i}"><span class="no">자리 ${i + 1}</span>${off ? '<span class="nm">없는 자리</span>' : `<input class="si" data-seat="${i}" value="${no ?? ''}" placeholder="번호" autocomplete="off"><span class="nm2">${s ? esc(s.name || '') : ''}</span>`}</div>`;
       else cells += `<div class="${cls}" data-seat="${i}" style="animation-delay:${moved ? (k * 0.03 + r * 0.05).toFixed(2) : 0}s"><span class="tags">${tags}</span><span class="no">${sub}</span><span class="nm">${label}</span></div>`;
       if (L().pair && k < C - 1 && (teacher ? c % 2 === 0 : c % 2 === 1)) cells += '<div class="gap"></div>';
@@ -947,6 +979,23 @@ drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove
 drop.addEventListener('click', (e) => { if (!e.target.closest('label')) drop.focus(); });
 $('capFile').addEventListener('change', (e) => { addCapFiles(e.target.files); e.target.value = ''; });
 
+// ----- 🥶 창가 체크 (번호만) -----
+function renderCold() {
+  const L2 = S.students.slice().sort((a, b) => a.no - b.no);
+  $('coldGrid').innerHTML = L2.map((s) => `<button type="button" class="${s.cold ? 'on' : ''}" data-cold="${s.no}" aria-pressed="${!!s.cold}">${s.no}<small>${s.cold ? '🥶 창가 빼기' : '번'}</small></button>`).join('');
+  const n = L2.filter((s) => s.cold).length;
+  const winSeats = activeSeats().filter(isWin).length;
+  $('coldCount').textContent = `${n}명 체크`;
+  $('coldStatus').textContent = S.students.length - n < winSeats ? `⚠️ 창가 자리(${winSeats}개)보다 창가에 앉을 수 있는 친구가 적어요` : '';
+  $('coldStatus').className = 'status' + (S.students.length - n < winSeats ? ' err' : '');
+}
+$('coldGrid').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cold]'); if (!b) return;
+  const s = stu(+b.dataset.cold); if (!s) return;
+  s.cold = !s.cold; save(); renderCold();
+});
+$('coldReset').onclick = () => { if (!confirm('창가 체크를 모두 지울까요?')) return; S.students.forEach((s) => (s.cold = false)); save(); renderCold(); };
+
 // ----- 탭 -----
 function showTab(name) {
   document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
@@ -956,6 +1005,7 @@ function showTab(name) {
   if (name === 'students') { renderLayout(); renderStudents(); }
   if (name === 'history') renderHistory();
   if (name === 'caps') renderCaps();
+  if (name === 'cold') renderCold();
   try { history.replaceState(null, '', '#' + name); } catch {}
 }
 document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
@@ -972,7 +1022,7 @@ onAuthStateChanged(auth, async (u) => {
     started = true;
     await load();
     const t = location.hash.slice(1);
-    showTab(['now', 'shuffle', 'print', 'students', 'caps', 'history'].includes(t) ? t : 'now');
+    showTab((BOARD ? ['now', 'shuffle', 'cold'] : ['now', 'shuffle', 'cold', 'print', 'students', 'caps', 'history']).includes(t) ? t : 'now');
     setStatus(useLocal ? '이 브라우저에 저장 중 (보안 규칙 게시 전)' : '');
   }
 });
@@ -998,7 +1048,7 @@ if (DEMO) {
   $('loginView').hidden = true; $('app').hidden = false;
   window.__seat = { S: () => S, showTab };
   const t = location.hash.slice(1);
-  showTab(['now', 'shuffle', 'print', 'students', 'caps', 'history'].includes(t) ? t : 'now');
+  showTab(['now', 'shuffle', 'cold', 'print', 'students', 'caps', 'history'].includes(t) ? t : 'now');
 }
 </script>
 
