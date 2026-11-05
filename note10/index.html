@@ -1095,12 +1095,13 @@ function viewClassBulk() {
       <div style="display:flex;flex-wrap:wrap;gap:6px">${L.map(s => { const run = B.cur.includes(s.id), bad = B.fail.includes(s.id), ok = K.has(s);
         return `<a href="#" class="chip" title="${ok ? esc(K.at(s) || '') + ' 만듦' : '아직 없어요'}" style="text-decoration:none;color:inherit;${run ? 'background:#efe9fb;border-color:var(--purple)' : bad ? 'background:#fff0f2;border-color:var(--red)' : ok ? 'background:#e7f6ed;border-color:#bfe3cc' : 'opacity:.6'}" onclick="openStudent('${s.id}',${B.kind === 'card' ? 1 : 14});return false">${run ? '🌀' : bad ? '⚠️' : ok ? '✓' : '·'} ${s.num}번 ${esc(sname(s))}</a>`; }).join('')}</div>
     </div></div>
-    <div class="box"><div class="hd pink"><span class="n">2</span>출력 전체 일괄 <span class="sp mini" style="color:#fff">엑셀 · 한 명에 한 시트 · A4</span></div><div class="bd">
+    <div class="box"><div class="hd pink"><span class="n">2</span>출력 전체 일괄 <span class="sp mini" style="color:#fff">엑셀 · A4</span></div><div class="bd">
       <p class="lead" style="margin-bottom:8px">우리반 <mark>상담 카드 ${L.length}장</mark>을 파일 하나로.</p>
       <div class="mini" style="margin-bottom:10px">AI 한눈에 분석이 있는 친구 <b>${cards}/${L.length}명</b> — 없는 친구는 규칙으로 만든 분석이 들어가요. 이름은 인쇄한 뒤 손으로 적어요.</div>
-      <button class="btn" style="width:100%;margin-bottom:8px" onclick="downloadCards(classStudents(),'우리반_상담카드_${today()}.xlsx')">📥 우리반 전체 상담 카드 (${L.length}명)</button>
-      <button class="btn ghost sm" style="width:100%" ${cards ? '' : 'disabled'} onclick="downloadCards(classStudents().filter(s=>s.aiCard?.lines?.length),'우리반_상담카드_AI분석_${today()}.xlsx')">📥 AI 분석 있는 친구만 (${cards}명)</button>
-      <div class="mini" style="margin-top:10px">💡 엑셀에서 Ctrl+P → '전체 통합 문서 인쇄'를 고르면 한 번에 모두 인쇄돼요.</div>
+      <div class="row" style="gap:6px;margin-bottom:8px"><button class="pill ${BULK.one !== false ? 'on' : ''}" onclick="BULK.one=true;render()">📄 시트 하나에 모두</button><button class="pill ${BULK.one === false ? 'on' : ''}" onclick="BULK.one=false;render()">🗂 한 명에 한 시트</button></div>
+      <button class="btn" style="width:100%;margin-bottom:8px" onclick="downloadCards(classStudents(),'우리반_상담카드_${today()}.xlsx',BULK.one!==false)">📥 우리반 전체 상담 카드 (${L.length}명)</button>
+      <button class="btn ghost sm" style="width:100%" ${cards ? '' : 'disabled'} onclick="downloadCards(classStudents().filter(s=>s.aiCard?.lines?.length),'우리반_상담카드_AI분석_${today()}.xlsx',BULK.one!==false)">📥 AI 분석 있는 친구만 (${cards}명)</button>
+      <div class="mini" style="margin-top:10px">💡 ${BULK.one !== false ? '시트 하나에 카드를 위아래로 이어 붙이고 친구마다 쪽을 나눠요. Ctrl+P 한 번이면 한 명씩 새 쪽으로 모두 인쇄돼요.' : "엑셀에서 Ctrl+P → '전체 통합 문서 인쇄'를 고르면 한 번에 모두 인쇄돼요."}</div>
     </div></div>
   </div>`;
 }
@@ -1442,12 +1443,21 @@ function aiCardBox(st) {
       <div class="mini" style="margin-top:4px;text-align:center">${a ? '이 AI 분석이 상담 카드에 들어가요' : 'AI 분석을 먼저 만들면 카드에 함께 들어가요'}</div></div>
   </div></div>`;
 }
-function buildCard(wb, st, used) {
-  let nm = `${st.num ? st.num + '번 ' : ''}${nname(st)}`.replace(/[\[\]:*?\/\\]/g, '').slice(0, 28), k = 2;
-  while (used.has(nm)) nm = nm.slice(0, 26) + '_' + k++; used.add(nm);
+// into = { ws, r } 이면 새 시트를 만들지 않고 그 시트의 r 줄부터 이어 붙여요 (한 시트로 모두) → 다음 카드가 시작할 줄을 돌려줘요
+const cardSheet = (wb, nm) => {
   // 너비만 A4에 맞추고(fitToWidth 1), 세로는 길면 다음 장으로(fitToHeight 0) — 글씨가 날씬하게 줄어들지 않게
   const ws = wb.addWorksheet(nm, { views: [{ showGridLines: false }], pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, horizontalCentered: true, margins: { left: 0.4, right: 0.4, top: 0.45, bottom: 0.45, header: 0.2, footer: 0.2 } } });
   ws.columns = Array.from({ length: 12 }, () => ({ width: 7.6 }));
+  return ws;
+};
+function buildCard(wb, st, used, into) {
+  let ws;
+  if (into) ws = into.ws;
+  else {
+    let nm = `${st.num ? st.num + '번 ' : ''}${nname(st)}`.replace(/[\[\]:*?\/\\]/g, '').slice(0, 28), k = 2;
+    while (used.has(nm)) nm = nm.slice(0, 26) + '_' + k++; used.add(nm);
+    ws = cardSheet(wb, nm);
+  }
   const thin = { style: 'thin', color: { argb: XC.line } };
   const box = (r, c1, c2, v, o = {}) => {
     if (c2 > c1) ws.mergeCells(r, c1, r, c2);
@@ -1460,7 +1470,7 @@ function buildCard(wb, st, used) {
   const section = (r, title, fill) => { box(r, 1, 12, title, { fill, color: XC.white, bold: true, size: 10.5 }); H(r, 20); };
   const kv = (r, label, val, light, o = {}) => { box(r, 1, 2, label, { fill: light, bold: true, h: 'center' }); box(r, 3, 12, val || '-', { fill: XC.white, ...o }); H(r, o.h2 || 18); };
   const heat = (v, max) => { v = Math.min(max, Math.max(1, +v || max)); const a = 0.12 + (1 - (v - 1) / (max - 1)) * 0.55, m = (c, t) => Math.round(255 + (t - 255) * a).toString(16).padStart(2, '0'); return 'FF' + m(0, 0xee) + m(0, 0x8f) + m(0, 0xad); };
-  let r = 1;
+  let r = into ? into.r : 1;
   // 제목
   box(r, 1, 8, '🌷 우리반 상담 카드', { size: 16, bold: true, color: XC.pink, noBorder: true }); box(r, 9, 12, `${S.className || ''} · ${today()}`, { h: 'right', color: XC.sub, noBorder: true }); H(r, 30); r++;
   box(r, 1, 5, `${st.emoji} ${nname(st)}`, { fill: XC.pinkL, bold: true, size: 12 }); box(r, 6, 7, `${st.num || '-'}번`, { fill: XC.soft, h: 'center', bold: true }); box(r, 8, 12, '이름 :', { fill: XC.soft, color: XC.sub }); H(r, 24); r += 2;
@@ -1538,6 +1548,7 @@ function buildCard(wb, st, used) {
   const memo = (st.csMemo || '').split('\n').map(s => s.trim()).filter(Boolean);
   section(r++, '📝 상담 메모', XC.mus);
   for (let i = 0; i < Math.max(4, memo.length + 2); i++) { box(r, 1, 12, memo[i] ? `· ${memo[i]}` : '', {}); H(r, 22); r++; }
+  if (into) return r;
   ws.pageSetup.printArea = `A1:L${r - 1}`;
 }
 // 모의고사 줄 이름 → 표준점수 합
@@ -1553,30 +1564,44 @@ function stdSums(st) {
 /* 📥 상담 카드 엑셀 — 만드는 동안 창에 진행(3/27)을 보여 주고, 다 만들면 저장 단추를 띄워요
    여러 명은 시간이 걸려 브라우저가 '자동 다운로드'로 막을 수 있어서, 선생님이 직접 누르는 저장 단추를 꼭 함께 둬요
    한 친구 카드에서 오류가 나도 그 친구만 빼고 나머지는 만들어요 */
-async function downloadCards(list, fname) {
+async function downloadCards(list, fname, one) {
   if (!list.length) return toast('친구가 없어요');
   const N = list.length, say = t => { const b = $('#cardProg'); if (b) b.innerHTML = t; };
   openModal('📥 상담 카드 만들기', `<div class="empty" id="cardProg">엑셀 도구를 불러오는 중이에요…</div>`);
   try {
     if (!window.ExcelJS) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js').catch(() => { throw new Error('엑셀 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요'); });
     const wb = new ExcelJS.Workbook(), used = new Set(), bad = []; wb.creator = '우리반 생기부노트';
+    // one = 한 시트로 모두: 카드를 위아래로 이어 붙이고, 친구마다 쪽 나눔 (인쇄하면 지금처럼 한 명씩 새 쪽)
+    const into = one ? { ws: cardSheet(wb, '우리반 상담카드'), r: 1 } : null;
     for (let i = 0; i < N; i++) {
       const st = list[i], n0 = wb.worksheets.length;
+      if (into) {
+        const r0 = into.r;
+        try { into.r = buildCard(wb, st, used, into); into.ws.getRow(into.r - 1).addPageBreak(); into.r += 1; }
+        catch (e) {
+          // 이 친구 카드가 중간에 멈추면, 만든 데까지 두고 빨간 줄로 알린 뒤 다음 쪽으로 넘어가요
+          bad.push(`${st.num ? st.num + '번 ' : ''}${nname(st)} (${e.message})`);
+          const rr = Math.max(r0, into.ws.rowCount + 1), c = into.ws.getCell(rr, 1);
+          c.value = `⚠️ ${st.num ? st.num + '번 ' : ''}카드를 끝까지 만들지 못했어요 (${e.message})`; c.font = { name: '맑은 고딕', size: 9, bold: true, color: { argb: 'FFD9534F' } };
+          into.ws.getRow(rr).addPageBreak(); into.r = rr + 2;
+        }
+      } else
       try { buildCard(wb, st, used); }
       catch (e) { bad.push(`${st.num ? st.num + '번 ' : ''}${nname(st)} (${e.message})`); if (wb.worksheets.length > n0) wb.removeWorksheet(wb.worksheets[n0].id); }
       say(`📥 상담 카드를 만드는 중이에요… <b>${i + 1}/${N}</b><div class="bar" style="margin-top:10px"><span class="g"><i style="width:${(i + 1) / N * 100}%"></i></span></div>`);
       await new Promise(r => setTimeout(r, 0));   // 화면이 멈추지 않게 한 장마다 숨 돌리기
     }
-    if (!wb.worksheets.length) throw new Error('카드를 한 장도 만들지 못했어요' + (bad.length ? ' — ' + bad[0] : ''));
+    if (!wb.worksheets.length || (into && into.r === 1)) throw new Error('카드를 한 장도 만들지 못했어요' + (bad.length ? ' — ' + bad[0] : ''));
+    if (into) into.ws.pageSetup.printArea = `A1:L${into.r - 2}`;
     say('📥 파일로 묶는 중이에요…'); await new Promise(r => setTimeout(r, 0));
     const blob = new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob), ok = N - bad.length;
     const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
-    openModal('📥 상담 카드를 다 만들었어요', `<p class="lead" style="margin-bottom:8px"><mark>${ok}장</mark>을 엑셀 파일 하나로 만들었어요 (한 명에 한 시트).</p>
+    openModal('📥 상담 카드를 다 만들었어요', `<p class="lead" style="margin-bottom:8px"><mark>${ok}장</mark>을 엑셀 파일 하나로 만들었어요 (${one ? '시트 하나에 모두 · 친구마다 쪽 나눔' : '한 명에 한 시트'}).</p>
       <p class="mini" style="margin-bottom:12px">저절로 저장되지 않았으면 아래 단추를 눌러 주세요. 브라우저가 '여러 파일 다운로드'를 물으면 허용을 눌러 주세요.</p>
       <a class="btn" style="display:block;text-align:center;text-decoration:none" href="${url}" download="${esc(fname)}">💾 ${esc(fname)} 저장하기</a>
       ${bad.length ? `<div class="mini" style="margin-top:12px;padding:8px 10px;background:#fff0f2;border:1px dashed var(--red);border-radius:10px;color:var(--red)">⚠️ 카드를 만들지 못해 뺀 친구 ${bad.length}명: ${bad.map(esc).join(', ')}</div>` : ''}
-      <div class="mini" style="margin-top:10px">💡 엑셀에서 Ctrl+P → '전체 통합 문서 인쇄'를 고르면 한 번에 모두 인쇄돼요.</div>`);
+      <div class="mini" style="margin-top:10px">💡 ${one ? '시트 하나라 Ctrl+P 한 번이면 모두 인쇄돼요 (친구마다 새 쪽).' : "엑셀에서 Ctrl+P → '전체 통합 문서 인쇄'를 고르면 한 번에 모두 인쇄돼요."}</div>`);
     setTimeout(() => URL.revokeObjectURL(url), 30 * 60000);
   } catch (e) { openModal('📥 만들지 못했어요', `<div class="empty" style="color:var(--red)">${esc(e.message)}</div><p class="mini">이 글을 캡처해 알려 주시면 고칠게요.</p>`); }
 }
@@ -1585,7 +1610,7 @@ const downloadCard = () => {
   if (!st.aiCard && !confirm('AI 한눈에 분석이 아직 없어요.\n규칙으로 만든 분석으로 상담 카드를 내려받을까요?\n(취소하고 ✨ 만들기를 먼저 누르면 AI 분석이 카드에 들어가요)')) return;
   downloadCards([st], `상담카드_${nname(st)}_${today()}.xlsx`);
 };
-const downloadAllCards = () => downloadCards([...D.students].filter(s => s.num).sort((a, b) => a.num - b.num), `우리반_상담카드_${today()}.xlsx`);
+const downloadAllCards = () => downloadCards([...D.students].filter(s => s.num).sort((a, b) => a.num - b.num), `우리반_상담카드_${today()}.xlsx`, true);   // 시트 하나에 모두
 /* 📈 모의고사 표준점수 합 추이 (펼치기) — 시험마다 과목 표준점수를 더한 값 (합계 · 탐구 합 칸은 빼고) */
 function stdSumBox(st) {
   if (!st.num) return '';
@@ -3289,7 +3314,7 @@ function dashRoster() {
     <p class="mini">반 번호마다 '✏️ 연필1, 연필2…' 친구를 만들어 둬요. 이미 친구가 있는 번호는 건너뛰어요. 별칭은 아래 표나, 상담할 때 개인 상담 기록의 🏷️ 별칭 고치기에서 언제든 바꿀 수 있어요.</p>
     <div class="row" style="margin-top:8px"><input type="number" id="pFrom" value="1" min="1" max="60" style="width:80px">번부터 <input type="number" id="pTo" value="${maxNo}" min="1" max="60" style="width:80px">번까지
       <button class="btn" onclick="makePencils(+$('#pFrom').value, +$('#pTo').value, null, true)">✏️ 한꺼번에 만들기</button></div></section>
-  <section><div class="row" style="margin-bottom:6px"><button class="btn sm" onclick="downloadAllCards()">📥 우리반 전체 상담 카드 (엑셀 · 한 명에 한 시트)</button><span class="mini">A4 한 장씩 인쇄돼요. 이름은 인쇄한 뒤 손으로 적어요.</span></div>
+  <section><div class="row" style="margin-bottom:6px"><button class="btn sm" onclick="downloadAllCards()">📥 우리반 전체 상담 카드 (엑셀 · 시트 하나, 친구마다 쪽 나눔)</button><span class="mini">A4 한 장씩 인쇄돼요. 이름은 인쇄한 뒤 손으로 적어요.</span></div>
   <h4>👥 우리반 명단 <span class="mini">${D.students.length}명 · 연필(별칭 안 정함) ${pen}명 · 선택과목 다 넣음 ${D.students.filter(subjOk).length}명</span></h4>
     <p class="mini">고치면 바로 저장돼요. 🔒 반 번호는 이 관리 화면에서만 보이고, 개인 상담 기록 · 홈에는 별칭과 숫자만 보여요.
       반 번호를 서로 바꿀 때는 한 줄의 반 번호를 먼저 비운 뒤 바꿔요 (같은 번호 둘은 안 돼요).</p>
