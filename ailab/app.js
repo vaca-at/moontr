@@ -1857,6 +1857,20 @@ async function checkFiles(pdfs, sheets, docs, hasImgs, label = '') {
     toast(`${skipped.map((s) => `${s.name}: ${s.why}`).join(' · ')}${hasImgs ? ' — 사진만 넣을게요' : ''}`);
     return hasImgs ? { files: [], note: '' } : null;
   }
+  // 🙈 확인 창 없이 바로: 연구소가 처음 골라 둔 대로(이름 · 연락처 · 명단은 가리기, 나머지 넣기) 가리고 올려요 (2026-11-05 문쌤 요청)
+  // 창을 다시 보고 싶으면 ASK_MASK 를 true 로
+  const ASK_MASK = false;
+  if (!ASK_MASK) {
+    const name = S.myName || '';
+    const has = (mode) => list.some((a) => a.units.some((u) => u.mode === mode));
+    const what = [has('mask') && '이름 · 연락처는 까맣게 가리고', has('out') && '명단 일부는 빼고'].filter(Boolean).join(', ');
+    const mine = myLines(list, name);
+    const autoNote = what ? `개인정보라 ${what} 넣었어요.${name ? (mine.length ? ` 명단에서 찾은 ${name} 줄: ${mine.join(' / ')}` : ` 가린 명단에 ${name} 이름은 없었어요.`) : ''}` : '';
+    toast(`${label ? `${label} · ` : ''}${what ? '개인정보를 가리고' : '그대로'} 넣어요${skipped.length ? ` · 못 읽는 파일 ${skipped.length}개는 빼요` : ''}`);
+    const files = (await Promise.all(list.filter((a) => a.kind === 'pdf').map((a) => keepPages(a, name)))).filter(Boolean);
+    if (!files.length && !hasImgs && list.some((a) => a.kind !== 'pdf' && a.units.some((u) => u.mode !== 'out'))) files.push(await coverImage(list, name));
+    return { files, note: [autoNote, sheetText(list, name)].filter(Boolean).join('\n\n') };
+  }
   const skippedBox = skipped.length ? `<div class="dlg-err"><b>빼고 넣는 파일 ${skipped.length}개</b>${skipped.map((s) => `<p>${esc(s.name)} — ${esc(s.why)}</p>`).join('')}<small>비밀번호가 걸린 명단은 업무관리시스템에서 직접 열어 보세요.</small></div>` : '';
   const tag = (u) => (u.hits ? ` · 이름 등 ${u.hits}곳` : u.roster ? ' · 명단 같음' : u.noText ? ' · 그림' : '');
   const tile = (a, i) => a.units.map((u, j) => `<button type="button" class="pg ${u.mode} ${a.kind}" data-f="${i}" data-p="${j}">
