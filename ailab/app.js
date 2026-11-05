@@ -1059,6 +1059,46 @@ const putFile = (path, blob, contentType, onBytes) => new Promise((res, rej) => 
 function station(no, label, n, hot = false, bot = 'bot') {
   return `<div class="st ${hot && n ? 'hot' : ''}"><span class="step">${no}</span><span class="${bot}"></span><span class="lbl">${label}</span><span class="n">${n}장</span></div>`;
 }
+// --- 📒 문서대장 어디까지 올렸나: 접수처 위쪽 안내 문구 ---
+// 문서대장 줄(ailab_meta/registry)에는 '어떤 키워드로 검색했는지'가 남지 않아서, 검색한 묶음마다 줄을 골라내는 규칙을 여기 적어 둬요.
+// 새 키워드로 캡쳐하면 아래에 한 줄 더 넣으면 돼요. from = 이 달부터 빠진 달을 찾아요
+const REG_WATCH = [
+  { name: '창의미래교육과', test: (r) => /창의미래교육과/.test(r.dept || '') },
+  { name: 'AI 키워드 연수', test: (r) => /AI|인공지능/i.test(r.title || '') && /연수/.test(r.title || '') },
+];
+const REG_FROM = '2025-01';
+function regCoverage() {
+  const all = Object.values(S.registry?.rows || {}).filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date || ''));
+  const now = new Date(), endM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const months = []; for (let [y, m] = REG_FROM.split('-').map(Number); `${y}-${String(m).padStart(2, '0')}` <= endM; m === 12 ? (y++, m = 1) : m++) months.push(`${y}-${String(m).padStart(2, '0')}`);
+  // 빠진 달을 '2025년 1~11월 · 2026년 2월' 처럼 묶어서 읽기 좋게
+  const runs = (list) => {
+    const out = []; let s = null, p = null;
+    const nextOf = (k) => { let [y, m] = k.split('-').map(Number); m === 12 ? (y++, m = 1) : m++; return `${y}-${String(m).padStart(2, '0')}`; };
+    const flush = () => { if (!s) return; const [sy, sm] = s.split('-').map(Number), [py, pm] = p.split('-').map(Number); out.push(sy === py ? `${sy}년 ${sm === pm ? sm : `${sm}~${pm}`}월` : `${sy}년 ${sm}월 ~ ${py}년 ${pm}월`); };
+    list.forEach((k) => { if (p && nextOf(p) === k) p = k; else { flush(); s = p = k; } }); flush();
+    return out.join(' · ');
+  };
+  const D = (d) => { const [y, m, dd] = d.split('-').map(Number); return `${y}년 ${m}월 ${dd}일`; };
+  return REG_WATCH.map((w) => {
+    const rows = all.filter(w.test).sort((a, b) => a.date.localeCompare(b.date));
+    const have = new Set(rows.map((r) => r.date.slice(0, 7)));
+    const miss = months.filter((k) => !have.has(k));
+    if (!rows.length) return { name: w.name, done: '', miss: `${runs(months)}은 아직 올리시지 않았습니다.` };
+    return {
+      name: w.name,
+      done: `${D(rows[rows.length - 1].date)}까지 올리셨습니다. (가장 오래된 공문 ${D(rows[0].date)} · ${rows.length}건)`,
+      miss: miss.length ? `${runs(miss)}은 아직 올리시지 않았습니다.` : '빠진 달 없이 다 올리셨어요.',
+    };
+  });
+}
+function regCoverageBox() {
+  if (!S.registry) return '';
+  const last = S.captures.find((c) => c.registryRows);
+  return `<div class="reg-cover"><b>📒 문서대장 어디까지 올렸나요?</b>
+    <ul>${regCoverage().map((c) => `<li><b>${esc(c.name)}</b> ${c.done ? esc(c.done) + ' ' : ''}<span class="miss">${esc(c.miss)}</span></li>`).join('')}</ul>
+    <small>${last ? `마지막으로 문서대장 캡쳐를 넣은 날: ${esc(tsDate(last.createdAt))} (${last.registryRows}줄) · ` : ''}빠진 달은 그달에 해당 공문이 없었을 수도 있어요 · ${esc(REG_FROM.replace('-', '년 ').replace(/년 0?/, '년 '))}월부터 셌어요</small></div>`;
+}
 function lobbyView() {
   const reading = S.captures.filter((c) => c.status === 'reading');
   const errors = S.captures.filter((c) => c.status === 'error');
@@ -1074,6 +1114,7 @@ function lobbyView() {
         <small>적어 둔 내용은 다음에 넣는 사진에 붙어서 AI가 함께 읽어요.</small>
       </div>
     </div>
+    ${regCoverageBox()}
     <div class="st-row">
       ${station(1, '접수', S.uploading.size)}
       ${station(2, 'AI 읽기·정리', reading.length)}
