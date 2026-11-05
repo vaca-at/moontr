@@ -114,6 +114,24 @@
   .print-area .side-label.win{ background:#fff; border:1px solid #999; color:#333; }
   .print-area .side-label.hall{ background:#fff; border:1px solid #ccc; }
 
+  /* ===== 📸 지난 자리 넣기 ===== */
+  .cap-drop{ border:2px dashed var(--dawn); border-radius:16px; padding:22px; text-align:center; background:var(--paper-2); line-height:1.8; outline:none; }
+  .cap-drop:focus, .cap-drop.over{ border-color:var(--dawn-deep); background:#d6f1ea; }
+  .cap-list{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-top:14px; }
+  .cap-card{ border:1.5px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; text-align:left; padding:0; }
+  .cap-card.on{ border-color:var(--gold); box-shadow:0 0 0 2px var(--gold); }
+  .cap-card img{ width:100%; height:96px; object-fit:cover; display:block; background:#eee; }
+  .cap-card span{ display:block; padding:6px 8px; font-size:12.5px; }
+  .cap-card .done{ color:var(--dawn-deep); font-weight:700; }
+  .cap-edit{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.3fr); gap:16px; align-items:start; }
+  @media (max-width:900px){ .cap-edit{ grid-template-columns:1fr; } }
+  .cap-img{ position:sticky; top:10px; }
+  .cap-img img{ width:100%; border-radius:12px; border:1px solid var(--line); cursor:zoom-in; }
+  .seat input.si{ width:100%; max-width:64px; text-align:center; font:inherit; font-size:15px; font-weight:700; padding:4px; border:1.5px solid var(--line); border-radius:8px; }
+  .seat input.si.bad{ border-color:#D9534F; background:#fff0f0; }
+  .seat input.si.dup{ border-color:var(--gold); background:#fff4ee; }
+  .seat .nm2{ font-size:11.5px; color:var(--muted); min-height:14px; }
+
   /* ===== 로그인 ===== */
   .login{ max-width:420px; margin:60px auto; text-align:center; }
   .login .panel{ padding:28px 22px; }
@@ -175,6 +193,7 @@
         <button role="tab" data-tab="shuffle">🎲 자리 바꾸기</button>
         <button role="tab" data-tab="print">🖨️ 출력</button>
         <button role="tab" data-tab="students">👥 명단 · 교실</button>
+        <button role="tab" data-tab="caps">📸 지난 자리 넣기</button>
         <button role="tab" data-tab="history">🕘 기록</button>
       </nav>
     </div>
@@ -295,6 +314,50 @@
       </div>
     </section>
 
+    <!-- 📸 지난 자리 넣기: 캡쳐를 붙여 넣고, 옆 교실에 번호를 적어 기록으로 -->
+    <section id="tab-caps" class="tab" hidden>
+      <div class="panel">
+        <h2>📸 지난 자리 넣기</h2>
+        <p class="sub">지금까지의 자리 캡쳐를 붙여 넣고, 옆 교실 칸에 <b>번호(또는 이름)</b>를 적으면 기록에 들어가요. 기록에 넣은 자리는 '앉았던 자리 · 같은 짝 피하기'와 '창가 횟수'에 바로 쓰여요.</p>
+        <div id="capDrop" class="cap-drop" tabindex="0">
+          <b>📋 여기를 누르고 Ctrl+V</b> (휴대폰은 길게 눌러 붙여넣기)<br>
+          <span class="note">또는 캡쳐 파일을 끌어다 놓거나</span> <label class="btn" style="display:inline-block;margin-top:6px;">🖼️ 사진 고르기<input type="file" id="capFile" accept="image/*" multiple hidden></label>
+        </div>
+        <div id="capList" class="cap-list"></div>
+      </div>
+      <div class="panel" id="capEditor" hidden>
+        <div class="row" style="margin-bottom:10px;">
+          <h2 style="margin:0;">✍️ 캡쳐 보고 자리 적기</h2>
+          <span class="chip" id="capCount"></span>
+          <span class="status" id="capStatus"></span>
+        </div>
+        <div class="cap-edit">
+          <div class="cap-img"><img id="capImg" alt="붙여 넣은 자리 캡쳐"><p class="note">사진을 누르면 크게 봐요</p></div>
+          <div>
+            <div class="row" style="margin-bottom:10px;">
+              <label>이 자리를 쓰기 시작한 날 <input type="date" id="capDay" class="num" style="width:150px"></label>
+              <input type="text" id="capNote" class="num" style="width:180px" placeholder="메모 (예: 1학기 3번째 자리)">
+            </div>
+            <div class="row" style="margin-bottom:10px;">
+              <span class="note">캡쳐 방향:</span>
+              <button class="btn" data-capview="student">🧑‍🎓 칠판이 위</button>
+              <button class="btn" data-capview="teacher">🧑‍🏫 교탁이 아래</button>
+              <button class="btn" id="capFromNow" title="지금 자리를 칸에 채워 넣고 다른 곳만 고쳐요">📋 지금 자리 불러오기</button>
+              <button class="btn" id="capClear">칸 비우기</button>
+            </div>
+            <p class="note" style="margin:0 0 8px;">칸에 번호를 적고 Tab 키로 다음 칸. 이름을 적어도 명단에서 찾아 번호로 바꿔요.</p>
+            <div id="capRoom"></div>
+            <div id="capWarn" class="result-note" hidden></div>
+            <div class="row" style="margin-top:12px;">
+              <button class="btn primary" id="capSave">🕘 기록에 넣기</button>
+              <button class="btn" id="capAsNow">📋 이 자리를 지금 자리로</button>
+              <button class="btn" id="capDel" style="margin-left:auto;">🗑 캡쳐 지우기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ⑤ 기록 -->
     <section id="tab-history" class="tab" hidden>
       <div class="panel">
@@ -324,7 +387,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
@@ -425,7 +488,7 @@ function winCounts() {
 // 교실 그리기 (학생 눈 = 칠판이 위 · 창가 쪽 그대로, 선생님 눈 = 180도 돌려서 교탁이 아래)
 // ================================================================
 function roomHTML(map, opt = {}) {
-  const { teacher = false, edit = false, layoutEdit = false, showNo = true, moved = null } = opt;
+  const { teacher = false, edit = false, layoutEdit = false, showNo = true, moved = null, input = false } = opt;
   const R = L().rows, C = L().cols;
   const rows = [...Array(R).keys()], cols = [...Array(C).keys()];
   if (teacher) { rows.reverse(); cols.reverse(); }
@@ -443,7 +506,8 @@ function roomHTML(map, opt = {}) {
       const tags = s ? `${s.cold ? '🥶' : ''}${s.front ? '👓' : ''}${s.fix != null ? '🔒' : ''}` : '';
       const label = off ? '없는 자리' : s ? esc(s.name || `${s.no}번`) : '빈자리';
       const sub = layoutEdit ? `자리 ${i + 1}` : s && showNo && s.name ? `${s.no}번` : `자리 ${i + 1}`;
-      cells += `<div class="${cls}" data-seat="${i}" style="animation-delay:${moved ? (k * 0.03 + r * 0.05).toFixed(2) : 0}s"><span class="tags">${tags}</span><span class="no">${sub}</span><span class="nm">${label}</span></div>`;
+      if (input) cells += `<div class="seat${isWin(i) ? ' win' : ''}${off ? ' off' : ''}" data-seat="${i}"><span class="no">자리 ${i + 1}</span>${off ? '<span class="nm">없는 자리</span>' : `<input class="si" data-seat="${i}" value="${no ?? ''}" placeholder="번호" autocomplete="off"><span class="nm2">${s ? esc(s.name || '') : ''}</span>`}</div>`;
+      else cells += `<div class="${cls}" data-seat="${i}" style="animation-delay:${moved ? (k * 0.03 + r * 0.05).toFixed(2) : 0}s"><span class="tags">${tags}</span><span class="no">${sub}</span><span class="nm">${label}</span></div>`;
       if (L().pair && k < C - 1 && (teacher ? c % 2 === 0 : c % 2 === 1)) cells += '<div class="gap"></div>';
     });
   }
@@ -601,6 +665,7 @@ function pushHistory(note = '') {
   const last = S.history[S.history.length - 1];
   if (last && JSON.stringify(last.seats) === JSON.stringify(S.current)) return;
   S.history.push({ day: S.since || today(), seats: { ...S.current }, note });
+  sortHistory();
 }
 // ❄️ 창가 ↔ 복도: 줄은 그대로, 칸을 좌우로 뒤집어요 (짝은 그대로 · 창가 친구가 복도로)
 $('doWinSwap').onclick = () => {
@@ -709,6 +774,8 @@ $('applyNames').onclick = () => {
 };
 
 // ----- ⑤ 기록 -----
+// 기록은 날짜 순으로 (지난 자리를 나중에 넣어도 제자리에)
+const sortHistory = () => S.history.sort((a, b) => String(a.day).localeCompare(String(b.day)));
 function renderHistory() {
   const items = S.history.map((h, k) => ({ ...h, k })).reverse();
   $('histList').innerHTML = (S.sample ? '' : `<div class="hist-item"><b>지금 자리</b><span class="note">${S.since ? fmtDay(S.since) + '부터' : ''}</span></div>`) +
@@ -721,6 +788,165 @@ $('histList').addEventListener('click', (e) => {
   if (t.dataset.hdel != null && confirm('이 기록을 지울까요? (창가 횟수 · 앉았던 자리에서도 빠져요)')) { S.history.splice(+t.dataset.hdel, 1); save(); renderHistory(); }
 });
 
+// ================================================================
+// 📸 지난 자리 넣기
+//  캡쳐 한 장 = Firestore c110_seat_caps 문서 하나 { d: 사진(줄인 JPEG), day, note, seats:{자리: 번호}, view, at }
+//  [기록에 넣기]를 누르면 S.history 에 { day, seats, note, cap: 캡쳐 id } 로 들어가요 (다시 누르면 같은 줄을 고쳐요)
+// ================================================================
+let CAPS = [], capSel = null, capsLoaded = false;
+const CAPCOL = 'c110_seat_caps';
+async function loadCaps() {
+  if (capsLoaded || DEMO) { capsLoaded = true; return; }
+  try { const q = await getDocs(collection(db, CAPCOL)); CAPS = q.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.day || '').localeCompare(String(b.day || '')) || (a.made || 0) - (b.made || 0)); }
+  catch (e) { console.error(e); $('capStatus').textContent = '캡쳐를 불러오지 못했어요 (보안 규칙 게시 전이면 이 창에서만 보여요)'; }
+  capsLoaded = true;
+}
+async function saveCap(c) {
+  if (DEMO) return;
+  const { id, ...data } = c;
+  try { await setDoc(doc(db, CAPCOL, id), data); $('capStatus').textContent = '저장했어요 ✓'; $('capStatus').className = 'status'; }
+  catch (e) { console.error(e); $('capStatus').textContent = '캡쳐를 서버에 저장하지 못했어요 (보안 규칙을 게시해 주세요). 기록에 넣은 자리는 따로 저장돼요'; $('capStatus').className = 'status err'; }
+}
+// 사진을 가로 1400px 안쪽 JPEG 로 줄여요 (문서 하나 1MB 제한 안에)
+function shrinkImg(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight; const k = Math.min(1, 1400 / w, 1400 / h); w = Math.round(w * k); h = Math.round(h * k);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+      let q = 0.82, d = c.toDataURL('image/jpeg', q);
+      while (d.length > 900000 && q > 0.4) { q -= 0.1; d = c.toDataURL('image/jpeg', q); }
+      URL.revokeObjectURL(u); res(d);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('사진을 읽지 못했어요')); };
+    img.src = u;
+  });
+}
+async function addCapFiles(files) {
+  const imgs = [...files].filter((f) => f.type.startsWith('image/'));
+  if (!imgs.length) return;
+  for (const f of imgs) {
+    try {
+      const d = await shrinkImg(f);
+      const c = { id: 'cap' + Date.now() + Math.floor(Math.random() * 1000), d, day: '', note: '', seats: {}, view: 'student', made: Date.now() };
+      CAPS.push(c); capSel = c.id;
+      await saveCap(c);
+    } catch (e) { alert(e.message); }
+  }
+  renderCaps();
+  $('capEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+const curCap = () => CAPS.find((c) => c.id === capSel);
+const histOfCap = (id) => S.history.findIndex((h) => h.cap === id);
+function renderCaps() {
+  loadCaps().then(() => {
+    $('capList').innerHTML = CAPS.length ? CAPS.map((c, k) => {
+      const n = Object.keys(c.seats || {}).length, inH = histOfCap(c.id) >= 0;
+      return `<button class="cap-card${c.id === capSel ? ' on' : ''}" data-cap="${c.id}"><img src="${c.d}" alt="캡쳐 ${k + 1}"><span>${c.day ? fmtDay(c.day) : '날짜 아직'}${c.note ? ' · ' + esc(c.note) : ''}<br>${inH ? '<b class="done">🕘 기록에 들어감</b>' : `칸 ${n}개 적음`}</span></button>`;
+    }).join('') : '<p class="note">아직 붙여 넣은 캡쳐가 없어요.</p>';
+    renderCapEditor();
+  });
+}
+function renderCapEditor() {
+  const c = curCap();
+  $('capEditor').hidden = !c;
+  if (!c) return;
+  $('capImg').src = c.d;
+  $('capDay').value = c.day || '';
+  $('capNote').value = c.note || '';
+  document.querySelectorAll('[data-capview]').forEach((b) => b.classList.toggle('primary', b.dataset.capview === (c.view || 'student')));
+  $('capRoom').innerHTML = roomHTML(c.seats || {}, { teacher: c.view === 'teacher', input: true });
+  checkCap();
+}
+// 칸 글 → 학생 번호 (숫자면 번호, 아니면 이름으로 찾기)
+function resolveNo(v) {
+  v = String(v || '').trim(); if (!v) return null;
+  if (/^\d{1,5}$/.test(v)) { let n = +v; if (n > 100) n %= 100; return stu(n) ? n : NaN; }
+  const hit = S.students.filter((s) => s.name && (s.name === v || s.name.replace(/\s/g, '') === v.replace(/\s/g, '')));
+  return hit.length === 1 ? hit[0].no : NaN;
+}
+function readCapInputs() {
+  const c = curCap(); if (!c) return;
+  const seats = {};
+  document.querySelectorAll('#capRoom input.si').forEach((el) => { const n = resolveNo(el.value); if (n != null && !isNaN(n)) seats[el.dataset.seat] = n; });
+  c.seats = seats;
+}
+function checkCap() {
+  const c = curCap(); if (!c) return;
+  const seen = {}, bad = [];
+  document.querySelectorAll('#capRoom input.si').forEach((el) => {
+    const n = resolveNo(el.value);
+    el.classList.toggle('bad', n != null && isNaN(n));
+    if (n != null && isNaN(n)) bad.push(el.value);
+    if (n != null && !isNaN(n)) (seen[n] ||= []).push(el);
+    const nm = el.parentElement.querySelector('.nm2'); if (nm) nm.textContent = n != null && !isNaN(n) ? (stu(n)?.name || `${n}번`) : '';
+  });
+  document.querySelectorAll('#capRoom input.si').forEach((el) => el.classList.remove('dup'));
+  const dups = Object.entries(seen).filter(([, a]) => a.length > 1);
+  dups.forEach(([, a]) => a.forEach((el) => el.classList.add('dup')));
+  const filled = Object.keys(seen).length, missing = S.students.filter((s) => !seen[s.no]).map((s) => s.name || `${s.no}번`);
+  $('capCount').textContent = `${filled}/${S.students.length}명 적음`;
+  const w = [];
+  if (bad.length) w.push(`❓ 명단에서 못 찾은 칸: ${bad.map(esc).join(', ')} (번호로 적어 주세요)`);
+  if (dups.length) w.push(`⚠️ 두 번 적은 친구: ${dups.map(([n]) => esc(nameOf(+n))).join(', ')}`);
+  if (missing.length && filled) w.push(`· 아직 안 적은 친구 ${missing.length}명: ${missing.slice(0, 12).map(esc).join(', ')}${missing.length > 12 ? ' …' : ''}`);
+  $('capWarn').innerHTML = w.join('<br>'); $('capWarn').hidden = !w.length;
+  return { bad: bad.length, dups: dups.length, filled };
+}
+let capTimer = null;
+$('capRoom').addEventListener('input', () => { checkCap(); clearTimeout(capTimer); capTimer = setTimeout(() => { readCapInputs(); saveCap(curCap()); }, 900); });
+// 칸에서 Enter = 다음 칸
+$('capRoom').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || !e.target.matches('input.si')) return;
+  e.preventDefault(); const all = [...document.querySelectorAll('#capRoom input.si')]; const k = all.indexOf(e.target); all[k + 1]?.focus();
+});
+$('capList').addEventListener('click', (e) => { const b = e.target.closest('[data-cap]'); if (!b) return; readCapInputs(); capSel = b.dataset.cap; renderCaps(); });
+$('capDay').addEventListener('change', () => { const c = curCap(); c.day = $('capDay').value; saveCap(c); renderCaps(); });
+$('capNote').addEventListener('change', () => { const c = curCap(); c.note = $('capNote').value.trim().slice(0, 40); saveCap(c); renderCaps(); });
+document.querySelectorAll('[data-capview]').forEach((b) => (b.onclick = () => { readCapInputs(); const c = curCap(); c.view = b.dataset.capview; saveCap(c); renderCapEditor(); }));
+$('capFromNow').onclick = () => { const c = curCap(); if (Object.keys(c.seats || {}).length && !confirm('적은 칸을 지금 자리로 바꿀까요?')) return; c.seats = { ...S.current }; saveCap(c); renderCapEditor(); };
+$('capClear').onclick = () => { if (!confirm('적은 칸을 모두 비울까요?')) return; const c = curCap(); c.seats = {}; saveCap(c); renderCapEditor(); };
+$('capImg').onclick = () => { const w = window.open(); if (w) { w.document.title = '자리 캡쳐'; w.document.body.style.margin = '0'; const i = w.document.createElement('img'); i.src = curCap().d; i.style.maxWidth = '100%'; w.document.body.append(i); } };
+$('capSave').onclick = () => {
+  readCapInputs();
+  const c = curCap(), chk = checkCap();
+  if (!c.day) { alert('이 자리를 쓰기 시작한 날을 먼저 골라 주세요. (기록이 날짜 순으로 쌓여요)'); $('capDay').focus(); return; }
+  if (!chk.filled) { alert('칸에 번호를 하나도 안 적었어요.'); return; }
+  if ((chk.bad || chk.dups) && !confirm('못 찾은 칸이나 두 번 적은 친구가 있어요. 그래도 기록에 넣을까요? (못 찾은 칸은 빼고 넣어요)')) return;
+  const k = histOfCap(c.id), item = { day: c.day, seats: { ...c.seats }, note: c.note || '캡쳐에서 넣음', cap: c.id };
+  if (k >= 0) S.history[k] = item; else S.history.push(item);
+  sortHistory();
+  save(); saveCap(c); renderCaps();
+  alert(`${fmtDay(c.day)}부터의 자리를 기록에 넣었어요. (${chk.filled}명)`);
+};
+$('capAsNow').onclick = () => {
+  readCapInputs();
+  const c = curCap(), chk = checkCap();
+  if (!chk.filled) { alert('칸에 번호를 하나도 안 적었어요.'); return; }
+  if (!confirm('이 자리를 지금 자리로 할까요? 지금 자리는 기록에 남아요.')) return;
+  pushHistory(); S.current = { ...c.seats }; S.since = c.day || today(); S.sample = false;
+  sortHistory(); save(); showTab('now');
+};
+$('capDel').onclick = async () => {
+  const c = curCap(); if (!c || !confirm('이 캡쳐를 지울까요? (기록에 넣은 자리는 남아요)')) return;
+  CAPS = CAPS.filter((x) => x.id !== c.id); capSel = null;
+  if (!DEMO) { try { await deleteDoc(doc(db, CAPCOL, c.id)); } catch (e) { console.error(e); } }
+  renderCaps();
+};
+// 붙여넣기 · 끌어다 놓기 · 사진 고르기 (📸 탭을 보고 있을 때만 붙여넣기를 받아요)
+document.addEventListener('paste', (e) => {
+  if ($('tab-caps').hidden || e.target.matches?.('input, textarea')) return;
+  const files = [...(e.clipboardData?.items || [])].filter((x) => x.kind === 'file').map((x) => x.getAsFile()).filter(Boolean);
+  if (files.length) { e.preventDefault(); addCapFiles(files); }
+});
+const drop = $('capDrop');
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); addCapFiles(e.dataTransfer.files); });
+drop.addEventListener('click', (e) => { if (!e.target.closest('label')) drop.focus(); });
+$('capFile').addEventListener('change', (e) => { addCapFiles(e.target.files); e.target.value = ''; });
+
 // ----- 탭 -----
 function showTab(name) {
   document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
@@ -729,6 +955,7 @@ function showTab(name) {
   if (name === 'print') renderPrint();
   if (name === 'students') { renderLayout(); renderStudents(); }
   if (name === 'history') renderHistory();
+  if (name === 'caps') renderCaps();
   try { history.replaceState(null, '', '#' + name); } catch {}
 }
 document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
@@ -745,7 +972,7 @@ onAuthStateChanged(auth, async (u) => {
     started = true;
     await load();
     const t = location.hash.slice(1);
-    showTab(['now', 'shuffle', 'print', 'students', 'history'].includes(t) ? t : 'now');
+    showTab(['now', 'shuffle', 'print', 'students', 'caps', 'history'].includes(t) ? t : 'now');
     setStatus(useLocal ? '이 브라우저에 저장 중 (보안 규칙 게시 전)' : '');
   }
 });
@@ -771,7 +998,7 @@ if (DEMO) {
   $('loginView').hidden = true; $('app').hidden = false;
   window.__seat = { S: () => S, showTab };
   const t = location.hash.slice(1);
-  showTab(['now', 'shuffle', 'print', 'students', 'history'].includes(t) ? t : 'now');
+  showTab(['now', 'shuffle', 'print', 'students', 'caps', 'history'].includes(t) ? t : 'now');
 }
 </script>
 
