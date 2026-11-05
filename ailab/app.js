@@ -522,6 +522,13 @@ function guideSay(k) {
     const reading = S.uploading.size + S.captures.filter((c) => c.status === 'reading').length;
     if (reading) return `지금 ${reading}장을 읽고 있어요. 다 읽으면 아래에 카드가 생겨요.`;
     if (review) return `확인할 카드가 ${review}장 있어요. 노란 칸만 봐 주세요.`;
+    // 📒 문서대장: 어디까지 올렸는지 + 다음에 올릴 차례 (자세한 건 [창구 · 자료 넣기] 창 위쪽)
+    if (S.registry) {
+      const cov = regCoverage(), next = cov.find((c) => c.gap);
+      const eun = (s) => { const k = s.charCodeAt(s.length - 1) - 0xac00; return k >= 0 && k < 11172 && k % 28 ? '은' : '는'; };   // 받침 있으면 '은'
+      const done = cov.map((c) => c.upto ? `${c.name}${eun(c.name)} ${c.upto}까지` : `${c.name}${eun(c.name)} 아직 하나도 안`).join(', ');
+      return `문서대장은 ${done} 올리셨어요. ${next ? `다음은 ${next.name} ${next.gap} 차례예요.` : '빠진 달 없이 다 올리셨어요!'}`;
+    }
     return '사진을 넣어 주시면 바로 읽기 시작할게요.';
   }
   if (k === 'archive') return `원본 ${S.captures.length}장을 고치지 않고 그대로 보관하고 있어요.`;
@@ -1084,9 +1091,9 @@ function regCoverage() {
     const rows = all.filter(w.test).sort((a, b) => a.date.localeCompare(b.date));
     const have = new Set(rows.map((r) => r.date.slice(0, 7)));
     const miss = months.filter((k) => !have.has(k));
-    if (!rows.length) return { name: w.name, done: '', miss: `${runs(months)}은 아직 올리시지 않았습니다.` };
+    if (!rows.length) return { name: w.name, upto: '', gap: runs(months), done: '', miss: `${runs(months)}은 아직 올리시지 않았습니다.` };
     return {
-      name: w.name,
+      name: w.name, upto: D(rows[rows.length - 1].date), gap: runs(miss),
       done: `${D(rows[rows.length - 1].date)}까지 올리셨습니다. (가장 오래된 공문 ${D(rows[0].date)} · ${rows.length}건)`,
       miss: miss.length ? `${runs(miss)}은 아직 올리시지 않았습니다.` : '빠진 달 없이 다 올리셨어요.',
     };
