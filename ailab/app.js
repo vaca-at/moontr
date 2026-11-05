@@ -175,6 +175,8 @@ function subscribe() {
   // 사장님 계기판: AI 가 쓴 값(서버가 부를 때마다 쌓아요) · 크레딧 · 할 일 · 메모
   unsubs.push(onSnapshot(doc(db, dbPath('meta/usage')), (s) => { S.usage = s.exists() ? s.data() : null; render(); }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/registry')), (s) => { S.registry = s.exists() ? s.data() : null; render(); }, denied));
+  // 연수 대장 '내 기록' (신청 · 선정 · 미선정 · 이수 · 불참 · 신청 안 함): marks[연수 묶음 열쇠] = { st, at }
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/ledger')), (s) => { S.ledger = s.exists() ? s.data() : {}; render(); }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/desk')), (s) => { S.desk = s.exists() ? s.data() : {}; render(); }, denied));
   // 점검원 아침 브리핑 (서버 morningBrief · briefNow 가 써요)
   unsubs.push(onSnapshot(doc(db, dbPath('meta/briefing')), (s) => { S.brief = s.exists() ? s.data() : null; render(); }, denied));
@@ -940,25 +942,37 @@ function webView() {
 }
 
 // --- 연수 대장: 연수 기록실 카드를 연수 이름으로 묶어 한 줄씩 (안내 · 대상자 · 이수증이 그 줄에 붙어요) ---
+// '내 기록' 칸: 카드로 알 수 없는 것(신청 결과 · 이수 · 불참)을 선생님이 골라 둬요. 고른 게 있으면 상태 · 남은 일이 그걸 따라가요
+const MY_ST = [['', '— 자동'], ['apply', '📝 신청함 (결과 기다림)'], ['pass', '✅ 선정됨'], ['fail', '❌ 미선정'], ['done', '🎓 이수'], ['absent', '🚫 불참'], ['skip', '➖ 신청 안 함']];
+const MY_BADGE = { apply: ['apply', '신청함'], pass: ['go', '선정됨'], fail: ['no', '미선정'], done: ['done', '이수'], absent: ['no', '불참'], skip: ['no', '신청 안 함'] };
 function ledgerView() {
   const key = (t) => String(t || '').replace(/20\d\d년?|[「」『』()[\]〔〕'"]/g, '').replace(/(신청|안내|대상자|선발|계획|및|직무연수|연수|중등|과정|신규|\s|·|-|–)/g, '').slice(0, 12);
   const groups = new Map();
-  for (const c of cardsIn('train')) { const k = key(c.title); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+  for (const c of cardsIn('train')) { const k = key(c.title) || String(c.title || c.id).slice(0, 20); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
   const today = todayStr();
-  const rows = [...groups.values()].map((g) => {
+  const marks = S.ledger?.marks || {};
+  const rows = [...groups.entries()].map(([gk, g]) => {
     const kinds = g.map((c) => c.kind || '자료'), title = g.map((c) => c.title || '').sort((a, b) => a.length - b.length)[0];
     const d = g.map((c) => c.date).filter(isDate).sort()[0] || '', e = g.map((c) => c.end_date || c.date).filter(isDate).sort().pop() || '';
     const hours = g.flatMap((c) => c.fields || []).find((f) => /이수 시간|차시/.test(f.label) && f.value)?.value || '';
     const mine = g.flatMap((c) => c.fields || []).find((f) => f.label === '대상자 여부' && f.value)?.value || '';
     const st = kinds.includes('이수증') ? ['done', '이수'] : kinds.some((k) => /대상자/.test(k)) ? (/아님/.test(mine) ? ['no', '대상 아님'] : e >= today ? ['go', '대상 · 진행 중'] : ['go', '대상 · 끝남']) : kinds.some((k) => /신청/.test(k)) ? ['apply', '신청함'] : ['no', '안내만'];
-    const todo = st[1] === '대상 · 끝남' ? '이수증 넣기' : st[1] === '대상 · 진행 중' ? `${fmtDate(e)} 끝` : st[0] === 'apply' ? '결과 적기' : st[1] === '안내만' && d >= today ? '신청할지 정하기' : '';
-    return { g, title, d, e, hours, st, kinds, todo };
+    let todo = st[1] === '대상 · 끝남' ? '이수증 넣기' : st[1] === '대상 · 진행 중' ? `${fmtDate(e)} 끝` : st[0] === 'apply' ? '결과 적기' : st[1] === '안내만' && d >= today ? '신청할지 정하기' : '';
+    // 선생님이 고른 '내 기록'이 있으면 그걸 먼저 (이수증 카드가 있으면 '이수'는 저절로)
+    const my = marks[gk]?.st || '', badge = my && !(kinds.includes('이수증') && ['apply', 'pass'].includes(my)) ? MY_BADGE[my] : st;
+    if (my) todo = my === 'apply' ? '결과 나오면 고르기' : my === 'pass' ? (e && e >= today ? `${fmtDate(e)} 끝` : kinds.includes('이수증') ? '' : '이수증 넣기 · 이수/불참 고르기') : '';
+    return { gk, g, title, d, e, hours, st: badge, auto: st, my, kinds, todo };
   }).sort((a, b) => (a.d || '9').localeCompare(b.d || '9'));
   if (!rows.length) return '<p class="empty">연수 기록실에 카드가 들어오면 여기에 한 줄씩 모여요.</p>';
   const md = (x) => (x ? `${+x.slice(5, 7)}.${+x.slice(8, 10)}` : '');
-  return `<p class="note">에듀파인 문서등록대장처럼 한 줄에 연수 하나예요. 같은 연수의 안내 · 대상자 · 이수증 카드는 한 줄로 묶여요. 자료 이름을 누르면 그 카드가 열려요.</p>
-    <div class="ledger"><table><thead><tr><th>번호</th><th>연수명</th><th>기간</th><th>시간</th><th>상태</th><th>붙은 자료</th><th>남은 일</th></tr></thead><tbody>
-    ${rows.map((r, i) => `<tr><td class="n">${todayStr().slice(0, 4)}-${String(i + 1).padStart(3, '0')}</td><td>${esc(r.title)}</td><td class="d">${md(r.d)}${r.e && r.e !== r.d ? ` ~ ${md(r.e)}` : ''}</td><td class="d">${esc(r.hours.slice(0, 14))}</td><td><span class="lst ${r.st[0]}">${r.st[1]}</span></td><td><div class="docs">${r.g.map((c) => `<button type="button" data-act="edit" data-id="${c.id}">${esc(c.kind || '자료')}</button>`).join('')}</div></td><td>${esc(r.todo)}</td></tr>`).join('')}
+  const cnt = (v) => rows.filter((r) => r.my === v).length;
+  const sum = [['apply', '신청 · 결과 기다림'], ['pass', '선정'], ['fail', '미선정'], ['done', '이수'], ['absent', '불참']].map(([v, t]) => [t, v === 'done' ? rows.filter((r) => r.my === 'done' || (!r.my && r.auto[0] === 'done')).length : cnt(v)]).filter(([, n]) => n);
+  const pick = (r) => `<select class="my-st" data-act="ledgerst" data-k="${esc(r.gk)}">${MY_ST.map(([v, t]) => `<option value="${v}" ${v === r.my ? 'selected' : ''}>${v ? t : `${t} (${r.auto[1]})`}</option>`).join('')}</select>`;
+  return `<p class="note">에듀파인 문서등록대장처럼 한 줄에 연수 하나예요. 같은 연수의 안내 · 대상자 · 이수증 카드는 한 줄로 묶여요. 자료 이름을 누르면 그 카드가 열려요.<br>
+      <b>내 기록</b>에서 신청했는지 · 선정됐는지 · 이수했는지 · 불참했는지 골라 두면 상태와 남은 일이 따라 바뀌어요. '자동'은 카드로 짐작한 상태예요.</p>
+    ${sum.length ? `<p class="ledger-sum">${sum.map(([t, n]) => `<span>${esc(t)} <b>${n}</b></span>`).join('')}</p>` : ''}
+    <div class="ledger"><table><thead><tr><th>번호</th><th>연수명</th><th>기간</th><th>시간</th><th>상태</th><th>내 기록</th><th>붙은 자료</th><th>남은 일</th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr class="${r.my ? 'my-' + r.my : ''}"><td class="n">${todayStr().slice(0, 4)}-${String(i + 1).padStart(3, '0')}</td><td>${esc(r.title)}</td><td class="d">${md(r.d)}${r.e && r.e !== r.d ? ` ~ ${md(r.e)}` : ''}</td><td class="d">${esc(r.hours.slice(0, 14))}</td><td><span class="lst ${r.st[0]}">${r.st[1]}</span></td><td>${pick(r)}</td><td><div class="docs">${r.g.map((c) => `<button type="button" data-act="edit" data-id="${c.id}">${esc(c.kind || '자료')}</button>`).join('')}</div></td><td>${esc(r.todo)}</td></tr>`).join('')}
     </tbody></table></div>`;
 }
 
@@ -2126,7 +2140,11 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.matches('select[data-act=regtag]')) {   // 📒 이 문서대장 캡쳐는 어떤 검색이었나
+  if (t.matches('select[data-act=ledgerst]')) {   // 연수 대장 '내 기록'
+    const label = MY_ST.find(([v]) => v === t.value)?.[1] || '';
+    setDoc(doc(db, dbPath('meta/ledger')), { marks: { [t.dataset.k]: { st: t.value, at: Date.now() } }, updatedAt: serverTimestamp() }, { merge: true })
+      .then(() => toast(t.value ? `${label.replace(/^\S+ /, '')}(으)로 적었어요` : '자동으로 돌렸어요')).catch((e) => toast(`저장하지 못했어요 (${e.code || e.message})`));
+  } else if (t.matches('select[data-act=regtag]')) {   // 📒 이 문서대장 캡쳐는 어떤 검색이었나
     updateDoc(doc(db, dbPath(`captures/${t.dataset.cap}`)), { regTag: t.value }).then(() => toast('골랐어요. 올린 기간을 다시 셌어요')).catch(() => toast('저장하지 못했어요'));
   } else if (t.matches('select[data-act=move]')) {
     updateDoc(doc(db, dbPath(`cards/${t.dataset.id}`)), { room: t.value }).then(() => toast(`${roomName(t.value)}(으)로 보냈어요`));
