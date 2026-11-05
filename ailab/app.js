@@ -1825,6 +1825,8 @@ async function coverImage(list, myName) {
 const pageSpan = (ns) => ns.reduce((acc, n) => { const last = acc[acc.length - 1]; if (last && n === last[1] + 1) last[1] = n; else acc.push([n, n]); return acc; }, []).map(([a, b]) => (a === b ? `${a}쪽` : `${a}~${b}쪽`)).join(', ');
 const modeLabel = (a, mode) => { const us = a.units.filter((u) => u.mode === mode); return a.kind === 'pdf' ? pageSpan(us.map((u) => u.n)) : us.map((u) => (a.kind === 'xlsx' ? `'${u.label}' 시트` : u.label)).join(', '); };
 
+// 🙈 넣기 전 확인 창들(개인정보 가리기 · 거르기 실패)을 띄울지. false = 묻지 않고 연구소가 골라 둔 대로 가리고, 비밀번호 · 못 읽는 파일은 빼요 (2026-11-05 문쌤 요청)
+const ASK_MASK = false;
 // 거르기를 못 했을 때: 개인정보가 없는 공문이면 그대로 넣을 수 있게 물어봐요 (엑셀 · 문서는 읽지 못하니 빼요)
 function askPlain(reason, pdfs) {
   dlg.innerHTML = `<form method="dialog" class="dlg one">${DLG_X}<div class="dlg-form">
@@ -1846,20 +1848,21 @@ async function checkFiles(pdfs, sheets, docs, hasImgs, label = '') {
   try {
     settled = await withTimeout(Promise.allSettled(jobs.map(([f, fn]) => fn(f))), 40000);
   } catch (e) {
-    return askPlain(`${e.message || e}`, pdfs);
+    // 거르기를 못 하면 묻지 않고 그 공문 파일은 빼요 (가리지 못한 파일을 AI 에 보내지 않게). 창을 쓰려면 ASK_MASK
+    if (ASK_MASK) return askPlain(`${e.message || e}`, pdfs);
+    toast(`${label ? `${label} · ` : ''}개인정보 거르기를 못 해서 이 공문 파일은 뺐어요${hasImgs ? ' — 사진만 넣을게요' : ''}`);
+    return { files: [], note: '' };
   }
   const list = [], skipped = [];
   settled.forEach((r, i) => {
     if (r.status === 'fulfilled') list.push(r.value);
     else skipped.push({ name: jobs[i][0].name, why: /password|encrypt|비밀번호/i.test(r.reason?.message || r.reason?.name || '') ? '비밀번호가 걸려 있어요' : `읽지 못했어요 (${r.reason?.message || r.reason})` });
   });
+  // 🔒 비밀번호가 걸렸거나 못 읽는 파일은 묻지 않고 빼요. 다 빠지면 이 공문은 건너뛰고 다음 공문으로 (멈추지 않아요)
   if (!list.length) {
-    toast(`${skipped.map((s) => `${s.name}: ${s.why}`).join(' · ')}${hasImgs ? ' — 사진만 넣을게요' : ''}`);
-    return hasImgs ? { files: [], note: '' } : null;
+    toast(`${label ? `${label} · ` : ''}비밀번호가 걸렸거나 못 읽는 파일이라 뺐어요${hasImgs ? ' — 사진만 넣을게요' : ''}`);
+    return { files: [], note: '' };
   }
-  // 🙈 확인 창 없이 바로: 연구소가 처음 골라 둔 대로(이름 · 연락처 · 명단은 가리기, 나머지 넣기) 가리고 올려요 (2026-11-05 문쌤 요청)
-  // 창을 다시 보고 싶으면 ASK_MASK 를 true 로
-  const ASK_MASK = false;
   if (!ASK_MASK) {
     const name = S.myName || '';
     const has = (mode) => list.some((a) => a.units.some((u) => u.mode === mode));
