@@ -1590,7 +1590,7 @@ function setukFold(st) {
 function secOverview(st) {
   const l = lastCounsel(st), cs = [...st.counsels].sort((a, b) => a.date.localeCompare(b.date));
   const cr = careers(st), att = attShort(st), vol = volShort(st);
-  const subjChips = SEMS.map(([k, lab]) => (st.subjects?.[k] || []).length ? `<div class="ov-line"><span class="ov-lab">${lab}</span>${st.subjects[k].map(s => `<span class="ov-chip subj">${esc(s)}</span>`).join('')}</div>` : '').join('');
+  const subjChips = SEMS.map(([k, lab]) => (st.subjects?.[k] || []).length ? `<div class="ov-line"><span class="ov-lab">${lab}</span>${st.subjects[k].map(s => `<span class="ov-chip subj">${esc(s)}</span>`).join('')}</div>` : '').join('') + subjHistHTML(st);
   return `
   <div class="cols" style="grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:stretch">
   <div class="ov-hero" style="margin-bottom:0">
@@ -1662,9 +1662,23 @@ function subjField(st) {
       <div class="row" style="margin-top:6px"><select id="subjSem" style="width:auto">${SEMS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><span class="mini">학기 글자가 없으면 이 학기로</span><button class="btn sm" style="margin-left:auto" onclick="pasteSubj()">넣기</button></div></div></div>`;
 }
 function setSubj(k, v) {
-  const st = cur(); st.subjects = st.subjects || {};
-  st.subjects[k] = String(v).split(/[,，、]/).map(x => x.trim()).filter(Boolean);
+  const st = cur();
+  applySubj(st, k, String(v).split(/[,，、]/).map(x => x.trim()).filter(Boolean));
   saveStudent(st); render();
+}
+// 선택과목 넣기 + 바뀐 점 기록 (예전에 넣은 과목이 있고 달라졌을 때만, 빠진 과목 → 새 과목)
+function applySubj(st, k, list) {
+  st.subjects = st.subjects || {};
+  const before = st.subjects[k] || [], out = before.filter(x => !list.includes(x)), add = list.filter(x => !before.includes(x));
+  if (before.length && (out.length || add.length)) (st.subjHist = st.subjHist || []).push({ at: today(), sem: k, out, in: add });
+  st.subjects[k] = list;
+  return { out, add, first: !before.length };
+}
+// 👀 한눈에: 선택과목 바뀐 기록 (최근 것부터)
+function subjHistHTML(st) {
+  const h = (st.subjHist || []).slice().reverse(); if (!h.length) return '';
+  const lab = k => (SEMS.find(s => s[0] === k) || [k, k])[1].replace('2학년 ', '');
+  return `<div class="ov-line"><span class="ov-lab">🔄 바뀐 과목</span><span style="display:flex;flex-direction:column;gap:3px">${h.map(x => `<span class="mini" style="font-size:13px">${esc(x.at.slice(5).replace('-', '/'))} ${lab(x.sem)} · ${x.out.map(s => `<s style="color:var(--red)">${esc(s)}</s>`).join(', ') || '없음'} → ${x.in.map(s => `<b style="color:#3d8a5f">${esc(s)}</b>`).join(', ') || '없음'}</span>`).join('')}</span></div>`;
 }
 // 학기마다 선택과목 수 확인 (우리 학교는 학기마다 5과목) — 맞으면 초록 ✓, 다르면 빨강
 const SUBJ_N = 5;
@@ -1719,7 +1733,7 @@ function pasteSubj() {
     ms.forEach((m, j) => { const a = subjScan(text.slice(m.index + m[0].length, j + 1 < ms.length ? ms[j + 1].index : text.length)); if (a.length) out[`${m[1]}-${m[2]}`] = a; });
     Object.keys(out).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete out[k]; });   // 2학년 1 · 2학기만
     const ks = Object.keys(out).filter(k => out[k].length); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
-    st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
+    ks.forEach(k => applySubj(st, k, out[k])); saveStudent(st); render();
     return subjToast(out, ks);
   }
   const out = {}; let marks = [];
@@ -1739,7 +1753,7 @@ function pasteSubj() {
   if (/학기/.test(text)) { const first = text.search(/[123]\s*학년\s*[12]\s*학기/); if (first > 0) { const before = text.slice(0, first).split(/[\t\n]/).map(x => x.trim()).filter(Boolean); Object.keys(out).forEach(k => out[k] = out[k].filter(x => !before.includes(x))); } }
   Object.keys(out).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete out[k]; });   // 2학년 1 · 2학기만
   const ks = Object.keys(out); if (!ks.length) return toast('과목을 찾지 못했어요. 직접 적어 주세요');
-  st.subjects = Object.assign(st.subjects || {}, out); saveStudent(st); render();
+  ks.forEach(k => applySubj(st, k, out[k])); saveStudent(st); render();
   subjToast(out, ks);
 }
 const subjText = st => SEMS.map(([k, l]) => (st.subjects?.[k] || []).length ? `${l} ${st.subjects[k].join('·')}` : '').filter(Boolean).join(' / ');
@@ -2961,8 +2975,94 @@ function dashRoster() {
         <td class="mini" style="vertical-align:middle;white-space:nowrap;${subjOk(s) ? 'color:#3d8a5f' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? 'color:var(--red)' : ''}">${SEMS.map(([k]) => (s.subjects?.[k] || []).length).join(' · ')}${subjOk(s) ? ' ✓' : SEMS.some(([k]) => (s.subjects?.[k] || []).length) ? ' ⚠️' : ''}</td>
         <td style="vertical-align:middle"><button class="btn sm ghost" onclick="closeModal();openStudent('${s.id}',1)">노트 →</button></td></tr>`).join('')}
     </table></div>` : '<div class="empty">아직 친구가 없어요. 위에서 연필 친구를 한꺼번에 만들어 보세요 ✏️</div>'}</section>
+  ${subjBulkBox()}
   ${clubBox()}
   ${gdBox()}`;
+}
+/* 📘 선택과목 최종 한꺼번에 넣기 — 엑셀(수강신청 결과)에서 '번호 · 과목' 표를 복사해 붙여 넣으면 번호마다 과목을 찾아 넣어요.
+   미리 보기에서 예전과 달라진 과목(빠진 것 · 새로 든 것)을 보여 주고, 저장하면 학생마다 🔄 바뀐 과목 기록으로 남아요.
+   🔒 이름 칸은 읽지도 저장하지도 않아요 (번호로만 이어요) */
+let SB = null;   // { rows: [{ no, sem: { '2-1': [...] } }], skip: [번호] }
+function parseSubjBulk(text, defSem) {
+  const lines = text.split(/\r?\n/).map(l => l.split('\t').map(c => c.trim())).filter(c => c.some(Boolean));
+  let noCol = -1, semCol = -1, skipCols = new Set(), marks = [];
+  const byNo = {};
+  lines.forEach(cells => {
+    // 머리글 줄: 번호 · 이름 · 학기 칸 찾기
+    const hNo = cells.findIndex(c => /^(번호|번|반\s*번호)$/.test(c.replace(/\s/g, '')));
+    const mk = cells.map((c, i) => { const m = c.replace(/\s/g, '').match(/(?:([123])학년)?([12])학기|([123])-([12])/); return m ? { i, k: `${m[1] || m[3] || 2}-${m[2] || m[4]}` } : null; }).filter(Boolean);
+    if (hNo >= 0 || (mk.length && !cells.some(c => /^\d{1,2}$/.test(c)))) {
+      if (hNo >= 0) noCol = hNo;
+      const hs = cells.findIndex(c => /^학기$/.test(c.replace(/\s/g, ''))); if (hs >= 0) semCol = hs;   // 한 줄에 한 과목 + 학기 칸
+      cells.forEach((c, i) => { if (/이름|성명|학번|^반$|성별|비고/.test(c.replace(/\s/g, '')) && i !== noCol) skipCols.add(i); });
+      if (mk.length) marks = mk;
+      return;
+    }
+    // 번호: 번호 칸, 없으면 맨 앞의 1~60 숫자 칸, 학번(5자리)이면 끝 두 자리
+    let ni = noCol >= 0 ? noCol : cells.findIndex(c => /^\d{1,2}$/.test(c) && +c >= 1 && +c <= 60);
+    let no = ni >= 0 ? parseInt(cells[ni], 10) : NaN;
+    if (!(no >= 1)) { const si = cells.findIndex(c => /^\d{5}$/.test(c)); if (si >= 0) { ni = si; no = parseInt(cells[si].slice(-2), 10); } }
+    if (!(no >= 1 && no <= 60)) return;
+    const row = byNo[no] = byNo[no] || { no, sem: {} };
+    cells.forEach((c, i) => {
+      if (i === ni || i === semCol || skipCols.has(i) || !c || /^[\d.]+$/.test(c) || isGroup(c)) return;
+      const m = [...marks].reverse().find(x => x.i <= i) || marks[0];
+      const sv = semCol >= 0 ? (cells[semCol] || '').match(/([12])\s*학기|^([12])$/) : null;
+      const k = sv ? `2-${sv[1] || sv[2]}` : m ? m.k : defSem;
+      c.split(/[,，、]|\s*\/\s*(?!정보|한문)/).map(x => dotFix(x).trim()).filter(x => x && !isGroup(x) && /[가-힣A-Za-z]/.test(x)).forEach(x => {
+        const L = row.sem[k] = row.sem[k] || []; if (!L.includes(x)) L.push(x);
+      });
+    });
+  });
+  const rows = Object.values(byNo).map(r => { Object.keys(r.sem).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete r.sem[k]; }); return r; }).filter(r => Object.keys(r.sem).length).sort((a, b) => a.no - b.no);
+  return { rows, skip: rows.filter(r => !D.students.some(s => s.num === r.no)).map(r => r.no) };
+}
+function subjBulkRead() {
+  const text = $('#sbPaste').value; if (!text.trim()) return toast('엑셀 표를 붙여 넣어 주세요');
+  if (!text.includes('\t')) return toast('엑셀에서 칸째로 복사해 주세요 (번호 · 과목 칸이 탭으로 나뉘어야 해요)');
+  SB = parseSubjBulk(text, $('#sbSem').value);
+  if (!SB.rows.length) { SB = null; return toast('번호와 과목을 찾지 못했어요. 맨 위에 번호 · 과목(또는 1학기 · 2학기) 머리글 줄을 함께 복사해 주세요'); }
+  dashRefresh();
+}
+function subjBulkBox() {
+  const lab = k => (SEMS.find(s => s[0] === k) || [k, k])[1].replace('2학년 ', '');
+  let prev = '';
+  if (SB) {
+    let changed = 0, first = 0, same = 0;
+    const tr = SB.rows.map(r => {
+      const st = D.students.find(s => s.num === r.no);
+      if (!st) return `<tr style="opacity:.5"><td>${r.no}</td><td colspan="3" class="mini">이 번호의 친구가 없어요 — 건너뛰어요</td></tr>`;
+      let ch = false, fi = false;
+      const cells = Object.keys(r.sem).sort().map(k => {
+        const before = st.subjects?.[k] || [], after = r.sem[k];
+        const out = before.filter(x => !after.includes(x)), add = after.filter(x => !before.includes(x));
+        if (!before.length) fi = true; else if (out.length || add.length) ch = true;
+        return `<div><span class="mini">${lab(k)} ${subjBadge(after.length)}</span> ${after.map(x => add.includes(x) && before.length ? `<b style="color:#3d8a5f">＋${esc(x)}</b>` : esc(x)).join(', ')}${out.length ? ` <span class="mini">· 빠짐 ${out.map(x => `<s style="color:var(--red)">${esc(x)}</s>`).join(', ')}</span>` : ''}</div>`;
+      }).join('');
+      if (ch) changed++; else if (fi) first++; else same++;
+      return `<tr style="${ch ? 'background:#fff8e6' : ''}"><td>${r.no}</td><td style="white-space:nowrap">${st.emoji} ${esc(sname(st))}</td><td>${cells}</td><td class="mini" style="white-space:nowrap">${ch ? '🔄 바뀜' : fi ? '🆕 처음' : '같음'}</td></tr>`;
+    }).join('');
+    prev = `<p class="mini" style="margin-top:10px"><b>미리 보기</b> · ${SB.rows.length}명 중 <b style="color:#b9682f">🔄 바뀜 ${changed}명</b> · 🆕 처음 ${first}명 · 같음 ${same}명${SB.skip.length ? ` · 없는 번호 ${SB.skip.join(', ')}` : ''}</p>
+      <div style="overflow:auto;max-height:50vh"><table class="dtable"><tr><th style="width:50px">번호</th><th style="width:130px">친구</th><th>과목 (초록 ＋ = 새로 든 과목, 빨간 줄 = 빠진 과목)</th><th style="width:70px"></th></tr>${tr}</table></div>
+      <div class="row" style="margin-top:8px"><button class="btn" onclick="subjBulkSave()">💾 이대로 모두 넣기</button><button class="btn ghost sm" onclick="SB=null;dashRefresh()">취소</button><span class="mini">바뀐 학생은 한눈에 화면에 🔄 바뀐 과목으로 남아요</span></div>`;
+  }
+  return `<section><h4>📘 선택과목 최종 한꺼번에 넣기</h4>
+    <p class="mini">엑셀(수강신청 결과)에서 <b>머리글 줄(번호 · 과목 또는 1학기 · 2학기)부터</b> 칸째로 복사해 붙여 넣어요. 한 줄에 한 학생도, 한 줄에 한 과목도 돼요. 🔒 이름 칸은 읽지 않고 반 번호로만 이어요.</p>
+    <textarea id="sbPaste" style="min-height:90px;font-size:12.5px" placeholder="예)&#10;번호&#9;1학기&#9;&#9;&#9;&#9;&#9;2학기&#10;1&#9;기하&#9;화학Ⅰ&#9;…"></textarea>
+    <div class="row" style="margin-top:6px"><select id="sbSem" style="width:auto">${SEMS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><span class="mini">학기 머리글이 없으면 이 학기로</span><button class="btn sm" style="margin-left:auto" onclick="subjBulkRead()">👀 미리 보기</button></div>
+    ${prev}</section>`;
+}
+function subjBulkSave() {
+  if (!SB) return;
+  let n = 0, changed = 0;
+  SB.rows.forEach(r => {
+    const st = D.students.find(s => s.num === r.no); if (!st) return;
+    let ch = false;
+    Object.keys(r.sem).forEach(k => { const x = applySubj(st, k, r.sem[k]); if (!x.first && (x.out.length || x.add.length)) ch = true; });
+    saveStudent(st); n++; if (ch) changed++;
+  });
+  SB = null; render(); dashRefresh();
+  toast(`📘 ${n}명 선택과목을 넣었어요${changed ? ` · 🔄 바뀐 학생 ${changed}명은 기록으로 남겼어요` : ''}`);
 }
 // 연필 친구들의 숫자를 반 번호와 똑같이 맞춰요 (예전에 만든 연필 친구는 숫자가 밀려 있을 수 있어요)
 function pencilSync() {
