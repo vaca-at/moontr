@@ -1096,9 +1096,12 @@ function station(no, label, n, hot = false, bot = 'bot') {
 // 그래서 '캡쳐 한 장 = 검색 한 번'으로 보고, 캡쳐마다 어떤 검색인지(regTag)를 정해 그 캡쳐에 담긴 날짜 범위로 세요.
 // 처음엔 연구소가 짐작(guess)하고, 선생님이 사진을 보고 [캡쳐마다 고르기]에서 고쳐요. 새 검색을 하면 아래에 한 줄 더 넣어요
 // byWord: 사진 위쪽 제목 검색 칸에 적힌 낱말로 알아보기 (AI 가 읽어 둔 regSearch.title). 검색 낱말이 없으면 창의미래교육과로 검색한 거예요
+// 위에서부터 차례로 맞춰 봐요 (AI + 창의미래교육과 검색은 담긴 공문이 달라서 따로 세요)
+const isAI = (t) => /AI|인공지능/i.test(t || ''), isCMF = (t) => /창의미래/.test(t || '');
 const REG_WATCH = [
-  { id: 'ai', name: 'AI 키워드 연수', byWord: (w) => /AI|인공지능/i.test(w), guess: (rows) => rows.filter((r) => /AI|인공지능/i.test(r.title || '')).length >= rows.length * 0.8 },
-  { id: 'cmf', name: '창의미래교육과', byWord: (w, s) => !w || /창의미래/.test(s.sender || ''), guess: () => true },
+  { id: 'aicmf', name: 'AI + 창의미래교육과', byWord: (w, s) => isAI(w) && isCMF(s.sender), guess: (rows) => rows.length > 0 && rows.every((r) => isAI(r.title) && isCMF(r.dept)) },
+  { id: 'ai', name: 'AI 키워드 연수', byWord: (w) => isAI(w), guess: (rows) => rows.filter((r) => isAI(r.title)).length >= rows.length * 0.8 },
+  { id: 'cmf', name: '창의미래교육과', byWord: (w, s) => !w || isCMF(s.sender), guess: () => true },
 ];
 const REG_FROM = '2025-01-01';   // 이 날부터 빠진 기간을 찾아요
 const REG_GAP = 7;               // 캡쳐 사이가 7일 넘게 비면 '빠진 기간'으로 봐요 (공문이 없는 주말 · 방학 며칠은 넘어가요)
@@ -2038,8 +2041,8 @@ async function uploadSet(all, label = '') {
 // 📒 문서대장 캡쳐가 어떤 검색인지: ① 폴더 이름(예: '창의미래교육과' 폴더째 넣기) ② 접수처에서 고른 것. 둘 다 없으면 나중에 짐작
 function regTagOf(f) {
   const dir = (f.webkitRelativePath || f.relDir || '').split('/').slice(0, -1).join('/');
-  const byDir = dir && REG_WATCH.find((w) => dir.includes(w.name) || dir.includes(w.name.split(' ')[0]) || (w.id === 'cmf' && /창의미래/.test(dir)));
-  return byDir?.id || S.regPick || '';
+  const byDir = !dir ? '' : isAI(dir) && isCMF(dir) ? 'aicmf' : isAI(dir) ? 'ai' : isCMF(dir) ? 'cmf' : '';
+  return byDir || S.regPick || '';
 }
 
 // 공문 묶음: 파일을 ailab/bundles/{번호}/ 에 모두 올린 뒤, 서버 함수 readBundle 에 '다 올렸어요' 하고 읽기를 맡겨요
