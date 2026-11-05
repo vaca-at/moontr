@@ -1424,10 +1424,10 @@ function buildCard(wb, st, used) {
     x.font = { name: '맑은 고딕', size: o.size || 9, bold: !!o.bold, color: { argb: o.color || XC.ink } };
     x.alignment = { vertical: 'middle', horizontal: o.h || 'left', wrapText: true, indent: (o.h || 'left') === 'left' ? 1 : 0 };
   };
-  const H = (r, h) => { ws.getRow(r).height = h; };
+  const H = (r, h) => { ws.getRow(r).height = Math.min(409, h); };   // 엑셀 줄 높이는 409까지
   const section = (r, title, fill) => { box(r, 1, 12, title, { fill, color: XC.white, bold: true, size: 10.5 }); H(r, 20); };
   const kv = (r, label, val, light, o = {}) => { box(r, 1, 2, label, { fill: light, bold: true, h: 'center' }); box(r, 3, 12, val || '-', { fill: XC.white, ...o }); H(r, o.h2 || 18); };
-  const heat = (v, max) => { const a = 0.12 + (1 - (v - 1) / (max - 1)) * 0.55, m = (c, t) => Math.round(255 + (t - 255) * a).toString(16).padStart(2, '0'); return 'FF' + m(0, 0xee) + m(0, 0x8f) + m(0, 0xad); };
+  const heat = (v, max) => { v = Math.min(max, Math.max(1, +v || max)); const a = 0.12 + (1 - (v - 1) / (max - 1)) * 0.55, m = (c, t) => Math.round(255 + (t - 255) * a).toString(16).padStart(2, '0'); return 'FF' + m(0, 0xee) + m(0, 0x8f) + m(0, 0xad); };
   let r = 1;
   // 제목
   box(r, 1, 8, '🌷 우리반 상담 카드', { size: 16, bold: true, color: XC.pink, noBorder: true }); box(r, 9, 12, `${S.className || ''} · ${today()}`, { h: 'right', color: XC.sub, noBorder: true }); H(r, 30); r++;
@@ -1518,17 +1518,35 @@ function stdSums(st) {
   });
   return o;
 }
+/* 📥 상담 카드 엑셀 — 만드는 동안 창에 진행(3/27)을 보여 주고, 다 만들면 저장 단추를 띄워요
+   여러 명은 시간이 걸려 브라우저가 '자동 다운로드'로 막을 수 있어서, 선생님이 직접 누르는 저장 단추를 꼭 함께 둬요
+   한 친구 카드에서 오류가 나도 그 친구만 빼고 나머지는 만들어요 */
 async function downloadCards(list, fname) {
   if (!list.length) return toast('친구가 없어요');
-  toast('📥 엑셀을 만드는 중이에요…');
+  const N = list.length, say = t => { const b = $('#cardProg'); if (b) b.innerHTML = t; };
+  openModal('📥 상담 카드 만들기', `<div class="empty" id="cardProg">엑셀 도구를 불러오는 중이에요…</div>`);
   try {
-    if (!window.ExcelJS) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
-    const wb = new ExcelJS.Workbook(), used = new Set(); wb.creator = '우리반 생기부노트';
-    list.forEach(st => buildCard(wb, st, used));
+    if (!window.ExcelJS) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js').catch(() => { throw new Error('엑셀 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요'); });
+    const wb = new ExcelJS.Workbook(), used = new Set(), bad = []; wb.creator = '우리반 생기부노트';
+    for (let i = 0; i < N; i++) {
+      const st = list[i], n0 = wb.worksheets.length;
+      try { buildCard(wb, st, used); }
+      catch (e) { bad.push(`${st.num ? st.num + '번 ' : ''}${nname(st)} (${e.message})`); if (wb.worksheets.length > n0) wb.removeWorksheet(wb.worksheets[n0].id); }
+      say(`📥 상담 카드를 만드는 중이에요… <b>${i + 1}/${N}</b><div class="bar" style="margin-top:10px"><span class="g"><i style="width:${(i + 1) / N * 100}%"></i></span></div>`);
+      await new Promise(r => setTimeout(r, 0));   // 화면이 멈추지 않게 한 장마다 숨 돌리기
+    }
+    if (!wb.worksheets.length) throw new Error('카드를 한 장도 만들지 못했어요' + (bad.length ? ' — ' + bad[0] : ''));
+    say('📥 파일로 묶는 중이에요…'); await new Promise(r => setTimeout(r, 0));
     const blob = new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast(`📥 상담 카드 ${list.length}장을 내려받았어요`);
-  } catch (e) { toast('📥 만들지 못했어요: ' + e.message); }
+    const url = URL.createObjectURL(blob), ok = N - bad.length;
+    const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    openModal('📥 상담 카드를 다 만들었어요', `<p class="lead" style="margin-bottom:8px"><mark>${ok}장</mark>을 엑셀 파일 하나로 만들었어요 (한 명에 한 시트).</p>
+      <p class="mini" style="margin-bottom:12px">저절로 저장되지 않았으면 아래 단추를 눌러 주세요. 브라우저가 '여러 파일 다운로드'를 물으면 허용을 눌러 주세요.</p>
+      <a class="btn" style="display:block;text-align:center;text-decoration:none" href="${url}" download="${esc(fname)}">💾 ${esc(fname)} 저장하기</a>
+      ${bad.length ? `<div class="mini" style="margin-top:12px;padding:8px 10px;background:#fff0f2;border:1px dashed var(--red);border-radius:10px;color:var(--red)">⚠️ 카드를 만들지 못해 뺀 친구 ${bad.length}명: ${bad.map(esc).join(', ')}</div>` : ''}
+      <div class="mini" style="margin-top:10px">💡 엑셀에서 Ctrl+P → '전체 통합 문서 인쇄'를 고르면 한 번에 모두 인쇄돼요.</div>`);
+    setTimeout(() => URL.revokeObjectURL(url), 30 * 60000);
+  } catch (e) { openModal('📥 만들지 못했어요', `<div class="empty" style="color:var(--red)">${esc(e.message)}</div><p class="mini">이 글을 캡처해 알려 주시면 고칠게요.</p>`); }
 }
 const downloadCard = () => {
   const st = cur(); if (!st) return;
