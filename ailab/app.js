@@ -1067,44 +1067,60 @@ function station(no, label, n, hot = false, bot = 'bot') {
   return `<div class="st ${hot && n ? 'hot' : ''}"><span class="step">${no}</span><span class="${bot}"></span><span class="lbl">${label}</span><span class="n">${n}장</span></div>`;
 }
 // --- 📒 문서대장 어디까지 올렸나: 접수처 위쪽 안내 문구 ---
-// 문서대장 줄(ailab_meta/registry)에는 '어떤 키워드로 검색했는지'가 남지 않아서, 검색한 묶음마다 줄을 골라내는 규칙을 여기 적어 둬요.
-// 새 키워드로 캡쳐하면 아래에 한 줄 더 넣으면 돼요. from = 이 달부터 빠진 달을 찾아요
+// 문서대장 목록은 보낸 곳 칸이 '서울특별시교육청 …'처럼 잘려 있어서 줄만 보고는 부서를 알 수 없어요.
+// 그래서 '캡쳐 한 장 = 검색 한 번'으로 보고, 캡쳐마다 어떤 검색인지(regTag)를 정해 그 캡쳐에 담긴 날짜 범위로 세요.
+// 처음엔 연구소가 짐작(guess)하고, 선생님이 사진을 보고 [캡쳐마다 고르기]에서 고쳐요. 새 검색을 하면 아래에 한 줄 더 넣어요
 const REG_WATCH = [
-  { name: '창의미래교육과', test: (r) => /창의미래교육과/.test(r.dept || '') },
-  { name: 'AI 키워드 연수', test: (r) => /AI|인공지능/i.test(r.title || '') && /연수/.test(r.title || '') },
+  { id: 'ai', name: 'AI 키워드 연수', guess: (rows) => rows.filter((r) => /AI|인공지능/i.test(r.title || '')).length >= rows.length * 0.8 },
+  { id: 'cmf', name: '창의미래교육과', guess: (rows) => rows.every((r) => /서울특별시교육청/.test(r.dept || '')) },
 ];
-const REG_FROM = '2025-01';
+const REG_FROM = '2025-01-01';   // 이 날부터 빠진 기간을 찾아요
+const REG_GAP = 7;               // 캡쳐 사이가 7일 넘게 비면 '빠진 기간'으로 봐요 (공문이 없는 주말 · 방학 며칠은 넘어가요)
+const dayN = (d) => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5);
+const dayS = (n) => new Date(n * 864e5).toISOString().slice(0, 10);
+const regD = (d) => `${+d.slice(0, 4)}년 ${+d.slice(5, 7)}월 ${+d.slice(8, 10)}일`;
+const regRange = (a, b) => a === b ? regD(a) : a.slice(0, 4) === b.slice(0, 4) ? `${regD(a)} ~ ${+b.slice(5, 7)}월 ${+b.slice(8, 10)}일` : `${regD(a)} ~ ${regD(b)}`;
+// 문서대장 캡쳐마다: 그 캡쳐에서 나온 줄 · 날짜 범위 · 어떤 검색인지(고른 것 또는 짐작)
+function regCaps() {
+  const rows = Object.values(S.registry?.rows || {}).filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date || ''));
+  return S.captures.filter((c) => c.registryRows).map((c) => {
+    const mine = rows.filter((r) => r.capId === c.id).sort((a, b) => a.date.localeCompare(b.date));
+    const g = mine.length ? REG_WATCH.find((w) => w.guess(mine)) : null;
+    return { c, rows: mine, from: mine[0]?.date, to: mine[mine.length - 1]?.date, tag: c.regTag || g?.id || 'etc', guessed: !c.regTag };
+  });
+}
 function regCoverage() {
-  const all = Object.values(S.registry?.rows || {}).filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date || ''));
-  const now = new Date(), endM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const months = []; for (let [y, m] = REG_FROM.split('-').map(Number); `${y}-${String(m).padStart(2, '0')}` <= endM; m === 12 ? (y++, m = 1) : m++) months.push(`${y}-${String(m).padStart(2, '0')}`);
-  // 빠진 달을 '2025년 1~11월 · 2026년 2월' 처럼 묶어서 읽기 좋게
-  const runs = (list) => {
-    const out = []; let s = null, p = null;
-    const nextOf = (k) => { let [y, m] = k.split('-').map(Number); m === 12 ? (y++, m = 1) : m++; return `${y}-${String(m).padStart(2, '0')}`; };
-    const flush = () => { if (!s) return; const [sy, sm] = s.split('-').map(Number), [py, pm] = p.split('-').map(Number); out.push(sy === py ? `${sy}년 ${sm === pm ? sm : `${sm}~${pm}`}월` : `${sy}년 ${sm}월 ~ ${py}년 ${pm}월`); };
-    list.forEach((k) => { if (p && nextOf(p) === k) p = k; else { flush(); s = p = k; } }); flush();
-    return out.join(' · ');
-  };
-  const D = (d) => { const [y, m, dd] = d.split('-').map(Number); return `${y}년 ${m}월 ${dd}일`; };
+  const caps = regCaps(), today = dayN(todayStr()), start = dayN(REG_FROM);
   return REG_WATCH.map((w) => {
-    const rows = all.filter(w.test).sort((a, b) => a.date.localeCompare(b.date));
-    const have = new Set(rows.map((r) => r.date.slice(0, 7)));
-    const miss = months.filter((k) => !have.has(k));
-    if (!rows.length) return { name: w.name, upto: '', gap: runs(months), done: '', miss: `${runs(months)}은 아직 올리시지 않았습니다.` };
+    const spans = caps.filter((x) => x.tag === w.id && x.from).map((x) => [dayN(x.from), dayN(x.to)]).sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    spans.forEach(([a, b]) => { const p = merged[merged.length - 1]; if (p && a <= p[1] + REG_GAP) p[1] = Math.max(p[1], b); else merged.push([a, b]); });
+    // 빠진 기간: 시작일 ~ 첫 캡쳐, 캡쳐 묶음 사이, 마지막 캡쳐 ~ 오늘 (7일 넘게 빈 곳만)
+    const gaps = []; let cur = start;
+    merged.forEach(([a, b]) => { if (a - cur > REG_GAP) gaps.push([cur, a - 1]); cur = Math.max(cur, b + 1); });
+    if (today - cur > REG_GAP) gaps.push([cur, today]);
+    const gapTxt = gaps.map(([a, b]) => regRange(dayS(a), dayS(b))).join(' · ');
+    const n = caps.filter((x) => x.tag === w.id).length;
+    if (!merged.length) return { name: w.name, upto: '', gap: gapTxt, done: '', miss: `${gapTxt}은 아직 올리시지 않았습니다.` };
     return {
-      name: w.name, upto: D(rows[rows.length - 1].date), gap: runs(miss),
-      done: `${D(rows[rows.length - 1].date)}까지 올리셨습니다. (가장 오래된 공문 ${D(rows[0].date)} · ${rows.length}건)`,
-      miss: miss.length ? `${runs(miss)}은 아직 올리시지 않았습니다.` : '빠진 달 없이 다 올리셨어요.',
+      name: w.name, upto: regD(dayS(merged[merged.length - 1][1])), gap: gapTxt,
+      done: `${merged.map(([a, b]) => regRange(dayS(a), dayS(b))).join(' · ')} 올리셨습니다. (캡쳐 ${n}장)`,
+      miss: gaps.length ? `${gapTxt}은 아직 올리시지 않았습니다.` : '빠진 기간 없이 다 올리셨어요.',
     };
   });
 }
 function regCoverageBox() {
   if (!S.registry) return '';
-  const last = S.captures.find((c) => c.registryRows);
+  const caps = regCaps(), guessed = caps.filter((x) => x.guessed).length;
+  const opts = (tag) => [...REG_WATCH.map((w) => [w.id, w.name]), ['etc', '그 밖의 검색 (세지 않기)']].map(([v, t]) => `<option value="${v}" ${v === tag ? 'selected' : ''}>${esc(t)}</option>`).join('');
   return `<div class="reg-cover"><b>📒 문서대장 어디까지 올렸나요?</b>
     <ul>${regCoverage().map((c) => `<li><b>${esc(c.name)}</b> ${c.done ? esc(c.done) + ' ' : ''}<span class="miss">${esc(c.miss)}</span></li>`).join('')}</ul>
-    <small>${last ? `마지막으로 문서대장 캡쳐를 넣은 날: ${esc(tsDate(last.createdAt))} (${last.registryRows}줄) · ` : ''}빠진 달은 그달에 해당 공문이 없었을 수도 있어요 · ${esc(REG_FROM.replace('-', '년 ').replace(/년 0?/, '년 '))}월부터 셌어요</small></div>`;
+    <small>캡쳐 한 장을 검색 한 번으로 보고, 그 캡쳐에 담긴 날짜 범위로 세요 · ${esc(regD(REG_FROM))}부터 · ${REG_GAP}일 넘게 빈 기간만 알려 드려요 (그때 공문이 없었을 수도 있어요)</small>
+    <details class="reg-tags"><summary>🗂 캡쳐마다 어떤 검색인지 고르기 (${caps.length}장${guessed ? ` · 연구소가 짐작한 것 ${guessed}장 — 사진을 보고 맞는지 확인해 주세요` : ''})</summary>
+      <ul>${caps.map((x) => `<li><button class="chipbtn" data-act="cap" data-cap="${x.c.id}">사진 보기</button>
+        <span class="rt-d">${x.from ? esc(regRange(x.from, x.to)) : '날짜 없음'} · ${x.rows.length}줄</span>
+        <select data-act="regtag" data-cap="${x.c.id}">${opts(x.tag)}</select>${x.guessed ? '<span class="rt-g">짐작</span>' : ''}
+        <small>${esc((x.rows[x.rows.length - 1] || {}).title || x.c.name || '')}</small></li>`).join('')}</ul></details></div>`;
 }
 function lobbyView() {
   const reading = S.captures.filter((c) => c.status === 'reading');
@@ -2110,7 +2126,9 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.matches('select[data-act=move]')) {
+  if (t.matches('select[data-act=regtag]')) {   // 📒 이 문서대장 캡쳐는 어떤 검색이었나
+    updateDoc(doc(db, dbPath(`captures/${t.dataset.cap}`)), { regTag: t.value }).then(() => toast('골랐어요. 올린 기간을 다시 셌어요')).catch(() => toast('저장하지 못했어요'));
+  } else if (t.matches('select[data-act=move]')) {
     updateDoc(doc(db, dbPath(`cards/${t.dataset.id}`)), { room: t.value }).then(() => toast(`${roomName(t.value)}(으)로 보냈어요`));
   } else if (t.matches('input[data-act=step]')) {
     const steps = taskSteps().map((s, i) => (i === Number(t.dataset.i) ? { ...s, done: t.checked } : s));
