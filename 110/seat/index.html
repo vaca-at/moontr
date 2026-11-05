@@ -215,6 +215,7 @@
 
   <main>
     <div id="sampleBar" class="sample-bar" hidden>지금은 <b>예시 자리</b>예요. 👥 명단 · 교실에서 이름과 교실 모양을 넣고, 📋 지금 자리에서 지금 앉은 자리를 맞춰 주세요.</div>
+    <div id="fixBar" class="sample-bar" hidden></div>
 
     <!-- ① 지금 자리 -->
     <section id="tab-now" class="tab">
@@ -533,12 +534,13 @@ function roomHTML(map, opt = {}) {
       const i = r * C + c;
       const no = map[i];
       const s = no != null ? stu(no) : null;
-      const off = isOff(i);
+      const off = isOff(i) && !s;   // 지난 자리는 지금 없는 자리에 앉았을 수 있어요 → 친구가 있으면 보여 줘요
       const cls = ['seat', isWin(i) ? 'win' : '', off ? 'off' : '', !off && !s ? 'empty' : '', (edit || layoutEdit) ? 'clickable' : '', picked === i ? 'pick' : '', moved?.has(i) ? 'moved' : ''].join(' ');
       const tags = s && !BOARD ? `${s.cold ? '🥶' : ''}${s.front ? '👓' : ''}${s.fix != null ? '🔒' : ''}` : '';   // 전자칠판엔 배려 표시를 안 보여요
       const label = off ? '없는 자리' : s ? (BOARD ? `${s.no}` : esc(s.name || `${s.no}번`)) : '빈자리';
       const sub = layoutEdit || BOARD ? `자리 ${i + 1}` : s && showNo && s.name ? `${s.no}번` : `자리 ${i + 1}`;
-      if (input) cells += `<div class="seat${isWin(i) ? ' win' : ''}${off ? ' off' : ''}" data-seat="${i}"><span class="no">자리 ${i + 1}</span>${off ? '<span class="nm">없는 자리</span>' : `<input class="si" data-seat="${i}" value="${no ?? ''}" placeholder="번호" autocomplete="off"><span class="nm2">${s ? esc(s.name || '') : ''}</span>`}</div>`;
+      // 지난 자리 칸: 지금은 없는 자리여도 그때 앉았으면 적을 수 있어요 (교실 모양은 때마다 달라요)
+      if (input) cells += `<div class="seat${isWin(i) ? ' win' : ''}${off ? ' off' : ''}" data-seat="${i}"><span class="no">자리 ${i + 1}${isOff(i) ? ' · 지금은 없음' : ''}</span><input class="si" data-seat="${i}" value="${no ?? ''}" placeholder="번호" autocomplete="off"><span class="nm2">${s ? esc(s.name || '') : ''}</span></div>`;
       else cells += `<div class="${cls}" data-seat="${i}" style="animation-delay:${moved ? (k * 0.03 + r * 0.05).toFixed(2) : 0}s"><span class="tags">${tags}</span><span class="no">${sub}</span><span class="nm">${label}</span></div>`;
       if (L().pair && k < C - 1 && (teacher ? c % 2 === 0 : c % 2 === 1)) cells += '<div class="gap"></div>';
     });
@@ -753,12 +755,53 @@ $('layoutRoom').addEventListener('click', (e) => {
   S.layout.off = [...off].sort((a, b) => a - b);
   save(); renderLayout();
 });
+// 번호 바꾸기: 지금 자리 · 기록 · 캡쳐의 번호도 함께 바꿔요. 바꿀 번호가 이름 없는 칸이면 하나로 합쳐요
+function moveNoInMap(m, from, to) {
+  if (!m) return false;
+  const keys = Object.keys(m), mine = keys.filter((k) => +m[k] === from);
+  if (!mine.length) return false;
+  keys.filter((k) => +m[k] === to).forEach((k) => delete m[k]);   // 이름 없는 번호가 있던 자리는 비워요
+  mine.forEach((k) => { m[k] = to; });
+  return true;
+}
+async function changeNo(from, to) {
+  const s = stu(from), t = stu(to);
+  if (!s || from === to) return false;
+  if (t?.name) { alert(`${to}번은 이미 ${t.name} 학생이에요. 다른 번호를 적어 주세요.`); return false; }
+  await loadCaps();
+  moveNoInMap(S.current, from, to);
+  S.history.forEach((h) => moveNoInMap(h.seats, from, to));
+  const caps = CAPS.filter((c) => moveNoInMap(c.seats, from, to));
+  if (t) { s.cold = s.cold || t.cold; s.front = s.front || t.front; if (s.fix == null) s.fix = t.fix; S.students = S.students.filter((x) => x !== t); }
+  s.no = to;
+  S.students.sort((a, b) => a.no - b.no);
+  save(); caps.forEach(saveCap);
+  return true;
+}
+// 명단 점검: 번호가 반 인원보다 큰 친구 하나 + 이름 없는 번호 하나면 같은 친구로 보고 고치기 단추를 보여요 (전자칠판에는 안 보여요)
+function rosterIssue() {
+  if (BOARD) return null;
+  const n = S.students.length, odd = S.students.filter((s) => s.no > n && s.name), empty = S.students.filter((s) => !s.name);
+  return odd.length === 1 && empty.length === 1 ? { from: odd[0], to: empty[0] } : null;
+}
+function renderFix() {
+  const b = $('fixBar'), x = rosterIssue();
+  b.hidden = !x; if (!x) { b.innerHTML = ''; return; }
+  b.innerHTML = `⚠️ <b>${x.from.no}번 ${esc(x.from.name)}</b> 학생의 번호가 이상하고, <b>${x.to.no}번</b>은 이름이 없어요. 같은 친구라면 <button class="btn primary" id="fixNo">${x.from.no}번 → ${x.to.no}번으로 고치기</button> <span class="note">지금 자리 · 기록 · 캡쳐의 번호도 함께 바뀌어요</span>`;
+  $('fixNo').onclick = async () => {
+    const from = x.from.no, to = x.to.no, both = Object.values(S.current).some((v) => +v === from);
+    const freed = both ? Object.keys(S.current).filter((k) => +S.current[k] === to).map((k) => +k + 1) : [];
+    if (!(await changeNo(from, to))) return;
+    showTab(document.querySelector('.tabs button[aria-selected="true"]')?.dataset.tab || 'now');
+    alert(`${to}번으로 고쳤어요.${freed.length ? ` 이름 없이 ${to}번만 있던 자리 ${freed.join(', ')}은 빈자리가 됐어요.` : ''}`);
+  };
+}
 function renderStudents() {
   const wc = winCounts();
   $('stCount').textContent = `${S.students.length}명 · 자리 ${activeSeats().length}개`;
   const seatOpts = (v) => `<option value="">없음</option>` + activeSeats().map((i) => `<option value="${i}" ${v === i ? 'selected' : ''}>자리 ${i + 1}</option>`).join('');
   $('stBody').innerHTML = S.students.slice().sort((a, b) => a.no - b.no).map((s) => `<tr data-no="${s.no}">
-    <td>${s.no}</td>
+    <td><input type="number" data-k="no" min="1" max="99" value="${s.no}" title="번호를 고치면 지금 자리 · 기록의 번호도 함께 바뀌어요" style="width:58px"></td>
     <td><input type="text" data-k="name" value="${esc(s.name)}" placeholder="${s.no}번 이름"></td>
     <td><input type="checkbox" data-k="cold" ${s.cold ? 'checked' : ''} title="추위 많이 타요"></td>
     <td><input type="checkbox" data-k="front" ${s.front ? 'checked' : ''} title="앞자리가 필요해요"></td>
@@ -769,6 +812,12 @@ function renderStudents() {
 $('stBody').addEventListener('change', (e) => {
   const tr = e.target.closest('tr'); const s = stu(+tr.dataset.no); const k = e.target.dataset.k;
   if (!s || !k) return;
+  if (k === 'no') {
+    const to = parseInt(e.target.value, 10);
+    if (!(to >= 1 && to <= 99)) { e.target.value = s.no; return; }
+    changeNo(s.no, to).then(() => { renderStudents(); renderFix(); });
+    return;
+  }
   if (k === 'name') s.name = e.target.value.trim().slice(0, 20);
   else if (k === 'fix') s.fix = e.target.value === '' ? null : +e.target.value;
   else s[k] = e.target.checked;
@@ -800,7 +849,7 @@ $('applyNames').onclick = () => {
   }
   if (!n) { alert('넣을 줄을 찾지 못했어요. "1 김하늘" 처럼 번호와 이름을 한 줄에 써 주세요.'); return; }
   S.students.sort((a, b) => a.no - b.no);
-  save(); renderStudents();
+  save(); renderStudents(); renderFix();
   $('pasteNames').value = '';
   alert(`${n}명을 넣었어요.`);
 };
@@ -958,6 +1007,7 @@ $('capAsNow').onclick = () => {
   if (!chk.filled) { alert('칸에 번호를 하나도 안 적었어요.'); return; }
   if (!confirm('이 자리를 지금 자리로 할까요? 지금 자리는 기록에 남아요.')) return;
   pushHistory(); S.current = { ...c.seats }; S.since = c.day || today(); S.sample = false;
+  S.layout.off = (S.layout.off || []).filter((i) => c.seats[i] == null);   // 친구를 앉힌 자리는 다시 쓰는 자리로
   sortHistory(); save(); showTab('now');
 };
 $('capDel').onclick = async () => {
@@ -1021,6 +1071,7 @@ function showTab(name) {
   if (name === 'history') renderHistory();
   if (name === 'caps') renderCaps();
   if (name === 'cold') renderCold();
+  renderFix();
   try { history.replaceState(null, '', '#' + name); } catch {}
 }
 document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
