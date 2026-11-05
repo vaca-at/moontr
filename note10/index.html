@@ -545,7 +545,7 @@ function setSync(st) {
   $('#adminBtn').style.display = st === 'cloud' ? '' : 'none';
   $('#clubBtn').style.display = st === 'cloud' ? '' : 'none';
   $('#subjBtn').style.display = st === 'cloud' ? '' : 'none';
-  render();
+  render(); openPendingDash();
   // 주소 끝이 #admin(관리자 허브)이어도 관리 창은 저절로 열지 않아요 — 로그인 뒤 달력 홈부터 (관리는 위쪽 🛠 관리 단추로)
 }
 function viewGate() {
@@ -706,6 +706,56 @@ function parseJSONObj(t) {
 /* ---------------- 바이트 (나이스 기준: 한글 3, 영문·숫자·공백 1, 줄바꿈 2) ---------------- */
 function nbytes(t) { let b = 0; for (const ch of String(t || '')) { if (ch === '\n') b += 2; else b += ch.charCodeAt(0) > 127 ? 3 : 1; } return b; }
 
+/* ---------------- 🔗 페이지 주소 (하위 주소) ----------------
+   화면마다 주소가 달라져요: #/calendar · #/class/stats · #/student/grades · #/manage/roster …
+   주소를 즐겨찾기 · 복사해 두면 그 화면으로 바로 열리고, 브라우저 뒤로 가기로 앞 화면에 돌아가요.
+   🔒 어느 학생인지는 주소에 넣지 않아요 (학생 기록 주소를 열면 늘 맨 위 친구부터) */
+const RT_TAB = { cal: 'calendar', note: 'student', class: 'class' };
+const RT_CLASS = { cs: 'counsel', stat: 'stats', ev: 'events', score: 'scores', att: 'attendance', rec: 'records', bulk: 'bulk' };
+const RT_SEC = { 1: 'overview', 2: 'counsel', 3: 'grades', 4: 'activities', 5: 'episodes', 6: 'wall', 7: 'record', 8: 'events', 9: 'prep', 10: 'competency', 11: 'story', 12: 'books', 13: 'check', 14: 'memo' };
+const RT_DASH = { roster: 'roster', cal: 'calendar-import', ev: 'events', photo: 'photos', score: 'score-files', school: 'school-scores', rec: 'records' };
+const RT_TITLE = { cal: '달력', note: '개인 상담 기록', class: '담임 학급 관리' };
+const rtKey = (o, v) => Object.keys(o).find(k => o[k] === v);
+let RT = { dash: false, pendingDash: null, quiet: false };
+function routeHash() {
+  if (RT.dash) return `#/manage/${RT_DASH[DASH.tab] || 'roster'}`;
+  if (V.tab === 'class') return `#/class/${RT_CLASS[V.csub || 'cs']}`;
+  if (V.tab === 'note') return `#/student/${RT_SEC[V.sec] || 'overview'}`;
+  return '#/calendar';
+}
+// 지금 화면 → 주소 (로그인 전에는 건드리지 않아요: 관리자 허브의 #admin 주소 그대로)
+function syncRoute() {
+  if (syncState !== 'cloud') return;
+  const h = routeHash();
+  if (location.hash !== h) history[RT.quiet || !location.hash.startsWith('#/') ? 'replaceState' : 'pushState'](null, '', h);
+  const tl = RT.dash ? '관리' : V.tab === 'class' ? (CLASS_TABS.find(x => x[0] === (V.csub || 'cs')) || [, ''])[1].replace(/^\S+\s/, '') : V.tab === 'note' ? (SECS.find(s => s[0] === V.sec) || [, '개인 상담 기록'])[1] : '달력';
+  document.title = `${tl} · 우리반 생기부노트`;
+}
+// 주소 → 화면 (처음 열 때 · 뒤로/앞으로 가기)
+function applyRoute(h) {
+  const [, a, b] = (h || '').match(/^#\/([\w-]+)(?:\/([\w-]+))?/) || [];
+  if (!a) return false;
+  if (a === 'manage') { RT.pendingDash = rtKey(RT_DASH, b) || 'roster'; return true; }
+  const tab = rtKey(RT_TAB, a); if (!tab) return false;
+  if (tab === 'note' && V.tab !== 'note') { V.sid = D.students[0]?.id || null; }
+  V.tab = tab;
+  if (tab === 'class') V.csub = rtKey(RT_CLASS, b) || 'cs';
+  if (tab === 'note') V.sec = +(rtKey(RT_SEC, b) || 1);
+  RT.pendingDash = null;
+  return true;
+}
+// 관리 창은 화면을 다 그린 뒤 · 로그인한 뒤에 열어요
+function openPendingDash() { if (RT.pendingDash && syncState === 'cloud') { const k = RT.pendingDash; RT.pendingDash = null; openDash(k); } }
+window.addEventListener('popstate', () => {
+  RT.quiet = true;
+  const dashWas = RT.dash;
+  applyRoute(location.hash);
+  if (dashWas && !RT.pendingDash) closeModal();
+  render(); openPendingDash();
+  RT.quiet = false;
+});
+applyRoute(location.hash);
+
 /* ---------------- 화면 그리기 ---------------- */
 function render() {
   document.body.dataset.theme = S.theme; document.body.dataset.font = S.font; document.body.dataset.big = S.big;
@@ -722,6 +772,7 @@ function render() {
   else { app.innerHTML = viewNote(); if (V.sec === 3 && cur()) drawCharts(cur()); }
   const side = $('.side'); if (side) side.scrollTop = sideTop;
   window.scrollTo(0, winY);
+  syncRoute();
 }
 // 위쪽 메뉴로 '개인 상담 기록'에 들어오면 늘 맨 위 친구(테스트)의 상담 > 한눈에부터 (실제 학생 기록이 먼저 뜨지 않게)
 function go(t) {
@@ -3164,7 +3215,7 @@ let DASH = { tab: 'roster', imgs: [], text: '', rows: [], year: new Date().getFu
 function openDash(tab) {
   if (syncState !== 'cloud') return toast('🔑 로그인한 뒤에 쓸 수 있어요');
   if (tab) DASH.tab = tab;
-  openModal('🛠 관리', viewDash(), true);
+  openModal('🛠 관리', viewDash(), true); RT.dash = true; syncRoute();
   $('#modal .sheet').classList.toggle('xwide', DASH.tab === 'school');
 }
 // 📘 맨 위 '선택과목 넣기' 단추: 관리 → 우리반 명단의 '선택과목 최종 한꺼번에 넣기' 칸으로 바로
@@ -3172,7 +3223,7 @@ function openSubjBulk() {
   openDash('roster');
   setTimeout(() => { const el = $('#sbPaste'); if (el) { el.closest('section').scrollIntoView({ behavior: 'smooth', block: 'start' }); el.focus(); } }, 120);
 }
-function dashRefresh() { $('#mBody').innerHTML = viewDash(); }
+function dashRefresh() { $('#mBody').innerHTML = viewDash(); syncRoute(); }
 function viewDash() {
   const tabs = [['roster', '👥 우리반 명단'], ['cal', '📅 달력 가져오기'], ['ev', '🗓️ 공통 행사'], ['photo', '📷 사진'], ['score', '📊 성적 파일'], ['school', '🏫 전교 성적'], ['rec', '📋 생기부 자료']];  $('#modal .sheet').classList.toggle('xwide', DASH.tab === 'school');   // 전교 성적은 표가 넓어서 창을 더 넓게
   return `<div class="row" style="margin-bottom:12px">${tabs.map(([k, t]) => `<button class="pill ${DASH.tab === k ? 'on' : ''}" onclick="DASH.tab='${k}';dashRefresh()">${t}</button>`).join('')}</div>
@@ -4605,7 +4656,7 @@ function toggleBig() { S.big = S.big === 'on' ? 'off' : 'on'; saveSettings(); re
 
 /* ---------------- 모달·토스트 ---------------- */
 function openModal(t, html, wide) { $('#mTitle').textContent = t; $('#mBody').innerHTML = html; $('#modal .sheet').classList.toggle('wide', !!wide); $('#modal .sheet').classList.remove('xwide'); $('#modal').classList.add('on'); }
-function closeModal() { $('#modal').classList.remove('on'); }
+function closeModal() { $('#modal').classList.remove('on'); if (RT.dash) { RT.dash = false; syncRoute(); } }
 let tt; function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), Math.max(2600, String(m).length * 70)); }   // 긴 안내는 더 오래
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
