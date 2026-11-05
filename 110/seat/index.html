@@ -255,7 +255,7 @@
           </div>
           <div class="opt-box">
             <h3>👓 배려 자리</h3>
-            <label class="opt"><input type="checkbox" id="oFront" checked><span>👓 앞자리가 필요한 친구는 앞 <select id="oFrontN"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>줄에</span></label>
+            <label class="opt"><input type="checkbox" id="oFront" checked><span>👓 앞자리가 필요한 친구는 앞 <select id="oFrontN"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option></select>줄에<small>그보다 뒷줄에는 앉지 않아요 (선생님 말씀: 1~4줄)</small></span></label>
             <label class="opt"><input type="checkbox" id="oFix" checked><span>🔒 고정 자리 지키기<small>👥 명단에서 정한 자리에 그대로</small></span></label>
           </div>
         </div>
@@ -979,6 +979,21 @@ drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove
 drop.addEventListener('click', (e) => { if (!e.target.closest('label')) drop.focus(); });
 $('capFile').addEventListener('change', (e) => { addCapFiles(e.target.files); e.target.value = ''; });
 
+// ----- 선생님이 알려 준 배려 명단 (한 번만 넣어요 · 그 뒤엔 👥 명단에서 고쳐요) -----
+// 👓 눈이 나빠 앞 1~4줄에만: 1 · 2 · 4 · 7 · 17 · 23번 / 🥶 추위 타서 창가 빼기: 1 · 2 · 4 · 7 · 8 · 19 · 24 · 27번 (2026-11-06)
+const PRESETS = [{ id: 'p20261106', front: [1, 2, 4, 7, 17, 23], cold: [1, 2, 4, 7, 8, 19, 24, 27] }];
+function applyPresets() {
+  S.applied ||= [];
+  let changed = false;
+  for (const p of PRESETS) {
+    if (S.applied.includes(p.id)) continue;
+    p.front.forEach((n) => { const s = stu(n); if (s) s.front = true; });
+    p.cold.forEach((n) => { const s = stu(n); if (s) s.cold = true; });
+    S.applied.push(p.id); changed = true;
+  }
+  if (changed) save();
+}
+
 // ----- 🥶 창가 체크 (번호만) -----
 function renderCold() {
   const L2 = S.students.slice().sort((a, b) => a.no - b.no);
@@ -1021,6 +1036,7 @@ onAuthStateChanged(auth, async (u) => {
   if (ok && !started) {
     started = true;
     await load();
+    applyPresets();
     const t = location.hash.slice(1);
     showTab((BOARD ? ['now', 'shuffle', 'cold'] : ['now', 'shuffle', 'cold', 'print', 'students', 'caps', 'history']).includes(t) ? t : 'now');
     setStatus(useLocal ? '이 브라우저에 저장 중 (보안 규칙 게시 전)' : '');
@@ -1045,6 +1061,7 @@ $('gLogin').onclick = async () => {
 // 시험용: 주소 끝 ?demo 면 로그인 없이 예시로 (저장하지 않아요)
 if (DEMO) {
   started = true;
+  applyPresets();
   $('loginView').hidden = true; $('app').hidden = false;
   window.__seat = { S: () => S, showTab };
   const t = location.hash.slice(1);
