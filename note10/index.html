@@ -3045,10 +3045,12 @@ function parseSubjBulk(text, defSem) {
 }
 // 수강신청 확인서 PDF(여러 쪽)를 통째로 복사한 글 → 쪽마다 한 학생. 🔒 이름 줄은 읽지 않고, 쪽 번호(1/27 …)를 반 번호로 이어요
 function parsePdfBulk(text) {
-  const byNo = {};
-  text.split(/수강신청\s*확인서/).slice(1).forEach((b, i) => {
-    const pg = [...b.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})/g)].pop();
-    const no = pg ? +pg[1] : i + 1;
+  const byNo = {}, blocks = text.split(/수강신청\s*확인서/).slice(1);
+  // 쪽 번호(3/27)는 모든 쪽에 있고 전체 쪽수가 같을 때만 믿어요 — 웹 화면 복사본처럼 없으면 나온 순서(첫 번째 = 1번)
+  const pgs = blocks.map(b => [...b.matchAll(/(?<![\d\/.])(\d{1,2})\s*\/\s*(\d{1,2})(?![\d\/.])/g)].pop());
+  const pageOK = pgs.every(p => p && +p[1] >= 1 && +p[1] <= +p[2] && p[2] === pgs[0][2]) && new Set(pgs.map(p => p[1])).size === pgs.length;
+  blocks.forEach((b, i) => {
+    const no = pageOK ? +pgs[i][1] : i + 1;
     const body = b.split(/위\s*과목에\s*대해/)[0];
     const ms = [...body.matchAll(/([123])\s*학\s*년\s*([12])\s*학\s*기/g)], sem = {};
     ms.forEach((m, j) => { const a = subjScan(body.slice(m.index + m[0].length, j + 1 < ms.length ? ms[j + 1].index : body.length), true); if (a.length) sem[`${m[1]}-${m[2]}`] = a; });
@@ -3060,7 +3062,7 @@ function parsePdfBulk(text) {
 }
 function subjBulkRead() {
   const text = $('#sbPaste').value; if (!text.trim()) return toast('엑셀 표를 붙여 넣어 주세요');
-  if (!text.includes('\t') && /수강신청\s*확인서/.test(text)) SB = parsePdfBulk(text);   // 확인서 PDF를 통째로 복사한 글
+  if (/수강신청\s*확인서/.test(text)) SB = parsePdfBulk(text);   // 확인서(PDF · 웹 화면)를 통째로 복사한 글 — 칸이 탭으로 나뉘어 있어도 확인서로 읽어요
   else if (!text.includes('\t')) return toast('엑셀에서 칸째로 복사하거나, 수강신청 확인서 PDF 전체를 복사해 붙여 넣어 주세요');
   else SB = parseSubjBulk(text, $('#sbSem').value);
   if (!SB.rows.length) { SB = null; return toast('번호와 과목을 찾지 못했어요. 맨 위에 번호 · 과목(또는 1학기 · 2학기) 머리글 줄을 함께 복사해 주세요'); }
@@ -3084,7 +3086,7 @@ function subjBulkBox() {
       if (ch) changed++; else if (fi) first++; else same++;
       return `<tr style="${ch ? 'background:#fff8e6' : ''}"><td>${r.no}</td><td style="white-space:nowrap">${st.emoji} ${esc(sname(st))}</td><td>${cells}</td><td class="mini" style="white-space:nowrap">${ch ? '🔄 바뀜' : fi ? '🆕 처음' : '같음'}</td></tr>`;
     }).join('');
-    prev = `${SB.pdf ? `<p class="mini" style="margin-top:10px;color:var(--red)">📄 확인서 PDF는 <b>쪽 순서(1쪽 = 1번)를 반 번호로</b> 이었어요. 확인서가 번호 순서가 아니면 저장하지 말아 주세요.</p>` : ''}<p class="mini" style="margin-top:10px"><b>미리 보기</b> · ${SB.rows.length}명 중 <b style="color:#b9682f">🔄 바뀜 ${changed}명</b> · 🆕 처음 ${first}명 · 같음 ${same}명${SB.skip.length ? ` · 없는 번호 ${SB.skip.join(', ')}` : ''}</p>
+    prev = `${SB.pdf ? `<p class="mini" style="margin-top:10px;color:var(--red)">📄 확인서는 <b>나온 순서(첫 번째 = 1번)를 반 번호로</b> 이었어요. 확인서가 번호 순서가 아니면 저장하지 말아 주세요.</p>` : ''}<p class="mini" style="margin-top:10px"><b>미리 보기</b> · ${SB.rows.length}명 중 <b style="color:#b9682f">🔄 바뀜 ${changed}명</b> · 🆕 처음 ${first}명 · 같음 ${same}명${SB.skip.length ? ` · 없는 번호 ${SB.skip.join(', ')}` : ''}</p>
       <div style="overflow:auto;max-height:50vh"><table class="dtable"><tr><th style="width:50px">번호</th><th style="width:130px">친구</th><th>과목 (초록 ＋ = 새로 든 과목, 빨간 줄 = 빠진 과목)</th><th style="width:70px"></th></tr>${tr}</table></div>
       <div class="row" style="margin-top:8px"><button class="btn" onclick="subjBulkSave()">💾 이대로 모두 넣기</button><button class="btn ghost sm" onclick="SB=null;dashRefresh()">취소</button><span class="mini">바뀐 학생은 한눈에 화면에 🔄 바뀐 과목으로 남아요</span></div>`;
   }
