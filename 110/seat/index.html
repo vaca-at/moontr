@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1학년 10반 자리 바꾸기</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+  @font-face{ font-family:'OngleipUnz'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2406-1@1.0/Ownglyph_UNZ-Rg.woff2') format('woff2'); font-weight:400; font-display:swap; }
+  /* 110 홈과 같은 민트 색 */
+  :root{
+    --ink:#1F3A3B; --paper:#F2FBF8; --paper-2:#E3F5EF; --card:#ffffff;
+    --dawn:#5FD9C7; --dawn-deep:#2FAE9C; --dusk:#2B6E77; --dusk-deep:#194B52;
+    --gold:#FF8B6B; --line:#CFEDE6; --muted:#5C8481;
+    --cold:#4A90D9; --cold-bg:#E6F1FC; --front:#9B6BD6; --fix:#C98A2E;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--paper); color:var(--ink); font-family:'Pretendard',sans-serif; -webkit-font-smoothing:antialiased; word-break:keep-all; }
+  button{ font:inherit; color:inherit; cursor:pointer; }
+  [hidden]{ display:none !important; }
+  .display{ font-family:'OngleipUnz','Pretendard',sans-serif; }
+
+  /* ===== 머리 ===== */
+  header.top{ background:linear-gradient(135deg,var(--dusk-deep),var(--dawn-deep)); color:#fff; padding:22px 20px 0; }
+  header.top .in{ max-width:1100px; margin:0 auto; }
+  header.top .eyebrow{ font-size:12px; letter-spacing:2px; opacity:.85; }
+  header.top h1{ margin:2px 0 14px; font-size:30px; font-weight:400; }
+  .tabs{ display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tabs button{ flex:none; border:0; background:rgba(255,255,255,.14); color:#fff; padding:10px 16px; border-radius:12px 12px 0 0; font-size:14.5px; font-weight:600; }
+  .tabs button[aria-selected="true"]{ background:var(--paper); color:var(--ink); }
+
+  main{ max-width:1100px; margin:0 auto; padding:20px 16px 40px; }
+  .panel{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; }
+  .panel + .panel{ margin-top:16px; }
+  .panel h2{ margin:0 0 6px; font-size:18px; }
+  .sub{ margin:0 0 14px; color:var(--muted); font-size:13.5px; line-height:1.6; }
+  .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .btn{ border:1.5px solid var(--line); background:var(--card); border-radius:12px; padding:9px 14px; font-size:14px; font-weight:600; }
+  .btn:hover{ border-color:var(--dawn-deep); }
+  .btn.primary{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .btn.big{ padding:13px 22px; font-size:16px; border-radius:14px; }
+  .btn.mint{ background:var(--dawn-deep); color:#fff; border-color:var(--dawn-deep); }
+  .btn:disabled{ opacity:.45; cursor:default; }
+  .note{ font-size:12.5px; color:var(--muted); }
+  .status{ font-size:12.5px; color:var(--muted); margin-left:auto; }
+  .status.err{ color:#C0392B; }
+  .chip{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; background:var(--paper-2); }
+  .sample-bar{ background:#FFF4E5; border:1px solid #FFD8A8; color:#8A5A1E; border-radius:12px; padding:10px 14px; font-size:13.5px; margin-bottom:14px; }
+
+  /* ===== 교실 배치도 ===== */
+  .room{ position:relative; display:grid; gap:10px; padding:14px; border-radius:16px; background:var(--paper-2); }
+  .board{ justify-self:center; width:min(420px,70%); text-align:center; padding:8px; border-radius:10px; background:var(--dusk); color:#fff; font-size:13.5px; font-weight:700; letter-spacing:2px; }
+  .room-mid{ display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:stretch; }
+  .side-label{ writing-mode:vertical-rl; text-orientation:upright; font-size:12px; font-weight:700; letter-spacing:2px; padding:8px 4px; border-radius:8px; text-align:center; }
+  .side-label.win{ background:var(--cold-bg); color:var(--cold); }
+  .side-label.hall{ background:#EFEFEF; color:#888; }
+  .grid{ display:grid; gap:8px 4px; }
+  .grid .gap{ width:14px; }   /* 짝 사이 통로 */
+  .seat{ position:relative; min-height:62px; border-radius:12px; border:1.5px solid var(--line); background:var(--card); display:grid; place-items:center; align-content:center; gap:1px; padding:6px 4px; text-align:center; transition:transform .15s, box-shadow .15s; }
+  .seat .no{ font-size:11px; color:var(--muted); font-weight:600; }
+  .seat .nm{ font-size:16px; font-weight:700; line-height:1.2; }
+  .seat .tags{ position:absolute; top:3px; right:5px; font-size:11px; }
+  .seat.win{ background:linear-gradient(180deg,var(--cold-bg),#fff); border-color:#BFD9F3; }
+  .seat.off{ background:transparent; border:1.5px dashed #C8D8D4; }
+  .seat.off .nm, .seat.off .no{ opacity:.45; }
+  .seat.empty .nm{ color:#B0C4C0; font-weight:500; font-size:13px; }
+  .seat.pick{ box-shadow:0 0 0 3px var(--gold); transform:translateY(-2px); }
+  .seat.clickable{ cursor:pointer; }
+  .seat.clickable:hover{ border-color:var(--dawn-deep); }
+  .seat.moved{ animation:pop .5s ease both; }
+  .seat.spin .nm{ color:var(--muted); }
+  @keyframes pop{ 0%{ transform:scale(.85); opacity:.3; } 60%{ transform:scale(1.05); } 100%{ transform:none; opacity:1; } }
+  .legend{ display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--muted); }
+
+  /* ===== 자리 바꾸기 옵션 ===== */
+  .opts{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  .opt-box{ border:1px solid var(--line); border-radius:14px; padding:12px 14px; }
+  .opt-box h3{ margin:0 0 8px; font-size:14.5px; }
+  .opt-box.cold h3{ color:var(--cold); }
+  .opt{ display:flex; gap:9px; align-items:flex-start; padding:6px 0; font-size:14px; line-height:1.45; cursor:pointer; }
+  .opt input{ margin-top:3px; accent-color:var(--dawn-deep); }
+  .opt small{ display:block; color:var(--muted); font-size:12px; }
+  .opt select{ font:inherit; font-size:13px; padding:2px 4px; border-radius:6px; border:1px solid var(--line); }
+  .result-note{ margin-top:12px; padding:10px 14px; border-radius:12px; background:var(--paper-2); font-size:13.5px; line-height:1.6; }
+
+  /* ===== 명단 ===== */
+  table.list{ width:100%; border-collapse:collapse; font-size:14px; }
+  table.list th, table.list td{ padding:7px 6px; border-bottom:1px solid var(--line); text-align:center; }
+  table.list th{ font-size:12.5px; color:var(--muted); font-weight:600; }
+  table.list td input[type=text]{ width:100%; max-width:160px; font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
+  table.list td select{ font:inherit; padding:4px; border:1px solid var(--line); border-radius:8px; }
+  textarea{ width:100%; font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; resize:vertical; }
+  .num{ width:64px; font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:760px){ .two{ grid-template-columns:1fr; } }
+
+  /* ===== 기록 ===== */
+  .hist{ display:grid; gap:8px; }
+  .hist-item{ display:flex; gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:12px; flex-wrap:wrap; }
+  .hist-item b{ font-size:14.5px; }
+  .hist-item .note{ flex:1; }
+
+  /* ===== 출력 ===== */
+  .print-area{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:24px; }
+  .print-area h2.ptitle{ text-align:center; font-size:26px; margin:0 0 4px; font-family:'OngleipUnz','Pretendard',sans-serif; font-weight:400; }
+  .print-area .pdate{ text-align:center; color:#666; font-size:13px; margin-bottom:14px; }
+  .print-area .room{ background:#fff; padding:0; }
+  .print-area .seat{ min-height:70px; border:1.5px solid #333; border-radius:8px; }
+  .print-area .seat.win{ background:#fff; border-color:#333; }
+  .print-area .seat .nm{ font-size:var(--pfs,20px); }
+  .print-area .board{ background:#333; }
+  .print-area .side-label.win{ background:#fff; border:1px solid #999; color:#333; }
+  .print-area .side-label.hall{ background:#fff; border:1px solid #ccc; }
+
+  /* ===== 로그인 ===== */
+  .login{ max-width:420px; margin:60px auto; text-align:center; }
+  .login .panel{ padding:28px 22px; }
+  .gbtn{ display:inline-flex; gap:10px; align-items:center; border:1.5px solid var(--line); background:#fff; border-radius:12px; padding:12px 18px; font-size:15px; font-weight:600; }
+  .msg{ min-height:20px; margin-top:10px; font-size:13px; color:var(--muted); }
+  .msg.err{ color:#C0392B; }
+
+  /* 이용약관 · 개인정보 (110 출석체크와 같은 모양) */
+  .policy-foot{max-width:760px;margin:28px auto 56px;padding:0 16px;font-size:12px;line-height:1.7;color:var(--muted);word-break:keep-all;}
+  .policy-foot summary{cursor:pointer;text-align:center;list-style:none;opacity:.85;}
+  .policy-foot summary::-webkit-details-marker{display:none;}
+  .policy-foot summary:hover{text-decoration:underline;}
+  .policy-foot .pol{margin-top:10px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-align:left;}
+  .policy-foot h4{margin:8px 0 2px;font-size:13px;}
+  .policy-foot ul{margin:4px 0;padding-left:1.2em;}
+  .policy-foot table{width:100%;border-collapse:collapse;margin:6px 0;}
+  .policy-foot th,.policy-foot td{border:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top;}
+  .policy-foot .small{font-size:11px;opacity:.8;}
+  .admin-fab{ position:fixed; right:12px; bottom:12px; z-index:10; padding:4px 11px; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.85); color:#667; font:11px/1.4 sans-serif; text-decoration:none; opacity:.45; }
+  .admin-fab:hover{ opacity:1; }
+
+  @media (max-width:560px){
+    header.top h1{ font-size:24px; }
+    .seat{ min-height:52px; } .seat .nm{ font-size:13.5px; }
+    .grid{ gap:6px 3px; } .grid .gap{ width:8px; }
+    .side-label{ font-size:10px; padding:6px 2px; }
+  }
+
+  /* 인쇄: 출력 칸만 A4 가로 한 장 */
+  @media print{
+    @page{ size:A4 landscape; margin:10mm; }
+    body{ background:#fff; }
+    body > *:not(#app), #app > *:not(main), main > *:not(#tab-print), #tab-print > *:not(.print-area){ display:none !important; }
+    .print-area{ border:0; padding:0; }
+    .seat{ break-inside:avoid; }
+    .admin-fab, #refreshBtn{ display:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인: 학생 이름이 들어가서 관리자 구글 계정으로만 열어요 -->
+<div id="loginView" class="login" hidden>
+  <div class="panel">
+    <div class="display" style="font-size:26px;margin-bottom:6px;">🪑 자리 바꾸기</div>
+    <p class="sub">학생 이름이 들어가는 화면이라 선생님만 열 수 있어요.</p>
+    <button class="gbtn" id="gLogin"><b style="color:#4285F4">G</b> 구글 계정으로 로그인</button>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <div class="in">
+      <div class="eyebrow display">1학년 10반 · SEAT</div>
+      <h1 class="display">🪑 자리 바꾸기</h1>
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="now" aria-selected="true">📋 지금 자리</button>
+        <button role="tab" data-tab="shuffle">🎲 자리 바꾸기</button>
+        <button role="tab" data-tab="print">🖨️ 출력</button>
+        <button role="tab" data-tab="students">👥 명단 · 교실</button>
+        <button role="tab" data-tab="history">🕘 기록</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div id="sampleBar" class="sample-bar" hidden>지금은 <b>예시 자리</b>예요. 👥 명단 · 교실에서 이름과 교실 모양을 넣고, 📋 지금 자리에서 지금 앉은 자리를 맞춰 주세요.</div>
+
+    <!-- ① 지금 자리 -->
+    <section id="tab-now" class="tab">
+      <div class="panel">
+        <div class="row" style="margin-bottom:10px;">
+          <h2 style="margin:0;">지금 자리</h2>
+          <span class="chip" id="nowSince"></span>
+          <span class="status" id="saveStatus"></span>
+        </div>
+        <div class="row" style="margin-bottom:12px;">
+          <button class="btn" data-view="student">🧑‍🎓 학생 눈으로 (칠판이 위)</button>
+          <button class="btn" data-view="teacher">🧑‍🏫 선생님 눈으로 (교탁이 아래)</button>
+          <button class="btn" id="editNow">✏️ 자리 직접 고치기</button>
+        </div>
+        <p class="sub" id="editHelp" hidden>두 자리를 차례로 누르면 서로 바뀌어요. 빈자리와도 바꿀 수 있어요. 다 고치면 <b>✏️ 고치기 끝</b>을 눌러 주세요.</p>
+        <div id="nowRoom"></div>
+        <div class="legend"><span>❄️ 창가 자리</span><span>🥶 추위 많이 타요</span><span>👓 앞자리가 필요해요</span><span>🔒 자리 고정</span></div>
+      </div>
+    </section>
+
+    <!-- ② 자리 바꾸기 -->
+    <section id="tab-shuffle" class="tab" hidden>
+      <div class="panel">
+        <h2>🎲 랜덤 자리 바꾸기</h2>
+        <p class="sub">아래 규칙을 지키면서 섞어요. 다 지킬 수 없으면 덜 중요한 규칙부터 조금 풀고, 무엇을 풀었는지 알려 줘요.</p>
+        <div class="opts">
+          <div class="opt-box">
+            <h3>🔁 앉았던 자리 피하기</h3>
+            <label class="opt"><input type="checkbox" id="oSame" checked><span>앉았던 자리에 다시 안 앉기<small>최근 <select id="oSameN"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="5">5</option></select>번 자리까지 피해요 (지금 자리 포함)</small></span></label>
+            <label class="opt"><input type="checkbox" id="oPair" checked><span>같은 짝 다시 안 만나기<small>최근 같은 횟수만큼의 짝을 피해요</small></span></label>
+          </div>
+          <div class="opt-box cold">
+            <h3>❄️ 창가 추위 보완</h3>
+            <label class="opt"><input type="checkbox" id="oWinRepeat" checked><span>창가 연속 금지<small>지금 창가에 앉은 친구는 이번엔 창가에 안 앉아요</small></span></label>
+            <label class="opt"><input type="checkbox" id="oWinFair" checked><span>창가 횟수 고르게<small>지금까지 창가에 가장 적게 앉은 친구부터 창가로</small></span></label>
+            <label class="opt"><input type="checkbox" id="oCold" checked><span>🥶 추위 많이 타는 친구는 창가 빼기<small>👥 명단에서 🥶 표시한 친구</small></span></label>
+            <label class="opt"><input type="checkbox" id="oHalf"><span>창가 ↔ 복도 반 교대 알림<small>다음 자리 바꾸기 전 중간에 [창가 ↔ 복도 바꾸기]를 한 번 누르라고 알려 줘요</small></span></label>
+          </div>
+          <div class="opt-box">
+            <h3>👓 배려 자리</h3>
+            <label class="opt"><input type="checkbox" id="oFront" checked><span>👓 앞자리가 필요한 친구는 앞 <select id="oFrontN"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>줄에</span></label>
+            <label class="opt"><input type="checkbox" id="oFix" checked><span>🔒 고정 자리 지키기<small>👥 명단에서 정한 자리에 그대로</small></span></label>
+          </div>
+        </div>
+        <div class="row" style="margin-top:16px;">
+          <button class="btn big mint" id="doShuffle">🎲 섞기</button>
+          <button class="btn big" id="doWinSwap" title="창가 줄과 복도 줄을 통째로 바꿔요 (짝은 그대로)">❄️ 창가 ↔ 복도 바꾸기</button>
+          <span class="status" id="shuffleStatus"></span>
+        </div>
+        <div id="resultNote" class="result-note" hidden></div>
+      </div>
+      <div class="panel" id="previewPanel" hidden>
+        <div class="row" style="margin-bottom:10px;">
+          <h2 style="margin:0;">새 자리 (아직 확정 전)</h2>
+          <button class="btn" id="reShuffle">🔄 다시 섞기</button>
+          <button class="btn primary" id="confirmShuffle">✅ 이 자리로 확정</button>
+        </div>
+        <div id="previewRoom"></div>
+      </div>
+    </section>
+
+    <!-- ③ 출력 -->
+    <section id="tab-print" class="tab" hidden>
+      <div class="panel">
+        <h2>🖨️ 자리표 출력</h2>
+        <p class="sub">A4 가로 한 장으로 나와요. 교실 게시용은 학생 눈, 교탁에 둘 것은 선생님 눈으로 뽑아요.</p>
+        <div class="row">
+          <label class="opt"><input type="radio" name="pView" value="student" checked> 🧑‍🎓 학생 눈 (칠판이 위)</label>
+          <label class="opt"><input type="radio" name="pView" value="teacher"> 🧑‍🏫 선생님 눈 (교탁이 아래)</label>
+          <label class="opt"><input type="checkbox" id="pNo" checked> 번호 같이</label>
+          <label class="opt">글씨 <select id="pSize"><option value="16">작게</option><option value="20" selected>보통</option><option value="26">크게</option></select></label>
+          <input type="text" id="pTitle" class="num" style="width:220px" value="1학년 10반 자리표">
+          <button class="btn primary" id="doPrint">🖨️ 출력하기</button>
+        </div>
+      </div>
+      <div class="print-area" id="printArea" style="margin-top:16px;"></div>
+    </section>
+
+    <!-- ④ 명단 · 교실 -->
+    <section id="tab-students" class="tab" hidden>
+      <div class="panel">
+        <h2>🏫 교실 모양</h2>
+        <p class="sub">칠판을 보고 앉은 학생 눈으로 정해요. 자리를 누르면 쓰지 않는 자리(빈칸)로 바뀌어요.</p>
+        <div class="row" style="margin-bottom:12px;">
+          <label>줄(앞뒤) <input type="number" class="num" id="lRows" min="1" max="10"></label>
+          <label>칸(옆으로) <input type="number" class="num" id="lCols" min="1" max="12"></label>
+          <label>창가 <select id="lWin"><option value="left">왼쪽</option><option value="right">오른쪽</option></select></label>
+          <label class="opt"><input type="checkbox" id="lPair"> 둘씩 짝</label>
+        </div>
+        <div id="layoutRoom"></div>
+      </div>
+      <div class="panel">
+        <h2>👥 학생 명단 <span class="chip" id="stCount"></span></h2>
+        <p class="sub">한꺼번에 넣으려면 아래 칸에 <b>번호 이름</b>을 한 줄에 한 명씩 붙여 넣고 [명단 넣기]를 눌러요. (예: <code>1 김하늘</code>)</p>
+        <div class="two">
+          <div>
+            <textarea id="pasteNames" rows="6" placeholder="1 김하늘&#10;2 이바다&#10;3 박구름"></textarea>
+            <div class="row" style="margin-top:8px;"><button class="btn" id="applyNames">명단 넣기</button><span class="note">번호가 같으면 이름만 바뀌어요</span></div>
+          </div>
+          <div class="note" style="line-height:1.8;">
+            🥶 <b>추위 많이 타요</b> — 자리 바꾸기에서 창가를 빼요<br>
+            👓 <b>앞자리</b> — 시력 등으로 앞줄이 필요해요<br>
+            🔒 <b>고정 자리</b> — 늘 같은 자리 (자리 번호는 지금 자리 화면의 작은 숫자)
+          </div>
+        </div>
+        <table class="list" style="margin-top:14px;">
+          <thead><tr><th>번호</th><th>이름</th><th>🥶</th><th>👓</th><th>🔒 고정</th><th>창가 횟수</th><th></th></tr></thead>
+          <tbody id="stBody"></tbody>
+        </table>
+        <div class="row" style="margin-top:10px;"><button class="btn" id="addStudent">+ 학생 추가</button></div>
+      </div>
+    </section>
+
+    <!-- ⑤ 기록 -->
+    <section id="tab-history" class="tab" hidden>
+      <div class="panel">
+        <h2>🕘 자리 기록</h2>
+        <p class="sub">확정한 자리가 차례로 남아요. '앉았던 자리 피하기'와 '창가 횟수'는 이 기록으로 세요.</p>
+        <div class="hist" id="histList"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="policy-foot">
+    <details>
+      <summary>자리 바꾸기 · 이용약관 · <b>개인정보 처리방침</b></summary>
+      <div class="pol">
+        <h4>이용약관</h4>
+        <ul><li>담임 선생님이 우리 반 자리를 정하고 출력하는 데만 씁니다.</li><li>선생님(관리자 계정)만 열 수 있어요.</li></ul>
+        <h4>개인정보 처리방침</h4>
+        <table><tr><th>받는 정보</th><th>쓰임</th><th>보관</th></tr><tr><td>번호, 이름, 앉은 자리 기록, 배려 표시(추위 · 앞자리 · 고정)</td><td>자리 바꾸기와 자리표 출력</td><td>학년이 끝나면 교사가 지웁니다</td></tr></table>
+        <ul><li>전화번호 · 이메일 · 사진은 받지 않습니다.</li><li>학생은 이 화면을 볼 수 없고, 교사만 로그인해서 봅니다.</li><li>저장 위치: Google Firebase (교사 개인 구글 계정의 프로젝트) · 학교 학사 시스템과 연결되어 있지 않습니다.</li><li>왼쪽 아래 방문 수는 횟수만 세고, 누가 들어왔는지는 남기지 않습니다.</li></ul>
+        <p>기록을 보거나 지우고 싶을 때, 궁금한 점: anstjsdud@sen.go.kr</p>
+        <p class="small">마지막 수정일 2026년 11월 6일 · 현재 운영 방식을 정리한 안내로, 법률 검토를 거친 문서가 아닙니다.</p>
+      </div>
+    </details>
+  </footer>
+  <a class="admin-fab" href="../?page=admin" title="1학년 10반 관리자 화면">우리반 관리</a>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765"
+};
+// 관리자 = moontr.site 관리자 허브와 같은 계정 (보안 규칙 isTeacher 와 같게)
+const ADMIN_EMAILS = ['anstjsdud@sen.go.kr', 'bellachord@gmail.com'];
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
+
+const app = initializeApp(firebaseConfig);   // 이름 없는 기본 앱 = moontr.site 관리자 로그인 공유
+const db = getFirestore(app);
+const auth = getAuth(app);
+const REF = () => doc(db, 'c110_seats', 'main');   // 문서 하나에 명단 · 교실 · 지금 자리 · 기록 모두
+const LOCAL = 'c110-seats';                        // 보안 규칙 게시 전엔 이 브라우저에 저장
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const today = () => new Date().toLocaleDateString('sv');
+const fmtDay = (d) => { const x = new Date(d + 'T00:00:00'); return `${x.getMonth() + 1}월 ${x.getDate()}일`; };
+
+// ================================================================
+// 자료 모양
+//  students: [{ no, name, cold, front, fix }]   fix = 고정 자리 번호(없으면 null)
+//  layout:   { rows, cols, win:'left'|'right', pair:true, off:[자리 번호] }  자리 번호 = 줄 × 칸 + 칸 (앞줄 왼쪽이 0, 학생 눈)
+//  current:  { [자리 번호]: 학생 번호 }   since: 'YYYY-MM-DD'
+//  history:  [{ day, seats:{…}, note }]  확정할 때마다 (오래된 것 → 최근)
+// ================================================================
+function sample() {
+  // 예시: 27명, 6칸 × 5줄 (둘씩 짝), 마지막 줄 오른쪽 세 자리는 비워 둠. 이름은 나중에 넣어요
+  const students = Array.from({ length: 27 }, (_, i) => ({ no: i + 1, name: '', cold: false, front: false, fix: null }));
+  const layout = { rows: 5, cols: 6, win: 'left', pair: true, off: [27, 28, 29] };
+  const current = {};
+  let k = 0;
+  for (let s = 0; s < 30; s++) if (!layout.off.includes(s) && k < 27) current[s] = students[k++].no;
+  return { students, layout, current, since: today(), history: [], sample: true };
+}
+let S = sample();
+let view = 'student';        // 지금 자리 화면: 학생 눈 · 선생님 눈
+let preview = null;          // 섞은 결과 (확정 전)
+let editing = false, picked = null;
+
+// ----- 저장 · 불러오기 -----
+let saveTimer = null, useLocal = false;
+const DEMO = new URLSearchParams(location.search).has('demo');   // 시험용 예시 화면: 저장하지 않아요
+function setStatus(t, err) { const s = $('saveStatus'); s.textContent = t; s.className = 'status' + (err ? ' err' : ''); }
+function save() {
+  clearTimeout(saveTimer);
+  if (DEMO) { setStatus('예시 화면이라 저장하지 않아요'); return; }
+  setStatus('저장하는 중…');
+  saveTimer = setTimeout(async () => {
+    try { localStorage.setItem(LOCAL, JSON.stringify(S)); } catch {}
+    if (useLocal) { setStatus('이 브라우저에 저장했어요 (보안 규칙 게시 전)'); return; }
+    try { await setDoc(REF(), { ...S, at: serverTimestamp() }); setStatus('저장했어요 ✓'); }
+    catch (e) { console.error(e); useLocal = true; setStatus('서버에 저장하지 못해 이 브라우저에만 저장했어요 (보안 규칙 확인)', true); }
+  }, 500);
+}
+async function load() {
+  try {
+    const snap = await getDoc(REF());
+    if (snap.exists()) { const d = snap.data(); delete d.at; S = { ...sample(), ...d }; return; }
+  } catch (e) { console.error(e); useLocal = true; }
+  try { const l = JSON.parse(localStorage.getItem(LOCAL) || 'null'); if (l) S = { ...sample(), ...l }; } catch {}
+}
+
+// ----- 교실 계산 -----
+const L = () => S.layout;
+const seatCount = () => L().rows * L().cols;
+const rowOf = (i) => Math.floor(i / L().cols), colOf = (i) => i % L().cols;
+const isOff = (i) => (L().off || []).includes(i);
+const isWin = (i) => colOf(i) === (L().win === 'left' ? 0 : L().cols - 1);
+const activeSeats = () => Array.from({ length: seatCount() }, (_, i) => i).filter((i) => !isOff(i));
+// 짝: 둘씩 짝이면 (0,1) (2,3) … 같은 줄의 옆 칸
+const partnerOf = (i) => { if (!L().pair) return null; const c = colOf(i), pc = c % 2 ? c - 1 : c + 1; return pc < L().cols ? rowOf(i) * L().cols + pc : null; };
+const stu = (no) => S.students.find((s) => s.no === no);
+const nameOf = (no) => { const s = stu(no); return s ? (s.name || `${s.no}번`) : ''; };
+// 지금 자리 + 기록에서 최근 n번 (지금 자리 포함)
+function recentMaps(n) {
+  const maps = [...(S.sample ? [] : [S.current]), ...S.history.slice().reverse().map((h) => h.seats)];   // 예시 자리는 세지 않아요
+  // 기록의 맨 끝이 지금 자리와 같으면 한 번만 세요
+  const out = []; const seen = new Set();
+  for (const m of maps) { const k = JSON.stringify(m); if (seen.has(k)) continue; seen.add(k); out.push(m); if (out.length >= n) break; }
+  return out;
+}
+function winCounts() {
+  const c = {};
+  const maps = [...S.history.map((h) => h.seats)];
+  if (!S.sample && (!S.history.length || JSON.stringify(S.history[S.history.length - 1].seats) !== JSON.stringify(S.current))) maps.push(S.current);
+  for (const m of maps) for (const [seat, no] of Object.entries(m)) if (isWin(+seat)) c[no] = (c[no] || 0) + 1;
+  return c;
+}
+
+// ================================================================
+// 교실 그리기 (학생 눈 = 칠판이 위 · 창가 쪽 그대로, 선생님 눈 = 180도 돌려서 교탁이 아래)
+// ================================================================
+function roomHTML(map, opt = {}) {
+  const { teacher = false, edit = false, layoutEdit = false, showNo = true, moved = null } = opt;
+  const R = L().rows, C = L().cols;
+  const rows = [...Array(R).keys()], cols = [...Array(C).keys()];
+  if (teacher) { rows.reverse(); cols.reverse(); }
+  // 짝 사이 통로 칸
+  const tmpl = [];
+  cols.forEach((c, k) => { tmpl.push('1fr'); if (L().pair && k < C - 1 && (teacher ? c % 2 === 0 : c % 2 === 1)) tmpl.push('14px'); });
+  let cells = '';
+  for (const r of rows) {
+    cols.forEach((c, k) => {
+      const i = r * C + c;
+      const no = map[i];
+      const s = no != null ? stu(no) : null;
+      const off = isOff(i);
+      const cls = ['seat', isWin(i) ? 'win' : '', off ? 'off' : '', !off && !s ? 'empty' : '', (edit || layoutEdit) ? 'clickable' : '', picked === i ? 'pick' : '', moved?.has(i) ? 'moved' : ''].join(' ');
+      const tags = s ? `${s.cold ? '🥶' : ''}${s.front ? '👓' : ''}${s.fix != null ? '🔒' : ''}` : '';
+      const label = off ? '없는 자리' : s ? esc(s.name || `${s.no}번`) : '빈자리';
+      const sub = layoutEdit ? `자리 ${i + 1}` : s && showNo && s.name ? `${s.no}번` : `자리 ${i + 1}`;
+      cells += `<div class="${cls}" data-seat="${i}" style="animation-delay:${moved ? (k * 0.03 + r * 0.05).toFixed(2) : 0}s"><span class="tags">${tags}</span><span class="no">${sub}</span><span class="nm">${label}</span></div>`;
+      if (L().pair && k < C - 1 && (teacher ? c % 2 === 0 : c % 2 === 1)) cells += '<div class="gap"></div>';
+    });
+  }
+  // 창가는 학생 눈에서 L().win 쪽, 선생님 눈이면 반대쪽에 보여요
+  const winLeft = (L().win === 'left') !== teacher;
+  const sideW = '<div class="side-label win">❄️ 창가</div>', sideH = '<div class="side-label hall">복도</div>';
+  const board = `<div class="board">${teacher ? '교탁 · 칠판' : '칠판 · 교탁'}</div>`;
+  const mid = `<div class="room-mid">${winLeft ? sideW : sideH}<div class="grid" style="grid-template-columns:${tmpl.join(' ')}">${cells}</div>${winLeft ? sideH : sideW}</div>`;
+  return `<div class="room">${teacher ? mid + board : board + mid}</div>`;
+}
+
+// ----- ① 지금 자리 -----
+function renderNow() {
+  $('sampleBar').hidden = !S.sample;
+  $('nowSince').textContent = S.since ? `${fmtDay(S.since)}부터` : '';
+  document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('primary', b.dataset.view === view));
+  $('editNow').textContent = editing ? '✏️ 고치기 끝' : '✏️ 자리 직접 고치기';
+  $('editNow').classList.toggle('primary', editing);
+  $('editHelp').hidden = !editing;
+  $('nowRoom').innerHTML = roomHTML(S.current, { teacher: view === 'teacher', edit: editing });
+}
+document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { view = b.dataset.view; renderNow(); }));
+$('editNow').onclick = () => { editing = !editing; picked = null; if (!editing) save(); renderNow(); };
+$('nowRoom').addEventListener('click', (e) => {
+  if (!editing) return;
+  const el = e.target.closest('[data-seat]');
+  if (!el) return;
+  const i = +el.dataset.seat;
+  if (isOff(i)) return;
+  if (picked == null) { picked = i; renderNow(); return; }
+  if (picked !== i) {
+    const a = S.current[picked], b = S.current[i];
+    if (b == null) delete S.current[picked]; else S.current[picked] = b;
+    if (a == null) delete S.current[i]; else S.current[i] = a;
+    S.sample = false;
+    save();
+  }
+  picked = null;
+  renderNow();
+});
+
+// ================================================================
+// ② 랜덤 자리 바꾸기
+//  꼭 지키기: 🔒 고정 자리 · 🥶 창가 빼기 · 👓 앞줄
+//  되도록 지키기: 앉았던 자리 · 같은 짝 · 창가 연속 · 창가 횟수 고르게
+//  여러 번(최대 3000번) 섞어 보고 어긴 것이 가장 적은 것을 골라요
+// ================================================================
+const shuf = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function opts() {
+  return {
+    same: $('oSame').checked, sameN: +$('oSameN').value, pair: $('oPair').checked,
+    winRepeat: $('oWinRepeat').checked, winFair: $('oWinFair').checked, cold: $('oCold').checked,
+    front: $('oFront').checked, frontN: +$('oFrontN').value, fix: $('oFix').checked, half: $('oHalf').checked,
+  };
+}
+function shuffleOnce(o, ctx) {
+  const seats = activeSeats();
+  const map = {}; const used = new Set();
+  let pool = S.students.map((s) => s.no);
+  // 1) 🔒 고정
+  if (o.fix) for (const s of S.students) if (s.fix != null && seats.includes(s.fix) && !used.has(s.fix)) { map[s.fix] = s.no; used.add(s.fix); pool = pool.filter((n) => n !== s.no); }
+  let free = seats.filter((i) => !used.has(i));
+  const canWin = (no) => !(o.cold && stu(no).cold);
+  // 2) 👓 앞줄: 앞 N줄의 빈자리에 먼저 (🥶이면 창가 빼고)
+  if (o.front) {
+    for (const no of shuf(pool.filter((n) => stu(n).front))) {
+      const opt = shuf(free.filter((i) => rowOf(i) < o.frontN && (canWin(no) || !isWin(i))));
+      if (!opt.length) return null;
+      map[opt[0]] = no; free = free.filter((i) => i !== opt[0]); pool = pool.filter((n) => n !== no);
+    }
+  }
+  // 3) ❄️ 창가: 창가 빈자리 수만큼, 창가에 앉을 수 있는 친구 중 (횟수 적은 순 · 지금 창가는 뒤로)
+  const winFree = shuf(free.filter((i) => isWin(i)));
+  const cand = shuf(pool.filter(canWin)).map((no) => ({ no, k: (o.winFair ? (ctx.wc[no] || 0) : 0) + (o.winRepeat && ctx.nowWin.has(no) ? 100 : 0) + Math.random() * 0.9 }));
+  cand.sort((a, b) => a.k - b.k);
+  const winners = cand.slice(0, winFree.length).map((x) => x.no);
+  winFree.forEach((seat, k) => { if (winners[k] != null) { map[seat] = winners[k]; pool = pool.filter((n) => n !== winners[k]); } });
+  free = free.filter((i) => map[i] == null);
+  // 4) 나머지는 창가 아닌 자리부터 무작위 (🥶는 창가 못 가요)
+  const rest = shuf(pool);
+  const nonWin = shuf(free.filter((i) => !isWin(i))), win = shuf(free.filter((i) => isWin(i)));
+  for (const no of rest) {
+    let seat = nonWin.length ? nonWin.shift() : null;
+    if (seat == null) { const k = win.findIndex(() => canWin(no)); if (k < 0) return null; seat = win.splice(k, 1)[0]; }
+    map[seat] = no;
+  }
+  return map;
+}
+function scoreOf(map, o, ctx) {
+  let sameSeat = 0, samePair = 0, winRep = 0;
+  for (const [seat, no] of Object.entries(map)) {
+    if (o.same && ctx.prevSeats[no]?.has(+seat)) sameSeat++;
+    const p = partnerOf(+seat);
+    if (o.pair && p != null && map[p] != null && no < map[p] && ctx.prevPairs.has(`${no}-${map[p]}`)) samePair++;
+    if (o.winRepeat && isWin(+seat) && ctx.nowWin.has(no)) winRep++;
+  }
+  return { sameSeat, samePair, winRep, total: sameSeat * 10 + samePair * 4 + winRep * 6 };
+}
+function doShuffle() {
+  const o = opts();
+  if (S.students.length > activeSeats().length) { $('shuffleStatus').textContent = `학생(${S.students.length}명)이 자리(${activeSeats().length}개)보다 많아요. 👥 명단 · 교실에서 자리를 늘려 주세요.`; return; }
+  const maps = recentMaps(o.sameN);
+  const ctx = { prevSeats: {}, prevPairs: new Set(), nowWin: new Set(), wc: winCounts() };
+  for (const m of maps) for (const [seat, no] of Object.entries(m)) {
+    (ctx.prevSeats[no] ||= new Set()).add(+seat);
+    const p = partnerOf(+seat);
+    if (p != null && m[p] != null) { const a = Math.min(no, m[p]), b = Math.max(no, m[p]); ctx.prevPairs.add(`${a}-${b}`); }
+  }
+  if (!S.sample) for (const [seat, no] of Object.entries(S.current)) if (isWin(+seat)) ctx.nowWin.add(no);
+  let best = null, bs = null, fail = 0;
+  for (let t = 0; t < 3000; t++) {
+    const m = shuffleOnce(o, ctx);
+    if (!m) { fail++; continue; }
+    const s = scoreOf(m, o, ctx);
+    if (!best || s.total < bs.total) { best = m; bs = s; if (s.total === 0) break; }
+  }
+  if (!best) { $('shuffleStatus').textContent = '규칙을 모두 지키는 자리가 없어요. 🥶 · 👓 · 🔒 표시가 너무 많지 않은지 봐 주세요.'; return; }
+  preview = best;
+  const notes = [];
+  const winList = Object.entries(best).filter(([s]) => isWin(+s)).map(([, no]) => nameOf(no));
+  notes.push(`❄️ 이번 창가: <b>${winList.map(esc).join(', ') || '없음'}</b>`);
+  if (bs.sameSeat) notes.push(`🔁 앉았던 자리에 다시 앉은 친구 ${bs.sameSeat}명 (다 피할 수 없었어요)`);
+  if (bs.samePair) notes.push(`👫 같은 짝을 다시 만난 짝 ${bs.samePair}쌍`);
+  if (bs.winRep) notes.push(`❄️ 창가에 또 앉은 친구 ${bs.winRep}명 (창가에 앉을 수 있는 친구가 모자라요)`);
+  if (!bs.total) notes.push('✅ 정한 규칙을 모두 지켰어요.');
+  if (o.half) notes.push('⏰ 다음 자리 바꾸기 중간쯤에 <b>❄️ 창가 ↔ 복도 바꾸기</b>를 한 번 눌러 주세요.');
+  $('resultNote').innerHTML = notes.join('<br>');
+  $('resultNote').hidden = false;
+  $('shuffleStatus').textContent = '';
+  // 섞는 모습: 잠깐 이름이 빙글빙글 돌다가 자리 잡아요
+  $('previewPanel').hidden = false;
+  let n = 0;
+  const spin = setInterval(() => {
+    const fake = {}; for (const i of activeSeats()) fake[i] = S.students[Math.floor(Math.random() * S.students.length)].no;
+    $('previewRoom').innerHTML = roomHTML(fake, { teacher: view === 'teacher' }).replace(/class="seat /g, 'class="seat spin ');
+    if (++n > 9) { clearInterval(spin); $('previewRoom').innerHTML = roomHTML(preview, { teacher: view === 'teacher', moved: new Set(activeSeats()) }); }
+  }, 90);
+  $('previewPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('doShuffle').onclick = doShuffle;
+$('reShuffle').onclick = doShuffle;
+$('confirmShuffle').onclick = () => {
+  if (!preview) return;
+  if (!confirm('이 자리로 확정할까요? 지금 자리는 기록에 남아요.')) return;
+  // 지금 자리를 기록에 남기고 (예시 자리는 빼요), 새 자리를 지금 자리로
+  pushHistory();
+  S.current = preview; S.since = today(); S.sample = false;
+  preview = null;
+  $('previewPanel').hidden = true; $('resultNote').hidden = true;
+  save();
+  showTab('now');
+};
+function pushHistory(note = '') {
+  if (S.sample) return;
+  const last = S.history[S.history.length - 1];
+  if (last && JSON.stringify(last.seats) === JSON.stringify(S.current)) return;
+  S.history.push({ day: S.since || today(), seats: { ...S.current }, note });
+}
+// ❄️ 창가 ↔ 복도: 줄은 그대로, 칸을 좌우로 뒤집어요 (짝은 그대로 · 창가 친구가 복도로)
+$('doWinSwap').onclick = () => {
+  if (!confirm('창가 줄과 복도 줄을 통째로 바꿀까요? (짝은 그대로, 지금 자리는 기록에 남아요)')) return;
+  pushHistory('창가 ↔ 복도');
+  const C = L().cols, next = {};
+  for (const [seat, no] of Object.entries(S.current)) {
+    const r = rowOf(+seat), c = colOf(+seat);
+    let t = r * C + (C - 1 - c);
+    if (isOff(t)) t = +seat;   // 반대쪽이 없는 자리면 그대로
+    if (next[t] != null) t = +seat;
+    next[t] = no;
+  }
+  S.current = next; S.since = today(); S.sample = false;
+  save();
+  showTab('now');
+};
+
+// ----- ③ 출력 -----
+function renderPrint() {
+  const teacher = document.querySelector('input[name="pView"]:checked').value === 'teacher';
+  const a = $('printArea');
+  a.style.setProperty('--pfs', $('pSize').value + 'px');
+  a.innerHTML = `<h2 class="ptitle">${esc($('pTitle').value)}</h2><div class="pdate">${S.since ? fmtDay(S.since) + '부터' : ''} · ${teacher ? '선생님 눈 (교탁이 아래)' : '학생 눈 (칠판이 위)'}</div>` +
+    roomHTML(S.current, { teacher, showNo: $('pNo').checked });
+}
+['pNo', 'pSize', 'pTitle'].forEach((id) => $(id).addEventListener('input', renderPrint));
+document.querySelectorAll('input[name="pView"]').forEach((r) => r.addEventListener('change', renderPrint));
+$('doPrint').onclick = () => { renderPrint(); window.print(); };
+
+// ----- ④ 명단 · 교실 -----
+function renderLayout() {
+  $('lRows').value = L().rows; $('lCols').value = L().cols; $('lWin').value = L().win; $('lPair').checked = !!L().pair;
+  $('layoutRoom').innerHTML = roomHTML(S.current, { layoutEdit: true });
+}
+function changeLayout() {
+  const rows = Math.max(1, Math.min(10, +$('lRows').value || 1)), cols = Math.max(1, Math.min(12, +$('lCols').value || 1));
+  const oldC = L().cols;
+  // 줄 · 칸 수가 바뀌면 자리 번호를 줄 · 칸 위치 그대로 옮겨요
+  const move = (i) => { const r = Math.floor(i / oldC), c = i % oldC; return r < rows && c < cols ? r * cols + c : null; };
+  const cur = {}; for (const [s, no] of Object.entries(S.current)) { const t = move(+s); if (t != null) cur[t] = no; }
+  S.current = cur;
+  S.layout = { ...L(), rows, cols, win: $('lWin').value, pair: $('lPair').checked, off: (L().off || []).map(move).filter((x) => x != null) };
+  S.students.forEach((s) => { if (s.fix != null) s.fix = move(s.fix); });
+  save(); renderLayout();
+}
+['lRows', 'lCols', 'lWin', 'lPair'].forEach((id) => $(id).addEventListener('change', changeLayout));
+$('layoutRoom').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-seat]'); if (!el) return;
+  const i = +el.dataset.seat;
+  const off = new Set(L().off || []);
+  if (off.has(i)) off.delete(i); else { off.add(i); delete S.current[i]; }
+  S.layout.off = [...off].sort((a, b) => a - b);
+  save(); renderLayout();
+});
+function renderStudents() {
+  const wc = winCounts();
+  $('stCount').textContent = `${S.students.length}명 · 자리 ${activeSeats().length}개`;
+  const seatOpts = (v) => `<option value="">없음</option>` + activeSeats().map((i) => `<option value="${i}" ${v === i ? 'selected' : ''}>자리 ${i + 1}</option>`).join('');
+  $('stBody').innerHTML = S.students.slice().sort((a, b) => a.no - b.no).map((s) => `<tr data-no="${s.no}">
+    <td>${s.no}</td>
+    <td><input type="text" data-k="name" value="${esc(s.name)}" placeholder="${s.no}번 이름"></td>
+    <td><input type="checkbox" data-k="cold" ${s.cold ? 'checked' : ''} title="추위 많이 타요"></td>
+    <td><input type="checkbox" data-k="front" ${s.front ? 'checked' : ''} title="앞자리가 필요해요"></td>
+    <td><select data-k="fix">${seatOpts(s.fix)}</select></td>
+    <td>${wc[s.no] || 0}번</td>
+    <td><button class="btn" data-del style="padding:4px 10px;font-size:12px;">빼기</button></td></tr>`).join('');
+}
+$('stBody').addEventListener('change', (e) => {
+  const tr = e.target.closest('tr'); const s = stu(+tr.dataset.no); const k = e.target.dataset.k;
+  if (!s || !k) return;
+  if (k === 'name') s.name = e.target.value.trim().slice(0, 20);
+  else if (k === 'fix') s.fix = e.target.value === '' ? null : +e.target.value;
+  else s[k] = e.target.checked;
+  save();
+});
+$('stBody').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-del]')) return;
+  const no = +e.target.closest('tr').dataset.no;
+  if (!confirm(`${nameOf(no)} 학생을 명단에서 뺄까요? (지금 자리에서도 빠져요)`)) return;
+  S.students = S.students.filter((s) => s.no !== no);
+  for (const [seat, n] of Object.entries(S.current)) if (n === no) delete S.current[seat];
+  save(); renderStudents();
+});
+$('addStudent').onclick = () => {
+  const no = Math.max(0, ...S.students.map((s) => s.no)) + 1;
+  S.students.push({ no, name: '', cold: false, front: false, fix: null });
+  save(); renderStudents();
+};
+$('applyNames').onclick = () => {
+  let n = 0;
+  for (const line of $('pasteNames').value.split('\n')) {
+    const m = line.trim().match(/^(\d{1,5})[\s.,:)\-]*(.+)$/);
+    if (!m) continue;
+    let no = +m[1]; if (no > 100) no = no % 100;   // 학번(11001)도 번호로
+    const name = m[2].trim().slice(0, 20);
+    const s = stu(no);
+    if (s) s.name = name; else S.students.push({ no, name, cold: false, front: false, fix: null });
+    n++;
+  }
+  if (!n) { alert('넣을 줄을 찾지 못했어요. "1 김하늘" 처럼 번호와 이름을 한 줄에 써 주세요.'); return; }
+  S.students.sort((a, b) => a.no - b.no);
+  save(); renderStudents();
+  $('pasteNames').value = '';
+  alert(`${n}명을 넣었어요.`);
+};
+
+// ----- ⑤ 기록 -----
+function renderHistory() {
+  const items = S.history.map((h, k) => ({ ...h, k })).reverse();
+  $('histList').innerHTML = (S.sample ? '' : `<div class="hist-item"><b>지금 자리</b><span class="note">${S.since ? fmtDay(S.since) + '부터' : ''}</span></div>`) +
+    (items.length ? items.map((h) => `<div class="hist-item"><b>${fmtDay(h.day)}부터</b><span class="note">${esc(h.note || '')}</span><button class="btn" data-see="${h.k}">보기</button><button class="btn" data-back="${h.k}">이 자리로 되돌리기</button><button class="btn" data-hdel="${h.k}">지우기</button></div><div id="hv-${h.k}" hidden></div>`).join('') : '<p class="note">아직 기록이 없어요. 🎲 자리 바꾸기에서 확정하면 쌓여요.</p>');
+}
+$('histList').addEventListener('click', (e) => {
+  const t = e.target;
+  if (t.dataset.see != null) { const box = $('hv-' + t.dataset.see); box.hidden = !box.hidden; if (!box.hidden) box.innerHTML = roomHTML(S.history[+t.dataset.see].seats, { teacher: view === 'teacher' }); }
+  if (t.dataset.back != null && confirm('이 자리로 되돌릴까요? 지금 자리는 기록에 남아요.')) { const h = S.history[+t.dataset.back]; pushHistory(); S.current = { ...h.seats }; S.since = today(); save(); showTab('now'); }
+  if (t.dataset.hdel != null && confirm('이 기록을 지울까요? (창가 횟수 · 앉았던 자리에서도 빠져요)')) { S.history.splice(+t.dataset.hdel, 1); save(); renderHistory(); }
+});
+
+// ----- 탭 -----
+function showTab(name) {
+  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  document.querySelectorAll('.tab').forEach((s) => (s.hidden = s.id !== 'tab-' + name));
+  if (name === 'now') renderNow();
+  if (name === 'print') renderPrint();
+  if (name === 'students') { renderLayout(); renderStudents(); }
+  if (name === 'history') renderHistory();
+  try { history.replaceState(null, '', '#' + name); } catch {}
+}
+document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+
+// ----- 로그인 (관리자 구글 계정만, 아니면 바로 로그아웃) -----
+let started = false;
+onAuthStateChanged(auth, async (u) => {
+  if (DEMO) return;
+  if (u && !isAdminEmail(u.email)) { await signOut(auth); $('loginMsg').textContent = '관리자 구글 계정으로 골라 주세요.'; $('loginMsg').className = 'msg err'; }
+  const ok = !!u && isAdminEmail(u.email);
+  $('loginView').hidden = ok;
+  $('app').hidden = !ok;
+  if (ok && !started) {
+    started = true;
+    await load();
+    const t = location.hash.slice(1);
+    showTab(['now', 'shuffle', 'print', 'students', 'history'].includes(t) ? t : 'now');
+    setStatus(useLocal ? '이 브라우저에 저장 중 (보안 규칙 게시 전)' : '');
+  }
+});
+$('gLogin').onclick = async () => {
+  $('loginMsg').textContent = '확인하는 중…'; $('loginMsg').className = 'msg';
+  try {
+    const p = new GoogleAuthProvider();
+    p.setCustomParameters({ prompt: 'select_account' });
+    const r = await signInWithPopup(auth, p);
+    if (!isAdminEmail(r.user.email)) { await signOut(auth); $('loginMsg').textContent = '관리자 구글 계정으로 골라 주세요.'; $('loginMsg').className = 'msg err'; return; }
+    $('loginMsg').textContent = '';
+  } catch (err) {
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') { $('loginMsg').textContent = ''; return; }
+    console.error(err);
+    $('loginMsg').textContent = err.code === 'auth/popup-blocked' ? '팝업이 막혔어요. 팝업을 허용해 주세요.' : '로그인하지 못했어요. 다시 해 주세요.';
+    $('loginMsg').className = 'msg err';
+  }
+};
+
+// 시험용: 주소 끝 ?demo 면 로그인 없이 예시로 (저장하지 않아요)
+if (DEMO) {
+  started = true;
+  $('loginView').hidden = true; $('app').hidden = false;
+  window.__seat = { S: () => S, showTab };
+  const t = location.hash.slice(1);
+  showTab(['now', 'shuffle', 'print', 'students', 'history'].includes(t) ? t : 'now');
+}
+</script>
+
+<!-- 방문 수 세기 + 왼쪽 아래 작은 표시 (오늘 · 누적) -->
+<script type="module" src="/visit.js?app=110seat"></script>
+<!-- 🔄 위쪽 새로고침 단추 (모든 웹앱 공용) -->
+<script src="/refresh.js" defer></script>
+</body>
+</html>
