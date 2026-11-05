@@ -3017,10 +3017,26 @@ function parseSubjBulk(text, defSem) {
   const rows = Object.values(byNo).map(r => { Object.keys(r.sem).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete r.sem[k]; }); return r; }).filter(r => Object.keys(r.sem).length).sort((a, b) => a.no - b.no);
   return { rows, skip: rows.filter(r => !D.students.some(s => s.num === r.no)).map(r => r.no) };
 }
+// 수강신청 확인서 PDF(여러 쪽)를 통째로 복사한 글 → 쪽마다 한 학생. 🔒 이름 줄은 읽지 않고, 쪽 번호(1/27 …)를 반 번호로 이어요
+function parsePdfBulk(text) {
+  const byNo = {};
+  text.split(/수강신청\s*확인서/).slice(1).forEach((b, i) => {
+    const pg = [...b.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})/g)].pop();
+    const no = pg ? +pg[1] : i + 1;
+    const body = b.split(/위\s*과목에\s*대해/)[0];
+    const ms = [...body.matchAll(/([123])\s*학\s*년\s*([12])\s*학\s*기/g)], sem = {};
+    ms.forEach((m, j) => { const a = subjScan(body.slice(m.index + m[0].length, j + 1 < ms.length ? ms[j + 1].index : body.length), true); if (a.length) sem[`${m[1]}-${m[2]}`] = a; });
+    Object.keys(sem).forEach(k => { if (!SEMS.some(s => s[0] === k)) delete sem[k]; });
+    if (Object.keys(sem).length) byNo[no] = { no, sem };
+  });
+  const rows = Object.values(byNo).sort((a, b) => a.no - b.no);
+  return { rows, pdf: true, skip: rows.filter(r => !D.students.some(s => s.num === r.no)).map(r => r.no) };
+}
 function subjBulkRead() {
   const text = $('#sbPaste').value; if (!text.trim()) return toast('엑셀 표를 붙여 넣어 주세요');
-  if (!text.includes('\t')) return toast('엑셀에서 칸째로 복사해 주세요 (번호 · 과목 칸이 탭으로 나뉘어야 해요)');
-  SB = parseSubjBulk(text, $('#sbSem').value);
+  if (!text.includes('\t') && /수강신청\s*확인서/.test(text)) SB = parsePdfBulk(text);   // 확인서 PDF를 통째로 복사한 글
+  else if (!text.includes('\t')) return toast('엑셀에서 칸째로 복사하거나, 수강신청 확인서 PDF 전체를 복사해 붙여 넣어 주세요');
+  else SB = parseSubjBulk(text, $('#sbSem').value);
   if (!SB.rows.length) { SB = null; return toast('번호와 과목을 찾지 못했어요. 맨 위에 번호 · 과목(또는 1학기 · 2학기) 머리글 줄을 함께 복사해 주세요'); }
   dashRefresh();
 }
@@ -3042,12 +3058,12 @@ function subjBulkBox() {
       if (ch) changed++; else if (fi) first++; else same++;
       return `<tr style="${ch ? 'background:#fff8e6' : ''}"><td>${r.no}</td><td style="white-space:nowrap">${st.emoji} ${esc(sname(st))}</td><td>${cells}</td><td class="mini" style="white-space:nowrap">${ch ? '🔄 바뀜' : fi ? '🆕 처음' : '같음'}</td></tr>`;
     }).join('');
-    prev = `<p class="mini" style="margin-top:10px"><b>미리 보기</b> · ${SB.rows.length}명 중 <b style="color:#b9682f">🔄 바뀜 ${changed}명</b> · 🆕 처음 ${first}명 · 같음 ${same}명${SB.skip.length ? ` · 없는 번호 ${SB.skip.join(', ')}` : ''}</p>
+    prev = `${SB.pdf ? `<p class="mini" style="margin-top:10px;color:var(--red)">📄 확인서 PDF는 <b>쪽 순서(1쪽 = 1번)를 반 번호로</b> 이었어요. 확인서가 번호 순서가 아니면 저장하지 말아 주세요.</p>` : ''}<p class="mini" style="margin-top:10px"><b>미리 보기</b> · ${SB.rows.length}명 중 <b style="color:#b9682f">🔄 바뀜 ${changed}명</b> · 🆕 처음 ${first}명 · 같음 ${same}명${SB.skip.length ? ` · 없는 번호 ${SB.skip.join(', ')}` : ''}</p>
       <div style="overflow:auto;max-height:50vh"><table class="dtable"><tr><th style="width:50px">번호</th><th style="width:130px">친구</th><th>과목 (초록 ＋ = 새로 든 과목, 빨간 줄 = 빠진 과목)</th><th style="width:70px"></th></tr>${tr}</table></div>
       <div class="row" style="margin-top:8px"><button class="btn" onclick="subjBulkSave()">💾 이대로 모두 넣기</button><button class="btn ghost sm" onclick="SB=null;dashRefresh()">취소</button><span class="mini">바뀐 학생은 한눈에 화면에 🔄 바뀐 과목으로 남아요</span></div>`;
   }
   return `<section><h4>📘 선택과목 최종 한꺼번에 넣기</h4>
-    <p class="mini">엑셀(수강신청 결과)에서 <b>머리글 줄(번호 · 과목 또는 1학기 · 2학기)부터</b> 칸째로 복사해 붙여 넣어요. 한 줄에 한 학생도, 한 줄에 한 과목도 돼요. 🔒 이름 칸은 읽지 않고 반 번호로만 이어요.</p>
+    <p class="mini">엑셀(수강신청 결과)에서 <b>머리글 줄(번호 · 과목 또는 1학기 · 2학기)부터</b> 칸째로 복사해 붙여 넣어요. <b>수강신청 확인서 PDF</b>는 전체(Ctrl+A)를 복사해 그대로 붙여 넣어도 돼요. 한 줄에 한 학생도, 한 줄에 한 과목도 돼요. 🔒 이름 칸은 읽지 않고 반 번호로만 이어요.</p>
     <textarea id="sbPaste" style="min-height:90px;font-size:12.5px" placeholder="예)&#10;번호&#9;1학기&#9;&#9;&#9;&#9;&#9;2학기&#10;1&#9;기하&#9;화학Ⅰ&#9;…"></textarea>
     <div class="row" style="margin-top:6px"><select id="sbSem" style="width:auto">${SEMS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><span class="mini">학기 머리글이 없으면 이 학기로</span><button class="btn sm" style="margin-left:auto" onclick="subjBulkRead()">👀 미리 보기</button></div>
     ${prev}</section>`;
