@@ -927,7 +927,8 @@ document.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => setT
 // 연구소 방 화면과 같은 이름 없는 기본 Firebase 앱 (관리자 허브에서 한 번 로그인해 두면 여기도 저절로 들어와요)
 // ?demo 를 붙이면 로그인 없이 사장님 등장을 미리 봐요 (자료는 안 읽어요)
 const ADMIN_EMAILS = ['bellachord@gmail.com', 'anstjsdud@sen.go.kr'];   // 보안 규칙 isTeacher 와 같게
-const DEMO = new URLSearchParams(location.search).has('demo');
+// ?demo 는 이 컴퓨터에서 시험할 때만 (moontr.site 에서는 붙여도 로그인 창만 보여요)
+const DEMO = new URLSearchParams(location.search).has('demo') && /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
 const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
 let fb = null, booted = false;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

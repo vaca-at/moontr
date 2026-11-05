@@ -198,6 +198,16 @@ function render() {
   const r = route();
   const b3d = $('#b3d');
   document.body.append(b3d); // 화면을 다시 그리기 전에 3D 무대를 잠깐 빼 두어요 (캔버스는 그대로)
+  // 🔒 연구소는 관리자만: 로그인 전(또는 관리자 확인 중)에는 방 · 가구 · 메뉴를 하나도 그리지 않고 로그인 창만
+  document.body.classList.toggle('locked', isGuest());
+  if (isGuest()) {
+    if (B3) B3.setVisible(false);
+    if ($('#furn')?.open) $('#furn').close();
+    $('#view').innerHTML = `<div class="gate"><span class="bot" aria-hidden="true"></span><h2>${esc(APP_NAME)}</h2>
+      ${S.user ? '<p>관리자 계정인지 확인하고 있어요…</p>' : `<p>관리자만 들어올 수 있어요.<br>관리자 구글 계정으로 로그인해 주세요.</p>
+      <button class="btn primary" data-act="login">G 구글 계정으로 로그인</button>`}</div>`;
+    return;
+  }
   const admin = !S.q && r === 'admin';
   // 첫 화면은 이제 마을이에요 (예전 건물 첫 화면은 뺐어요)
   if (!S.q && !admin && !ROOMS[r]) { location.replace('village/'); return; }
