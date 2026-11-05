@@ -853,11 +853,163 @@ function quickCounsel() {
 
 /* ===== 2. 우리반 — 상담 현황 · 성적 · 출결 · 생기부 진행 ===== */
 function lastCounsel(st) { return st.counsels.map(c => c.date).sort().pop() || ''; }
-const CLASS_TABS = [['cs', '💬 상담 현황'], ['ev', '🗓️ 공통 행사'], ['score', '📊 성적'], ['att', '📋 출결'], ['rec', '✍️ 생기부 진행']];
+const CLASS_TABS = [['cs', '💬 상담 현황'], ['stat', '🏆 우리반 통계'], ['ev', '🗓️ 공통 행사'], ['score', '📊 성적'], ['att', '📋 출결'], ['rec', '✍️ 생기부 진행'], ['bulk', '🤖 AI 총평 · 출력 일괄']];
 function viewClass() {
   const t = V.csub || 'cs';
   return `<div class="row" style="margin-bottom:14px">${CLASS_TABS.map(([k, l]) => `<button class="pill ${t === k ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.csub='${k}';render()">${l}</button>`).join('')}</div>
-  ${t === 'ev' ? viewClassEv() : t === 'score' ? viewClassScore() : t === 'att' ? viewClassAtt() : t === 'rec' ? viewClassRec() : viewClassCs()}`;
+  ${t === 'ev' ? viewClassEv() : t === 'score' ? viewClassScore() : t === 'att' ? viewClassAtt() : t === 'rec' ? viewClassRec() : t === 'stat' ? viewClassStat() : t === 'bulk' ? viewClassBulk() : viewClassCs()}`;
+}
+
+/* 🏆 우리반 통계 — 올린 성적 · 나이스 자료 · 상담 기록으로 앱이 바로 세요 (AI 안 써요)
+   카드마다 위 5명, '전체 보기'로 모두. 이름을 누르면 그 친구 개인 상담 기록 */
+const isTestSt = s => s.num === 28 || /테스트/.test(s.nick || '');   // 테스트 친구는 통계에서 빼요 (sortStudents 와 같은 기준)
+const classList = () => D.students.filter(s => s.num && !isTestSt(s)).sort((a, b) => a.num - b.num);
+const avgOf = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+// 성적 줄 중 과목이 3개 이상 들어 있는 줄만 → [{ label, sub: [[과목, 등급]], avg }] (학기말은 학점 반영 평균)
+function statRows(st, kind) {
+  const G = growthRows(st, kind);
+  return G.rows.map(r => { const sub = G.subj.filter(s => r[s] != null).map(s => [s, r[s]]); return { label: r.label, sub, avg: r._avg ?? avgOf(sub.map(x => x[1])) }; })
+    .filter(r => r.sub.length >= 3 && r.avg != null);
+}
+// 글을 문장으로 나눠 낱말이 들어 있는 문장 수 (같은 문장에 두 번 나와도 한 번)
+const sentHits = (t, re) => String(t || '').split(/(?<=[.!?。])\s+|\n+/).filter(x => re.test(x)).length;
+const volRow = st => { const d = st.num && Object.values(RC).filter(x => x.kind === 'vol').sort((a, b) => b.year - a.year)[0]; return d && d.rows.find(x => x.no === st.num); };
+// 이 친구의 나이스 글 모두: 과목 세특 + 창체(자율 · 동아리 · 진로) + 행발
+function niceTexts(st) {
+  const out = [];
+  Object.values(RC).filter(d => d.kind === 'setuk').forEach(d => { const r = d.rows.find(x => x.no === st.num); if (r?.text) out.push({ k: 'setuk', from: d.subj, t: r.text }); });
+  changYears().forEach(y => { changRows(st.num, y).forEach(r => r.text && out.push({ k: r.label, from: r.label, t: r.text })); const h = haengText(st.num, y); if (h) out.push({ k: 'haeng', from: '행발', t: h }); });
+  return out;
+}
+const LECT_RE = /특강|강연|초청\s*강의|명사|전문가\s*(강의|초청)|진로\s*강의|북\s*토크|저자\s*(강연|와의)/;
+const INQ_RE = /탐구|보고서|소논문|실험|프로젝트|발표|토론|연구/;
+function statCard(id, icon, title, color, desc, items, empty) {
+  const open = V.statOpen === id, max = Math.max(1e-9, ...items.map(x => Math.abs(x.v))), show = open ? items : items.slice(0, 5);
+  return `<div class="box"><div class="hd ${color}"><span class="n">${icon}</span>${title}<span class="sp mini" style="color:#fff">${desc}</span></div><div class="bd">
+    ${items.length ? show.map((x, i) => `<div class="bar" style="margin-bottom:${x.why ? 0 : 6}px"><span class="mini" style="width:16px;text-align:right">${i + 1}</span>
+        <a href="#" style="width:118px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="openStudent('${x.st.id}',${x.sec || 1});return false">${esc(sname(x.st))}</a>
+        <span class="g"><i style="width:${Math.abs(x.v) / max * 100}%;background:var(--${color})"></i></span><b style="min-width:70px;text-align:right">${x.val}</b></div>
+      ${x.why ? `<div class="mini" style="margin:0 0 8px 24px">${x.why}</div>` : ''}`).join('')
+      + (items.length > 5 ? `<button class="btn ghost sm" style="margin-top:4px" onclick="V.statOpen='${open ? '' : id}';render()">${open ? '▲ 접기' : `▼ 전체 ${items.length}명 보기`}</button>` : '')
+    : `<div class="empty">${empty}</div>`}
+  </div></div>`;
+}
+function viewClassStat() {
+  const L = classList(), K = V.statK || 'school', max = K === 'mock' ? 9 : 5, kl = K === 'mock' ? '모의고사' : '내신';
+  if (!L.length) return '<div class="empty">반 번호가 있는 동물 친구가 없어요. 🛠 관리 › 우리반 명단에서 친구를 만들어 주세요</div>';
+  const f2 = v => (+v).toFixed(2).replace(/\.?0+$/, '');
+  // ① 성적 오름 · 내림: 처음 시험 → 가장 최근 시험 평균 등급 (등급은 낮을수록 좋아요)
+  const ch = L.map(st => {
+    const R = statRows(st, K); if (R.length < 2) return null;
+    const f = R[0], l = R[R.length - 1], d = f.avg - l.avg;
+    const fm = new Map(f.sub.map(([s, v]) => [shortSubj(s), v])), sd = l.sub.map(([s, v]) => [shortSubj(s), fm.get(shortSubj(s)), v]).filter(x => x[1] != null).sort((a, b) => (b[1] - b[2]) - (a[1] - a[2]));
+    const big = d >= 0 ? sd[0] : sd[sd.length - 1];
+    return { st, v: d, sec: 3, f, l, big };
+  }).filter(Boolean);
+  const why = x => `${esc(x.f.label)} ${f2(x.f.avg)} → ${esc(x.l.label)} ${f2(x.l.avg)}등급${x.big && (x.v >= 0 ? x.big[1] > x.big[2] : x.big[1] < x.big[2]) ? ` · ${x.v >= 0 ? '가장 많이 오른' : '가장 많이 내린'} 과목 <b>${esc(x.big[0])}</b> ${x.big[1]}→${x.big[2]}` : ''}`;
+  const up = ch.filter(x => x.v > 0.005).sort((a, b) => b.v - a.v).map(x => ({ ...x, val: `▲ ${f2(x.v)}`, why: why(x) }));
+  const down = ch.filter(x => x.v < -0.005).sort((a, b) => a.v - b.v).map(x => ({ ...x, val: `▼ ${f2(-x.v)}`, why: why(x) }));
+  // ② 다른 과목보다 특히 잘하는 과목: 가장 최근 시험에서 가장 좋은 등급 과목 vs 나머지 과목 평균
+  const strong = L.map(st => {
+    const R = statRows(st, K), l = R[R.length - 1]; if (!l) return null;
+    const b = Math.min(...l.sub.map(x => x[1])), best = l.sub.filter(x => x[1] === b), rest = l.sub.filter(x => x[1] !== b);
+    if (!rest.length || best.length > 2) return null;
+    const o = avgOf(rest.map(x => x[1])), gap = o - b; if (gap < 1) return null;
+    return { st, v: gap, sec: 3, val: `${[...new Set(best.map(x => shortSubj(x[0])))].map(esc).join(' · ')} ${b}등급`, why: `다른 과목 평균 ${f2(o)}등급보다 ${f2(gap)}등급 좋아요 (${esc(l.label)})` };
+  }).filter(Boolean).sort((a, b) => b.v - a.v);
+  // ③ 책 · 봉사 · 진로 특강 · 탐구 · 세특 분량 · 기록
+  const books = L.map(st => { const bk = booksOf(st); return bk.length ? { st, v: bk.length, sec: 12, val: `${bk.length}권`, why: bk.slice(0, 3).map(b => `『${esc(b.title)}』`).join(' ') + (bk.length > 3 ? ` 외 ${bk.length - 3}권` : '') } : null; }).filter(Boolean).sort((a, b) => b.v - a.v);
+  const vol = L.map(st => { const r = volRow(st), h = r ? parseFloat(r.v[1]) : NaN; if (!r || isNaN(h) || !h) return null; const sp = volSpecial(st).length; return { st, v: h, val: `${f2(h)}시간`, why: `${(r.items || []).length}회${sp ? ` · 반 공통 봉사 말고 혼자 한 봉사 ${sp}회` : ''}` }; }).filter(Boolean).sort((a, b) => b.v - a.v);
+  const lect = L.map(st => {
+    const nice = niceTexts(st).filter(x => x.k === '진로활동' || x.k === '자율·자치활동').reduce((n, x) => n + sentHits(x.t, LECT_RE), 0);
+    const act = st.acts.filter(a => LECT_RE.test(`${a.title} ${a.text}`)).length;
+    const ev = CE.events.filter(e => LECT_RE.test(e.title) && ceFilled(st, e)).length, n = nice + act + ev;
+    return n ? { st, v: n, sec: 4, val: `${n}번`, why: [nice ? `나이스 창체 ${nice}` : '', act ? `활동 기록 ${act}` : '', ev ? `공통 행사 ${ev}` : ''].filter(Boolean).join(' · ') } : null;
+  }).filter(Boolean).sort((a, b) => b.v - a.v);
+  const inq = L.map(st => { const T = niceTexts(st), n = T.reduce((a, x) => a + sentHits(x.t, INQ_RE), 0); if (!n) return null; const top = {}; T.forEach(x => { const k = sentHits(x.t, INQ_RE); if (k) top[x.from] = (top[x.from] || 0) + k; }); return { st, v: n, sec: 12, val: `${n}문장`, why: Object.entries(top).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${esc(shortSubj(k))} ${v}`).join(' · ') }; }).filter(Boolean).sort((a, b) => b.v - a.v);
+  const setuk = L.map(st => { const T = niceTexts(st).filter(x => x.k === 'setuk'); if (!T.length) return null; const b = T.reduce((n, x) => n + nbytes(x.t), 0); return { st, v: b, sec: 7, val: `${b.toLocaleString()}B`, why: `${T.length}과목 · 과목당 ${Math.round(b / T.length).toLocaleString()}B` }; }).filter(Boolean).sort((a, b) => b.v - a.v);
+  const rec = L.map(st => ({ st, n: st.counsels.length + st.episodes.length + st.acts.length + Object.values(st.ev || {}).filter(x => x?.text).length })).sort((a, b) => a.n - b.n)
+    .map(x => ({ st: x.st, v: Math.max(0.3, x.n), sec: 2, val: `${x.n}개`, why: `상담 ${x.st.counsels.length} · 일화 ${x.st.episodes.length} · 활동 ${x.st.acts.length} · 공통 행사 ${Object.values(x.st.ev || {}).filter(e => e?.text).length}` }));
+  const perfect = L.filter(st => attInfo(st)?.text === '개근 🌟');
+  // 맨 위 숫자 칸
+  const lastAvg = avgOf(L.map(st => { const R = statRows(st, K); return R.length ? R[R.length - 1].avg : null; }).filter(v => v != null));
+  const bkSum = books.reduce((n, x) => n + x.v, 0), volAvg = avgOf(vol.map(x => x.v));
+  const pill = (k, l) => `<button class="pill ${K === k ? 'on' : ''}" onclick="V.statK='${k}';render()">${l}</button>`;
+  return `<div class="row" style="margin-bottom:12px;gap:8px"><span class="mini">성적 카드 기준</span>${pill('school', '📗 내신 (5등급)')}${pill('mock', '📘 모의고사 (9등급)')}
+      <span class="mini" style="margin-left:auto">🔒 올린 자료로 이 기기에서 바로 세요 · AI 안 써요 · 테스트 친구는 빼요</span></div>
+    <div class="stats">
+      <div class="stat"><b>${lastAvg != null ? f2(lastAvg) : '-'}</b>우리반 최근 ${kl} 평균 등급</div>
+      <div class="stat"><b>${up.length}<span class="mini">/${ch.length}</span></b>${kl} 등급이 오른 친구</div>
+      <div class="stat"><b>${bkSum}</b>생기부에 나온 책 (반 전체)</div>
+      <div class="stat"><b>${volAvg != null ? f2(volAvg) : '-'}</b>봉사 평균 시간 · 개근 ${perfect.length}명</div>
+    </div>
+    <div class="cols" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">
+      ${statCard('up', '📈', `${kl} 성적이 많이 오른 친구`, 'pink', '처음 시험 → 최근 시험 평균 등급', up, `${kl} 시험이 2번 이상 들어간 친구가 없어요`)}
+      ${statCard('strong', '⭐', '다른 과목보다 특히 잘하는 과목', 'blue', `최근 ${kl} · 나머지 평균보다 1등급 이상`, strong, '한 과목이 두드러지는 친구가 아직 없어요')}
+      ${statCard('book', '📚', '생기부에 책이 많은 친구', 'green', '세특 · 창체 · 행발 속 『책』', books, '나이스 세특 · 창체를 넣으면 책을 찾아 세요')}
+      ${statCard('vol', '🤝', '봉사활동을 많이 한 친구', 'mustard', '나이스 봉사활동 시간', vol, '관리 › 생기부 자료 › 봉사활동을 넣어 주세요')}
+      ${statCard('lect', '🎤', '진로 특강 · 강연을 많이 들은 친구', 'purple', "창체 · 활동 기록 속 '특강 · 강연' 문장 수", lect, '창체 · 활동 기록에서 특강 · 강연을 찾지 못했어요')}
+      ${statCard('inq', '🔬', '탐구 · 발표 활동이 많은 친구', 'green', "나이스 글 속 '탐구 · 보고서 · 발표 · 실험' 문장 수", inq, '나이스 세특 · 창체를 넣어 주세요')}
+      ${statCard('setuk', '✍️', '과목 세특이 풍성한 친구', 'pink', '과목 세특 전체 바이트', setuk, '관리 › 생기부 자료 › 과목별 세특을 넣어 주세요')}
+      ${statCard('down', '🫂', `${kl} 성적이 내려간 친구 (마음 쓰기)`, 'blue', '처음 시험 → 최근 시험 평균 등급', down, '등급이 내려간 친구가 없어요 🎉')}
+      ${statCard('rec', '🔦', '기록이 적은 친구 (더 살펴보기)', 'mustard', '상담 · 일화 · 활동 · 공통 행사 수, 적은 순', rec, '')}
+    </div>
+    <div class="box" style="margin-top:16px"><div class="hd green"><span class="n">🌟</span>개근한 친구 <span class="sp mini" style="color:#fff">가장 최근 나이스 출결 · 결석 · 지각 · 조퇴 · 결과 모두 0</span></div><div class="bd">
+      ${perfect.length ? perfect.map(st => `<a href="#" class="chip" style="margin:2px;display:inline-block;text-decoration:none;color:inherit" onclick="openStudent('${st.id}',1);return false">${esc(sname(st))}</a>`).join('') : '<div class="empty">아직 없어요 (출결을 넣으면 보여요)</div>'}
+    </div></div>
+    <p class="mini" style="margin-top:10px">💡 책 · 특강 · 탐구는 나이스 글 속 낱말로 세어 대략이에요. 등급은 낮을수록 좋아서 '오름'은 평균 등급 숫자가 줄어든 거예요.</p>`;
+}
+
+/* 🤖 AI 총평 · 출력 일괄 — 우리반 모두의 AI 한눈에 분석(또는 AI 담임 메모)을 한꺼번에 만들고, 상담 카드를 한 파일로 출력
+   한 명에 한 번씩 AI를 불러요 (동시에 3명씩). 이름 · 별칭 · 번호는 AI에 보내지 않아요 */
+let BULK = { run: false, kind: 'card', done: 0, total: 0, fail: [], stop: false, cur: [] };
+const BULK_KINDS = { card: { l: '🤖 AI 한눈에 분석', d: '상담 카드에 들어가는 5줄 분석', has: s => !!s.aiCard?.lines?.length, at: s => s.aiCard?.at, make: aiCardMake },
+  memo: { l: '🤖 AI 담임 메모', d: '강점 · 성적 흐름 · 다음 상담 질문', has: s => !!s.aiEval, at: s => s.aiEvalDate, make: aiEvalMake } };
+// 일괄 처리 화면을 보고 있을 때만 다시 그려요 (다른 화면에서 글을 쓰는 중이면 지워지지 않게)
+const bulkPaint = () => { if (V.tab === 'class' && V.csub === 'bulk') render(); };
+async function bulkAI(all) {
+  if (BULK.run) return;
+  if (!S.apiKey) { openSettings(); return toast('🤖 설정에서 AI 키를 먼저 넣어 주세요'); }
+  const K = BULK_KINDS[BULK.kind], list = classList().filter(s => all || !K.has(s));
+  if (!list.length) return toast('모두 만들어 두었어요. 다시 만들려면 🔄 모두 다시 만들기를 눌러 주세요');
+  if (!confirm(`${list.length}명의 ${K.l.replace('🤖 ', '')}을(를) 만들까요?\nAI를 ${list.length}번 불러요 (몇 분 걸려요). 창을 닫지 말아 주세요.`)) return;
+  Object.assign(BULK, { run: true, done: 0, total: list.length, fail: [], stop: false, cur: [], err: '' }); bulkPaint();
+  const q = [...list];
+  const worker = async () => {
+    while (q.length && !BULK.stop) {
+      const st = q.shift(); BULK.cur.push(st.id); bulkPaint();
+      try { if ((await K.make(st)) === false) BULK.fail.push(st.id); } catch (e) { BULK.fail.push(st.id); BULK.err = e.message; }
+      BULK.cur = BULK.cur.filter(x => x !== st.id); BULK.done++; bulkPaint();
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  const ok = BULK.done - BULK.fail.length, stopped = BULK.stop;
+  BULK.run = false; bulkPaint();
+  toast(`🤖 ${ok}명 만들었어요${BULK.fail.length ? ` · ${BULK.fail.length}명은 못 만들었어요${BULK.err ? ` (${BULK.err})` : ''}` : ''}${stopped ? ' · 멈췄어요' : ''}`);
+}
+function viewClassBulk() {
+  const L = classList(), K = BULK_KINDS[BULK.kind], has = L.filter(K.has).length, B = BULK, cards = L.filter(s => s.aiCard?.lines?.length).length;
+  if (!L.length) return '<div class="empty">반 번호가 있는 동물 친구가 없어요</div>';
+  const pct = B.total ? Math.round(B.done / B.total * 100) : 0;
+  return `<div class="cols" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
+    <div class="box"><div class="hd purple"><span class="n">1</span>AI 총평 전체 일괄 만들기 <span class="sp mini" style="color:#fff">한 명에 AI 한 번 · 동시에 3명씩</span></div><div class="bd">
+      <div class="row" style="gap:8px;margin-bottom:10px">${Object.entries(BULK_KINDS).map(([k, x]) => `<button class="pill ${B.kind === k ? 'on' : ''}" ${B.run ? 'disabled' : ''} onclick="BULK.kind='${k}';render()">${x.l}</button>`).join('')}<span class="mini">${K.d}</span></div>
+      <div class="row" style="gap:16px;margin-bottom:10px"><div><b class="hand" style="font-size:30px;color:var(--main)">${has}</b><span class="mini">/${L.length}명 만들어 둠</span></div>
+        ${B.run ? `<div style="flex:1;min-width:180px"><div class="bar" style="margin:0"><span class="g" style="height:16px"><i style="width:${pct}%;background:var(--purple)"></i></span><b>${B.done}/${B.total}</b></div><div class="mini">🌀 AI가 쓰는 중… ${B.stop ? '(지금 쓰는 친구까지만 하고 멈춰요)' : ''}</div></div>
+          <button class="btn ghost sm" onclick="BULK.stop=true;render()" ${B.stop ? 'disabled' : ''}>⏸ 멈추기</button>`
+        : `<button class="btn ai" onclick="bulkAI(false)">✨ 아직 없는 친구만 만들기 (${L.length - has}명)</button><button class="btn ghost sm" onclick="bulkAI(true)">🔄 모두 다시 만들기</button>`}</div>
+      <div class="mini" style="margin-bottom:8px">🔒 AI에는 성적 · 기록만 보내고 이름 · 별칭 · 번호는 보내지 않아요. AI가 쓴 글이라 사실과 다를 수 있으니 상담 전에 확인해 주세요.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${L.map(s => { const run = B.cur.includes(s.id), bad = B.fail.includes(s.id), ok = K.has(s);
+        return `<a href="#" class="chip" title="${ok ? esc(K.at(s) || '') + ' 만듦' : '아직 없어요'}" style="text-decoration:none;color:inherit;${run ? 'background:#efe9fb;border-color:var(--purple)' : bad ? 'background:#fff0f2;border-color:var(--red)' : ok ? 'background:#e7f6ed;border-color:#bfe3cc' : 'opacity:.6'}" onclick="openStudent('${s.id}',${B.kind === 'card' ? 1 : 14});return false">${run ? '🌀' : bad ? '⚠️' : ok ? '✓' : '·'} ${s.num}번 ${esc(sname(s))}</a>`; }).join('')}</div>
+    </div></div>
+    <div class="box"><div class="hd pink"><span class="n">2</span>출력 전체 일괄 <span class="sp mini" style="color:#fff">엑셀 · 한 명에 한 시트 · A4</span></div><div class="bd">
+      <p class="lead" style="margin-bottom:8px">우리반 <mark>상담 카드 ${L.length}장</mark>을 파일 하나로.</p>
+      <div class="mini" style="margin-bottom:10px">AI 한눈에 분석이 있는 친구 <b>${cards}/${L.length}명</b> — 없는 친구는 규칙으로 만든 분석이 들어가요. 이름은 인쇄한 뒤 손으로 적어요.</div>
+      <button class="btn" style="width:100%;margin-bottom:8px" onclick="downloadCards(classList(),'우리반_상담카드_${today()}.xlsx')">📥 우리반 전체 상담 카드 (${L.length}명)</button>
+      <button class="btn ghost sm" style="width:100%" ${cards ? '' : 'disabled'} onclick="downloadCards(classList().filter(s=>s.aiCard?.lines?.length),'우리반_상담카드_AI분석_${today()}.xlsx')">📥 AI 분석 있는 친구만 (${cards}명)</button>
+      <div class="mini" style="margin-top:10px">💡 엑셀에서 Ctrl+P → '전체 통합 문서 인쇄'를 고르면 한 번에 모두 인쇄돼요.</div>
+    </div></div>
+  </div>`;
 }
 // 반 번호로 동물 친구 찾기 (친구가 없으면 '7번'처럼 — 선생님만 보는 화면)
 const byNum = no => D.students.find(s => s.num === no);
@@ -1137,6 +1289,13 @@ function aiCardFacts(st) {
 async function aiCardRun(btn) {
   const st = cur(); if (!st) return;
   await withBusy(btn, async () => {
+    if (!(await aiCardMake(st))) return toast('🤖 분석을 만들지 못했어요. 다시 눌러 주세요');
+    render(); toast('🤖 AI 한눈에 분석을 만들었어요');
+  });
+}
+// 한 친구의 AI 한눈에 분석을 만들어 저장 (일괄 처리에서도 써요) → 성공하면 true
+async function aiCardMake(st) {
+  {
     const out = await callAI(SYS_RULES + '\n지금은 생기부 문구가 아니라 담임이 상담 직전에 보는 한눈에 분석을 쓴다. 반드시 JSON 배열만 출력한다.',
       `아래 기록만 보고 이 학생의 '한눈에 분석'을 5줄 안팎으로 써 줘.
 - 각 줄 60자 이내, 맨 앞에 알맞은 이모지 하나, 따뜻하고 간결한 존댓말 메모체.
@@ -1146,9 +1305,9 @@ async function aiCardRun(btn) {
 
 ${aiCardFacts(st)}`, 1200);
     const arr = JSON.parse((out.match(/\[[\s\S]*\]/) || ['[]'])[0]).map(x => String(x).trim()).filter(Boolean).slice(0, 7);
-    if (!arr.length) return toast('🤖 분석을 만들지 못했어요. 다시 눌러 주세요');
-    st.aiCard = { at: today(), lines: arr }; saveStudent(st); render(); toast('🤖 AI 한눈에 분석을 만들었어요');
-  });
+    if (!arr.length) return false;
+    st.aiCard = { at: today(), lines: arr }; saveStudent(st); return true;
+  }
 }
 // 한눈에 오른쪽 칸: ① AI 한눈에 분석 만들기 → ② 확인한 뒤 상담 카드 출력 (엑셀)
 function aiCardBox(st) {
@@ -1783,6 +1942,10 @@ function md(t) {
 }
 async function aiEval(btn) {
   const st = cur();
+  await withBusy(btn, async () => { await aiEvalMake(st); render(); });
+}
+// 한 친구의 AI 담임 메모를 만들어 저장 (일괄 처리에서도 써요)
+async function aiEvalMake(st) {
   const data = {
     진로: st.career + ' ' + st.careerDetail, 고민: st.worry, 공부패턴: st.study,
     모의고사등급: growthRows(st, 'mock').rows, 내신등급_5등급제: growthRows(st, 'school').rows,
@@ -1790,7 +1953,7 @@ async function aiEval(btn) {
     활동: st.acts.map(a => `${a.date} [${a.area}] ${a.title} - ${a.text}`),
     일화: st.episodes.map(e => `${e.date} ${e.text}`)
   };
-  await withBusy(btn, async () => {
+  {
     st.aiEval = await callAI(SYS_RULES + '\n지금은 생기부 문구가 아니라 담임교사가 혼자 보는 메모를 쓴다. 문체는 따뜻하고 간결한 존댓말 메모체.',
       `고1 학생 기록이야. 아래 순서로 담임용 메모를 써 줘. 각 소제목은 ### 로 시작.
 ### 이 학생의 강점 (3가지)
@@ -1799,8 +1962,8 @@ async function aiEval(btn) {
 ### 다음 상담 때 물어볼 질문 3개
 ### 살펴볼 점
 기록:\n${JSON.stringify(data, null, 1)}`, 2000);
-    st.aiEvalDate = today(); saveStudent(st); render();
-  });
+    st.aiEvalDate = today(); saveStudent(st);
+  }
 }
 
 /* 2 상담 기록 */
