@@ -87,16 +87,21 @@ ${AI_ROOMS.map(([k, r]) => `- ${k} (${r.name}): ${r.desc}\n  세부 항목: ${r.
 - 업무관리시스템 · 에듀파인의 '문서등록대장' · '문서대장' · 공문 목록 검색 화면이면 registry 에 보이는 줄을 빠짐없이 한 줄씩 옮겨요.
   no 는 문서(등록)번호에서 숫자만 (예: '진선여자고등학교-10941' → '10941'), title 은 제목 그대로, dept 는 발송 · 생산 부서(기관명 포함), date 는 YYYY-MM-DD (없으면 ""),
   kind 는 '접수' 또는 '생산' 같은 구분(없으면 ""). 결재자 · 담당자 같은 사람 이름은 옮기지 않아요.
+  dept 는 '수신/발신' 칸에 보이는 그대로 (잘려서 …로 끝나면 보이는 데까지).
+  그리고 화면 위쪽 검색 조건을 search 에 옮겨요: title 은 제목 검색 칸에 적힌 낱말, sender 는 발신 · 생산 부서(기관) 검색 칸에 적힌 것,
+  from · to 는 등록일자(기간) 검색 칸의 시작 · 끝 날짜 YYYY-MM-DD, total 은 '총 ○○건'의 숫자, page 는 지금 보이는 쪽 번호(숫자만). 보이지 않는 칸은 "".
 - Anthropic 콘솔(Claude Console)의 결제 · 크레딧(Billing, Credit balance) 화면이면 credit 을 채워요.
   left 는 남은 크레딧 금액(달러, 숫자만 문자열로 예: "63.42"), expires 는 크레딧 만료일 YYYY-MM-DD (없으면 ""), seen 은 화면에 보이는 기준 날짜 (없으면 "").
-- 해당하지 않으면 registry 는 빈 목록, credit 의 세 칸은 모두 "".`;
+- 해당하지 않으면 registry 는 빈 목록, search 와 credit 의 칸은 모두 "".`;
 
 const str = { type: 'string' };
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['cards', 'registry', 'credit'],
+  required: ['cards', 'registry', 'search', 'credit'],
   properties: {
+    // 문서대장 화면 위쪽 검색 조건 (어떤 검색으로 찍은 캡쳐인지 · 기간)
+    search: { type: 'object', additionalProperties: false, required: ['title', 'sender', 'from', 'to', 'total', 'page'], properties: { title: str, sender: str, from: str, to: str, total: str, page: str } },
     registry: {
       type: 'array',
       items: { type: 'object', additionalProperties: false, required: ['no', 'title', 'dept', 'date', 'kind'], properties: { no: str, title: str, dept: str, date: str, kind: str } },
@@ -168,11 +173,17 @@ async function readWithClaude(blocks, cap, about) {
   const text = response.content.find((b) => b.type === 'text')?.text;
   if (!text) throw new Error('AI 답이 비어 있어요');
   const out = JSON.parse(text);
-  return { cards: out.cards || [], registry: out.registry || [], credit: out.credit || {} };
+  return { cards: out.cards || [], registry: out.registry || [], search: out.search || {}, credit: out.credit || {} };
 }
 
 // ---------- 카드 정리 · 저장 ----------
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+// 문서대장 검색 조건: 앱이 '어떤 검색 · 언제부터 언제까지'를 알아서 세요 (접수처 📒)
+const cleanSearch = (s = {}) => ({
+  title: String(s.title || '').slice(0, 40), sender: String(s.sender || '').slice(0, 60),
+  from: isDate(s.from) ? s.from : '', to: isDate(s.to) ? s.to : '',
+  total: parseInt(String(s.total || '').replace(/\D/g, ''), 10) || 0, page: parseInt(String(s.page || '').replace(/\D/g, ''), 10) || 0,
+});
 function cleanCard(c, cap, capId) {
   const room = ROOMS[c.room]?.ai ? c.room : 'unknown';
   const fieldNames = new Set(ROOMS[room]?.fields || []);
@@ -260,7 +271,7 @@ async function processCapture(capId) {
     const note = rows.length ? `문서대장 ${rows.length}줄을 사장실 [문서대장] 탭에 넣었어요` : credit ? `콘솔 남은 크레딧 $${left}를 사장님 계기판에 적었어요` : cards.length ? '' : '읽을 자료를 찾지 못했어요';
     batch.set(capRef, {
       status: 'done', cardCount: cards.length, readAt: FieldValue.serverTimestamp(), error: FieldValue.delete(),
-      note: note || FieldValue.delete(), ...(rows.length ? { registryRows: rows.length } : {}), ...(credit ? { credit: left } : {}),
+      note: note || FieldValue.delete(), ...(rows.length ? { registryRows: rows.length, regSearch: cleanSearch(read.search) } : {}), ...(credit ? { credit: left } : {}),
     }, { merge: true });
     await batch.commit();
     logger.info('ailab capture read', { capId, pdfs, tiles, cards: cards.length });

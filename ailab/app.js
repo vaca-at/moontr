@@ -1095,9 +1095,10 @@ function station(no, label, n, hot = false, bot = 'bot') {
 // 문서대장 목록은 보낸 곳 칸이 '서울특별시교육청 …'처럼 잘려 있어서 줄만 보고는 부서를 알 수 없어요.
 // 그래서 '캡쳐 한 장 = 검색 한 번'으로 보고, 캡쳐마다 어떤 검색인지(regTag)를 정해 그 캡쳐에 담긴 날짜 범위로 세요.
 // 처음엔 연구소가 짐작(guess)하고, 선생님이 사진을 보고 [캡쳐마다 고르기]에서 고쳐요. 새 검색을 하면 아래에 한 줄 더 넣어요
+// byWord: 사진 위쪽 제목 검색 칸에 적힌 낱말로 알아보기 (AI 가 읽어 둔 regSearch.title). 검색 낱말이 없으면 창의미래교육과로 검색한 거예요
 const REG_WATCH = [
-  { id: 'ai', name: 'AI 키워드 연수', guess: (rows) => rows.filter((r) => /AI|인공지능/i.test(r.title || '')).length >= rows.length * 0.8 },
-  { id: 'cmf', name: '창의미래교육과', guess: (rows) => rows.every((r) => /서울특별시교육청/.test(r.dept || '')) },
+  { id: 'ai', name: 'AI 키워드 연수', byWord: (w) => /AI|인공지능/i.test(w), guess: (rows) => rows.filter((r) => /AI|인공지능/i.test(r.title || '')).length >= rows.length * 0.8 },
+  { id: 'cmf', name: '창의미래교육과', byWord: (w, s) => !w || /창의미래/.test(s.sender || ''), guess: () => true },
 ];
 const REG_FROM = '2025-01-01';   // 이 날부터 빠진 기간을 찾아요
 const REG_GAP = 7;               // 캡쳐 사이가 7일 넘게 비면 '빠진 기간'으로 봐요 (공문이 없는 주말 · 방학 며칠은 넘어가요)
@@ -1108,11 +1109,20 @@ const regRange = (a, b) => a === b ? regD(a) : a.slice(0, 4) === b.slice(0, 4) ?
 // 문서대장 캡쳐마다: 그 캡쳐에서 나온 줄 · 날짜 범위 · 어떤 검색인지(고른 것 또는 짐작)
 function regCaps() {
   const rows = Object.values(S.registry?.rows || {}).filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date || ''));
-  return S.captures.filter((c) => c.registryRows).map((c) => {
+  const caps = S.captures.filter((c) => c.registryRows).map((c) => {
     const mine = rows.filter((r) => r.capId === c.id).sort((a, b) => a.date.localeCompare(b.date));
-    const g = mine.length ? REG_WATCH.find((w) => w.guess(mine)) : null;
-    return { c, rows: mine, from: mine[0]?.date, to: mine[mine.length - 1]?.date, tag: c.regTag || g?.id || 'etc', guessed: !c.regTag };
+    const s = c.regSearch;   // 사진 위쪽 검색 조건 (2026-11-05 부터 AI 가 읽어요)
+    const bySearch = s ? REG_WATCH.find((w) => w.byWord(String(s.title || '').trim(), s)) : null;
+    const g = !bySearch && mine.length ? REG_WATCH.find((w) => w.guess(mine)) : null;
+    let from = mine[0]?.date, to = mine[mine.length - 1]?.date;
+    if (s?.to && (s.page || 1) === 1 && to) to = s.to > todayStr() ? todayStr() : s.to;   // 첫 쪽이면 가장 새 공문 뒤 ~ 검색 끝 날짜도 본 거예요
+    return { c, s, rows: mine, from, to, tag: c.regTag || bySearch?.id || g?.id || 'etc', guessed: !c.regTag && !bySearch };
   });
+  // 같은 검색(낱말 · 기간)으로 찍은 캡쳐들이 '총 ○○건'을 다 담았으면 그 검색 기간 전체를 본 거예요
+  const groups = new Map();
+  caps.forEach((x) => { if (x.s?.from && x.s?.to && x.s.total) { const k = `${x.s.title}|${x.s.sender}|${x.s.from}|${x.s.to}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); } });
+  groups.forEach((list) => { const n = new Set(list.flatMap((x) => x.rows.map((r) => r.no))).size; if (n >= list[0].s.total) list.forEach((x) => { x.from = x.s.from; x.to = x.s.to > todayStr() ? todayStr() : x.s.to; }); });
+  return caps;
 }
 function regCoverage() {
   const caps = regCaps(), today = dayN(todayStr()), start = dayN(REG_FROM);
@@ -1152,7 +1162,7 @@ function regCoverageBox() {
       <ul>${caps.map((x) => `<li><button class="chipbtn" data-act="cap" data-cap="${x.c.id}">사진 보기</button>
         <span class="rt-d">${x.from ? esc(regRange(x.from, x.to)) : '날짜 없음'} · ${x.rows.length}줄</span>
         <select data-act="regtag" data-cap="${x.c.id}">${opts(x.tag)}</select>${x.guessed ? '<span class="rt-g">짐작</span>' : ''}
-        <small>${esc((x.rows[x.rows.length - 1] || {}).title || x.c.name || '')}</small></li>`).join('')}</ul></details></div>`;
+        <small>${x.s ? `🔎 검색: ${esc(x.s.title || '(낱말 없음)')}${x.s.from ? ` · ${esc(x.s.from)} ~ ${esc(x.s.to)}` : ''}${x.s.total ? ` · 총 ${x.s.total}건${x.s.page ? ` 중 ${x.s.page}쪽` : ''}` : ''} · ` : ''}${esc((x.rows[x.rows.length - 1] || {}).title || x.c.name || '')}</small></li>`).join('')}</ul></details></div>`;
 }
 function lobbyView() {
   const reading = S.captures.filter((c) => c.status === 'reading');
