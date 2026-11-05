@@ -6,6 +6,12 @@
 > 다른 컴퓨터(맥미니 등)에서 Claude Code로 이어 작업할 때 이 파일부터 읽혀 주세요.
 > "ailab/README.md 읽고 문쌤의 AI 연구소 이어서 하자" 라고 하면 돼요.
 
+## 2026-11-06 🚶 방 화면 = 메타버스
+- 방 화면(`#방이름`)의 3D 가 머리줄 아래를 가득 채워요 (`body.roomverse`). 위 '← 마을 · 방 이름 · 접수처' 와 아래 **가구 단추 줄**은 그 위에 떠 있어요. 팝업(`#furn`)은 그대로
+- 사장님(`STATE.me`)이 방 안을 걸어 다녀요 (`building3d.js` 의 `WALK` · `startWalk` · `stepWalk` · `walkTo`): 바닥을 누르면 그리로, 가구 · 분류 가구를 누르면 그 앞까지 걸어가서 팝업, 키보드 W A S D · 화살표. 가구에 막히면 비켜 걸어요 (`walkObstacles`)
+- 아래 가구 단추도 사장님이 그 가구로 걸어간 뒤 팝업 (`walkFurn(id)`, 길어도 1.6초). 사장실에 원래 서 있던 사장님(`staticMe`)은 걷는 동안 숨겨요
+- 카메라는 사장님을 따라가요 (끌면 조금 돌려 보기). 숫자는 `stepWalk` 끝의 `goal.target` · `goal.dist`, `focusRoom` 의 `goal.pitch`
+
 ## 2026-11-03 📡 공문 레이더 (`radar/index.html`)
 - 주소 `moontr.site/ailab/radar/` (연구소 머리줄 · 마을 위쪽에 단추). 관리자 구글 계정으로만 열리고, `?demo` 를 붙이면 예시 공문으로 구경해요.
 - 자료: 접수처에 넣은 **공문 목록(문서등록대장) 캡쳐** → AI가 줄마다 옮긴 `ailab_meta/registry.rows` (공문번호 · 제목 · 부서 · 날짜). 카드는 만들지 않아요.

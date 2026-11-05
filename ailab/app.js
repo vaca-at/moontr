@@ -214,6 +214,7 @@ function render() {
   const home3d = false;
   const band = !S.q && !!ROOMS[r] && !!B3;
   document.body.classList.toggle('home3d', home3d);
+  document.body.classList.toggle('roomverse', band);   // 🚶 방 화면 = 메타버스 (3D 가 화면을 가득)
   if (home3d) {
     $('#view').innerHTML = '';
   } else {
@@ -478,6 +479,7 @@ function floorView(k) {
     ${B3 !== false ? `<div class="lift r2-pic ${S.doorsShut ? 'shut' : ''}"><div class="b3d-slot"></div><div class="lift-doors" aria-hidden="true"><i></i><i></i></div></div>` : ''}
     <div class="r2-bar" role="group" aria-label="${esc(roomName(k))} 가구">${furn.map(([id, label, ic]) => `<button type="button" class="r2-btn" data-act="furn" data-v="${id}" title="${esc(FURN_TIP[id] || '')}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[ic] || ''}</svg><span>${esc(label)}</span></button>`).join('')}</div>
     <div class="guide"><span class="bot ${k === 'boss' ? 'boss' : ''}"></span><p class="bubble">${esc(guideSay(k))}</p></div>
+    <p class="r2-hint">바닥을 누르면 걸어가요 · 가구를 누르면 가서 열어요 · W A S D</p>
   </div>`;
 }
 // 방 문패: 언즈체가 다 받아진 뒤에 그려요 (village/plates.js)
@@ -2205,7 +2207,12 @@ document.addEventListener('click', async (e) => {
       case 'subj': S.subj = b.dataset.v; render(); break;
       case 'stats': S.stats = null; render(); break;
       case 'bosstab': S.bossTab = b.dataset.v; render(); break;
-      case 'furn': openFurn(b.dataset.v); break;
+      case 'furn': {   // 🚶 사장님이 그 가구 앞까지 걸어간 뒤 창이 떠요 (길어도 1.6초 안에)
+        const id = b.dataset.v;
+        if (B3?.walkFurn) Promise.race([B3.walkFurn(id), new Promise((r) => setTimeout(r, 1600))]).then(() => openFurn(id));
+        else openFurn(id);
+        break;
+      }
       case 'furnclose': $('#furn').close(); break;
       case 'regkey': S.regf = { ...S.regf, key: S.regf?.key === b.dataset.v ? '' : b.dataset.v }; render(); break;
       case 'regtodo': S.regf = { ...S.regf, todo: !S.regf?.todo }; render(); break;

@@ -781,7 +781,8 @@ function furnish(k, g, { x0, x1, cx, y }) {
       wallBoard(g, cx + .6, y + 2.2, zw, 1.3, .9, posterMat('D-7', P.red));
       const me = ME.find((m) => m.id === STATE.me) || ME[0];
       const fr = friendById(STATE.friend);
-      addChar(g, cx - 2.6, y, 1.2, 'me', { def: me.def(), hold: me.hold, face: .12, info: meInfo() });
+      const sm = addChar(g, cx - 2.6, y, 1.2, 'me', { def: me.def(), hold: me.hold, face: .12, info: meInfo() });
+      sm.staticMe = true;   // 방 화면에서 내가 걸어 다닐 때는 이 사장님은 숨겨요 (둘이 되지 않게)
       const f = addChar(g, cx - .9, y + fr.lift, 1.35, fr.move, { def: fr.def(), face: -.3, info: friendInfo(fr.id) });
       if (fr.id === 9) f.flapGhost = true;
       ROOMS.boss.focus = { x: cx - 1.7, y: y + 1.35 };
@@ -1435,6 +1436,7 @@ function storeRoom(g, k, { x0, x1, cx, y }) {
 
 function buildWorld() {
   world.clear();
+  furnBoxes.length = 0;
   people.length = 0; docs.length = 0; roomBoxes.length = 0; labelItems.length = 0; anims.length = 0;
   for (const k of Object.keys(TOOLS)) delete TOOLS[k];
   labelsEl.innerHTML = '';
@@ -1684,6 +1686,127 @@ function placeCamera() {
   camera.lookAt(view.target);
 }
 
+// ---------- 🚶 방 화면 = 메타버스: 사장님이 방 안을 걸어 다녀요 (2026-11-06) ----------
+// 바닥을 누르면 그리로 걸어가고, 가구를 누르면 가구 앞까지 걸어가서 그 가구 창(팝업)이 떠요. 키보드 W A S D · 화살표로도 걸어요.
+// 카메라는 사장님을 따라가요 (끌면 조금 돌려 볼 수 있어요). 아래 가구 단추를 눌러도 사장님이 그 가구로 걸어가요.
+const WALK = { on: false, k: '', c: null, go: null, then: null, until: 0, keys: new Set(), obst: [] };
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const floorHit = new THREE.Vector3();
+function walkBounds(k) {
+  const b = ROOMS[k].box, hw = b.w / 2;
+  return { x0: b.cx - hw + .6, x1: b.cx + hw - .6, z0: -D / 2 + .75, z1: D / 2 - .25, y: b.y };
+}
+// 가구 · 분류 가구 · 책장 자리를 바닥 위 네모로 (걸어서 뚫고 지나가지 않게)
+function walkObstacles(k) {
+  const out = [], bx = new THREE.Box3();
+  const add = (o, pad = .28) => { bx.setFromObject(o); if (bx.isEmpty()) return; out.push({ x0: bx.min.x - pad, x1: bx.max.x + pad, z0: bx.min.z - pad, z1: bx.max.z + pad }); };
+  furnBoxes.filter((m) => m.userData.furn.room === k).forEach((m) => add(m, .2));
+  TOOLS[k]?.hits.forEach((m) => add(m, .15));
+  return out;
+}
+const blocked = (x, z) => WALK.obst.some((o) => x > o.x0 && x < o.x1 && z > o.z0 && z < o.z1);
+function startWalk(k) {
+  const b = ROOMS[k]?.box, g = world.children.find((x) => x.userData.floor === bandFloor);
+  if (!b || !g) return;
+  const keep = WALK.c && WALK.k === k ? { x: WALK.c.root.position.x, z: WALK.c.root.position.z, r: WALK.c.root.rotation.y } : null;
+  stopWalk(true);
+  const me = ME.find((m) => m.id === STATE.me) || ME[0];
+  const c = makeChar(me.def());
+  c.root.userData.char = c;
+  c.info = meInfo();
+  Object.assign(c, { role: 'player', ph: 0, hold: me.hold });
+  const L = walkBounds(k);
+  c.root.position.set(keep ? keep.x : b.cx, L.y, keep ? keep.z : .9);
+  c.root.rotation.y = keep ? keep.r : Math.PI;   // 처음엔 방 안쪽을 봐요
+  g.add(c.root);
+  people.push(c);
+  // 원래 방에 서 있던 사장님은 숨겨요
+  people.forEach((p) => { if (p.staticMe) p.root.visible = false; });
+  Object.assign(WALK, { on: true, k, c, go: null, then: null, obst: walkObstacles(k) });
+  // 막힌 곳에서 시작하면 앞쪽으로 비켜 서요
+  for (let i = 0; i < 20 && blocked(c.root.position.x, c.root.position.z); i++) c.root.position.z = Math.min(L.z1, c.root.position.z + .3);
+}
+function stopWalk(quiet) {
+  if (WALK.c) { WALK.c.root.removeFromParent(); const i = people.indexOf(WALK.c); if (i >= 0) people.splice(i, 1); }
+  if (!quiet) people.forEach((p) => { if (p.staticMe) p.root.visible = true; });
+  Object.assign(WALK, { on: false, c: null, go: null, then: null });
+}
+// (x, z) 로 걸어가요. 도착하면(또는 2.5초 안에 못 가면) then 을 불러요
+function walkTo(x, z, then) {
+  if (!WALK.on) { then?.(); return; }
+  const L = walkBounds(WALK.k);
+  x = THREE.MathUtils.clamp(x, L.x0, L.x1); z = THREE.MathUtils.clamp(z, L.z0, L.z1);
+  // 가구 안쪽을 누르면 가구 앞(카메라 쪽)으로
+  for (let i = 0; i < 30 && blocked(x, z); i++) z = Math.min(L.z1, z + .2);
+  WALK.go = { x, z };
+  WALK.then = then || null;
+  WALK.until = performance.now() + 2500;
+}
+// 가구 이름으로 그 가구 앞까지 (아래 가구 단추) → Promise
+export function walkFurn(id) {
+  return new Promise((res) => {
+    if (!WALK.on) { res(); return; }
+    const k = WALK.k;
+    const m = furnBoxes.find((x) => x.userData.furn.room === k && x.userData.furn.id === id)
+      || (id === 'main' || !furnBoxes.some((x) => x.userData.furn.room === k) ? TOOLS[k]?.hits[0] : null);
+    if (!m) { res(); return; }
+    const p = new THREE.Vector3(); new THREE.Box3().setFromObject(m).getCenter(p);
+    const bz = new THREE.Box3().setFromObject(m).max.z;
+    walkTo(p.x, bz + .55, res);
+  });
+}
+function stepWalk(dt, t) {
+  if (!WALK.on || !WALK.c) return;
+  const c = WALK.c, pos = c.root.position, L = walkBounds(WALK.k);
+  let dx = 0, dz = 0;
+  // 키보드: 카메라 기준 앞뒤 · 옆
+  const K = WALK.keys;
+  const kx = (K.has('ArrowRight') || K.has('d') ? 1 : 0) - (K.has('ArrowLeft') || K.has('a') ? 1 : 0);
+  const kz = (K.has('ArrowDown') || K.has('s') ? 1 : 0) - (K.has('ArrowUp') || K.has('w') ? 1 : 0);
+  if (kx || kz) {
+    WALK.go = null; WALK.then = null;
+    const yaw = view.yaw, cs = Math.cos(yaw), sn = Math.sin(yaw);
+    dx = kx * cs + kz * sn; dz = -kx * sn + kz * cs;
+    const n = Math.hypot(dx, dz); dx /= n; dz /= n;
+  } else if (WALK.go) {
+    const gx = WALK.go.x - pos.x, gz = WALK.go.z - pos.z, d = Math.hypot(gx, gz);
+    if (d < .08 || performance.now() > WALK.until) {
+      WALK.go = null;
+      const f = WALK.then; WALK.then = null;
+      if (f) { c.root.rotation.y = Math.PI; setTimeout(f, 60); }   // 가구 쪽(안쪽)을 보고 창을 열어요
+    } else { dx = gx / d; dz = gz / d; }
+  }
+  const moving = !!(dx || dz);
+  if (moving) {
+    const sp = 3.1 * dt;
+    const nx = THREE.MathUtils.clamp(pos.x + dx * sp, L.x0, L.x1), nz = THREE.MathUtils.clamp(pos.z + dz * sp, L.z0, L.z1);
+    // 가구에 막히면 미끄러지듯 한쪽으로만
+    if (!blocked(nx, nz)) { pos.x = nx; pos.z = nz; } else if (!blocked(nx, pos.z)) pos.x = nx; else if (!blocked(pos.x, nz)) pos.z = nz;
+    const want = Math.atan2(dx, dz);
+    const da = Math.atan2(Math.sin(want - c.root.rotation.y), Math.cos(want - c.root.rotation.y));
+    c.root.rotation.y += da * Math.min(1, dt * 10);
+  }
+  const s = t * 1;
+  const step = moving ? Math.sin(s * 9) : 0;
+  if (c.legL) { c.legL.rotation.x = step * .6; c.legR.rotation.x = -step * .6; }
+  if (c.armL && c.armR) { c.armL.rotation.x = moving ? -step * .55 : Math.sin(s * 1.3) * .04; c.armR.rotation.x = moving ? step * .55 : -Math.sin(s * 1.3) * .04; }
+  c.lift.position.y = moving ? Math.abs(step) * .05 : Math.abs(Math.sin(s * 1.3)) * .03;
+  if (c.head) c.head.rotation.y = moving ? 0 : Math.sin(s * .5) * .3;
+  // 카메라: 사장님 뒤 조금 위에서 따라가요
+  // 사장님이 화면 아래쪽에 오도록 조금 앞(안쪽)을 보고, 방이 넉넉히 보이게 떨어져요. 옆으로는 방 가운데 쪽으로 조금 당겨요
+  const bx = ROOMS[WALK.k].box.cx;
+  goal.target.set(pos.x * .6 + bx * .4, L.y + 1.1, Math.min(-.2, pos.z - 1.6));   // 앞뒤로는 방 가운데 뒤쪽을 봐서 바닥이 화면 아래까지 차요
+  goal.dist = camera.aspect < 1 ? 20 : 15.5;
+  // 방 양옆 자르기는 그대로 (옆방이 안 보이게)
+}
+addEventListener('keydown', (e) => {
+  if (!WALK.on || !visible || e.target.closest?.('input, textarea, select, dialog, [contenteditable]') || document.querySelector('dialog[open]')) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(k)) { WALK.keys.add(k); e.preventDefault(); }
+});
+addEventListener('keyup', (e) => { WALK.keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key); });
+addEventListener('blur', () => WALK.keys.clear());
+
 // ---------- 끌기 · 누르기 · 휠 ----------
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -1709,8 +1832,8 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 5) { drag.moved = true; stage.classList.add('drag'); }
     if (drag.moved) {
-      goal.yaw = THREE.MathUtils.clamp(drag.yaw - dx * .005, -1, 1);
-      goal.pitch = THREE.MathUtils.clamp(drag.pitch + dy * .004, -.02, .7);
+      goal.yaw = THREE.MathUtils.clamp(drag.yaw - dx * .005, WALK.on ? -.7 : -1, WALK.on ? .7 : 1);
+      goal.pitch = THREE.MathUtils.clamp(drag.pitch + dy * .004, WALK.on ? .3 : -.02, WALK.on ? .95 : .7);   // 방 안에서는 내려다보는 쪽으로
     }
     return;
   }
@@ -1741,11 +1864,16 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     else {
       hideTip();
       const fu = mode === 'band' && pickFurn();
+      const fuHit = fu && ray.intersectObjects(furnBoxes, false)[0];
       const bk = !fu && pickBook(), tl = !fu && !bk && pickTool();
-      if (fu) hooks.onFurn?.(fu.room, fu.id);
-      else if (mode === 'band' && tl && hooks.onFurn) hooks.onFurn(tl.k, 'main');   // 방 화면: 분류 가구 = 그 방 주 가구 팝업
+      const tlHit = tl && ray.intersectObjects(TOOLS[tl.k].hits, false)[0];
+      // 🚶 방 화면에서는 사장님이 그 가구 앞까지 걸어가서 창을 열어요
+      const goNear = (h, fn) => { if (!WALK.on || !h) { fn(); return; } const bz = new THREE.Box3().setFromObject(h.object).max.z; walkTo(h.point.x, bz + .55, fn); };
+      if (fu) goNear(fuHit, () => hooks.onFurn?.(fu.room, fu.id));
+      else if (mode === 'band' && tl && hooks.onFurn) goNear(tlHit, () => hooks.onFurn(tl.k, 'main'));   // 방 화면: 분류 가구 = 그 방 주 가구 팝업
       else if (bk) libFetch(bk);
       else if (tl) toolFetch(tl);
+      else if (WALK.on && ray.ray.intersectPlane(floorPlane.set(floorPlane.normal, -walkBounds(WALK.k).y), floorHit)) walkTo(floorHit.x, floorHit.z);   // 바닥을 누르면 그리로
       else { const k = pick(e); if (k) chooseRoom(k); }
     }
   }
@@ -1966,7 +2094,7 @@ document.getElementById('reset').addEventListener('click', () => {
   rebuild();
   overview();
 });
-function rebuild() { syncLook(); buildWorld(); renderBoard(); }
+function rebuild() { syncLook(); buildWorld(); renderBoard(); if (WALK.on) startWalk(WALK.k); }   // 다시 그려도 걷던 자리 그대로
 // 느낌이 바뀌면 모아 둔 둥근 상자 · 재질을 비우고 서랍의 직원 그림도 다시 찍어요
 function syncLook() {
   const want = STATE.look || 0;
@@ -2040,7 +2168,8 @@ function loop() {
   const dt = Math.min(clock.getDelta(), .05);
   if (!visible) return; // 숨어 있는 동안은 그리지 않아요
   t += dt;
-  for (const c of people) animate(c, t);
+  for (const c of people) if (c.role !== 'player') animate(c, t);
+  stepWalk(dt, t);
   stepLibrary(dt);
   stepTools(dt);
   for (const { d, x0, x1, off } of docs) d.position.x = x0 + (((t * .18 + off) % 1) * (x1 - x0));
@@ -2146,7 +2275,7 @@ export function setMode(m) {
   mode = m;
   root.classList.toggle('band', m === 'band');
   applyBandVis();
-  if (m === 'home') { target = null; overview(); renderBoard(); } else { hideTip(); setDrawer(false); }
+  if (m === 'home') { stopWalk(); target = null; overview(); renderBoard(); } else { hideTip(); setDrawer(false); }
   resize();
 }
 // 층 화면: 그 방이 있는 층으로 카메라가 가서 그 방 한 칸만 보여요
@@ -2167,6 +2296,8 @@ export function focusRoom(k, instant = false) {
   clipGoal.a = b.cx - b.w / 2 - .3;
   clipGoal.b = b.cx + b.w / 2 + .3;
   markSigns();
+  // 🚶 방 화면: 사장님이 들어와서 걸어 다녀요
+  if (mode === 'band') { startWalk(k); goal.pitch = .5; goal.yaw = 0; stepWalk(0, t); }
   if (instant) { view.target.copy(goal.target); view.dist = goal.dist; view.yaw = goal.yaw; view.pitch = goal.pitch; Object.assign(clip, clipGoal); }
 }
 // 층 화면 아래: 그 방에서 일할 직원 고르기 (앱이 자리를 만들어 주면 채워요)
