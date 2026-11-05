@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ROOMS } from '../rooms.js';
 import { drawPlate } from './plates.js';
+// 캐릭터는 연구소 방과 같은 파일(chars3d.js)로 만들어요 → 사장님 · 직원 · 친구 모습이 방과 똑같아요
+import { CH, CHAR_DEFAULT, makeChar, meById, staffById, friendById, person as voxPerson, PERSON, hairLong, hairTop, setLook } from '../chars3d.js';
 
 const $ = (s) => document.querySelector(s);
 const store = { get(k, d) { try { return localStorage.getItem('ailab-village:' + k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem('ailab-village:' + k, v); } catch {} } };
@@ -82,30 +84,33 @@ function label(text, gold) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); s.scale.set(w / 72 * 1.1, 1.1, 1); s.renderOrder = 10; return s;
 }
 
-// ───────── 블록 캐릭터 (사장님 · 직원 · 친구 같은 모양) ─────────
-const SKIN = 0xf1c9a5;
-function person({ shirt = 0x3f6b55, pants = 0x2f3a52, hair = 0x3a2a20, long = false, hat = null } = {}) {
-  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
-  const legL = new THREE.Group(), legR = new THREE.Group(), armL = new THREE.Group(), armR = new THREE.Group();
-  legL.position.set(-0.17, 0.75, 0); legR.position.set(0.17, 0.75, 0);
-  box(legL, 0.3, 0.75, 0.32, pants, 0, -0.37, 0); box(legR, 0.3, 0.75, 0.32, pants, 0, -0.37, 0);
-  box(legL, 0.32, 0.12, 0.4, 0xf4f4f0, 0, -0.72, 0.03); box(legR, 0.32, 0.12, 0.4, 0xf4f4f0, 0, -0.72, 0.03);
-  box(body, 0.7, 0.8, 0.4, shirt, 0, 1.15, 0);
-  armL.position.set(-0.47, 1.5, 0); armR.position.set(0.47, 1.5, 0);
-  box(armL, 0.22, 0.7, 0.24, shirt, 0, -0.32, 0); box(armL, 0.2, 0.16, 0.22, SKIN, 0, -0.73, 0);
-  box(armR, 0.22, 0.7, 0.24, shirt, 0, -0.32, 0); box(armR, 0.2, 0.16, 0.22, SKIN, 0, -0.73, 0);
-  const head = new THREE.Group(); head.position.y = 1.55; body.add(head);
-  box(head, 0.64, 0.6, 0.6, SKIN, 0, 0.32, 0);
-  box(head, 0.68, 0.2, 0.64, hair, 0, 0.66, 0); box(head, 0.68, long ? 0.75 : 0.35, 0.18, hair, 0, long ? 0.3 : 0.5, -0.24);
-  if (long) { box(head, 0.12, 0.7, 0.62, hair, -0.33, 0.3, -0.02); box(head, 0.12, 0.7, 0.62, hair, 0.33, 0.3, -0.02); }
-  box(head, 0.09, 0.13, 0.02, 0x222222, -0.14, 0.34, 0.305); box(head, 0.09, 0.13, 0.02, 0x222222, 0.14, 0.34, 0.305);
-  box(head, 0.16, 0.04, 0.02, 0xd9706a, 0, 0.17, 0.305);
-  if (hat) box(head, 0.8, 0.12, 0.8, hat, 0, 0.8, 0);
-  body.add(legL, legR, armL, armR);
-  g.userData = { legL, legR, armL, armR, head, body, phase: rnd() * 6 };
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+// ───────── 캐릭터: 연구소 방과 같은 설계도 (chars3d.js) ─────────
+// 사장님 모습 · 여자/남자 · 내 옆 친구 · 방마다 직원 · 캐릭터 느낌은 연구소 건물 설정(VS)을 그대로 따라요.
+// VS 는 이 브라우저의 'ailab3d'(방 화면에서 고른 것)로 먼저 그리고, 관리자로 로그인하면 Firebase ailab_meta/building 으로 맞춰요.
+const readLocal = () => { try { return JSON.parse(localStorage.getItem('ailab3d') || 'null') || {}; } catch { return {}; } };
+let VS = null;
+function setVS(s = {}) {
+  VS = { ...CHAR_DEFAULT, ...s, assign: { ...CHAR_DEFAULT.assign, ...(s.assign || {}) } };
+  VS.gender = VS.gender === 'm' ? 'm' : 'f';
+  setLook(VS.look === 2 ? 2 : 0);
+}
+setVS(readLocal());
+CH.gender = () => VS.gender;
+const hex = (c) => (typeof c === 'number' ? '#' + c.toString(16).padStart(6, '0') : c);
+// 설계도 → 걸어 다니는 캐릭터. 팔다리 · 머리가 없는 직원(큐브 · 클로드)은 보이지 않는 빈 관절을 달아 같은 동작 코드를 써요
+function person(def) {
+  const c = makeChar(def), g = c.root;
+  const h = new THREE.Box3().setFromObject(g).max.y;   // 키 (이름표 · 말풍선 높이)
+  const none = (x, y) => { const o = new THREE.Object3D(); o.position.set(x, y, 0); c.lift.add(o); return o; };
+  g.userData = { legL: c.legL || none(-0.2, 0.3), legR: c.legR || none(0.2, 0.3), armL: c.armL || none(-0.45, h * 0.62), armR: c.armR || none(0.45, h * 0.62), head: c.head || none(0, h), body: c.lift, phase: rnd() * 6, h, char: c };
   return g;
 }
+// 마을 손님 · 노점 주인 · 비서: 방에는 없는 사람들이라 같은 블록 사람 설계도에 옷 색만 달리해요
+function visitor({ shirt = 0x3f6b55, pants = 0x2f3a52, hair = 0x3a2a20, long = false, hat = null } = {}) {
+  const extra = hat == null ? [] : [{ y: -10.6, w: 5.8, h: 2.2, d: 5.8, c: hex(hat) }];
+  return person({ ...PERSON, parts: voxPerson({ head: '#f3d6bf', hand: '#f3d6bf', torso: hex(shirt), arm: hex(shirt), leg: hex(pants), hat: (long ? hairLong : hairTop)(hex(hair), extra) }) });
+}
+const tagY = (g) => (g.userData.h || 2.2) + 0.5;
 function animate(p, dt, moving, act) {
   const u = p.userData; u.phase += dt * (moving ? (p === me?.g ? 9 : 5) : 2);   // 직원은 발걸음도 느리게
   const s = moving ? Math.sin(u.phase) * 0.6 : 0;
@@ -424,7 +429,7 @@ function buildFoodCourt(id) {
     const big = dish(f, 1.7); big.position.set(0.55, 1.1, 0.15); s.add(big);
     const small = dish(f, 1.2); small.position.set(-0.6, 1.1, 0.2); s.add(small);
     const tag = label(f.name); tag.scale.multiplyScalar(0.5); tag.position.set(0, 3.4, 0); s.add(tag);
-    const v = person({ shirt: 0xffffff, pants: 0x3a3a3a, hair: 0x2a1d16, hat: id === 'kyoto' ? f.sign : 0xffffff }); v.position.set(0, 0, -0.95); s.add(v);
+    const v = visitor({ shirt: 0xffffff, pants: 0x3a3a3a, hair: 0x2a1d16, hat: id === 'kyoto' ? f.sign : 0xffffff }); v.position.set(0, 0, -0.95); s.add(v);
     box(v.userData.body, 0.72, 0.6, 0.05, f.sign, 0, 1.05, 0.21);   // 앞치마
     const vendor = { g: v, chat: 6 + rnd() * 20, vendor: true, food: f }; VENDORS.push(vendor);
     STALLS.push({ food: f, vendor, order: FCW(x + Math.sin(r) * 1.4, z + Math.cos(r) * 1.4) });
@@ -501,14 +506,14 @@ function say(n, text, sec = 4) {
   if (!n.say) { n.say = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true })); n.say.renderOrder = 11; n.g.add(n.say); }
   else n.say.material.map?.dispose();
   if (!(n.sayT > 0)) talking++;
-  n.say.material.map = t; n.say.material.needsUpdate = true; n.say.scale.set(w / 96 * 1.15, 1.15, 1); n.say.position.y = n.vendor ? 3.2 : 3.55; n.say.visible = true; n.sayT = sec;
+  n.say.material.map = t; n.say.material.needsUpdate = true; n.say.scale.set(w / 96 * 1.15, 1.15, 1); n.say.position.y = tagY(n.g) + (n.vendor ? 0.5 : 0.8); n.say.visible = true; n.sayT = sec;
 }
 function chatter(dt) {
   for (const n of [...npcs, ...VENDORS]) {
     if (n.metT > 0) n.metT -= dt;
     if (n.sayT > 0) { n.sayT -= dt; if (n.sayT <= 0) { n.say.visible = false; talking--; if (n.queue) { say(n, n.queue); n.queue = null; } } continue; }
     // 사장님이 가까이 오면 시간대 인사 + 자기 일 이야기
-    if (!n.vendor && !(n.metT > 0) && talking < 5 && me && n.g.position.distanceTo(me.g.position) < 4.5) { say(n, hello(n), 2.6); n.queue = lineFor(n); n.metT = 45; continue; }
+    if (!n.vendor && !(n.metT > 0) && talking < 5 && me?.here && n.g.position.distanceTo(me.g.position) < 4.5) { say(n, hello(n), 2.6); n.queue = lineFor(n); n.metT = 45; continue; }
     n.chat = (n.chat ?? 5 + Math.random() * 25) - dt;
     if (n.chat <= 0) { n.chat = 18 + Math.random() * 30; if (talking < 5) say(n, Math.random() < 0.2 ? hello(n) : lineFor(n)); }
   }
@@ -688,6 +693,7 @@ function layoutKyoto() {
     spots, plaza, fc, T, H: (x, z) => (deck(x, z) ? 12 : T(x, z)),
     cart: { x: -21, z: 4.5, r: 0.8 }, kites: loopOf([[12, -32], [18, -36], [6, -38], [-30, 36]]), kiteFace: Math.PI,
     start: V(6, 14), cam: V(-6, 26, 44),
+    exitPath: [V(-14, -23), V(-7.5, -22)],   // 사장님 등장: 기요미즈 무대 위에서 오른쪽 길 쪽으로 (앞으로 곧장 가면 무대 아래 골짜기로 떨어져요)
     net: makeNet(lines, [...spots.map(door), V(plaza.x + plaza.r, plaza.z)]),
     loops: { bike: loopOf([[-40, 36.2], [40, 36.2], [40, 37.8], [-40, 37.8]]), walk: [...WAY, ...WAY.slice(1, -1).reverse()], kite: Array.from({ length: 20 }, (_, i) => { const a = (i / 20) * Math.PI * 2; return V(14 + Math.sin(a) * 7, -35 + Math.cos(a) * 4); }) },
     msg: { kite: '언덕 꼭대기 풀밭에서 연을 날려요', bike: '언덕 아래 개울길을 자전거로', walk: '돌계단 참배길을 오르내려요' },
@@ -725,7 +731,6 @@ const LAYOUTS = { andaz: layoutPattaya, maldives: layoutMaldives, kyoto: layoutK
 
 // ───────── 사람들 ─────────
 const STAFF_KEYS = ORDER.map(([k]) => k).filter((k) => k !== 'store2');
-const SHIRTS = [0x3f6b55, 0x2f7a96, 0xc9822a, 0x6b5a9a, 0xa33b2a, 0x5a7a3a, 0x2f5d8a, 0x9a5a7a, 0x4a6a6a, 0x8a6a3a];
 const npcs = [];
 let me = null;
 const plazaPt = () => { const a = rnd() * Math.PI * 2, r = L.plaza.r * (0.5 + rnd() * 0.45); return V(L.plaza.x + Math.sin(a) * r, L.plaza.z + Math.cos(a) * r); };
@@ -734,26 +739,71 @@ const mark = (v, m) => Object.assign(v, { mark: m });
 function go(n, list) { n.path = []; let cur = n.g.position.clone().setY(0); for (const t of list) { n.path.push(...route(cur, t)); cur = t; } }
 function spawnPeople() {
   talking = 0;
-  for (const p of npcs) { scene.remove(p.g); if (p.doing?.obj) scene.remove(p.doing.obj, p.doing.line); } npcs.length = 0; if (me) scene.remove(me.g);
-  STAFF_KEYS.forEach((k, i) => {
-    const g = person({ shirt: SHIRTS[i % SHIRTS.length], hair: [0x3a2a20, 0x1f1a16, 0x6a4a2a][i % 3], long: i % 3 === 0 });
-    const tag = label(JOB(k) || NAME(k)); tag.scale.multiplyScalar(0.55); tag.position.y = 2.75; g.add(tag);
+  for (const p of npcs) { scene.remove(p.g); if (p.doing?.obj) scene.remove(p.doing.obj, p.doing.line); } npcs.length = 0;
+  const here = !!me?.here; if (me) scene.remove(me.g); if (pet) scene.remove(pet.g);
+  // 직원: 방마다 정해 둔 그 직원 (방 화면 메뉴 '직원 고르기'와 같아요). 비워 둔 방은 직원이 없어요
+  STAFF_KEYS.forEach((k) => {
+    const sid = VS.assign[k]; if (!sid) return;
+    const g = person(staffById(sid).def());
+    const tag = label(JOB(k) || NAME(k)); tag.scale.multiplyScalar(0.55); tag.position.y = tagY(g); g.add(tag);
     const home = door(SPOTS.find((s) => s.key === k)); g.position.copy(home); scene.add(g);
     npcs.push({ g, key: k, home, path: [], wait: rnd() * 6, act: null, speed: 1.1 + rnd() * 0.4 });   // 사장님(5)보다 훨씬 천천히
   });
-  // 비서: 사장님 집 ↔ 접수처, 친구 셋: 광장 둘레
-  const sec = person({ shirt: 0x1f2a3a, hair: 0x2a1d16, long: true }); const st = label('비서'); st.scale.multiplyScalar(0.55); st.position.y = 2.75; sec.add(st); scene.add(sec);
-  sec.position.copy(door(SPOTS.find((s) => s.key === 'boss')));
+  // 비서: 사장님 집 ↔ 접수처, 마을 손님 셋: 광장 둘레
+  const sec = visitor({ shirt: 0x1f2a3a, pants: 0x2a2f38, hair: 0x2a1d16, long: true }); const st = label('비서'); st.scale.multiplyScalar(0.55); st.position.y = tagY(sec); sec.add(st); scene.add(sec);
+  { const bsp = SPOTS.find((s) => s.key === 'boss'), d = door(bsp); sec.position.copy(d).add(V(Math.cos(bsp.rot) * 1.8, -Math.sin(bsp.rot) * 1.8)); sec.rotation.y = bsp.rot; }   // 문 옆 (사장님이 나타나는 자리는 비워 둬요)
   npcs.push({ g: sec, key: 'secretary', home: sec.position.clone(), path: [], wait: 3, act: null, speed: 1.3 });
-  for (let i = 0; i < 3; i++) { const f = person({ shirt: [0xe2603d, 0xf2c94c, 0x7fb3d5][i], hair: 0x4a3020, long: i === 1 }); f.position.copy(plazaPt()); scene.add(f); npcs.push({ g: f, key: 'friend', home: f.position.clone(), path: [], wait: rnd() * 4, act: null, speed: 0.9 }); }
+  for (let i = 0; i < 3; i++) { const f = visitor({ shirt: [0xe2603d, 0xf2c94c, 0x7fb3d5][i], hair: 0x4a3020, long: i === 1 }); f.position.copy(plazaPt()); scene.add(f); npcs.push({ g: f, key: 'friend', home: f.position.clone(), path: [], wait: rnd() * 4, act: null, speed: 0.9 }); }
   for (const n of npcs) n.g.position.y = gy(n.g.position.x, n.g.position.z);
-  // 사장님
-  const g = person({ shirt: 0xf2c94c, pants: 0x3a4a6a, hair: 0x3a2418, long: true });
-  const tag = label('사장님', true); tag.scale.multiplyScalar(0.6); tag.position.y = 2.85; g.add(tag);
-  g.position.copy(L.start).setY(gy(L.start.x, L.start.z)); g.rotation.y = Math.PI; scene.add(g);
-  me = { g, target: null, act: null, t: 0 };
-  controls.target.copy(g.position).add(V(0, 0, 1.4));
-  camera.position.copy(g.position).add(L.cam);
+  // 사장님: 방 화면에서 고른 모습 그대로. 사장님 집 문 앞에서 시작해요 (로그인 전에는 숨어 있어요)
+  const md = meById(VS.me);
+  const g = person(md.def());
+  const tag = label('사장님', true); tag.scale.multiplyScalar(0.42); tag.position.y = tagY(g) + 0.1; g.add(tag);
+  const bs = SPOTS.find((s) => s.key === 'boss'), d0 = door(bs);
+  g.position.copy(d0).setY(gy(d0.x, d0.z)); g.rotation.y = bs.rot; scene.add(g);
+  me = { g, target: null, act: null, t: 0, here };
+  g.visible = here;
+  // 내 옆 친구: 방 화면에서 고른 친구가 사장님 옆을 따라다녀요
+  const fr = friendById(VS.friend);
+  const pg = person(fr.def()); pg.position.copy(g.position); scene.add(pg); pg.visible = here;
+  pet = { g: pg, move: fr.move, lift: fr.lift || 0, t: 0 };
+  if (here) camBehind(true); else overview();
+}
+// ───────── 카메라 ─────────
+// 사장님이 있으면 등 뒤 조금 위에서 (캠핑장 · 큰법당처럼), 없으면 마을 전체를 천천히 돌며 보여 줘요
+const BEHIND = { dist: 6.2, up: 3.1, look: 1.5 };
+function behindPose(out = {}) {
+  const g = me.g, f = V(Math.sin(g.rotation.y), Math.cos(g.rotation.y));
+  out.target = g.position.clone().add(V(0, 0, BEHIND.look));
+  out.pos = g.position.clone().addScaledVector(f, -BEHIND.dist).add(V(0, 0, BEHIND.up));
+  return out;
+}
+function camBehind(instant) {
+  const p = behindPose();
+  controls.autoRotate = false; controls.minDistance = 3; controls.maxDistance = 60;
+  if (instant) { controls.target.copy(p.target); camera.position.copy(p.pos); controls.update(); }
+  return p;
+}
+function overview() {
+  const c = L.plaza ? V(L.plaza.x, L.plaza.z) : V(0, 0);
+  controls.target.copy(c).setY(1);
+  camera.position.copy(c).add(L.cam);
+  controls.minDistance = 8; controls.maxDistance = 95;
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.35;
+  controls.update();
+}
+// 내 옆 친구가 사장님 오른쪽 뒤를 따라와요 (떠 있는 친구는 둥실, 깡총 친구는 통통)
+let pet = null;
+function stepPet(dt, t) {
+  if (!pet || !me) return;
+  const g = me.g, f = V(Math.sin(g.rotation.y), Math.cos(g.rotation.y)), side = V(Math.cos(g.rotation.y), -Math.sin(g.rotation.y));
+  const want = g.position.clone().addScaledVector(side, -1.1).addScaledVector(f, -0.7);
+  const p = pet.g.position, d = want.clone().sub(p).setY(0), len = d.length();
+  if (len > 12) p.copy(want);   // 너무 멀어지면 (자전거 · 동네 바꾸기) 바로 옆으로
+  else if (len > 0.25) { p.addScaledVector(d.normalize(), Math.min(len, (len > 3 ? 7 : 4.5) * dt)); pet.g.rotation.y = Math.atan2(d.x, d.z); }
+  else pet.g.rotation.y += Math.atan2(Math.sin(g.rotation.y - pet.g.rotation.y), Math.cos(g.rotation.y - pet.g.rotation.y)) * Math.min(1, dt * 3);
+  const base = gy(p.x, p.z);
+  p.y = base + (pet.move === 'float' ? pet.lift + Math.sin(t * 1.6) * 0.12 : pet.move === 'hop' && len > 0.25 ? Math.abs(Math.sin(t * 8)) * 0.25 : 0);
 }
 // 직원 하루: 문 앞 → 광장 → 접수처(서류 받기) → 광장 → 문 앞. 사이사이 벤치 · 아이스크림 · 연날리기 · 푸드코트
 function nextPlan(n) {
@@ -799,6 +849,7 @@ function stepPerson(p, target, speed, dt) {
 // ───────── 사장님 동작: 손 흔들기 · 연날리기 · 자전거 · 산책(자동) ─────────
 let kite = null, bike = null, loop = null;
 function setAct(a) {
+  if (!me.here) { toast('사장님이 로그인하면 할 수 있어요'); return; }
   const was = me.act; me.act = was === a ? null : a; me.t = 0; me.target = null; loop = null;
   if (kite) { scene.remove(kite.obj, kite.line); kite = null; }
   if (bike) { me.g.remove(bike); bike = null; }
@@ -835,7 +886,7 @@ canvas.addEventListener('pointerup', (e) => {
   if (gh) { walkTo(gh.point.clone()); return; }
   const p = new THREE.Vector3(); if (ray.ray.intersectPlane(groundPlane, p)) walkTo(p);
 });
-function walkTo(p) { if (me.act && me.act !== 'wave') setAct(me.act); me.target = p.setY(0); }
+function walkTo(p) { if (!me.here || arriving) return; if (me.act && me.act !== 'wave') setAct(me.act); me.target = p.setY(0); }   // 로그인 전 · 등장하는 동안은 걷지 않아요
 const keys = new Set();
 addEventListener('keydown', (e) => { if (e.target.closest('input,textarea')) return; keys.add(e.code); });
 addEventListener('keyup', (e) => keys.delete(e.code));
@@ -863,7 +914,7 @@ setInterval(() => { if (timeMode === 'now') applySky(); }, 60000);   // 지금 �
 let theme = ['andaz', 'maldives', 'kyoto'].includes(new URLSearchParams(location.search).get('theme')) ? new URLSearchParams(location.search).get('theme') : store.get('theme', 'andaz');
 if (!THEMES[theme]) theme = 'andaz';
 function setTheme(id) {
-  theme = id; store.set('theme', id); if (me?.act) setAct(me.act);
+  theme = id; store.set('theme', id); if (me?.act) setAct(me.act); arriving = null; if (me) me.g.scale.setScalar(1);
   L = LAYOUTS[id](); SPOTS = L.spots; LOBBY = SPOTS.find((s) => s.key === 'lobby');
   buildWorld(id); spawnPeople();
   document.querySelectorAll('[data-theme]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === id)));
@@ -871,19 +922,141 @@ function setTheme(id) {
   $('#card').hidden = true;
 }
 document.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => setTheme(b.dataset.theme)));
+
+// ───────── 로그인: 관리자 구글 계정이면 사장님이 마을에 나타나요 ─────────
+// 연구소 방 화면과 같은 이름 없는 기본 Firebase 앱 (관리자 허브에서 한 번 로그인해 두면 여기도 저절로 들어와요)
+// ?demo 를 붙이면 로그인 없이 사장님 등장을 미리 봐요 (자료는 안 읽어요)
+const ADMIN_EMAILS = ['bellachord@gmail.com', 'anstjsdud@sen.go.kr'];   // 보안 규칙 isTeacher 와 같게
+const DEMO = new URLSearchParams(location.search).has('demo');
+const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
+let fb = null, booted = false;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 방 화면에서 고른 캐릭터 설정이 Firebase 에 있으면 그걸로 다시 그려요 (다른 기기에서 바꾼 것도 따라와요)
+function applyVS(s) {
+  const pick = (o) => JSON.stringify([o.me, o.friend, o.gender, o.look === 2 ? 2 : 0, o.assign]);
+  const before = pick(VS); setVS(s);
+  if (pick(VS) !== before && L) spawnPeople();
+}
+async function onUser(u) {
+  if (u && !ADMIN_EMAILS.includes(u.email)) { fb.A.signOut(fb.auth); toast('관리자 구글 계정으로 로그인해 주세요'); return false; }   // 다른 계정은 바로 나가요 (다른 앱 관리자 로그인이 막히지 않게)
+  if (!u) { if (me?.here && !DEMO) leave(); return false; }
+  try { const s = await fb.F.getDoc(fb.F.doc(fb.db, 'ailab_meta', 'building')); if (s.exists()) applyVS(s.data()); } catch (e) { console.warn('건물 설정을 못 읽었어요', e); }
+  if (booted && !me.here) arrive();
+  return true;
+}
+function startAuth() {
+  return new Promise((done) => {
+    Promise.all([import(FB + 'firebase-app.js'), import(FB + 'firebase-auth.js'), import(FB + 'firebase-firestore.js'), import('../firebase-config.js')])
+      .then(([APP, A, F, { firebaseConfig }]) => {
+        const app = APP.getApps().length ? APP.getApp() : APP.initializeApp(firebaseConfig);
+        fb = { A, F, auth: A.getAuth(app), db: F.getFirestore(app) };
+        let first = true;
+        A.onAuthStateChanged(fb.auth, async (u) => { const ok = await onUser(u); if (first) { first = false; done(ok); } });
+      })
+      .catch((e) => { console.warn('로그인 기능을 불러오지 못했어요', e); done(false); });
+  });
+}
+$('#loginBtn').onclick = async () => {
+  if (!fb) { toast('로그인 준비 중이에요. 잠시 뒤 다시 눌러 주세요'); return; }
+  const p = new fb.A.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+  try { await fb.A.signInWithPopup(fb.auth, p); } catch (e) { if (!/popup-closed|cancelled/.test(e.code || '')) toast(`로그인하지 못했어요 (${e.code || e.message})`); }
+};
+
+// ───────── 사장님 등장 (캠핑장 · 큰법당처럼) ─────────
+// ① fly: 마을 전체를 보던 카메라가 사장님 집 앞으로 내려와 문을 바라봐요 → 빛 고리와 함께 사장님 · 친구가 문 앞에 나타나요 (얼굴이 보여요)
+// ② walk: 사장님이 집 앞길로 몇 걸음 걸어 나와요 → ③ turn: 카메라가 사장님 둘레를 돌아 등 뒤로 → 이제 직접 움직여요
+let arriving = null, ring = null;
+const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const fwd = (g) => V(Math.sin(g.rotation.y), Math.cos(g.rotation.y));
+const WALK_OUT = 7.5;   // 문 앞에서 걸어 나오는 거리 (등 뒤 카메라가 집 안에 들어가지 않게)
+function arrive() {
+  if (me.here) return;
+  document.body.classList.remove('guest'); $('#enter').hidden = true; $('#card').hidden = true;
+  me.here = true; me.g.visible = false; pet.g.visible = false;
+  const g = me.g, f = fwd(g);
+  const to = { target: g.position.clone().addScaledVector(f, 3).add(V(0, 0, 1.3)), pos: g.position.clone().addScaledVector(f, 13).add(V(0, 0, 3.2)) };
+  controls.autoRotate = false; controls.enabled = false;
+  arriving = { stage: 'fly', t: 0, dur: 2.2, fromPos: camera.position.clone(), fromT: controls.target.clone(), to, popped: false };
+}
+function popIn() {
+  me.g.visible = pet.g.visible = true; me.pop = 0;
+  ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 6, 32), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, depthWrite: false }));
+  ring.rotation.x = Math.PI / 2; ring.position.copy(me.g.position).add(V(0, 0, 0.1)); ring.userData.t = 0; scene.add(ring);
+  // 가까운 직원은 돌아보며 손을 흔들고, 비서가 먼저 인사해요
+  for (const n of npcs) if (!n.doing && n.g.position.distanceTo(me.g.position) < 16) { n.wave = 2.2; n.g.lookAt(me.g.position.x, n.g.position.y, me.g.position.z); }
+  const sec = npcs.find((n) => n.key === 'secretary'); if (sec) { say(sec, slot() === 'morning' || slot() === 'dawn' ? '사장님, 좋은 아침이에요!' : '사장님, 오셨어요!', 3); sec.queue = '오늘 브리핑은 사장님 집 소파에 있어요'; sec.metT = 45; }
+  toast(`${THEMES[theme].hello} 사장님이 마을에 왔어요`);
+}
+function stepArrive(dt) {
+  if (me.pop != null) { me.pop = Math.min(1, me.pop + dt / 0.5); const k = me.pop, s = 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2); me.g.scale.setScalar(Math.max(0.01, s)); pet.g.scale.setScalar(Math.max(0.01, s)); if (k >= 1) { me.pop = null; me.g.scale.setScalar(1); pet.g.scale.setScalar(1); } }
+  if (ring) { const r = ring.userData; r.t += dt; ring.scale.setScalar(1 + r.t * 4); ring.material.opacity = Math.max(0, 1 - r.t / 0.9); if (r.t > 0.9) { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); ring = null; } }
+  if (!arriving) return;
+  const a = arriving, g = me.g; a.t += dt;
+  if (a.stage === 'fly') {
+    const k = ease(Math.min(1, a.t / a.dur));
+    camera.position.lerpVectors(a.fromPos, a.to.pos, k);
+    camera.position.y += Math.sin(k * Math.PI) * 6;   // 내려오는 동안 높이 떠서 돌아 들어오게 (곧장 꽂히지 않게)
+    controls.target.lerpVectors(a.fromT, a.to.target, k);
+    if (!a.popped && k > 0.7) { a.popped = true; popIn(); }
+    if (a.t >= a.dur) { a.stage = 'wait'; a.t = 0; }
+  } else if (a.stage === 'wait') {   // 나타난 뒤 잠깐 서서 인사
+    if (a.t > 0.6) { a.stage = 'walk'; a.t = 0; a.path = (L.exitPath || [g.position.clone().addScaledVector(fwd(g), WALK_OUT)]).map((p) => p.clone().setY(0)); me.target = a.path.shift(); }
+  } else if (a.stage === 'walk') {   // 걸음은 tick 이 me.target 으로 옮겨요 (동네마다 나오는 길 L.exitPath). 카메라는 사장님을 바라보기만
+    controls.target.lerp(g.position.clone().add(V(0, 0, 1.3)), Math.min(1, dt * 3));
+    if (!me.target && a.path.length) me.target = a.path.shift();
+    if (!me.target || a.t > 6) {
+      me.target = null; a.stage = 'turn'; a.t = 0;
+      const o = camera.position.clone().sub(g.position), b = fwd(g).negate();
+      a.from = { yaw: Math.atan2(o.x, o.z), r: Math.hypot(o.x, o.z), h: o.y, tgt: controls.target.clone() };
+      let to = Math.atan2(b.x, b.z); const d = Math.atan2(Math.sin(to - a.from.yaw), Math.cos(to - a.from.yaw)); to = a.from.yaw + d;
+      a.toYaw = to;
+    }
+  } else if (a.stage === 'turn') {   // 카메라가 사장님 둘레를 돌아 등 뒤로
+    const k = ease(Math.min(1, a.t / 1.4)), f = a.from;
+    const yaw = f.yaw + (a.toYaw - f.yaw) * k, r = f.r + (BEHIND.dist - f.r) * k, h = f.h + (BEHIND.up - f.h) * k;
+    camera.position.set(g.position.x + Math.sin(yaw) * r, g.position.y + h, g.position.z + Math.cos(yaw) * r);
+    controls.target.lerpVectors(f.tgt, g.position.clone().add(V(0, 0, BEHIND.look)), k);
+    if (a.t >= 1.4) { arriving = null; controls.enabled = true; camBehind(false); toast('화면을 누르거나 방향키로 걸어 보세요'); }
+  }
+}
+function leave() {
+  if (me.act) setAct(me.act);
+  me.here = false; me.g.visible = pet.g.visible = false; arriving = null; controls.enabled = true;
+  document.body.classList.add('guest'); $('#enter').hidden = false;
+  overview();
+}
+
+// ───────── 처음 열 때: 로딩 화면 → 마을 → (관리자면) 사장님 등장 ─────────
+const t0 = performance.now();
+const setLoad = (k) => { $('#ldBar').style.width = `${k}%`; $('#ldPct').textContent = `${k}%`; };
+setLoad(8);
+const authP = startAuth();
 await document.fonts.load('50px "Ownglyph_UNZ-Rg"').catch(() => {});   // 이름표 글씨가 언즈체로 그려지게
+setLoad(35);
+await sleep(30);
 setTheme(theme);
+setLoad(75);
+const admin = await Promise.race([authP, sleep(5000).then(() => false)]);
+setLoad(100);
+await sleep(Math.max(0, 1300 - (performance.now() - t0)));
+$('#loading').classList.add('done');
+setTimeout(() => ($('#loading').hidden = true), 700);
+booted = true;
+if (admin || DEMO) { await sleep(500); arrive(); } else { document.body.classList.add('guest'); $('#enter').hidden = false; }
 
 // ───────── 매 프레임 ─────────
 const clock = new THREE.Clock(), tmp = new THREE.Vector3();
 function tick() {
   const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
-  const g = me.g, before = g.position.clone();
+  const g = me.g, before = g.position.clone(), free = me.here && !arriving;   // 로그인 전 · 등장하는 동안은 사장님이 움직이지 않아요
   // 방향키
   let dx = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   let dz = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
   let moving = false;
-  if (dx || dz) {
+  const auto = arriving?.stage === 'walk';   // 등장할 때 문 앞에서 걸어 나오는 중
+  if (auto && me.target) { moving = !stepPerson(g, me.target, 3, dt); if (!moving) me.target = null; }
+  else if (!free) { /* 가만히 서 있어요 */ }
+  else if (dx || dz) {
     if (me.act && me.act !== 'wave') setAct(me.act); me.target = null;
     const yaw = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
     tmp.set(dx * Math.cos(yaw) + dz * Math.sin(yaw), 0, -dx * Math.sin(yaw) + dz * Math.cos(yaw)).normalize();
@@ -899,9 +1072,13 @@ function tick() {
     kite.obj.rotation.set(0, g.rotation.y, Math.sin(t * 1.6) * 0.3);
     kite.line.geometry.setFromPoints([g.position.clone().add(new THREE.Vector3(0, 2.2, 0)), kite.obj.position]);
   }
-  // 카메라는 사장님을 따라가요
-  const delta = g.position.clone().sub(before); camera.position.add(delta); controls.target.add(delta);
-  controls.target.lerp(g.position.clone().add(new THREE.Vector3(0, 1.4, 0)), Math.min(1, dt * 2));
+  // 카메라는 사장님을 따라가요 (등 뒤 시점, 끌어서 돌려 볼 수 있어요). 로그인 전에는 마을을 천천히 돌아요
+  if (free) {
+    const delta = g.position.clone().sub(before); camera.position.add(delta); controls.target.add(delta);
+    controls.target.lerp(g.position.clone().add(V(0, 0, BEHIND.look)), Math.min(1, dt * 2));
+  }
+  stepArrive(dt);
+  if (me.here) stepPet(dt, t);
   // 직원
   for (const n of npcs) {
     let mv = false;
@@ -942,4 +1119,4 @@ function tick() {
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
-window.__village = { camera, controls, me: () => me, L: () => L };   // 화면 점검용
+window.__village = { camera, controls, me: () => me, L: () => L, stage: () => arriving?.stage || (me?.here ? 'here' : 'guest') };   // 화면 점검용

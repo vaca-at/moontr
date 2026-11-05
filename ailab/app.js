@@ -134,13 +134,15 @@ function saveBuilding(state) {
 // 로그인하지 않아도 건물(첫 화면)은 보이고, 자료는 관리자(규칙의 isTeacher) 계정으로 들어와야 보여요.
 function updateAuthUI() {
   document.body.classList.toggle('guest', isGuest());
-  $('#authBtn').textContent = S.user ? '나가기' : '선생님 로그인';
+  $('#authBtn').textContent = S.user ? '나가기' : 'G 구글 계정으로 로그인';
   $('#authBtn').dataset.act = S.user ? 'logout' : 'login';
 }
 
 async function login() {
   try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    const p = new GoogleAuthProvider();
+    p.setCustomParameters({ prompt: 'select_account' }); // 구글 창에서 계정을 고를 수 있게 (작업 규칙)
+    await signInWithPopup(auth, p);
   } catch (e) {
     if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') toast(`로그인하지 못했어요 (${e.code || e.message})`);
   }
