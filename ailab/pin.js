@@ -1,6 +1,6 @@
 // 📌 급하게 할 일 띄우기 (2026-11-06): 로그인한 관리자에게 모든 화면(방 · 마을 · 레이더) 위쪽 가운데에 떠요.
 // 목록은 연구소 방 화면(app.js)이 계산해 ailab_meta/desk.pinned 에 남겨 두고, 마을 · 레이더는 그걸 읽어 그대로 보여 줘요.
-// list = [{ k, t, d, room }]  (k = 빼기 열쇠, t = 글, d = 날짜 YYYY-MM-DD, room = 방 이름 key)
+// list = [{ k, t, d, room, url }]  (k = 빼기 열쇠, t = 글, d = 날짜 YYYY-MM-DD, room = 방 이름 key, url = 새 창으로 열 주소)
 // opts = { base: '' | '../', onHide(k) }  — onHide 가 있으면 줄마다 '내 일 아님' 단추
 const css = `
 #pinBox { position: fixed; z-index: 60; left: 50%; top: calc(var(--hdr, 60px) + 12px); translate: -50% 0; max-width: min(520px, calc(100vw - 24px));
@@ -35,7 +35,7 @@ export function renderPin(list, opts = {}) {
   let closed = false; try { closed = localStorage.getItem(KEY) === '1'; } catch {}
   box.classList.toggle('closed', closed);
   box.innerHTML = `<button type="button" class="pin-h" aria-expanded="${!closed}">📌 급하게 할 일 <i>${list.length}</i><small>${closed ? '펼치기' : '접기'}</small></button>
-    <ul>${list.map((x) => `<li>${x.room ? `<a href="${esc(opts.base || '')}#${esc(x.room)}">` : '<span style="flex:1">'}${x.d ? `<b>${dd(x.d)}</b>` : ''}${esc(x.t)}${x.room ? '</a>' : '</span>'}${opts.onHide ? `<button type="button" data-k="${esc(x.k)}" title="내가 할 일이 아니면 빼요">내 일 아님</button>` : ''}</li>`).join('')}</ul>`;
+    <ul>${list.map((x) => `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">` : x.room ? `<a href="${esc(opts.base || '')}#${esc(x.room)}">` : '<span style="flex:1">'}${x.d ? `<b>${dd(x.d)}</b>` : ''}${esc(x.t)}${x.url || x.room ? '</a>' : '</span>'}${opts.onHide ? `<button type="button" data-k="${esc(x.k)}" title="내가 할 일이 아니면 빼요">내 일 아님</button>` : ''}</li>`).join('')}</ul>`;
   box.querySelector('.pin-h').onclick = () => { try { localStorage.setItem(KEY, closed ? '0' : '1'); } catch {} renderPin(list, opts); };
   if (opts.onHide) box.querySelectorAll('li button').forEach((b) => (b.onclick = () => opts.onHide(b.dataset.k)));
 }

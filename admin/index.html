@@ -76,6 +76,9 @@ svg{width:16px;height:16px;flex:none}
 .alert-bar button:hover{filter:brightness(.95)}
 .alert-bar .re{margin-left:auto;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);font-weight:600}
 .alert-bar.calm{background:#E8F5EE;color:#1F6B4E}
+.alert-bar.calm button{color:#1F6B4E}
+.alert-bar.calm .re{color:#1F6B4E;border-color:#1F6B4E}
+.alert-bar .ii-q{flex-basis:100%;font-size:.86rem}
 .nbadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#D93025;color:#fff;font-size:.72rem;font-weight:800;line-height:1}
 @keyframes blink{50%{opacity:.35}}
 .tab .nbadge{animation:blink 1.4s ease-in-out infinite}
@@ -597,10 +600,35 @@ async function loadWaits(){
       catch (e){ console.error('개수를 세지 못했어요', w.col, e); return { ...w, n: 0 }; }
     }));
   }));
+  await loadIinote(next);
   waits = next;
   renderAlert();
   renderTabs();
   if (cur === 'home' && homeData) renderHome();   // 카드에도 빨간 숫자
+}
+/* 아이아이노트 새 소식: 프로젝트가 달라서 함수(firebase/iinote-pulse)에 관리자 로그인 표를 보여 주고 받아요.
+   새 가족 · 합류는 3일 동안, 의견 · 문의는 문의함에서 열 때까지 떠요 */
+const II_ADMIN = 'https://iinote.co.kr/admin.html', II_PULSE = 'https://asia-northeast3-iinote.cloudfunctions.net/iinotePulse';
+let iiNews = null;
+async function loadIinote(next){
+  try {
+    const r = await fetch(II_PULSE, { headers:{ Authorization:'Bearer ' + await auth.currentUser.getIdToken() }, cache:'no-store' });
+    if (!r.ok) throw new Error('서버 ' + r.status);
+    iiNews = await r.json();
+  } catch (e){ console.error('아이아이노트 소식을 읽지 못했어요', e); iiNews = { error:true, fams:[], unread:[], bot:[] }; }
+  next[II_ADMIN] = [{ label:'의견 · 문의', tab:'', n:iiNews.unread.reduce((s, x) => s + x.n, 0) }];
+}
+function iiFamText(f){
+  const who = [f.adults ? `어른 ${f.adults}명` : '', f.kids ? `아이 ${f.kids}명` : ''].filter(Boolean).join(' · ');
+  return `${f.isNew ? '새 가족' : '가족 합류'} · ${who} · 일기 ${f.diaries}편`;
+}
+function iiRows(){
+  if (!iiNews) return '';
+  const go = t => `<button type="button" data-wopen="${esc(II_ADMIN)}" data-wtab="">${esc(t)} →</button>`;
+  return iiNews.fams.map(f => go('🎉 아이아이노트 ' + iiFamText(f))).join('')
+    + (iiNews.bot.length ? go(`🤖 아이아이노트 챗봇이 답한 문의 ${iiNews.bot.length}건`) : '')
+    + iiNews.unread.map(x => `<span class="ii-q">💌 ${esc(x.last)}</span>`).join('')
+    + (iiNews.error ? '<span class="ii-q">⚠️ 아이아이노트 소식을 불러오지 못했어요</span>' : '');
 }
 function renderAlert(){
   if (!waits){ $('#alertBar').hidden = true; return; }
@@ -611,13 +639,14 @@ function renderAlert(){
   });
   const total = rows.reduce((s, r) => s + r.w.n, 0);
   const bar = $('#alertBar');
-  bar.hidden = !total && cur !== 'home';
+  const ii = iiRows();
+  bar.hidden = !total && !ii && cur !== 'home';
   bar.classList.toggle('calm', !total);
   bar.innerHTML = total
-    ? `<b>🚨 학생이 기다리고 있어요 (${total}건)</b>${rows.map(r =>
-        `<button type="button" data-wopen="${esc(r.a.admin)}" data-wtab="${esc(r.w.tab)}">${esc(r.a.name.replace(' 만점 다이어리', ''))} ${esc(r.w.label)} ${r.w.n}건 →</button>`).join('')}
+    ? `<b>🚨 답을 기다리고 있어요 (${total}건)</b>${rows.map(r =>
+        `<button type="button" data-wopen="${esc(r.a.admin)}" data-wtab="${esc(r.w.tab)}">${esc(r.a.name.replace(' 만점 다이어리', '').replace(' 운영 현황', ''))} ${esc(r.w.label)} ${r.w.n}건 →</button>`).join('')}${ii}
        <button type="button" class="re" data-wreload>다시 세기</button>`
-    : `✅ 처리할 학생 오류 신고 · 질문이 없어요.`;
+    : ii ? `${ii}<button type="button" class="re" data-wreload>다시 세기</button>` : `✅ 처리할 오류 신고 · 질문이 없어요.`;
   document.title = (total ? `(${total}) ` : '') + '관리자 허브 · moontr.site';
   fitFrame();
 }

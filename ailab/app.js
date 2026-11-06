@@ -157,7 +157,7 @@ function subscribe() {
   };
   unsubs.push(onSnapshot(query(collection(db, dbPath('cards')), orderBy('createdAt', 'desc')), (s) => {
     S.cards = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-    if (!S.teacher) { S.teacher = true; updateAuthUI(); loadTycoon(); }
+    if (!S.teacher) { S.teacher = true; updateAuthUI(); loadTycoon(); loadIinote(); }
     render();
   }, denied));
   unsubs.push(onSnapshot(query(collection(db, dbPath('captures')), orderBy('createdAt', 'desc')), (s) => {
@@ -1009,6 +1009,27 @@ function ledgerView() {
 // 남은 크레딧은 Anthropic 이 API 로 알려 주지 않아요 → 콘솔에서 본 남은 값과 날짜를 적어 두면, 그 뒤에 연구소가 쓴 값을 빼서 보여 줘요
 const usd = (n) => `$${(n || 0).toFixed(n >= 10 ? 1 : 2)}`;
 const saveDesk = (patch) => setDoc(doc(db, dbPath('meta/desk')), { ...patch, updatedAt: serverTimestamp() }, { merge: true }).catch((e) => toast(`저장하지 못했어요 (${e.code})`));
+// 🏠 아이아이노트 새 소식: 프로젝트가 달라서 함수(firebase/iinote-pulse)에 관리자 로그인 표를 보여 주고 받아요.
+// desk.pinned 에는 숫자만 남겨요 (문의 글은 저장하지 않아요). 새 가족은 3일 동안, 의견은 문의함에서 열 때까지
+const II_ADMIN = 'https://iinote.co.kr/admin.html', II_PULSE = 'https://asia-northeast3-iinote.cloudfunctions.net/iinotePulse';
+async function loadIinote() {
+  if (!S.teacher || !auth.currentUser) return;
+  try {
+    const r = await fetch(II_PULSE, { headers: { Authorization: `Bearer ${await auth.currentUser.getIdToken()}` }, cache: 'no-store' });
+    if (!r.ok) throw new Error(`서버 ${r.status}`);
+    S.iinote = await r.json(); updatePin();
+  } catch (e) { console.error('아이아이노트 소식을 읽지 못했어요', e); }
+}
+setInterval(() => { if (!document.hidden) loadIinote(); }, 5 * 60 * 1000);
+function iinoteUrgent() {
+  const n = S.iinote; if (!n) return [];
+  const line = (k, t) => ({ k, t, html: `${esc(t)} <a href="${II_ADMIN}" target="_blank" rel="noopener">문의함 · 현황</a>`, url: II_ADMIN });
+  const msgs = n.unread.reduce((s, x) => s + x.n, 0), last = Math.max(0, ...n.unread.map((x) => x.at));
+  return [
+    ...(msgs ? [line(`ii:msg:${msgs}:${last}`, `아이아이노트 의견 · 문의 ${msgs}건 기다려요`)] : []),
+    ...n.fams.map((f) => line(`ii:fam:${f.at}`, `아이아이노트 ${f.isNew ? '새 가족' : '가족 합류'} · ${[f.adults ? `어른 ${f.adults}명` : '', f.kids ? `아이 ${f.kids}명` : ''].filter(Boolean).join(' · ')} · 일기 ${f.diaries}편`)),
+  ];
+}
 // 📌 급하게 할 일 (3일 안): 줄마다 열쇠(k)가 있어 '내 일 아님'으로 뺄 수 있어요 (ailab_meta/desk.notMine)
 //  날짜 일은 날짜 · 제목으로, 확인 · 읽기 실패는 개수로(개수가 바뀌면 다시 떠요), 크레딧은 만료일로
 function urgentAll() {
@@ -1019,6 +1040,7 @@ function urgentAll() {
     ...upcoming().filter((c) => c.date && c.date >= today && c.date <= dayAdd(today, 3)).map((c) => ({ k: `e:${c.date}|${c.title}`, html: `${ddChip(c.date, c.end_date)} ${esc(c.title)}`, t: c.title, d: c.date, room: ROOMS[c.room] ? c.room : '' })),
     ...(nRev ? [{ k: `review:${nRev}`, html: `확인 기다리는 카드 ${nRev}장 <a href="#lobby">접수처로</a>`, t: `확인 기다리는 카드 ${nRev}장`, room: 'lobby' }] : []),
     ...(nErr ? [{ k: `error:${nErr}`, html: `읽지 못한 자료 ${nErr}개 <a href="#lobby">다시 읽기</a>`, t: `읽지 못한 자료 ${nErr}개`, room: 'lobby' }] : []),
+    ...iinoteUrgent(),
     ...(dExp != null && dExp >= 0 && dExp <= 7 ? [{ k: `credit:${d.creditExpires}`, html: `콘솔 크레딧이 ${dExp ? `${dExp}일 뒤` : '오늘'} 끝나요`, t: `콘솔 크레딧이 ${dExp ? `${dExp}일 뒤` : '오늘'} 끝나요`, room: 'boss' }] : []),
   ];
 }
@@ -1028,7 +1050,7 @@ function hideNotMine(k) { const keep = new Set(urgentAll().map((x) => x.k)); sav
 let pinMod = null, pinSaved = '';
 function updatePin() {
   if (!S.teacher || !S.desk) { if (pinMod) pinMod.then((m) => m.renderPin([])); return; }
-  const list = urgentAll().filter((x) => !notMine().includes(x.k)).map(({ k, t, d, room }) => ({ k, t, d: d || '', room: room || '' }));
+  const list = urgentAll().filter((x) => !notMine().includes(x.k)).map(({ k, t, d, room, url }) => ({ k, t, d: d || '', room: room || '', url: url || '' }));
   (pinMod ||= import('./pin.js')).then((m) => m.renderPin(list, { base: '', onHide: hideNotMine }));
   const j = JSON.stringify(list); if (j !== pinSaved && j !== JSON.stringify(S.desk.pinned || [])) { pinSaved = j; saveDesk({ pinned: list }); }
 }
