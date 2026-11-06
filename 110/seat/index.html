@@ -248,7 +248,7 @@
         <div class="opts">
           <div class="opt-box">
             <h3>🔁 앉았던 자리 피하기</h3>
-            <label class="opt"><input type="checkbox" id="oSame" checked><span>앉았던 자리에 다시 안 앉기<small>최근 <select id="oSameN"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="5">5</option></select>번 자리까지 피해요 (지금 자리 포함)</small></span></label>
+            <label class="opt"><input type="checkbox" id="oSame" checked><span>앉았던 자리에 다시 안 앉기<small>최근 <select id="oSameN"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="99" selected>모든</option></select>번 자리까지 피해요 (우리 반 자리 · 🕘 기록)</small></span></label>
             <label class="opt"><input type="checkbox" id="oPair" checked><span>같은 짝 다시 안 만나기<small>최근 같은 횟수만큼의 짝을 피해요</small></span></label>
           </div>
           <div class="opt-box cold">
@@ -1085,12 +1085,27 @@ async function askNumbers(canvas, R, C) {
     const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || '오류 ' + r.status);
     out = (j.content || []).map((c) => c.text || '').join('');
   } else {
-    const m = !A.model || /^gemini-[12]\./.test(A.model) ? 'gemini-3.8-flash' : A.model;
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(A.apiKey)}`, { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: 'image/png', data } }, { text }] }], generationConfig: { maxOutputTokens: 4000 } }) });
-    const j = await r.json();
-    if (!r.ok) throw new Error(r.status === 429 ? 'AI 사용량이 다 찼어요. 조금 뒤에 다시 눌러 주세요.' : (j.error?.message || '오류 ' + r.status));
-    out = j.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+    // 붐비거나 사용량이 차면 이 키로 쓸 수 있는 다른 Gemini 모델로 이어서 불러요
+    const base = !A.model || /^gemini-[12]\./.test(A.model) ? 'gemini-3.8-flash' : A.model, K = encodeURIComponent(A.apiKey);
+    const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: 'image/png', data } }, { text }] }], generationConfig: { maxOutputTokens: 4000 } });
+    const others = async () => {
+      try {
+        const j = await (await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${K}`)).json();
+        const ver = (n) => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0), pro = (n) => (/pro/.test(n) ? 1 : 0), rank = (n) => (/lite/.test(n) ? 1 : 0) + (/preview|exp|\d{3,}$/.test(n) ? 0.5 : 0);
+        return (j.models || []).filter((x) => (x.supportedGenerationMethods || []).includes('generateContent')).map((x) => String(x.name).replace(/^models\//, ''))
+          .filter((n) => n !== base && /^gemini-\d/.test(n) && /flash|pro/.test(n) && !/image|tts|audio|live|embed|robotics|computer|thinking/.test(n)).sort((a, b) => pro(a) - pro(b) || ver(b) - ver(a) || rank(a) - rank(b));
+      } catch { return []; }
+    };
+    let list = [base], k = 0, got = false;
+    while (k < list.length && k < 6) {
+      const m = list[k++];
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${K}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { out = j.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || ''; if (out.includes('[')) { got = true; break; } }
+      else if (k === 1 && ![429, 500, 503, 529].includes(r.status)) throw new Error(j.error?.message || '오류 ' + r.status);
+      if (k === list.length && list.length === 1) list = list.concat(await others());
+    }
+    if (!got) throw new Error('AI가 지금 붐벼서 읽지 못했어요. 1~2분 뒤에 다시 눌러 주세요.');
   }
   const a = out.indexOf('['), b = out.lastIndexOf(']');
   return JSON.parse(out.slice(a, b + 1));
@@ -1116,17 +1131,25 @@ $('capRead').onclick = async () => {
 function renderLink() {
   const q = new URLSearchParams(location.search), raw = q.get('seats'), box = $('linkPanel');
   if (!raw || BOARD) return;
-  const teacher = q.get('view') !== 'student', day = /^\d{4}-\d{2}-\d{2}$/.test(q.get('day') || '') ? q.get('day') : today();
+  const keep = q.has('keep');   // keep = 🕘 지난 자리로 보관 (우리 반 자리는 안 바뀌어요)
+  const teacher = q.get('view') !== 'student', day = /^\d{4}-\d{2}-\d{2}$/.test(q.get('day') || '') ? q.get('day') : (keep ? '' : today());
   const r = gridToSeats(raw.split('/').map((x) => x.replace(/,/g, ' ')).join('\n'), teacher);
   box.hidden = false;
   if (r.err) { box.innerHTML = `<h2>자리 링크를 넣지 못했어요</h2><p class="note">${esc(r.err)}</p>`; return; }
   const n = Object.keys(r.seats).length, left = S.students.length - n;
-  box.innerHTML = `<h2>🔗 이 자리로 우리 반 자리를 바꿀까요?</h2><p class="sub">${fmtDay(day)}부터 앉은 자리 · ${n}명${left > 0 ? ` · 아직 ${left}명 없음` : ''}${r.bad.length ? ` · 명단에 없는 번호: ${r.bad.map(esc).join(', ')}` : ''}. 아직 저장되지 않았어요. 사진과 같은지 보고 눌러 주세요.</p>${roomHTML(r.seats, { teacher })}
-    <div class="row" style="margin-top:12px;"><button class="btn primary" id="linkGo">✅ 이 자리로 바꾸기</button><button class="btn" id="linkNo">취소</button></div>`;
+  box.innerHTML = `<h2>🔗 ${keep ? '이 자리를 🕘 지난 자리로 보관할까요?' : '이 자리로 우리 반 자리를 바꿀까요?'}</h2><p class="sub">${n}명${left > 0 ? ` · 아직 ${left}명 없음` : ''}${r.bad.length ? ` · 명단에 없는 번호: ${r.bad.map(esc).join(', ')}` : ''}. 아직 저장되지 않았어요. 사진과 같은지 보고 눌러 주세요.</p>${roomHTML(r.seats, { teacher })}
+    <div class="row" style="margin-top:12px;"><label>앉기 시작한 날 <input type="date" id="linkDay" class="num" style="width:150px" value="${day}"></label><button class="btn primary" id="linkGo">${keep ? '🕘 지난 자리로 보관하기' : '✅ 이 자리로 바꾸기'}</button><button class="btn" id="linkNo">취소</button></div>`;
   const done = () => { box.hidden = true; box.innerHTML = ''; try { history.replaceState(null, '', location.pathname + location.hash); } catch {} };
   $('linkNo').onclick = done;
   $('linkGo').onclick = () => {
-    pushHistory(); S.current = { ...r.seats }; S.since = day; S.sample = false;
+    const d = $('linkDay').value;
+    if (!d) { alert('앉기 시작한 날을 먼저 골라 주세요.'); $('linkDay').focus(); return; }
+    if (keep) {
+      S.history.push({ day: d, seats: { ...r.seats }, note: '링크로 넣음' }); sortHistory();
+      save(); done(); showTab('history'); alert(`🕘 ${fmtDay(d)}부터의 자리를 보관했어요. 우리 반 자리는 그대로예요.`);
+      return;
+    }
+    pushHistory(); S.current = { ...r.seats }; S.since = d; S.sample = false;
     S.layout.off = (S.layout.off || []).filter((i) => r.seats[i] == null);
     save(); done(); showTab('now'); alert('✅ 우리 반 자리를 바꿨어요.');
   };

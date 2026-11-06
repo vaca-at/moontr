@@ -592,6 +592,7 @@ const SYS_RULES = `너는 대한민국 고등학교 담임교사의 학교생활
 // AI 오류를 알아보기 쉬운 말로: 사용량(쿼터) 초과면 언제 다시 되는지까지 (e.quota = true → 일괄 처리는 바로 멈춰요)
 function aiErr(r, j) {
   const msg = j?.error?.message || ('오류 ' + r.status);
+  if ([500, 503, 529].includes(r.status) || /high demand|overloaded/i.test(msg)) { const b = new Error('🔋 AI가 지금 붐벼요. 1~2분 뒤에 다시 눌러 주세요.'); b.quota = true; b.retryMs = 60000; return b; }   // 잠깐 붐빌 때도 다른 모델로 이어 불러요
   if (r.status !== 429 && !/quota|rate.?limit|RESOURCE_EXHAUSTED|exceeded/i.test(msg)) return new Error(msg);
   const m = msg.match(/retry in\s*(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:([\d.]+)s)?/i);
   const wait = m ? [m[1] && `${m[1]}시간`, m[2] && `${m[2]}분`, !m[1] && !m[2] && m[3] && `${Math.ceil(+m[3])}초`].filter(Boolean).join(' ') : '';
