@@ -146,8 +146,12 @@
   .cold-grid button.on{ background:var(--cold-bg); border-color:var(--cold); color:var(--cold); }
   .cold-grid button:active{ transform:scale(.95); }
   /* ===== 📺 전자칠판 모드 (?board → body.bmode): 번호만 크게 ===== */
-  body.bmode .seat{ min-height:84px; }
-  body.bmode .seat .nm{ font-size:30px; font-weight:800; }
+  /* 칸 높이 --seatH 는 fitBoard() 가 화면 높이에 맞춰 정해요 (모든 줄이 한 화면에) */
+  body.bmode .seat{ min-height:0; height:var(--seatH,84px); padding-top:0; padding-bottom:0; justify-content:center; }
+  body.bmode header.top{ padding-top:8px; }
+  body.bmode .eyebrow{ display:none; }
+  body.bmode main{ padding-top:10px; padding-bottom:10px; }
+  body.bmode .seat .nm{ font-size:calc(var(--seatH,84px) * .46); line-height:1; font-weight:800; }
   body.bmode .seat .no{ font-size:12px; }
   body.bmode .board{ font-size:16px; }
   body.bmode [data-tab="cold"], body.bmode [data-tab="print"], body.bmode [data-tab="students"], body.bmode [data-tab="caps"], body.bmode [data-tab="history"], body.bmode #editNow, body.bmode .legend, body.bmode .policy-foot{ display:none !important; }
@@ -634,7 +638,22 @@ function renderNow() {
   $('editNow').classList.toggle('primary', editing);
   $('editHelp').hidden = !editing;
   $('nowRoom').innerHTML = roomHTML(S.current, { teacher: view === 'teacher', edit: editing });
+  fitBoard();
 }
+// 📺 전자칠판: 모든 줄이 스크롤 없이 한 화면에 보이게 칸 높이를 맞춰요 (가로는 그대로)
+function fitRoom(room, base) {
+  const grid = room.querySelector('.grid'); if (!grid || room.offsetParent === null) return;
+  const gap = parseFloat(getComputedStyle(grid).rowGap) || 0, R = L().rows, top = grid.getBoundingClientRect().top + window.scrollY - base;
+  const h = Math.floor((window.innerHeight - top - 44 - gap * (R - 1)) / R);
+  room.style.setProperty('--seatH', Math.max(36, Math.min(130, h)) + 'px');
+}
+function fitBoard() {
+  if (!BOARD) return;
+  fitRoom($('nowRoom'), 0);
+  // 새 자리는 패널을 화면 맨 위로 올려서 보니 패널 위쪽부터 재요
+  if (!$('previewPanel').hidden) fitRoom($('previewRoom'), $('previewPanel').getBoundingClientRect().top + window.scrollY);
+}
+window.addEventListener('resize', fitBoard);
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { view = b.dataset.view; renderNow(); }));
 $('editNow').onclick = () => { editing = !editing; picked = null; if (!editing) save(); renderNow(); };
 $('nowRoom').addEventListener('click', (e) => {
@@ -745,6 +764,7 @@ function doShuffle() {
   $('resultNote').hidden = true;   // 결과 글은 자리가 다 나온 뒤에 보여 줘요
   $('shuffleStatus').textContent = '';
   $('previewPanel').hidden = false;
+  $('previewRoom').innerHTML = roomHTML(best, { teacher: view === 'teacher' }); fitBoard();
   $('previewPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   playShuffle(best);
 }
