@@ -229,6 +229,7 @@
           <button class="btn" data-view="student">🧑‍🎓 학생 눈으로 (칠판이 위)</button>
           <button class="btn" data-view="teacher">🧑‍🏫 선생님 눈으로 (교탁이 아래)</button>
           <button class="btn" id="editNow">✏️ 자리 직접 고치기</button>
+          <button class="btn" id="nowCap" title="자리표 캡쳐를 붙여 넣고 번호를 적어 지금 자리로 넣어요">📸 캡쳐로 지금 자리 넣기</button>
         </div>
         <p class="sub" id="editHelp" hidden>두 자리를 차례로 누르면 서로 바뀌어요. 빈자리와도 바꿀 수 있어요. 다 고치면 <b>✏️ 고치기 끝</b>을 눌러 주세요.</p>
         <div id="nowRoom"></div>
@@ -372,6 +373,11 @@
               <button class="btn" id="capClear">칸 비우기</button>
             </div>
             <p class="note" style="margin:0 0 8px;">칸에 번호를 적고 Tab 키로 다음 칸. 이름을 적어도 명단에서 찾아 번호로 바꿔요.</p>
+            <details style="margin-bottom:10px;"><summary class="note" style="cursor:pointer;">📝 번호 표로 한꺼번에 채우기</summary>
+              <p class="note" id="capGridHelp" style="margin:6px 0;"></p>
+              <textarea id="capGrid" rows="6" spellcheck="false" style="width:100%;font-family:monospace;font-size:14px;" placeholder="- - - 25 8&#10;11 9 10 22 6"></textarea>
+              <div class="row" style="margin-top:6px;"><button class="btn" id="capGridGo">칸에 채우기</button></div>
+            </details>
             <div id="capRoom"></div>
             <div id="capWarn" class="result-note" hidden></div>
             <div class="row" style="margin-top:12px;">
@@ -966,7 +972,7 @@ async function addCapFiles(files) {
   for (const f of imgs) {
     try {
       const d = await shrinkImg(f);
-      const c = { id: 'cap' + Date.now() + Math.floor(Math.random() * 1000), d, day: '', note: '', seats: {}, view: 'student', made: Date.now() };
+      const c = { id: 'cap' + Date.now() + Math.floor(Math.random() * 1000), d, day: '', note: '', seats: {}, view: 'teacher', made: Date.now() };   // 종이 자리표는 교탁이 아래
       CAPS.push(c); capSel = c.id;
       await saveCap(c);
     } catch (e) { alert(e.message); }
@@ -994,8 +1000,32 @@ function renderCapEditor() {
   $('capNote').value = c.note || '';
   document.querySelectorAll('[data-capview]').forEach((b) => b.classList.toggle('primary', b.dataset.capview === (c.view || 'student')));
   $('capRoom').innerHTML = roomHTML(c.seats || {}, { teacher: c.view === 'teacher', input: true });
+  $('capGridHelp').innerHTML = `캡쳐에 보이는 그대로 한 줄에 ${L().cols}칸씩, ${L().rows}줄을 적어요. 빈칸은 <code>-</code>. 지금은 <b>${c.view === 'teacher' ? '교탁이 아래 (맨 윗줄 = 맨 뒷줄)' : '칠판이 위 (맨 윗줄 = 맨 앞줄)'}</b>로 읽어요.`;
   checkCap();
 }
+// 번호 표 → 칸: 화면에 보이는 방향 그대로 (교탁이 아래면 줄 · 칸을 뒤집어요)
+function gridToSeats(text, teacher) {
+  const R = L().rows, C = L().cols, lines = text.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => x.split(/[\s,]+/));
+  if (lines.length !== R || lines.some((x) => x.length !== C)) return { err: `${R}줄, 줄마다 ${C}칸이어야 해요. 지금은 ${lines.length}줄 (${lines.map((x) => x.length).join(' · ')}칸)이에요. 빈칸은 - 로 적어 주세요.` };
+  const seats = {}, bad = [];
+  lines.forEach((cells, y) => cells.forEach((v, x) => {
+    if (/^[-_.x0]$/i.test(v)) return;
+    const n = resolveNo(v);
+    if (n == null || isNaN(n)) { bad.push(v); return; }
+    seats[(teacher ? R - 1 - y : y) * C + (teacher ? C - 1 - x : x)] = n;
+  }));
+  return { seats, bad };
+}
+$('capGridGo').onclick = () => {
+  const c = curCap(); if (!c) return;
+  const r = gridToSeats($('capGrid').value, c.view === 'teacher');
+  if (r.err) { alert(r.err); return; }
+  if (Object.keys(c.seats || {}).length && !confirm('적어 둔 칸을 이 표로 바꿀까요?')) return;
+  c.seats = r.seats; saveCap(c); renderCapEditor();
+  if (r.bad.length) alert(`명단에서 못 찾아 뺀 칸: ${r.bad.join(', ')}`);
+};
+$('nowCap').onclick = () => { showTab('caps'); $('capDrop').focus(); $('capDrop').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+if (BOARD) $('nowCap').hidden = true;   // 전자칠판에는 캡쳐 넣기가 없어요
 // 칸 글 → 학생 번호 (숫자면 번호, 아니면 이름으로 찾기)
 function resolveNo(v) {
   v = String(v || '').trim(); if (!v) return null;
@@ -1074,9 +1104,10 @@ $('capDel').onclick = async () => {
 };
 // 붙여넣기 · 끌어다 놓기 · 사진 고르기 (📸 탭을 보고 있을 때만 붙여넣기를 받아요)
 document.addEventListener('paste', (e) => {
-  if ($('tab-caps').hidden || e.target.matches?.('input, textarea')) return;
+  const onNow = !$('tab-now').hidden && !BOARD;   // 지금 자리 탭에서 붙여 넣어도 📸 탭으로 넘어가요
+  if (($('tab-caps').hidden && !onNow) || e.target.matches?.('input, textarea')) return;
   const files = [...(e.clipboardData?.items || [])].filter((x) => x.kind === 'file').map((x) => x.getAsFile()).filter(Boolean);
-  if (files.length) { e.preventDefault(); addCapFiles(files); }
+  if (files.length) { e.preventDefault(); if (onNow) showTab('caps'); addCapFiles(files); }
 });
 const drop = $('capDrop');
 drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
