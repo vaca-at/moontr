@@ -70,6 +70,7 @@
   .seat.clickable{ cursor:pointer; }
   .seat.clickable:hover{ border-color:var(--dawn-deep); }
   .seat.moved{ animation:pop .5s ease both; }
+  body.pub #doWinSwap{ display:none !important; }
   .seat.spin .nm{ color:var(--muted); }
   /* 🎲 섞기 효과: 칸이 들썩이며 번호가 돌다가, 앞줄부터 한 칸씩 뒤집혀 나타나요 */
   .seat.spin{ animation:jig .22s ease-in-out infinite alternate; }
@@ -462,6 +463,10 @@ const app = initializeApp(firebaseConfig);   // 이름 없는 기본 앱 = moont
 const db = getFirestore(app);
 const auth = getAuth(app);
 const REF = () => doc(db, 'c110_seats', 'main');   // 문서 하나에 명단 · 교실 · 지금 자리 · 기록 모두
+// 📺 로그인 없는 전자칠판용 공개 칸: 이름 없이 번호만 (조종례 화면이 쓰는 공개 읽기 칸 c110_config, 쓰기는 선생님만)
+const PUB = () => doc(db, 'c110_config', 'seat_board');
+const PEND = 'c110-board-pending';   // 전자칠판에서 확정했지만 아직 저장 전인 자리
+let PUBLIC = false;
 const LOCAL = 'c110-seats';                        // 보안 규칙 게시 전엔 이 브라우저에 저장
 
 const $ = (id) => document.getElementById(id);
@@ -502,14 +507,24 @@ if (BOARD) {
   document.querySelector('#loginView .sub').innerHTML = '전자칠판에서 처음 한 번만 <b>선생님 계정</b>으로 로그인해 주세요.<br>칠판에는 이름 없이 번호만 보여요.';
 }   // 시험용 예시 화면: 저장하지 않아요
 function setStatus(t, err) { const s = $('saveStatus'); s.textContent = t; s.className = 'status' + (err ? ' err' : ''); }
+// 공개 칸에 올릴 자료: 이름은 빼요
+async function publishBoard() {
+  if (DEMO || PUBLIC) return;
+  try {
+    await setDoc(PUB(), { at: Date.now(), layout: S.layout, current: S.current, since: S.since || '', sample: !!S.sample,
+      students: S.students.map((s) => ({ no: s.no, name: '', cold: !!s.cold, front: !!s.front, fix: s.fix ?? null })),
+      history: S.history.map((h) => ({ day: h.day, seats: h.seats })) });
+  } catch (e) { console.error(e); }
+}
 function save() {
+  if (PUBLIC) { try { localStorage.setItem(PEND, JSON.stringify({ at: Date.now(), current: S.current, since: S.since, history: S.history })); } catch {} setStatus('이 전자칠판에만 있어요 (저장 전)'); return; }
   clearTimeout(saveTimer);
   if (DEMO) { setStatus('예시 화면이라 저장하지 않아요'); return; }
   setStatus('저장하는 중…');
   saveTimer = setTimeout(async () => {
     try { localStorage.setItem(LOCAL, JSON.stringify(S)); } catch {}
     if (useLocal) { setStatus('이 브라우저에 저장했어요 (보안 규칙 게시 전)'); return; }
-    try { await setDoc(REF(), { ...S, at: serverTimestamp() }); setStatus('저장했어요 ✓'); }
+    try { await setDoc(REF(), { ...S, at: serverTimestamp() }); setStatus('저장했어요 ✓'); publishBoard(); }
     catch (e) { console.error(e); useLocal = true; setStatus('서버에 저장하지 못해 이 브라우저에만 저장했어요 (보안 규칙 확인)', true); }
   }, 500);
 }
@@ -589,7 +604,7 @@ function roomHTML(map, opt = {}) {
 // ----- ① 지금 자리 -----
 function renderNow() {
   $('sampleBar').hidden = !S.sample;
-  if (BOARD) $('sampleBar').innerHTML = '아직 <b>우리 반 실제 자리</b>가 들어가지 않아 번호 순서대로 놓인 <b>예시</b>예요. 선생님 화면의 📸 사진으로 자리 넣기에서 넣으면 바뀌어요.';
+  if (BOARD) $('sampleBar').innerHTML = '아직 <b>우리 반 실제 자리</b>가 들어가지 않아 번호 순서대로 놓인 <b>예시</b>예요. 선생님 컴퓨터에서 자리 화면을 한 번 열면 여기에 나와요.';
   $('nowSince').textContent = S.since ? `${fmtDay(S.since)}부터` : '';
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('primary', b.dataset.view === view));
   $('editNow').textContent = editing ? '✏️ 고치기 끝' : '✏️ 자리 직접 고치기';
@@ -779,6 +794,7 @@ $('confirmShuffle').onclick = () => {
   $('previewPanel').hidden = true; $('resultNote').hidden = true;
   save();
   showTab('now');
+  if (PUBLIC) showSaveQR();
 };
 function pushHistory(note = '') {
   if (S.sample) return;
@@ -1195,6 +1211,31 @@ $('capRead').onclick = async () => {
   } catch (e) { console.error(e); say('⚠️ ' + e.message, true); }
   btn.disabled = false; btn.textContent = old;
 };
+// 📺 로그인 없는 전자칠판: 공개 칸의 번호만 읽어요. 확정해도 저장할 수 없어서 QR로 선생님 휴대폰에 넘겨요
+function showSaveQR() {
+  const R = L().rows, C = L().cols, rows = [];
+  for (let r = 0; r < R; r++) rows.push(Array.from({ length: C }, (_, c) => S.current[r * C + c] ?? '-').join(','));
+  const url = `https://moontr.site/110/seat/?day=${S.since || today()}&view=student&seats=${rows.join('/')}`, box = $('linkPanel');
+  box.hidden = false;
+  box.innerHTML = `<h2>📱 선생님 휴대폰으로 찍어 저장해 주세요</h2><p class="sub">이 자리는 아직 전자칠판에만 있어요. QR을 찍어 로그인하고 [이 자리로 바꾸기]를 누르면 저장돼요.</p><img alt="자리 저장 QR" width="220" height="220" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}">`;
+}
+async function startPublic() {
+  PUBLIC = true; document.body.classList.add('pub');
+  $('loginView').hidden = true; $('app').hidden = false;
+  let d = null;
+  try { const s = await getDoc(PUB()); if (s.exists()) d = s.data(); } catch (e) { console.error(e); }
+  applyPublic(d);
+}
+function applyPublic(d) {
+  if (d) S = { ...sample(), ...d };
+  let p = null; try { p = JSON.parse(localStorage.getItem(PEND) || 'null'); } catch {}
+  const pending = p && (!d || p.at > (d.at || 0));
+  if (pending) { S.current = p.current; S.since = p.since; S.history = p.history || S.history; S.sample = false; }
+  else { try { localStorage.removeItem(PEND); } catch {} }
+  const t = location.hash.slice(1);
+  showTab(['now', 'shuffle'].includes(t) ? t : 'now');
+  if (pending) showSaveQR();
+}
 // 🔗 자리 링크: ?seats=-,-,-,25,8/11,9,10,22,6/…&day=2026-10-14 (사진에 보이는 순서, 빈 곳은 -, view=student 면 칠판이 위)
 //  링크를 열면 미리 보기가 뜨고, 단추를 눌러야 저장돼요 (번호만 담겨요 · 이름은 없어요)
 function renderLink() {
@@ -1371,12 +1412,13 @@ onAuthStateChanged(auth, async (u) => {
   if (DEMO) return;
   if (u && !isAdminEmail(u.email)) { await signOut(auth); $('loginMsg').textContent = '관리자 구글 계정으로 골라 주세요.'; $('loginMsg').className = 'msg err'; }
   const ok = !!u && isAdminEmail(u.email);
+  if (BOARD && !ok) { if (!started) { started = true; await startPublic(); } return; }   // 전자칠판은 로그인 없이 번호만
   $('loginView').hidden = ok;
   $('app').hidden = !ok;
   if (ok && !started) {
     started = true;
     await load();
-    applyPresets();
+    applyPresets(); publishBoard();
     const t = location.hash.slice(1);
     showTab((BOARD ? ['now', 'shuffle'] : ['now', 'shuffle', 'cold', 'print', 'students', 'caps', 'history']).includes(t) ? t : 'now');
     setStatus(useLocal ? '이 브라우저에 저장 중 (보안 규칙 게시 전)' : '');
