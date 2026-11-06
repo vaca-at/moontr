@@ -81,7 +81,6 @@
   .confetti{ position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
   .confetti i{ position:absolute; top:-16px; width:10px; height:16px; border-radius:2px; animation:fall var(--t) linear var(--d) both; }
   @keyframes fall{ to{ transform:translateY(106vh) rotate(var(--r)); } }
-  @media (prefers-reduced-motion:reduce){ .seat.spin, .seat.flip{ animation:none; } .confetti{ display:none; } }
   @keyframes pop{ 0%{ transform:scale(.85); opacity:.3; } 60%{ transform:scale(1.05); } 100%{ transform:none; opacity:1; } }
   .legend{ display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--muted); }
 
@@ -740,12 +739,11 @@ function confetti() {
 const wait = (ms) => new Promise((ok) => { const id = setTimeout(ok, ms); skipPlay = () => { clearTimeout(id); ok(); }; });
 async function playShuffle(map) {
   const teacher = view === 'teacher', room = $('previewRoom'), btns = ['doShuffle', 'reShuffle', 'confirmShuffle', 'doWinSwap'].map($);
-  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let skipped = false;
   playing = true; btns.forEach((b) => { b.disabled = true; });
   room.onclick = () => { skipped = true; skipPlay?.(); };   // 교실을 누르면 바로 결과로
   // ① 두구두구: 번호가 돌며 점점 느려져요
-  if (!calm) for (let k = 0, d = 70; k < 22 && !skipped; k++, d = Math.round(d * 1.07)) {
+  for (let k = 0, d = 70; k < 22 && !skipped; k++, d = Math.round(d * 1.07)) {
     const fake = {}; for (const i of useSeats()) fake[i] = S.students[Math.floor(Math.random() * S.students.length)].no;
     room.innerHTML = roomHTML(fake, { teacher }).replace(/class="seat /g, 'class="seat spin ');
     drumHit();
@@ -754,7 +752,7 @@ async function playShuffle(map) {
   // ② 앞줄부터 한 칸씩 뒤집혀요
   room.innerHTML = roomHTML(map, { teacher });
   const cells = Object.keys(map).map(Number).sort((a, b) => a - b).map((i) => room.querySelector(`[data-seat="${i}"]`)).filter(Boolean);
-  if (!calm && !skipped) {
+  if (!skipped) {
     cells.forEach((c) => c.classList.add('wait'));
     for (let k = 0; k < cells.length && !skipped; k++) {
       cells[k].classList.remove('wait'); cells[k].classList.add('flip');
@@ -764,7 +762,7 @@ async function playShuffle(map) {
     cells.forEach((c) => c.classList.remove('wait'));
   }
   // ③ 짠!
-  fanfare(); if (!calm) confetti();
+  fanfare(); confetti();
   room.onclick = null; skipPlay = null; playing = false;
   btns.forEach((b) => { b.disabled = false; });
   $('resultNote').hidden = false;
