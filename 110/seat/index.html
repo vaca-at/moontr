@@ -218,6 +218,7 @@
   <main>
     <div id="sampleBar" class="sample-bar" hidden>지금은 <b>예시 자리</b>예요. 👥 명단 · 교실에서 이름과 교실 모양을 넣고, 📸 사진으로 자리 넣기에서 실제 자리를 넣어 주세요.</div>
     <div id="fixBar" class="sample-bar" hidden></div>
+    <div class="panel" id="linkPanel" hidden></div>
 
     <!-- ① 지금 자리 -->
     <section id="tab-now" class="tab">
@@ -370,11 +371,11 @@
             <div class="cap-step">
               <b>2. 사진과 똑같이 번호를 적어요</b>
               <p class="note" style="margin:0 0 8px;">아래 표의 칸에 바로 적어도 되고, 번호 표를 붙여 넣어도 돼요. 빈 곳은 비워 두세요.</p>
-              <details open style="margin-bottom:10px;"><summary class="note" style="cursor:pointer;">📝 번호 표 붙여 넣기</summary>
+              <div style="margin-bottom:10px;"><b style="font-size:13.5px;">📝 번호 표 붙여 넣기</b>
                 <p class="note" id="capGridHelp" style="margin:6px 0;"></p>
-                <textarea id="capGrid" rows="6" spellcheck="false" style="width:100%;font-family:monospace;font-size:14px;" placeholder="- - - 25 8&#10;11 9 10 22 6"></textarea>
+                <textarea id="capGrid" rows="6" spellcheck="false" style="width:100%;font-family:monospace;font-size:14px;"></textarea>
                 <div class="row" style="margin-top:6px;"><button class="btn" id="capGridGo">⬇️ 이 표대로 칸 채우기</button></div>
-              </details>
+              </div>
               <div id="capRoom"></div>
               <div id="capWarn" class="result-note" hidden></div>
             </div>
@@ -1028,12 +1029,33 @@ function gridToSeats(text, teacher) {
 }
 $('capGridGo').onclick = () => {
   const c = curCap(); if (!c) return;
+  if (!$('capGrid').value.trim()) { alert('위 칸이 비어 있어요. 번호 표를 먼저 붙여 넣어 주세요.'); $('capGrid').focus(); return; }
   const r = gridToSeats($('capGrid').value, c.view === 'teacher');
   if (r.err) { alert(r.err); return; }
   if (Object.keys(c.seats || {}).length && !confirm('적어 둔 칸을 이 표로 바꿀까요?')) return;
   c.seats = r.seats; saveCap(c); renderCapEditor();
   if (r.bad.length) alert(`명단에서 못 찾아 뺀 칸: ${r.bad.join(', ')}`);
 };
+// 🔗 자리 링크: ?seats=-,-,-,25,8/11,9,10,22,6/…&day=2026-10-14 (사진에 보이는 순서, 빈 곳은 -, view=student 면 칠판이 위)
+//  링크를 열면 미리 보기가 뜨고, 단추를 눌러야 저장돼요 (번호만 담겨요 · 이름은 없어요)
+function renderLink() {
+  const q = new URLSearchParams(location.search), raw = q.get('seats'), box = $('linkPanel');
+  if (!raw || BOARD) return;
+  const teacher = q.get('view') !== 'student', day = /^\d{4}-\d{2}-\d{2}$/.test(q.get('day') || '') ? q.get('day') : today();
+  const r = gridToSeats(raw.split('/').map((x) => x.replace(/,/g, ' ')).join('\n'), teacher);
+  box.hidden = false;
+  if (r.err) { box.innerHTML = `<h2>자리 링크를 넣지 못했어요</h2><p class="note">${esc(r.err)}</p>`; return; }
+  const n = Object.keys(r.seats).length, left = S.students.length - n;
+  box.innerHTML = `<h2>🔗 이 자리로 우리 반 자리를 바꿀까요?</h2><p class="sub">${fmtDay(day)}부터 앉은 자리 · ${n}명${left > 0 ? ` · 아직 ${left}명 없음` : ''}${r.bad.length ? ` · 명단에 없는 번호: ${r.bad.map(esc).join(', ')}` : ''}. 아직 저장되지 않았어요. 사진과 같은지 보고 눌러 주세요.</p>${roomHTML(r.seats, { teacher })}
+    <div class="row" style="margin-top:12px;"><button class="btn primary" id="linkGo">✅ 이 자리로 바꾸기</button><button class="btn" id="linkNo">취소</button></div>`;
+  const done = () => { box.hidden = true; box.innerHTML = ''; try { history.replaceState(null, '', location.pathname + location.hash); } catch {} };
+  $('linkNo').onclick = done;
+  $('linkGo').onclick = () => {
+    pushHistory(); S.current = { ...r.seats }; S.since = day; S.sample = false;
+    S.layout.off = (S.layout.off || []).filter((i) => r.seats[i] == null);
+    save(); done(); showTab('now'); alert('✅ 우리 반 자리를 바꿨어요.');
+  };
+}
 $('nowCap').onclick = () => { showTab('caps'); $('capDrop').focus(); $('capDrop').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
 if (BOARD) $('nowCap').hidden = true;   // 전자칠판에는 캡쳐 넣기가 없어요
 // 칸 글 → 학생 번호 (숫자면 번호, 아니면 이름으로 찾기)
@@ -1191,6 +1213,7 @@ onAuthStateChanged(auth, async (u) => {
     const t = location.hash.slice(1);
     showTab((BOARD ? ['now', 'shuffle', 'cold'] : ['now', 'shuffle', 'cold', 'print', 'students', 'caps', 'history']).includes(t) ? t : 'now');
     setStatus(useLocal ? '이 브라우저에 저장 중 (보안 규칙 게시 전)' : '');
+    renderLink();
   }
 });
 $('gLogin').onclick = async () => {
@@ -1217,6 +1240,7 @@ if (DEMO) {
   window.__seat = { S: () => S, showTab };
   const t = location.hash.slice(1);
   showTab(['now', 'shuffle', 'cold', 'print', 'students', 'caps', 'history'].includes(t) ? t : 'now');
+  renderLink();
 }
 </script>
 
