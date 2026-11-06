@@ -517,6 +517,8 @@ const rowOf = (i) => Math.floor(i / L().cols), colOf = (i) => i % L().cols;
 const isOff = (i) => (L().off || []).includes(i);
 const isWin = (i) => colOf(i) === (L().win === 'left' ? 0 : L().cols - 1);
 const activeSeats = () => Array.from({ length: seatCount() }, (_, i) => i).filter((i) => !isOff(i));
+// 자리 바꾸기에 쓰는 자리: 앞줄부터 학생 수만큼만 (남는 자리는 늘 맨 뒷줄에 모여요 · 27명이면 앞 5줄 + 맨 뒷줄 2자리)
+const useSeats = () => activeSeats().slice(0, S.students.length);
 // 짝: 둘씩 짝이면 (0,1) (2,3) … 같은 줄의 옆 칸
 const partnerOf = (i) => { if (!L().pair) return null; const c = colOf(i), pc = c % 2 ? c - 1 : c + 1; return pc < L().cols ? rowOf(i) * L().cols + pc : null; };
 const stu = (no) => S.students.find((s) => s.no === no);
@@ -619,7 +621,7 @@ function opts() {
   };
 }
 function shuffleOnce(o, ctx) {
-  const seats = activeSeats();
+  const seats = useSeats();
   const map = {}; const used = new Set();
   let pool = S.students.map((s) => s.no);
   // 1) 🔒 고정
@@ -696,7 +698,7 @@ function doShuffle() {
   $('previewPanel').hidden = false;
   let n = 0;
   const spin = setInterval(() => {
-    const fake = {}; for (const i of activeSeats()) fake[i] = S.students[Math.floor(Math.random() * S.students.length)].no;
+    const fake = {}; for (const i of useSeats()) fake[i] = S.students[Math.floor(Math.random() * S.students.length)].no;
     $('previewRoom').innerHTML = roomHTML(fake, { teacher: view === 'teacher' }).replace(/class="seat /g, 'class="seat spin ');
     if (++n > 9) { clearInterval(spin); $('previewRoom').innerHTML = roomHTML(preview, { teacher: view === 'teacher', moved: new Set(activeSeats()) }); }
   }, 90);
@@ -854,7 +856,11 @@ function renderFix() {
     parts.push(BOARD ? `${who} — 선생님 화면에서 앉혀 주세요.`
       : `${who} ${free >= lost.length ? '<button class="btn primary" id="fixFill">빈자리에 앉히기</button>' : `<span class="note">빈자리가 ${free}개뿐이에요. 없는 자리를 되살려 주세요.</span>`} <button class="btn" id="fixOrder">번호 순서대로 다시 놓기</button>`);
   }
+  // 가운데 줄의 없는 자리: 남는 자리는 맨 뒷줄에만 있어야 해요
+  const spare = seatCount() - S.students.length, midOff = (L().off || []).filter((i) => rowOf(i) < L().rows - 1);
+  if (!BOARD && midOff.length && spare >= 0 && spare < L().cols) parts.push(`⚠️ 맨 뒷줄이 아닌 곳에 없는 자리가 ${midOff.length}개 있어요. <button class="btn primary" id="fixBack">빈자리를 맨 뒷줄로 모으기</button>`);
   b.hidden = !parts.length; b.innerHTML = parts.join('<br>');
+  if ($('fixBack')) $('fixBack').onclick = () => { S.layout.off = Array.from({ length: spare }, (_, k) => seatCount() - spare + k); save(); again(); };
   if ($('fixFill')) $('fixFill').onclick = () => {
     fillEmpty(S.current, lost.map((s) => s.no)); save(); again();
   };
