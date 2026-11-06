@@ -370,14 +370,16 @@
             </div>
             <div class="cap-step">
               <b>2. 사진과 똑같이 번호를 적어요</b>
-              <p class="note" style="margin:0 0 8px;">아래 표의 칸에 바로 적어도 되고, 번호 표를 붙여 넣어도 돼요. 빈 곳은 비워 두세요.</p>
-              <div style="margin-bottom:10px;"><b style="font-size:13.5px;">📝 번호 표 붙여 넣기</b>
-                <p class="note" id="capGridHelp" style="margin:6px 0;"></p>
-                <textarea id="capGrid" rows="6" spellcheck="false" style="width:100%;font-family:monospace;font-size:14px;"></textarea>
-                <div class="row" style="margin-top:6px;"><button class="btn" id="capGridGo">⬇️ 이 표대로 칸 채우기</button></div>
-              </div>
+              <div class="row" style="margin-bottom:8px;"><button class="btn primary" id="capRead">🪄 왼쪽 사진을 오른쪽 칸으로 넣기</button><span class="note">이름은 지우고 번호만 AI가 읽어요</span></div>
+              <p class="status" id="capReadMsg" style="margin:0 0 8px;"></p>
               <div id="capRoom"></div>
               <div id="capWarn" class="result-note" hidden></div>
+              <p class="note" style="margin:8px 0 0;">칸을 눌러 번호를 바로 고칠 수 있어요. 사진과 다른 곳이 없는지 봐 주세요.</p>
+              <div style="margin-top:10px;"><b style="font-size:13px;">📝 번호 표로 넣기 (안 써도 돼요)</b>
+                <p class="note" id="capGridHelp" style="margin:6px 0;"></p>
+                <textarea id="capGrid" rows="3" spellcheck="false" style="width:100%;font-family:monospace;font-size:14px;"></textarea>
+                <div class="row" style="margin-top:6px;"><button class="btn" id="capGridGo">이 표대로 칸 채우기</button></div>
+              </div>
             </div>
             <div class="cap-step">
               <b>3. 언제부터 앉은 자리인가요?</b>
@@ -1035,6 +1037,79 @@ $('capGridGo').onclick = () => {
   if (Object.keys(c.seats || {}).length && !confirm('적어 둔 칸을 이 표로 바꿀까요?')) return;
   c.seats = r.seats; saveCap(c); renderCapEditor();
   if (r.bad.length) alert(`명단에서 못 찾아 뺀 칸: ${r.bad.join(', ')}`);
+};
+// 🪄 왼쪽 사진 → 오른쪽 칸: 표의 칸을 찾아 칸마다 맨 앞 글자 덩어리(번호)만 새 그림에 옮겨요.
+//  이름이 든 원본은 AI에 보내지 않아요. 표를 못 찾으면 아무것도 보내지 않아요. AI 키는 같은 브라우저의 우리반 생기부노트 설정(mn_settings)을 써요
+function maskNames(img, want) {
+  const W = img.naturalWidth, H = img.naturalHeight, src = document.createElement('canvas'); src.width = W; src.height = H;
+  const g = src.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0);
+  const px = g.getImageData(0, 0, W, H).data, lum = (x, y) => { const i = (y * W + x) * 4; return px[i] + px[i + 1] + px[i + 2]; };
+  // 길게 이어진 어두운 선 찾기 (끊김 2칸까지 봐 줘요)
+  const find = (n, m, at) => {
+    const hit = [];
+    for (let a = 0; a < n; a++) { let run = 0, best = 0, gap = 0; for (let b = 0; b < m; b++) { if (at(a, b) < 660) { run += gap + 1; gap = 0; if (run > best) best = run; } else if (run && ++gap > 3) { run = 0; gap = 0; } } if (best > m * 0.4) hit.push(a); }
+    const out = []; hit.forEach((a) => { const l = out[out.length - 1]; if (l && a - l[1] <= 2) l[1] = a; else out.push([a, a]); });
+    return out;
+  };
+  const ys = find(H, W, (y, x) => lum(x, y)), xs = find(W, H, (x, y) => lum(x, y));
+  // 맨 위 · 맨 아래 선이 흐려서 못 찾으면 줄 간격으로 채워요
+  const med = ys.length > 2 ? ys.slice(1).map((l, k) => l[0] - ys[k][0]).sort((a, b) => a - b)[Math.floor((ys.length - 1) / 2)] : 0;
+  while (med && ys.length - 1 < want && ys[ys.length - 1][1] + med < H) { const v = ys[ys.length - 1][1] + med; ys.push([v, v]); }
+  while (med && ys.length - 1 < want && ys[0][0] - med >= 0) { const v = ys[0][0] - med; ys.unshift([v, v]); }
+  const spans = (ls) => ls.slice(1).map((l, k) => [ls[k][1] + 1, l[0] - 1]);
+  const rowsAll = spans(ys), colsAll = spans(xs);
+  if (!rowsAll.length || !colsAll.length) return null;
+  const maxH = Math.max(...rowsAll.map((r) => r[1] - r[0])), maxW = Math.max(...colsAll.map((c) => c[1] - c[0]));
+  const rows = rowsAll.filter((r) => r[1] - r[0] > maxH * 0.5), cols = colsAll.filter((c) => c[1] - c[0] > maxW * 0.6);   // 칸 사이 좁은 빈 칸은 빼요
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const o = out.getContext('2d'); o.fillStyle = '#fff'; o.fillRect(0, 0, W, H); o.strokeStyle = '#999';
+  for (const [y0, y1] of rows) for (const [x0, x1] of cols) {
+    o.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    const top = y0 + 3, bot = y1 - 3, l = x0 + 3, cap = x0 + Math.floor((x1 - x0) * 0.45), gapT = Math.max(6, Math.round((y1 - y0) * 0.14));
+    const ink = (x) => { for (let y = top; y <= bot; y++) if (lum(x, y) < 400) return true; return false; };
+    let s = -1, e = -1;
+    for (let x = l; x <= cap; x++) { if (ink(x)) { if (s < 0) s = x; e = x; } else if (s >= 0 && x - e >= gapT) break; }
+    if (s >= 0) o.drawImage(src, s - 1, top, e - s + 3, bot - top, s - 1, top, e - s + 3, bot - top);   // 번호 덩어리만 (뒤쪽 이름은 옮기지 않아요)
+  }
+  return { canvas: out, rows: rows.length, cols: cols.length };
+}
+async function askNumbers(canvas, R, C) {
+  let A = {}; try { A = JSON.parse(localStorage.getItem('mn_settings') || '{}'); } catch {}
+  if (!A.apiKey) throw new Error('이 브라우저의 우리반 생기부노트 ⚙️ 설정에 AI 키가 없어요. 번호 표로 넣거나 칸에 직접 적어 주세요.');
+  const data = canvas.toDataURL('image/png').split(',')[1];
+  const text = `표 그림이다. 칸마다 학생 번호(1~2자리 숫자)만 남아 있고 뒤의 점은 무시한다. 손글씨체라 1과 7을 조심한다. ${R}줄 ${C}칸 표를 보이는 그대로 위에서 아래로, 왼쪽에서 오른쪽으로 옮겨 JSON 배열의 배열로만 답한다. 빈 칸은 null. 예: [[null,25],[11,9]]`;
+  let out = '';
+  if (A.provider === 'claude') {
+    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': A.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: A.model || 'claude-sonnet-5-5', max_tokens: 800, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data } }, { type: 'text', text }] }] }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || '오류 ' + r.status);
+    out = (j.content || []).map((c) => c.text || '').join('');
+  } else {
+    const m = !A.model || /^gemini-[12]\./.test(A.model) ? 'gemini-3.8-flash' : A.model;
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(A.apiKey)}`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: 'image/png', data } }, { text }] }], generationConfig: { maxOutputTokens: 4000 } }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(r.status === 429 ? 'AI 사용량이 다 찼어요. 조금 뒤에 다시 눌러 주세요.' : (j.error?.message || '오류 ' + r.status));
+    out = j.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+  }
+  const a = out.indexOf('['), b = out.lastIndexOf(']');
+  return JSON.parse(out.slice(a, b + 1));
+}
+$('capRead').onclick = async () => {
+  const c = curCap(), btn = $('capRead'), msg = $('capReadMsg'), say = (t, err) => { msg.textContent = t; msg.className = 'status' + (err ? ' err' : ''); };
+  if (!c) return;
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '🌀 사진을 읽는 중이에요…'; say('');
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('사진을 열지 못했어요')); i.src = c.d; });
+    const R = L().rows, C = L().cols, m = maskNames(img, R);
+    if (!m || m.rows !== R || m.cols !== C) throw new Error(`사진에서 ${R}줄 ${C}칸 표를 찾지 못했어요${m ? ` (${m.rows}줄 ${m.cols}칸으로 보여요)` : ''}. 표 선이 다 보이게 다시 캡쳐하거나, 칸에 직접 적어 주세요. 아무것도 보내지 않았어요.`);
+    const g = await askNumbers(m.canvas, R, C);
+    const r = gridToSeats(g.map((row) => row.map((v) => (v == null ? '-' : v)).join(' ')).join('\n'), c.view === 'teacher');
+    if (r.err) throw new Error('AI가 표 모양을 다르게 읽었어요. 다시 눌러 주세요.');
+    c.seats = r.seats; saveCap(c); renderCapEditor();
+    say(`✅ ${Object.keys(r.seats).length}명을 채웠어요. 사진과 같은지 확인하고 4번에서 저장해 주세요.${r.bad.length ? ` 명단에 없어 뺀 번호: ${r.bad.join(', ')}` : ''}`);
+  } catch (e) { console.error(e); say('⚠️ ' + e.message, true); }
+  btn.disabled = false; btn.textContent = old;
 };
 // 🔗 자리 링크: ?seats=-,-,-,25,8/11,9,10,22,6/…&day=2026-10-14 (사진에 보이는 순서, 빈 곳은 -, view=student 면 칠판이 위)
 //  링크를 열면 미리 보기가 뜨고, 단추를 눌러야 저장돼요 (번호만 담겨요 · 이름은 없어요)
