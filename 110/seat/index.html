@@ -124,6 +124,20 @@
   .print-area .board{ background:#333; }
   .print-area .side-label.win{ background:#fff; border:1px solid #999; color:#333; }
   .print-area .side-label.hall{ background:#fff; border:1px solid #ccc; }
+  /* 📄 좌석 배치도 양식 */
+  .paper{ color:#000; text-align:center; font-family:'OngleipUnz','Pretendard',sans-serif; }
+  .paper.serif{ font-family:'Batang','바탕','Noto Serif KR',serif; font-weight:700; }
+  .ptable{ width:100%; border-collapse:collapse; table-layout:fixed; }
+  .ptable td{ border:1px solid #000; height:19mm; padding:0 2px; }
+  .ptable .pc{ font-size:calc(var(--pfs,20px) * 1.35); white-space:nowrap; overflow:hidden; }
+  .ptable .ps{ width:4.5%; }
+  .ptable .pc{ cursor:pointer; }
+  .ptable .pc:hover{ background:#FFF6DC; }
+  .ptable .pc.pick{ background:#FFE08A; }
+  .pdesk{ margin:3.5mm 0; }
+  .pdesk span{ display:inline-block; border:4px double #000; padding:2mm 14mm; font-size:calc(var(--pfs,20px) * 1.5); letter-spacing:.1em; }
+  .ptit{ font-size:calc(var(--pfs,20px) * 1.5); letter-spacing:.14em; margin-top:2mm; }
+  .pfoot{ font-size:calc(var(--pfs,20px) * .8); margin-top:3mm; letter-spacing:.04em; }
 
   /* ===== 🥶 창가 체크 ===== */
   .cold-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:10px; }
@@ -307,15 +321,24 @@
     <section id="tab-print" class="tab" hidden>
       <div class="panel">
         <h2>🖨️ 자리표 출력</h2>
-        <p class="sub">A4 가로 한 장으로 나와요. 교실 게시용은 학생 눈, 교탁에 둘 것은 선생님 눈으로 뽑아요.</p>
-        <div class="row">
-          <label class="opt"><input type="radio" name="pView" value="student" checked> 🧑‍🎓 학생 눈 (칠판이 위)</label>
-          <label class="opt"><input type="radio" name="pView" value="teacher"> 🧑‍🏫 선생님 눈 (교탁이 아래)</label>
-          <label class="opt"><input type="checkbox" id="pNo" checked> 번호 같이</label>
-          <label class="opt">글씨 <select id="pSize"><option value="16">작게</option><option value="20" selected>보통</option><option value="26">크게</option></select></label>
-          <input type="text" id="pTitle" class="num" style="width:220px" value="1학년 10반 자리표">
-          <button class="btn primary" id="doPrint">🖨️ 출력하기</button>
+        <p class="sub">A4 가로 한 장으로 나와요. 아래 미리 보기 그대로 출력돼요.</p>
+        <div class="row" style="margin-bottom:10px;">
+          <label class="opt"><input type="radio" name="pStyle" value="paper" checked> 📄 좌석 배치도 양식</label>
+          <label class="opt"><input type="radio" name="pStyle" value="room"> 🏫 교실 그림</label>
+          <label class="opt"><input type="radio" name="pView" value="teacher" checked> 교탁이 아래</label>
+          <label class="opt"><input type="radio" name="pView" value="student"> 교탁이 위</label>
+          <label class="opt">글씨 크기 <select id="pSize"><option value="16">작게</option><option value="20" selected>보통</option><option value="26">크게</option></select></label>
         </div>
+        <div class="row" id="pPaperOpts" style="margin-bottom:10px;">
+          <label>기간 <input type="date" id="pFrom" class="num" style="width:150px"></label> ~ <input type="date" id="pTo" class="num" style="width:150px" aria-label="끝나는 날">
+          <label class="opt">글씨체 <select id="pFont"><option value="hand">손글씨</option><option value="serif">바탕체</option></select></label>
+          <input type="text" id="pFoot" class="num" style="flex:1;min-width:260px" aria-label="맨 아래 글" placeholder="맨 아래 글 (안 적어도 돼요)">
+        </div>
+        <div class="row" id="pRoomOpts" style="margin-bottom:10px;" hidden>
+          <label class="opt"><input type="checkbox" id="pNo" checked> 번호 같이</label>
+          <input type="text" id="pTitle" class="num" style="width:220px" value="1학년 10반 자리표">
+        </div>
+        <div class="row"><button class="btn primary" id="doPrint">🖨️ 출력하기</button><span class="note" id="pHelp">✏️ 바꾸고 싶은 칸 두 개를 차례로 누르면 두 자리가 바뀌고 바로 저장돼요. 빈칸으로도 옮길 수 있어요.</span></div>
       </div>
       <div class="print-area" id="printArea" style="margin-top:16px;"></div>
     </section>
@@ -821,16 +844,51 @@ $('doWinSwap').onclick = () => {
 };
 
 // ----- ③ 출력 -----
+// 📄 좌석 배치도 양식: 선생님이 쓰시던 종이 자리표 모양 (번호. 이름 · 칸 사이 좁은 빈 칸 · 교탁 · 기간 · 맨 아래 글)
+const FOOT0 = '항상 바른 자세로 성실하게 수업 듣는 1학년 10반이 되겠습니다. 남은 한 해도 잘 부탁드립니다. 선생님, 감사합니다. ☺';
+try { $('pFoot').value = localStorage.getItem('c110-print-foot') ?? FOOT0; } catch { $('pFoot').value = FOOT0; }
+const md = (d) => { const x = String(d || '').split('-'); return x.length === 3 ? `${+x[1]}/${+x[2]}` : ''; };
+function paperHTML(map, teacher) {
+  const R = L().rows, C = L().cols, rows = [...Array(R).keys()], cols = [...Array(C).keys()];
+  if (teacher) { rows.reverse(); cols.reverse(); }
+  const cell = (i) => { const no = map[i], s = no != null ? stu(no) : null; if (!s) return ''; const n = s.name || ''; return `${s.no}. ${esc(n.length === 2 ? n[0] + ' ' + n[1] : n)}`; };
+  const table = `<table class="ptable">${rows.map((r) => `<tr>${cols.map((c, k) => `<td class="pc${picked === r * C + c ? ' pick' : ''}" data-seat="${r * C + c}">${cell(r * C + c)}</td>${k < C - 1 ? '<td class="ps"></td>' : ''}`).join('')}</tr>`).join('')}</table>`;
+  const desk = '<div class="pdesk"><span>교 탁</span></div>', from = md($('pFrom').value), to = md($('pTo').value), foot = $('pFoot').value.trim();
+  return `<div class="paper ${$('pFont').value}">${teacher ? table + desk : desk + table}<div class="ptit">좌 석 배 치 도${from ? `(${from} ~${to ? ' ' + to : ''})` : ''}</div>${foot ? `<div class="pfoot">${esc(foot)}</div>` : ''}</div>`;
+}
 function renderPrint() {
   const teacher = document.querySelector('input[name="pView"]:checked').value === 'teacher';
-  const a = $('printArea');
+  const a = $('printArea'), paper = document.querySelector('input[name="pStyle"]:checked').value === 'paper';
   a.style.setProperty('--pfs', $('pSize').value + 'px');
+  $('pPaperOpts').hidden = !paper; $('pRoomOpts').hidden = paper;
+  if ($('pFrom').dataset.touched !== '1') $('pFrom').value = S.since || '';   // 고치기 전에는 우리 반 자리의 시작 날
+  if (paper) { a.innerHTML = paperHTML(S.current, teacher); return; }
   a.innerHTML = `<h2 class="ptitle">${esc($('pTitle').value)}</h2><div class="pdate">${S.since ? fmtDay(S.since) + '부터' : ''} · ${teacher ? '선생님 눈 (교탁이 아래)' : '학생 눈 (칠판이 위)'}</div>` +
     roomHTML(S.current, { teacher, showNo: $('pNo').checked });
 }
-['pNo', 'pSize', 'pTitle'].forEach((id) => $(id).addEventListener('input', renderPrint));
-document.querySelectorAll('input[name="pView"]').forEach((r) => r.addEventListener('change', renderPrint));
-$('doPrint').onclick = () => { renderPrint(); window.print(); };
+['pNo', 'pSize', 'pTitle', 'pFrom', 'pTo', 'pFont', 'pFoot'].forEach((id) => $(id).addEventListener('input', renderPrint));
+$('pFrom').addEventListener('input', () => { $('pFrom').dataset.touched = '1'; renderPrint(); });
+$('pFoot').addEventListener('change', () => { try { localStorage.setItem('c110-print-foot', $('pFoot').value); } catch {} });
+document.querySelectorAll('input[name="pView"], input[name="pStyle"]').forEach((r) => r.addEventListener('change', renderPrint));
+// ✏️ 출력 전에 담임이 몇 자리 바꾸기: 칸 두 개를 차례로 누르면 맞바꾸고 저장해요 (없는 자리로 옮기면 그 자리를 쓰는 자리로)
+$('printArea').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-seat]'); if (!el) return;
+  const i = +el.dataset.seat;
+  if (picked == null) { picked = i; $('pHelp').textContent = `✏️ ${S.current[i] != null ? nameOf(S.current[i]) : '빈칸'}을(를) 골랐어요. 바꿀 칸을 눌러 주세요. (같은 칸을 누르면 취소)`; renderPrint(); return; }
+  const from = picked; picked = null;
+  if (from !== i) {
+    const a = S.current[from], b = S.current[i];
+    if (b == null) delete S.current[from]; else S.current[from] = b;
+    if (a == null) delete S.current[i]; else S.current[i] = a;
+    const off = new Set(L().off || []);
+    for (const [p, q] of [[from, i], [i, from]]) if (off.has(p) && S.current[p] != null) { off.delete(p); if (S.current[q] == null) off.add(q); }
+    S.layout.off = [...off].sort((x, y) => x - y);
+    S.sample = false; save();
+  }
+  $('pHelp').textContent = from !== i ? '✅ 두 자리를 바꿨어요. 더 바꾸려면 칸을 또 눌러 주세요.' : '✏️ 바꾸고 싶은 칸 두 개를 차례로 누르면 두 자리가 바뀌고 바로 저장돼요.';
+  renderPrint();
+});
+$('doPrint').onclick = () => { picked = null; renderPrint(); window.print(); };
 
 // ----- ④ 명단 · 교실 -----
 function renderLayout() {
@@ -1396,7 +1454,7 @@ function showTab(name) {
   document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
   document.querySelectorAll('.tab').forEach((s) => (s.hidden = s.id !== 'tab-' + name));
   if (name === 'now') renderNow();
-  if (name === 'print') renderPrint();
+  if (name === 'print') { picked = null; renderPrint(); }
   if (name === 'students') { renderLayout(); renderStudents(); }
   if (name === 'history') renderHistory();
   if (name === 'caps') renderCaps();
