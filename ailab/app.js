@@ -192,6 +192,7 @@ const route = () => decodeURIComponent(location.hash.slice(1)) || 'home';
 
 function render() {
   if (!db || S.riding) return;
+  queueMicrotask(updatePin);   // 📌 급하게 할 일 판 (모든 화면)
   // 글을 쓰는 중에는 화면을 다시 그리지 않고, 칸을 벗어날 때 그립니다.
   const ae = document.activeElement;
   if (ae && $('#view').contains(ae) && ae.matches('textarea, input:not([type=checkbox]):not([type=date])')) { S.dirty = true; return; }
@@ -1008,18 +1009,36 @@ function ledgerView() {
 // 남은 크레딧은 Anthropic 이 API 로 알려 주지 않아요 → 콘솔에서 본 남은 값과 날짜를 적어 두면, 그 뒤에 연구소가 쓴 값을 빼서 보여 줘요
 const usd = (n) => `$${(n || 0).toFixed(n >= 10 ? 1 : 2)}`;
 const saveDesk = (patch) => setDoc(doc(db, dbPath('meta/desk')), { ...patch, updatedAt: serverTimestamp() }, { merge: true }).catch((e) => toast(`저장하지 못했어요 (${e.code})`));
+// 📌 급하게 할 일 (3일 안): 줄마다 열쇠(k)가 있어 '내 일 아님'으로 뺄 수 있어요 (ailab_meta/desk.notMine)
+//  날짜 일은 날짜 · 제목으로, 확인 · 읽기 실패는 개수로(개수가 바뀌면 다시 떠요), 크레딧은 만료일로
+function urgentAll() {
+  const d = S.desk || {}, today = todayStr();
+  const dExp = isDate(d.creditExpires) ? Math.round((new Date(`${d.creditExpires}T00:00:00`) - new Date(`${today}T00:00:00`)) / 864e5) : null;
+  const nRev = S.cards.filter((c) => c.status === 'review').length, nErr = S.captures.filter((c) => c.status === 'error').length;
+  return [
+    ...upcoming().filter((c) => c.date && c.date >= today && c.date <= dayAdd(today, 3)).map((c) => ({ k: `e:${c.date}|${c.title}`, html: `${ddChip(c.date, c.end_date)} ${esc(c.title)}`, t: c.title, d: c.date, room: ROOMS[c.room] ? c.room : '' })),
+    ...(nRev ? [{ k: `review:${nRev}`, html: `확인 기다리는 카드 ${nRev}장 <a href="#lobby">접수처로</a>`, t: `확인 기다리는 카드 ${nRev}장`, room: 'lobby' }] : []),
+    ...(nErr ? [{ k: `error:${nErr}`, html: `읽지 못한 자료 ${nErr}개 <a href="#lobby">다시 읽기</a>`, t: `읽지 못한 자료 ${nErr}개`, room: 'lobby' }] : []),
+    ...(dExp != null && dExp >= 0 && dExp <= 7 ? [{ k: `credit:${d.creditExpires}`, html: `콘솔 크레딧이 ${dExp ? `${dExp}일 뒤` : '오늘'} 끝나요`, t: `콘솔 크레딧이 ${dExp ? `${dExp}일 뒤` : '오늘'} 끝나요`, room: 'boss' }] : []),
+  ];
+}
+const notMine = () => S.desk?.notMine || [];
+function hideNotMine(k) { const keep = new Set(urgentAll().map((x) => x.k)); saveDesk({ notMine: [...notMine().filter((x) => keep.has(x)), k] }); toast('뺐어요 · 사장실 책상에서 다시 보이게 할 수 있어요'); }   // 지난 열쇠는 정리해요
+// 모든 화면 위 📌 판 · 마을 · 레이더가 읽을 목록 저장 (바뀔 때만)
+let pinMod = null, pinSaved = '';
+function updatePin() {
+  if (!S.teacher || !S.desk) { if (pinMod) pinMod.then((m) => m.renderPin([])); return; }
+  const list = urgentAll().filter((x) => !notMine().includes(x.k)).map(({ k, t, d, room }) => ({ k, t, d: d || '', room: room || '' }));
+  (pinMod ||= import('./pin.js')).then((m) => m.renderPin(list, { base: '', onHide: hideNotMine }));
+  const j = JSON.stringify(list); if (j !== pinSaved && j !== JSON.stringify(S.desk.pinned || [])) { pinSaved = j; saveDesk({ pinned: list }); }
+}
 function deskCard() {
   const d = S.desk || {}, u = S.usage || {}, days = u.days || {}, today = todayStr();
   const since = (from) => Object.entries(days).filter(([k]) => k >= from).reduce((n, [, v]) => n + v, 0);
   const month = since(today.slice(0, 8) + '01'), week = since(dayAdd(today, -6));
   const left = d.creditLeft != null && d.creditAsOf ? d.creditLeft - since(d.creditAsOf) : null;
   const dExp = isDate(d.creditExpires) ? Math.round((new Date(`${d.creditExpires}T00:00:00`) - new Date(`${today}T00:00:00`)) / 864e5) : null;
-  const urgent = [
-    ...upcoming().filter((c) => c.date && c.date >= today && c.date <= dayAdd(today, 3)).map((c) => `${ddChip(c.date, c.end_date)} ${esc(c.title)}`),
-    ...(S.cards.some((c) => c.status === 'review') ? [`확인 기다리는 카드 ${S.cards.filter((c) => c.status === 'review').length}장 <a href="#lobby">접수처로</a>`] : []),
-    ...(S.captures.some((c) => c.status === 'error') ? [`읽지 못한 자료 ${S.captures.filter((c) => c.status === 'error').length}개 <a href="#lobby">다시 읽기</a>`] : []),
-    ...(dExp != null && dExp >= 0 && dExp <= 7 ? [`콘솔 크레딧이 ${dExp ? `${dExp}일 뒤` : '오늘'} 끝나요`] : []),
-  ];
+  const all = urgentAll(), urgent = all.filter((x) => !notMine().includes(x.k)), hidden = all.length - urgent.length;
   const todos = d.todos || [];
   return `<section class="desk">
     <div class="desk-h"><h3>사장님 계기판</h3><small>사장님 = 개발자 · 한눈에</small></div>
@@ -1035,7 +1054,8 @@ function deskCard() {
           <small>콘솔 Billing 화면의 남은 금액을 적어요. 교무실 타이쿤 · 아이아이노트도 같은 키를 쓰면 그쪽 사용은 여기 안 잡혀서, 가끔 콘솔 값으로 다시 맞춰 주세요. <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">콘솔 열기</a></small>
         </details>
       </div>
-      <div class="dk"><h4>급하게 할 일 <small>3일 안</small></h4>${urgent.length ? `<ul>${urgent.map((x) => `<li>${x}</li>`).join('')}</ul>` : '<p class="note">급한 일이 없어요.</p>'}</div>
+      <div class="dk"><h4>급하게 할 일 <small>3일 안 · 남긴 일은 모든 화면 위에 떠요</small></h4>${urgent.length ? `<ul class="urg">${urgent.map((x) => `<li><span>${x.html}</span><button type="button" class="chipbtn" data-act="notMine" data-k="${esc(x.k)}" title="내가 할 일이 아니면 빼요">내 일 아님</button></li>`).join('')}</ul>` : '<p class="note">급한 일이 없어요.</p>'}
+        ${hidden ? `<p class="note">빼 둔 일 ${hidden}개 · <button type="button" class="chipbtn" data-act="notMineReset">다시 보이기</button></p>` : ''}</div>
       <div class="dk"><h4>아직 안 한 일 <small>${todos.filter((t) => !t.done).length}개</small></h4>
         <ul class="todo">${todos.map((t, i) => `<li class="${t.done ? 'done' : ''}"><label><input type="checkbox" data-act="todo" data-i="${i}" ${t.done ? 'checked' : ''}> ${esc(t.t)}</label><button class="x" data-act="todoDel" data-i="${i}" aria-label="지우기">✕</button></li>`).join('')}</ul>
         <input id="todoNew" placeholder="할 일 적고 Enter" autocomplete="off"></div>
@@ -2216,6 +2236,8 @@ document.addEventListener('click', async (e) => {
       case 'furnclose': $('#furn').close(); break;
       case 'regkey': S.regf = { ...S.regf, key: S.regf?.key === b.dataset.v ? '' : b.dataset.v }; render(); break;
       case 'regtodo': S.regf = { ...S.regf, todo: !S.regf?.todo }; render(); break;
+      case 'notMine': hideNotMine(b.dataset.k); break;
+      case 'notMineReset': saveDesk({ notMine: [] }); break;
       case 'todoDel': saveDesk({ todos: (S.desk?.todos || []).filter((_, i) => i !== Number(b.dataset.i)) }); break;
       case 'briefnow':
         S.briefing = true; render();

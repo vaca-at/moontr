@@ -279,12 +279,15 @@ if (DEMO) {
   draw();
 } else {
   gate('불러오는 중…');
-  let unsub = null;
+  let unsub = null, pinOff = null;
+  const pin = (l) => import('../pin.js').then((m) => m.renderPin(l, { base: '../' }));   // 📌 급하게 할 일 (연구소가 남긴 목록)
   onAuthStateChanged(auth, u => {
     if (unsub) { unsub(); unsub = null; }
+    if (pinOff) { pinOff(); pinOff = null; } pin([]);
     user = u;
     if (!u) return gate();
     if (!ADMIN_EMAILS.includes(u.email)) { signOut(auth); return gate('관리자 구글 계정으로 로그인해 주세요.'); }   // 다른 계정은 바로 나가요 (다른 앱 관리자 로그인이 막히지 않게)
+    pinOff = onSnapshot(doc(db, 'ailab_meta', 'desk'), (d) => pin((d.data() || {}).pinned || []), () => {});
     unsub = onSnapshot(doc(db, 'ailab_meta', 'registry'), s => { ALL = enrich(Object.values((s.exists() && s.data().rows) || {})); draw(); },
       err => gate(err.code === 'permission-denied' ? '이 계정으로는 볼 수 없어요. 관리자 구글 계정으로 로그인해 주세요.' : '불러오지 못했어요 (' + err.code + ')'));
   });

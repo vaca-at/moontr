@@ -930,7 +930,7 @@ const ADMIN_EMAILS = ['bellachord@gmail.com', 'anstjsdud@sen.go.kr'];   // 보�
 // ?demo 는 이 컴퓨터에서 시험할 때만 (moontr.site 에서는 붙여도 로그인 창만 보여요)
 const DEMO = new URLSearchParams(location.search).has('demo') && /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
 const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
-let fb = null, booted = false;
+let fb = null, booted = false, pinOff = null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // 방 화면에서 고른 캐릭터 설정이 Firebase 에 있으면 그걸로 다시 그려요 (다른 기기에서 바꾼 것도 따라와요)
 function applyVS(s) {
@@ -940,8 +940,10 @@ function applyVS(s) {
 }
 async function onUser(u) {
   if (u && !ADMIN_EMAILS.includes(u.email)) { fb.A.signOut(fb.auth); toast('관리자 구글 계정으로 로그인해 주세요'); return false; }   // 다른 계정은 바로 나가요 (다른 앱 관리자 로그인이 막히지 않게)
-  if (!u) { if (me?.here && !DEMO) leave(); return false; }
+  if (!u) { pinOff?.(); pinOff = null; import('../pin.js').then((m) => m.renderPin([])); if (me?.here && !DEMO) leave(); return false; }
   try { const s = await fb.F.getDoc(fb.F.doc(fb.db, 'ailab_meta', 'building')); if (s.exists()) applyVS(s.data()); } catch (e) { console.warn('건물 설정을 못 읽었어요', e); }
+  // 📌 급하게 할 일: 연구소 방 화면이 남겨 둔 목록(ailab_meta/desk.pinned)을 위쪽 가운데에 띄워요
+  try { pinOff?.(); pinOff = fb.F.onSnapshot(fb.F.doc(fb.db, 'ailab_meta', 'desk'), (d) => import('../pin.js').then((m) => m.renderPin((d.data() || {}).pinned || [], { base: '../' })), () => {}); } catch {}
   if (booted && !me.here) arrive();
   return true;
 }
