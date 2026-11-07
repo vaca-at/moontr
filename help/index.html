@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>앱 문의함</title>
+<style>
+:root { --bg:#f6f2ea; --card:#fff; --ink:#2f2a24; --mute:#8a7f72; --line:#e6ddcd; --pt:#c8553d; --ok:#4f8a5a; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+.wrap { max-width:1100px; margin:0 auto; padding:16px; }
+h1 { font-size:22px; margin:4px 0 2px; } .lead { color:var(--mute); margin:0 0 14px; }
+.login { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px; text-align:center; }
+button { font:inherit; cursor:pointer; }
+.g { padding:10px 18px; border-radius:10px; border:1.5px solid var(--line); background:#fff; }
+.apps { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; } .apps button { padding:5px 12px; border-radius:999px; border:1.5px solid var(--line); background:#fff; } .apps button.on { background:var(--pt); color:#fff; border-color:var(--pt); }
+.grid { display:grid; grid-template-columns:340px 1fr; gap:12px; } @media (max-width:760px){ .grid { grid-template-columns:1fr; } }
+.list, .thread { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+.list { max-height:72vh; overflow-y:auto; }
+.it { display:block; width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); background:#fff; padding:10px 12px; }
+.it.on { background:#fbf3e8; } .it b { font-weight:600; } .it small { color:var(--mute); display:block; } .it .new { color:#fff; background:var(--pt); border-radius:999px; padding:0 7px; font-size:12px; margin-left:6px; }
+.tag { font-size:12px; border-radius:6px; padding:1px 6px; background:#efe8da; margin-right:6px; }
+.thread { display:flex; flex-direction:column; min-height:60vh; max-height:72vh; }
+.msgs { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
+.m { max-width:80%; padding:8px 12px; border-radius:12px; white-space:pre-wrap; word-break:break-word; }
+.m.user { align-self:flex-start; background:#fff; border:1px solid var(--line); }
+.m.ai { align-self:flex-end; background:#f1eefa; border:1px solid #ddd5f2; }
+.m.op { align-self:flex-end; background:#eef6e8; border:1px solid #cfe2c0; }
+.m em { display:block; font-style:normal; font-size:12px; color:var(--mute); }
+form { display:flex; gap:8px; padding:10px; border-top:1px solid var(--line); }
+textarea { flex:1; font:inherit; padding:8px 10px; border-radius:10px; border:1.5px solid var(--line); min-height:60px; resize:vertical; }
+form button { padding:0 18px; border-radius:10px; border:0; background:var(--pt); color:#fff; }
+.empty { color:var(--mute); padding:20px; text-align:center; }
+.err { color:#b23a2a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💬 앱 문의함</h1>
+  <p class="lead">스냅주 · 큰법당 템플스테이 · 캠핑장 · 소호랩에서 남긴 문의예요. AI 가 먼저 답한 내용도 함께 보이고, 여기서 답하면 사용자의 문의 창에 '관리자' 답으로 떠요.</p>
+  <div class="login" id="login" hidden><p>관리자 구글 계정으로 로그인해 주세요.</p><button class="g" id="glogin" type="button">G 구글 계정으로 로그인</button><p class="err" id="err"></p></div>
+  <div id="main" hidden>
+    <div class="apps" id="apps"></div>
+    <div class="grid"><div class="list" id="list"></div><div class="thread"><div class="msgs" id="msgs"><p class="empty">왼쪽에서 대화를 골라 주세요</p></div><form id="reply" hidden><textarea id="txt" placeholder="답장을 적어 주세요 (사용자 화면에 '관리자' 로 보여요)"></textarea><button type="submit">보내기</button></form></div></div>
+  </div>
+</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// moontr.site 공용 로그인(이름 없는 기본 앱): 관리자 허브에서 로그인했으면 바로 열려요
+const app = initializeApp({ apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain: "moon-d528d.firebaseapp.com", projectId: "moon-d528d", storageBucket: "moon-d528d.firebasestorage.app", messagingSenderId: "126636401536", appId: "1:126636401536:web:25b8a8296ec42b86f99765" });
+const auth = getAuth(app), API = 'https://moontr-help.bellachord.workers.dev';
+const ADMIN_EMAILS = ['anstjsdud@sen.go.kr', 'bellachord@gmail.com'], isAdminEmail = (e) => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
+const $ = (q) => document.querySelector(q), esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+let APPS = {}, threads = [], filter = 'all', curT = null;
+const call = async (path, opt = {}) => { const r = await fetch(API + path, { ...opt, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await auth.currentUser.getIdToken() } }); if (!r.ok) throw new Error('서버 ' + r.status); return r.json(); };
+const when = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+async function loadList() {
+  try { const r = await call('/admin/threads'); APPS = r.apps; threads = r.threads; } catch (e) { $('#list').innerHTML = `<p class="empty err">불러오지 못했어요 (${esc(e.message)})</p>`; return; }
+  const n = (k) => threads.filter((t) => (k === 'all' || t.app === k) && t.unreadOp).length;
+  $('#apps').innerHTML = [['all', '전체'], ...Object.entries(APPS)].map(([k, v]) => `<button type="button" data-k="${k}" class="${filter === k ? 'on' : ''}">${esc(v)}${n(k) ? ` (${n(k)})` : ''}</button>`).join('');
+  const L = threads.filter((t) => filter === 'all' || t.app === filter);
+  $('#list').innerHTML = L.length ? L.map((t) => `<button type="button" class="it ${curT && curT.uid === t.uid && curT.app === t.app ? 'on' : ''}" data-app="${t.app}" data-uid="${t.uid}"><span class="tag">${esc(APPS[t.app] || t.app)}</span><b>${esc(t.name || '이름 없음 · ' + t.uid.slice(0, 5))}</b>${t.unreadOp ? '<span class="new">새 글</span>' : ''}<small>${esc(t.last || '')} · ${when(t.updatedAt)}</small></button>`).join('') : '<p class="empty">아직 문의가 없어요</p>';
+  document.title = (n('all') ? `(${n('all')}) ` : '') + '앱 문의함';
+}
+async function openT(app, uid) {
+  curT = { app, uid }; $('#reply').hidden = false;
+  const r = await call(`/admin/thread?app=${app}&uid=${uid}`);
+  $('#msgs').innerHTML = r.msgs.map((m) => `<div class="m ${m.from}"><em>${m.from === 'user' ? '사용자' : m.from === 'ai' ? 'AI 답변' : '관리자'} · ${when(m.at)}</em>${esc(m.text)}</div>`).join('') || '<p class="empty">글이 없어요</p>';
+  $('#msgs').scrollTop = $('#msgs').scrollHeight; loadList();
+}
+$('#apps').onclick = (e) => { const k = e.target.closest('[data-k]')?.dataset.k; if (k) { filter = k; loadList(); } };
+$('#list').onclick = (e) => { const b = e.target.closest('[data-uid]'); if (b) openT(b.dataset.app, b.dataset.uid); };
+$('#reply').onsubmit = async (e) => { e.preventDefault(); const text = $('#txt').value.trim(); if (!text || !curT) return; await call('/admin/reply', { method: 'POST', body: JSON.stringify({ ...curT, text }) }); $('#txt').value = ''; openT(curT.app, curT.uid); };
+$('#glogin').onclick = async () => { try { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); const r = await signInWithPopup(auth, p); if (!isAdminEmail(r.user.email)) { await signOut(auth); $('#err').textContent = '관리자 계정이 아니에요. 관리자 구글 계정으로 골라 주세요.'; } } catch (e) { $('#err').textContent = '로그인하지 못했어요'; } };
+onAuthStateChanged(auth, (u) => { const ok = !!u && isAdminEmail(u.email); $('#login').hidden = ok; $('#main').hidden = !ok; if (ok) loadList(); });
+setInterval(() => { if (auth.currentUser && !document.hidden) loadList(); }, 60000);
+</script>
+<script src="/refresh.js" defer></script>
+</body>
+</html>
