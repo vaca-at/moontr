@@ -33,7 +33,7 @@ export default {
       const r = await desk.fetch('https://desk/add', { method: 'POST', body: JSON.stringify({ app, uid, from: 'user', text, name: clean(body.name, 20) }) }).then((x) => x.json());
       if (r.error) return json(req, r, 429);
       let ai = '';
-      try { ai = await aiAnswer(env, app, text, r.msgs); } catch (e) { ai = ''; }
+      try { ai = await aiAnswer(env, app, text, r.msgs); } catch (e) { console.log('AI 실패', String(e).slice(0, 300)); ai = ''; }
       if (!ai) ai = '글을 잘 받았어요. AI 가 지금 답하기 어려워서, 관리자가 확인하고 이 창에 답을 남길게요.';
       const r2 = await desk.fetch('https://desk/add', { method: 'POST', body: JSON.stringify({ app, uid, from: 'ai', text: ai }) }).then((x) => x.json());
       return json(req, { msgs: r2.msgs });
@@ -55,6 +55,7 @@ export default {
         const text = clean(body.text, 2000); if (!APPS[body.app] || !okUid(body.uid) || !text) return json(req, { error: 'bad' }, 400);
         return json(req, await desk.fetch('https://desk/add', { method: 'POST', body: JSON.stringify({ app: body.app, uid: body.uid, from: 'op', text }) }).then((x) => x.json()));
       }
+      if (url.pathname === '/admin/delete' && req.method === 'POST') return json(req, await desk.fetch('https://desk/delete', { method: 'POST', body: JSON.stringify({ app: body.app, uid: body.uid }) }).then((x) => x.json()));
       if (url.pathname === '/admin/done' && req.method === 'POST') return json(req, await desk.fetch('https://desk/done', { method: 'POST', body: JSON.stringify({ app: body.app, uid: body.uid }) }).then((x) => x.json()));
     }
     return json(req, { ok: true, service: 'moontr-help' });
@@ -79,8 +80,8 @@ async function aiAnswer(env, app, text, msgs) {
 [안내문] ${guide}`;
   const hist = (msgs || []).slice(-8).map((m) => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text })).filter((m, i, L) => !(i === L.length - 1 && m.role === 'user'));
   const messages = [{ role: 'system', content: sys }, ...hist, { role: 'user', content: text }];
-  for (const model of ['@cf/google/gemma-3-12b-it', '@cf/meta/llama-3.1-8b-instruct']) {
-    try { const r = await env.AI.run(model, { messages, max_tokens: 400 }); const out = String(r?.response ?? r?.result?.response ?? '').trim(); if (out) return out.slice(0, 1500); } catch {}
+  for (const model of ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/qwen/qwen3-30b-a3b-fp8']) {   // 앞 모델이 안 되면 다음 모델
+    try { const r = await env.AI.run(model, { messages, max_tokens: 400 }); const v = r?.response ?? r?.result?.response ?? r?.choices?.[0]?.message?.content ?? ''; const out = (typeof v === 'string' ? v : JSON.stringify(v)).replace(/<think>[\s\S]*?<\/think>/g, '').trim(); if (out) return out.slice(0, 1500); console.log('AI 빈 답', model, JSON.stringify(r).slice(0, 300)); } catch (e) { console.log('AI 오류', model, String(e).slice(0, 300)); }
   }
   return '';
 }
@@ -111,6 +112,7 @@ export class Desk extends DurableObject {
       for (const t of all.values()) out.push({ app: t.app, uid: t.uid, name: t.name, last: t.last, updatedAt: t.updatedAt, unreadOp: t.unreadOp || 0, n: t.msgs.length });
       out.sort((a, b) => b.updatedAt - a.updatedAt); return Response.json({ threads: out.slice(0, 300), unread: out.reduce((s, t) => s + (t.unreadOp ? 1 : 0), 0) });
     }
+    if (url.pathname === '/delete') { const b = await req.json(); await st.delete(`t:${b.app}:${b.uid}`); return Response.json({ ok: true }); }
     if (url.pathname === '/done') { const b = await req.json(), key = `t:${b.app}:${b.uid}`, t = await st.get(key); if (t) { t.unreadOp = 0; await st.put(key, t); } return Response.json({ ok: true }); }
     return new Response('?', { status: 404 });
   }

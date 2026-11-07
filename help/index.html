@@ -42,7 +42,7 @@ form button { padding:0 18px; border-radius:10px; border:0; background:var(--pt)
   <div class="login" id="login" hidden><p>관리자 구글 계정으로 로그인해 주세요.</p><button class="g" id="glogin" type="button">G 구글 계정으로 로그인</button><p class="err" id="err"></p></div>
   <div id="main" hidden>
     <div class="apps" id="apps"></div>
-    <div class="grid"><div class="list" id="list"></div><div class="thread"><div class="msgs" id="msgs"><p class="empty">왼쪽에서 대화를 골라 주세요</p></div><form id="reply" hidden><textarea id="txt" placeholder="답장을 적어 주세요 (사용자 화면에 '관리자' 로 보여요)"></textarea><button type="submit">보내기</button></form></div></div>
+    <div class="grid"><div class="list" id="list"></div><div class="thread"><div class="msgs" id="msgs"><p class="empty">왼쪽에서 대화를 골라 주세요</p></div><form id="reply" hidden><button type="button" id="del" style="background:#fff;color:#b23a2a;border:1.5px solid #e6ddcd">지우기</button><textarea id="txt" placeholder="답장을 적어 주세요 (사용자 화면에 '관리자' 로 보여요)"></textarea><button type="submit">보내기</button></form></div></div>
   </div>
 </div>
 <script type="module">
@@ -73,6 +73,7 @@ async function openT(app, uid) {
 $('#apps').onclick = (e) => { const k = e.target.closest('[data-k]')?.dataset.k; if (k) { filter = k; loadList(); } };
 $('#list').onclick = (e) => { const b = e.target.closest('[data-uid]'); if (b) openT(b.dataset.app, b.dataset.uid); };
 $('#reply').onsubmit = async (e) => { e.preventDefault(); const text = $('#txt').value.trim(); if (!text || !curT) return; await call('/admin/reply', { method: 'POST', body: JSON.stringify({ ...curT, text }) }); $('#txt').value = ''; openT(curT.app, curT.uid); };
+$('#del').onclick = async () => { if (!curT || !confirm('이 대화를 지울까요? 되돌릴 수 없어요')) return; await call('/admin/delete', { method: 'POST', body: JSON.stringify(curT) }); curT = null; $('#reply').hidden = true; $('#msgs').innerHTML = '<p class="empty">지웠어요</p>'; loadList(); };
 $('#glogin').onclick = async () => { try { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); const r = await signInWithPopup(auth, p); if (!isAdminEmail(r.user.email)) { await signOut(auth); $('#err').textContent = '관리자 계정이 아니에요. 관리자 구글 계정으로 골라 주세요.'; } } catch (e) { $('#err').textContent = '로그인하지 못했어요'; } };
 onAuthStateChanged(auth, (u) => { const ok = !!u && isAdminEmail(u.email); $('#login').hidden = ok; $('#main').hidden = !ok; if (ok) loadList(); });
 setInterval(() => { if (auth.currentUser && !document.hidden) loadList(); }, 60000);
