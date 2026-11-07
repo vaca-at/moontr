@@ -1285,6 +1285,16 @@ onAuthStateChanged(auth, user => {
   }, () => {});
   if (!ok && unsubHidden){ unsubHidden(); unsubHidden = null; }
 });
+/* 메타버스 앱(큰법당 · 캠핑장 · 소호랩 · 스냅주) 관리자 화면이 허브 창 안에 열리면, 그 화면이 "증표 주세요" 하고 물어요.
+   허브에 관리자로 로그인돼 있으면 구글 로그인 증표를 건네서, 그 화면에서 구글 창을 또 띄우지 않고 바로 들어가게 해요.
+   (창 안에 들어간 다른 주소 화면은 구글 창이 막히거나 로그인이 남지 않는 일이 많아요) */
+const TOKEN_ORIGINS = ['https://templestay.site', 'https://campingjang.site', 'https://soho-lab.site', 'https://snapzoo.site'];
+window.addEventListener('message', async e => {
+  if (!TOKEN_ORIGINS.includes(e.origin) || e.data?.t !== 'moontr-need-token') return;
+  const u = auth.currentUser;
+  if (!u || !isAdminEmail(u.email)) return;
+  try { e.source.postMessage({ t:'moontr-token', idToken: await u.getIdToken() }, e.origin); } catch {}
+});
 // 관리자 로그인은 관리자 구글 계정 하나예요 (Firebase 에서 이메일 · 비밀번호 로그인은 꺼 뒀어요)
 $('#login').addEventListener('submit', e => e.preventDefault());
 /* 관리자 구글 계정으로 로그인: 한 번 로그인하면 moontr.site 의 다른 관리자 화면도 저절로 열려요 */
