@@ -45,6 +45,48 @@ onAuthStateChanged(auth, (u) => {
   check();
 });
 setInterval(check, 2 * 60 * 1000);
+
+// ───────── 📝 교무실 타이쿤 연결: 오늘 할 일 · D-day · 학교 일정 ─────────
+// 교무실 타이쿤과 같은 로그인('tycoon' 이름 붙은 앱)을 써요. 타이쿤에 로그인해 두면 여기서도 같은 책상을 읽고 써요.
+//  - 읽기: desk_users/{책상}/days/{오늘} 의 할 일, desk_users/{책상}/data/main 의 D-day · 학교 일정 (바뀌면 바로)
+//  - 쓰기: 맥 앱의 사유리가 할 일을 더하고 · 끝내고 · 지우면 tyWrite() 로 같은 곳에 저장
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const tyApp = initializeApp({ apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain: "moon-d528d.firebaseapp.com", projectId: "moon-d528d", storageBucket: "moon-d528d.firebasestorage.app", messagingSenderId: "126636401536", appId: "1:126636401536:web:25b8a8296ec42b86f99765" }, "tycoon");
+const tyAuth = getAuth(tyApp), tyDb = getFirestore(tyApp);
+const pad = (n) => String(n).padStart(2, '0'), dkey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const daysTo = (k) => Math.round((new Date(k + 'T00:00') - new Date(dkey(new Date()) + 'T00:00')) / 864e5);
+let desk = null, today = dkey(new Date()), ty = { todos: [], memo: '' }, main = null, unsubs = [];
+const sendTy = (o) => { try { webkit.messageHandlers.hgd.postMessage({ t: 'tycoon', ...o }); } catch {} };
+function pushTy() {
+  const dd = main?.dday?.d && main?.dday?.t ? { t: main.dday.t, n: daysTo(main.dday.d) } : null;
+  const ev = (main?.events || []).map((e) => ({ t: e.t, n: daysTo(e.d) })).filter((e) => e.n >= 0).sort((a, b) => a.n - b.n).slice(0, 5);
+  sendTy({ login: true, day: today, todos: ty.todos.map((x) => ({ t: x.t, d: !!x.d })), dday: dd, events: ev });
+}
+function watch() {
+  unsubs.forEach((u) => u()); unsubs = [];
+  today = dkey(new Date());
+  unsubs.push(onSnapshot(doc(tyDb, 'desk_users', desk, 'days', today), (s) => { ty = s.exists() ? { todos: s.data().todos || [], memo: s.data().memo || '' } : { todos: [], memo: '' }; pushTy(); }, () => {}));
+  unsubs.push(onSnapshot(doc(tyDb, 'desk_users', desk, 'data', 'main'), (s) => { main = s.exists() ? s.data() : null; pushTy(); }, () => {}));
+}
+onAuthStateChanged(tyAuth, async (u) => {
+  if (!u) { desk = null; unsubs.forEach((f) => f()); unsubs = []; return sendTy({ login: false }); }
+  let id = u.uid;
+  try { const l = await getDoc(doc(tyDb, 'desk_links', u.uid)); if (l.exists() && l.data().desk) id = l.data().desk; } catch {}
+  desk = id; watch();
+});
+setInterval(() => { if (desk && dkey(new Date()) !== today) watch(); }, 60 * 1000);   // 자정이 지나면 새 날 할 일로
+// 사유리가 바꾼 할 일 저장: { op: 'add' | 'done' | 'undo' | 'del', t, i }
+window.tyWrite = async (w) => {
+  if (!desk) return;
+  const ref = doc(tyDb, 'desk_users', desk, 'days', today), cur = await getDoc(ref), d = cur.exists() ? cur.data() : { todos: [], memo: '' };
+  const todos = (d.todos || []).slice();
+  const i = Number.isInteger(w.i) && todos[w.i] && todos[w.i].t === w.t ? w.i : todos.findIndex((x) => x.t === w.t);
+  if (w.op === 'add' && w.t) todos.push({ t: String(w.t).slice(0, 80), d: false });
+  if (w.op === 'done' && i >= 0) todos[i] = { ...todos[i], d: true };
+  if (w.op === 'undo' && i >= 0) todos[i] = { ...todos[i], d: false };
+  if (w.op === 'del' && i >= 0) todos.splice(i, 1);
+  await setDoc(ref, { todos: todos.slice(0, 50), memo: d.memo || '', at: Date.now() });
+};
 </script>
 </body>
 </html>
