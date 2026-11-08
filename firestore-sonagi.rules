@@ -286,16 +286,43 @@ service cloud.firestore {
     // 웹앱 이름·주소·소개: 누구나 보기(닉네임 없음), 정해진 항목만 쓰기, 관리자만 지우기
     match /vibelab_apps/{id} {
       allow read: if true;
+      // 주소(url)나 코드(code: true → vibelab_code) 중 하나로 올려요. 주소가 비어 있으면 코드로 올린 웹앱
       allow create, update: if request.resource.data.keys().hasOnly(
-          ['ban','appName','url','intro','ask','createdAt','updatedAt'])
+          ['ban','appName','url','code','intro','ask','createdAt','updatedAt'])
         && request.resource.data.ban in ['A', 'B']
         && vibeText(request.resource.data, 'appName', 1, 100)
-        && vibeText(request.resource.data, 'url', 9, 300)
-        && request.resource.data.url.matches('^https://[^ ]+$')
+        && vibeText(request.resource.data, 'url', 0, 300)
+        && (request.resource.data.url == '' || request.resource.data.url.matches('^https://[^ ]+$'))
+        && (!('code' in request.resource.data) || request.resource.data.code is bool)
         && vibeText(request.resource.data, 'intro', 0, 200)
         && vibeText(request.resource.data, 'ask', 0, 200)
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int;
+      allow delete: if isTeacher();
+    }
+    // 코드로 올린 웹앱: 문서 이름 = 웹앱 번호. 누구나 보기(미리보기 칸에서만 움직여요), 그 웹앱이 있을 때만 쓰기(30만 글자까지), 관리자만 지우기
+    match /vibelab_code/{appId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['ban','html','updatedAt'])
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.html is string
+        && request.resource.data.html.size() > 0 && request.resource.data.html.size() <= 300000
+        && request.resource.data.updatedAt is int
+        && existsAfter(/databases/$(database)/documents/vibelab_apps/$(appId));
+      allow delete: if isTeacher();
+    }
+    // 🏁 진행표: 문서 이름 = 반·학번·닉네임 해시(64자리). 웹앱 제목(없으면 닉네임) · 지금 단계 · 막혔어요 시각만. 누구나 보기,
+    // 고치기는 로그인이 없어 누구나(선생님이 '막혔어요'를 풀어요), 지우기는 관리자만
+    match /vibelab_progress/{key} {
+      allow read: if true;
+      allow create, update: if key.size() == 64
+        && request.resource.data.keys().hasOnly(['ban','title','nick','step','stuck','at'])
+        && request.resource.data.ban in ['A', 'B']
+        && vibeText(request.resource.data, 'title', 1, 40)
+        && request.resource.data.nick is bool
+        && request.resource.data.step is int && request.resource.data.step >= 1 && request.resource.data.step <= 10
+        && request.resource.data.stuck is int
+        && request.resource.data.at is int;
       allow delete: if isTeacher();
     }
     // 웹앱 올린 학생: 문서 이름 = 반·닉네임·네 자리의 해시(64자리). 하나만 찾기, 목록은 관리자만
