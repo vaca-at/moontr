@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>책상 친구 소식 확인</title>
+<style>body { font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif; padding: 24px; color: #333; }</style>
+</head>
+<body>
+<p id="msg">맥 앱 '책상 친구'가 새 문의를 확인하는 페이지예요. 브라우저에서 열 일은 없어요.</p>
+<script type="module">
+// 책상 친구(맥 앱)가 화면 없이 몰래 열어 두는 페이지예요.
+// moontr.site 관리자 로그인(관리자 허브와 같은 로그인)이 있으면, 2분마다 새 문의 숫자를 세어 맥 앱에 건네요.
+//  - 메타버스 문의: moontr-help 문의 서버의 /admin/threads (관리자 허브 · /help/ 문의함과 같은 곳)
+//  - 아이아이노트 의견 · 문의: iinotePulse 함수 (관리자 허브와 같은 곳)
+// 문의 내용 전체는 건네지 않고, 앱 이름 · 닉네임 · 마지막 한 줄만 건네요.
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+const app = initializeApp({ apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain: "moon-d528d.firebaseapp.com", projectId: "moon-d528d", storageBucket: "moon-d528d.firebasestorage.app", messagingSenderId: "126636401536", appId: "1:126636401536:web:25b8a8296ec42b86f99765" });
+const auth = getAuth(app);
+const ADMIN_EMAILS = ['anstjsdud@sen.go.kr', 'bellachord@gmail.com'];
+const isAdminEmail = (e) => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
+const HELP = 'https://moontr-help.bellachord.workers.dev', II = 'https://asia-northeast3-iinote.cloudfunctions.net/iinotePulse';
+const send = (o) => { try { webkit.messageHandlers.hgd.postMessage({ t: 'pulse', ...o }); } catch { document.getElementById('msg').textContent = JSON.stringify(o); } };
+const short = (s) => String(s || '').slice(0, 40);
+
+async function check() {
+  const u = auth.currentUser;
+  if (!u || !isAdminEmail(u.email)) return send({ login: false });
+  const tok = await u.getIdToken(), H = { Authorization: 'Bearer ' + tok };
+  const out = { login: true, items: [] };
+  try {
+    const r = await fetch(HELP + '/admin/threads', { headers: H, cache: 'no-store' });
+    if (r.ok) { const j = await r.json(); for (const t of j.threads || []) if (t.unreadOp) out.items.push({ k: `help:${t.app}:${t.uid}:${t.updatedAt}`, app: j.apps?.[t.app] || t.app, who: short(t.name), last: short(t.last), url: 'https://moontr.site/help/' }); }
+  } catch {}
+  try {
+    const r = await fetch(II, { headers: H, cache: 'no-store' });
+    if (r.ok) { const j = await r.json(); for (const x of j.unread || []) out.items.push({ k: `ii:${x.at}:${x.n}`, app: '아이아이노트', who: '', last: short(x.last), n: x.n, url: 'https://iinote.co.kr/admin.html' }); }
+  } catch {}
+  send(out);
+}
+onAuthStateChanged(auth, (u) => {
+  // 관리자가 아닌 계정이면 바로 로그아웃 (moontr.site 로그인이 남으면 다른 관리자 화면이 막혀요)
+  if (u && !isAdminEmail(u.email)) { signOut(auth).catch(() => {}); return send({ login: false }); }
+  check();
+});
+setInterval(check, 2 * 60 * 1000);
+</script>
+</body>
+</html>
