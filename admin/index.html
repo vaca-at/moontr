@@ -948,7 +948,7 @@ async function renderHome(force){
   ];
   const all = {}; series.forEach(x => Object.entries(x.d.days || {}).forEach(([k, v]) => { all[k] = (all[k] || 0) + v; }));
   const k7 = dayKeys(7), p7 = dayKeys(7, 7), k30 = dayKeys(30);
-  const tToday = all[today] || 0, t7 = sumK(all, k7), tp7 = sumK(all, p7);
+  const tToday = all[today] || 0, t7 = sumK(all, k7);
   /* 🕘 오늘은 '어제 이 시각까지'와 비교해요 (오전엔 어제 하루 전체보다 적을 수밖에 없어서).
      시간 기록이 있는 앱은 그 기록으로, 없는 앱은 최근 7일 시간대별 흐름(메타버스 · 시간 기록)으로 어제 이 시각까지를 어림해요 */
   const now = new Date(), H = now.getHours(), part = now.getMinutes() / 60;
@@ -958,18 +958,24 @@ async function renderHome(force){
   const profSum = prof.reduce((s, v) => s + v, 0);
   const pf = profSum ? upTo(prof) / profSum : (H + part) / 24;
   let guessed = false;
-  const tYest = Math.round(series.reduce((s, x) => {
-    const tot = (x.d.days || {})[yest] || 0; if (!tot) return s;
-    const a = (x.d.hours || {})[yest], hs = a ? a.reduce((p, v) => p + (v || 0), 0) : 0;
-    if (hs >= tot * .9) return s + upTo(a) * tot / hs;   // 시간 기록이 거의 다 있으면 그 기록대로
-    guessed = true; return s + tot * pf;
-  }, 0));
+  // 그날(key) 지금 시각까지 몇 번이었나: 시간 기록이 거의 다 있으면 그 기록대로, 없으면 하루 숫자 × 흐름
+  const partOf = (d, key) => {
+    const tot = (d.days || {})[key] || 0; if (!tot) return 0;
+    const a = (d.hours || {})[key], hs = a ? a.reduce((p, v) => p + (v || 0), 0) : 0;
+    if (hs >= tot * .9) return upTo(a) * tot / hs;
+    guessed = true; return tot * pf;
+  };
+  const tYest = Math.round(series.reduce((s, x) => s + partOf(x.d, yest), 0));
+  /* 📅 최근 7일 = 오늘(지금까지) + 앞 6일. 그래서 지난주도 6일 + 일주일 전 그날 이 시각까지로 맞춰 비교해요 */
+  const wkAgo = dayKeys(1, 7)[0], p6 = dayKeys(6, 8);
+  const lastWeek = d => sumK(d.days, p6) + partOf(d, wkAgo);
+  const tp7 = Math.round(sumK(all, p6) + series.reduce((s, x) => s + partOf(x.d, wkAgo), 0));
   const hmNow = `${H}:${String(now.getMinutes()).padStart(2, '0')}`;
   const relays = withStat.filter(({ a }) => STATS[a.admin].relay).map(({ a }) => ({ a, d: homeData[a.admin] })).filter(x => x.d && !x.d.error && x.d.pub);
   const online = relays.reduce((n, x) => n + (x.d.pub.online || 0), 0);
   $('#homeSum').innerHTML = `
     <button type="button" data-rank="today" aria-expanded="${rankOpen === 'today'}"><small>오늘 전체</small><b>${tToday.toLocaleString()}회</b>${chgHTML(tToday, tYest)}<small class="vs">어제 ${hmNow}까지 ${tYest.toLocaleString()}회 대비${guessed ? ' · 어림' : ''}</small></button>
-    <div class="plain"><small>최근 7일</small><b>${t7.toLocaleString()}회</b>${chgHTML(t7, tp7)}</div>
+    <div class="plain"><small>최근 7일</small><b>${t7.toLocaleString()}회</b>${chgHTML(t7, tp7)}<small class="vs">지난주 같은 때까지 ${tp7.toLocaleString()}회 대비</small></div>
     <div class="plain"><small>최근 30일</small><b>${sumK(all, k30).toLocaleString()}회</b></div>
     <button type="button" data-rank="total" aria-expanded="${rankOpen === 'total'}"><small>누적 전체</small><b>${series.reduce((n, x) => n + (x.d.total || 0), 0).toLocaleString()}회</b></button>
     <button type="button" data-rank="used" aria-expanded="${rankOpen === 'used'}"><small>오늘 쓰인 웹앱</small><b>${okData.filter(d => d.today).length} / ${withStat.length}개</b></button>
@@ -987,7 +993,7 @@ async function renderHome(force){
     const body = d.error
       ? `<p class="msg">기록을 읽지 못했습니다 (${esc(d.error)})</p>`
       : `<div class="nums"><span><b>${d.today}</b><small>오늘 ${unit}</small></span><span class="tot"><b>${d.total.toLocaleString()}</b><small>누적</small></span></div>
-         ${spark(d.days, 30)}<div class="wk">최근 7일 ${sumK(d.days, dayKeys(7)).toLocaleString()}회 ${chgHTML(sumK(d.days, dayKeys(7)), sumK(d.days, dayKeys(7, 7)))} <span>· 지난 7일 대비</span></div>
+         ${spark(d.days, 30)}<div class="wk">최근 7일 ${sumK(d.days, dayKeys(7)).toLocaleString()}회 ${chgHTML(sumK(d.days, dayKeys(7)), Math.round(lastWeek(d)))} <span>· 지난주 같은 때까지 대비</span></div>
          ${grass(d.days)}${d.devices ? `<p class="msg">기기 ${d.devices}대 · 잔디는 날짜별 들어온 기기 수</p>` : ''}${d.note ? `<p class="msg">${esc(d.note)}</p>` : ''}`;
     return `<div class="card" role="button" tabindex="0" data-open="${esc(a.admin)}">
       <span class="card-h"><span class="dot ${a.login}"></span>${esc(a.name)}${waitCount(a) ? ` <span class="nbadge" title="학생이 기다리는 것">${waitCount(a)}</span>` : ''}<span class="grp">${esc(g.title)}</span>${goLinks(a)}</span>${body}</div>`;
