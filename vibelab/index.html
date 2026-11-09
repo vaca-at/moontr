@@ -1350,12 +1350,12 @@ async function savePlan(d, m) {
   const now = Date.now(), key = await keyOf(pb, m.sid, m.name);
   const k = await getKeyDoc(COL_KEYS, key), planId = k ? k.planId : "";
   const old = planId && plans.find(p => p.id === planId);
-  const data = { ...(old || {}), ...d, ban: pb, createdAt: (old && old.createdAt) || now, updatedAt: now };
+  const pBan = (old && old.ban) || pb;   // 선생님이 다른 반으로 옮긴 계획서는 그 반 그대로 (열쇠는 처음 반 그대로)
   delete data.id;
   if (LIVE) {
     const ref = planId ? db.collection(COL_PLANS).doc(planId) : db.collection(COL_PLANS).doc();
     const b = db.batch();
-    b.set(ref, { ...d, ban: pb, createdAt: data.createdAt, updatedAt: now }, { merge: true });   // 이론편의 웹앱 내용 · 주소는 그대로 둬요
+    b.set(ref, { ...d, ban: pBan, createdAt: data.createdAt, updatedAt: now }, { merge: true });   // 이론편의 웹앱 내용 · 주소는 그대로 둬요
     if (!planId) b.set(db.collection(COL_KEYS).doc(key), { planId: ref.id, ban: pb, name: m.name });
     await b.commit(); myPlanId = ref.id; return !!planId;
   }
@@ -3086,6 +3086,38 @@ async function rollDel(id) {
   if (LIVE) return db.collection(COL_ROSTER).doc(id).delete();
   localSet(COL_ROSTER, localGet(COL_ROSTER).filter(x => x.id !== id)); localEmit(COL_ROSTER);
 }
+/* 🔁 반을 옮긴 학생(예: 월 A반 → 수 B반)의 2단계 웹앱(이론편 계획서 · 미리보기)을 지금 반 갤러리로 옮겨요
+   이 반 출석부 학번 → 그 학생이 다른 반에서 '나 확인'한 닉네임(이론편 · 실습 접속 기록) → 다른 반 계획서 열쇠 → 계획서 */
+async function moveThPlans(b) {
+  const other = b === "A" ? "B" : "A", list = rosterOf(b), found = [];
+  if (!list.length) { toast(`${b}반 출석부가 비어 있어요`); return; }
+  toast("옮겨 온 학생을 찾는 중이에요…");
+  for (const r of list) {
+    const nicks = [...new Set(checkins.filter(c => c.sid === r.sid && (c.ban === other || c.ban === b)).sort((x, y) => (x.ban === other ? -1 : 1) - (y.ban === other ? -1 : 1)).map(c => c.name).filter(Boolean))];
+    for (const nk of nicks) {
+      const k = await getKeyDoc(COL_KEYS, await keyOf(other, r.sid, nk)), p = k && k.planId && plans.find(x => x.id === k.planId);
+      if (p) { if (p.ban === other) found.push({ r, nk, p }); break; }
+    }
+  }
+  if (!found.length) { toast(`${b}반 출석부에서 ${other}반 이론편 웹앱이 남아 있는 학생을 찾지 못했어요`); return; }
+  if (!confirm(`${b}반 출석부 학생 가운데 ${other}반에서 이론편 웹앱을 만든 학생 ${found.length}명이에요.\n\n${found.map(x => `${x.r.sid} ${x.r.name} (${x.nk}) · ${x.p.appName || "이름 없음"}`).join("\n")}\n\n이 웹앱들을 ${b}반 갤러리로 옮길까요?`)) return;
+  let ok = 0;
+  for (const x of found) {
+    try {
+      if (LIVE) {
+        await db.collection(COL_PLANS).doc(x.p.id).set({ ban: b }, { merge: true });
+        const pv = await db.collection(COL_PREVIEW).doc(x.p.id).get();
+        if (pv.exists) await db.collection(COL_PREVIEW).doc(x.p.id).set({ ban: b }, { merge: true });
+      } else {
+        localSet(COL_PLANS, localGet(COL_PLANS).map(p => p.id === x.p.id ? { ...p, ban: b } : p)); localEmit(COL_PLANS);
+        localSet(COL_PREVIEW, localGet(COL_PREVIEW).map(p => p.id === x.p.id ? { ...p, ban: b } : p));
+      }
+      ok++;
+    } catch (e) { console.error("웹앱 옮기기", x.p.id, e); }
+  }
+  delete thPrev[b]; delete thPrev[other]; thGalSig = "";
+  toast(ok === found.length ? `${ok}명의 웹앱을 ${b}반 갤러리로 옮겼어요` : `${ok}/${found.length}명만 옮겼어요. 다시 눌러 남은 학생을 옮겨요`);
+}
 // 한 줄: "11009 애리" 또는 "1 10 9 박애리"(학년 반 번호 이름) → 학번 5자리 + 이름 두 글자(성 빼고)
 function parseRollLine(line) {
   const t = line.replace(/[,\t|·]/g, " ").trim().split(/\s+/).filter(Boolean);
@@ -3130,7 +3162,7 @@ function rosterHTML(b) {
       const ai = t.closest("[data-roll-addin]"); if (ai) { const c = checkins.find(x => x.id === ai.dataset.rollAddin); if (c) { await rollSet(rollId(c.ban, c.sid), { course: COURSE, ban: c.ban, sid: c.sid, name: c.name }); toast(`${c.sid} ${c.name}을(를) 출석부에 넣었어요 (이름은 닉네임으로)`); } return; }
       const ab = t.closest("[data-roll-absent]"); if (ab) { const xs = rosterOf(ab.dataset.rollAbsent).filter(r => !stOf(r)); if (!xs.length) { toast("미체크 학생이 없어요"); return; } if (!confirm(`미체크 ${xs.length}명을 결석으로 할까요?`)) return; for (const r of xs) await rollSet(r.id, { st: "결석", at: Date.now() }); toast(`${xs.length}명을 결석으로 했어요`); return; }
       const all = t.closest("[data-roll-all]"); if (all) { for (const r of rosterOf(all.dataset.rollAll).filter(r => !stOf(r))) await rollSet(r.id, { st: "출석", at: Date.now() }); toast("남은 학생을 모두 출석으로 했어요"); return; }
-      const rs = t.closest("[data-roll-reset]"); if (rs) { if (!confirm("이 반 출석 체크를 모두 지울까요? (명단은 그대로)")) return; for (const r of rosterOf(rs.dataset.rollReset)) await rollSet(r.id, { st: "", at: 0 }); toast("출석 체크를 지웠어요"); return; }
+      const mv = t.closest("[data-roll-move]"); if (mv) { await moveThPlans(mv.dataset.rollMove); return; } if (rs) { if (!confirm("이 반 출석 체크를 모두 지울까요? (명단은 그대로)")) return; for (const r of rosterOf(rs.dataset.rollReset)) await rollSet(r.id, { st: "", at: 0 }); toast("출석 체크를 지웠어요"); return; }
       const dl = t.closest("[data-roll-del]"); if (dl) { const r = roster.find(x => x.id === dl.dataset.rollDel); if (r && confirm(`${r.sid} ${r.name} 학생을 출석부에서 뺄까요?`)) { await rollDel(r.id); toast("뺐어요"); } return; }
       const cv = t.closest("[data-roll-csv]"); if (cv) {
         const b = cv.dataset.rollCsv, rows = [["강좌", "반", "번", "학번", "이름", "로그인한 닉네임", "출석", "체크한 시각"]];
