@@ -375,6 +375,8 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .note:hover{transform:translateY(-2px)}
 .note.on{outline:3px solid var(--c);outline-offset:1px}
 .note.mine{border-bottom:3px solid rgba(0,0,0,.18)}
+.wall-done{border:2px dashed var(--c);border-radius:1rem;padding:.625rem .875rem;margin:0 0 .75rem;background:color-mix(in srgb,var(--c) 8%,#fff);font-size:.9375rem;line-height:1.5}
+.lane-body .note{cursor:default}
 .note .tag-me,.note .tag-on{font-style:normal;font-size:.6875rem;margin-left:.375rem;background:#fff;border-radius:999px;padding:0 .375rem}
 .note .tag-on{background:var(--c);color:#fff}
 .note .del{margin-left:.375rem;font-size:.75rem;text-decoration:underline}
@@ -1203,7 +1205,6 @@ html.dash-only #dlgAdmin .doc-head{display:none}
       <tr><td>점검 뒤 고친 점</td><td>반, 닉네임, 웹앱 이름, 자기 점검 결과, 고친 점</td></tr>
       <tr><td>친구 웹앱 검증</td><td>쓴 사람의 닉네임, 좋은 점 · 찾은 오류 · 제안</td></tr>
       <tr><td>문장 담벼락</td><td>쓴 사람의 닉네임, 배운 점 · 느낀 점 · 알고 싶은 점 한 문장</td></tr>
-      <tr><td>나의 성찰</td><td>반, 닉네임, 성찰 글, 공감한 문장</td></tr>
       <tr><td>나 확인하기 (출석 확인)</td><td>반, 학번, 닉네임, 확인한 시각 (선생님만 봐요)</td></tr>
       <tr><td>진행표 · 막혔어요</td><td>반, 닉네임(또는 웹앱 이름), 지금 하는 단계 (같은 반이 봐요)</td></tr>
       <tr><td>반 채팅 · 선생님께 질문</td><td>반, 닉네임, 쓴 글 (채팅은 같은 반이, 질문은 나와 선생님만 봐요)</td></tr>
@@ -1435,6 +1436,9 @@ async function snapApp(app, html, src) {
   } catch (e) { console.warn("웹앱 변화 기록을 남기지 못했어요 (소나기 보안 규칙에 vibelab_app_hist를 게시해야 해요)", e); return false; }
 }
 const histInfo = h => { try { return JSON.parse(h.info || "{}"); } catch (e) { return {}; } };
+// 최종 = 10번에서 생각을 붙일 때 찍은 마지막 장 (없으면 가장 나중 기록)
+const histFinal = hs => [...hs].reverse().find(h => h.src === "final") || null;
+const histLast = hs => histFinal(hs) || hs[hs.length - 1];
 // 처음과 마지막을 비교한 '달라진 점' 한 줄
 function histDiff(a, z) {
   if (!a || !z || a.id === z.id) return "기록이 한 장뿐이에요";
@@ -1994,23 +1998,22 @@ const SLIDES = [
   ]
 },
 {
-  tab: "마무리", sub: "담벼락 · 성찰", color: C.coral, kind: "finish",
-  title: "마무리: 문장 담벼락", lead: "오늘 생각을 담벼락에 나누고, 공감한 문장으로 나만의 성찰을 써요",
+  tab: "마무리", sub: "생각 세 가지 · 담벼락", color: C.coral, kind: "finish",
+  title: "마무리: 문장 담벼락", lead: "오늘 생각 세 가지를 담벼락에 붙이고 끝내요",
+  // 이론편(stuvibe) 마무리처럼: 세 칸 쓰기 → 📌 담벼락에 붙이기 → 친구 생각 읽기 (공감 고르기 · AI 성찰은 빼요)
   cols: [
     { t: "오늘을 돌아봐요", c: C.coral, cls: "narrow", html: `
-      <p class="big md">친구 생각을 읽고 <span class="mark">내 말로 정리</span>해요.</p>
+      <p class="big md">오늘 생각 <span class="mark">세 가지</span>를 남기면 끝!</p>
       <ol class="steps-mini">
-        <li><b>쓰기</b> 배운 점 · 느낀 점 · 알고 싶은 점을 한 문장씩</li>
-        <li><b>나누기</b> 아래 담벼락에서 친구들 생각 읽기</li>
-        <li><b>고르기</b> 공감되는 문장 <b>5개</b> 누르기</li>
-        <li><b>다듬기</b> 🤖 AI 초안을 받아 <b>내 목소리</b>로 고쳐 저장</li>
+        <li><b>쓰기</b> 📚 배운 점 · 💗 느낀 점 · 🔍 알고 싶은 점을 한 문장씩</li>
+        <li><b>붙이기</b> 📌 담벼락에 붙이기를 눌러요</li>
+        <li><b>읽기</b> 오른쪽 담벼락에서 친구들 생각을 읽어요</li>
       </ol>
       <details class="more pop"><summary>🎉 우리 반 웹앱 모아 보기</summary><div class="pop-panel" id="galleryBox"></div></details>
-      <div class="box"><h4>📝 생활기록부로 이어져요</h4>저장한 성찰은 선생님이 읽고 <b>진로탐구수업 활동 기록</b>을 쓸 때 참고해요. 담벼락에는 닉네임 없이 보여요.</div>` },
+      <div class="box"><h4>📝 생활기록부로 이어져요</h4>붙인 문장은 선생님이 읽고 <b>진로탐구수업 활동 기록</b>을 쓸 때 참고해요. 담벼락에는 닉네임 없이 보여요.</div>` },
     { t: "내 생각 쓰기", c: C.pink, html: `${DEMO}<div id="wallWriteBox" data-live></div>` },
-    { t: "나의 성찰", c: C.green, cls: "wide", html: `<div id="reflectBox" data-live></div>` }
-  ],
-  below: `<div id="wallBox"></div>`
+    { t: "문장 담벼락", c: C.lav, cls: "wide", html: `<div id="wallBox" data-live></div>` }
+  ]
 }
 ];
 
@@ -2757,29 +2760,32 @@ const kindName = k => (WALL_KINDS.find(x => x[0] === k) || [, ""])[1];
 const pickKey = () => "vl_picks_" + meKey();
 const getPicks = () => { try { return JSON.parse(localStorage.getItem(pickKey()) || "[]"); } catch (e) { return []; } };
 const setPicks = a => { try { localStorage.setItem(pickKey(), JSON.stringify(a)); } catch (e) {} };
-const myWallIds = () => { try { return JSON.parse(localStorage.getItem("vl_mywall") || "[]"); } catch (e) { return []; } };
-const addMyWall = id => { const a = myWallIds(); a.push(id); try { localStorage.setItem("vl_mywall", JSON.stringify(a)); } catch (e) {} };
+const myWallKey = () => "vl_mywall_" + meKey();   // 학생마다 따로 (공용 PC에서 앞 학생 문장이 내 것으로 보이지 않게)
+const myWallIds = () => { try { return JSON.parse(localStorage.getItem(myWallKey()) || "[]"); } catch (e) { return []; } };
+const addMyWall = id => { const a = myWallIds(); a.push(id); try { localStorage.setItem(myWallKey(), JSON.stringify(a)); } catch (e) {} };
 const wallOfBan = () => wall.filter(w => w.ban === ban).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 const myWallOfBan = () => wallOfBan().filter(w => myWallIds().includes(w.id));
 
 function renderWallWrite() {
   const box = $("wallWriteBox"); if (!box) return;
-  box.innerHTML = `<form class="form" id="wallForm" autocomplete="off">
-      ${WALL_KINDS.map(([k, n, ph]) => `<label>${n}<textarea name="${k}" rows="2" maxlength="200" placeholder="${ph}을 한 문장으로"></textarea></label>`).join("")}
-      <button class="btn sm" type="submit">📌 담벼락에 붙이기</button>
-      <p class="muted" style="margin:0">쓴 칸만 붙어요. 담벼락에는 <b>닉네임 없이</b> 보여요. 더 생각나면 또 붙여도 돼요.</p>
+  const done = getMe() ? myWallOfBan().length : 0;
+  box.innerHTML = `${done ? `<div class="wall-done">🎉 담벼락에 <b>${done}장</b> 붙였어요! 오늘 수업 끝, 수고했어요.<br><span class="muted">더 생각나면 아래에 또 써서 붙여도 돼요.</span></div>` : ""}
+    <form class="form" id="wallForm" autocomplete="off">
+      ${WALL_KINDS.map(([k, n, ph]) => `<label>${n}<textarea name="${k}" rows="3" maxlength="200" placeholder="${ph}을 한 문장으로"></textarea></label>`).join("")}
+      <button class="btn" type="submit">📌 담벼락에 붙이기</button>
+      <p class="muted" style="margin:0">세 칸을 모두 쓰면 좋아요. 쓴 칸만 붙어요. 담벼락에는 <b>닉네임 없이</b> 보여요.</p>
     </form>`;
 }
 
 function renderWall() {
   const box = $("wallBox"); if (!box) return;
-  const list = wallOfBan(), picks = getPicks(), mine = myWallIds();
+  const list = wallOfBan(), mine = getMe() ? myWallIds() : [];
   const keepTop = {}; box.querySelectorAll("[data-lane]").forEach(l => { keepTop[l.dataset.lane] = l.scrollTop; });
   box.innerHTML = `<div class="wall">
-    <div class="wall-head"><b>🧱 ${ban}반 문장 담벼락</b><span>${list.length}장 · 공감되는 문장을 눌러 <b>${PICK_MAX}개</b> 골라요 (${picks.length}/${PICK_MAX})</span></div>
+    <div class="wall-head"><b>🧱 ${ban}반 문장 담벼락</b><span>${list.length}장 · 친구들 생각을 읽어요</span></div>
     <div class="wall-lanes">${WALL_KINDS.map(([k, n]) => {
       const items = list.filter(w => w.kind === k);
-      return `<div class="lane"><div class="lane-h">${n} <small>${items.length}</small></div><div class="lane-body" data-lane="${k}">${items.length ? items.map(w => `<button type="button" class="note ${k} ${picks.includes(w.id) ? "on" : ""} ${mine.includes(w.id) ? "mine" : ""}" data-pick="${w.id}">${nl(w.text)}${mine.includes(w.id) ? '<i class="tag-me">나</i>' : ""}${picks.includes(w.id) ? '<i class="tag-on">★</i>' : ""}${teacher ? `<span class="del" data-delwall="${w.id}">삭제</span>` : ""}</button>`).join("") : `<div class="lane-empty">아직 붙은 문장이 없어요</div>`}</div></div>`;
+      return `<div class="lane"><div class="lane-h">${n} <small>${items.length}</small></div><div class="lane-body" data-lane="${k}">${items.length ? items.map(w => `<div class="note ${k} ${mine.includes(w.id) ? "mine" : ""}">${nl(w.text)}${mine.includes(w.id) ? '<i class="tag-me">나</i>' : ""}${teacher ? `<span class="del" data-delwall="${w.id}">삭제</span>` : ""}</div>`).join("") : `<div class="lane-empty">아직 붙은 문장이 없어요</div>`}</div></div>`;
     }).join("")}</div></div>`;
   box.querySelectorAll("[data-lane]").forEach(l => { if (keepTop[l.dataset.lane]) l.scrollTop = keepTop[l.dataset.lane]; });
 }
@@ -3197,19 +3203,19 @@ function renderDash() {
 }
 /* 🕐 웹앱 변화 (선생님 대시보드): 웹앱마다 처음 기록 → 마지막 기록, 달라진 점, 피드백용 복사 · 코드까지 받기 */
 const histOf = id => appHist.filter(h => h.appId === id).sort((x, y) => (x.at || 0) - (y.at || 0));
-const histCell = h => h ? `${fmtTime(h.at)} <span class="muted">${h.src === "snap" ? "📸" : "💾"}</span><br><span class="muted">${h.lines ? `${h.lines}줄 · 단추 ${(histInfo(h).b || []).length}개` : "코드 없음 (주소만)"}</span> ${h.lines ? `<button type="button" class="link" data-histview="${h.id}">👀 보기</button>` : ""}` : "-";
+const histCell = h => h ? `${fmtTime(h.at)} <span class="muted">${h.src === "final" ? "🏁 최종" : h.src === "snap" ? "📸" : "💾"}</span><br><span class="muted">${h.lines ? `${h.lines}줄 · 단추 ${(histInfo(h).b || []).length}개` : "코드 없음 (주소만)"}</span> ${h.lines ? `<button type="button" class="link" data-histview="${h.id}">👀 보기</button>` : ""}` : "-";
 function histHTML(b, as, who) {
   const rows = as.map(a => ({ a, hs: histOf(a.id) }));
-  const n = rows.filter(r => r.hs.length).length;
+  const n = rows.filter(r => r.hs.length).length, nf = rows.filter(r => histFinal(r.hs)).length;
   let k = 0; rows.forEach(r => { r.no = r.hs.length ? ++k : 0; });   // [📋 피드백용 기록 복사]의 '학생 N'과 같은 번호
-  return `<h4>🕐 ${b}반 웹앱 변화 (처음 → 마지막) <span class="muted" style="font-size:.875rem">기록 있는 웹앱 ${n}개</span>
+  return `<h4>🕐 ${b}반 웹앱 변화 (처음 → 🏁 최종) <span class="muted" style="font-size:.875rem">기록 있는 웹앱 ${n}개 · 최종 제출 ${nf}명</span>
       <button type="button" class="btn sm" data-snapall="${b}">📸 지금 모두 찍기</button>
       <button type="button" class="btn sm" data-histcopy="${b}">📋 피드백용 기록 복사</button>
       <button type="button" class="btn sm" data-histjson="${b}">⬇️ 코드까지 받기</button></h4>
-    <p class="muted" style="margin:.125rem 0 .5rem">💾 학생이 저장할 때 · 9 · 10번에 왔을 때 저절로 남아요. 수업 <b>시작</b>과 <b>끝</b>에 [📸 지금 모두 찍기]를 한 번씩 누르면 처음과 완성이 확실히 남아요. 주소로 올린 웹앱은 그 주소의 코드를 읽어 와요.</p>
+    <p class="muted" style="margin:.125rem 0 .5rem">🏁 <b>10번에서 생각을 하나 이상 붙인 학생</b>은 그 순간의 깃허브 웹앱을 <b>최종 제작물</b>로 찍어요. 💾 6번에서 저장할 때 · 9 · 10번에 왔을 때도 저절로 남고, 📸 [지금 모두 찍기]로 수업 시작 때 모습을 남길 수 있어요. 주소로 올린 웹앱은 그 주소의 코드를 읽어 와요.</p>
     <div class="tbl"><table>
-      <tr><th>닉네임</th><th>웹앱</th><th>처음</th><th>마지막</th><th>기록</th><th>달라진 점</th></tr>
-      ${rows.length ? rows.map(({ a, hs, no }) => `<tr><td>${no ? `<b>학생 ${no}</b><br>` : ""}${who(appWho[a.id])}</td><td>${esc(a.appName)}</td><td>${histCell(hs[0])}</td><td>${hs.length > 1 ? histCell(hs[hs.length - 1]) : "-"}</td><td>${hs.length}장</td><td>${hs.length ? esc(histDiff(hs[0], hs[hs.length - 1])) : `<span class="muted">아직 기록 없음</span>`}</td></tr>`).join("")
+      <tr><th>닉네임</th><th>웹앱</th><th>처음</th><th>🏁 최종 (없으면 마지막)</th><th>기록</th><th>달라진 점</th></tr>
+      ${rows.length ? rows.map(({ a, hs, no }) => { const z = hs.length ? histLast(hs) : null; return `<tr><td>${no ? `<b>학생 ${no}</b><br>` : ""}${who(appWho[a.id])}</td><td>${esc(a.appName)}${a.url ? `<br><a class="muted" ${appAttrs(a)}>${esc(String(a.url).replace(/^https:\/\//, ""))}</a>` : ""}</td><td>${histCell(hs[0])}</td><td>${z && z.id !== hs[0].id ? histCell(z) : "-"}</td><td>${hs.length}장</td><td>${hs.length ? esc(histDiff(hs[0], z)) : `<span class="muted">아직 기록 없음</span>`}</td></tr>`; }).join("")
         : `<tr><td class="tbl-empty" colspan="6">아직 올라온 웹앱이 없어요.</td></tr>`}
     </table></div>`;
 }
@@ -3221,13 +3227,13 @@ async function snapAll(b) {
 }
 // 피드백용 기록: 이름 · 학번 없이 '학생 N'으로 (아래 번호표는 화면에만)
 function histPrompt(b) {
-  const list = appsOfBan(b).map(a => ({ a, hs: histOf(a.id) })).filter(x => x.hs.length);
+  const list = appsOfBan(b).map(a => ({ a, hs: histOf(a.id) })).filter(x => x.hs.length);   // 표의 '학생 N'과 같은 순서
   const one = (h, label) => { const i = histInfo(h); return `${label} (${fmtTime(h.at)}): 코드 ${h.lines || 0}줄${i.h && i.h.length ? `, 제목 ${i.h.join(" / ")}` : ""}${i.b && i.b.length ? `, 단추 ${i.b.join(" / ")}` : ""}${i.n ? `, 입력 칸 ${i.n}개` : ""}${i.s ? ", 저장 기능 있음" : ""}`; };
   const body = list.map(({ a, hs }, k) => {
     const f = fixes.find(x => x.ban === b && x.appName === a.appName) || {}, got = checks.filter(c => c.appId === a.id);
     return `[학생 ${k + 1}] 웹앱 「${a.appName}」${a.intro ? ` — ${a.intro}` : ""}
 - ${one(hs[0], "처음")}
-${hs.length > 1 ? `- ${one(hs[hs.length - 1], "마지막")}\n- 달라진 점: ${histDiff(hs[0], hs[hs.length - 1])}\n` : ""}- 저장 기록 ${hs.length}번${f.selfFix ? `\n- 자기 점검 뒤 고친 것: ${f.selfFix}` : ""}${f.aiFix ? `\n- AI 점검 뒤 고친 것: ${f.aiFix}` : ""}${got.length ? `\n- 친구 검증 ${got.length}개 받음 (좋았던 점: ${got.map(c => c.good).filter(Boolean).slice(0, 3).join(" / ")})` : ""}`; }).join("\n\n");
+${(z => z.id !== hs[0].id ? `- ${one(z, z.src === "final" ? "최종 (마무리에서 낸 깃허브 웹앱)" : "마지막")}\n- 달라진 점: ${histDiff(hs[0], z)}\n` : "")(histLast(hs))}- 저장 기록 ${hs.length}번${f.selfFix ? `\n- 자기 점검 뒤 고친 것: ${f.selfFix}` : ""}${f.aiFix ? `\n- AI 점검 뒤 고친 것: ${f.aiFix}` : ""}${got.length ? `\n- 친구 검증 ${got.length}개 받음 (좋았던 점: ${got.map(c => c.good).filter(Boolean).slice(0, 3).join(" / ")})` : ""}`; }).join("\n\n");
   return { n: list.length, map: list.map(({ a }, k) => `학생 ${k + 1} = ${(appWho[a.id] || {}).name || "?"} (${a.appName})`),
     text: `아래는 고등학교 진로탐구수업 '바이브코딩으로 웹앱 만들기(실습편)' ${b}반 학생들이 100분 동안 웹앱을 고쳐 간 기록이다. 기록에 있는 사실만 써라.
 학생마다 (1) 처음에서 마지막까지 무엇이 나아졌는지, (2) 잘한 점 한 가지, (3) 다음에 해 볼 것 한 가지를 2~3문장으로, 학생이 읽을 수 있게 다정한 말투로 써 줘. 이름은 쓰지 말고 '학생 N:'으로 시작해.
@@ -3238,7 +3244,7 @@ async function histJSON(b) {
   const as = appsOfBan(b), out = [];
   toast("코드를 모으는 중이에요…");
   for (const a of as) { const hs = histOf(a.id); if (!hs.length) continue;
-    const first = hs[0], last = hs[hs.length - 1];
+    const first = hs[0], last = histLast(hs);
     out.push({ nick: (appWho[a.id] || {}).name || "", appName: a.appName, url: a.url || "", intro: a.intro || "",
       history: hs.map(h => ({ at: new Date(h.at).toISOString(), src: h.src, lines: h.lines, title: h.title, info: histInfo(h) })),
       firstHtml: await histCode(first.id), lastHtml: last.id !== first.id ? await histCode(last.id) : "" }); }
@@ -3593,7 +3599,8 @@ stageEl.addEventListener("submit", async e => {
     btn.disabled = true;
     try {
       for (const [kind, text] of items) addMyWall(await saveWall({ ban: m.ban, kind, text }, { name: m.name }));
-      f.reset(); toast(`담벼락에 ${items.length}장 붙였어요!`); renderWall();
+      f.reset(); toast(`담벼락에 ${items.length}장 붙였어요! 오늘 수업 끝, 수고했어요 🎉`); renderWall(); renderWallWrite();
+      if (myApp()) { delete codeCache[myApp().id]; snapApp(myApp(), "", "final"); }   // 🏁 10번에서 생각을 붙인 순간의 깃허브 웹앱 = 최종 제작물 (선생님 표)
     } catch (err) { console.error(err); toast("붙이지 못했어요. 인터넷 연결을 확인하세요"); }
     btn.disabled = false; return;
   }
