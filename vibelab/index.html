@@ -2934,7 +2934,7 @@ document.getElementById("aiCopyAgain").addEventListener("click", async () => { c
    ========================================================= */
 function paintMe() {
   const b = $("meBtn"), m = getMe();
-  b.textContent = m ? `🙋 ${m.sid}_${m.name}` : "🙋 나 확인하기";
+  b.textContent = m ? `🙋 ${m.ban}반 ${m.sid}_${m.name}` : "🙋 나 확인하기";   // 반이 보여야 잘못 들어온 걸 알아채요
   b.classList.toggle("need", !m);
 }
 function openMeDlg() {
@@ -2947,7 +2947,10 @@ $("meForm").addEventListener("submit", async e => {
   e.preventDefault();
   const old = getMe(), f = e.target, sid = f.sid.value.trim(), name = f.name.value.trim();
   // 같은 학생이 다시 확인하면 기억한 반 그대로, 처음이거나 다른 학생이면 오늘 수업 반
-  const d = { ban: old && old.sid === sid && old.name === name ? old.ban : classBan(), sid, name };
+  // 수업 날(월 A · 수 B)에 '나 확인'을 하면 오늘 수업 반으로 (지난주 A반 → 이번 주 B반으로 옮긴 학생도 여기서 바뀌어요)
+  // 다른 날 같은 학생이 다시 확인하면 기억한 반 그대로
+  const today = DAY_BAN[new Date().getDay()];
+  const d = { ban: today || (old && old.sid === sid && old.name === name ? old.ban : classBan()), sid, name };
   const bad = validMe(d.sid, d.name); if (bad) { toast(bad); (/숫자/.test(bad) ? f.sid : f.name).focus(); return; }
   setMe(d); checkIn(d); $("dlgMe").close();
   if (d.ban !== ban) { ban = d.ban; try { localStorage.setItem("vt_ban", ban); } catch (x) {} paintBan(); }
