@@ -471,6 +471,41 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // ===== 통합사회 데이터 실험실 (/crime · /market) =====
+    // 모둠 활동(이름 없음)은 같은 반끼리 보이고, 학번 · 이름은 해시 문서 번호로만 열려요(목록은 선생님만).
+    function labRoom(d) {
+      return d.app in ['crime', 'market'] && d.ban is string && d.ban.size() >= 1 && d.ban.size() <= 12
+        && d.room == d.app + '_' + d.ban;
+    }
+    match /lab_config/{app} {
+      allow read: if true;
+      allow write: if isTeacher();
+    }
+    match /lab_groups/{id} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['app', 'ban', 'room', 'g', 'hand', 'at', 'tp', 'updatedAt'])
+        && labRoom(request.resource.data)
+        && request.resource.data.g is int && request.resource.data.g >= 1 && request.resource.data.g <= 8
+        && id == request.resource.data.room + '_g' + string(request.resource.data.g)
+        && request.resource.data.tp is map
+        && request.resource.data.updatedAt is int;
+      allow delete: if isTeacher();
+    }
+    match /lab_members/{key} {
+      allow get: if true;
+      allow list: if isTeacher();
+      allow create: if key.size() == 64
+        && request.resource.data.keys().hasOnly(['app', 'ban', 'room', 'g', 'sid', 'name', 'rec', 'updatedAt'])
+        && labRoom(request.resource.data)
+        && request.resource.data.sid is string && request.resource.data.sid.matches('^[0-9]{5}$')
+        && request.resource.data.name is string && request.resource.data.name.matches('^[가-힣]{2,5}$')
+        && request.resource.data.rec is map;
+      allow update: if isTeacher()
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['g', 'rec', 'updatedAt'])
+            && request.resource.data.rec is map);
+      allow delete: if isTeacher();
+    }
+
     match /{document=**} { allow read, write: if false; }
   }
 }

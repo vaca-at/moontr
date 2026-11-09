@@ -175,6 +175,7 @@ tr.hi td{background:var(--tb)}
 
 .k1{--tc:var(--c1);--tb:var(--c1-bg)} .k2{--tc:var(--c2);--tb:var(--c2-bg)} .k3{--tc:var(--c3);--tb:var(--c3-bg)} .k4{--tc:var(--c4);--tb:var(--c4-bg)}
 .k0{--tc:var(--accent-deep);--tb:#FDEEF3}
+.status > summary{cursor:pointer;list-style:none}.status > summary::-webkit-details-marker{display:none}.mtitle{font-family:var(--f-disp);font-size:21px}.chip .btn.sm{padding:0 8px;font-size:12px;border-width:1px}.mat textarea{font-size:14px}
 
 @media (max-width:640px){
   .tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -187,15 +188,18 @@ tr.hi td{background:var(--tb)}
 }
 @media (prefers-reduced-motion:no-preference){ .sec:not(.lock){animation:rise .25s ease both} @keyframes rise{from{transform:translateY(5px)}to{transform:none}} }
 </style>
-
 <style>body{margin:0}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}.policy-foot{max-width:820px;margin:28px auto 0;padding:0 4px;font-size:12px;line-height:1.7;color:var(--sub);word-break:keep-all}.policy-foot summary{cursor:pointer;text-align:center;list-style:none;opacity:.85}.policy-foot summary::-webkit-details-marker{display:none}.policy-foot summary:hover{text-decoration:underline}.policy-foot .pol{margin-top:10px;padding:14px 16px;border:2px solid var(--line);border-radius:14px;background:var(--paper);text-align:left}.policy-foot h4{margin:8px 0 2px;font-size:13px}.policy-foot ul{margin:4px 0;padding-left:1.2em}.policy-foot table{width:100%;border-collapse:collapse;margin:6px 0;font-size:12px}.policy-foot th,.policy-foot td{white-space:normal;padding:4px 6px;border:1px solid var(--line)}.policy-foot .small{opacity:.8}</style>
 </head>
 <body>
+
 <header class="top" id="top"></header>
 <main id="app"></main>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
-const APP = "justice";
+const APP = "crime";
 const STEPS = ["질문","데이터 보기","계산 · 그래프","해석","제안"];
 const LIMIT = 25 * 60 * 1000;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -463,18 +467,99 @@ const MARKET = [
 ];
 
 const CONF = APP === "market"
-  ? { title:"시장 데이터 실험실", sub:"통합사회 · 자본주의와 시장경제", topics:MARKET, key:"market-lab-v1", ending:"네 활동 모두 시장이 잘하는 일과 못하는 일이 있었어요. 어디까지 시장에 맡기고, 어디부터 함께 고쳐야 할까요?" }
-  : { title:"정의 데이터 실험실", sub:"통합사회 · 교정적 정의", topics:JUSTICE, key:"justice-lab-v2", ending:"네 활동 모두 무엇을 ‘바로잡으려’ 했나요? 처벌 · 배상 · 회복 가운데 어디에 가까운가요?" };
+  ? { app:"market", title:"시장 데이터 실험실", sub:"통합사회 · 자본주의와 시장경제", unit:"통합사회2 · 시장경제와 지속가능발전", topics:MARKET, key:"market-lab-v3", ending:"네 활동 모두 시장이 잘하는 일과 못하는 일이 있었어요. 어디까지 시장에 맡기고, 어디부터 함께 고쳐야 할까요?" }
+  : { app:"crime", title:"정의 데이터 실험실", sub:"통합사회 · 교정적 정의", unit:"통합사회2 · 사회 정의와 불평등 (교정적 정의)", topics:JUSTICE, key:"crime-lab-v3", ending:"네 활동 모두 무엇을 ‘바로잡으려’ 했나요? 처벌 · 배상 · 회복 가운데 어디에 가까운가요?" };
 const TP = CONF.topics, TK = id => TP.findIndex(t => t.id === id) + 1;
+const topic = id => TP.find(t => t.id === id);
+
+/* ---------- 파이어베이스 (소나기 sonagi-1cc00 · 스튜바이브와 같은 프로젝트 · 관리자 구글 로그인) ----------
+   lab_groups/{앱_반_g모둠}  모둠 활동 (단계마다 내용 · 마친 시각). 학번 · 이름 없음, 같은 반 모둠끼리 서로 봐요
+   lab_members/{해시 64자}   학번 · 이름 · 모둠 · 활동마다 맡은 일 · 배운 점 · 세특. 목록은 관리자만
+   lab_config/{앱}           반 목록 (관리자만 쓰기) */
+const FIREBASE_CONFIG = { apiKey:"AIzaSyDEZIz_7wQcWQWO6v_1C5vhoYzAryqo59k", authDomain:"sonagi-1cc00.firebaseapp.com", projectId:"sonagi-1cc00", storageBucket:"sonagi-1cc00.firebasestorage.app", messagingSenderId:"760377216121", appId:"1:760377216121:web:81b25b9af707412d2218a8" };
+const ADMIN_EMAILS = ["bellachord@gmail.com", "anstjsdud@sen.go.kr"];
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || "").toLowerCase());
+let db = null, auth = null;
+try { if (window.firebase) { firebase.initializeApp(FIREBASE_CONFIG); db = firebase.firestore(); auth = firebase.auth(); } } catch (e) { console.error(e); }
 
 /* ---------- 상태 ---------- */
-let S = { g:0, tab:TP[0].id, view:"student", groups:{}, peek:0, showAt:0, reset:false };
-try { const x = JSON.parse(localStorage.getItem(CONF.key) || "null"); if (x && x.groups) S.groups = x.groups; if (x && x.g) S.g = x.g; } catch (e) {}
-const save = () => { try { localStorage.setItem(CONF.key, JSON.stringify({ groups:S.groups, g:S.g })); } catch (e) {} };
+const LS = { get(k, d){ try { const v = JSON.parse(localStorage.getItem(CONF.key + ":" + k) || "null"); return v ?? d; } catch (e) { return d; } }, set(k, v){ try { localStorage.setItem(CONF.key + ":" + k, JSON.stringify(v)); } catch (e) {} } };
+let S = { ban:LS.get("ban", ""), g:LS.get("g", 0), tab:TP[0].id, view:/admin/.test(location.hash + location.search) ? "teacher" : "student",
+  groups:{}, members:[], bans:[], peek:0, showAt:0, reset:false, offline:!db, teacher:false, mem:{}, tset:"", sel:{}, bulk:"" };
+const room = () => `${CONF.app}_${S.ban}`;
+const gid = n => `${room()}_g${n}`;
+const cleanBan = v => String(v || "").replace(/\s+/g, "").replace(/[^0-9A-Za-z가-힣-]/g, "").slice(0, 12);
 const grp = n => (S.groups[n] = S.groups[n] || { hand:false, at:"", tp:{} });
-const st = (n, id) => { const g = grp(n); return g.tp[id] = g.tp[id] || { a:{}, start:0, fin:false }; };
+const st = (n, id) => { const g = grp(n); g.tp = g.tp || {}; return g.tp[id] = g.tp[id] || { a:{}, start:0, fin:false, steps:{} }; };
 const has = (n, id) => !!(S.groups[n] && S.groups[n].tp && S.groups[n].tp[id] && S.groups[n].tp[id].start);
-const topic = id => TP.find(t => t.id === id);
+
+/* 저장: 우리 모둠 문서를 잠깐 모았다가 한 번에 (오프라인이면 이 기기에만) */
+let saveT = null, lastEdit = 0;
+function saveGroup(){
+  if (!S.ban || !S.g) return;
+  lastEdit = Date.now();
+  LS.set("local_" + room(), S.groups);
+  clearTimeout(saveT);
+  saveT = setTimeout(async () => {
+    if (!db || S.offline) return;
+    const g = grp(S.g);
+    try { await db.collection("lab_groups").doc(gid(S.g)).set({ app:CONF.app, ban:S.ban, room:room(), g:S.g, hand:!!g.hand, at:g.at || "", tp:JSON.parse(JSON.stringify(g.tp || {})), updatedAt:Date.now() }); }
+    catch (e) { console.error(e); S.offline = true; renderTop(); }
+  }, 600);
+}
+let unsub = null;
+function watchRoom(){
+  if (unsub) { unsub(); unsub = null; }
+  S.groups = LS.get("local_" + room(), {}) || {};
+  if (!db || !S.ban) return;
+  unsub = db.collection("lab_groups").where("room", "==", room()).onSnapshot(qs => {
+    let changed = false;
+    qs.docChanges().forEach(ch => {
+      if (ch.doc.metadata.hasPendingWrites) return;
+      const d = ch.doc.data(), n = d.g;
+      if (ch.type === "removed") { delete S.groups[n]; changed = true; return; }
+      if (n === S.g && S.view === "student" && Date.now() - lastEdit < 4000) return;   // 우리 모둠은 방금 고친 것이 먼저
+      S.groups[n] = { hand:!!d.hand, at:d.at || "", tp:d.tp || {} }; changed = true;
+    });
+    S.offline = false;
+    if (changed) soft();
+  }, e => { console.error(e); S.offline = true; renderTop(); });
+}
+async function loadBans(){
+  if (!db) return;
+  try { const s = await db.collection("lab_config").doc(CONF.app).get(); S.bans = (s.exists && s.data().bans) || []; } catch (e) { S.bans = []; }
+  render();
+}
+const sha = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, "0")).join("");
+const myMembers = () => LS.get(`mem_${room()}_g${S.g}`, []);
+const setMyMembers = l => LS.set(`mem_${room()}_g${S.g}`, l);
+async function loadMemberRecs(){
+  if (!db) return;
+  for (const m of myMembers()) { try { const s = await db.collection("lab_members").doc(m.key).get(); if (s.exists) S.mem[m.key] = s.data(); } catch (e) {} }
+  soft();
+}
+async function addMember(){
+  const sid = (document.getElementById("msid").value || "").trim(), name = (document.getElementById("mname").value || "").trim();
+  const msg = document.getElementById("mmsg");
+  if (!/^[0-9]{5}$/.test(sid)) { msg.textContent = "학번은 숫자 5자리로 적어요 (예: 20315)"; return; }
+  if (!/^[가-힣]{2,5}$/.test(name)) { msg.textContent = "이름은 한글로 적어요"; return; }
+  const key = await sha(`${CONF.app}|${S.ban}|${sid}|${name}`), list = myMembers();
+  if (list.some(m => m.key === key)) { msg.textContent = "이미 등록했어요"; return; }
+  const doc = { app:CONF.app, ban:S.ban, room:room(), g:S.g, sid, name, rec:{}, updatedAt:Date.now() };
+  if (db && !S.offline) {
+    try { const ref = db.collection("lab_members").doc(key), old = await ref.get();
+      if (old.exists) { await ref.update({ g:S.g, updatedAt:Date.now() }); S.mem[key] = { ...old.data(), g:S.g }; } else { await ref.set(doc); S.mem[key] = doc; } }
+    catch (e) { console.error(e); S.offline = true; S.mem[key] = doc; }
+  } else S.mem[key] = doc;
+  list.push({ key, sid, name }); setMyMembers(list); render();
+}
+let memT = {};
+function saveMemberRec(key){
+  const m = S.mem[key]; if (!m) return;
+  LS.set("memrec_" + key, m.rec);
+  clearTimeout(memT[key]);
+  memT[key] = setTimeout(async () => { if (!db || S.offline) return; try { await db.collection("lab_members").doc(key).update({ rec:JSON.parse(JSON.stringify(m.rec || {})), g:S.g, updatedAt:Date.now() }); } catch (e) { console.error(e); } }, 700);
+}
 
 function secDone(t, a, i){
   if (i === 1) return filled(a.first);
@@ -484,15 +569,18 @@ function secDone(t, a, i){
   if (i === 5) return filled(a.idea);
 }
 function prog(n, id){ if (!has(n, id)) return 0; const s = st(n, id), t = topic(id); let k = 0; for (let i = 1; i <= 5; i++) { if (secDone(t, s.a, i)) k = i; else break; } return k; }
+/* 단계를 처음 마친 시각을 남겨요 (선생님 화면 · 세특 근거) */
+function stamp(){ if (!S.g || !has(S.g, S.tab)) return; const s = st(S.g, S.tab), t = topic(S.tab); s.steps = s.steps || {}; for (let i = 1; i <= 5; i++) if (secDone(t, s.a, i) && !s.steps[i]) s.steps[i] = Date.now(); }
 
 /* ---------- 위 띠 ---------- */
 function renderTop(){
   const s = S.g && has(S.g, S.tab) ? st(S.g, S.tab) : null, g = S.g ? grp(S.g) : null;
   document.getElementById("top").innerHTML = `
     <div class="brand">${esc(CONF.title)}<small>${esc(CONF.sub)}</small></div>
-    ${S.g ? `<button class="chip" data-act="changeG" title="모둠 바꾸기">${S.g}모둠 ▾</button>` : ""}
-    ${s && !s.fin ? `<span class="chip" id="clock">⏱ --:--</span>` : ""}
-    ${g ? `<button class="btn sm hand ${g.hand ? "on" : ""}" data-act="hand" aria-pressed="${!!g.hand}">${g.hand ? "🙋 부르는 중" : "🙋 도와주세요"}</button>` : ""}
+    ${S.offline ? `<span class="chip low" title="보안 규칙을 게시하면 모든 기기가 함께 보여요">이 기기에만 저장 중</span>` : ""}
+    ${S.ban ? `<button class="chip" data-act="changeG" title="반 · 모둠 바꾸기">${esc(S.ban)}반${S.g ? ` ${S.g}모둠` : ""} ▾</button>` : ""}
+    ${s && !s.fin && S.view === "student" ? `<span class="chip" id="clock">⏱ --:--</span>` : ""}
+    ${g && S.view === "student" ? `<button class="btn sm hand ${g.hand ? "on" : ""}" data-act="hand" aria-pressed="${!!g.hand}">${g.hand ? "🙋 부르는 중" : "🙋 도와주세요"}</button>` : ""}
     <button class="btn sm" data-act="${S.view === "teacher" ? "student" : "teacher"}">${S.view === "teacher" ? "← 학생 화면" : "선생님 화면"}</button>`;
   tick();
 }
@@ -517,29 +605,39 @@ function statusView(){
       <b>${n}모둠</b>${miniBar(k, fin)}
       <span class="w">${g && g.hand ? `<span class="hd">🙋 도움 요청</span>` : fin ? "발표 준비 끝" : has(n, S.tab) ? `${k}/5 · ${STEPS[Math.min(k, 4)]}` : at ? `지금 ${esc(at.name)}` : "아직 시작 전"}</span></button>`; }).join("");
   let peek = "";
-  if (S.peek && has(S.peek, S.tab)) { const s = st(S.peek, S.tab), a = s.a, k = prog(S.peek, S.tab);
+  if (S.peek && has(S.peek, S.tab)) { const a = st(S.peek, S.tab).a, k = prog(S.peek, S.tab);
     peek = `<div class="peek k${ki}"><b>${S.peek}모둠은 지금 · ${esc(t.name)}</b><dl>
       <dt>처음 생각</dt><dd>${esc(a.first) || "아직 안 썼어요"}</dd>
       ${k >= 3 ? `<dt>찾은 것</dt><dd>${esc(t.key(a))}</dd>` : ""}
       ${k >= 4 ? `<dt>${t.detail(a)[0]}</dt><dd>${esc(t.detail(a)[1])}</dd>` : ""}
       ${a.idea ? `<dt>제안</dt><dd><b>${esc(a.idea)}</b></dd>` : ""}</dl></div>`; }
   else if (S.peek) peek = `<div class="peek k${ki}"><span class="note">${S.peek}모둠은 아직 이 활동을 시작하지 않았어요.</span></div>`;
-  return `<section class="status"><h2>모둠 현황 · ${esc(t.name)}<small>모둠을 누르면 그 모둠이 쓴 것을 볼 수 있어요</small></h2><div class="gs">${cells}</div>${peek}</section>`;
+  return `<section class="status" id="status"><h2>${esc(S.ban)}반 모둠 현황 · ${esc(t.name)}<small>모둠을 누르면 그 모둠이 쓴 것을 볼 수 있어요</small></h2><div class="gs">${cells}</div>${peek}</section>`;
+}
+function myRecView(t){
+  const list = myMembers();
+  if (!list.length) return `<p class="locked">모둠원을 등록하면 각자 기록을 남길 수 있어요. 위의 ‘우리 모둠’에서 등록해요.</p>`;
+  return `<p>세특에 들어가는 <b>나만의 기록</b>이에요. 모둠원 각자 이 활동에서 맡은 일과 새로 알게 된 점을 적어요.</p>
+    <div class="cards">${list.map(m => { const r = ((S.mem[m.key] || {}).rec || LS.get("memrec_" + m.key, {}) || {})[t.id] || {};
+      return `<div class="pick ${filled(r.role) && filled(r.learn) ? "on" : ""}"><b>${esc(m.name)}</b>
+        <label class="note" for="role_${m.key.slice(0, 8)}">맡은 일</label><textarea id="role_${m.key.slice(0, 8)}" data-mem="${m.key}" data-f="role" placeholder="예: 10만 명당을 계산하고 순위표를 정리함">${esc(r.role)}</textarea>
+        <label class="note" for="learn_${m.key.slice(0, 8)}">새로 알게 된 점 · 생각이 바뀐 점</label><textarea id="learn_${m.key.slice(0, 8)}" data-mem="${m.key}" data-f="learn" placeholder="예: 건수만 보면 큰 동네가 위험해 보이지만…">${esc(r.learn)}</textarea></div>`; }).join("")}</div>`;
 }
 function lessonView(){
   const t = topic(S.tab), ki = TK(S.tab), s = st(S.g, S.tab), a = s.a;
   const open = i => i === 1 || secDone(t, a, i - 1) && open(i - 1);
-  const sec = (i, body) => { const o = open(i), d = o && secDone(t, a, i);
-    return `<section class="sec ${o ? "" : "lock"}" id="sec${i}"><h2><span class="no">${i}</span>${STEPS[i - 1]}${d ? `<span class="ck">✓ 했어요</span>` : ""}</h2>${o ? body : `<p class="locked">앞 단계를 마치면 열려요.</p>`}</section>`; };
+  const sec = (i, body, name) => { const o = open(i), d = i <= 5 && o && secDone(t, a, i);
+    return `<section class="sec ${o ? "" : "lock"}" id="sec${i}"><h2><span class="no">${i}</span>${name || STEPS[i - 1]}${d ? `<span class="ck">✓ 했어요</span>` : ""}</h2>${o ? body : `<p class="locked">앞 단계를 마치면 열려요.</p>`}</section>`; };
   const s3 = t.s3 ? t.s3(a) : `${quiz(a, t.quiz)}${a.solved ? t.chart(a) : ""}`;
   const ready = [1,2,3,4,5].every(i => secDone(t, a, i));
-  return `<article class="lesson k${ki}">
+  return `<article class="lesson k${ki}" id="lesson">
     <div class="lhead"><span class="eyebrow">지도안 ${t.no} · ${esc(t.name)}</span><h1>${esc(t.title)}</h1></div>
     ${sec(1, `<div class="q">${esc(t.q)}</div>${area("first", a, "데이터를 보기 전, 우리 모둠의 첫 생각은?", t.ph)}<p class="note">정답은 없어요. 5단계에서 이 생각이 바뀌었는지 다시 봐요.</p>`)}
     ${sec(2, `${t.data(a)}${srcLine(t.src)}${a.seen ? "" : `<div class="row"><button class="btn" data-act="seen">데이터를 다 봤어요 ✓</button></div>`}`)}
     ${sec(3, s3)}
     ${sec(4, t.s4(a))}
     ${sec(5, `<div class="msg info">처음 생각: “${esc(a.first)}”</div>${area("idea", a, "이 데이터로 무엇을 바로잡거나 바꿔야 할까요? 한 줄 제안", t.ideaPh)}${area("change", a, "처음 생각과 달라진 점 (선택)", "예: 생각보다 다른 원인이 많았어요")}`)}
+    ${sec(6, myRecView(t), "나의 기록 (각자)")}
     ${s.fin ? `${presentCard(S.g, S.tab)}<div class="row"><button class="btn sm" data-act="unfin">발표 카드 고치기</button><span class="note">선생님 화면의 ‘발표 모아 보기’에 나와요.</span></div>`
       : `<div class="row"><button class="btn main" data-act="fin" ${ready ? "" : "disabled"}>발표 카드 만들기</button><span class="note">${ready ? "2분 발표: 처음 생각 → 찾은 것 → 제안" : "①~⑤를 모두 하면 눌러져요"}</span></div>`}
   </article>`;
@@ -550,34 +648,111 @@ function presentCard(n, id){
     <div class="key">${esc(t.key(a))}</div>
     <dl><dt>처음 생각</dt><dd>${esc(a.first)}</dd><dt>${d[0]}</dt><dd>${esc(d[1])}</dd><dt>제안</dt><dd><b>${esc(a.idea)}</b></dd>${a.change ? `<dt>달라진 점</dt><dd>${esc(a.change)}</dd>` : ""}</dl></article>`;
 }
-function pickGroup(){
-  return `<section class="pick-g"><h1>우리 모둠을 골라요</h1>
-    <p class="note">모둠마다 맡은 활동 탭을 열어 ①~⑤를 차례로 해요. 다른 모둠이 어디까지 했는지도 위에서 볼 수 있어요.</p>
-    <div class="groups">${[1,2,3,4,5,6].map(n => `<button data-act="setG" data-v="${n}">${n}모둠</button>`).join("")}</div></section>`;
+function startView(){
+  return `<section class="pick-g"><h1>${S.ban ? "우리 모둠을 골라요" : "우리 반을 골라요"}</h1>
+    ${!S.ban ? (S.bans.length ? `<div class="groups">${S.bans.map(b => `<button data-act="setBan" data-v="${esc(b)}">${esc(b)}반</button>`).join("")}</div>`
+        : `<div class="row"><input type="text" id="banIn" placeholder="예: 2-3" style="max-width:180px" aria-label="반"><button class="btn" data-act="setBanIn">이 반으로 시작</button></div><p class="note">학년-반을 적어요. 선생님이 반 목록을 정해 두면 단추로 나와요.</p>`)
+      : `<p class="note">${esc(S.ban)}반 · 모둠마다 맡은 활동 탭을 열어 ①~⑥을 해요.</p><div class="groups">${[1,2,3,4,5,6].map(n => `<button data-act="setG" data-v="${n}">${n}모둠</button>`).join("")}</div>
+        <div class="row"><button class="btn sm" data-act="banReset">← 반 다시 고르기</button></div>`}
+  </section>`;
+}
+function membersView(){
+  const list = myMembers();
+  return `<details class="status" id="members" ${list.length ? "" : "open"}><summary><b class="mtitle">우리 모둠 ${list.length ? `· ${list.map(m => esc(m.name)).join(", ")}` : "· 모둠원을 등록해요"}</b></summary>
+    <p class="note">학번과 이름은 선생님만 볼 수 있어요. 다른 모둠 화면에는 나오지 않아요.</p>
+    <div class="row"><input type="text" id="msid" inputmode="numeric" maxlength="5" placeholder="학번 5자리" style="max-width:140px" aria-label="학번"><input type="text" id="mname" maxlength="5" placeholder="이름" style="max-width:140px" aria-label="이름"><button class="btn" data-act="addMem">등록</button><span class="note" id="mmsg"></span></div>
+    ${list.length ? `<div class="tally">${list.map(m => `<span class="chip">${esc(m.name)} <button class="btn sm" data-act="rmMem" data-v="${m.key}" aria-label="${esc(m.name)} 빼기">✕</button></span>`).join("")}</div>` : ""}
+  </details>`;
 }
 function studentView(){
-  return `<div class="sample">🧪 <span><b>연습판이에요.</b> 숫자는 모두 연습용 예시이고 실제 통계가 아니에요. 기록은 이 기기에만 남아서, 모둠을 바꿔 가며 눌러 보면 여러 모둠 모습을 볼 수 있어요.</span></div>
-    ${S.g ? "" : pickGroup()}${tabsView()}${S.g ? statusView() + lessonView() : ""}`;
+  if (!S.ban || !S.g) return `${S.offline && db ? offlineNote() : ""}${startView()}`;
+  return `${S.offline ? offlineNote() : ""}${membersView()}${tabsView()}${statusView()}${lessonView()}`;
 }
+const offlineNote = () => `<div class="sample">⚠️ <span>지금은 <b>이 기기에만</b> 저장돼요. 선생님이 보안 규칙을 게시하면 모든 모둠이 함께 보이고, 선생님 화면에 모여요.</span></div>`;
 
 /* ---------- 선생님 화면 ---------- */
+const nbytes = s => { let b = 0; for (const ch of String(s || "")) b += ch === "\n" ? 2 : ch.charCodeAt(0) > 127 ? 3 : 1; return b; };
+const banPick = () => `<div class="row"><b>반</b>${(S.bans.length ? S.bans : S.ban ? [S.ban] : []).map(b => `<button class="btn sm ${b === S.ban ? "main" : ""}" style="${b === S.ban ? "font-size:15px;padding:3px 14px" : ""}" data-act="tBan" data-v="${esc(b)}">${esc(b)}반</button>`).join("")}
+  <input type="text" id="tBanIn" placeholder="다른 반 (예: 2-5)" style="max-width:160px" aria-label="다른 반"><button class="btn sm" data-act="tBanIn">보기</button></div>`;
+function studentPrompt(list){
+  const head = `너는 고등학교 통합사회 교사가 학교생활기록부 ‘과목별 세부능력 및 특기사항’을 쓰도록 돕는다.
+아래는 학생이 ‘${CONF.title}’ 모둠 데이터 수업(${CONF.unit})에서 실제로 한 활동 기록이다. 기록에 있는 사실만 쓰고 지어내지 않는다.
+
+[작성 규칙]
+- 학생 이름 · 학번 · 모둠 번호를 쓰지 않는다. 주어 없이 ‘~함’, ‘~임’으로 끝나는 문장으로 쓴다.
+- 상호명 · 제품명(엑셀, 구글, Orange3, Gemini, ChatGPT, Claude 등)은 쓰지 않고 ‘스프레드시트’, ‘데이터 분석 프로그램’, ‘생성형 AI’처럼 쓴다.
+- 공백 포함 400~500자 한 문단. [활동 내용 → 이 학생의 구체적 행동 · 판단 → 드러난 역량(데이터 해석, 비판적 사고, 근거에 기반한 제안, 협업)] 순서로 쓴다.
+- 모둠 공동 결과보다 ‘이 학생이 맡은 일’과 ‘새로 알게 된 점’을 중심으로 써서 다른 학생과 겹치지 않게 한다.
+- ‘탁월함’, ‘매우 뛰어남’ 같은 과장 표현과 기록에 없는 성취는 쓰지 않는다.
+- 이 학생의 기록이 부족하면 쓰지 말고 ‘기록 부족: (무엇이 필요한지)’라고만 답한다.
+`;
+  const body = list.map(({ no, m }) => { const g = S.groups[m.g] || { tp:{} };
+    const used = TP.filter(t => (g.tp && g.tp[t.id] && g.tp[t.id].start) || (m.rec && m.rec[t.id]));
+    return `\n[학생 ${no}]\n` + (used.length ? used.map(t => { const s = (g.tp || {})[t.id] || { a:{} }, a = s.a || {}, r = (m.rec || {})[t.id] || {}, k = prog(m.g, t.id), d = k >= 4 ? t.detail(a) : null;
+      return `■ ${t.name} — ${t.title} (모둠 진행 ${k}/5단계)
+- 핵심 질문: ${t.q}
+- 모둠의 처음 생각: ${a.first || "(없음)"}
+${k >= 3 ? `- 데이터 계산 · 그래프에서 찾은 것: ${t.key(a)}\n` : ""}${d ? `- 해석 (${d[0]}): ${d[1]}\n` : ""}${a.why || a.explain ? `- 해석의 근거: ${a.why || a.explain}\n` : ""}${a.idea ? `- 모둠의 제안: ${a.idea}\n` : ""}${a.change ? `- 처음 생각과 달라진 점: ${a.change}\n` : ""}- 이 학생이 맡은 일: ${r.role || "(적지 않음)"}
+- 이 학생이 새로 알게 된 점: ${r.learn || "(적지 않음)"}`; }).join("\n") : "(활동 기록 없음)"); }).join("\n");
+  return head + body + `\n\n[출력]\n${list.length > 1 ? "학생마다 ‘학생 번호:’로 시작하는 한 문단씩만 쓴다. 예) 학생 3: ~함." : "세특 한 문단만 쓴다."}`;
+}
+async function copyText(txt, btn){
+  try { await navigator.clipboard.writeText(txt); if (btn) { const o = btn.textContent; btn.textContent = "✓ 복사했어요"; setTimeout(() => { btn.textContent = o; }, 1600); } }
+  catch (e) { const ta = document.getElementById("copyBox"); if (ta) { ta.hidden = false; ta.value = txt; ta.focus(); ta.select(); } }
+}
+async function loadMembers(){
+  if (!db || !S.teacher || !S.ban) { S.members = []; return; }
+  try { const qs = await db.collection("lab_members").where("room", "==", room()).get(); S.members = qs.docs.map(d => ({ key:d.id, ...d.data() })).sort((a, b) => a.sid.localeCompare(b.sid)); S.tmsg = ""; }
+  catch (e) { console.error(e); S.members = []; S.tmsg = "학생 명단을 불러오지 못했어요 (보안 규칙을 게시했는지 확인해 주세요)"; }
+  soft();
+}
+function adminView(){
+  if (!db) return `<section class="lesson k0"><p class="note">파이어베이스에 연결되지 않아 관리자 기능을 쓸 수 없어요.</p></section>`;
+  if (!S.teacher) return `<section class="lesson k0"><div class="lhead"><span class="eyebrow">관리자</span><h1>학생 기록 · 세특</h1></div>
+    <p>학생 명단과 개인 기록, 세특 칸은 관리자 구글 계정으로 로그인하면 보여요.</p>
+    <div class="row"><button class="btn main" data-act="login">G 관리자 구글 계정으로 로그인</button><span class="note" id="loginErr">${esc(S.lerr || "")}</span></div></section>`;
+  const list = S.members.map((m, i) => ({ no:i + 1, m }));
+  return `<section class="lesson k0"><div class="lhead"><span class="eyebrow">관리자 · ${esc(S.ban)}반</span><h1>학생 기록 · 세특</h1></div>
+    <div class="row"><button class="btn sm" data-act="logout">로그아웃</button><button class="btn sm" data-act="reloadM">명단 새로 불러오기</button><span class="note">${esc(S.tmsg || "")}</span></div>
+    <details class="status"><summary><b class="mtitle">반 목록 정하기 (학생 첫 화면에 단추로 나와요)</b></summary>
+      <div class="row"><input type="text" id="bansIn" value="${esc(S.bans.join(", "))}" placeholder="예: 2-1, 2-3, 2-5" aria-label="반 목록"><button class="btn" data-act="saveBans">저장</button></div></details>
+    ${list.length ? `<div class="msg info">① <b>프롬프트 복사</b> → ② Claude에 붙여 넣기 → ③ 받은 세특을 칸에 붙여 넣고 <b>저장</b>. 프롬프트에는 이름 · 학번이 들어가지 않고 ‘학생 번호’로만 들어가요.</div>
+      <div class="row"><button class="btn main" data-act="copyAll">반 전체 프롬프트 복사 (${list.length}명)</button><button class="btn sm" data-act="copySel">고른 학생만 복사</button></div>
+      <textarea id="copyBox" hidden aria-label="복사할 글" style="min-height:120px"></textarea>
+      <details class="status"><summary><b class="mtitle">Claude 결과 한꺼번에 붙여 넣기</b></summary>
+        <p class="note">‘학생 3: …’ 꼴로 받은 결과를 통째로 붙여 넣으면 학생마다 칸에 나눠 넣어요. 저장은 칸마다 눌러요.</p>
+        <textarea id="bulkIn" data-tbind="bulk" placeholder="학생 1: ~함.&#10;학생 2: ~함." style="min-height:120px">${esc(S.bulk)}</textarea>
+        <div class="row"><button class="btn" data-act="splitBulk">학생마다 나눠 넣기</button></div></details>
+      <div class="mat"><table><thead><tr><th>번호</th><th>학번 · 이름</th><th>활동</th><th>세특</th></tr></thead><tbody>
+      ${list.map(({ no, m }) => { const g = S.groups[m.g] || { tp:{} }, acts = TP.filter(t => (g.tp && g.tp[t.id] && g.tp[t.id].start) || (m.rec && m.rec[t.id])), draft = S.sel[m.key] ?? m.setuk ?? "";
+        return `<tr><td><label class="row" style="gap:6px"><input type="checkbox" data-act="pickStu" data-v="${m.key}" ${S.pick && S.pick[m.key] ? "checked" : ""} aria-label="학생 ${no} 고르기"><b>학생 ${no}</b></label></td>
+          <td>${esc(m.sid)} ${esc(m.name)}<br><span class="note">${m.g}모둠</span></td>
+          <td>${acts.map(t => { const r = (m.rec || {})[t.id] || {}; return `<div class="note">${esc(t.name)} ${prog(m.g, t.id)}/5 ${filled(r.role) && filled(r.learn) ? "· 개인 기록 ✓" : "· 개인 기록 없음"}</div>`; }).join("") || `<span class="note">아직 없음</span>`}
+            <button class="btn sm" data-act="copyOne" data-v="${m.key}">프롬프트 복사</button></td>
+          <td style="min-width:280px"><textarea data-setuk="${m.key}" style="min-height:110px" placeholder="Claude가 써 준 세특을 붙여 넣어요">${esc(draft)}</textarea>
+            <div class="row"><span class="note">${f1(draft.length)}자 · ${f1(nbytes(draft))}바이트</span><button class="btn sm" data-act="saveSetuk" data-v="${m.key}">저장</button>${m.setukAt ? `<span class="note">저장됨 ${new Date(m.setukAt).toLocaleDateString()}</span>` : ""}</div></td></tr>`; }).join("")}
+      </tbody></table></div>
+      <p class="note">나이스 과목 세특은 바이트 기준이에요(한글 3바이트, 1,500바이트 = 한글 약 500자). 붙여 넣기 전에 사실과 맞는지 꼭 확인해 주세요.</p>`
+    : `<p class="note">${esc(S.ban)}반에 등록한 학생이 아직 없어요. 학생 화면의 ‘우리 모둠’에서 학번 · 이름을 등록하면 여기에 나와요.</p>`}
+    <div class="row">${S.reset ? `<span class="note">${esc(S.ban)}반의 모둠 기록과 학생 기록을 모두 지울까요?</span><button class="btn sm" data-act="resetYes">지우기</button><button class="btn sm" data-act="resetNo">그만두기</button>` : `<button class="btn sm" data-act="reset">${esc(S.ban)}반 기록 모두 지우기</button>`}</div>
+  </section>`;
+}
 function teacherView(){
   const cards = []; [1,2,3,4,5,6].forEach(n => TP.forEach(t => { if (has(n, t.id) && st(n, t.id).fin) cards.push([n, t.id]); }));
   const i = Math.min(S.showAt, Math.max(0, cards.length - 1));
-  return `<div class="sample">🧑‍🏫 <span>실제 수업용이 되면 모든 모둠의 태블릿이 이 화면에 모여요. 연습판은 이 기기에서 누른 모둠만 보여요.</span></div>
-  <section class="lesson k0"><div class="lhead"><span class="eyebrow">진행 상황</span><h1>모둠 × 활동 한눈에</h1></div>
+  return `${S.offline ? offlineNote() : ""}<section class="lesson k0">${banPick()}</section>
+  ${S.ban ? `<section class="lesson k0"><div class="lhead"><span class="eyebrow">진행 상황 · ${esc(S.ban)}반</span><h1>모둠 × 활동 한눈에</h1></div>
     <div class="mat"><table><thead><tr><th>모둠</th>${TP.map((t, j) => `<th class="k${j + 1}" style="color:var(--tc)">지도안 ${t.no} ${esc(t.name)}</th>`).join("")}</tr></thead><tbody>
     ${[1,2,3,4,5,6].map(n => { const g = S.groups[n]; return `<tr><td><b>${n}모둠</b>${g && g.hand ? `<br><span class="pill hand">🙋 도움 요청</span> <button class="btn sm" data-act="handOff" data-v="${n}">도와줬어요</button>` : ""}</td>
-      ${TP.map((t, j) => { if (!has(n, t.id)) return `<td><span class="note">-</span></td>`; const k = prog(n, t.id), fin = st(n, t.id).fin, used = Math.floor((Date.now() - st(n, t.id).start) / 60000);
-        return `<td class="k${j + 1}">${miniBar(k, fin)}<span class="pill ${fin ? "done" : ""}">${fin ? "발표 준비 끝" : `${k}/5`}</span> <span class="note">${used}분</span></td>`; }).join("")}</tr>`; }).join("")}</tbody></table></div>
+      ${TP.map((t, j) => { if (!has(n, t.id)) return `<td><span class="note">-</span></td>`; const s = st(n, t.id), k = prog(n, t.id), used = Math.floor((Date.now() - s.start) / 60000), last = Math.max(0, ...Object.values(s.steps || {}));
+        return `<td class="k${j + 1}">${miniBar(k, s.fin)}<span class="pill ${s.fin ? "done" : ""}">${s.fin ? "발표 준비 끝" : `${k}/5`}</span> <span class="note">${used}분${last ? ` · 마지막 ${new Date(last).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })}` : ""}</span></td>`; }).join("")}</tr>`; }).join("")}</tbody></table></div>
   </section>
   <section class="lesson k0"><div class="lhead"><span class="eyebrow">발표 모아 보기</span><h1>전자칠판에 한 장씩 띄워요</h1></div>
     ${cards.length ? `${presentCard(cards[i][0], cards[i][1])}
       <div class="row" style="justify-content:space-between"><button class="btn" data-act="showPrev" ${i ? "" : "disabled"}>← 앞 카드</button><span class="note">${i + 1} / ${cards.length}</span><button class="btn" data-act="showNext" ${i < cards.length - 1 ? "" : "disabled"}>다음 카드 →</button></div>
       <div class="msg info">마무리 질문: ${esc(CONF.ending)}</div>`
-    : `<p class="note">아직 발표 카드를 만든 모둠이 없어요. 학생 화면에서 한 활동을 ⑤까지 하고 ‘발표 카드 만들기’를 누르면 여기에 나와요.</p>`}
-    <div class="row">${S.reset ? `<span class="note">모든 모둠 기록을 지울까요?</span><button class="btn sm" data-act="resetYes">지우기</button><button class="btn sm" data-act="resetNo">그만두기</button>` : `<button class="btn sm" data-act="reset">모든 기록 지우기</button>`}</div>
-  </section>`;
+    : `<p class="note">아직 발표 카드를 만든 모둠이 없어요.</p>`}
+  </section>${adminView()}` : ""}`;
 }
 
 /* ---------- 그리기 · 동작 ---------- */
@@ -587,26 +762,51 @@ function render(){
   document.getElementById("app").innerHTML = S.view === "teacher" ? teacherView() : studentView();
   if (fid) { const el = document.getElementById(fid); if (el && el !== document.activeElement && !el.disabled) { el.focus({ preventScroll:true }); try { if (ss != null) el.setSelectionRange(ss, se); } catch (e) {} } }
 }
-document.addEventListener("input", e => {
-  const el = e.target; if (!S.g || !has(S.g, S.tab)) return;
-  const a = st(S.g, S.tab).a, t = topic(S.tab);
-  if (el.dataset.bind) { const before = [1,2,3,4,5].map(i => secDone(t, a, i)).join(); a[el.dataset.bind] = el.value; save(); if ([1,2,3,4,5].map(i => secDone(t, a, i)).join() !== before) render(); }
-  if (el.id === "ans") { a.typed = el.value; save(); }
-});
+/* 다른 모둠이 바뀌었을 때: 글을 쓰는 중이면 현황 줄만 바꿔요 (한글 입력이 끊기지 않게) */
+function soft(){
+  const ae = document.activeElement, typing = ae && /^(TEXTAREA|INPUT)$/.test(ae.tagName) && ae.type !== "checkbox";
+  if (!typing) return render();
+  if (S.view === "student") { const el = document.getElementById("status"); if (el && S.g) el.outerHTML = statusView(); }
+}
+let composing = false;
+document.addEventListener("compositionstart", () => { composing = true; });
+document.addEventListener("compositionend", e => { composing = false; onType(e.target); });
+document.addEventListener("input", e => { if (!e.isComposing && !composing) onType(e.target); else onTypeQuiet(e.target); });
+function onTypeQuiet(el){
+  if (el.dataset.bind && S.g && has(S.g, S.tab)) { st(S.g, S.tab).a[el.dataset.bind] = el.value; }
+  if (el.dataset.mem && S.mem[el.dataset.mem]) { const m = S.mem[el.dataset.mem]; m.rec = m.rec || {}; m.rec[S.tab] = { ...(m.rec[S.tab] || {}), [el.dataset.f]:el.value, at:Date.now() }; }
+  if (el.dataset.setuk) S.sel[el.dataset.setuk] = el.value;
+  if (el.dataset.tbind) S[el.dataset.tbind] = el.value;
+}
+function onType(el){
+  const live = S.g && has(S.g, S.tab) && el.dataset.bind, tt = live && topic(S.tab), aa = live && st(S.g, S.tab).a;
+  const was = live ? [1,2,3,4,5].map(i => secDone(tt, aa, i)).join() : "";
+  onTypeQuiet(el);
+  if (el.dataset.mem) { if (!S.mem[el.dataset.mem]) { const mm = myMembers().find(x => x.key === el.dataset.mem); S.mem[el.dataset.mem] = { rec:LS.get("memrec_" + el.dataset.mem, {}) || {}, name:mm && mm.name }; onTypeQuiet(el); } saveMemberRec(el.dataset.mem); return; }
+  if (el.dataset.setuk) { const n = el.closest("td").querySelector(".note"); if (n) n.textContent = `${f1(el.value.length)}자 · ${f1(nbytes(el.value))}바이트`; return; }
+  if (!el.dataset.bind || !S.g || !has(S.g, S.tab)) { if (el.id === "ans" && S.g && has(S.g, S.tab)) st(S.g, S.tab).a.typed = el.value; return; }
+  const t = topic(S.tab), a = st(S.g, S.tab).a;
+  stamp(); saveGroup();
+  if ([1,2,3,4,5].map(i => secDone(t, a, i)).join() !== was) render();
+}
 document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "ans") { e.preventDefault(); act("check"); } });
-document.addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (!b || b.disabled) return; act(b.dataset.act, b.dataset.v, b.dataset.i); });
+document.addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (!b || b.disabled) return; if (b.tagName === "INPUT" && b.type === "checkbox") { act(b.dataset.act, b.dataset.v, b.checked); return; } act(b.dataset.act, b.dataset.v, b.dataset.i); });
 
-function act(x, v, i){
+async function act(x, v, i){
   const t = topic(S.tab), s = S.g && has(S.g, S.tab) ? st(S.g, S.tab) : null, a = s && s.a;
+  let groupChanged = true;
   switch (x) {
-    case "setG": S.g = +v; S.peek = 0; enter(); break;
-    case "changeG": S.g = 0; S.peek = 0; break;
-    case "tab": S.tab = v; S.peek = 0; S.view = "student"; if (S.g) enter(); break;
-    case "student": S.view = "student"; break;
-    case "teacher": S.view = "teacher"; window.scrollTo({ top:0 }); break;
-    case "peek": S.peek = S.peek === +v ? 0 : +v; break;
+    case "setBan": S.ban = cleanBan(v); LS.set("ban", S.ban); watchRoom(); groupChanged = false; break;
+    case "setBanIn": { const b = cleanBan(document.getElementById("banIn").value); if (!b) return; S.ban = b; LS.set("ban", b); watchRoom(); groupChanged = false; break; }
+    case "banReset": S.ban = ""; S.g = 0; LS.set("ban", ""); LS.set("g", 0); groupChanged = false; break;
+    case "setG": S.g = +v; LS.set("g", S.g); S.peek = 0; enter(); loadMemberRecs(); break;
+    case "changeG": S.g = 0; LS.set("g", 0); S.peek = 0; S.view = "student"; groupChanged = false; break;
+    case "tab": S.tab = v; S.peek = 0; S.view = "student"; if (S.g) enter(); else groupChanged = false; break;
+    case "student": S.view = "student"; groupChanged = false; if (location.hash) history.replaceState(null, "", location.pathname); break;
+    case "teacher": S.view = "teacher"; groupChanged = false; window.scrollTo({ top:0 }); loadMembers(); break;
+    case "peek": S.peek = S.peek === +v ? 0 : +v; groupChanged = false; break;
     case "hand": grp(S.g).hand = !grp(S.g).hand; break;
-    case "handOff": grp(+v).hand = false; break;
+    case "handOff": grp(+v).hand = false; groupChanged = false; if (db && !S.offline) db.collection("lab_groups").doc(gid(+v)).update({ hand:false }).catch(() => {}); break;
     case "seen": a.seen = true; break;
     case "check": { const q = t.chk ? { ...t.quiz, ...t.chk(a) } : t.quiz; checkQuiz(a, q); break; }
     case "reveal": { const q = t.chk ? t.chk(a) : t.quiz; a.solved = true; a.typed = String(+(+q.ans).toFixed(2)); break; }
@@ -620,27 +820,61 @@ function act(x, v, i){
     case "xvar": a.x = v; if (v === "j") a.seenJ = true; break;
     case "fin": s.fin = true; grp(S.g).hand = false; break;
     case "unfin": s.fin = false; break;
-    case "showPrev": S.showAt = Math.max(0, S.showAt - 1); break;
-    case "showNext": S.showAt++; break;
-    case "reset": S.reset = true; break;
-    case "resetNo": S.reset = false; break;
-    case "resetYes": S.groups = {}; S.g = 0; S.reset = false; S.peek = 0; break;
+    case "addMem": await addMember(); return;
+    case "rmMem": setMyMembers(myMembers().filter(m => m.key !== v)); groupChanged = false; break;
+    case "showPrev": S.showAt = Math.max(0, S.showAt - 1); groupChanged = false; break;
+    case "showNext": S.showAt++; groupChanged = false; break;
+    case "tBan": S.ban = cleanBan(v); LS.set("ban", S.ban); watchRoom(); loadMembers(); groupChanged = false; break;
+    case "tBanIn": { const b = cleanBan(document.getElementById("tBanIn").value); if (!b) return; S.ban = b; LS.set("ban", b); watchRoom(); loadMembers(); groupChanged = false; break; }
+    case "login": {
+      S.lerr = "확인하는 중…"; render();
+      try { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); const r = await auth.signInWithPopup(p);
+        if (!isAdminEmail(r.user && r.user.email)) { await auth.signOut(); S.lerr = "관리자 구글 계정으로 골라 주세요."; } else S.lerr = ""; }
+      catch (e) { const c = e.code || ""; S.lerr = /popup-closed|cancelled-popup/.test(c) ? "" : /popup-blocked/.test(c) ? "팝업이 막혔어요. 팝업을 허용해 주세요." : /unauthorized-domain/.test(c) ? "이 주소가 파이어베이스 승인된 도메인에 없어요." : "로그인하지 못했어요. 다시 해 주세요."; }
+      render(); return; }
+    case "logout": if (auth) await auth.signOut(); groupChanged = false; break;
+    case "reloadM": await loadMembers(); return;
+    case "saveBans": { const l = String(document.getElementById("bansIn").value || "").split(/[,\s]+/).map(cleanBan).filter(Boolean);
+      try { await db.collection("lab_config").doc(CONF.app).set({ bans:l, updatedAt:Date.now() }); S.bans = l; S.tmsg = "반 목록을 저장했어요"; } catch (e) { S.tmsg = "저장하지 못했어요: " + (e.code || e.message); }
+      groupChanged = false; break; }
+    case "pickStu": S.pick = S.pick || {}; S.pick[v] = !!i; return;
+    case "copyOne": { const idx = S.members.findIndex(m => m.key === v); if (idx < 0) return; copyText(studentPrompt([{ no:idx + 1, m:S.members[idx] }]), document.querySelector(`[data-act="copyOne"][data-v="${v}"]`)); return; }
+    case "copyAll": copyText(studentPrompt(S.members.map((m, k) => ({ no:k + 1, m }))), document.querySelector('[data-act="copyAll"]')); return;
+    case "copySel": { const l = S.members.map((m, k) => ({ no:k + 1, m })).filter(x => S.pick && S.pick[x.m.key]); if (!l.length) { S.tmsg = "먼저 학생 왼쪽 칸을 골라요"; render(); return; } copyText(studentPrompt(l), document.querySelector('[data-act="copySel"]')); return; }
+    case "splitBulk": { const txt = String(S.bulk || ""), parts = [...txt.matchAll(/(?:^|\n)\s*\[?학생\s*(\d+)\]?\s*[:：.)\]]?\s*([\s\S]*?)(?=\n\s*\[?학생\s*\d+\]?\s*[:：.)\]]|\s*$)/g)];
+      let n = 0; parts.forEach(p => { const m = S.members[+p[1] - 1]; if (m && p[2].trim()) { S.sel[m.key] = p[2].trim(); n++; } }); S.tmsg = n ? `${n}명의 칸에 나눠 넣었어요. 확인하고 저장해 주세요.` : "‘학생 1: …’ 꼴을 찾지 못했어요"; groupChanged = false; break; }
+    case "saveSetuk": { const m = S.members.find(y => y.key === v); if (!m) return; const txt = String(S.sel[v] ?? m.setuk ?? "").trim();
+      try { await db.collection("lab_members").doc(v).update({ setuk:txt, setukAt:Date.now() }); m.setuk = txt; m.setukAt = Date.now(); delete S.sel[v]; S.tmsg = "세특을 저장했어요"; } catch (e) { S.tmsg = "저장하지 못했어요: " + (e.code || e.message); }
+      groupChanged = false; break; }
+    case "reset": S.reset = true; groupChanged = false; break;
+    case "resetNo": S.reset = false; groupChanged = false; break;
+    case "resetYes": {
+      S.reset = false; groupChanged = false;
+      if (db && S.teacher) { try { const b = db.batch(); (await db.collection("lab_groups").where("room", "==", room()).get()).docs.forEach(d => b.delete(d.ref)); (await db.collection("lab_members").where("room", "==", room()).get()).docs.forEach(d => b.delete(d.ref)); await b.commit(); S.tmsg = "지웠어요"; } catch (e) { S.tmsg = "지우지 못했어요: " + (e.code || e.message); } }
+      S.groups = {}; S.members = []; LS.set("local_" + room(), {}); break; }
   }
-  save(); render();
+  if (groupChanged && S.g) { stamp(); saveGroup(); }
+  render();
 }
 function enter(){ const s = st(S.g, S.tab); if (!s.start) s.start = Date.now(); grp(S.g).at = S.tab; }
+
+if (auth) auth.onAuthStateChanged(u => { S.teacher = !!u && isAdminEmail(u.email); if (S.view === "teacher") loadMembers(); render(); });
+if (S.ban) watchRoom();
+loadBans();
+if (S.ban && S.g) loadMemberRecs();
 render();
+
 </script>
 <footer class="policy-foot">
   <details>
     <summary>정의 데이터 실험실 · 이용약관 · <b>개인정보 처리방침</b></summary>
     <div class="pol">
       <h4>이용약관</h4>
-      <ul><li>수업 시간의 모둠 활동을 위해서만 이용해 주세요.</li><li>화면의 숫자는 연습용 예시예요. 실제 통계는 화면에 적힌 곳에서 확인해 주세요.</li><li>답에는 자기나 다른 사람의 이름 · 연락처 · 개인 경험을 적지 마세요.</li></ul>
+      <ul><li>수업 시간의 모둠 활동을 위해서만 이용해 주세요.</li><li>화면의 숫자는 연습용 예시예요. 실제 통계는 화면에 적힌 곳에서 확인해 주세요.</li><li>모둠 답과 나의 기록에는 다른 사람의 이름 · 연락처 · 개인 경험을 적지 마세요.</li></ul>
       <h4>개인정보 처리방침</h4>
-      <table><tr><th>받는 정보</th><th>쓰임</th><th>보관</th></tr><tr><td>모둠 번호, 활동마다 적은 생각 · 고른 카드 · 제안, 시작한 시각</td><td>모둠 활동 진행과 발표</td><td>쓰는 기기의 브라우저에만 저장, [모든 기록 지우기]로 지워요</td></tr></table>
-      <ul><li>이름 · 학번 · 전화번호 · 이메일은 받지 않아요.</li><li>적은 내용은 서버로 보내지 않고 그 기기의 브라우저에만 남아요.</li><li>왼쪽 아래 방문 수는 횟수만 세고, 누가 들어왔는지는 남기지 않아요.</li></ul>
-      <p>궁금한 점: anstjsdud@sen.go.kr</p>
+      <table><tr><th>받는 정보</th><th>쓰임</th><th>보관</th></tr><tr><td>반 · 모둠 번호, 모둠이 적은 생각 · 고른 카드 · 제안, 단계를 마친 시각</td><td>모둠 활동 진행, 다른 모둠 진행 현황, 발표</td><td>수업용 서버(Google Firebase)에 저장, 학기가 끝나면 선생님이 지워요</td></tr><tr><td>모둠원 학번 · 이름, 각자 적은 ‘나의 기록’(맡은 일 · 알게 된 점)</td><td>선생님의 학교생활기록부 세부능력 및 특기사항 작성</td><td>목록은 선생님 계정만 볼 수 있어요, 학기가 끝나면 지워요</td></tr></table>
+      <ul><li>모둠 활동 내용에는 이름이 붙지 않아요.</li><li>학번 · 이름은 알아보기 어려운 번호로 바꿔 저장하고, 다른 학생은 목록을 볼 수 없어요.</li><li>선생님이 AI(Claude)로 세특 초안을 만들 때는 이름 · 학번을 빼고 ‘학생 1, 학생 2’로만 보내요.</li><li>이 기기에는 반 · 모둠 번호와 등록한 모둠원 목록만 남아요.</li><li>왼쪽 아래 방문 수는 횟수만 세고, 누가 들어왔는지는 남기지 않아요.</li></ul>
+<p>궁금한 점: anstjsdud@sen.go.kr</p>
       <p class="small">마지막 수정일 2026년 11월 9일 · 현재 운영 방식을 정리한 안내로, 법률 검토를 거친 문서가 아닙니다.</p>
     </div>
   </details>
