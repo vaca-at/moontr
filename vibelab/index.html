@@ -297,6 +297,9 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .thg-card .g-name{font-size:1.0625rem;margin:0 .125rem}
 .thg-txt{font-size:.8125rem;color:var(--ink);line-height:1.45;margin:0 .125rem;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .thg-only{padding:1rem}
+.thg-sec{margin:.625rem 0 .375rem;font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem}
+.thg-card.lab{border-color:color-mix(in srgb,var(--coral) 45%,#fff)}
+.thg-card.lab:hover{border-color:var(--coral)}
 .thg-about{margin:0 0 .75rem}
 .thg-about .pv-v{max-height:9rem;overflow:auto;font-size:.9375rem;line-height:1.55}
 .app-view:has(.thg-about) iframe{height:min(58vh,40rem)}
@@ -1946,7 +1949,7 @@ const SLIDES = [
   headBtn: `<button type="button" class="edit-plan-btn" data-edit-plan>✏️ 계획서 고치기</button>`,
   cols: [
     { t: "내 계획서", c: C.lav, html: `${DEMO}<div id="labPlanBox" data-live></div>` },
-    { t: "🖼 우리 반 이론편 웹앱", c: C.teal, cls: "wide", html: `<div id="thGalBox" data-live></div>` },
+    { t: "🖼 우리 반 웹앱 갤러리", c: C.teal, cls: "wide", html: `<div id="thGalBox" data-live></div>` },
     { t: "확인할 점", c: C.sky, cls: "narrow", html: `
       ${tickList("plancheck", [
         { t: "3", h: "🌱 기능이 3개 이하예요", s: "많으면 오늘은 3개만" },
@@ -2253,16 +2256,45 @@ async function loadThPrev(b) {
 const thPlansOf = b => { const pv = thPrev[b] || {};
   return plans.filter(p => p.ban === b && (p.content || (p.url && safeUrl(p.url) !== "#") || pv[p.id]))
     .sort((x, y) => (pv[y.id] ? 1 : 0) - (pv[x.id] ? 1 : 0) || (y.updatedAt || 0) - (x.updatedAt || 0)); };
+// 🧪 오늘 실습에서 6번에 올린 웹앱: 코드로 올렸으면 그 코드를, 주소로 올렸으면 그 주소를 미리보기로 (다시 올리면 새로 불러와요)
+const labCodeAt = {};
+function needLabCode(a) {
+  if (!a.code || (labCodeAt[a.id] && labCodeAt[a.id] >= (a.updatedAt || 1))) return;
+  labCodeAt[a.id] = a.updatedAt || 1; delete codeCache[a.id];
+  appCode(a.id).then(() => { thGalSig = ""; renderThGal(); });
+}
+const labUrl = a => a.url && safeUrl(a.url) !== "#" ? a.url : "";
+function labCard(a) {
+  const h = a.code ? codeCache[a.id] || "" : "", u = labUrl(a);
+  return `<button type="button" class="thg-card lab ${a.id === myAppId ? "mine" : ""}" data-labview="${a.id}">
+    <span class="thg-pv">${h ? `<iframe sandbox="allow-scripts" srcdoc="${esc(h)}" tabindex="-1" title="${esc(a.appName)} 미리보기" loading="lazy"></iframe>`
+      : u ? `<iframe src="${esc(u)}" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" tabindex="-1" title="${esc(a.appName)} 미리보기" loading="lazy"></iframe>`
+      : `<span class="thg-none">${a.code ? "불러오는 중…" : "📝 아직 화면이 없어요"}</span>`}</span>
+    <span class="g-name">${a.id === myAppId ? "🙋 " : ""}${esc(a.appName || "이름 없는 웹앱")}</span>
+    ${a.intro ? `<span class="thg-txt">${esc(a.intro)}</span>` : ""}</button>`;
+}
+async function openLabView(id) {
+  const a = apps.find(x => x.id === id); if (!a) return;
+  const h = a.code ? await appCode(id) : "", u = labUrl(a);
+  if (!h && !u) { toast("아직 볼 수 있는 화면이 없어요"); return; }
+  openAppView(h, a.appName, u);
+  if (a.intro) $("appViewBox").insertAdjacentHTML("afterbegin", `<div class="thg-about"><span class="pv-l">🧪 한 줄 소개</span><div class="pv-v">${nl(a.intro)}</div></div>`);
+}
 function renderThGal(full) {
   const box = $("thGalBox"); if (!box) return;
   const b = thGalBan || ban; loadThPrev(b);
   const pv = thPrev[b] || {}, list = thPlansOf(b);
-  const sig = [b, myPlanId, thPrev[b] === null, list.map(p => p.id + ":" + (p.updatedAt || 0) + ":" + (pv[p.id] ? pv[p.id].length : 0)).join(",")].join("|");
+  const labs = appsOfBan(b).slice().sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0));
+  labs.forEach(needLabCode);
+  const sig = [b, myPlanId, myAppId, thPrev[b] === null, list.map(p => p.id + ":" + (p.updatedAt || 0) + ":" + (pv[p.id] ? pv[p.id].length : 0)).join(","),
+    labs.map(a => a.id + ":" + (a.updatedAt || 0) + ":" + (a.url || "") + ":" + ((codeCache[a.id] || "").length)).join(",")].join("|");
   if (!full && sig === thGalSig) return;
   thGalSig = sig;
-  box.innerHTML = `<div class="thg-head"><p class="count" style="margin:0">${b}반 이론편 웹앱 ${list.length}개</p>
-      <span class="seg sm" role="group" aria-label="이론편 반">${["A", "B"].map(x => `<button type="button" class="${x === b ? "on" : ""}" data-thban="${x}">${x}반</button>`).join("")}</span></div>
-    <p class="muted thg-lead">이론편에서 만든 웹앱이에요. 처음이면 친구 웹앱을 눌러 보고 아이디어를 얻어요.</p>
+  box.innerHTML = `<div class="thg-head"><p class="count" style="margin:0">${b}반 웹앱 · 🧪 실습 ${labs.length} · 📘 이론편 ${list.length}</p>
+      <span class="seg sm" role="group" aria-label="반">${["A", "B"].map(x => `<button type="button" class="${x === b ? "on" : ""}" data-thban="${x}">${x}반</button>`).join("")}</span></div>
+    <p class="muted thg-lead">친구 웹앱을 눌러 써 보고 아이디어를 얻어요. 6번에서 올리면 여기 맨 앞에 붙어요.</p>
+    ${labs.length ? `<p class="thg-sec">🧪 오늘 실습에서 올린 웹앱 ${labs.length}개</p><div class="thg">${labs.map(labCard).join("")}</div>` : ""}
+    <p class="thg-sec">📘 이론편에서 만든 웹앱 ${list.length}개</p>
     ${thPrev[b] === null && !list.length ? `<div class="empty">불러오는 중이에요…</div>`
       : list.length ? `<div class="thg">${list.map(p => { const h = pv[p.id], u = p.url && safeUrl(p.url) !== "#" ? p.url : "";
           return `<button type="button" class="thg-card ${p.id === myPlanId ? "mine" : ""}" data-thview="${p.id}">
@@ -3642,6 +3674,7 @@ stageEl.addEventListener("click", e => {
   if (t.closest("[data-app-pv]")) { const f = $("appForm"); if (!f) return; appMode === "code" ? openAppView(pickHTML(f.code.value), f.appName.value) : openAppView("", f.appName.value, normUrl(f.url.value)); return; }
   const thb = t.closest("[data-thban]"); if (thb) { thGalBan = thb.dataset.thban; renderThGal(true); return; }
   const thv = t.closest("[data-thview]"); if (thv) { openThView(thv.dataset.thview); return; }
+  const lbv = t.closest("[data-labview]"); if (lbv) { openLabView(lbv.dataset.labview); return; }
   const tb = t.closest("[data-cktab]"); if (tb) { chkTab = tb.dataset.cktab; lsSet("vl_chktab", chkTab); renderCheck(true); return; }
   const sb = t.closest("[data-self]"); if (sb) { const st = lsGet(selfKey(), {}); st[sb.dataset.self] = st[sb.dataset.self] === sb.dataset.v ? "" : sb.dataset.v; lsSet(selfKey(), st); renderCheck(true); queueFix(); return; }
   if (t.closest("[data-aiq]")) { const st = lsGet(aiqKey(), { qs: [], ans: {}, no: {} }); st.qs = pickQuestions(); lsSet(aiqKey(), st); renderCheck(true); toast("내 웹앱에 맞는 질문 5개를 골랐어요"); return; }
