@@ -50,6 +50,10 @@ async function start(){
   if (!isAdmin && !counted){
     try { sessionStorage.setItem('moontr-visit-' + APP, '1'); } catch {}
     await Promise.all([bump(totalRef), bump(todayRef), device(db, day.slice(1))]).catch(() => {});
+    /* 🕘 몇 시에 왔는지: "이름__h2026-11-10" 문서의 h00~h23 칸 하나를 1 올려요 (관리자 허브의 '어제 이 시각까지' 비교용).
+       따로 써서, 이게 실패해도 위의 하루 숫자는 그대로 세요 */
+    const hk = 'h' + String(now.getHours()).padStart(2, '0');
+    await setDoc(doc(db, 'site_counts', `${APP}__h${day.slice(1)}`), { [hk]: increment(1) }, { merge: true }).catch(() => {});
   }
   if (q.get('hide') === '1') return;
 
