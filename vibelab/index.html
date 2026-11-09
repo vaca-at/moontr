@@ -230,6 +230,16 @@ ul.tick li small{display:block;color:var(--ink2);font-size:.86em}
 .pv-l{display:block;font-family:var(--hand);font-weight:var(--hw);font-size:1rem;margin-bottom:.1875rem}
 .pv-v{border:2px solid color-mix(in srgb,var(--c) 35%,#fff);background:color-mix(in srgb,var(--c) 7%,#fff);border-radius:.75rem;padding:.5rem .6875rem;font-size:.9375rem;line-height:1.5}
 .pv-v.big2{font-family:var(--hand);font-weight:var(--hw);font-size:1.25rem}
+.pv-v a{word-break:break-all}
+/* 이론편 9번에서 저장한 웹앱 코드 미리보기 (작게 줄여서, 누르면 크게) */
+.pv-prev{display:block;position:relative;width:100%;height:13.75rem;padding:0;border:2px solid color-mix(in srgb,var(--c) 35%,#fff);border-radius:.75rem;overflow:hidden;background:#fff;cursor:zoom-in}
+.pv-prev iframe{width:200%;height:200%;transform:scale(.5);transform-origin:0 0;border:0;pointer-events:none}
+.pv-prev .pv-zoom{position:absolute;right:.5rem;bottom:.5rem;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:.125rem .625rem;font-size:.8125rem}
+.pv-more{border-top:2px dashed var(--line);padding-top:.375rem}
+.pv-more>summary{cursor:pointer;font-family:var(--hand);font-weight:var(--hw);font-size:1rem;color:var(--sub,#957F87);list-style:none}
+.pv-more>summary::-webkit-details-marker{display:none}
+.pv-more[open]>summary{margin-bottom:.4375rem}
+.pv-more>.pview{margin-top:.25rem}
 .fbline{border:1.5px solid var(--line);border-radius:.75rem;padding:.375rem .625rem;margin-bottom:.375rem;font-size:.9rem;background:#fff}
 .fbline.t{background:#FFF4D6;border-color:#F2D38A}
 .fbline b{display:block;font-size:.75rem;color:var(--ink2)}
@@ -1073,10 +1083,12 @@ html.dash-only #dlgAdmin .doc-head{display:none}
   <div class="doc-body">
     <form class="form" id="planForm" autocomplete="off">
       <label>웹앱 이름<input name="appName" maxlength="30" placeholder="예: 오늘의 영단어" required></label>
-      <label>누가 쓰나요? 어떤 불편을 해결하나요?<textarea name="problem" rows="2" maxlength="500" required placeholder="예: 단어 외우기가 지루한 우리 반 친구들"></textarea></label>
-      <label>꼭 필요한 기능 3가지<span class="h">한 줄에 기능 하나씩 써요</span><textarea name="features" rows="3" maxlength="500" required placeholder="1. &#10;2. &#10;3. "></textarea></label>
-      <label>화면 모습<textarea name="look" rows="2" maxlength="500" required placeholder="색깔, 분위기, 첫 화면에 보이는 것"></textarea></label>
-      <label>AI에게 보낼 프롬프트<textarea name="prompt" rows="2" maxlength="500" required placeholder="누가 · 무엇을 · 어떤 모습 · 기능을 넣어서"></textarea></label>
+      <label>웹앱 내용<span class="h">이론편 마지막에 다듬은 글 · 누가 · 무엇을 · 어떻게 쓰는지</span><textarea name="content" rows="4" maxlength="1500" placeholder="예: 쉬는 시간 3분 동안 영단어 10개를 퀴즈로 풀어요…"></textarea></label>
+      <details class="pv-more" id="planFirst"><summary>▸ 처음 계획서 칸 (누가 · 기능 · 화면 · 프롬프트)</summary>
+      <label>누가 쓰나요? 어떤 불편을 해결하나요?<textarea name="problem" rows="2" maxlength="500" placeholder="예: 단어 외우기가 지루한 우리 반 친구들"></textarea></label>
+      <label>꼭 필요한 기능 3가지<span class="h">한 줄에 기능 하나씩 써요</span><textarea name="features" rows="3" maxlength="500" placeholder="1. &#10;2. &#10;3. "></textarea></label>
+      <label>화면 모습<textarea name="look" rows="2" maxlength="500" placeholder="색깔, 분위기, 첫 화면에 보이는 것"></textarea></label>
+      <label>AI에게 보낼 프롬프트<textarea name="prompt" rows="2" maxlength="500" placeholder="누가 · 무엇을 · 어떤 모습 · 기능을 넣어서"></textarea></label></details>
       <div class="plan-act"><button class="btn" type="submit">💾 저장하기</button><span class="draft-st" id="planSt"></span></div>
       <p class="muted" style="margin:0">이론편의 계획서와 같은 곳에 저장돼요. 다시 저장하면 마지막에 저장한 내용이 최종안이 돼요.</p>
     </form>
@@ -1460,7 +1472,7 @@ let myPlanBan = "";   // 내 계획서가 저장된 반 (이론편을 들은 반
 const myPlan = () => plans.find(p => p.id === myPlanId) || null;
 const myApp = () => apps.find(a => a.id === myAppId) || null;
 const appsOfBan = (b = ban) => apps.filter(a => a.ban === b).sort(byTime);
-const PLAN_KEYS = ["appName", "problem", "features", "look", "prompt"];
+const PLAN_KEYS = ["appName", "content", "problem", "features", "look", "prompt"];   // content = 이론편 9번 '웹앱 내용' (링크 url 은 고치지 않고 그대로 둬요)
 
 // 내 계획서 · 내 웹앱 번호 찾기
 async function resolveMine() {
@@ -1935,9 +1947,19 @@ function go(n) {
 const needMe = () => `<div class="empty">먼저 나를 알려 주세요.<br><button type="button" class="btn sm" data-me-open style="margin-top:.625rem">🙋 나 확인하기</button></div>`;
 
 /* ----- 2번: 계획서 확인 ----- */
-function planView(p) {
+// 이론편 마지막(9번 '내 계획서')에 저장한 모양이 먼저: 웹앱 이름 · 웹앱 내용 · 웹앱 링크 · 미리보기
+// 6번에서 쓴 처음 계획서 네 칸은 아래에 접어 둬요 (9번을 안 했으면 펼쳐서 보여요)
+function planView(p, html) {
   const row = (label, v, big) => `<div><span class="pv-l">${label}</span><div class="pv-v ${big ? "big2" : ""}">${v ? nl(v) : `<span class="muted">아직 쓰지 않았어요</span>`}</div></div>`;
-  return `<div class="pview">${row("웹앱 이름", p.appName, true)}${row("누가 쓰나요? 어떤 불편을 해결하나요?", p.problem)}${row("꼭 필요한 기능 3가지", p.features)}${row("화면 모습", p.look)}${row("AI에게 보낼 프롬프트", p.prompt)}${p.content ? row("웹앱 내용 (이론편에서 다듬은 글)", p.content) : ""}</div>`;
+  const url = p.url && safeUrl(p.url) ? p.url : "";
+  const fin = !!(p.content || url || html);
+  const first = `${row("누가 쓰나요? 어떤 불편을 해결하나요?", p.problem)}${row("꼭 필요한 기능 3가지", p.features)}${row("화면 모습", p.look)}${row("AI에게 보낼 프롬프트", p.prompt)}`;
+  return `<div class="pview">${row("웹앱 이름", p.appName, true)}
+    ${fin ? `${row("웹앱 내용", p.content)}
+      ${url ? `<div><span class="pv-l">웹앱 링크</span><div class="pv-v"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></div></div>` : ""}
+      ${html ? `<div><span class="pv-l">미리보기 <span class="muted" style="font-size:.8125rem">이론편에서 붙여 넣은 코드</span></span><button type="button" class="pv-prev" data-prev-view aria-label="웹앱 미리보기 크게 보기"><iframe sandbox="allow-scripts" srcdoc="${esc(html)}" tabindex="-1" title="웹앱 미리보기" loading="lazy"></iframe><span class="pv-zoom">🔍 크게 보기</span></button></div>` : ""}
+      <details class="pv-more"><summary>▸ 처음 계획서 (누가 · 기능 · 화면 · 프롬프트)</summary><div class="pview">${first}</div></details>`
+    : first}</div>`;
 }
 const TAG_RE = /^💬 안녕하세요 👋/;
 function fbLine(f) {
@@ -1945,7 +1967,7 @@ function fbLine(f) {
   return `<div class="fbline ${t ? "t" : ""}"><b>${t ? "👩‍🏫 선생님" : "👤 모둠 친구"} · ${fmtTime(f.createdAt)}</b>${nl(f.good)}${f.question ? `<br>❓ ${nl(f.question)}` : ""}${f.idea ? `<br>💡 ${nl(f.idea)}` : ""}</div>`;
 }
 // 닉네임 · 학번을 알려 주기 전에는 이 예시로 화면을 미리 보여 줘요
-const EXAMPLE_PLAN = { appName: "오늘의 영단어 퀴즈", problem: "영단어 시험을 앞둔 우리 반 친구들이 쉬는 시간에 짧게 외우고 싶어요", features: "1. 영단어 10개 퀴즈\n2. 점수 보기\n3. 틀린 단어 다시 풀기", look: "밝은 하늘색, 큰 단추, 휴대폰에서도 잘 보이게", prompt: "영단어 10개를 하나씩 보여 주고 뜻을 고르면 점수가 올라가는 퀴즈를 만들어 줘" };
+const EXAMPLE_PLAN = { appName: "오늘의 영단어 퀴즈", content: "쉬는 시간 3분 동안 영단어 10개를 퀴즈로 풀어요. 뜻을 고르면 바로 맞았는지 알려 주고, 끝나면 점수와 틀린 단어만 다시 풀 수 있어요. 휴대폰에서도 큰 단추로 편하게 눌러요.", problem: "영단어 시험을 앞둔 우리 반 친구들이 쉬는 시간에 짧게 외우고 싶어요", features: "1. 영단어 10개 퀴즈\n2. 점수 보기\n3. 틀린 단어 다시 풀기", look: "밝은 하늘색, 큰 단추, 휴대폰에서도 잘 보이게", prompt: "영단어 10개를 하나씩 보여 주고 뜻을 고르면 점수가 올라가는 퀴즈를 만들어 줘" };
 function renderLabPlan() {
   const box = $("labPlanBox"); if (!box) return;
   const m = getMe(); if (!m) { box.innerHTML = `<p class="muted" style="margin:0 0 .5rem">예시 계획서예요. 닉네임 · 학번을 알려 주면 내 계획서가 보여요.</p>${planView(EXAMPLE_PLAN)}`; return; }
@@ -1957,7 +1979,7 @@ function renderLabPlan() {
   }
   const got = feedbacks.filter(f => f.planId === p.id && f.fromPlan !== p.id && !TAG_RE.test(f.good || "")).sort(byTime);
   box.innerHTML = `<div class="me-bar"><span>🙋 ${esc(m.name)} · ${fmtTime(p.updatedAt)} 저장</span><button type="button" class="link" data-edit-plan>✏️ 고치기</button></div>
-    <div class="pair"><div>${planView(p)}</div>
+    <div class="pair"><div>${planView(p, prevHtml)}</div>
     <div><p class="count" style="font-size:1.125rem">💬 받은 피드백 ${got.length}개</p>${got.length ? got.map(fbLine).join("") : `<div class="empty">받은 피드백이 없어요.<br>체크 목록으로 스스로 점검해요.</div>`}</div></div>`;
 }
 function firstPrompt(p) {
@@ -1998,6 +2020,7 @@ async function loadPreview() {
     } catch (e) { console.error(e); }
   }
   renderPrevBox();
+  if ($("labPlanBox")) renderLabPlan();   // 2번 '내 계획서'에도 미리보기가 들어가요
 }
 function renderPrevBox() {
   const box = $("prevBox"); if (!box) return;
@@ -2712,6 +2735,7 @@ function openPlanEditor() {
   const f = $("planForm"), p = myPlan(), dr = getDraft();
   const src = p || (dr && dr.sid === m.sid && dr.name === m.name ? dr : null);
   PLAN_KEYS.forEach(k => { f[k].value = src ? src[k] || "" : ""; });
+  $("planFirst").open = !(src && src.content);   // 9번 '웹앱 내용'이 없으면 처음 계획서 칸을 펼쳐요
   $("planSt").textContent = p ? "📂 저장된 계획서를 불러왔어요" : src ? "📝 임시 저장된 글을 불러왔어요" : "";
   openDlg("dlgPlan");
 }
