@@ -1379,7 +1379,9 @@ async function saveApp(d, m, html) {
     b.set(ref, data);
     if (html) { b.set(db.collection(COL_CODE).doc(ref.id), { ban: m.ban, html, updatedAt: now }); codeCache[ref.id] = html; }
     if (!appId) b.set(db.collection(COL_APP_KEYS).doc(key), { appId: ref.id, ban: m.ban, name: m.name });
-    await b.commit(); myAppId = ref.id; return !!appId;
+    await b.commit(); myAppId = ref.id;
+    snapApp({ id: ref.id, ...data }, html, "save");   // 🕐 웹앱 변화 기록 (실패해도 저장은 그대로)
+    return !!appId;
   }
   const arr = localGet(COL_APPS);
   if (appId) { const i = arr.findIndex(a => a.id === appId); arr[i] = { ...data, id: appId }; myAppId = appId; }
@@ -1390,6 +1392,65 @@ async function saveApp(d, m, html) {
   if (html) { const cs = localGet(COL_CODE).filter(x => x.id !== myAppId); cs.push({ id: myAppId, ban: m.ban, html, updatedAt: now }); localSet(COL_CODE, cs); codeCache[myAppId] = html; }
   localSet(COL_APPS, arr); localEmit(COL_APPS);
   return !!appId;
+}
+
+/* ===== 🕐 웹앱 변화 기록: 처음 → 마지막을 비교해 피드백에 써요 =====
+   vibelab_app_hist/{id}      { appId, ban, at, appName, url, src(save=학생 저장 · snap=선생님이 찍음), size, lines, title, info(제목 · 단추 요약 JSON) } → 선생님만 보기
+   vibelab_app_hist_code/{id} { html } 그때의 코드 (주소로 올린 웹앱은 그 주소의 index.html을 읽어 와요) → 선생님만 보기
+   학생이 웹앱을 저장할 때 · 9 · 10번에 왔을 때 한 장씩, 선생님이 [📸 지금 모두 찍기]를 누를 때 반 전체를 한 장씩 남겨요 */
+const COL_APP_HIST = "vibelab_app_hist", COL_APP_HIST_CODE = "vibelab_app_hist_code";
+const HIST_MAX = 300000;
+const lastSnap = {};
+const hashLite = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+function htmlInfo(html) {
+  const base = { size: (html || "").length, lines: html ? html.split("\n").length : 0, title: "", h: [], b: [], n: 0, s: false };
+  if (!html) return base;
+  try {
+    const d = new DOMParser().parseFromString(html, "text/html"), tx = el => (el.textContent || el.value || "").replace(/\s+/g, " ").trim().slice(0, 30);
+    return { ...base, title: (d.title || "").trim().slice(0, 60),
+      h: [...d.querySelectorAll("h1,h2,h3")].map(tx).filter(Boolean).slice(0, 8),
+      b: [...new Set([...d.querySelectorAll("button,input[type=button],input[type=submit]")].map(tx).filter(Boolean))].slice(0, 12),
+      n: d.querySelectorAll("input:not([type=button]):not([type=submit]):not([type=hidden]),textarea,select").length,
+      s: /localStorage|indexedDB/.test(html) };
+  } catch (e) { return base; }
+}
+async function fetchAppHtml(url) {
+  if (!url || safeUrl(url) === "#") return "";
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), 7000);
+  try { const r = await fetch(url, { cache: "no-store", signal: ac.signal }); return r.ok ? (await r.text()).slice(0, HIST_MAX) : ""; }
+  catch (e) { return ""; } finally { clearTimeout(t); }
+}
+async function snapApp(app, html, src) {
+  if (!LIVE || !app || !app.id) return false;
+  try {
+    if (!html) html = app.code ? await appCode(app.id) : await fetchAppHtml(app.url);
+    html = String(html || "").slice(0, HIST_MAX);
+    const sig = html ? html.length + ":" + hashLite(html) : "url:" + (app.url || "");
+    if (src === "save" && lastSnap[app.id] === sig) return false;   // 같은 모습이면 또 남기지 않아요
+    const i = htmlInfo(html), ref = db.collection(COL_APP_HIST).doc(), b = db.batch();
+    b.set(ref, { appId: app.id, ban: app.ban, at: Date.now(), appName: String(app.appName || "").slice(0, 100), url: String(app.url || "").slice(0, 300), src,
+      size: i.size, lines: i.lines, title: i.title, info: JSON.stringify({ h: i.h, b: i.b, n: i.n, s: i.s }).slice(0, 2000) });
+    if (html) b.set(db.collection(COL_APP_HIST_CODE).doc(ref.id), { html });
+    await b.commit(); lastSnap[app.id] = sig; return true;
+  } catch (e) { console.warn("웹앱 변화 기록을 남기지 못했어요 (소나기 보안 규칙에 vibelab_app_hist를 게시해야 해요)", e); return false; }
+}
+const histInfo = h => { try { return JSON.parse(h.info || "{}"); } catch (e) { return {}; } };
+// 처음과 마지막을 비교한 '달라진 점' 한 줄
+function histDiff(a, z) {
+  if (!a || !z || a.id === z.id) return "기록이 한 장뿐이에요";
+  const A = histInfo(a), Z = histInfo(z), out = [];
+  if (a.lines || z.lines) out.push(`코드 ${a.lines}줄 → ${z.lines}줄`);
+  const nb = (Z.b || []).filter(x => !(A.b || []).includes(x)), gone = (A.b || []).filter(x => !(Z.b || []).includes(x));
+  if ((A.b || []).length !== (Z.b || []).length || nb.length) out.push(`단추 ${(A.b || []).length} → ${(Z.b || []).length}개${nb.length ? ` (새로: ${nb.slice(0, 5).join(", ")})` : ""}${gone.length ? ` (빠짐: ${gone.slice(0, 3).join(", ")})` : ""}`);
+  if ((A.n || 0) !== (Z.n || 0)) out.push(`입력 칸 ${A.n || 0} → ${Z.n || 0}개`);
+  const nh = (Z.h || []).filter(x => !(A.h || []).includes(x)); if (nh.length) out.push(`새 제목: ${nh.slice(0, 3).join(", ")}`);
+  if (!A.s && Z.s) out.push("새로고침해도 남는 저장 기능을 넣음");
+  if (a.appName !== z.appName) out.push(`이름 바꿈: ${a.appName} → ${z.appName}`);
+  if (!a.url && z.url) out.push("인터넷 주소를 만듦");
+  return out.join(" · ") || "겉모습은 비슷해요 (코드 안쪽만 고침)";
+}
+async function histCode(id) {
+  try { const d = await db.collection(COL_APP_HIST_CODE).doc(id).get(); return d.exists ? d.data().html || "" : ""; } catch (e) { console.error(e); return ""; }
 }
 
 async function saveCheck(d, who) {
@@ -1509,7 +1570,7 @@ let teacher = false;
 let plans = [], feedbacks = [], apps = [], checks = [], wall = [];
 let myPlanId = "", myAppId = "";
 // 관리자만
-let appWho = {}, checkWho = {}, wallWho = {}, planPeople = [], reflects = [], visits = [], fixes = [], stopAdmin = [];
+let appWho = {}, checkWho = {}, wallWho = {}, planPeople = [], reflects = [], visits = [], fixes = [], appHist = [], stopAdmin = [];
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -2051,6 +2112,7 @@ function go(n) {
   cur = next;
   history.replaceState(null, "", "#" + cur);
   renderTabs(); renderSlide(); pushProgress(); renderBoard();
+  if (cur >= SLIDES.length - 1 && !teacher && myApp()) snapApp(myApp(), "", "save");   // 9 · 10번에 오면 그때 웹앱 모습을 한 장 (바뀌었을 때만)
   if (SCROLL_MODE.matches) window.scrollTo(0, 0);
 }
 
@@ -2931,7 +2993,7 @@ function setTeacher(on) {
   $("dashBtn").hidden = !on;
   const fsb = $("footStuck"); if (fsb) fsb.hidden = on;   // 🙋 막혔어요는 학생만 (아래 채팅 · 질문 옆)
   stopAdmin.forEach(f => f()); stopAdmin = [];
-  appWho = {}; checkWho = {}; wallWho = {}; planPeople = []; reflects = []; visits = []; fixes = [];
+  appWho = {}; checkWho = {}; wallWho = {}; planPeople = []; reflects = []; visits = []; fixes = []; appHist = [];
   renderSlide();   // 담벼락 삭제 단추 · 선생님 피드백 · 막혔어요 단추
   if (on) {
     stopAdmin.push(listen(COL_APP_KEYS, l => { appWho = {}; l.forEach(x => { appWho[x.appId] = x; }); renderDash(); }));
@@ -2943,6 +3005,7 @@ function setTeacher(on) {
     stopAdmin.push(listen(COL_CHECKIN, l => { checkins = l; renderDash(); }));
     stopAdmin.push(listen(COL_VISITS, l => { visits = l; renderDash(); }));
     stopAdmin.push(listen(COL_FIX, l => { fixes = l; renderDash(); }));
+    stopAdmin.push(listen(COL_APP_HIST, l => { appHist = l; renderDash(); }));
   } else $("dlgAdmin").close();
 }
 
@@ -3104,6 +3167,7 @@ function renderDash() {
         <td>${checks.filter(c => c.appId === a.id).length}</td><td>${checks.filter(c => c.fromApp === a.id).length}</td>
         <td>${fmtTime(a.updatedAt)}</td><td><button type="button" class="del" data-delapp="${a.id}">삭제</button></td></tr>`).join("") : `<tr><td class="tbl-empty" colspan="7">아직 올라온 웹앱이 없어요.</td></tr>`}
     </table></div>
+    ${histHTML(b, as, who)}
     <h4>⏳ 계획서는 있지만 아직 주소를 올리지 않은 학생 ${missing.length}명</h4>
     ${missing.length ? `<div class="miss">${missing.map(x => `<span>${esc(x.name)}</span>`).join("")}</div>` : `<p class="muted">모두 올렸어요 🎉</p>`}
     <h4>🔧 ${b}반 자기 점검 · AI 점검 뒤 고친 점 ${fs.length}명 <button type="button" class="btn sm" data-csv="fix">엑셀 저장</button></h4>
@@ -3127,6 +3191,58 @@ function renderDash() {
       ${ws.length ? ws.map(w => `<tr><td>${who(wallWho[w.id])}</td><td>${kindName(w.kind)}</td><td>${nl(w.text)}</td><td>${fmtTime(w.createdAt)}</td><td><button type="button" class="del" data-delwall="${w.id}">삭제</button></td></tr>`).join("") : `<tr><td class="tbl-empty" colspan="5">아직 붙은 문장이 없어요.</td></tr>`}
     </table></div>`;
   box.scrollTop = top;
+}
+/* 🕐 웹앱 변화 (선생님 대시보드): 웹앱마다 처음 기록 → 마지막 기록, 달라진 점, 피드백용 복사 · 코드까지 받기 */
+const histOf = id => appHist.filter(h => h.appId === id).sort((x, y) => (x.at || 0) - (y.at || 0));
+const histCell = h => h ? `${fmtTime(h.at)} <span class="muted">${h.src === "snap" ? "📸" : "💾"}</span><br><span class="muted">${h.lines ? `${h.lines}줄 · 단추 ${(histInfo(h).b || []).length}개` : "코드 없음 (주소만)"}</span> ${h.lines ? `<button type="button" class="link" data-histview="${h.id}">👀 보기</button>` : ""}` : "-";
+function histHTML(b, as, who) {
+  const rows = as.map(a => ({ a, hs: histOf(a.id) }));
+  const n = rows.filter(r => r.hs.length).length;
+  let k = 0; rows.forEach(r => { r.no = r.hs.length ? ++k : 0; });   // [📋 피드백용 기록 복사]의 '학생 N'과 같은 번호
+  return `<h4>🕐 ${b}반 웹앱 변화 (처음 → 마지막) <span class="muted" style="font-size:.875rem">기록 있는 웹앱 ${n}개</span>
+      <button type="button" class="btn sm" data-snapall="${b}">📸 지금 모두 찍기</button>
+      <button type="button" class="btn sm" data-histcopy="${b}">📋 피드백용 기록 복사</button>
+      <button type="button" class="btn sm" data-histjson="${b}">⬇️ 코드까지 받기</button></h4>
+    <p class="muted" style="margin:.125rem 0 .5rem">💾 학생이 저장할 때 · 9 · 10번에 왔을 때 저절로 남아요. 수업 <b>시작</b>과 <b>끝</b>에 [📸 지금 모두 찍기]를 한 번씩 누르면 처음과 완성이 확실히 남아요. 주소로 올린 웹앱은 그 주소의 코드를 읽어 와요.</p>
+    <div class="tbl"><table>
+      <tr><th>닉네임</th><th>웹앱</th><th>처음</th><th>마지막</th><th>기록</th><th>달라진 점</th></tr>
+      ${rows.length ? rows.map(({ a, hs, no }) => `<tr><td>${no ? `<b>학생 ${no}</b><br>` : ""}${who(appWho[a.id])}</td><td>${esc(a.appName)}</td><td>${histCell(hs[0])}</td><td>${hs.length > 1 ? histCell(hs[hs.length - 1]) : "-"}</td><td>${hs.length}장</td><td>${hs.length ? esc(histDiff(hs[0], hs[hs.length - 1])) : `<span class="muted">아직 기록 없음</span>`}</td></tr>`).join("")
+        : `<tr><td class="tbl-empty" colspan="6">아직 올라온 웹앱이 없어요.</td></tr>`}
+    </table></div>`;
+}
+async function snapAll(b) {
+  const as = appsOfBan(b); if (!as.length) { toast("아직 올라온 웹앱이 없어요"); return; }
+  toast(`${b}반 웹앱 ${as.length}개를 찍는 중이에요…`);
+  let ok = 0; for (const a of as) { delete codeCache[a.id]; if (await snapApp(a, "", "snap")) ok++; }
+  toast(ok ? `${ok}개를 찍어 두었어요 📸` : "찍지 못했어요. 보안 규칙(vibelab_app_hist)을 게시했는지 확인해 주세요");
+}
+// 피드백용 기록: 이름 · 학번 없이 '학생 N'으로 (아래 번호표는 화면에만)
+function histPrompt(b) {
+  const list = appsOfBan(b).map(a => ({ a, hs: histOf(a.id) })).filter(x => x.hs.length);
+  const one = (h, label) => { const i = histInfo(h); return `${label} (${fmtTime(h.at)}): 코드 ${h.lines || 0}줄${i.h && i.h.length ? `, 제목 ${i.h.join(" / ")}` : ""}${i.b && i.b.length ? `, 단추 ${i.b.join(" / ")}` : ""}${i.n ? `, 입력 칸 ${i.n}개` : ""}${i.s ? ", 저장 기능 있음" : ""}`; };
+  const body = list.map(({ a, hs }, k) => {
+    const f = fixes.find(x => x.ban === b && x.appName === a.appName) || {}, got = checks.filter(c => c.appId === a.id);
+    return `[학생 ${k + 1}] 웹앱 「${a.appName}」${a.intro ? ` — ${a.intro}` : ""}
+- ${one(hs[0], "처음")}
+${hs.length > 1 ? `- ${one(hs[hs.length - 1], "마지막")}\n- 달라진 점: ${histDiff(hs[0], hs[hs.length - 1])}\n` : ""}- 저장 기록 ${hs.length}번${f.selfFix ? `\n- 자기 점검 뒤 고친 것: ${f.selfFix}` : ""}${f.aiFix ? `\n- AI 점검 뒤 고친 것: ${f.aiFix}` : ""}${got.length ? `\n- 친구 검증 ${got.length}개 받음 (좋았던 점: ${got.map(c => c.good).filter(Boolean).slice(0, 3).join(" / ")})` : ""}`; }).join("\n\n");
+  return { n: list.length, map: list.map(({ a }, k) => `학생 ${k + 1} = ${(appWho[a.id] || {}).name || "?"} (${a.appName})`),
+    text: `아래는 고등학교 진로탐구수업 '바이브코딩으로 웹앱 만들기(실습편)' ${b}반 학생들이 100분 동안 웹앱을 고쳐 간 기록이다. 기록에 있는 사실만 써라.
+학생마다 (1) 처음에서 마지막까지 무엇이 나아졌는지, (2) 잘한 점 한 가지, (3) 다음에 해 볼 것 한 가지를 2~3문장으로, 학생이 읽을 수 있게 다정한 말투로 써 줘. 이름은 쓰지 말고 '학생 N:'으로 시작해.
+
+${body}` };
+}
+async function histJSON(b) {
+  const as = appsOfBan(b), out = [];
+  toast("코드를 모으는 중이에요…");
+  for (const a of as) { const hs = histOf(a.id); if (!hs.length) continue;
+    const first = hs[0], last = hs[hs.length - 1];
+    out.push({ nick: (appWho[a.id] || {}).name || "", appName: a.appName, url: a.url || "", intro: a.intro || "",
+      history: hs.map(h => ({ at: new Date(h.at).toISOString(), src: h.src, lines: h.lines, title: h.title, info: histInfo(h) })),
+      firstHtml: await histCode(first.id), lastHtml: last.id !== first.id ? await histCode(last.id) : "" }); }
+  if (!out.length) { toast("아직 기록이 없어요"); return; }
+  const u = URL.createObjectURL(new Blob([JSON.stringify({ ban: b, course: "vibelab", savedAt: new Date().toISOString(), apps: out }, null, 1)], { type: "application/json" }));
+  const el = document.createElement("a"); el.href = u; el.download = `실습_웹앱변화_${b}반_${fmtDay(new Date())}.json`; el.click(); setTimeout(() => URL.revokeObjectURL(u), 4000);
+  toast(`${out.length}개 웹앱의 처음 · 마지막 코드를 받았어요`);
 }
 function saveCSV(rows, fileName) {
   const csv = "\ufeff" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
@@ -3320,6 +3436,10 @@ $("dashBox").addEventListener("click", async e => {
   const dt = t.closest("[data-dtab]"); if (dt) { dashTab = dt.dataset.dtab; return renderDash(); }
   if (t.dataset.csv) return dashCSV(t.dataset.csv);
   if (t.closest("[data-visit-clear]")) return clearVisits();
+  if (t.dataset.snapall) return snapAll(t.dataset.snapall);
+  if (t.dataset.histjson) return histJSON(t.dataset.histjson);
+  if (t.dataset.histcopy) { const p = histPrompt(t.dataset.histcopy); if (!p.n) { toast("아직 기록이 없어요"); return; } toast(await copyText(p.text) ? `${p.n}명 기록을 복사했어요. Claude에 붙여 넣어요 (번호는 표의 '학생 N')` : "복사하지 못했어요"); return; }
+  if (t.dataset.histview) { const h = appHist.find(x => x.id === t.dataset.histview); const html = await histCode(t.dataset.histview); if (!html) { toast("저장된 코드가 없어요"); return; } openAppView(html, `${h ? h.appName : "웹앱"} · ${h ? fmtTime(h.at) : ""}`); return; }
   try {
     if (t.dataset.delapp && confirm("이 웹앱을 삭제할까요? 받은 검증도 함께 지워져요.")) { await deleteApp(t.dataset.delapp); toast("삭제했어요"); }
     if (t.dataset.delcheck && confirm("이 검증을 삭제할까요?")) { await deleteCheck(t.dataset.delcheck); toast("삭제했어요"); }

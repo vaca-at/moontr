@@ -392,6 +392,29 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
     // 자기 점검 · AI 점검 뒤 고친 점: 문서 이름 = 반·닉네임·네 자리의 해시(64자리). 쓰기만, 보기는 관리자만
+    // 🕐 웹앱 변화 기록: 학생이 저장할 때 · 선생님이 [📸 지금 모두 찍기]를 누를 때 한 장씩 (덮어쓰지 않아요)
+    // 만들기만 열고, 보기 · 지우기는 관리자만. 코드는 같은 이름의 _code 문서에 (함께 만들 때만)
+    match /vibelab_app_hist/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['appId','ban','at','appName','url','src','size','lines','title','info'])
+        && request.resource.data.ban in ['A', 'B']
+        && request.resource.data.appId is string
+        && exists(/databases/$(database)/documents/vibelab_apps/$(request.resource.data.appId))
+        && request.resource.data.src in ['save', 'snap']
+        && request.resource.data.at is int
+        && request.resource.data.size is int && request.resource.data.lines is int
+        && vibeText(request.resource.data, 'appName', 0, 100)
+        && vibeText(request.resource.data, 'url', 0, 300)
+        && vibeText(request.resource.data, 'title', 0, 60)
+        && vibeText(request.resource.data, 'info', 0, 2000);
+      allow read, delete: if isTeacher();
+    }
+    match /vibelab_app_hist_code/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['html'])
+        && request.resource.data.html is string && request.resource.data.html.size() <= 300000
+        && existsAfter(/databases/$(database)/documents/vibelab_app_hist/$(id));
+      allow read, delete: if isTeacher();
+    }
+
     match /vibelab_fix/{key} {
       allow create, update: if key.size() == 64
         && request.resource.data.keys().hasOnly(['ban','name','appName','selfSum','selfResult','selfFix','aiFix','updatedAt'])
