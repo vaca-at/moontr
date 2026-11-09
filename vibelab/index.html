@@ -160,6 +160,21 @@ details.more.pt > summary{display:flex;align-items:flex-start;gap:.375rem;white-
 details.more.pt > summary::after{margin-left:auto;padding-left:.25rem}
 details.more.pt .pe{flex:none}
 details.more.pt .pop-panel{margin-top:.375rem;padding:.5rem .75rem .625rem}
+/* 바둑판 칩: 3칸씩 박스, 누르면 그 줄 전체로 펼쳐요 */
+.tgx{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}
+.tgx details.more.pop.pt{margin:0;min-width:0}
+.tgx details.more.pt > summary{flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:.25rem;min-height:5.25rem;height:100%;padding:.5rem .375rem;border-radius:.875rem;border-style:solid;border-width:2px;background:color-mix(in srgb,var(--c) 6%,#fff);font-size:.9375rem}
+.tgx details.more.pt > summary::after{display:none}
+.tgx details.more.pt .pe{font-size:1.5rem;line-height:1}
+.tgx details.more.pt > summary:hover{background:color-mix(in srgb,var(--c) 14%,#fff)}
+.tgx details > .pop-panel{display:none}   /* 펼친 내용은 바둑판 아래 .tgx-show 한 칸에 */
+.tgx details[open] > summary{border-color:var(--c);background:color-mix(in srgb,var(--c) 16%,#fff)}
+.tgx-show{margin:.5rem 0 0;padding:.625rem .875rem .75rem;border-radius:1rem;background:color-mix(in srgb,var(--c) 6%,#fff);border:1.5px solid color-mix(in srgb,var(--c) 35%,#fff);animation:popIn .2s ease}
+.tgx-show > b{display:block;font-family:var(--hand);font-weight:var(--hw);font-size:1.0625rem;margin-bottom:.125rem}
+.tgx-show[hidden]{display:none}
+.stuck-tip{margin:.75rem 0 0;padding:.5rem .75rem;border-radius:.875rem;background:#FFF1EC;border:2px dashed var(--coral);font-size:.9375rem;line-height:1.5}
+.stuck-tip b{color:#C2513A}
+@media (max-width:420px){ .tgx{grid-template-columns:repeat(2,minmax(0,1fr))} }
 
 /* 본문 부품 */
 .big{font-family:var(--hand);font-weight:var(--hw);font-size:1.6875rem;line-height:1.3;margin:0 0 .75rem;color:var(--ink)}
@@ -1921,14 +1936,14 @@ const SLIDES = [
           <li>다른 이름으로 저장 → <b>파일 형식: 모든 파일</b></li>
           <li>이름은 <b>index.html</b>, 인코딩은 <b>UTF-8</b></li>
         </ol></div></details>` },
-    { t: "이럴 땐 이렇게", c: C.rose, html: `
+    { t: "이럴 땐 이렇게", c: C.rose, html: `<div class="tgx">
       <details class="more pop pt"><summary><span class="pe">📝</span>메모장으로 열려요</summary><div class="pop-panel"><span class="subl">오른쪽 클릭 → 연결 프로그램 → Chrome</span></div></details>
       <details class="more pop pt"><summary><span class="pe">⚠️</span>index.html.txt가 됐어요</summary><div class="pop-panel"><span class="subl">파일 탐색기 → 보기 → <b>파일 확장명</b> 켜고 이름 고치기</span></div></details>
       <details class="more pop pt"><summary><span class="pe">🗂️</span>파일이 여러 개로 나뉘었어요</summary><div class="pop-panel">${promptBox("index.html 파일 하나로 다시 줘. CSS와 JavaScript도 모두 이 파일 안에 넣어 줘.", "sm")}</div></details>
       <details class="more pop pt"><summary><span class="pe">🧩</span>코드가 중간에 끊겼어요</summary><div class="pop-panel"><span class="subl">"index.html 전체를 처음부터 끝까지 다시 줘"라고 말해요</span></div></details>
       <details class="more pop pt"><summary><span class="pe">⬜</span>화면이 하얗게 나와요</summary><div class="pop-panel"><span class="subl"><kbd>F12</kbd> → 위쪽 <b>Console</b> 탭을 눌러요</span>${CONSOLE_PIC}</div></details>
-      <details class="more pop pt"><summary><span class="pe">💨</span>새로고침하면 기록이 사라져요</summary><div class="pop-panel"><span class="subl">지금은 정상이에요. <b>7번</b>에서 기록을 남기는 법을 배워요</span></div></details>
-      <details class="more pop pt"><summary><span class="pe">🌀</span>AI가 자꾸 다른 걸 만들어요</summary><div class="pop-panel"><span class="subl">새 채팅을 열고 첫 프롬프트부터 다시 보내요</span></div></details>` }
+      <details class="more pop pt"><summary><span class="pe">💨</span>새로고침하면 기록이 사라져요</summary><div class="pop-panel"><span class="subl">지금은 정상이에요. <b>7번</b>에서 기록을 남기는 법을 배워요</span></div></details></div><div class="tgx-show" hidden></div>
+      <p class="stuck-tip">그래도 막히면 화면 아래 <b>💬 채팅 · 질문</b> 옆 <b>🙋 막혔어요</b>를 눌러요. 선생님이 바로 알아요.</p>` }
   ]
 },
 {
@@ -2518,7 +2533,17 @@ document.addEventListener("click", async e => {
 });
 
 // 🙋 막혔어요: 선생님께 질문 칸을 열고, 지금 단계를 적어 둬요
+// 바둑판 칩(.tgx): 하나를 누르면 다른 칩은 닫고, 그 내용을 바둑판 아래 한 칸에 보여 줘요
+document.addEventListener("toggle", e => {
+  const d = e.target; if (!d.matches || !d.matches(".tgx > details")) return;
+  const g = d.parentElement, show = g.nextElementSibling; if (!show || !show.classList.contains("tgx-show")) return;
+  if (d.open) {
+    g.querySelectorAll("details[open]").forEach(x => { if (x !== d) x.open = false; });
+    show.innerHTML = `<b>${d.querySelector("summary").innerHTML}</b>${d.querySelector(".pop-panel").innerHTML}`; show.hidden = false;
+  } else if (!g.querySelector("details[open]")) show.hidden = true;
+}, true);
 function stuck() {
+  if (teacher) { toast("학생이 누르면 선생님 질문함과 진행표에 🙋가 떠요 (선생님 계정에서는 보내지 않아요)"); return; }
   if (!getMe()) { toast("먼저 나 확인(학번 · 닉네임)을 해 주세요"); openMeDlg(); return; }
   talkTab = "ask"; openTalk();
   const ta = document.querySelector("#talkForm textarea"), s = SLIDES[cur - 1];
@@ -3016,7 +3041,7 @@ function setTeacher(on) {
   b.classList.toggle("on", on);
   b.textContent = on ? "🔓 로그아웃" : "🔒 관리자 로그인";
   $("dashBtn").hidden = !on;
-  const fsb = $("footStuck"); if (fsb) fsb.hidden = on;   // 🙋 막혔어요는 학생만 (아래 채팅 · 질문 옆)
+  // 🙋 막혔어요는 선생님 화면에도 보여요 (전자칠판에 띄울 때 학생들이 단추 자리를 알게). 선생님이 누르면 안내만 해요
   stopAdmin.forEach(f => f()); stopAdmin = [];
   appWho = {}; checkWho = {}; wallWho = {}; planPeople = []; reflects = []; visits = []; fixes = []; appHist = [];
   renderSlide();   // 담벼락 삭제 단추 · 선생님 피드백 · 막혔어요 단추
@@ -3357,7 +3382,7 @@ if (DASH_ONLY) {
 const COL_TALK = "vibe_talk", COL_ASK = "vibe_ask";
 let talkTab = "all", talkMsgs = [], askDoc = null, askId = "", talkStops = [], talkFor = "";
 const TALK_SEEN = "vt_talk_seen_" + COURSE;
-document.querySelector(".foot .navbtns").insertAdjacentHTML("afterbegin", `<button type="button" class="talk-btn" id="talkBtn">💬 채팅 · 질문<i id="talkDot" hidden></i></button><button type="button" class="stuck-btn" id="footStuck" data-stuck title="선생님께 '여기서 막혔어요'를 보내요" ${teacher ? "hidden" : ""}>🙋 막혔어요</button>`);
+document.querySelector(".foot .navbtns").insertAdjacentHTML("afterbegin", `<button type="button" class="talk-btn" id="talkBtn">💬 채팅 · 질문<i id="talkDot" hidden></i></button><button type="button" class="stuck-btn" id="footStuck" data-stuck title="선생님께 '여기서 막혔어요'를 보내요">🙋 막혔어요</button>`);
 document.body.insertAdjacentHTML("beforeend", `<aside class="talk" id="talkPanel" hidden aria-label="채팅 · 질문">
   <div class="talk-head"><div class="talk-tabs"><button type="button" data-talk-tab="all">👥 우리 반 채팅</button><button type="button" data-talk-tab="ask">🙋 선생님께 질문<i id="askDot" hidden></i></button></div><button type="button" class="talk-x" data-talk-close aria-label="닫기">✕</button></div>
   <p class="talk-note" id="talkNote"></p>
