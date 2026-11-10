@@ -293,6 +293,10 @@ body.editing .del{display:inline-block}
 .kv div{background:#F7F9FC;border-radius:9px;padding:.5rem .6rem}
 .kv small{display:block;font-size:.72rem;color:var(--muted)}
 .kv b{font-size:1.15rem;letter-spacing:-.01em}
+/* 📱 신규 설치자 변화 줄 (그전 날 · 그전 7일과 견주기) */
+.kv .chg{display:inline-block;margin-left:.3rem;font-size:.72rem;font-weight:700;vertical-align:middle;padding:.05rem .4rem;border-radius:999px}
+.kv .new{grid-column:1/-1;background:#EEF6FF}
+.kv .new b{font-size:1.3rem}
 .mv-card .lnk{display:flex;gap:.4rem;flex-wrap:wrap}
 .mv-card .lnk .btn{min-height:32px;font-size:.8rem}
 .spark{display:block;width:100%;height:46px}
@@ -649,17 +653,26 @@ function renderIiStats(){
   const ser = (src, f) => Object.fromEntries(days.filter(d => ok(d, src)).map(d => [d, S[d][src][f] || 0]));
   const lastOf = src => { const d = [...days].reverse().find(x => ok(x, src)); return d ? { d, v: S[d][src] } : null; };
   const n = v => (v ?? 0).toLocaleString();
+  // 🆕 신규 설치자 변화: 스토어 숫자는 하루 이틀 늦게 오니까 '마지막으로 숫자가 있는 날' 기준으로 견줘요
+  //   그날 vs 그전 날 · 그날까지 7일 vs 그전 7일
+  const keysTo = (end, len, back = 0) => { const a = [], e = new Date(end + 'T00:00:00'); e.setDate(e.getDate() - back); for (let i = len - 1; i >= 0; i--){ const d = new Date(e); d.setDate(e.getDate() - i); a.push(ymd(d)); } return a; };
+  const newBox = (ser, last, unit) => {
+    if (!last) return '';
+    const d1 = ser[last.d] || 0, d0 = ser[keysTo(last.d, 1, 1)[0]] || 0, w1 = sumK(ser, keysTo(last.d, 7)), w0 = sumK(ser, keysTo(last.d, 7, 7));
+    return `<div class="new"><small>🆕 신규 ${unit} · ${mdw(last.d)}</small><b>${n(d1)}명</b>${chgHTML(d1, d0)}<small>그전 날 ${n(d0)}명 · 7일 동안 <b style="font-size:.85rem">${n(w1)}명</b> ${chgHTML(w1, w0)} 그전 7일 ${n(w0)}명</small></div>`;
+  };
   const why = src => run[src] && run[src] !== 'ok' ? `<p class="msg">${esc(run[src])}</p>` : '';
   const pl = lastOf('play'), pInst = ser('play', 'installs'), pUn = ser('play', 'uninstalls');
   const io = lastOf('ios'), iDl = ser('ios', 'downloads'), iUp = ser('ios', 'updates');
+  const pNew = ser('play', 'newUsers');   // 플레이스토어 신규 설치자 (처음 설치한 사람 · 기기 말고 계정 기준)
   const cty = {}; days.filter(d => ok(d, 'ios')).forEach(d => Object.entries(S[d].ios.countries || {}).forEach(([c, v]) => { cty[c] = (cty[c] || 0) + v; }));
   const topC = Object.entries(cty).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, v]) => `${esc(c)} ${v}`).join(' · ');
   const uk = Object.keys(U).sort(), u = uk.length ? U[uk[uk.length - 1]] : null;
   const play = `<div class="panel third mv-card"><div class="hd">💚 플레이스토어${pl ? `<span class="live off">${mdw(pl.d)} 기준</span>` : ''}</div>
-    ${pl ? `<div class="kv"><div><small>누적 설치자</small><b>${n(pl.v.totalUsers)}</b></div><div><small>지금 설치된 기기</small><b>${n(pl.v.activeDevices)}</b></div><div><small>최근 7일 설치</small><b>${n(sumK(pInst, k7))}</b></div><div><small>최근 7일 삭제</small><b>${n(sumK(pUn, k7))}</b></div><div><small>최근 30일 설치</small><b>${n(sumK(pInst, k30))}</b></div></div>
+    ${pl ? `<div class="kv">${newBox(pNew, pl, '설치자')}<div><small>누적 설치자</small><b>${n(pl.v.totalUsers)}</b></div><div><small>지금 설치된 기기</small><b>${n(pl.v.activeDevices)}</b></div><div><small>최근 7일 설치</small><b>${n(sumK(pInst, k7))}</b></div><div><small>최근 7일 삭제</small><b>${n(sumK(pUn, k7))}</b></div><div><small>최근 30일 설치</small><b>${n(sumK(pInst, k30))}</b></div></div>
       ${spark(pInst, 30, '#34a853')}<small class="updated">최근 30일 하루 설치 · 하루 이틀 늦게 채워져요</small>` : '<p class="msg">아직 숫자가 없어요.</p>'}${why('play')}</div>`;
   const ios = `<div class="panel third mv-card"><div class="hd">🍎 앱스토어${io ? `<span class="live off">${mdw(io.d)} 기준</span>` : ''}</div>
-    ${io ? `<div class="kv"><div><small>최근 7일 다운로드</small><b>${n(sumK(iDl, k7))}</b></div><div><small>최근 30일 다운로드</small><b>${n(sumK(iDl, k30))}</b></div><div><small>모은 뒤 전체</small><b>${n(Object.values(iDl).reduce((s, v) => s + v, 0))}</b></div><div><small>최근 7일 업데이트</small><b>${n(sumK(iUp, k7))}</b></div>${topC ? `<div><small>많이 받은 나라</small><b style="font-size:.95rem">${topC}</b></div>` : ''}</div>
+    ${io ? `<div class="kv">${newBox(iDl, io, '다운로드 (처음 받은 사람)')}<div><small>최근 7일 다운로드</small><b>${n(sumK(iDl, k7))}</b></div><div><small>최근 30일 다운로드</small><b>${n(sumK(iDl, k30))}</b></div><div><small>모은 뒤 전체</small><b>${n(Object.values(iDl).reduce((s, v) => s + v, 0))}</b></div><div><small>최근 7일 업데이트</small><b>${n(sumK(iUp, k7))}</b></div>${topC ? `<div><small>많이 받은 나라</small><b style="font-size:.95rem">${topC}</b></div>` : ''}</div>
       ${spark(iDl, 30, '#4c9aff')}<small class="updated">최근 30일 하루 다운로드 · 다음 날 채워져요</small>` : '<p class="msg">아직 숫자가 없어요.</p>'}${why('ios')}</div>`;
   const use = `<div class="panel third mv-card"><div class="hd">📒 앱 안 이용 (웹 + 앱)${u ? `<span class="live">${mdw(uk[uk.length - 1])}</span>` : ''}</div>
     ${u ? `<div class="kv"><div><small>가족</small><b>${n(u.families)}</b><small>최근 7일 새 가족 ${n(u.newFamilies7)}</small></div><div><small>오늘 일기 쓴 가족</small><b>${n(u.famsActive1)}</b><small>${n(u.writers1)}명</small></div><div><small>7일 동안 일기 쓴 가족</small><b>${n(u.famsActive7)}</b><small>${n(u.writers7)}명</small></div>
