@@ -355,6 +355,8 @@ body.editing .del{display:inline-block}
     <div class="insights" id="homeInsights"></div>
     <h2 class="sec-h">📈 방문 흐름 <small>그래프에 마우스를 올리면 숫자가 보여요</small></h2>
     <div class="panels" id="homeCharts"></div>
+    <h2 class="sec-h">📱 아이아이노트 앱 이용 현황 <small>플레이스토어 · 앱스토어 · 앱 안 이용 · 매일 아침 9시 반에 모아요</small></h2>
+    <div class="panels" id="homeIi"></div>
     <h2 class="sec-h">🏯 메타버스 4곳 · 🏫 교무실 타이쿤 <small>지금 접속 · 동시접속 최고 · 머문 시간 · 가입</small></h2>
     <div class="panels" id="homeMeta"></div>
     <h2 class="sec-h">🗂 웹앱별 카드 <small>오늘 방문이 많은 순 · 30일 그래프 · 최근 20주 잔디</small></h2>
@@ -623,6 +625,50 @@ async function loadIinote(next){
   } catch (e){ console.error('아이아이노트 소식을 읽지 못했어요', e); iiNews = { error:true, fams:[], unread:[], bot:[] }; }
   next[II_ADMIN] = [{ label:'의견 · 문의', tab:'', n:iiNews.unread.reduce((s, x) => s + x.n, 0) }];
 }
+/* 📱 아이아이노트 앱 이용 현황: 함수 iinoteStats(firebase/iinote-pulse, 관리자 로그인 확인)가 숫자만 돌려줘요
+   플레이스토어(설치 · 삭제 · 설치된 기기) · 앱스토어(다운로드 · 업데이트) · 앱 안 이용(가족 · 일기). 준비는 STORES.md */
+const II_STATS = 'https://asia-northeast3-iinote.cloudfunctions.net/iinoteStats';
+let iiStats = null, iiStatsBusy = false;
+async function loadIiStats(refresh){
+  if (iiStatsBusy) return; iiStatsBusy = true;
+  if (refresh && $('#homeIi')) $('#homeIi').querySelector('[data-iirefresh]')?.setAttribute('disabled', '');
+  try {
+    const r = await fetch(II_STATS + (refresh ? '?refresh=1' : ''), { headers:{ Authorization:'Bearer ' + await auth.currentUser.getIdToken() }, cache:'no-store' });
+    if (!r.ok) throw new Error(r.status === 404 ? '아직 함수를 올리지 않았어요' : '서버 ' + r.status);
+    iiStats = await r.json();
+  } catch (e){ iiStats = { error: e.message === 'Failed to fetch' ? '아직 함수를 올리지 않았어요' : (e.message || String(e)) }; }
+  iiStatsBusy = false;
+  if (cur === 'home') renderIiStats();
+}
+function renderIiStats(){
+  const box = $('#homeIi'); if (!box) return;
+  if (!iiStats){ box.innerHTML = '<p class="msg">불러오는 중...</p>'; loadIiStats(); return; }
+  if (iiStats.error){ box.innerHTML = `<p class="msg">📱 아이아이노트 통계를 아직 볼 수 없어요 (${esc(iiStats.error)}). 맥에서 <b>firebase/iinote-pulse/STORES.md</b> 순서대로 준비하고 함수를 올리면 여기에 나와요.</p>`; return; }
+  const S = iiStats.store || {}, U = iiStats.use || {}, run = iiStats.run || {}, days = Object.keys(S).sort(), k7 = dayKeys(7), k30 = dayKeys(30);
+  const ok = (d, src) => S[d][src] && !S[d][src].error;
+  const ser = (src, f) => Object.fromEntries(days.filter(d => ok(d, src)).map(d => [d, S[d][src][f] || 0]));
+  const lastOf = src => { const d = [...days].reverse().find(x => ok(x, src)); return d ? { d, v: S[d][src] } : null; };
+  const n = v => (v ?? 0).toLocaleString();
+  const why = src => run[src] && run[src] !== 'ok' ? `<p class="msg">${esc(run[src])}</p>` : '';
+  const pl = lastOf('play'), pInst = ser('play', 'installs'), pUn = ser('play', 'uninstalls');
+  const io = lastOf('ios'), iDl = ser('ios', 'downloads'), iUp = ser('ios', 'updates');
+  const cty = {}; days.filter(d => ok(d, 'ios')).forEach(d => Object.entries(S[d].ios.countries || {}).forEach(([c, v]) => { cty[c] = (cty[c] || 0) + v; }));
+  const topC = Object.entries(cty).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, v]) => `${esc(c)} ${v}`).join(' · ');
+  const uk = Object.keys(U).sort(), u = uk.length ? U[uk[uk.length - 1]] : null;
+  const play = `<div class="panel third mv-card"><div class="hd">💚 플레이스토어${pl ? `<span class="live off">${mdw(pl.d)} 기준</span>` : ''}</div>
+    ${pl ? `<div class="kv"><div><small>누적 설치자</small><b>${n(pl.v.totalUsers)}</b></div><div><small>지금 설치된 기기</small><b>${n(pl.v.activeDevices)}</b></div><div><small>최근 7일 설치</small><b>${n(sumK(pInst, k7))}</b></div><div><small>최근 7일 삭제</small><b>${n(sumK(pUn, k7))}</b></div><div><small>최근 30일 설치</small><b>${n(sumK(pInst, k30))}</b></div></div>
+      ${spark(pInst, 30, '#34a853')}<small class="updated">최근 30일 하루 설치 · 하루 이틀 늦게 채워져요</small>` : '<p class="msg">아직 숫자가 없어요.</p>'}${why('play')}</div>`;
+  const ios = `<div class="panel third mv-card"><div class="hd">🍎 앱스토어${io ? `<span class="live off">${mdw(io.d)} 기준</span>` : ''}</div>
+    ${io ? `<div class="kv"><div><small>최근 7일 다운로드</small><b>${n(sumK(iDl, k7))}</b></div><div><small>최근 30일 다운로드</small><b>${n(sumK(iDl, k30))}</b></div><div><small>모은 뒤 전체</small><b>${n(Object.values(iDl).reduce((s, v) => s + v, 0))}</b></div><div><small>최근 7일 업데이트</small><b>${n(sumK(iUp, k7))}</b></div>${topC ? `<div><small>많이 받은 나라</small><b style="font-size:.95rem">${topC}</b></div>` : ''}</div>
+      ${spark(iDl, 30, '#4c9aff')}<small class="updated">최근 30일 하루 다운로드 · 다음 날 채워져요</small>` : '<p class="msg">아직 숫자가 없어요.</p>'}${why('ios')}</div>`;
+  const use = `<div class="panel third mv-card"><div class="hd">📒 앱 안 이용 (웹 + 앱)${u ? `<span class="live">${mdw(uk[uk.length - 1])}</span>` : ''}</div>
+    ${u ? `<div class="kv"><div><small>가족</small><b>${n(u.families)}</b><small>최근 7일 새 가족 ${n(u.newFamilies7)}</small></div><div><small>오늘 일기 쓴 가족</small><b>${n(u.famsActive1)}</b><small>${n(u.writers1)}명</small></div><div><small>7일 동안 일기 쓴 가족</small><b>${n(u.famsActive7)}</b><small>${n(u.writers7)}명</small></div>
+      <div><small>최근 7일 일기</small><b>${n(u.diaries7)}편</b></div><div><small>최근 30일 일기</small><b>${n(u.diaries30)}편</b></div><div><small>어른 · 아이</small><b>${n(u.adults)} · ${n(u.kids)}</b></div></div>
+      ${spark(u.perDay, 30, '#E0698F')}<small class="updated">최근 30일 하루 일기 수</small>` : '<p class="msg">아직 숫자가 없어요.</p>'}${why('use')}
+    <div class="lnk"><button type="button" class="btn" data-iirefresh>지금 다시 모으기</button><a class="btn" href="${esc(II_ADMIN)}" target="_blank" rel="noopener">아이아이노트 관리자 ↗</a></div></div>`;
+  box.innerHTML = play + ios + use;
+}
+document.addEventListener('click', e => { if (e.target.closest('#homeIi [data-iirefresh]')){ $('#homeIi').innerHTML = '<p class="msg">지금 다시 모으는 중이에요 (1분쯤 걸려요)...</p>'; loadIiStats(true); } });
 function iiFamText(f){
   const who = [f.adults ? `어른 ${f.adults}명` : '', f.kids ? `아이 ${f.kids}명` : ''].filter(Boolean).join(' · ');
   return `${f.isNew ? '새 가족' : '가족 합류'} · ${who} · 일기 ${f.diaries}편`;
@@ -985,6 +1031,7 @@ async function renderHome(force){
   renderInsights(series, all, relays);
   renderCharts(series, all, relays);
   renderMeta(relays);
+  renderIiStats();
   /* 카드는 오늘 방문이 많은 순서로 (같으면 누적이 많은 순, 기록을 못 읽은 카드는 맨 뒤) */
   const score = ({ a }) => { const d = homeData[a.admin]; return d && !d.error ? d : { today:-1, total:-1 }; };
   const cards = [...withStat].sort((x, y) => (score(y).today - score(x).today) || (score(y).total - score(x).total));
