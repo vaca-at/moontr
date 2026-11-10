@@ -105,10 +105,18 @@ window.tyWrite = async (w) => {
 //    평소 한 시간 = 지난 7일 방문 합 ÷ 7 ÷ 12 (사람들이 주로 오는 낮 12시간으로 나눠요)
 //  - 오늘 방문이 벌써 어제 하루 전체(10회 이상)를 넘으면 → beat (하루 한 번)
 //  - 밤 11시 ~ 아침 7시는 확인하지 않아요
+//  - 메타버스 4곳(스냅주 · 큰법당 · 캠핑장 · 소호랩)은 각자 서버의 공개 숫자로 같은 방법으로 봐요
 // 맥 앱에 건네는 것: { t:'visits', alerts:[{ k, kind, app, n, x, url }], total, yest, top:{ app, n } }
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const vDb = getFirestore(app);
 const HUB_URL = 'https://moontr.site/admin/';
+// 🏯 메타버스 4곳은 자기 서버(Cloudflare)에서 따로 세요: /public/visits 의 days{날짜:수} · hours{날짜:[0시~23시]} (숫자만, 로그인 없이)
+const RELAYS = [
+  { a: 'snapzoo', name: '스냅주', url: 'https://snapzoo-rooms.bellachord.workers.dev' },
+  { a: 'templestay', name: '큰법당', url: 'https://templestay-rooms.bellachord.workers.dev' },
+  { a: 'campingjang', name: '캠핑장', url: 'https://campingjang-rooms.bellachord.workers.dev' },
+  { a: 'soholab', name: '소호랩', url: 'https://soho-lab-rooms.bellachord.workers.dev' },
+];
 let V = null;
 const vSend = (o) => { try { webkit.messageHandlers.hgd.postMessage({ t: 'visits', ...o }); } catch { document.getElementById('msg').textContent = JSON.stringify(o); } };
 // 앱 이름(한국어)은 관리자 허브 페이지에서 읽어요: 관리자 화면 이름 · SITE_NAMES
@@ -145,19 +153,32 @@ async function vCheck() {
   try {
     if (!V || V.day !== dkey(d)) await vSetup();
     const hk = 'h' + String(H).padStart(2, '0'), alerts = [];
-    let total = 0, yest = 0, top = null;
+    let total = 0, yest = 0, top = null, yAny = Object.keys(V.yh).length > 0;
+    // 튀었는지 보기: 이번 한 시간 15회↑ + 평소 한 시간(7일 합 ÷ 7 ÷ 12)의 3배↑ / 오늘이 어제 하루(10회↑)를 넘음
+    const judge = (a, name, cur, today, base7, yd, on = 0) => {
+      const avg = base7 / 7 / 12;
+      if (cur >= 15 && cur >= 3 * Math.max(1, avg)) alerts.push({ k: `spike:${a}:${V.day}:${hk}`, kind: 'spike', id: a, on, app: name, n: cur, x: Math.round(cur / Math.max(1, avg)), url: HUB_URL });
+      if (yd >= 10 && today > yd) alerts.push({ k: `beat:${a}:${V.day}`, kind: 'beat', id: a, on, app: name, n: today, x: yd, url: HUB_URL });
+    };
     await Promise.all([...V.apps].map(async (a) => {
       let x = {}; try { const s = await getDoc(doc(vDb, 'site_counts', `${a}__h${V.day}`)); x = s.exists() ? s.data() : {}; } catch { return; }
       const today = Object.values(x).reduce((s, n) => s + (n || 0), 0), cur = x[hk] || 0, name = V.names[a] || a;
       total += today;
       const yx = V.yh[a] || {}; yest += Object.keys(yx).filter((k) => k <= hk).reduce((s, k) => s + (yx[k] || 0), 0);   // 어제 이 시각까지
       if (!top || today > top.n) top = { app: name, n: today };
-      const avg = (V.base[a] || 0) / 7 / 12;
-      if (cur >= 15 && cur >= 3 * Math.max(1, avg)) alerts.push({ k: `spike:${a}:${V.day}:${hk}`, kind: 'spike', app: name, n: cur, x: Math.round(cur / Math.max(1, avg)), url: HUB_URL });
-      const yd = V.yest[a] || 0;
-      if (yd >= 10 && today > yd) alerts.push({ k: `beat:${a}:${V.day}`, kind: 'beat', app: name, n: today, x: yd, url: HUB_URL });
+      judge(a, name, cur, today, V.base[a] || 0, V.yest[a] || 0);
     }));
-    vSend({ alerts, total, yest: Object.keys(V.yh).length ? yest : null, top: top && top.n ? top : null });
+    // 🏯 메타버스 4곳
+    const ys = dkey(new Date(Date.now() - 864e5)), wk = [...Array(7)].map((_, i) => dkey(new Date(Date.now() - (i + 1) * 864e5)));
+    await Promise.all(RELAYS.map(async (R) => {
+      let p; try { const r = await fetch(R.url + '/public/visits', { cache: 'no-store' }); if (!r.ok) return; p = await r.json(); } catch { return; }
+      const D = p.days || {}, HH = p.hours || {}, today = D[V.day] || 0, cur = (HH[V.day] || [])[H] || 0;
+      total += today;
+      if (HH[ys]) { yest += HH[ys].slice(0, H + 1).reduce((s, n) => s + (n || 0), 0); }   // 웹앱 시간대 기록(어제)이 있을 때만 견줘요
+      if (!top || today > top.n) top = { app: R.name, n: today };
+      judge(R.a, R.name, cur, today, wk.reduce((s, k) => s + (D[k] || 0), 0), D[ys] || 0, p.online || 0);
+    }));
+    vSend({ alerts, total, yest: yAny ? yest : null, top: top && top.n ? top : null });
   } catch (e) { vSend({ error: String(e.message || e) }); }
 }
 vCheck();
