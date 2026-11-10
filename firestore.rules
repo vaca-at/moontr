@@ -411,10 +411,11 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
-    // 축하 방명록: 누구나 쓰기(승인 전 상태로만), 승인된 글만 공개, 관리자만 승인·삭제
+    // 축하 방명록: 누구나 쓰기(남기면 바로 게시 approved: true), 게시 중인 글만 공개, 관리자만 내리기·삭제
+    // (예전 화면이 approved: false로 보내도 받아 두고, 관리자가 '게시'로 올릴 수 있게 bool이면 허용)
     match /jinsun50_guestbook/{id} {
       allow create: if request.resource.data.keys().hasOnly(['name','msg','createdAtMs','approved'])
-        && request.resource.data.approved == false
+        && request.resource.data.approved is bool
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
         && request.resource.data.msg is string
@@ -424,12 +425,23 @@ service cloud.firestore {
       allow update, delete: if isTeacher();
     }
 
-    // 추억 갤러리: 누구나 보기, 관리자만 올리기 (작은 사진 / 큰 사진 따로 저장)
+    // 추억 갤러리: 누구나 보기, 방문자 제보는 바로 게시(정해진 항목·크기만), 고치기·삭제는 관리자만
+    // (작은 사진 / 큰 사진 따로 저장)
+    // 사진 연도(year)는 비워 두거나 1900~2100 숫자, 메모(memo)는 200자 이내
     match /jinsun50_gallery/{id} {
       allow read: if true;
       allow create, update: if isTeacher()
         && request.resource.data.thumb is string
         && request.resource.data.thumb.size() < 200000;
+      allow create: if request.resource.data.keys().hasOnly(['thumb','year','caption','memo','by','createdAtMs'])
+        && request.resource.data.thumb is string && request.resource.data.thumb.size() < 200000
+        && (request.resource.data.year == null
+            || (request.resource.data.year is int
+                && request.resource.data.year >= 1900 && request.resource.data.year <= 2100))
+        && request.resource.data.caption is string && request.resource.data.caption.size() <= 60
+        && request.resource.data.memo is string && request.resource.data.memo.size() <= 200
+        && request.resource.data.by is string && request.resource.data.by.size() <= 20
+        && request.resource.data.createdAtMs is int;
       allow delete: if isTeacher();
     }
     // 추억 갤러리 사진별 조회수 (문서 이름 = 사진 id): 누구나 보기, 숫자는 1씩 올리기만, 있는 사진에만
@@ -442,15 +454,22 @@ service cloud.firestore {
         && request.resource.data.n == resource.data.n + 1;
       allow delete: if isTeacher();
     }
+    // 큰 사진: 방문자는 작은 사진 문서와 같은 묶음(batch)으로 새로 만들 때만 올릴 수 있다
     match /jinsun50_gallery_full/{id} {
       allow read: if true;
       allow create, update: if isTeacher()
         && request.resource.data.data is string
         && request.resource.data.data.size() < 900000;
+      allow create: if request.resource.data.keys().hasOnly(['data'])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 900000
+        && !exists(/databases/$(database)/documents/jinsun50_gallery/$(id))
+        && existsAfter(/databases/$(database)/documents/jinsun50_gallery/$(id));
       allow delete: if isTeacher();
     }
 
-    // 사진 제보: 누구나 보내기(정해진 항목·크기만), 관리자만 보기·게시·삭제
+    // 예전 사진 제보 대기함: 지금은 방문자 사진이 바로 jinsun50_gallery에 실린다.
+    // 바뀌기 전 화면(브라우저에 남은 옛 화면)에서 오는 제보를 받기 위해 남겨 둔다. 관리자만 보기·게시·삭제
     // 사진 연도(year)는 비워 두거나 1900~2100 숫자, 메모(memo)는 200자 이내
     match /jinsun50_submissions/{id} {
       allow create: if request.resource.data.keys().hasOnly(['thumb','year','caption','memo','by','createdAtMs'])
