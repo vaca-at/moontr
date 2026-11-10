@@ -98,6 +98,71 @@ window.tyWrite = async (w) => {
   if (w.op === 'del' && i >= 0) todos.splice(i, 1);
   await setDoc(ref, { todos: todos.slice(0, 50), memo: d.memo || '', at: Date.now() });
 };
+
+// ───────── 📈 방문 수 튐 알림 ─────────
+// 모든 웹앱이 visit.js 로 남기는 숫자(site_counts)를 10분마다 봐요. 숫자만 있고 누가 왔는지는 없어요 (누구나 읽을 수 있는 숫자)
+//  - 앱마다 '이번 한 시간'(이름__h날짜 문서의 h00~h23 칸)이 15회 이상이면서 평소 한 시간의 3배 이상 → spike
+//    평소 한 시간 = 지난 7일 방문 합 ÷ 7 ÷ 12 (사람들이 주로 오는 낮 12시간으로 나눠요)
+//  - 오늘 방문이 벌써 어제 하루 전체(10회 이상)를 넘으면 → beat (하루 한 번)
+//  - 밤 11시 ~ 아침 7시는 확인하지 않아요
+// 맥 앱에 건네는 것: { t:'visits', alerts:[{ k, kind, app, n, x, url }], total, yest, top:{ app, n } }
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const vDb = getFirestore(app);
+const HUB_URL = 'https://moontr.site/admin/';
+let V = null;
+const vSend = (o) => { try { webkit.messageHandlers.hgd.postMessage({ t: 'visits', ...o }); } catch { document.getElementById('msg').textContent = JSON.stringify(o); } };
+// 앱 이름(한국어)은 관리자 허브 페이지에서 읽어요: 관리자 화면 이름 · SITE_NAMES
+async function vNames() {
+  const N = {};
+  try {
+    const h = await (await fetch('/admin/index.html', { cache: 'no-store' })).text();
+    const byPath = {};
+    for (const m of h.matchAll(/name:'([^']+)',\s*admin:'([^']+)'/g)) byPath[m[2]] = m[1];
+    for (const m of h.matchAll(/'([^']+)':\s*\{[^}\n]*?(?:site|seed):'([\w-]+)'/g)) if (byPath[m[1]]) N[m[2]] = byPath[m[1]];
+    const b = h.match(/const SITE_NAMES = \{([\s\S]*?)\};/);
+    if (b) for (const m of b[1].matchAll(/'?([\w-]+)'?\s*:\s*'([^']*)'/g)) if (!N[m[1]]) N[m[1]] = m[2];
+  } catch {}
+  return N;
+}
+// 하루에 한 번: 앱 목록 · 지난 7일 합 · 어제 하루 · 어제 시각별
+async function vSetup() {
+  const t = dkey(new Date()), y = dkey(new Date(Date.now() - 864e5)), week = new Set([...Array(7)].map((_, i) => dkey(new Date(Date.now() - (i + 1) * 864e5))));
+  const v = { day: t, names: await vNames(), apps: new Set(), base: {}, yest: {}, yh: {}, told: new Set() };
+  const snap = await getDocs(collection(vDb, 'site_counts'));
+  snap.forEach((d) => {
+    const m = d.id.match(/^(.+)__(d|h)(\d{4}-\d{2}-\d{2})$/); if (!m) return;
+    const [, a, kind, day] = m, x = d.data();
+    if (kind === 'd' && week.has(day)) { v.base[a] = (v.base[a] || 0) + (x.n || 0); v.apps.add(a); }
+    if (kind === 'd' && day === y) v.yest[a] = x.n || 0;
+    if (kind === 'h' && day === y) v.yh[a] = x;
+    if (kind === 'h' && day === t) v.apps.add(a);
+  });
+  V = v;
+}
+async function vCheck() {
+  const d = new Date(), H = d.getHours();
+  if (H < 7 || H >= 23) return;
+  try {
+    if (!V || V.day !== dkey(d)) await vSetup();
+    const hk = 'h' + String(H).padStart(2, '0'), alerts = [];
+    let total = 0, yest = 0, top = null;
+    await Promise.all([...V.apps].map(async (a) => {
+      let x = {}; try { const s = await getDoc(doc(vDb, 'site_counts', `${a}__h${V.day}`)); x = s.exists() ? s.data() : {}; } catch { return; }
+      const today = Object.values(x).reduce((s, n) => s + (n || 0), 0), cur = x[hk] || 0, name = V.names[a] || a;
+      total += today;
+      const yx = V.yh[a] || {}; yest += Object.keys(yx).filter((k) => k <= hk).reduce((s, k) => s + (yx[k] || 0), 0);   // 어제 이 시각까지
+      if (!top || today > top.n) top = { app: name, n: today };
+      const avg = (V.base[a] || 0) / 7 / 12;
+      if (cur >= 15 && cur >= 3 * Math.max(1, avg)) alerts.push({ k: `spike:${a}:${V.day}:${hk}`, kind: 'spike', app: name, n: cur, x: Math.round(cur / Math.max(1, avg)), url: HUB_URL });
+      const yd = V.yest[a] || 0;
+      if (yd >= 10 && today > yd) alerts.push({ k: `beat:${a}:${V.day}`, kind: 'beat', app: name, n: today, x: yd, url: HUB_URL });
+    }));
+    vSend({ alerts, total, yest: Object.keys(V.yh).length ? yest : null, top: top && top.n ? top : null });
+  } catch (e) { vSend({ error: String(e.message || e) }); }
+}
+vCheck();
+setInterval(vCheck, 10 * 60 * 1000);
+window.vCheck = vCheck;
 </script>
 </body>
 </html>
