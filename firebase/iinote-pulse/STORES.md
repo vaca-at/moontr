@@ -58,7 +58,7 @@ moontr.site/admin '오늘의 현황'의 **📱 아이아이노트 앱 이용 현
 1. Play Console → 왼쪽 **보고서 다운로드** → **통계**를 열어요.
 2. 위쪽 **Cloud Storage URI 복사**를 눌러요.
    - 복사한 글: `gs://pubsite_prod_rev_01234567890123456789/stats/...`
-3. 이 중 `pubsite_prod_rev_숫자` 부분만 2번(.env)에 적어요.
+3. 이 중 `pubsite_prod_rev_숫자`(또는 `pubsite_prod_숫자`) 부분만 3번(.env)에 적어요.
 
 ---
 
@@ -148,6 +148,10 @@ firebase deploy --only functions:pulse
 
 - **앱 안 기기 종류:** 아이폰 앱 · 안드로이드 앱 · 웹을 따로 세기. 아이아이노트에 접속 기록 한 줄을 넣어야 해요.
 - **애플 분석 보고서:** 활성 기기 수, 사용 시간. App Store Connect의 Analytics Reports를 따로 신청해야 하고, 며칠 뒤부터 쌓여요.
+
+## 진행 (2026-11-10)
+
+- 앱스토어 키 · 플레이 버킷을 넣고 함수 3개를 올렸어요. 플레이스토어 숫자는 Play Console 권한이 통하는 하루 이틀 뒤부터 나와요.
 
 ## 만든 것 (2026-11-10)
 
