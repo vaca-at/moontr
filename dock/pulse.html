@@ -45,6 +45,7 @@ onAuthStateChanged(auth, (u) => {
   check();
 });
 setInterval(check, 2 * 60 * 1000);
+window.checkNow = check;   // 한교동을 짧게 누르면 바로 한 번 더 확인
 
 // ───────── 📝 교무실 타이쿤 연결: 오늘 할 일 · D-day · 학교 일정 ─────────
 // 교무실 타이쿤과 같은 로그인('tycoon' 이름 붙은 앱)을 써요. 타이쿤에 로그인해 두면 여기서도 같은 책상을 읽고 써요.
@@ -60,7 +61,17 @@ const sendTy = (o) => { try { webkit.messageHandlers.hgd.postMessage({ t: 'tycoo
 function pushTy() {
   const dd = main?.dday?.d && main?.dday?.t ? { t: main.dday.t, n: daysTo(main.dday.d) } : null;
   const ev = (main?.events || []).map((e) => ({ t: e.t, n: daysTo(e.d) })).filter((e) => e.n >= 0).sort((a, b) => a.n - b.n).slice(0, 5);
-  sendTy({ login: true, day: today, todos: ty.todos.map((x) => ({ t: x.t, d: !!x.d })), dday: dd, events: ev });
+  sendTy({ login: true, day: today, todos: ty.todos.map((x) => ({ t: x.t, d: !!x.d })), dday: dd, events: ev, bell: bellToday() });
+}
+// 🔔 오늘 종 시간표: [{ p:'1', s:'08:20', e:'09:10', r:'2-3' }] (수업은 1 · 2 · 3 … 번호, 조회 · 점심 · 종례는 이름 그대로)
+// 내 수업 칸(r)은 '하루만 바꾸기'(dayTT)가 있으면 그것, 없으면 요일 시간표(week)예요. 주말이면 빈 목록
+function bellToday() {
+  const wd = new Date(today + 'T00:00').getDay(); if (!main || wd === 0 || wd === 6) return [];
+  const mm = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+  const week = (main.dayTT || {})[today] || (main.week || {})[wd] || {};
+  let n = 0;
+  return (main.bell || []).filter((b) => b && b.s && b.e && mm(b.e) > mm(b.s)).sort((a, b) => mm(a.s) - mm(b.s))
+    .map((b) => { const p = b.k === '수업' ? String(++n) : b.k; return { p, s: b.s, e: b.e, r: String(week[p] || '').slice(0, 12) }; });
 }
 function watch() {
   unsubs.forEach((u) => u()); unsubs = [];
