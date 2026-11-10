@@ -80,6 +80,8 @@ svg{width:16px;height:16px;flex:none}
 .alert-bar.calm button{color:#1F6B4E}
 .alert-bar.calm .re{color:#1F6B4E;border-color:#1F6B4E}
 .alert-bar .ii-q{flex-basis:100%;font-size:.86rem}
+.alert-bar button.ii-q{flex-basis:auto;max-width:100%;text-align:left}
+.alert-bar .re.x{margin-left:0;min-width:34px;padding:0;justify-content:center;font-size:1rem}
 .nbadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#D93025;color:#fff;font-size:.72rem;font-weight:800;line-height:1}
 @keyframes blink{50%{opacity:.35}}
 .tab .nbadge{animation:blink 1.4s ease-in-out infinite}
@@ -686,37 +688,76 @@ function iiFamText(f){
   const who = [f.adults ? `어른 ${f.adults}명` : '', f.kids ? `아이 ${f.kids}명` : ''].filter(Boolean).join(' · ');
   return `${f.isNew ? '새 가족' : '가족 합류'} · ${who} · 일기 ${f.diaries}편`;
 }
-function iiRows(){
-  if (!iiNews) return '';
-  const go = t => `<button type="button" data-wopen="${esc(II_ADMIN)}" data-wtab="">${esc(t)} →</button>`;
-  return iiNews.fams.map(f => go('🎉 아이아이노트 ' + iiFamText(f))).join('')
-    + (iiNews.bot.length ? go(`🤖 아이아이노트 챗봇이 답한 문의 ${iiNews.bot.length}건`) : '')
-    + iiNews.unread.map(x => `<span class="ii-q">💌 ${esc(x.last)}</span>`).join('')
-    + (iiNews.error ? '<span class="ii-q">⚠️ 아이아이노트 소식을 불러오지 못했어요</span>' : '');
+/* 🙈 이미 본 알림 (이 기기에 기억): 띠의 단추를 눌러 확인하거나 ✕ 를 누르면 그 알림은 숨겨요.
+   숫자가 늘거나(새 질문) 새 가족 · 새 문의가 들어오면 다시 떠요.
+   seen = { 'w|관리자 주소|이름': 확인한 건수, 'f|시각': 1, 'u|시각': 1, 'b': 확인한 챗봇 답의 마지막 시각 } */
+const SEEN_LS = 'hub-alert-seen';
+let seen = {};
+try { seen = JSON.parse(localStorage.getItem(SEEN_LS)) || {}; } catch {}
+const saveSeen = () => { try { localStorage.setItem(SEEN_LS, JSON.stringify(seen)); } catch {} };
+/* 지금 띠에 올릴 수 있는 알림 전부: {key, val, n(건수), html} — 이미 본 것은 뺀 채로 돌려줘요 */
+function alertItems(){
+  const items = [], live = new Set();
+  Object.entries(waits || {}).forEach(([admin, list]) => {
+    const a = ALL_APPS.find(x => x.admin === admin); if (!a) return;
+    list.forEach(w => {
+      const key = `w|${admin}|${w.label}`;
+      if (!w.n) return;
+      live.add(key);
+      if (seen[key] > w.n) seen[key] = w.n;   // 몇 건 처리했으면 기준도 낮춰서, 다시 늘면 바로 뜨게
+      if (seen[key] >= w.n) return;
+      const name = a.name.replace(' 만점 다이어리', '').replace(' 운영 현황', '');
+      items.push({ key, val: w.n, n: w.n,
+        html: `<button type="button" data-wopen="${esc(admin)}" data-wtab="${esc(w.tab)}">${esc(name)} ${esc(w.label)} ${w.n}건 →</button>` });
+    });
+  });
+  if (iiNews){
+    const go = t => `<button type="button" data-wopen="${esc(II_ADMIN)}" data-wtab="">${esc(t)} →</button>`;
+    iiNews.fams.forEach(f => {
+      const key = `f|${f.at}`; live.add(key);
+      if (!seen[key]) items.push({ key, val: 1, n: 0, html: go('🎉 아이아이노트 ' + iiFamText(f)) });
+    });
+    const botAt = Math.max(0, ...iiNews.bot.map(x => x.at || 0));
+    if (iiNews.bot.length && !(seen.b >= botAt)) items.push({ key: 'b', val: botAt, n: 0, html: go(`🤖 아이아이노트 챗봇이 답한 문의 ${iiNews.bot.length}건`) });
+    iiNews.unread.forEach(x => {
+      const key = `u|${x.at}`; live.add(key);
+      if (!seen[key]) items.push({ key, val: 1, n: 0, html: `<button type="button" class="ii-q" data-wopen="${esc(II_ADMIN)}" data-wtab="">💌 ${esc(x.last)} →</button>` });
+    });
+    if (iiNews.error) items.push({ key: '', val: 0, n: 0, html: '<span class="ii-q">⚠️ 아이아이노트 소식을 불러오지 못했어요</span>' });
+  }
+  // 이제 없는 알림의 기억은 지워요 (안 그러면 같은 건수로 다시 생긴 질문이 숨어 버려요)
+  // (아이아이노트 소식을 못 읽은 때는 그쪽 기억은 그대로 둬요)
+  if (waits) Object.keys(seen).forEach(k => {
+    if (k === 'b' || live.has(k) || (iiNews?.error && /^[fu]\|/.test(k))) return;
+    delete seen[k];
+  });
+  saveSeen();
+  // 단추마다 '이걸 눌렀으면 본 걸로' 표시를 달아요
+  return items.map(it => ({ ...it, html: it.key ? it.html.replace(/^<button /, `<button data-seen="${esc(it.key)}" data-seenv="${it.val}" `) : it.html }));
 }
 function renderAlert(){
   if (!waits){ $('#alertBar').hidden = true; return; }
-  const rows = [];
-  Object.entries(waits).forEach(([admin, list]) => {
-    const a = ALL_APPS.find(x => x.admin === admin); if (!a) return;
-    list.forEach(w => { if (w.n) rows.push({ a, w }); });
-  });
-  const total = rows.reduce((s, r) => s + r.w.n, 0);
+  const items = alertItems();
+  const total = items.reduce((s, it) => s + it.n, 0);
   const bar = $('#alertBar');
-  const ii = iiRows();
-  bar.hidden = !total && !ii && cur !== 'home';
+  const list = items.map(it => it.html).join('');
+  const tools = `<button type="button" class="re" data-wreload>다시 세기</button>${items.some(it => it.key) ? `<button type="button" class="re x" data-wclose title="지금 뜬 알림을 모두 확인한 걸로 하고 숨겨요" aria-label="알림 닫기">✕</button>` : ''}`;
+  bar.hidden = !items.length && cur !== 'home';
   bar.classList.toggle('calm', !total);
   bar.innerHTML = total
-    ? `<b>🚨 답을 기다리고 있어요 (${total}건)</b>${rows.map(r =>
-        `<button type="button" data-wopen="${esc(r.a.admin)}" data-wtab="${esc(r.w.tab)}">${esc(r.a.name.replace(' 만점 다이어리', '').replace(' 운영 현황', ''))} ${esc(r.w.label)} ${r.w.n}건 →</button>`).join('')}${ii}
-       <button type="button" class="re" data-wreload>다시 세기</button>`
-    : ii ? `${ii}<button type="button" class="re" data-wreload>다시 세기</button>` : `✅ 처리할 오류 신고 · 질문이 없어요.`;
+    ? `<b>🚨 답을 기다리고 있어요 (${total}건)</b>${list}${tools}`
+    : items.length ? `${list}${tools}` : `✅ 처리할 오류 신고 · 질문이 없어요.`;
   document.title = (total ? `(${total}) ` : '') + '관리자 허브 · moontr.site';
   fitFrame();
 }
 $('#alertBar').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.hasAttribute('data-wreload')) return loadWaits();
+  if (b.hasAttribute('data-wclose')){
+    $('#alertBar').querySelectorAll('[data-seen]').forEach(x => seen[x.dataset.seen] = Number(x.dataset.seenv));
+    saveSeen(); renderAlert(); return;
+  }
+  if (b.dataset.seen){ seen[b.dataset.seen] = Number(b.dataset.seenv); saveSeen(); }   // 눌러서 확인한 알림은 띠에서 빼요
   show(ALL_APPS.find(a => a.admin === b.dataset.wopen), b.dataset.wtab);
 });
 /* 허브를 켜 둔 채로 있어도 3분마다 다시 셉니다 */
