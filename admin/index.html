@@ -578,7 +578,7 @@ const ALL_APPS = ADMIN_GROUPS.flatMap(g => g.items);
 /* 🏠 = 그 웹앱 홈페이지, 🔒 = 그 웹앱 관리자 모드, 🛡️ 개인정보처리방침 · 📜 이용약관 (있을 때만, 모두 새 창으로 바로) */
 const goLinks = a => `<span class="go2s"><a class="go2" href="${esc(a.student || a.admin)}" target="_blank" rel="noopener" title="${esc(a.name)} 홈페이지" aria-label="${esc(a.name)} 홈페이지">🏠</a><a class="go2" href="${esc(a.admin)}" target="_blank" rel="noopener" title="${esc(a.name)} 관리자 모드" aria-label="${esc(a.name)} 관리자 모드">🔒</a>${a.privacy?`<a class="go2" href="${esc(a.privacy)}" target="_blank" rel="noopener" title="${esc(a.name)} 개인정보처리방침" aria-label="${esc(a.name)} 개인정보처리방침">🛡️</a>`:''}${a.terms?`<a class="go2" href="${esc(a.terms)}" target="_blank" rel="noopener" title="${esc(a.name)} 이용약관" aria-label="${esc(a.name)} 이용약관">📜</a>`:''}</span>`;
 const LOGIN_NOTE = {
-  pw:'다른 주소(jinseon50th.com)라 이 창 안에서 처음 한 번은 같은 비밀번호를 입력합니다. 안 되면 [새 창으로]를 누르세요.',
+  pw:'다른 주소(jinseon50th.com)라 이 창 안에서 처음 한 번은 관리자 구글 계정으로 로그인합니다. 로그인 창이 안 뜨거나 막히면 [새 창으로]를 누르세요.',
   gs:'구글 앱스 스크립트 화면입니다. 구글 계정 확인이 필요하면 [새 창으로]를 누르세요.',
   sg:'연수용 Firebase(소나기 · 바이브코딩)라 처음 한 번은 구글 계정(sen 메일)으로 로그인합니다. 소나기는 동료 검증 담벼락 맨 아래 🔐 관리자를 누르세요. 로그인 창이 막히면 [새 창으로]를 누르세요.',
   gg:'다른 Firebase(공부방 · 생기부노트 · 아이아이노트)라 처음 한 번은 구글 관리자 계정으로 로그인합니다. 로그인 창이 안 뜨거나 막히면 [새 창으로]를 누르세요.'
@@ -600,6 +600,14 @@ const WAITS = {
   ],
   '/tycoon/?admin': [
     { label:'선생님 문의', col:'desk_chats', field:'waiting', value:true, tab:'chat' }
+  ],
+  // 진선 50주년: 방문자가 올리면 바로 게시되니, 새 글 · 새 사진 · 신고를 여기서 알려 줘요 (관리자가 그 탭을 열면 꺼져요)
+  // and: 조건을 하나 더 (신고를 글 · 사진으로 나눠서 알맞은 탭을 열려고)
+  'https://jinseon50th.com/#admin': [
+    { label:'방명록 신고', col:'jinsun50_reports', field:'status', value:'new', and:['kind', 'g'], tab:'guest' },
+    { label:'사진 신고', col:'jinsun50_reports', field:'status', value:'new', and:['kind', 'p'], tab:'gallery' },
+    { label:'새 방명록', col:'jinsun50_guestbook', field:'seen', value:false, tab:'guest' },
+    { label:'새 사진', col:'jinsun50_gallery', field:'seen', value:false, tab:'gallery' }
   ]
 };
 let waits = null;   // 관리자 화면 주소 → [{label, tab, n}] (아직 안 셌으면 null)
@@ -609,7 +617,10 @@ async function loadWaits(){
   const next = {};
   await Promise.all(Object.entries(WAITS).map(async ([admin, list]) => {
     next[admin] = await Promise.all(list.map(async w => {
-      try { return { ...w, n: (await getCountFromServer(query(collection(db, w.col), where(w.field, '==', w.value)))).data().count }; }
+      try {
+        const conds = [where(w.field, '==', w.value), ...(w.and ? [where(w.and[0], '==', w.and[1])] : [])];
+        return { ...w, n: (await getCountFromServer(query(collection(db, w.col), ...conds))).data().count };
+      }
       catch (e){ console.error('개수를 세지 못했어요', w.col, e); return { ...w, n: 0 }; }
     }));
   }));

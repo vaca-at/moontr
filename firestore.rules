@@ -347,6 +347,13 @@ service cloud.firestore {
     }
 
     // ===== 진선 50주년 기념 웹앱 =====
+    // 방명록 · 사진을 쓴 사람이 비밀번호로 직접 지우기: 같은 묶음(batch)에서 jinsun50_pins/{id} 의 pin 칸에
+    // 숫자 4자리를 담아 보내면, 그 숫자의 해시가 처음 정해 둔 해시(h)와 같을 때만 지울 수 있다
+    function jsPinOk(id) {
+      return exists(/databases/$(database)/documents/jinsun50_pins/$(id))
+        && hashing.sha256(id + ':' + getAfter(/databases/$(database)/documents/jinsun50_pins/$(id)).data.get('pin', '')).toHexString().lower()
+          == get(/databases/$(database)/documents/jinsun50_pins/$(id)).data.h;
+    }
     // 메뉴 안내글: 누구나 보기, 관리자만 쓰기
     match /jinsun50_menus/{menuId} {
       allow read: if true;
@@ -413,8 +420,11 @@ service cloud.firestore {
 
     // 축하 방명록: 누구나 쓰기(남기면 바로 게시 approved: true), 게시 중인 글만 공개, 관리자만 내리기·삭제
     // (예전 화면이 approved: false로 보내도 받아 두고, 관리자가 '게시'로 올릴 수 있게 bool이면 허용)
+    // seen: false = 관리자가 아직 안 본 새 글 (관리자 허브 알림). 관리자가 보면 true 로 바꾼다
+    // 쓴 사람이 비밀번호(jinsun50_pins)를 정해 두었으면 그 비밀번호로 직접 지울 수 있다
     match /jinsun50_guestbook/{id} {
-      allow create: if request.resource.data.keys().hasOnly(['name','msg','createdAtMs','approved'])
+      allow create: if request.resource.data.keys().hasOnly(['name','msg','createdAtMs','approved','seen'])
+        && (!('seen' in request.resource.data) || request.resource.data.seen == false)
         && request.resource.data.approved is bool
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
@@ -423,6 +433,7 @@ service cloud.firestore {
         && request.resource.data.createdAtMs is int;
       allow read: if resource.data.approved == true || isTeacher();
       allow update, delete: if isTeacher();
+      allow delete: if jsPinOk(id);
     }
 
     // 추억 갤러리: 누구나 보기, 방문자 제보는 바로 게시(정해진 항목·크기만), 고치기·삭제는 관리자만
@@ -433,7 +444,8 @@ service cloud.firestore {
       allow create, update: if isTeacher()
         && request.resource.data.thumb is string
         && request.resource.data.thumb.size() < 200000;
-      allow create: if request.resource.data.keys().hasOnly(['thumb','year','caption','memo','by','createdAtMs'])
+      allow create: if request.resource.data.keys().hasOnly(['thumb','year','caption','memo','by','createdAtMs','seen'])
+        && (!('seen' in request.resource.data) || request.resource.data.seen == false)
         && request.resource.data.thumb is string && request.resource.data.thumb.size() < 200000
         && (request.resource.data.year == null
             || (request.resource.data.year is int
@@ -442,7 +454,7 @@ service cloud.firestore {
         && request.resource.data.memo is string && request.resource.data.memo.size() <= 200
         && request.resource.data.by is string && request.resource.data.by.size() <= 20
         && request.resource.data.createdAtMs is int;
-      allow delete: if isTeacher();
+      allow delete: if isTeacher() || jsPinOk(id);
     }
     // 추억 갤러리 사진별 조회수 (문서 이름 = 사진 id): 누구나 보기, 숫자는 1씩 올리기만, 있는 사진에만
     match /jinsun50_gallery_views/{id} {
@@ -465,7 +477,53 @@ service cloud.firestore {
         && request.resource.data.data.size() < 900000
         && !exists(/databases/$(database)/documents/jinsun50_gallery/$(id))
         && existsAfter(/databases/$(database)/documents/jinsun50_gallery/$(id));
+      allow delete: if isTeacher() || jsPinOk(id);
+    }
+
+    // 쓴 사람 비밀번호 (문서 이름 = 글 · 사진 id): h = sha256("id:숫자4자리") 16진수. 아무도 읽지 못한다
+    // 만들기는 글 · 사진과 같은 묶음으로 처음 올릴 때만. 지울 때는 pin 칸에 숫자를 담아 보내면 규칙이 해시로 확인
+    match /jinsun50_pins/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['h'])
+        && request.resource.data.h is string && request.resource.data.h.size() == 64
+        && ((existsAfter(/databases/$(database)/documents/jinsun50_guestbook/$(id))
+              && !exists(/databases/$(database)/documents/jinsun50_guestbook/$(id)))
+          || (existsAfter(/databases/$(database)/documents/jinsun50_gallery/$(id))
+              && !exists(/databases/$(database)/documents/jinsun50_gallery/$(id))));
+      allow update: if request.resource.data.keys().hasOnly(['h','pin'])
+        && request.resource.data.h == resource.data.h
+        && request.resource.data.pin is string && request.resource.data.pin.matches('^[0-9]{4}$')
+        && hashing.sha256(id + ':' + request.resource.data.pin).toHexString().lower() == resource.data.h;
+      // 글 · 사진이 없어진 뒤의 정리는 누구나, 그 밖에는 관리자만
+      allow delete: if isTeacher()
+        || (!exists(/databases/$(database)/documents/jinsun50_guestbook/$(id))
+            && !exists(/databases/$(database)/documents/jinsun50_gallery/$(id)));
+    }
+
+    // 하트 (문서 이름 = g_글id · p_사진id): 누구나 보기, 숫자 n 은 1씩 올리거나 내리기만, 있는 글 · 사진에만
+    match /jinsun50_hearts/{key} {
+      allow read: if true;
+      allow create: if key.matches('^[gp]_[A-Za-z0-9]{1,40}$')
+        && request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == 1
+        && ((key.matches('^g_.*') && exists(/databases/$(database)/documents/jinsun50_guestbook/$(key.split('_')[1])))
+          || (key.matches('^p_.*') && exists(/databases/$(database)/documents/jinsun50_gallery/$(key.split('_')[1]))));
+      allow update: if request.resource.data.keys().hasOnly(['n'])
+        && (request.resource.data.n == resource.data.n + 1
+          || (request.resource.data.n == resource.data.n - 1 && resource.data.n > 0));
       allow delete: if isTeacher();
+    }
+
+    // 신고: 누구나 보내기(정해진 항목만), 관리자만 보기 · 지우기
+    // target = g_글id · p_사진id, kind = g · p, status = 'new' (관리자 허브가 이 개수를 센다)
+    match /jinsun50_reports/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['target','why','kind','createdAtMs','status'])
+        && request.resource.data.target is string && request.resource.data.target.matches('^[gp]_[A-Za-z0-9]{1,40}$')
+        && request.resource.data.kind in ['g', 'p']
+        && request.resource.data.target.matches('^' + request.resource.data.kind + '_.*')
+        && request.resource.data.why is string && request.resource.data.why.size() <= 100
+        && request.resource.data.createdAtMs is int
+        && request.resource.data.status == 'new';
+      allow read, update, delete: if isTeacher();
     }
 
     // 예전 사진 제보 대기함: 지금은 방문자 사진이 바로 jinsun50_gallery에 실린다.
