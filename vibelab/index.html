@@ -1115,6 +1115,9 @@ html.dash-only #dlgAdmin .doc-head{display:none}
 /* 4번 세 칸은 좁아서: ◀ ▶ 대신 위 번호 단추로 넘기고, 설명은 한 줄 아래로 */
 :is(#ghaBox,#ghbBox,#ghcBox) .gh-nav{display:none}
 :is(#ghaBox,#ghbBox,#ghcBox) .gh-cap > div{min-width:0;flex:1}
+.pf-card.zero{border-style:dashed;border-color:color-mix(in srgb,var(--pink) 60%,#fff);background:color-mix(in srgb,var(--pink) 4%,#fff)}
+.pf-cmts{max-height:11rem;overflow:auto}
+.pf-ask{font-size:.8125rem;color:var(--ink2);align-self:center}
 </style>
 </head>
 <body>
@@ -2729,8 +2732,9 @@ function whoOf(c) {
 }
 // 친구 점검: 기대한 것 · 실제로 나온 것 · 좋았던 점 (저장 칸 이름은 idea · bug · good 그대로)
 const CK_KINDS = [["idea", "🎯 기대한 것", "열기 전에 무엇을 기대했나요?"], ["bug", "👀 실제로 나온 것", "직접 써 보니 실제로 어떻게 됐나요?"], ["good", "👍 좋았던 점", "(선택) 좋았던 점 하나"]];
-const cmtHTML = c => { const w = whoOf(c);
-  return `<div class="cmt ${w.cls}"><div class="cmt-h"><b>${w.n}</b><span>${fmtTime(c.createdAt)}</span></div>${CK_KINDS.filter(([k]) => c[k]).map(([k, n]) => `<div><span class="cmt-k">${n}</span> ${nl(c[k])}</div>`).join("")}</div>`; };
+// (2026-11-11) 자유 댓글은 예전 '좋았던 점(good)' 칸 하나에 저장해요 (저장 모양 · 보안 규칙은 그대로). 세 칸으로 쓴 예전 피드백은 이름표와 함께
+const cmtHTML = c => { const w = whoOf(c), free = c.good && !c.idea && !c.bug;
+  return `<div class="cmt ${w.cls}"><div class="cmt-h"><b>${w.n}</b><span>${fmtTime(c.createdAt)}</span></div>${free ? `<div>${nl(c.good)}</div>` : CK_KINDS.filter(([k]) => c[k]).map(([k, n]) => `<div><span class="cmt-k">${n}</span> ${nl(c[k])}</div>`).join("")}</div>`; };
 const checksOf = id => checks.filter(c => c.appId === id).sort(byTime);
 
 // 조: 반마다 웹앱을 올린 순서대로 4명씩. 4로 나누어떨어지지 않으면 마지막 조들을 3명으로 나눠요
@@ -2759,12 +2763,12 @@ function featList(p) {
 // 왼쪽: 우리 반 활동기록 칩
 function renderChips() {
   const box = $("chipBox"); if (!box) return;
-  const list = appsOfBan(), grp = myGroup().map(a => a.id);
+  const list = appsOfBan(), grp = [];
   box.innerHTML = list.length ? `<div class="rec-chips">${list.map(a => `<a class="rec-chip ${a.id === myAppId ? "mine" : grp.includes(a.id) ? "grp" : ""}" ${appAttrs(a)} title="${esc(a.intro || a.appName)}"><span class="rc-l">${appLabel(a.id)}</span>${esc(a.appName)}</a>`).join("")}</div>
-    <p class="muted rec-key"><span class="rc-dot mine"></span>내 웹앱 <span class="rc-dot grp"></span>우리 조 · 누르면 새 창으로 열려요</p>`
+    <p class="muted rec-key"><span class="rc-dot mine"></span>내 웹앱 · 누르면 새 창으로 열려요</p>`
     : `<p class="muted rec-key" style="margin:0 0 .5rem">아직 올라온 웹앱이 없어요. 친구들이 주소를 올리면 <b>이렇게 칩으로</b> 모여요.</p>
       <div class="rec-chips rec-demo" aria-hidden="true">${[["A","오늘의 영단어 퀴즈",""],["B","급식 투표",""],["C","오늘의 감정 일기",""],["D","독서 기록장",""],["E","수학 타이머","grp"],["F","분리수거 퀴즈","mine"],["G","시간표 알리미","grp"],["H","칭찬 스티커판","grp"]].map(([l, n, c]) => `<span class="rec-chip ${c}"><span class="rc-l">${l}</span>${n}</span>`).join("")}<span class="demo-tag">예시</span></div>
-      <p class="muted rec-key"><span class="rc-dot mine"></span>내 웹앱 <span class="rc-dot grp"></span>우리 조 · 누르면 새 창으로 열려요</p>`;
+      <p class="muted rec-key"><span class="rc-dot mine"></span>내 웹앱 · 누르면 새 창으로 열려요</p>`;
 }
 
 // 저장(이 기기): 자기 점검 · AI 점검
@@ -2880,59 +2884,54 @@ function renderAiRes() {
     <div class="ai-res">${lines.map(s => `<div class="ar ${kind(s)}">${esc(s)}</div>`).join("")}</div>
     <p class="muted" style="margin:.375rem 0 0">AI가 고쳐 준 것도 <b>마지막 확인은 내가</b> 해요.</p>`;
 }
-function peerCard(a, mineToo) {
-  const mine = checksOf(a.id).filter(c => whoOf(c).cls === "me" || (teacher && c.fromApp === "teacher"));
-  return `<div class="pf-card">
-    <div class="pf-top"><span class="g-lb">${appLabel(a.id)}</span><div><b>${esc(a.appName)}</b><small>학생 ${appLabel(a.id)}</small></div>${mine.length ? '<span class="g-done">✔ 전달됨</span>' : ""}</div>
-    <div class="g-btns"><a class="chip" ${appAttrs(a)}>🔗 열어 보기</a></div>
-    <details class="more pop"><summary>📒 기록 보기</summary><div class="pop-panel">${a.intro ? `<span class="subl">한 줄 소개: ${esc(a.intro)}</span>` : ""}${a.ask ? `<span class="subl">🙋 부탁: ${esc(a.ask)}</span>` : ""}${a.intro || a.ask ? "" : `<span class="subl">적힌 기록이 없어요</span>`}</div></details>
-    <p class="pf-h">01 내가 남기는 피드백</p>
-    ${mine.length ? `<div class="pick-list">${mine.map(cmtHTML).join("")}</div>` : ""}
+// 3차 친구 점검 (2026-11-11): 조 없이 우리 반 누구의 웹앱에나 자유롭게 댓글을 달아요. 카드마다 모두의 댓글이 보여요
+function peerCard(a) {
+  const all = checksOf(a.id), sent = all.some(c => whoOf(c).cls === "me" || (teacher && c.fromApp === "teacher"));
+  return `<div class="pf-card ${all.length ? "" : "zero"}">
+    <div class="pf-top"><span class="g-lb">${appLabel(a.id)}</span><div><b>${esc(a.appName)}</b><small>${a.intro ? esc(a.intro) : "학생 " + appLabel(a.id)}</small></div>${sent ? '<span class="g-done">✔ 남겼어요</span>' : ""}</div>
+    <div class="g-btns"><a class="chip" ${appAttrs(a)}>🔗 열어 보기</a>${a.ask ? `<span class="pf-ask">🙋 ${esc(a.ask)}</span>` : ""}</div>
+    <p class="pf-h">💬 댓글 ${all.length}개${all.length ? "" : " · 첫 댓글을 남겨 줘요!"}</p>
+    ${all.length ? `<div class="pick-list pf-cmts">${all.map(cmtHTML).join("")}</div>` : ""}
     <form class="form pf-form" id="pf-${a.id}" data-app="${a.id}" autocomplete="off">
-      ${CK_KINDS.map(([k, n, ph]) => `<textarea id="pf-${a.id}-${k}" name="${k}" rows="2" maxlength="300" placeholder="${n} · ${ph}"></textarea>`).join("")}
-      <button class="btn sm" type="submit">💬 ${mine.length ? "더 보내기" : "보내기"}</button>
+      <textarea id="pf-${a.id}-good" name="good" rows="2" maxlength="300" placeholder="써 보니 어땠나요? 좋았던 점 · 이렇게 하면 더 좋겠어요"></textarea>
+      <button class="btn sm" type="submit">💬 댓글 달기</button>
     </form>
   </div>`;
 }
-// 친구 웹앱이 아직 없을 때 보여 주는 3차 친구 점검 예시 (눌러도 아무 일이 없어요)
+// 친구 웹앱이 아직 없을 때 보여 주는 예시 (눌러도 아무 일이 없어요)
 function peerDemo() {
-  const fb = (who, cls, d) => `<div class="cmt ${cls}"><div class="cmt-h"><b>${who}</b><span>방금</span></div>${CK_KINDS.filter(([k]) => d[k]).map(([k, n]) => `<div><span class="cmt-k">${n}</span> ${d[k]}</div>`).join("")}</div>`;
+  const fb = (who, cls, t) => `<div class="cmt ${cls}"><div class="cmt-h"><b>${who}</b><span>방금</span></div><div>${t}</div></div>`;
   const peers = [
-    ["E", "수학 타이머", "1분 안에 계산 문제 풀기", { idea: "시간이 줄어드는 게 보일 것 같았어요", bug: "시작을 누르니 숫자가 1초씩 줄어요. 다 끝나도 소리는 안 나요", good: "숫자가 커서 보기 좋아요" }],
-    ["G", "시간표 알리미", "오늘 시간표를 한눈에"],
-    ["H", "칭찬 스티커판", "칭찬 스티커 모으기"]
+    ["E", "수학 타이머", "1분 안에 계산 문제 풀기", [["학생 B", "", "숫자가 1초씩 줄어드는 게 잘 보여요. 끝날 때 소리가 나면 더 좋겠어요"], ["🙋 나", "me", "문제가 끝나면 점수가 바로 나와서 좋아요!"]]],
+    ["G", "시간표 알리미", "오늘 시간표를 한눈에", [["학생 A", "", "요일을 누르면 바로 바뀌어서 편해요"]]],
+    ["H", "칭찬 스티커판", "칭찬 스티커 모으기", []]
   ];
-  const card = ([l, n, intro, sent]) => `<div class="pf-card">
-    <div class="pf-top"><span class="g-lb">${l}</span><div><b>${n}</b><small>학생 ${l}</small></div>${sent ? '<span class="g-done">✔ 전달됨</span>' : ""}</div>
-    <div class="g-btns"><span class="chip">🔗 열어 보기</span><span class="chip">📒 기록 보기 ▾</span></div>
-    <p class="pf-h">01 내가 남기는 피드백</p>
-    ${sent ? `<div class="pick-list">${fb("🙋 나", "me", sent)}</div>` : ""}
-    ${CK_KINDS.map(([k, nm, ph]) => `<div class="pf-fake">${nm} · ${ph}</div>`).join("")}
-    <span class="btn sm pf-fake-btn">💬 ${sent ? "더 보내기" : "보내기"}</span>
+  const card = ([l, n, intro, cs]) => `<div class="pf-card ${cs.length ? "" : "zero"}">
+    <div class="pf-top"><span class="g-lb">${l}</span><div><b>${n}</b><small>${intro}</small></div>${cs.some(c => c[1] === "me") ? '<span class="g-done">✔ 남겼어요</span>' : ""}</div>
+    <div class="g-btns"><span class="chip">🔗 열어 보기</span></div>
+    <p class="pf-h">💬 댓글 ${cs.length}개${cs.length ? "" : " · 첫 댓글을 남겨 줘요!"}</p>
+    ${cs.length ? `<div class="pick-list pf-cmts">${cs.map(c => fb(...c)).join("")}</div>` : ""}
+    <div class="pf-fake">써 보니 어땠나요? 좋았던 점 · 이렇게 하면 더 좋겠어요</div>
+    <span class="btn sm pf-fake-btn">💬 댓글 달기</span>
   </div>`;
   return `<div class="demo-box" aria-hidden="true"><span class="demo-tag">예시</span>
-    <p class="pf-h">🙋 나는 <b>학생 F</b> · 2조 (4명)</p>
     <div class="pf-grid">${peers.map(card).join("")}</div>
-    <p class="pf-h">02 내가 받은 피드백 1개</p>
-    <div class="pick-list">${fb("학생 G", "", { idea: "분리수거 방법이 그림으로 나올 것 같았어요", bug: "그림을 누르면 정답이 바로 보여요. 틀려도 점수가 올라가요", good: "그림이 귀여워서 하고 싶어져요" })}</div>
+    <p class="pf-h">📬 내 웹앱에 달린 댓글 1개</p>
+    <div class="pick-list">${fb("학생 G", "", "그림을 누르면 정답이 바로 보여요. 틀려도 점수가 올라가요. 그림은 귀여워서 하고 싶어져요")}</div>
   </div>
-  <p class="muted" style="margin:.5rem 0 0">친구들이 주소를 올리면 이 자리에 우리 조 카드가 생겨요.</p>`;
+  <p class="muted" style="margin:.5rem 0 0">친구들이 주소를 올리면 이 자리에 우리 반 웹앱 카드가 생겨요.</p>`;
 }
 function peerPane() {
-  const lead = `<p class="muted ck-lead">조는 웹앱을 올린 순서대로 <b>4명씩</b> 정해져요. 4로 나누어떨어지지 않으면 마지막 조는 3명이에요. 마주 앉아 설명하지 않고, <b>링크만 열어</b> 직접 써 봐요.</p>`;
-  const foot = `<p class="muted ck-foot">판단이 아니라 관찰을 건네요. 무엇을 고칠지는 만든 사람이 정해요.</p>`;
-  if (teacher) {
-    const gs = groupsOfBan();
-    return lead + (gs.length ? gs.map((g, i) => `<p class="pf-h">${i + 1}조 · ${g.length}명</p><div class="pf-grid">${g.map(a => peerCard(a)).join("")}</div>`).join("") : peerDemo()) + foot;
-  }
-  if (!getMe()) { const g0 = groupsOfBan()[0] || []; return lead + (g0.length ? `<p class="pf-h">예시 · 1조 (${g0.length}명)</p><div class="pf-grid">${g0.map(a => peerCard(a)).join("")}</div>` : peerDemo()) + foot; }
-  if (!myAppId) return lead + `<p class="notice"><b>4번</b>에서 내 웹앱 주소를 먼저 올리면 우리 조가 정해져요.</p>` + peerDemo() + foot;
-  const g = myGroup(), others = g.filter(a => a.id !== myAppId), idx = groupsOfBan().findIndex(gr => gr.some(a => a.id === myAppId)) + 1;
+  const lead = `<p class="muted ck-lead">조 없이 <b>우리 반 누구의 웹앱에나</b> 댓글을 달아요. 설명을 듣지 말고 <b>링크만 열어</b> 직접 써 본 뒤 남겨요. <b>댓글이 없는 친구</b>(점선 카드)부터 가 봐요.</p>`;
+  const foot = `<p class="muted ck-foot">판단이 아니라 관찰을 건네요. 무엇을 고칠지는 만든 사람이 정해요. 댓글은 우리 반 모두가 함께 봐요.</p>`;
+  const list = appsOfBan().filter(a => teacher || a.id !== myAppId);
+  const cards = list.length ? `<p class="pf-h">${ban}반 웹앱 ${list.length}개 · 댓글 ${list.reduce((n, a) => n + checksOf(a.id).length, 0)}개</p><div class="pf-grid">${list.map(peerCard).join("")}</div>` : peerDemo();
+  if (teacher || !getMe()) return lead + cards + foot;
+  if (!myAppId) return lead + `<p class="notice"><b>4번</b>에서 내 웹앱 주소를 먼저 올리면 댓글을 달 수 있어요.</p>` + cards + foot;
   const got = checksOf(myAppId);
-  return lead + `<p class="pf-h">🙋 나는 <b>학생 ${appLabel(myAppId)}</b> · ${idx}조 (${g.length}명)</p>
-    ${others.length ? `<div class="pf-grid n${others.length}">${others.map(a => peerCard(a)).join("")}</div>` : `<div class="empty">아직 우리 조에 친구가 없어요. 친구들이 주소를 올리면 여기에 나타나요.</div>`}
-    <p class="pf-h">02 내가 받은 피드백 ${got.length}개</p>
-    ${got.length ? `<div class="pick-list">${got.map(cmtHTML).join("")}</div><button type="button" class="edit-plan-btn ai-full" data-ai="gotsum" style="margin-top:.625rem">🤖 받은 피드백 정리 (복사)</button>` : `<div class="empty">아직 받은 피드백이 없어요.</div>`}
+  return lead + `<p class="pf-h">🙋 나는 <b>학생 ${appLabel(myAppId)}</b></p>${cards}
+    <p class="pf-h">📬 내 웹앱에 달린 댓글 ${got.length}개</p>
+    ${got.length ? `<div class="pick-list">${got.map(cmtHTML).join("")}</div><button type="button" class="edit-plan-btn ai-full" data-ai="gotsum" style="margin-top:.625rem">🤖 받은 댓글 정리 (복사)</button>` : `<div class="empty">아직 받은 댓글이 없어요.</div>`}
     ${foot}`;
 }
 
@@ -3071,15 +3070,15 @@ ${planText(p)}
     const got = checks.filter(c => c.appId === myAppId).sort(byTime);
     if (!got.length) return { err: "아직 받은 검증이 없어요" };
     const a = myApp();
-    return { text: `나는 고등학생이고, 수업에서 웹앱을 만들어 친구들에게 검증을 받았어.
-받은 검증을 '좋은 점'과 '고칠 점'으로 정리해 주고, 가장 먼저 고치면 좋을 것 하나를 골라 줘.
+    return { text: `나는 고등학생이고, 수업에서 웹앱을 만들어 친구들에게 댓글을 받았어.
+받은 댓글을 '좋은 점'과 '고칠 점'으로 정리해 주고, 가장 먼저 고치면 좋을 것 하나를 골라 줘.
 그다음 그 하나를 고쳐 달라고 AI에게 보낼 문장을 써 줘. (index.html은 내가 따로 첨부할게)
 
 [내 웹앱]
 ${a ? `${a.appName} · ${a.intro || ""}` : ""}
 
-[받은 검증]
-${got.map(c => [c.idea && "기대한 것: " + c.idea, c.bug && "실제로 나온 것: " + c.bug, c.good && "좋았던 점: " + c.good].filter(Boolean).map(s => "- " + s).join("\n")).join("\n")}`, note: `받은 검증 ${got.length}개를` };
+[받은 댓글]
+${got.map(c => c.good && !c.idea && !c.bug ? "- " + c.good : [c.idea && "기대한 것: " + c.idea, c.bug && "실제로 나온 것: " + c.bug, c.good && "좋았던 점: " + c.good].filter(Boolean).map(s => "- " + s).join("\n")).join("\n")}`, note: `받은 검증 ${got.length}개를` };
   }
   if (kind === "reflect") {
     const picks = getPicks().map(id => wall.find(w => w.id === id)).filter(Boolean);
@@ -3798,12 +3797,12 @@ stageEl.addEventListener("submit", async e => {
     const a = apps.find(x => x.id === f.dataset.app); if (!a) return;
     if (!teacher && !m) { toast("먼저 나를 알려 주세요"); openMeDlg(); return; }
     if (!teacher && !myAppId) { toast("내 웹앱 주소를 먼저 올려요"); return; }
-    const d = { appId: a.id, ban: a.ban, fromApp: teacher ? "teacher" : myAppId, good: f.good.value.trim(), bug: f.bug.value.trim(), idea: f.idea.value.trim() };
-    if (!d.idea && !d.bug && !d.good) { toast("기대한 것이나 실제로 나온 것을 써 주세요"); f.idea.focus(); return; }
+    const d = { appId: a.id, ban: a.ban, fromApp: teacher ? "teacher" : myAppId, good: f.good.value.trim(), bug: f.bug ? f.bug.value.trim() : "", idea: f.idea ? f.idea.value.trim() : "" };
+    if (!d.idea && !d.bug && !d.good) { toast("댓글을 써 주세요"); f.good.focus(); return; }
     const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
     try {
       addMyCheck(await saveCheck(d, teacher ? { name: "선생님" } : { name: m.name }));
-      f.reset(); toast("피드백을 전달했어요. 고마워요!"); renderCheck(true);
+      f.reset(); toast("댓글을 남겼어요. 고마워요!"); renderCheck(true);
     } catch (err) { console.error(err); toast("보내지 못했어요. 인터넷 연결을 확인하세요"); btn.disabled = false; }
     return;
   }
@@ -3877,7 +3876,7 @@ function printBook() {
     checkBox: `<div class="pb-ck">
       <div><h4>1차 · 자기 점검</h4><p>2번 계획서와 <b>실제 화면</b>을 비교해 항목마다 됨 · 화면만 · 안 됨을 골라요.</p><ul>${selfItems().map(it => `<li>${it.t}</li>`).join("")}</ul></div>
       <div><h4>2차 · AI 점검</h4><p>화면 캡처와 index.html을 첨부해 AI에게 점검을 받아요.</p><ul>${AI_CHECKLIST.map(t => `<li>${t}</li>`).join("")}</ul></div>
-      <div><h4>3차 · 친구 점검</h4><p>4명씩 조를 지어, 설명 없이 <b>링크만 열어</b> 직접 써 봐요.</p><ul>${CK_KINDS.map(([, n, ph]) => `<li><b>${n}</b> ${ph}</li>`).join("")}</ul><p>판단이 아니라 관찰을 건네요. 무엇을 고칠지는 만든 사람이 정해요.</p></div></div>
+      <div><h4>3차 · 친구 점검</h4><p>조 없이 우리 반 누구의 웹앱에나 <b>링크만 열어</b> 직접 써 보고 댓글을 달아요. 댓글이 없는 친구부터 가 봐요.</p><ul><li>써 보니 어땠나요?</li><li>좋았던 점 하나</li><li>이렇게 하면 더 좋겠어요</li></ul><p>판단이 아니라 관찰을 건네요. 무엇을 고칠지는 만든 사람이 정해요.</p></div></div>
       <p class="pb-act">✍️ 점검마다 고친 것을 수업 화면에 적어요.</p>`
   };
   box.innerHTML = `<section class="pb-cover"><img class="pb-logo" src="icon-512.png" alt="">
