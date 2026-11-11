@@ -2267,7 +2267,37 @@ async function loadThPrev(b) {
   } catch (e) { console.error("이론편 미리보기", e); }
   thPrev[b] = out; thGalSig = ""; renderThGal();
 }
-const thPlansOf = b => { const pv = thPrev[b] || {};
+/* 👩‍🏫 선생님 화면에서는 '출석부 기준': 그 반 출석부 학생마다 '나 확인'한 닉네임 → 계획서 열쇠 → 이론편 계획서를 찾아요
+   (다른 반에서 이론편을 들은 학생 것도 함께). 출석부 · 접속 기록은 관리자만 읽을 수 있어서 학생 화면은 예전처럼 반 기준이에요.
+   카드에는 이름을 쓰지 않아요 (칠판에 띄우는 화면이라서) */
+const rollPlans = {};   // 반 → { sig, list: [계획서…] | null(찾는 중), n: 출석부 인원 }
+async function findRollPlans(b) {
+  const list = rosterOf(b), other = b === "A" ? "B" : "A";
+  const sig = list.map(r => r.sid).join(",") + "|" + checkins.length + "|" + plans.length;
+  if (rollPlans[b] && rollPlans[b].sig === sig) return;
+  rollPlans[b] = { sig, list: null, n: list.length };
+  const out = [];
+  for (const r of list) {
+    const nicks = [...new Set(checkins.filter(c => c.sid === r.sid).sort((x, y) => (x.ban === b ? -1 : 1) - (y.ban === b ? -1 : 1) || (y.at || 0) - (x.at || 0)).map(c => c.name).filter(Boolean))];
+    let got = null;
+    for (const nk of nicks) {
+      for (const bx of [b, other]) {
+        try { const k = await getKeyDoc(COL_KEYS, await keyOf(bx, r.sid, nk)); got = k && k.planId && plans.find(x => x.id === k.planId); } catch (e) { got = null; }
+        if (got) break;
+      }
+      if (got) break;
+    }
+    if (got && !out.includes(got)) out.push(got);
+  }
+  if (rollPlans[b].sig !== sig) return;   // 찾는 사이 명단이 바뀌었으면 새로 찾은 쪽을 써요
+  rollPlans[b].list = out;
+  if (out.some(p => p.ban !== b)) loadThPrev(other);   // 다른 반에서 만든 웹앱 미리보기도 불러와요
+  thGalSig = ""; renderThGal();
+}
+const useRoll = b => teacher && rosterOf(b).length > 0;
+const thPlansOf = b => { if (useRoll(b)) { findRollPlans(b); const rp = rollPlans[b], pv = { ...(thPrev.A || {}), ...(thPrev.B || {}) };
+    return (rp.list || []).filter(p => p.content || (p.url && safeUrl(p.url) !== "#") || pv[p.id]); }
+  const pv = thPrev[b] || {};
   return plans.filter(p => p.ban === b && (p.content || (p.url && safeUrl(p.url) !== "#") || pv[p.id]))
     .sort((x, y) => (pv[y.id] ? 1 : 0) - (pv[x.id] ? 1 : 0) || (y.updatedAt || 0) - (x.updatedAt || 0)); };
 // 🧪 오늘 실습에서 6번에 올린 웹앱: 코드로 올렸으면 그 코드를, 주소로 올렸으면 그 주소를 미리보기로 (다시 올리면 새로 불러와요)
@@ -2326,14 +2356,14 @@ async function openLabView(id) {
 function renderThGal(full) {
   const box = $("thGalBox"); if (!box) return;
   const b = thGalBan || ban; loadThPrev(b);
-  const pv = thPrev[b] || {}, list = thPlansOf(b);
-  const sig = [b, myPlanId, thPrev[b] === null, list.map(p => p.id + ":" + (p.updatedAt || 0) + ":" + (pv[p.id] ? pv[p.id].length : 0)).join(",")].join("|");
+  const list = thPlansOf(b), roll = useRoll(b), pv = roll ? { ...(thPrev.A || {}), ...(thPrev.B || {}) } : thPrev[b] || {};
+  const sig = [b, myPlanId, roll, roll && rollPlans[b].list === null, thPrev.A === null, thPrev.B === null, list.map(p => p.id + ":" + (p.updatedAt || 0) + ":" + (pv[p.id] ? pv[p.id].length : 0)).join(",")].join("|");
   if (!full && sig === thGalSig) return;
   thGalSig = sig;
-  box.innerHTML = `<div class="thg-head"><p class="count" style="margin:0">${b}반 지난 수업 웹앱 ${list.length}개</p>
+  box.innerHTML = `<div class="thg-head"><p class="count" style="margin:0">${roll ? `${b}반 출석부 ${rollPlans[b].n}명 중 웹앱 ${list.length}개` : `${b}반 지난 수업 웹앱 ${list.length}개`}</p>
       <span class="seg sm" role="group" aria-label="반">${["A", "B"].map(x => `<button type="button" class="${x === b ? "on" : ""}" data-thban="${x}">${x}반</button>`).join("")}</span></div>
     <p class="muted thg-lead">이론편에서 쓴 계획서와 만든 웹앱이에요. 눌러서 크게 보고, 오늘 무엇을 만들지 떠올려요. 반을 바꿔 다른 반 것도 볼 수 있어요.</p>
-    ${thPrev[b] === null && !list.length ? `<div class="empty">불러오는 중이에요…</div>`
+    ${(thPrev[b] === null || (roll && rollPlans[b].list === null)) && !list.length ? `<div class="empty">${roll ? "출석부로 학생들의 웹앱을 찾는 중이에요…" : "불러오는 중이에요…"}</div>`
       : list.length ? `<div class="thg">${list.map(p => { const h = pv[p.id], u = p.url && safeUrl(p.url) !== "#" ? p.url : "";
           return `<button type="button" class="thg-card ${p.id === myPlanId ? "mine" : ""}" data-thview="${p.id}">
             <span class="thg-pv">${h ? `<iframe sandbox="allow-scripts" srcdoc="${esc(h)}" tabindex="-1" title="${esc(p.appName)} 미리보기" loading="lazy"></iframe>` : `<span class="thg-none">${u ? "🔗 주소로 열어요" : "📝 글만 있어요"}</span>`}</span>
@@ -2343,7 +2373,7 @@ function renderThGal(full) {
 }
 function openThView(id) {
   const p = plans.find(x => x.id === id); if (!p) return;
-  const b = p.ban, h = (thPrev[b] || {})[id] || "", u = p.url && safeUrl(p.url) !== "#" ? p.url : "";
+  const b = p.ban, h = (thPrev[b] || {})[id] || (thPrev.A || {})[id] || (thPrev.B || {})[id] || "", u = p.url && safeUrl(p.url) !== "#" ? p.url : "";
   if (h || u) {
     openAppView(h, p.appName, u);
     // 웹앱 화면 위에 '웹앱 내용' 글도 함께 (이론편에서 쓴 글)
@@ -3174,8 +3204,8 @@ function setTeacher(on) {
     stopAdmin.push(listen(COL_WALL_WHO, l => { wallWho = {}; l.forEach(x => { wallWho[x.id] = x; }); renderDash(); }));
     stopAdmin.push(listen(COL_KEYS, l => { planPeople = l; renderDash(); }));
     stopAdmin.push(listen(COL_REFLECT, l => { reflects = l; renderDash(); }));
-    stopAdmin.push(listen(COL_ROSTER, l => { roster = l; renderDash(); }));
-    stopAdmin.push(listen(COL_CHECKIN, l => { checkins = l; renderDash(); }));
+    stopAdmin.push(listen(COL_ROSTER, l => { roster = l; renderDash(); thGalSig = ""; renderThGal(); }));
+    stopAdmin.push(listen(COL_CHECKIN, l => { checkins = l; renderDash(); thGalSig = ""; renderThGal(); }));
     stopAdmin.push(listen(COL_VISITS, l => { visits = l; renderDash(); }));
     stopAdmin.push(listen(COL_FIX, l => { fixes = l; renderDash(); }));
     stopAdmin.push(listen(COL_APP_HIST, l => { appHist = l; renderDash(); }));
