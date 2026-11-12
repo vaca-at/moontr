@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>2026 또래상담부 · 대시보드 시안</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/drs/favicon-32.png">
+<link rel="apple-touch-icon" href="/drs/apple-touch-icon.png">
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Black+Han+Sans&family=Jua&family=Gowun+Dodum&family=Press+Start+2P&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+@font-face { font-family:'Paperlogy'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
+@font-face { font-family:'Paperlogy'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-7Bold.woff2') format('woff2'); font-weight:700; font-display:swap; }
+
+/* ================= 모든 시안이 같이 쓰는 뼈대 ================= */
+* { box-sizing:border-box; }
+html, body { margin:0; }
+body { min-height:100vh; background:var(--bg); color:var(--ink); font-family:var(--font); -webkit-font-smoothing:antialiased; padding-bottom:90px; }
+a { color:inherit; }
+button, input { font-family:inherit; }
+.wrap { max-width:1180px; margin:0 auto; padding:56px 16px 24px; }
+.grid { display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:var(--gap, 16px); }
+.w { grid-column:span 12; background:var(--card); border-radius:var(--r, 16px); padding:18px; min-width:0; position:relative; }
+.w h3 { margin:0 0 12px; font-size:15px; color:var(--head, var(--ink)); font-weight:700; display:flex; align-items:center; gap:6px; }
+.w h3 small { margin-left:auto; font-size:12px; color:var(--muted); font-weight:400; }
+.muted { color:var(--muted); }
+.empty { color:var(--muted); font-size:13px; padding:10px 0; }
+
+/* 숫자 칸 */
+.tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:var(--gap, 16px); }
+.tile { background:var(--tile, var(--card)); border-radius:var(--r, 16px); padding:14px 16px; }
+.tile .k { font-size:13px; color:var(--muted); }
+.tile .v { font-size:34px; font-weight:700; line-height:1.15; margin-top:4px; font-family:var(--num, inherit); font-variant-numeric:tabular-nums; }
+.tile .v small { font-size:14px; color:var(--muted); font-weight:400; margin-left:2px; }
+.tile .s { font-size:12px; color:var(--muted); margin-top:2px; }
+
+/* 공지 */
+.notice-text { white-space:pre-wrap; line-height:1.6; font-size:15px; }
+
+/* 내 출석 */
+.login-row { display:flex; gap:8px; }
+.login-row input { flex:1; min-width:0; padding:11px 12px; border-radius:var(--rs, 10px); border:1.5px solid var(--line); background:var(--field, #fff); color:var(--ink); font-size:16px; }
+.btn { border:none; cursor:pointer; border-radius:var(--rs, 10px); padding:11px 14px; font-size:14px; font-weight:700; background:var(--acc); color:var(--on-acc, #fff); }
+.btn.ghost { background:transparent; color:var(--ink); border:1.5px solid var(--line); }
+.btn.on { background:var(--good, var(--acc)); color:var(--on-acc, #fff); }
+.btn:disabled { opacity:.5; cursor:default; }
+.me-name { font-size:20px; font-weight:700; }
+.me-sub { font-size:13px; color:var(--muted); margin-top:2px; }
+.meter { height:10px; background:var(--track); border-radius:6px; overflow:hidden; margin:10px 0 4px; }
+.meter > i { display:block; height:100%; background:var(--acc); border-radius:6px; }
+.check-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+.msg { font-size:13px; margin-top:8px; min-height:1em; }
+.link-btn { background:none; border:none; padding:0; color:var(--muted); font-size:12px; text-decoration:underline; cursor:pointer; }
+
+/* 출석 막대 그래프 (한 묶음이라 범례 없이 제목이 이름) */
+.chart { position:relative; height:170px; display:flex; align-items:flex-end; gap:8px; padding:18px 0 0; border-bottom:1px solid var(--axis); }
+.chart .ref { position:absolute; left:0; right:0; border-top:1px dashed var(--grid); font-size:11px; color:var(--muted); }
+.chart .ref span { position:absolute; right:0; top:-15px; }
+.chart .col { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; position:relative; cursor:default; }
+.chart .bar { width:min(34px, 70%); background:var(--bar, var(--acc)); border-radius:4px 4px 0 0; min-height:2px; transition:filter .15s; }
+.chart .col:hover .bar { filter:brightness(1.12); }
+.chart .val { font-size:12px; font-weight:700; margin-bottom:3px; }
+.chart-x { display:flex; gap:8px; margin-top:6px; }
+.chart-x span { flex:1; text-align:center; font-size:11px; color:var(--muted); }
+
+/* 뽑기 현황 */
+.hbar { display:grid; grid-template-columns:86px 1fr 36px; align-items:center; gap:8px; font-size:13px; margin:7px 0; }
+.hbar .t { height:12px; background:var(--track); border-radius:4px; overflow:hidden; }
+.hbar .t i { display:block; height:100%; background:var(--bar, var(--acc)); border-radius:0 4px 4px 0; }
+.hbar b { text-align:right; font-variant-numeric:tabular-nums; }
+.big-line { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.big-line .n { font-size:30px; font-weight:700; font-family:var(--num, inherit); }
+
+/* 선물 사진 */
+.photos { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:10px; }
+.ph { position:relative; aspect-ratio:1; border-radius:var(--rs, 10px); overflow:hidden; background:var(--track); }
+.ph img { width:100%; height:100%; object-fit:cover; display:block; }
+.ph .no { position:absolute; top:5px; left:5px; background:var(--acc); color:var(--on-acc, #fff); font-size:11px; font-weight:700; padding:1px 6px; border-radius:8px; }
+.ph .nm { position:absolute; left:0; right:0; bottom:0; padding:14px 6px 5px; font-size:11px; color:#fff; background:linear-gradient(transparent, rgba(0,0,0,.65)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ph.drawn::after { content:'뽑힘'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.45); color:#fff; font-weight:700; font-size:14px; }
+
+/* 바로 가기 */
+.links { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; }
+.lk { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:var(--rs, 10px); background:var(--tile); text-decoration:none; border:1.5px solid transparent; transition:transform .12s, border-color .12s; }
+.lk:hover { transform:translateY(-2px); border-color:var(--acc); }
+.lk .e { font-size:22px; }
+.lk b { display:block; font-size:14px; }
+.lk span.d { display:block; font-size:12px; color:var(--muted); }
+
+/* 부원 톡 */
+.chat { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.chat li { font-size:13px; line-height:1.45; padding:8px 10px; border-radius:var(--rs, 10px); background:var(--tile); }
+.chat li b { margin-right:6px; }
+.chat li time { float:right; font-size:11px; color:var(--muted); margin-left:6px; }
+
+/* 맨 아래 이용약관 */
+.policy-foot { max-width:1180px; margin:10px auto 0; padding:0 16px; font-size:12px; color:var(--muted); }
+.policy-foot summary { cursor:pointer; }
+.policy-foot .pbody { line-height:1.6; padding:8px 0; }
+
+/* 마우스를 올리면 뜨는 작은 설명 */
+#tip { position:fixed; z-index:50; pointer-events:none; background:#111827; color:#fff; font:13px/1.4 'Paperlogy', sans-serif; padding:6px 9px; border-radius:8px; opacity:0; transition:opacity .1s; white-space:nowrap; }
+#tip.on { opacity:1; }
+
+/* 시안 바꾸기 단추 (시안 보기 전용) */
+#picker { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:40; display:flex; align-items:center; gap:6px; background:rgba(17,24,39,.92); color:#fff; padding:7px 8px 7px 14px; border-radius:30px; font:13px 'Paperlogy', sans-serif; box-shadow:0 6px 24px rgba(0,0,0,.25); max-width:calc(100vw - 24px); }
+#picker .nm { margin-right:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#picker button { width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.12); color:#fff; font:700 14px 'Paperlogy', sans-serif; cursor:pointer; flex:none; }
+#picker button.on { background:#00b894; }
+#picker button.wide { width:auto; padding:0 12px; border-radius:16px; margin-left:4px; font-weight:400; font-size:12px; background:rgba(255,255,255,.12); }
+#picker button.wide.on { background:#f59f00; color:#1d1d1b; }
+
+@media (max-width:820px) {
+  .grid { grid-template-columns:minmax(0, 1fr); }
+  .grid > .w { grid-column:auto !important; }
+  .wrap { padding-top:52px; }
+  .tiles, body[data-s] .w-stats .tiles { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width:480px) {
+  body[data-s] .links { grid-template-columns:minmax(0, 1fr) !important; }
+  .photos { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+  .hbar { grid-template-columns:76px minmax(0, 1fr) 30px; }
+  .tile .v { font-size:28px; }
+  #picker .nm { display:none; }
+}
+
+/* ================= 시안 1 · 민트 카드 ================= */
+body[data-s="1"] { --bg:#f2f5f4; --card:#fff; --tile:#f3f8f6; --ink:#1d2a26; --muted:#6b7c76; --line:#d5e2dd; --track:#e6efec; --grid:#cfdcd7; --axis:#b9c9c3; --acc:#00a884; --good:#00a884; --font:'Paperlogy', sans-serif; --r:18px; }
+body[data-s="1"] .w { box-shadow:0 1px 2px rgba(16,40,32,.06), 0 4px 16px rgba(16,40,32,.04); }
+body[data-s="1"] .w-hero { background:#00a884; color:#fff; padding:26px 24px; }
+body[data-s="1"] .w-hero .eyebrow { font-size:13px; opacity:.85; }
+body[data-s="1"] .w-hero h1 { margin:4px 0 2px; font-size:30px; }
+body[data-s="1"] .w-hero .sub { font-size:14px; opacity:.9; }
+body[data-s="1"] .w-stats { background:none; box-shadow:none; padding:0; }
+body[data-s="1"] .w-stats .tile { background:#fff; box-shadow:0 1px 2px rgba(16,40,32,.06); }
+body[data-s="1"] .w-notice { background:#fffbea; box-shadow:none; border:1px solid #f3e3a1; }
+body[data-s="1"] .w-hero  { grid-column:span 12; }
+body[data-s="1"] .w-notice{ grid-column:span 12; }
+body[data-s="1"] .w-stats { grid-column:span 12; }
+body[data-s="1"] .w-me    { grid-column:span 4; }
+body[data-s="1"] .w-trend { grid-column:span 8; }
+body[data-s="1"] .w-gifts { grid-column:span 5; }
+body[data-s="1"] .w-photos{ grid-column:span 7; }
+body[data-s="1"] .w-links { grid-column:span 7; }
+body[data-s="1"] .w-chat  { grid-column:span 5; }
+
+/* ================= 시안 2 · 아케이드 ================= */
+body[data-s="2"] { --bg:#0a0e14; --card:#131d28; --tile:#0e161f; --ink:#e8f4ff; --muted:#7b9bb0; --line:#2c3e50; --track:#0b1219; --grid:#2c3e50; --axis:#3d556b; --acc:#37e6b0; --on-acc:#04130e; --good:#ffd166; --font:'Do Hyeon', sans-serif; --num:'Press Start 2P', monospace; --r:4px; --rs:2px; --field:#0b1219; --head:#ffd166; }
+body[data-s="2"] { background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px); }
+body[data-s="2"] .w { border:2px solid #2c3e50; box-shadow:0 0 0 2px #0a0e14, 0 0 18px rgba(55,230,176,.08); }
+body[data-s="2"] .w h3 { font-size:17px; letter-spacing:1px; }
+body[data-s="2"] .tile .v { font-size:22px; color:#ffd166; margin-top:10px; }
+body[data-s="2"] .tile { border:1px solid #2c3e50; }
+body[data-s="2"] .big-line .n { font-size:20px; color:#ffd166; }
+body[data-s="2"] .chart .bar { border-radius:0; background:linear-gradient(#37e6b0, #1fa47c); }
+body[data-s="2"] .meter, body[data-s="2"] .meter > i, body[data-s="2"] .hbar .t, body[data-s="2"] .hbar .t i { border-radius:0; }
+body[data-s="2"] .meter > i { background:repeating-linear-gradient(90deg, #37e6b0 0 10px, transparent 10px 12px); }
+body[data-s="2"] .w-hero { text-align:center; padding:26px 16px; border-color:#37e6b0; }
+body[data-s="2"] .w-hero .eyebrow { font-family:'Press Start 2P', monospace; font-size:11px; color:#ff6b9d; }
+body[data-s="2"] .w-hero h1 { font-size:44px; margin:12px 0 8px; color:#37e6b0; text-shadow:0 0 12px rgba(55,230,176,.6), 3px 3px 0 #0a3a2c; }
+body[data-s="2"] .w-hero .sub { font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd166; animation:blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+body[data-s="2"] .w-notice { padding:10px 14px; border-color:#ffd166; overflow:hidden; }
+body[data-s="2"] .w-notice h3 { display:none; }
+body[data-s="2"] .w-notice .notice-text { white-space:nowrap; display:inline-block; padding-left:100%; animation:marquee 22s linear infinite; color:#ffd166; font-size:17px; }
+@keyframes marquee { to { transform:translateX(-100%); } }
+body[data-s="2"] .ph { border:2px solid #2c3e50; }
+body[data-s="2"] .lk { border:1.5px solid #2c3e50; }
+body[data-s="2"] .lk:hover { border-color:#37e6b0; box-shadow:0 0 12px rgba(55,230,176,.3); }
+body[data-s="2"] .chat li b { color:#37e6b0; }
+body[data-s="2"] .w-hero  { grid-column:span 12; }
+body[data-s="2"] .w-notice{ grid-column:span 12; }
+body[data-s="2"] .w-stats { grid-column:span 12; }
+body[data-s="2"] .w-me    { grid-column:span 5; }
+body[data-s="2"] .w-trend { grid-column:span 7; }
+body[data-s="2"] .w-links { grid-column:span 4; }
+body[data-s="2"] .w-gifts { grid-column:span 4; }
+body[data-s="2"] .w-chat  { grid-column:span 4; }
+body[data-s="2"] .w-photos{ grid-column:span 12; }
+body[data-s="2"] .w-links .links { grid-template-columns:1fr; }
+
+/* ================= 시안 3 · 파스텔 인형뽑기 ================= */
+body[data-s="3"] { --bg:#fff9e0; --card:#fff; --tile:#eef7ff; --ink:#2b3a55; --muted:#7a8a99; --line:#cfe8ff; --track:#eaf3fb; --grid:#cfe8ff; --axis:#a9d3f5; --acc:#4dabf7; --good:#ff8787; --font:'Jua', sans-serif; --r:28px; --rs:16px; --gap:18px; }
+body[data-s="3"] { background-image:radial-gradient(#ffe7a3 1.5px, transparent 1.5px); background-size:22px 22px; }
+body[data-s="3"] .w { border:3px solid #cfe8ff; box-shadow:0 6px 0 #cfe8ff; }
+body[data-s="3"] .w h3 { font-size:18px; font-weight:400; }
+body[data-s="3"] .tile .v, body[data-s="3"] .me-name, body[data-s="3"] .big-line .n { font-weight:400; }
+body[data-s="3"] .w-hero { background:#ffd8d8; border-color:#ffb3b3; box-shadow:0 6px 0 #ffb3b3; text-align:center; padding:26px 16px; }
+body[data-s="3"] .w-hero h1 { margin:0; font-size:38px; font-weight:400; color:#e8590c; }
+body[data-s="3"] .w-hero .eyebrow { font-size:15px; color:#c2255c; }
+body[data-s="3"] .w-hero .sub { margin-top:4px; font-size:16px; }
+body[data-s="3"] .w-hero .claw { font-size:44px; display:inline-block; animation:sway 2.4s ease-in-out infinite; transform-origin:top center; }
+@keyframes sway { 0%,100% { transform:rotate(-8deg); } 50% { transform:rotate(8deg); } }
+body[data-s="3"] .w-stats { background:none; border:none; box-shadow:none; padding:0; }
+body[data-s="3"] .w-stats .tile { border-radius:24px; text-align:center; }
+body[data-s="3"] .w-stats .tile:nth-child(1) { background:#e7f5ff; }
+body[data-s="3"] .w-stats .tile:nth-child(2) { background:#fff0f0; }
+body[data-s="3"] .w-stats .tile:nth-child(3) { background:#f3f0ff; }
+body[data-s="3"] .w-stats .tile:nth-child(4) { background:#ebfbee; }
+body[data-s="3"] .ph { border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 3px #cfe8ff; }
+body[data-s="3"] .ph .nm { display:none; }
+body[data-s="3"] .ph .no { top:auto; bottom:6px; left:50%; transform:translateX(-50%); }
+body[data-s="3"] .lk { background:#fff4e6; border-radius:20px; }
+body[data-s="3"] .lk:nth-child(2) { background:#e7f5ff; }
+body[data-s="3"] .lk:nth-child(3) { background:#f3f0ff; }
+body[data-s="3"] .lk:nth-child(4) { background:#ebfbee; }
+body[data-s="3"] .chat li { background:#fff9db; border-radius:16px 16px 16px 4px; }
+body[data-s="3"] .w-notice { background:#fff3bf; border-color:#ffe066; box-shadow:0 6px 0 #ffe066; }
+body[data-s="3"] .w-hero  { grid-column:span 12; }
+body[data-s="3"] .w-notice{ grid-column:span 12; }
+body[data-s="3"] .w-me    { grid-column:span 5; }
+body[data-s="3"] .w-stats { grid-column:span 7; }
+body[data-s="3"] .w-photos{ grid-column:span 12; }
+body[data-s="3"] .w-gifts { grid-column:span 6; }
+body[data-s="3"] .w-trend { grid-column:span 6; }
+body[data-s="3"] .w-links { grid-column:span 7; }
+body[data-s="3"] .w-chat  { grid-column:span 5; }
+body[data-s="3"] .w-stats .tiles { grid-template-columns:1fr 1fr; height:100%; }
+
+/* ================= 시안 4 · 퀘스트 보드 ================= */
+body[data-s="4"] { --bg:#3d3220; --card:#f4e9cf; --tile:#ebdcb8; --ink:#4a3a1e; --muted:#8a6a3e; --line:#b89a5e; --track:#e0cda4; --grid:#c9b07a; --axis:#8a6a3e; --acc:#7a5a2e; --good:#c0392b; --font:'Gowun Dodum', sans-serif; --r:6px; --rs:6px; --field:#fbf4e2; }
+body[data-s="4"] { background-image:repeating-linear-gradient(90deg, rgba(0,0,0,.08) 0 2px, transparent 2px 140px), linear-gradient(#4a3c26, #2e2516); }
+body[data-s="4"] .w { border:2px solid #b89a5e; box-shadow:inset 0 0 0 4px #f4e9cf, inset 0 0 0 5px #c9b07a, 0 6px 14px rgba(0,0,0,.35); padding:22px; }
+body[data-s="4"] .w::before { content:''; position:absolute; top:-7px; left:50%; width:14px; height:14px; margin-left:-7px; border-radius:50%; background:radial-gradient(circle at 35% 35%, #e74c3c, #8e1f14); box-shadow:0 2px 3px rgba(0,0,0,.4); }
+body[data-s="4"] .w h3 { font-family:'Do Hyeon', sans-serif; font-size:19px; font-weight:400; border-bottom:1px dashed #b89a5e; padding-bottom:8px; }
+body[data-s="4"] .tile .v, body[data-s="4"] .big-line .n, body[data-s="4"] .me-name { font-family:'Do Hyeon', sans-serif; font-weight:400; }
+body[data-s="4"] .w-hero { text-align:center; background:none; border:none; box-shadow:none; color:#f4e9cf; padding:12px 0 4px; }
+body[data-s="4"] .w-hero::before { display:none; }
+body[data-s="4"] .w-hero h1 { font-family:'Black Han Sans', sans-serif; font-weight:400; font-size:40px; margin:4px 0; color:#ffd98a; text-shadow:0 3px 0 #1f180c; }
+body[data-s="4"] .w-hero .eyebrow, body[data-s="4"] .w-hero .sub { color:#e0cda4; }
+body[data-s="4"] .w-stats { background:none; border:none; box-shadow:none; padding:0; }
+body[data-s="4"] .w-stats::before { display:none; }
+body[data-s="4"] .w-stats .tile { border:2px solid #b89a5e; text-align:center; }
+body[data-s="4"] .lk { background:#fbf4e2; border:1.5px dashed #b89a5e; }
+body[data-s="4"] .lk:hover { border-style:solid; border-color:#c0392b; }
+body[data-s="4"] .lk b::after { content:' ▸'; color:#c0392b; }
+body[data-s="4"] .lv { display:inline-block; background:#c0392b; color:#fff; font-family:'Do Hyeon', sans-serif; padding:2px 8px; border-radius:4px; font-size:14px; margin-right:6px; }
+body[data-s="4"] .meter { height:14px; border:1.5px solid #8a6a3e; }
+body[data-s="4"] .meter > i { background:linear-gradient(#e6b84c, #b8862a); }
+body[data-s="4"] .w-hero  { grid-column:span 12; }
+body[data-s="4"] .w-notice{ grid-column:span 12; }
+body[data-s="4"] .w-me    { grid-column:span 4; }
+body[data-s="4"] .w-links { grid-column:span 8; }
+body[data-s="4"] .w-stats { grid-column:span 12; }
+body[data-s="4"] .w-trend { grid-column:span 6; }
+body[data-s="4"] .w-gifts { grid-column:span 6; }
+body[data-s="4"] .w-photos{ grid-column:span 8; }
+body[data-s="4"] .w-chat  { grid-column:span 4; }
+body[data-s="4"] .w-links .links { grid-template-columns:1fr 1fr; }
+
+/* ================= 시안 5 · 또래 소식지 ================= */
+body[data-s="5"] { --bg:#f6f3ec; --card:transparent; --tile:#ece7dc; --ink:#1d1d1b; --muted:#6e6a62; --line:#bdb6a8; --track:#e2dccf; --grid:#cfc8b9; --axis:#1d1d1b; --acc:#1f6f5c; --good:#1f6f5c; --font:'Paperlogy', sans-serif; --r:0; --rs:4px; --gap:28px; }
+body[data-s="5"] .wrap { max-width:1100px; }
+body[data-s="5"] .w { border-top:2px solid #1d1d1b; padding:14px 0 0; }
+body[data-s="5"] .w h3 { font-size:13px; letter-spacing:.08em; color:var(--acc); }
+body[data-s="5"] .w-hero { border-top:none; border-bottom:4px double #1d1d1b; text-align:center; padding:0 0 12px; }
+body[data-s="5"] .w-hero .eyebrow { font-size:12px; letter-spacing:.2em; color:var(--muted); }
+body[data-s="5"] .w-hero h1 { font-size:58px; margin:6px 0; letter-spacing:-.02em; line-height:1; }
+body[data-s="5"] .w-hero .sub { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; font-size:13px; border-top:1px solid #1d1d1b; padding-top:8px; margin-top:12px; }
+body[data-s="5"] .w-notice .notice-text { font-size:24px; font-weight:700; line-height:1.45; }
+body[data-s="5"] .w-notice h3::after { content:'오늘의 머리기사'; margin-left:auto; color:var(--muted); font-size:11px; letter-spacing:0; }
+body[data-s="5"] .w-stats .tiles { grid-template-columns:1fr 1fr; gap:0; }
+body[data-s="5"] .w-stats .tile { background:none; border-bottom:1px solid var(--line); border-radius:0; padding:10px 4px; }
+body[data-s="5"] .w-stats .tile:nth-child(odd) { border-right:1px solid var(--line); }
+body[data-s="5"] .tile .v { font-size:32px; }
+body[data-s="5"] .ph { border-radius:0; filter:grayscale(.15); }
+body[data-s="5"] .lk { background:none; border:none; border-bottom:1px solid var(--line); border-radius:0; padding:10px 0; }
+body[data-s="5"] .lk:hover { transform:none; color:var(--acc); }
+body[data-s="5"] .links { gap:0 24px; }
+body[data-s="5"] .chat li { background:none; border-left:3px solid var(--acc); border-radius:0; padding:4px 10px; font-style:normal; }
+body[data-s="5"] .chart .bar { background:#1d1d1b; border-radius:2px 2px 0 0; }
+body[data-s="5"] .chart .col:last-child .bar { background:var(--acc); }
+body[data-s="5"] .hbar .t i { background:#1d1d1b; }
+body[data-s="5"] .w-hero  { grid-column:span 12; }
+body[data-s="5"] .w-notice{ grid-column:span 8; }
+body[data-s="5"] .w-stats { grid-column:span 4; }
+body[data-s="5"] .w-trend { grid-column:span 6; }
+body[data-s="5"] .w-gifts { grid-column:span 6; }
+body[data-s="5"] .w-photos{ grid-column:span 8; }
+body[data-s="5"] .w-me    { grid-column:span 4; }
+body[data-s="5"] .w-links { grid-column:span 6; }
+body[data-s="5"] .w-chat  { grid-column:span 6; }
+@media (max-width:480px) {
+  body[data-s="5"] .w-hero h1 { font-size:42px; }
+  body[data-s="2"] .w-hero h1, body[data-s="3"] .w-hero h1, body[data-s="4"] .w-hero h1 { font-size:32px; }
+}
+</style>
+</head>
+<body data-s="1">
+
+<div class="wrap"><div class="grid" id="app"></div></div>
+
+<footer class="policy-foot"><details>
+  <summary>이용약관 · 개인정보 처리방침</summary>
+  <div class="pbody">
+    <b>이용약관</b> — 이 페이지는 진선여고 또래상담부 동아리 활동(출석 · 천원의 행복 뽑기 준비)을 돕는 웹앱이에요. 동아리 활동 말고 다른 목적으로 쓰지 말아 주세요.<br>
+    <b>개인정보 처리방침</b> — 학번(또는 전화번호 뒷자리 4자리)과 출석 시각, 직접 올린 선물 이름 · 가격 · 사진만 저장해요. 이 자료는 동아리 운영에만 쓰고, 학년이 끝나면 담당 선생님이 지워요. 지워 달라고 하고 싶으면 담당 선생님께 말해 주세요.
+  </div>
+</details></footer>
+
+<div id="picker" aria-label="시안 고르기"><span class="nm" id="pickName"></span></div>
+<div id="tip"></div>
+
+<script>
+/* =====================================================================
+   또래상담부 대시보드 시안 5개
+   - 자료는 본 화면(/drs/)과 같은 Firestore 컬렉션(drs_…)에서 읽어요.
+   - 출석 체크는 본 화면과 똑같이 저장돼요. 선물 등록 · 추첨 · 관리는 본 화면으로 넘어가요.
+   - 시안 바꾸기: 아래 동그라미 단추, 또는 주소 끝에 ?s=1 ~ ?s=5
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  storageBucket: "moon-d528d.firebasestorage.app",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765"
+};
+const COL = { settings:'drs_settings', members:'drs_members', attendance:'drs_attendance', gifts:'drs_gifts', chat:'drs_chat' };
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+/* ---------- 시안마다 다른 글자 ---------- */
+const DESIGNS = {
+  1: { name:'① 민트 카드',     order:['hero','notice','stats','me','trend','gifts','photos','links','chat'],
+       hero: d => `<div class="eyebrow">2026 또래상담부 · ${d}</div><h1>오늘의 또래상담부</h1><div class="sub">출석, 뽑기 준비, 부원 소식을 한눈에</div>`,
+       t: { notice:'📌 공지', me:'👤 내 출석', trend:'📊 모임별 출석', gifts:'🎁 천원의 행복 뽑기', photos:'🖼️ 새로 들어온 선물', links:'🚀 바로 가기', chat:'💬 부원 톡' } },
+  2: { name:'② 아케이드',       order:['hero','notice','stats','me','trend','links','gifts','chat','photos'],
+       hero: d => `<div class="eyebrow">◆ 2026 ARCADE ◆</div><h1>👾 또래상담부</h1><div class="sub">PRESS START</div>`,
+       t: { notice:'공지', me:'🕹️ PLAYER', trend:'📈 ATTENDANCE LOG', gifts:'🎰 GACHA STOCK', photos:'🆕 NEW ITEMS', links:'🗺️ STAGE SELECT', chat:'💬 CHAT' },
+       stat: ['MEMBERS','TODAY','ITEMS','LEFT'] },
+  3: { name:'③ 파스텔 인형뽑기', order:['hero','notice','me','stats','photos','gifts','trend','links','chat'],
+       hero: d => `<div class="claw">🧸</div><div class="eyebrow">2026 또래상담부</div><h1>인형뽑기 한 판!</h1><div class="sub">${d}</div>`,
+       t: { notice:'📢 오늘의 알림', me:'🐣 나', trend:'🌈 출석 무지개', gifts:'🎀 뽑기 기계 속', photos:'🎁 기계에 들어온 선물', links:'🎈 놀러 가기', chat:'💌 쪽지함' } },
+  4: { name:'④ 퀘스트 보드',     order:['hero','notice','me','links','stats','trend','gifts','photos','chat'],
+       hero: d => `<div class="eyebrow">⚔️ 2026 또래상담부 길드</div><h1>동아리 퀘스트 보드</h1><div class="sub">${d}</div>`,
+       t: { notice:'📜 길드 공지', me:'🧙 내 모험가 카드', trend:'🗓️ 모임 기록', gifts:'💰 보물 창고', photos:'🗝️ 새 보물', links:'⚔️ 오늘의 퀘스트', chat:'🕊️ 길드 소식' },
+       stat: ['길드원','오늘 모인 길드원','모인 보물','남은 보물'] },
+  5: { name:'⑤ 또래 소식지',     order:['hero','notice','stats','trend','gifts','photos','me','links','chat'],
+       hero: d => `<div class="eyebrow">진선여고 또래상담부 동아리 소식</div><h1>또래 소식</h1><div class="sub"><span>${d}</span><span>2026 또래상담부</span><span>들어주고, 함께하고</span></div>`,
+       t: { notice:'공지', me:'내 출석', trend:'모임별 출석', gifts:'천원의 행복 뽑기', photos:'새로 들어온 선물', links:'바로 가기', chat:'부원 한마디' } }
+};
+
+/* ---------- 자료 ---------- */
+const D = { notice:'', members:{}, memberCount:0, att:{}, gifts:[], chat:[], loaded:{ members:false, att:false, gifts:false } };
+let me = null;
+let S = 1;
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function nowTime() { return new Date().toTimeString().slice(0, 8); }
+function md(date) { const p = date.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
+function longDate() { const d = new Date(); return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + '일월화수목금토'[d.getDay()] + '요일'; }
+function ss(key, val) {   // sessionStorage 를 안전하게 (본 화면과 같은 로그인 칸 pcClubUser 를 같이 써요)
+  try {
+    if (val === undefined) return sessionStorage.getItem(key);
+    if (val === null) sessionStorage.removeItem(key); else sessionStorage.setItem(key, val);
+  } catch (e) { return null; }
+}
+function toThumbUrl(u) {
+  if (!u) return '';
+  u = String(u);
+  if (u.startsWith('data:')) return u;
+  const m = u.match(/[?&]id=([^&]+)/) || u.match(/\/d\/([^/?]+)/);
+  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w300' : u;
+}
+function giftImg(g) { return g.photo || toThumbUrl(g.photoUrl); }
+
+/* 출석: 날짜별로 { 모임:Set, 헤어짐:Set } */
+function dayIds(date) {
+  const a = D.att[date]; if (!a) return new Set();
+  return new Set([...(a['모임'] || []), ...(a['헤어짐'] || [])]);
+}
+function meetingDates() { return Object.keys(D.att).filter(d => dayIds(d).size > 0).sort(); }
+
+/* ---------- 칸 만들기 ---------- */
+function W(name, inner) {
+  const t = DESIGNS[S].t[name];
+  return `<section class="w w-${name}">${t ? `<h3>${t}</h3>` : ''}${inner}</section>`;
+}
+
+const WIDGETS = {
+  hero() { return `<section class="w w-hero">${DESIGNS[S].hero(longDate())}</section>`; },
+
+  notice() {
+    if (!D.notice) return '';
+    return W('notice', `<div class="notice-text">${esc(D.notice)}</div>`);
+  },
+
+  stats() {
+    const L = DESIGNS[S].stat || ['부원', '오늘 출석', '모인 선물', '남은 선물'];
+    const today = dayIds(todayStr()).size;
+    const total = D.gifts.length, left = D.gifts.filter(g => !g.drawn).length;
+    const pct = D.memberCount ? Math.round(today / D.memberCount * 100) : 0;
+    const tile = (k, v, unit, s) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}<small>${unit}</small></div><div class="s">${s}</div></div>`;
+    return W('stats', `<div class="tiles">
+      ${tile(L[0], D.loaded.members ? D.memberCount : '–', '명', '2026 또래상담부')}
+      ${tile(L[1], D.loaded.att ? today : '–', '명', today ? pct + '% 출석' : '오늘은 아직 기록이 없어요')}
+      ${tile(L[2], D.loaded.gifts ? total : '–', '개', '천원의 행복 뽑기')}
+      ${tile(L[3], D.loaded.gifts ? left : '–', '개', total ? '뽑힌 선물 ' + (total - left) + '개' : '선물을 모으는 중')}
+    </div>`);
+  },
+
+  me() {
+    if (!me) {
+      return W('me', `<div class="me-sub" style="margin:0 0 10px">학번(5자리) 또는 전화번호 뒷자리(4자리)를 넣으면 내 출석이 보여요.${DEMO ? ' <b>예시 부원: 10101</b>' : ''}</div>
+        <div class="login-row"><input id="loginId" inputmode="numeric" maxlength="5" placeholder="학번 / 폰 뒷자리"><button class="btn" onclick="doLogin()">입장</button></div>
+        <div class="msg" id="meMsg"></div>`);
+    }
+    const isMember = me.role === 'member';
+    const dates = meetingDates();
+    const mine = dates.filter(d => dayIds(d).has(me.id)).length;
+    const pct = dates.length ? Math.round(mine / dates.length * 100) : 0;
+    const t = D.att[todayStr()] || {};
+    const did = s => !!(t[s] && t[s].has(me.id));
+    const lv = S === 4 ? `<span class="lv">Lv.${Math.floor(mine / 2) + 1}</span>` : S === 2 ? `<span style="font-family:'Press Start 2P';font-size:11px;color:#ff6b9d;margin-right:8px">1P</span>` : '';
+    const body = isMember ? `
+      <div class="me-name">${lv}${esc(me.name)}</div>
+      <div class="me-sub">${S === 4 ? '모험 경험치' : '지금까지 출석'} ${mine}번 / 모임 ${dates.length}번</div>
+      <div class="meter" data-tip="출석률 ${pct}%"><i style="width:${pct}%"></i></div>
+      <div class="me-sub">${pct}%${pct >= 80 ? ' · 최고예요! 🎉' : ''}</div>
+      <div class="check-row">
+        <button class="btn ${did('모임') ? 'on' : 'ghost'}" onclick="checkIn('모임')">${did('모임') ? '✔ ' : ''}모일 때</button>
+        <button class="btn ${did('헤어짐') ? 'on' : 'ghost'}" onclick="checkIn('헤어짐')">${did('헤어짐') ? '✔ ' : ''}헤어질 때</button>
+      </div>
+      <div class="msg muted" id="meMsg">오늘(${md(todayStr())}) 출석을 눌러요. 한 번 더 누르면 취소돼요.</div>`
+      : `<div class="me-name">${esc(me.name)}</div><div class="me-sub" style="margin-top:6px">${esc(me.welcome || '')}</div>
+         <div class="me-sub" style="margin-top:10px">출석체크는 또래상담부 부원만 할 수 있어요. 선물 등록은 아래 바로 가기에서!</div>`;
+    return W('me', body + `<div style="margin-top:10px"><button class="link-btn" onclick="logout()">로그아웃</button></div>`);
+  },
+
+  trend() {
+    if (!D.loaded.att) return W('trend', '<div class="empty">불러오는 중…</div>');
+    const dates = meetingDates().slice(-8);
+    if (!dates.length) return W('trend', '<div class="empty">아직 출석 기록이 없어요.</div>');
+    const max = Math.max(D.memberCount, ...dates.map(d => dayIds(d).size), 1);
+    const cols = dates.map((d, i) => {
+      const n = dayIds(d).size, h = n / max * 100;
+      const pct = D.memberCount ? Math.round(n / D.memberCount * 100) : 0;
+      const last = i === dates.length - 1;
+      return `<div class="col" data-tip="${md(d)} · ${n}명 출석${D.memberCount ? ' (' + pct + '%)' : ''}">${last ? `<div class="val">${n}명</div>` : ''}<div class="bar" style="height:${h}%"></div></div>`;
+    }).join('');
+    // 점선 = 부원 수 (그래프 위쪽 여백 18px 을 빼고 높이를 맞춰요)
+    const ref = D.memberCount ? `<div class="ref" style="bottom:calc((100% - 18px) * ${D.memberCount / max})"><span>부원 ${D.memberCount}명</span></div>` : '';
+    return W('trend', `<div class="chart">${ref}${cols}</div><div class="chart-x">${dates.map(d => `<span>${md(d)}</span>`).join('')}</div>
+      <div class="me-sub" style="margin-top:8px">막대 = 그날 모일 때 · 헤어질 때 중 한 번이라도 출석한 부원 수 (최근 8번)</div>`);
+  },
+
+  gifts() {
+    if (!D.loaded.gifts) return W('gifts', '<div class="empty">불러오는 중…</div>');
+    const g = D.gifts, total = g.length, drawn = g.filter(x => x.drawn).length;
+    const sum = g.reduce((a, x) => a + (Number(x.price) || 0), 0);
+    const bands = [
+      ['3천 원 미만', g.filter(x => Number(x.price) < 3000).length],
+      ['3천~5천 원', g.filter(x => Number(x.price) >= 3000 && Number(x.price) <= 5000).length],
+      ['5천 원 넘게', g.filter(x => Number(x.price) > 5000).length]
+    ];
+    const bmax = Math.max(1, ...bands.map(b => b[1]));
+    const pct = total ? Math.round(drawn / total * 100) : 0;
+    return W('gifts', `
+      <div class="big-line"><span class="n">${drawn} / ${total}</span><span class="muted">개 뽑혔어요</span></div>
+      <div class="meter" data-tip="뽑힌 선물 ${drawn}개 · 남은 선물 ${total - drawn}개"><i style="width:${pct}%"></i></div>
+      <div class="me-sub" style="margin-bottom:10px">모인 선물 값 모두 ${sum.toLocaleString()}원</div>
+      ${bands.map(b => `<div class="hbar" data-tip="${b[0]} 선물 ${b[1]}개"><span>${b[0]}</span><span class="t"><i style="width:${b[1] / bmax * 100}%"></i></span><b>${b[1]}</b></div>`).join('')}`);
+  },
+
+  photos() {
+    if (!D.loaded.gifts) return W('photos', '<div class="empty">불러오는 중…</div>');
+    const list = D.gifts.filter(giftImg).slice(0, S === 2 || S === 3 ? 10 : 12);
+    if (!list.length) return W('photos', '<div class="empty">아직 사진이 있는 선물이 없어요.</div>');
+    return W('photos', `<div class="photos">${list.map(g => `<div class="ph${g.drawn ? ' drawn' : ''}" data-tip="${esc(g.serial)}번 · ${esc(g.name)}${g.price ? ' · ' + Number(g.price).toLocaleString() + '원' : ''}"><img src="${esc(giftImg(g))}" loading="lazy" alt="${esc(g.name)}"><span class="no">${esc(g.serial)}</span><span class="nm">${esc(g.name)}</span></div>`).join('')}</div>`);
+  },
+
+  links() {
+    const L = [
+      ['🎁', '선물 등록하기', '사진 찍고 이름 · 가격 넣기', '/drs/'],
+      ['🎱', '행운의 번호 추첨', '게임 화면 열기', '/drs/?page=draw'],
+      ['👾', '연화제 부스 현황', '부스 상황판 · 채팅', '/drs/booth/'],
+      ['🔧', '교사용 관리보드', '선생님만', '/drs/?page=admin']
+    ];
+    return W('links', `<div class="links">${L.map(l => `<a class="lk" href="${l[3]}"><span class="e">${l[0]}</span><span><b>${l[1]}</b><span class="d">${l[2]}</span></span></a>`).join('')}</div>`);
+  },
+
+  chat() {
+    if (!D.chat.length) return W('chat', '<div class="empty">아직 올라온 말이 없어요.</div>');
+    return W('chat', `<ul class="chat">${D.chat.map(c => {
+      const t = c.at && c.at.toDate ? c.at.toDate() : null;
+      const tm = t ? (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '';
+      return `<li><time>${tm}</time><b>${esc(c.name)}</b>${esc(c.text)}</li>`;
+    }).join('')}</ul>`);
+  }
+};
+
+/* ---------- 그리기 ---------- */
+let drawTimer = 0;
+function render() { clearTimeout(drawTimer); drawTimer = setTimeout(draw, 30); }
+function draw() {
+  const focused = document.activeElement && document.activeElement.id === 'loginId' ? document.getElementById('loginId').value : null;
+  document.getElementById('app').innerHTML = DESIGNS[S].order.map(n => WIDGETS[n]()).join('');
+  const inp = document.getElementById('loginId');
+  if (inp) {
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    if (focused !== null) { inp.value = focused; inp.focus(); }
+  }
+}
+
+function setDesign(n) {
+  S = DESIGNS[n] ? n : 1;
+  document.body.dataset.s = S;
+  document.getElementById('pickName').textContent = DESIGNS[S].name;
+  document.querySelectorAll('#picker button').forEach(b => b.classList.toggle('on', Number(b.dataset.s) === S));
+  try { localStorage.setItem('drs-dash-s', S); } catch (e) {}
+  const u = new URL(location.href); u.searchParams.set('s', S); history.replaceState(null, '', u);
+  draw();
+}
+
+/* ---------- 로그인 (본 화면과 같은 규칙) ---------- */
+async function doLogin() {
+  const input = (document.getElementById('loginId').value || '').trim();
+  const msg = document.getElementById('meMsg');
+  const fail = t => { msg.textContent = t; msg.style.color = '#e03131'; };
+  if (!/^[0-9]{4,5}$/.test(input)) return fail('학번(5자리) 또는 전화번호 뒷자리(4자리) 숫자만 넣어 주세요.');
+  try {
+    let user;
+    if (DEMO && D.members[input]) user = { id:input, name:D.members[input], role:'member', welcome:D.members[input] + ' 학생 반가워요!', demo:true };
+    else if (input.length === 5) {
+      const doc = await db.collection(COL.members).doc(input).get();
+      if (doc.exists) user = { id:input, name:doc.data().name, role:'member', welcome:doc.data().name + ' 학생 반가워요!' };
+      else {
+        const g = input.charAt(0);
+        const label = (g === '1' || g === '2' || g === '3') ? '진선여고 ' + g + '학년' : '진선여고 학생';
+        user = { id:input, name:label, role:'nonmember', welcome:label + ' 반가워요!' };
+      }
+    } else user = { id:input, name:'방문객', role:'guest', welcome:'진선여고 또래상담부를 찾아주셔서 감사합니다!' };
+    me = user;
+    if (!user.demo) ss('pcClubUser', JSON.stringify(user));   // 예시 부원은 본 화면에 남기지 않아요
+    draw();
+  } catch (e) { fail('연결 오류: ' + e.message); }
+}
+function logout() { me = null; ss('pcClubUser', null); draw(); }
+
+/* ---------- 출석 체크 (본 화면과 같은 칸에 저장) ---------- */
+async function checkIn(session) {
+  if (!me || me.role !== 'member') return;
+  const date = todayStr();
+  if (DEMO) {   // 예시 자료에서는 화면에서만 바뀌고 저장하지 않아요
+    const day = D.att[date] || (D.att[date] = {});
+    const set = day[session] || (day[session] = new Set());
+    set.has(me.id) ? set.delete(me.id) : set.add(me.id);
+    draw(); return;
+  }
+  const ref = db.collection(COL.attendance).doc(date + '_' + session + '_' + me.id);
+  try {
+    const cur = await ref.get();
+    const now = !(cur.exists && cur.data().checked);
+    await ref.set({ date, session, id:me.id, name:me.name, checked:now, mode:'학생셀프체크', time:nowTime() });
+  } catch (e) { alert('출석을 저장하지 못했어요: ' + e.message); }
+}
+
+/* ---------- 실시간으로 자료 받기 ---------- */
+// REAL = 진짜 자료, D = 화면에 그리는 자료 (예시 자료 보기를 켜면 D 만 예시로 바뀌어요)
+const REAL = { notice:'', members:{}, memberCount:0, att:{}, gifts:[], chat:[], loaded:{ members:false, att:false, gifts:false } };
+let DEMO = false;
+function sync() { if (!DEMO) Object.assign(D, REAL); render(); }
+db.collection(COL.settings).doc('main').onSnapshot(s => { REAL.notice = s.exists ? (s.data().notice || '') : ''; sync(); }, console.error);
+db.collection(COL.members).onSnapshot(snap => {
+  REAL.members = {}; snap.docs.forEach(d => { REAL.members[d.id] = d.data().name || ''; });
+  REAL.memberCount = snap.size; REAL.loaded = { ...REAL.loaded, members:true }; sync();
+}, console.error);
+db.collection(COL.attendance).onSnapshot(snap => {
+  REAL.att = {};
+  snap.docs.forEach(d => {
+    const a = d.data(); if (!a.checked || !a.date) return;
+    const day = REAL.att[a.date] || (REAL.att[a.date] = {});
+    (day[a.session] || (day[a.session] = new Set())).add(String(a.id));
+  });
+  REAL.loaded = { ...REAL.loaded, att:true }; sync();
+}, console.error);
+db.collection(COL.gifts).onSnapshot(snap => {
+  REAL.gifts = snap.docs.map(d => ({ docId:d.id, ...d.data() })).sort((a, b) => Number(b.serial) - Number(a.serial));
+  REAL.loaded = { ...REAL.loaded, gifts:true }; sync();
+}, console.error);
+db.collection(COL.chat).orderBy('at', 'desc').limit(4).onSnapshot(snap => {
+  REAL.chat = snap.docs.map(d => d.data()); sync();
+}, console.error);
+
+/* ---------- 예시 자료 (시안 보기 전용 · 저장하지 않아요) ---------- */
+function makeDemo() {
+  const members = {}; for (let i = 0; i < 21; i++) members[String(10101 + i)] = '부원' + (i + 1);
+  const ids = Object.keys(members);
+  const att = {}, counts = [17, 19, 15, 20, 18, 16, 21, 19];
+  const base = new Date(); base.setDate(base.getDate() - 7 * 7);
+  counts.forEach((n, i) => {
+    const d = new Date(base); d.setDate(base.getDate() + i * 7);
+    const date = i === counts.length - 1 ? todayStr() : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    att[date] = { '모임': new Set(ids.slice(0, n)), '헤어짐': new Set(ids.slice(0, n - 1)) };
+  });
+  const items = [['🧸','곰돌이 키링',1000],['🍫','초코바 세트',2500],['🖍️','형광펜 5색',3000],['🎧','이어폰 파우치',4500],['🧦','양말 두 켤레',3500],['📒','스프링 노트',1500],['🍬','젤리 한 봉',1000],['🪞','손거울',2000],['💌','편지지 세트',2000],['🧴','핸드크림',5500],['🔖','책갈피',1000],['🎀','머리끈 세트',1500],['🧃','음료 쿠폰',3000],['🌵','미니 다육이',6000],['🖊️','젤펜 3자루',2500],['🧩','퍼즐 키링',3000]];
+  const bgs = ['#ffe3e3','#e7f5ff','#fff3bf','#ebfbee','#f3f0ff','#fff4e6'];
+  const pic = (e, i) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${bgs[i % bgs.length]}"/><text x="50" y="66" font-size="48" text-anchor="middle">${e}</text></svg>`);
+  const gifts = [];
+  for (let i = 0; i < 46; i++) { const it = items[i % items.length]; gifts.push({ serial:i + 1, name:it[1], price:it[2], photo:pic(it[0], i), drawn:i < 12 }); }
+  gifts.sort((a, b) => b.serial - a.serial);
+  const ago = m => ({ toDate: () => new Date(Date.now() - m * 60000) });
+  return {
+    notice:'이번 주 금요일 7교시 동아리 시간에는 천원의 행복 뽑기 선물을 마지막으로 모아요.\n선물은 사진 찍어서 [선물 등록하기]에 올려 주세요! 🎁',
+    members, memberCount:21, att, gifts,
+    chat:[{ name:'선생님', text:'오늘 모두 고생했어요! 다음 주에 만나요 🙌', at:ago(12) }, { name:'부장', text:'선물 46개 모였어요. 한 번 더 모아 봐요', at:ago(40) }, { name:'2학년', text:'포장지는 제가 가져갈게요', at:ago(95) }, { name:'1학년', text:'출석체크 했어요!', at:ago(130) }],
+    loaded:{ members:true, att:true, gifts:true }
+  };
+}
+function setDemo(on) {
+  DEMO = on;
+  Object.assign(D, on ? makeDemo() : REAL);
+  if (!on && me && me.demo) me = null;
+  const q = new URLSearchParams(location.search).get('me');   // 시안 보기: ?me=10101 이면 예시 부원으로 들어간 모습
+  if (on && !me && q && D.members[q]) me = { id:q, name:D.members[q], role:'member', welcome:'', demo:true };
+  const b = document.getElementById('demoBtn');
+  if (b) { b.classList.toggle('on', on); b.textContent = on ? '예시 자료' : '실제 자료'; }
+  try { localStorage.setItem('drs-dash-demo', on ? '1' : '0'); } catch (e) {}
+  draw();
+}
+
+/* ---------- 마우스 · 손가락 설명 ---------- */
+const tip = document.getElementById('tip');
+function showTip(e) {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (!el) { tip.classList.remove('on'); return; }
+  tip.textContent = el.dataset.tip;
+  tip.classList.add('on');
+  const x = Math.min(innerWidth - tip.offsetWidth - 8, Math.max(8, e.clientX - tip.offsetWidth / 2));
+  tip.style.left = x + 'px';
+  tip.style.top = Math.max(8, e.clientY - tip.offsetHeight - 14) + 'px';
+}
+document.addEventListener('pointermove', showTip);
+document.addEventListener('pointerdown', showTip);
+document.addEventListener('scroll', () => tip.classList.remove('on'), true);
+
+/* ---------- 시작 ---------- */
+(function start() {
+  const picker = document.getElementById('picker');
+  Object.keys(DESIGNS).forEach(k => {
+    const b = document.createElement('button');
+    b.dataset.s = k; b.textContent = k; b.title = DESIGNS[k].name;
+    b.onclick = () => setDesign(Number(k));
+    picker.appendChild(b);
+  });
+  // 예시 자료 ↔ 실제 자료 바꾸기 (처음에는 예시 자료. 주소에 ?real 을 붙이면 실제 자료)
+  const db2 = document.createElement('button');
+  db2.id = 'demoBtn'; db2.className = 'wide'; db2.title = '예시 자료 ↔ 실제 자료';
+  db2.onclick = () => setDemo(!DEMO);
+  picker.appendChild(db2);
+  try { const u = JSON.parse(ss('pcClubUser') || 'null'); if (u && u.id) me = u; } catch (e) {}
+  let first = Number(new URLSearchParams(location.search).get('s'));
+  if (!DESIGNS[first]) { try { first = Number(localStorage.getItem('drs-dash-s')); } catch (e) {} }
+  let demo = !new URLSearchParams(location.search).has('real');
+  try { if (localStorage.getItem('drs-dash-demo') === '0') demo = false; } catch (e) {}
+  if (new URLSearchParams(location.search).has('demo')) demo = true;
+  DEMO = demo; if (demo) Object.assign(D, makeDemo());
+  setDesign(DESIGNS[first] ? first : 1);
+  setDemo(demo);
+})();
+</script>
+<script src="/refresh.js" data-bg="#00b894" data-fg="#fff" data-side="left" defer></script>
+</body>
+</html>
