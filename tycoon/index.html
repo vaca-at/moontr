@@ -598,6 +598,7 @@ html.appmode.hudoff .navbtn{opacity:0;pointer-events:none}
 .big.ghost{background:transparent;color:var(--ink);border-color:color-mix(in srgb,var(--ink) 35%,transparent)}
 .big.kakao{background:#FEE500;border-color:#FEE500;color:#191919}
 .big.google{background:#fff;border-color:#fff;color:#1F1F1F}
+.big.apple{background:#000;border-color:#000;color:#fff}   /* 🍎 아이폰 앱에서만 보여요 (2026-11-12) */
 .big:disabled{opacity:.5;cursor:default}
 .err{color:var(--hi);font-size:13px;min-height:1.2em;margin:6px 0 0}
 .note{color:var(--muted);font-size:13px;margin:6px 0}
@@ -1699,6 +1700,7 @@ const DRAW = {
       <div class="login-btns">
         <button type="button" class="big google" id="gIn">G&nbsp; 구글로 시작하기</button>
         <button type="button" class="big kakao" id="kIn">💬&nbsp; 카카오로 시작하기</button>
+        <button type="button" class="big apple" id="aIn" hidden><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style="vertical-align:-3px;fill:currentColor"><path d="M16.37 12.6c-.02-2.1 1.72-3.12 1.8-3.17-.98-1.43-2.5-1.63-3.04-1.65-1.29-.13-2.52.76-3.18.76-.66 0-1.67-.74-2.74-.72-1.41.02-2.71.82-3.44 2.08-1.47 2.54-.37 6.3 1.05 8.36.7 1 1.53 2.13 2.61 2.09 1.05-.04 1.45-.68 2.72-.68 1.27 0 1.62.68 2.74.66 1.13-.02 1.85-1.02 2.54-2.03.8-1.17 1.13-2.3 1.15-2.36-.03-.01-2.2-.84-2.21-3.34zM14.3 6.43c.58-.7.97-1.68.86-2.65-.83.03-1.84.55-2.44 1.25-.53.62-1 1.62-.88 2.57.93.07 1.88-.47 2.46-1.17z"/></svg>&nbsp; Apple로 시작하기</button>
         <button type="button" class="big ghost" id="guestIn">🙋&nbsp; 로그인 없이 시작</button>
       </div>
       <p class="err" id="lgErr" role="alert"></p>
@@ -7040,13 +7042,14 @@ function inappHelp(){
 
 /* ---------- 로그인 ---------- */
 const gProv = () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); return p; };
-const provOf = kind => kind === "kakao" ? new OAuthProvider(KAKAO) : gProv();
-const kindName = k => k === "kakao" ? "카카오" : "구글";
-const kindsOf = u => (u ? u.providerData : []).map(p => p.providerId === "google.com" ? "google" : p.providerId === KAKAO ? "kakao" : "").filter(Boolean);
+const provOf = kind => kind === "kakao" ? new OAuthProvider(KAKAO) : kind === "apple" ? new OAuthProvider("apple.com") : gProv();
+const kindName = k => k === "kakao" ? "카카오" : k === "apple" ? "Apple" : "구글";
+const kindsOf = u => (u ? u.providerData : []).map(p => p.providerId === "google.com" ? "google" : p.providerId === KAKAO ? "kakao" : p.providerId === "apple.com" ? "apple" : "").filter(Boolean);
 function loginErr(e, kind){
   const c = (e && e.code) || "";
   if (/popup-closed|cancelled-popup/.test(c)) return "";
   if (/popup-blocked/.test(c)) return "팝업이 막혔어요. 브라우저에서 이 사이트의 팝업을 허용해 주세요.";
+  if (kind === "apple" && /operation-not-allowed|configuration-not-found|invalid-provider-id|admin-restricted/.test(c)) return "Apple 로그인은 준비 중이에요. 지금은 구글 · 카카오로 시작해 주세요.";
   if (kind === "kakao" && /operation-not-allowed|configuration-not-found|invalid-provider-id|admin-restricted|invalid-oauth/.test(c)) return "카카오 로그인은 준비 중이에요. 지금은 구글로 시작해 주세요.";
   if (/account-exists-with-different-credential/.test(c)) return "같은 이메일로 다른 방법으로 가입되어 있어요. 처음 가입한 방법으로 로그인한 뒤 [⚙️ 설정]에서 연결해 주세요.";
   if (/network/.test(c)) return "인터넷 연결을 확인해 주세요.";
@@ -7063,6 +7066,11 @@ async function appCreds(kind){
     if (!L.length) throw new Error("카카오 로그인을 하지 못했어요. 다시 눌러 주세요");
     return L.map(o => new OAuthProvider(KAKAO).credential(o));
   }
+  if (kind === "apple"){   // 🍎 아이폰 앱 (2026-11-12, 아이아이노트와 같은 방식)
+    const r = await P.signInWithApple({ skipNativeAuth:true }).catch(e => { throw /1001|cancel/i.test(`${e?.code || ""} ${e?.message || ""}`) ? Object.assign(new Error("Apple 로그인을 닫았어요"), { code:"auth/popup-closed-by-user" }) : e; }), c = r && r.credential;
+    if (!c || !c.idToken) throw new Error("Apple 로그인을 하지 못했어요. 다시 눌러 주세요");
+    return [new OAuthProvider("apple.com").credential({ idToken:c.idToken, rawNonce:c.nonce })];
+  }
   const r = await P.signInWithGoogle(), c = r && r.credential;
   if (!c || !c.idToken) throw new Error("구글 로그인을 하지 못했어요. 다시 눌러 주세요");
   return [GoogleAuthProvider.credential(c.idToken, c.accessToken || null)];
@@ -7076,6 +7084,9 @@ async function signIn(kind){
 }
 $("gIn").addEventListener("click", () => signIn("google"));
 $("kIn").addEventListener("click", () => signIn("kakao"));
+// 🍎 Apple 로그인 단추: 아이폰 · 아이패드 앱에서만 (앱스토어 규칙: 구글 · 카카오가 있으면 Apple 도)
+if (NATIVE && window.Capacitor.getPlatform?.() === "ios") $("aIn").hidden = false;
+$("aIn").addEventListener("click", () => signIn("apple"));
 // 🙋 로그인 없이 시작: 이 기기 손님 책상을 열어요 (다음에 들어와도 저절로)
 async function startGuest(){ try { localStorage.setItem(GUEST_ON, "1"); } catch (e) {} user = makeGuest(); hide("shLogin"); await openDesk(); window.bootDone?.(); }
 $("guestIn").addEventListener("click", startGuest);
@@ -8832,9 +8843,9 @@ function loginInfo(){
   const of = id => pd.find(p => p.providerId === id);
   const label = p => p ? (p.email || p.displayName || p.phoneNumber || "") : "";
   let kind = ""; try { kind = localStorage.getItem("desk-login-kind") || ""; } catch (e) {}
-  const has = { google:!!of("google.com"), kakao:!!of(KAKAO), password:!!of("password") };
-  if (!has[kind]) kind = has.google && !has.kakao ? "google" : has.kakao && !has.google ? "kakao" : has.password ? "password" : (has.google ? "google" : has.kakao ? "kakao" : "");
-  const id = kind === "google" ? "google.com" : kind === "kakao" ? KAKAO : "password";
+  const has = { google:!!of("google.com"), kakao:!!of(KAKAO), apple:!!of("apple.com"), password:!!of("password") };
+  if (!has[kind]) kind = has.google && !has.kakao ? "google" : has.kakao && !has.google ? "kakao" : has.apple ? "apple" : has.password ? "password" : (has.google ? "google" : has.kakao ? "kakao" : "");
+  const id = kind === "google" ? "google.com" : kind === "kakao" ? KAKAO : kind === "apple" ? "apple.com" : "password";
   const name = kind === "password" ? "이메일" : kind ? kindName(kind) : "알 수 없음";
   return { kind, name, who:label(of(id)) || (user && (user.email || user.displayName)) || "", of, label };
 }

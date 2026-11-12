@@ -329,6 +329,9 @@ body.editing .del{display:inline-block}
   .v-list td.host,.v-list th.host,.v-list td.lv,.v-list th.lv{display:none}
   .v-bar .bmenu{min-width:min(340px,calc(100vw - 32px))}
 }
+.store-b{display:flex;align-items:center;gap:10px;margin:2px 0 12px}
+.store-b a{line-height:0}
+.store-b img{height:40px;width:auto;display:block}
 </style>
 </head>
 <body>
@@ -666,6 +669,10 @@ async function loadIiStats(refresh){
   iiStatsBusy = false;
   if (cur === 'home') renderIiStats();
 }
+// 🏷 스토어 공식 배지 (2026-11-11): 누르면 스토어 페이지, 옆 단추로 주소 복사
+const II_PLAY = 'https://play.google.com/store/apps/details?id=kr.co.iinote.app', II_APPSTORE = 'https://apps.apple.com/kr/app/id6831842667';
+const storeBadge = (url, img, alt) => `<div class="store-b"><a href="${url}" target="_blank" rel="noopener"><img src="${img}" alt="${alt}"></a><button type="button" class="btn" data-copyurl="${url}">링크 복사</button></div>`;
+document.addEventListener('click', e => { const b = e.target.closest('[data-copyurl]'); if (!b) return; navigator.clipboard.writeText(b.dataset.copyurl).then(() => { b.textContent = '복사했어요'; setTimeout(() => { b.textContent = '링크 복사'; }, 1500); }); });
 function renderIiStats(){
   const box = $('#homeIi'); if (!box) return;
   if (!iiStats){ box.innerHTML = '<p class="msg">불러오는 중...</p>'; loadIiStats(); return; }
@@ -691,9 +698,11 @@ function renderIiStats(){
   const topC = Object.entries(cty).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, v]) => `${esc(c)} ${v}`).join(' · ');
   const uk = Object.keys(U).sort(), u = uk.length ? U[uk[uk.length - 1]] : null;
   const play = `<div class="panel third mv-card"><div class="hd">💚 플레이스토어${pl ? `<span class="live off">${mdw(pl.d)} 기준</span>` : ''}</div>
+    ${storeBadge(II_PLAY, 'badge-play.png', 'Google Play에서 다운로드')}
     ${pl ? `<div class="kv">${newBox(pNew, pl, '설치자')}<div><small>누적 설치자</small><b>${n(pl.v.totalUsers)}</b></div><div><small>지금 설치된 기기</small><b>${n(pl.v.activeDevices)}</b></div><div><small>최근 7일 설치</small><b>${n(sumK(pInst, k7))}</b></div><div><small>최근 7일 삭제</small><b>${n(sumK(pUn, k7))}</b></div><div><small>최근 30일 설치</small><b>${n(sumK(pInst, k30))}</b></div></div>
       ${spark(pInst, 30, '#34a853')}<small class="updated">최근 30일 하루 설치 · 하루 이틀 늦게 채워져요</small>` : '<p class="msg">아직 숫자가 없어요.</p>'}${why('play')}</div>`;
   const ios = `<div class="panel third mv-card"><div class="hd">🍎 앱스토어${io ? `<span class="live off">${mdw(io.d)} 기준</span>` : ''}</div>
+    ${storeBadge(II_APPSTORE, 'badge-appstore.svg', 'App Store에서 다운로드')}
     ${io ? `<div class="kv">${newBox(iDl, io, '다운로드 (처음 받은 사람)')}<div><small>최근 7일 다운로드</small><b>${n(sumK(iDl, k7))}</b></div><div><small>최근 30일 다운로드</small><b>${n(sumK(iDl, k30))}</b></div><div><small>모은 뒤 전체</small><b>${n(Object.values(iDl).reduce((s, v) => s + v, 0))}</b></div><div><small>최근 7일 업데이트</small><b>${n(sumK(iUp, k7))}</b></div>${topC ? `<div><small>많이 받은 나라</small><b style="font-size:.95rem">${topC}</b></div>` : ''}</div>
       ${spark(iDl, 30, '#4c9aff')}<small class="updated">최근 30일 하루 다운로드 · 다음 날 채워져요</small>` : '<p class="msg">아직 숫자가 없어요.</p>'}${why('ios')}</div>`;
   const use = `<div class="panel third mv-card"><div class="hd">📒 앱 안 이용 (웹 + 앱)${u ? `<span class="live">${mdw(uk[uk.length - 1])}</span>` : ''}</div>
