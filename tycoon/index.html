@@ -6569,18 +6569,20 @@ const snapSavanna = port => (() => {
         r.toneMappingExposure = mode === "n" ? .8 : 1; }
       flame.scale.set(1 + .12*Math.sin(t*13), 1 + .2*Math.sin(t*9), 1); fireL.intensity = (NIGHT ? 4 : 1.6) + .6*Math.sin(t*11);
       // 갈 곳: 흙길 위 그 자리 (모닥불 · 소풍 돗자리는 조금 앞쪽)
-      const gx = XOF(key), gz = key === "office" ? FIRE.z + 1.15 : key === "lunch" ? PATH_Z - 1.6 : PATH_Z;
+      const free = freeOn(W0); if (!free) W0.man = null;
+      const gx = free ? W0.man.x : XOF(key), gz = free ? W0.man.z : key === "office" ? FIRE.z + 1.15 : key === "lunch" ? PATH_Z - 1.6 : PATH_Z;
       if (W0.here === null){ meP.set(gx, 0, gz); W0.camX = gx; W0.here = key; }
-      // 흙길을 따라 옆으로 먼저, 그다음 앞뒤로
-      const onPath = Math.abs(meP.z - PATH_Z) < .05, needX = Math.abs(gx - meP.x) > .2;
+      // 흙길을 따라 옆으로 먼저, 그다음 앞뒤로 (🚶 자유 산책은 곧게)
+      const onPath = Math.abs(meP.z - PATH_Z) < .05, needX = !free && Math.abs(gx - meP.x) > .2;
       const tx = needX && !onPath ? meP.x : gx, tz = needX ? PATH_Z : gz;
       const dx = tx - meP.x, dz = tz - meP.z, dist = Math.hypot(dx, dz), walking = dist > .05 || needX;
       if (dist > .05){ const sp = Math.min(dist, dt*3.4); meP.x += dx/dist*sp; meP.z += dz/dist*sp; turn(me.root, Math.atan2(dx, dz), Math.min(1, dt*9)); }
       me.walk += ((walking ? 1 : 0) - me.walk)*Math.min(1, dt*6); me.root.position.copy(meP);
       // 도착하면: 무리 앞 = 사진 · 마을 = 모닥불에 앉기 · 연못 = 돗자리에 앉아 마시기 · 언덕 = 손 흔들기 · 집 = 앉아서 쉬기
-      const at = !walking, cls = key[0] === "c", inClass = cls && SCHOOL && !BREAK;
-      me.sit = at && (key === "office" || key === "lunch" || key === "home") ? 1 : 0; me.seat = key === "office" ? .3 : .02; me.sip = at && key === "lunch" ? 1 : 0;
-      if (at){ const face = key === "office" ? Math.atan2(FIRE.x - meP.x, FIRE.z - meP.z) : cls || key === "sp" || key === "home" ? Math.PI : Math.PI*.8; turn(me.root, face, Math.min(1, dt*4)); }
+      const at = !walking, cls = !free && key[0] === "c", inClass = cls && SCHOOL && !BREAK;
+      me.sit = !free && at && (key === "office" || key === "lunch" || key === "home") ? 1 : 0; me.seat = key === "office" ? .3 : .02; me.sip = !free && at && key === "lunch" ? 1 : 0;
+      // 서 있으면 앞(카메라)을 봐요. 사진을 찍을 때만 무리 쪽으로 돌아요
+      if (at){ const face = me.aim ? Math.PI : Math.atan2(W0.camX - meP.x, PATH_Z + 12 - meP.z); turn(me.root, face, Math.min(1, dt*4)); }
       if (at && cls){ const c = (t % 7); me.aim = inClass && c > 2.5 && c < 6 ? 1 : 0; if (inClass && c > 5.6 && now - W0.snapAt > 3){ W0.snapAt = now; me.snapT = .2; W0.flashT = .35; } }
       else me.aim = 0;
       if (at && key === "sp" && !(me.waveT > 0) && t % 6 < .05) me.waveT = 2.4;
@@ -6607,8 +6609,10 @@ const snapSavanna = port => (() => {
       HERDS.forEach((hd, k) => { const top = Math.max(...animals.filter(an => an.k === k).map(an => an.h)), q = proj(XOF("c" + k), top + .5, BACK_Z); if (q) tags.push({ k, x:q[0], y:q[1] }); });
       [["home", 3.2], ["office", 3.2], ["lunch", 1.6], ["sp", 3.6]].forEach(([k, y]) => { const q = proj(XOF(k), y, BACK_Z); if (q) tags.push({ k, x:q[0], y:q[1] }); });
       animals.forEach(an => { if (an.near && (me.aim || W0.flashT > 0 || Math.sin(t*2 + an.hx) > .3)){ const q = proj(an.a.root.position.x, an.h + .3, an.a.root.position.z); if (q) hearts.push(q); } });
-      return { tags, hearts, flash:W0.flashT, walking };
+      return { tags, hearts, flash:W0.flashT, walking, free };
     };
+    // 🚶 누른 곳으로 (흙길 앞쪽 ~ 뒤쪽 줄 앞, 양 끝 사이)
+    W0.tap = (nx, ny) => { const m = groundTap(THREE, cam, nx, ny, [XOF(ORDER[0]) - 3, XOF(ORDER[ORDER.length - 1]) + 3, BACK_Z + 2, PATH_Z + 4]); if (!m) return false; W0.man = m; return true; };
     return W0;
   }
   const CLs = () => { const L = [...TAUGHT].filter(isClass).sort(clsCmp); if (HR && !L.includes(HR)) L.unshift(HR); return L; };
@@ -6626,7 +6630,7 @@ const snapSavanna = port => (() => {
     let out;
     try { out = Wd.frame(st, key, W, H); g.drawImage(Wd.r.domElement, 0, 0, W, H); }
     catch (e){ console.warn(e); window.__snapW = null; window.__snapFail = true; return; }
-    const L = CLs(), here = out.walking ? "" : key;
+    const L = CLs(), here = out.walking || out.free ? "" : key;
     out.tags.forEach(tg => {
       if (typeof tg.k === "number"){ const who = L.filter((_, i) => i % HERDS.length === tg.k); if (!who.length) return; const cur = isClass(st.place) && who.includes(st.place) ? st.place : who[0];
         label(`${HERDS[tg.k][1]} ${(cur === HR ? "★" : "") + cur}`, tg.x, tg.y, "#FFD27A", here === "c" + tg.k); }
@@ -6635,8 +6639,9 @@ const snapSavanna = port => (() => {
     out.hearts.forEach(([x, y], i) => txt("♥", x, y - 2 - Math.abs(Math.sin(T*3 + i))*4, 9, "#FF5F8A", "center"));
     if (out.flash > 0){ g.globalAlpha = Math.min(1, out.flash*2.4); g.fillStyle = "#FFFFFF"; g.fillRect(0, 0, W, H); g.globalAlpha = 1; }
     const d = simNow(); label(hhmm(d.getHours()*60 + d.getMinutes()), W - 18, 4, "#FFD27A", false);
+    freeHint(out.free);
   }
-  return { name:"스냅주 초원", layout:"none", custom:true, draw, port, who:"전 연령 · 3D 동물 섬",
+  return { name:"스냅주 초원", layout:"none", custom:true, draw, port, walk:(nx, ny) => !!window.__snapW?.tap?.(nx, ny), who:"전 연령 · 3D 동물 섬",
     desc:"<b>우리 메타버스 '스냅주'의 초원</b>을 무대처럼 옮겨 왔어요. 뒤쪽에 오두막 · 마을 · 연못 · 동물 무리(교실마다 하나: 기린 · 코끼리 · 얼룩말 · 가젤 · 누) · 바위 언덕이 한 줄로 늘어서고, 나는 앞쪽 흙길을 따라 걸어 다녀요. 수업 시간이면 그 반 무리 앞에서 사진기를 들어 찰칵 (무리가 앞으로 나와 ♥), 쉬는 시간 · 공강엔 마을 모닥불, 점심은 연못가 소풍, 퇴근하면 오두막. 낮 · 노을 · 밤 빛이 시각을 따라가요." };
 })();
 const S24 = snapSavanna(false);
@@ -6645,6 +6650,11 @@ const S24 = snapSavanna(false);
 /* ===== 25. 캠핑장 · 26. 소호랩 교실 (3D, 2026-11-12) =====
    우리 메타버스 '캠핑장'(meta/camp/ — campingjang 저장소 js/ 에서 복사)과 '소호랩'(meta/soho/ — soho-lab 저장소 js/ 에서 복사)의 장면 · 캐릭터를 그대로 써요
    두 화면이 같이 쓰는 틀 meta3d: 모듈을 한 번 불러 세계를 만들고(window[key] 에 둬요), 매 프레임 frame() 이 그린 3D 를 게임 화면에 얹고 이름표를 붙여요 */
+// 🚶 아래 안내: 처음엔 '땅을 누르면 걸어가요', 산책 중엔 '자유 산책 중'
+function freeHint(on){
+  g.font = `6px ${P.font}`; const s = on ? "🚶 자유 산책 중 · 30초 뒤 제자리로" : "땅을 누르면 그곳으로 걸어가요", w = Math.ceil(g.measureText(s).width) + 8;
+  g.globalAlpha = on ? .9 : .55; g.fillStyle = "rgba(11,11,18,.75)"; g.fillRect(Math.round(W/2 - w/2), H - 14, w, 10); g.globalAlpha = 1; txt(s, W/2, H - 8.5, 6, on ? "#FFD27A" : "#FFFFFF", "center");
+}
 const meta3d = (port, o) => (() => {
   const KEY = "__m3_" + o.id;
   function load(){
@@ -6666,17 +6676,28 @@ const meta3d = (port, o) => (() => {
     const key = keyOf(st); let out;
     try { out = Wd.frame(st, key, W, H); g.drawImage(Wd.r.domElement, 0, 0, W, H); }
     catch (e){ console.warn(e); window[KEY] = null; window[KEY + "F"] = true; return; }
-    const L = CLs(), here = out.walking ? "" : key;
+    const L = CLs(), here = out.walking || out.free ? "" : key;
     out.tags.forEach(tg => {
       if (typeof tg.k === "number"){ const who = L.filter((_, i) => i % o.slots === tg.k); if (!who.length) return; const cur = isClass(st.place) && who.includes(st.place) ? st.place : who[0];
         label(`${o.slotName(tg.k)} ${(cur === HR ? "★" : "") + cur}`, tg.x, tg.y, o.col, here === "c" + tg.k); }
       else label(o.tagName[tg.k], tg.x, tg.y, tg.k === "home" ? "#FF5FAE" : tg.k === "office" ? "#2FE3F0" : "#FFFFFF", here === tg.k);
     });
     const d = simNow(); label(hhmm(d.getHours()*60 + d.getMinutes()), W - 18, 4, o.col, false);
+    freeHint(out.free);
   }
-  return { name:o.name, layout:"none", custom:true, draw, port, who:o.who, desc:o.desc };
+  return { name:o.name, layout:"none", custom:true, draw, port, who:o.who, desc:o.desc, walk:(nx, ny) => !!window[KEY]?.tap?.(nx, ny) };
 })();
 // 두 화면이 같이 쓰는 3D 도움
+/* 🚶 자유 산책 (2026-11-13): 3D 화면(스냅주 초원 · 캠핑장 · 소호랩)에서 땅을 누르면 그곳으로 걸어가요. 마지막으로 누르고 30초가 지나면 원래 자리(시간표)로 돌아가요 */
+const FREE_SEC = 30;
+function groundTap(THREE, cam, nx, ny, box){
+  const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(nx*2 - 1, -(ny*2 - 1)), cam);
+  const hit = new THREE.Vector3(); if (!rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)) return null;
+  return { x:Math.max(box[0], Math.min(box[1], hit.x)), z:Math.max(box[2], Math.min(box[3], hit.z)), at:performance.now()/1000 };
+}
+const freeOn = W0 => W0.man && performance.now()/1000 - W0.man.at < FREE_SEC;
+// 서 있을 때는 카메라 쪽(앞)을 봐요
+const faceCam = (o, cam, k) => m3.turn(o, Math.atan2(cam.position.x - o.position.x, cam.position.z - o.position.z), k);
 const m3 = {
   renderer(THREE){ const r = new THREE.WebGLRenderer({ antialias:true }); r.setPixelRatio(1); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; return r; },
   fit(r, cam, w, h, fovP, fovL){ const ww = Math.round(w*SC), hh = Math.round(h*SC); if (r.domElement.width !== ww || r.domElement.height !== hh) r.setSize(ww, hh, false); cam.aspect = w/h; cam.fov = h > w ? fovP : fovL; cam.updateProjectionMatrix(); },
@@ -6714,17 +6735,19 @@ const metaCamp3 = port => meta3d(port, { id:"camp", name:"캠핑장", col:"#FFB8
       const now = performance.now()/1000, dt = Math.min(.05, now - W0.last), t = now - W0.t0; W0.last = now;
       const dl = day.daylight(); if (Math.abs(dl - W0.lit) > .02){ W0.lit = dl; s.environmentIntensity = .45*day.applyDaylight(w, dl, day.glow()); w.campfire?.userData.setLit?.(dl < .5); }
       w.update?.(t);
-      const G = goalOf(key);
+      const free = freeOn(W0), G = free ? { x:W0.man.x, z:W0.man.z } : goalOf(key), gk = free ? "free" + W0.man.at : key;
       if (W0.here === null){ me.group.position.set(G.x, 0, G.z); W0.here = key; W0.camX = G.x; W0.camZ = G.z; }
-      if (W0.key !== key){ W0.key = key; me.seated = false; me.stop(); me.group.position.y = 0; }
-      const p = me.group.position, playK = key[0] === "c" ? CAMP_PLAY[+key.slice(1)][0] : "";
+      if (W0.key !== gk){ W0.key = gk; me.seated = false; me.stop(); me.group.position.y = 0; }
+      if (!free) W0.man = null;
+      const p = me.group.position, playK = !free && key[0] === "c" ? CAMP_PLAY[+key.slice(1)][0] : "";
       let walking = false;
-      if (!me.seated){
+      if (free){ const arrived = m3.walk(me, G.x, G.z, dt, 2.8); walking = !arrived; if (arrived) faceCam(me.group, cam, Math.min(1, dt*5)); }
+      else if (!me.seated){
         // 연날리기는 정해진 자리 둘레를 천천히 달려요 (연이 높이 떠요)
         if (playK === "kite" && Math.hypot(p.x - G.x, p.z - G.z) < 6){ W0.ang += dt*.35; const tx = G.x + Math.cos(W0.ang)*3.2, tz = G.z + Math.sin(W0.ang)*2; m3.walk(me, tx, tz, dt, 1.6); if (me.action !== "kite") me.play("kite"); }
         else { const arrived = m3.walk(me, G.x, G.z, dt, 2.8); walking = !arrived;
           if (arrived){ if (G.seat){ me.group.position.set(G.seat.pos.x, G.seat.y ?? .12, G.seat.pos.z); me.group.rotation.y = G.seat.rot ?? Math.PI; me.seated = true; me.speed = 0; if (key === "lunch") me.play("read"); }
-            else { m3.turn(me.group, G.rot ?? Math.PI, Math.min(1, dt*4)); if (playK && me.action !== playK) me.play(playK); } } }
+            else { faceCam(me.group, cam, Math.min(1, dt*4)); if (playK && me.action !== playK) me.play(playK); } } }
       }
       me.update(dt, ACT);
       const kiteOn = me.action === "kite"; kite.visible = line.visible = kiteOn;
@@ -6739,8 +6762,9 @@ const metaCamp3 = port => meta3d(port, { id:"camp", name:"캠핑장", col:"#FFB8
       const proj = (x, y, z) => { hp.set(x, y, z).project(cam); return hp.z < 1 && hp.x > -1.15 && hp.x < 1.15 && hp.y < 1.1 ? [(hp.x + 1)/2*w2, (1 - hp.y)/2*h2] : null; };
       const tags = []; PLAY_AT.forEach((q, k) => { const v = proj(q.x, 2.3, q.z); if (v) tags.push({ k, x:v[0], y:v[1] }); });
       [["office", 0, 3], ["sp", -9, -2], ["home", 0, -11]].forEach(([k, x, z]) => { const v = proj(x, k === "home" ? 3.2 : 2.4, z); if (v) tags.push({ k, x:v[0], y:v[1] }); });
-      return { tags, walking };
+      return { tags, walking, free };
     };
+    W0.tap = (nx, ny) => { const m = groundTap(THREE, cam, nx, ny, [-16, 16, -12, 14]); if (!m) return false; W0.man = m; return true; };
     return W0;
   }
 });
@@ -6774,27 +6798,35 @@ const metaSoho3 = port => meta3d(port, { id:"soho", name:"소호랩 교실", col
       const now = performance.now()/1000, dt = Math.min(.05, now - W0.last), t = now - W0.t0; W0.last = now;
       const hr = simNow().getHours(); if (hr !== W0.hour){ W0.hour = hr; try { off.paintSky(hr, ""); } catch (e) {} const night = hr < 6 || hr >= 19, dusk = !night && (hr < 8 || hr >= 17); sun.intensity = (L.sun ?? 1.2)*(night ? .5 : dusk ? .8 : 1); r.toneMappingExposure = 1.05*(night ? .92 : 1); }
       try { off.tickDesks(now); } catch (e) {}
-      const G = goalOf(key), p = me.group.position;
+      const free = freeOn(W0), G = free ? { x:W0.man.x, z:W0.man.z } : goalOf(key), p = me.group.position, gk = free ? "free" + W0.man.at : key;
+      if (!free) W0.man = null;
       if (W0.here === null){ const g0 = G.seat ? standOf(G.seat) : G.sofa ? { x:G.sofa.fx, z:G.sofa.fz } : G; p.set(g0.x, 0, g0.z); W0.here = key; W0.camX = p.x; W0.camZ = p.z; }
-      if (W0.key !== key){ W0.key = key; if (me.seated){ me.seated = false; me.idle = false; me.stop(); p.y = 0; if (W0.sat) { const s0 = standOf(W0.sat); p.x = s0.x; p.z = s0.z; } W0.sat = null; } }
+      if (W0.key !== gk){ W0.key = gk; if (me.seated){ me.seated = false; me.idle = false; me.stop(); p.y = 0; if (W0.sat) { const s0 = standOf(W0.sat); p.x = s0.x; p.z = s0.z; } W0.sat = null; } }
       let walking = false;
       if (!me.seated){
         const tgt = G.seat ? standOf(G.seat) : G.sofa ? { x:G.sofa.fx, z:G.sofa.fz } : G, arrived = m3.walk(me, tgt.x, tgt.z, dt, 2.4); walking = !arrived;
         if (arrived){ if (G.seat){ p.set(G.seat.x, .42, G.seat.z); me.group.rotation.y = G.seat.ry; me.seated = true; me.idle = false; me.speed = 0; W0.sat = G.seat; }
           else if (G.sofa){ p.set(G.sofa.x, .44, G.sofa.z); me.group.rotation.y = G.sofa.ry; me.seated = true; me.idle = true; me.speed = 0; }
-          else { m3.turn(me.group, G.ry ?? 0, Math.min(1, dt*5)); if (G.pose && me.action !== G.pose) me.play(G.pose); } }
+          else { W0.stand = true; faceCam(me.group, cam, Math.min(1, dt*5)); if (!free && G.pose && me.action !== G.pose) me.play(G.pose); if (free && me.action) me.stop(); } }
       } else if (G.sofa && me.action !== "drink" && (t % 8) < .05) me.play("drink");
       me.update(dt, data.ACTIONS); friends.forEach(f => f.update(dt, data.ACTIONS));
-      // 카메라: 내 등 뒤 조금 위에서 (앉으면 모니터가 보이게)
-      const pt = h2 > w2, ry = me.group.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry); W0.camX += (p.x - W0.camX)*Math.min(1, dt*2.5); W0.camZ += (p.z - W0.camZ)*Math.min(1, dt*2.5);
+      // 카메라: 걷거나 앉으면 내 등 뒤 조금 위에서 (모니터가 보이게), 서 있으면 그 자리에 멈춰 내가 카메라를 봐요(앞모습)
+      const pt = h2 > w2, standing = !walking && !me.seated; if (!standing) W0.stand = false;
+      // 창가 · 커피 · 칠판처럼 정해진 자리에 서면 카메라는 그 자리가 원래 보던 쪽(방 안)에서, 나는 카메라를 봐요
+      const cyT = W0.stand ? (!free && G.ry != null ? G.ry : null) : me.group.rotation.y;
+      if (W0.cy === undefined) W0.cy = G.ry ?? me.group.rotation.y;
+      if (cyT != null){ let d = cyT - W0.cy; d = Math.atan2(Math.sin(d), Math.cos(d)); W0.cy += d*Math.min(1, dt*3); }
+      const fx = Math.sin(W0.cy), fz = Math.cos(W0.cy); W0.camX += (p.x - W0.camX)*Math.min(1, dt*2.5); W0.camZ += (p.z - W0.camZ)*Math.min(1, dt*2.5);
       const D = pt ? 7 : 6.4, U = pt ? 3.9 : 3.4;
       cam.position.set(W0.camX - fx*D, U, W0.camZ - fz*D); cam.lookAt(W0.camX + fx*2.6, 1, W0.camZ + fz*2.6);
       m3.fit(r, cam, w2, h2, 66, 52); r.render(s, cam);
       const proj = (x, y, z) => { hp.set(x, y, z).project(cam); return hp.z < 1 && hp.x > -1.15 && hp.x < 1.15 && hp.y < 1.1 && hp.y > -1 ? [(hp.x + 1)/2*w2, (1 - hp.y)/2*h2] : null; };
       const tags = []; MINE.forEach((si, k) => { const sv = seats[si], v = proj(sv.desk.x, 1.7, sv.desk.z); if (v) tags.push({ k, x:v[0], y:v[1] }); });
       [["office", SPT.coffee], ["lunch", { x:SOFA.x, z:SOFA.z }], ["sp", SPT.board], ["home", SPT.window]].forEach(([k, q]) => { const v = proj(q.x, 2.2, q.z); if (v) tags.push({ k, x:v[0], y:v[1] }); });
-      return { tags, walking };
+      return { tags, walking, free };
     };
+    const XS = seats.map(q => q.x), ZS = seats.map(q => q.z), BOX = [Math.min(...XS) - 3, Math.max(...XS) + 3, Math.min(...ZS) - 3, Math.max(...ZS) + 3];
+    W0.tap = (nx, ny) => { const m = groundTap(THREE, cam, nx, ny, BOX); if (!m) return false; W0.man = m; if (me.seated){ me.seated = false; me.idle = false; me.stop(); me.group.position.y = 0; if (W0.sat){ const s0 = standOf(W0.sat); me.group.position.x = s0.x; me.group.position.z = s0.z; } W0.sat = null; } return true; };
     return W0;
   }
 });
@@ -7307,7 +7339,7 @@ if (!APP){
 }
 let swiped = 0;   // 밀어서 넘긴 바로 뒤의 '누름'은 크게 보기로 치지 않아요
 // 누를 곳이 아닌 데를 누르면 크게 보기
-cv.addEventListener("click", e => { if (Date.now() - swiped < 600) return; const h = hotAt(e); if (!h){ if (STRUCTS[SI]?.act?.("tap")) return; if (!APP && !bigOn()) setBig(true); return; } if (document.body.classList.contains("boardview")){ if (h.act.open) STRUCTS[SI]?.act?.(h.act.open); return; }   /* 📺 전자칠판: 화면 안 물건(스탠드 · 어항 …)만 */ if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
+cv.addEventListener("click", e => { if (Date.now() - swiped < 600) return; const h = hotAt(e); if (!h){ const sw = STRUCTS[SI]; if (sw?.walk){ const b = cv.getBoundingClientRect(); if (sw.walk((e.clientX - b.left)/b.width, (e.clientY - b.top)/b.height)) return; } if (STRUCTS[SI]?.act?.("tap")) return; if (!APP && !bigOn()) setBig(true); return; } if (document.body.classList.contains("boardview")){ if (h.act.open) STRUCTS[SI]?.act?.(h.act.open); return; }   /* 📺 전자칠판: 화면 안 물건(스탠드 · 어항 …)만 */ if (h.act.url) window.open(h.act.url, "_blank", "noopener"); else if (h.act.note) window.DESK.onNote?.(h.act.note); else if (h.act.open) openThing(h.act.open); });
 // 3D 교무실 물건을 누르면: 칠판 = 할 일 칸 · 게시판 = 메모 · 책장 = 즐겨찾기 · TV = 시간표 · 달력 = 설정(학교 일정) · 우편함 = 친구 채팅
 function openThing(k){
   if (STRUCTS[SI]?.act?.(k)) return;   // 화면 안에서 처리하는 것 (스탠드 · 턴테이블 · 어항)
