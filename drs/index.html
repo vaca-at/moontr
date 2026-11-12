@@ -18,7 +18,10 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-title" content="또래상담부">  <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Black+Han+Sans&family=Jua&family=Gowun+Dodum&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <meta name="apple-mobile-web-app-title" content="또래상담부">
+  <!-- 학생 화면 · 관리보드 글꼴: 프리텐다드 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Black+Han+Sans&family=Jua&family=Gowun+Dodum&family=Press+Start+2P&display=swap" rel="stylesheet">
   <!-- Firebase (compat 버전: 일반 script 태그로 바로 사용) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -39,146 +42,285 @@
     .view.active { display:block; }
     #config-warning { display:none; background:#c0392b; color:white; padding:12px 16px; font-size:14px; text-align:center; }
 
+    /* ===================== 대시보드 모양 (학생 화면 · 교사용 관리보드가 같이 써요) ===================== */
+    /* 색을 바꾸려면 여기 --acc(초록) 한 곳만 고치면 돼요 */
+    :root {
+      --ink:#10201b; --sub:#5f6f69; --line:#e2e8e5; --soft:#f3f6f5; --page:#f3f6f5;
+      --acc:#0a9f7d; --acc-ink:#077a60; --acc-soft:#e4f5ef; --red:#e5484d; --red-soft:#fdeceb;
+      --shadow:0 1px 2px rgba(16,32,27,.04), 0 10px 28px -16px rgba(16,32,27,.16);
+    }
+    body:has(#view-student.active), body:has(#view-admin.active) { background:var(--page); }
+    #view-student, #view-admin { font-family:'Pretendard Variable', Pretendard, 'Malgun Gothic', sans-serif; color:var(--ink); letter-spacing:-0.01em; -webkit-font-smoothing:antialiased; min-height:100vh; background:var(--page); }
+    #view-student button, #view-admin button, #view-student input, #view-admin input, #view-admin select, #view-admin textarea, #view-student textarea { font-family:inherit; }
+
+    /* 위쪽 막대 (왼쪽 64px 은 새로고침 단추 자리) */
+    .topbar { position:sticky; top:0; z-index:20; background:rgba(243,246,245,.85); -webkit-backdrop-filter:saturate(1.4) blur(12px); backdrop-filter:saturate(1.4) blur(12px); border-bottom:1px solid var(--line); }
+    .topbar-in { max-width:1180px; margin:0 auto; padding:9px 16px 9px 64px; display:flex; align-items:center; gap:10px; min-height:58px; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:16px; white-space:nowrap; color:var(--ink); text-decoration:none; }
+    .brand .logo { width:32px; height:32px; border-radius:10px; background:linear-gradient(135deg,#12c193,#0a8a6c); color:#fff; display:grid; place-items:center; font-size:16px; box-shadow:0 4px 10px -4px rgba(10,159,125,.6); }
+    .brand small { font-weight:500; color:var(--sub); font-size:13px; }
+    .topbar .spacer { flex:1; }
+    .toplinks { display:flex; gap:6px; align-items:center; }
+    .toplinks a { font-size:13px; color:var(--sub); text-decoration:none; padding:7px 10px; border-radius:9px; white-space:nowrap; }
+    .toplinks a:hover { background:#fff; color:var(--ink); }
+    .toplinks a.hot { background:#12306B; color:#fff; }
+
+    /* 판 · 칸 */
+    .dash { max-width:1180px; margin:0 auto; padding:20px 16px 48px; }
+    .dgrid { display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:16px; }
+    .dcard { grid-column:span 12; background:#fff; border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:var(--shadow); min-width:0; }
+    .dcard > h3 { margin:0 0 14px; font-size:15px; font-weight:700; display:flex; align-items:center; gap:9px; }
+    .dcard > h3 .ic { width:28px; height:28px; border-radius:9px; background:var(--acc-soft); display:grid; place-items:center; font-size:14px; flex:none; }
+    .dcard > h3 .more { margin-left:auto; font-size:12.5px; font-weight:500; color:var(--sub); }
+    .span-4 { grid-column:span 4; } .span-5 { grid-column:span 5; } .span-6 { grid-column:span 6; } .span-7 { grid-column:span 7; } .span-8 { grid-column:span 8; }
+    .muted { color:var(--sub); }
+    .empty { color:var(--sub); font-size:13.5px; padding:14px 0; }
+
+    /* 맨 위 큰 칸 */
+    .hero { grid-column:span 12; position:relative; overflow:hidden; border-radius:22px; padding:28px 30px; color:#fff; display:flex; align-items:center; gap:24px;
+      background:radial-gradient(90% 140% at 100% 0%, rgba(40,224,170,.55) 0%, rgba(40,224,170,0) 55%), linear-gradient(135deg, #0c7a61 0%, #07473a 100%); box-shadow:0 18px 40px -22px rgba(7,71,58,.7); }
+    .hero::before { content:''; position:absolute; right:-60px; bottom:-90px; width:280px; height:280px; border-radius:50%; border:44px solid rgba(255,255,255,.05); }
+    .hero .txt { flex:1; min-width:0; position:relative; }
+    .hero .eyebrow { font-size:13px; opacity:.78; font-weight:500; }
+    .hero h1 { margin:6px 0 6px; font-size:30px; font-weight:800; letter-spacing:-.03em; line-height:1.25; }
+    .hero p { margin:0; opacity:.86; font-size:14.5px; line-height:1.5; }
+    .hero .cta { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+    .hero .cta a, .hero .cta button { display:inline-flex; align-items:center; gap:6px; border:none; border-radius:12px; padding:11px 16px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; transition:transform .12s; }
+    .hero .cta a:hover, .hero .cta button:hover { transform:translateY(-1px); }
+    .hero .cta .w { background:#fff; color:#07473a; }
+    .hero .cta .g { background:rgba(255,255,255,.14); color:#fff; box-shadow:inset 0 0 0 1px rgba(255,255,255,.28); }
+    .ring { position:relative; width:120px; height:120px; flex:none; }
+    .ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+    .ring .c { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+    .ring .c b { font-size:28px; font-weight:800; letter-spacing:-.03em; line-height:1; }
+    .ring .c span { font-size:11.5px; opacity:.8; margin-top:4px; }
+
+    /* 숫자 칸 4개 */
+    .tiles4 { grid-column:span 12; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px; }
+    .tile { background:#fff; border:1px solid var(--line); border-radius:18px; padding:16px 18px; box-shadow:var(--shadow); min-width:0; }
+    .tile .k { font-size:13px; color:var(--sub); display:flex; align-items:center; gap:7px; font-weight:500; }
+    .tile .k i { font-style:normal; width:22px; height:22px; border-radius:7px; background:var(--soft); display:grid; place-items:center; font-size:12px; }
+    .tile .v { font-size:32px; font-weight:800; letter-spacing:-.04em; margin-top:8px; font-variant-numeric:tabular-nums; line-height:1.05; }
+    .tile .v small { font-size:14px; font-weight:600; color:var(--sub); margin-left:3px; letter-spacing:0; }
+    .tile .s { font-size:12.5px; color:var(--sub); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .tile .mini { height:6px; background:var(--soft); border-radius:4px; margin-top:10px; overflow:hidden; }
+    .tile .mini i { display:block; height:100%; background:var(--acc); border-radius:4px; }
+
+    /* 공지 */
+    .notice-card { background:#fffbeb; border-color:#f3e4ae; box-shadow:none; display:flex; gap:12px; align-items:flex-start; padding:16px 20px; }
+    .notice-card .pin { width:30px; height:30px; border-radius:10px; background:#fff1c2; display:grid; place-items:center; flex:none; }
+    .notice-card .nt { flex:1; white-space:pre-wrap; line-height:1.65; font-size:14.5px; color:#4a3c0b; padding-top:4px; }
+
+    /* 단추 */
+    #view-student .btn, #view-admin .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid transparent; background:var(--acc); color:#fff; border-radius:12px; padding:11px 16px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; transition:background .15s, box-shadow .15s; }
+    #view-student .btn:hover, #view-admin .btn:hover { background:var(--acc-ink); }
+    #view-student .btn.secondary, #view-admin .btn.secondary { background:var(--soft); color:var(--ink); border-color:var(--line); }
+    #view-student .btn.secondary:hover, #view-admin .btn.secondary:hover { background:#e9eeec; }
+    #view-student .btn.ghost { background:#fff; color:var(--ink); border-color:var(--line); }
+    #view-student .btn.ghost:hover { border-color:var(--acc); background:#fff; }
+    #view-student .btn.danger, #view-admin .btn.danger { background:var(--red); }
+    #view-student .btn.small, #view-admin .btn.small { padding:7px 11px; font-size:12.5px; border-radius:9px; }
+    #view-student .btn.block { width:100%; }
+    #view-student .btn:disabled, #view-admin .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .btn-link { background:none; border:none; padding:0; color:var(--sub); font-size:12.5px; text-decoration:underline; cursor:pointer; }
+
+    /* 입력 칸 */
+    #view-student input[type=text], #view-student textarea,
+    #view-admin input[type=text], #view-admin input[type=number], #view-admin input[type=date], #view-admin select, #view-admin textarea { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:12px; font-size:15px; background:#fff; color:var(--ink); margin-bottom:10px; transition:border-color .15s, box-shadow .15s; }
+    #view-student input:focus, #view-student textarea:focus, #view-admin input:focus, #view-admin select:focus, #view-admin textarea:focus { outline:none; border-color:var(--acc); box-shadow:0 0 0 3px rgba(10,159,125,.15); }
+
+    /* 마우스를 올리면 뜨는 작은 설명 (그래프 막대 · 선물 사진) */
+    #tip { position:fixed; z-index:90; pointer-events:none; background:#10201b; color:#fff; font:500 12.5px/1.4 'Pretendard Variable', Pretendard, sans-serif; padding:6px 9px; border-radius:8px; opacity:0; transition:opacity .1s; white-space:nowrap; }
+    #tip.on { opacity:1; }
+
+    /* 출석 막대 그래프 (한 묶음이라 범례 없이 제목이 이름) */
+    .chart { position:relative; height:180px; display:flex; align-items:flex-end; gap:10px; padding-top:20px; border-bottom:1px solid #cfd8d4; }
+    .chart .ref { position:absolute; left:0; right:0; border-top:1px dashed #cfd8d4; }
+    .chart .ref span { position:absolute; right:0; top:-17px; font-size:11px; color:var(--sub); }
+    .chart .col { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; position:relative; }
+    .chart .bar { width:min(36px, 72%); background:#9ad9c6; border-radius:5px 5px 0 0; min-height:2px; transition:background .15s; }
+    .chart .col.last .bar { background:var(--acc); }
+    .chart .col:hover .bar { background:var(--acc-ink); }
+    .chart .val { font-size:12px; font-weight:700; margin-bottom:4px; }
+    .chart-x { display:flex; gap:10px; margin-top:7px; }
+    .chart-x span { flex:1; text-align:center; font-size:11.5px; color:var(--sub); }
+    .chart-note { font-size:12px; color:var(--sub); margin-top:10px; }
+
+    /* 가로 막대 · 진행 막대 */
+    .meter { height:8px; background:var(--soft); border-radius:6px; overflow:hidden; margin:10px 0 6px; }
+    .meter > i { display:block; height:100%; background:var(--acc); border-radius:6px; }
+    .hbar { display:grid; grid-template-columns:84px minmax(0,1fr) 34px; align-items:center; gap:10px; font-size:13px; margin:9px 0; }
+    .hbar .t { height:10px; background:var(--soft); border-radius:5px; overflow:hidden; }
+    .hbar .t i { display:block; height:100%; background:var(--acc); border-radius:0 5px 5px 0; }
+    .hbar b { text-align:right; font-variant-numeric:tabular-nums; }
+    .bigline { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .bigline .n { font-size:30px; font-weight:800; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+
+    /* 맨 아래 이용약관 · 관리자 단추 */
+    .policy-foot { max-width:1180px; margin:0 auto; padding:0 16px 70px; font-size:12px; line-height:1.7; color:var(--sub); word-break:keep-all; }
+    .policy-foot summary { cursor:pointer; text-align:center; list-style:none; }
+    .policy-foot summary::-webkit-details-marker { display:none; }
+    .policy-foot .pol { margin-top:10px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+    .policy-foot h4 { margin:8px 0 2px; font-size:13px; color:var(--ink); }
+    .admin-fab { position:fixed; right:16px; bottom:16px; z-index:30; width:44px; height:44px; border-radius:50%; background:#fff; border:1px solid var(--line); box-shadow:var(--shadow); display:grid; place-items:center; text-decoration:none; font-size:18px; }
+
     /* ===================== 학생용 화면 ===================== */
-    #view-student header { background:linear-gradient(135deg,var(--mint),var(--mint-light)); color:white; padding:22px 16px 16px; text-align:center; position:relative; min-height:122px; display:flex; flex-direction:column; justify-content:center; }
-    #view-student header h1 { margin:0; font-size:22px; letter-spacing:0.5px; }
-    #view-student header p { margin:4px 0 0; font-size:13px; opacity:0.92; }
-    #view-student .admin-link { position:absolute; top:16px; right:14px; background:rgba(255,255,255,0.25); color:white; text-decoration:none; font-size:12px; padding:6px 10px; border-radius:20px; border:1px solid rgba(255,255,255,0.5); }
-    #view-student .mini-selector { position:absolute; top:50px; right:14px; display:flex; flex-direction:column; gap:5px; align-items:flex-end; }
-    #view-student .mini-selector .row { display:flex; gap:5px; }
-    #view-student .theme-icon-btn { width:32px; height:28px; border-radius:14px; border:none; background:rgba(0,0,0,0.25); font-size:14px; cursor:pointer; line-height:1; }
-    #view-student .theme-icon-btn.active { background:rgba(255,255,255,0.9); }
-
-    body.theme-d { background:#0a0e14; }
-    #view-student.theme-d { --mint:#37e6b0; --mint-light:#ffd166; --mint-pale:#101820; --bg:#0a0e14; --card:#182634; --text:#e8f4ff; --muted:#6f93a8; --border:#2c3e50; --danger:#ff6b6b; font-family:'Do Hyeon',sans-serif; }
-    body.theme-e { background:#fff9e0; }
-    #view-student.theme-e { --mint:#4dabf7; --mint-light:#ff8787; --mint-pale:#eaf6ff; --bg:#fff9e0; --card:#ffffff; --text:#2b3a55; --muted:#7a8a99; --border:#cfe8ff; --danger:#e74c3c; font-family:'Jua',sans-serif; }
-    #view-student.theme-e header h1, #view-student.theme-e .card h2 { font-family:'Black Han Sans',sans-serif; }
-    body.theme-f { background:#3d3220; }
-    #view-student.theme-f { --mint:#7a5a2e; --mint-light:#c0392b; --mint-pale:#e9dab8; --bg:#3d3220; --card:#f4e9cf; --text:#4a3a1e; --muted:#8a6a3e; --border:#b89a5e; --danger:#c0392b; font-family:'Gowun Dodum',sans-serif; }
-    #view-student.theme-f header h1, #view-student.theme-f .card h2 { font-family:'Black Han Sans',sans-serif; }
-
-    #view-student.font-nanum, #view-student.font-nanum * { font-family:'NanumSquare',sans-serif !important; }
-    #view-student.font-paper, #view-student.font-paper * { font-family:'Paperlogy',sans-serif !important; }
-    #view-student.font-yuntaeng, #view-student.font-yuntaeng * { font-family:'OwnglyphYuntaeng',sans-serif !important; }
-
-    #view-student .notice-bar { background:#fff9db; border-bottom:1px solid #ffe58f; padding:10px 16px; font-size:13px; color:#614700; display:flex; gap:8px; align-items:flex-start; white-space:pre-wrap; }
-    #view-student .user-bar { background:var(--card); padding:10px 16px; display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; align-items:center; border-bottom:1px solid var(--border); font-size:13px; }
-    #view-student .user-bar .btn-link { color:var(--mint); background:none; border:none; font-size:13px; cursor:pointer; text-decoration:underline; }
-    #view-student .login-inline { display:flex; gap:8px; margin-left:auto; align-items:center; }
-    #view-student .login-inline input { margin-bottom:0; flex:0 1 150px; text-align:center; letter-spacing:2px; padding:7px 8px; font-size:13px; }
-    #view-student .login-inline button { width:auto; white-space:nowrap; flex-shrink:0; }
-    #view-student #st-welcomeText { font-weight:600; color:var(--mint); }
-    #view-student nav.cat-row { display:flex; gap:6px; padding:8px 16px; justify-content:flex-end; overflow-x:auto; }
-    #view-student nav.cat-row button { padding:6px 12px; border-radius:16px; border:1px solid var(--border); background:var(--card); font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; font-family:inherit; }
-    #view-student nav.cat-row button.active { border-color:var(--mint); color:var(--mint); background:var(--mint-pale); }
-    /* 게임 화면(번호 추첨)으로 가는 단추: 눈에 띄게 주황 */
-    #view-student nav.cat-row a.game-link { padding:6px 14px; border-radius:16px; background:#FF9A4D; color:#12306B; font-size:12px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; box-shadow:0 2px 0 #C2621F; }
-    /* 연화제 부스 현황 (/drs/booth) 단추: 부스 상황판과 같은 팩맨 색 */
-    #view-student nav.cat-row a.booth-link { background:#07070C; color:#FFD400; box-shadow:0 0 0 2px #3D6BFF, 0 2px 0 2px #1D2C66; }
-    #view-student main { padding:16px; max-width:640px; margin:0 auto; padding-bottom:50px; }
-    #view-student .panel { display:none; }
-    #view-student .panel.active { display:block; }
-    #view-student .card { background:var(--card); border-radius:14px; padding:18px; margin-bottom:14px; box-shadow:0 1px 6px rgba(0,0,0,0.05); border:1px solid var(--border); }
-    #view-student .card h2 { margin:0 0 12px; font-size:16px; color:var(--mint); }
-    #view-student input, #view-student select, #view-student textarea, #view-student button { font-family:inherit; }
-    #view-student input, #view-student select, #view-student textarea { width:100%; padding:10px; border:1px solid #cde9de; border-radius:10px; font-size:14px; margin-bottom:10px; background:#fbfffd; color:#2d3436; }
-    #view-student button.btn { background:var(--mint); color:white; border:none; border-radius:10px; padding:12px 16px; font-size:14px; font-weight:600; cursor:pointer; width:100%; }
-    #view-student button.btn.secondary { background:var(--mint-pale); color:var(--mint); }
-    #view-student button.btn.small { width:auto; padding:7px 12px; font-size:12px; }
-    #view-student button.btn:disabled { opacity:0.5; }
-    #view-student .session-toggle { display:flex; gap:8px; margin-bottom:12px; }
-    #view-student .session-toggle button { flex:1; }
-    #view-student .session-toggle button.active { background:var(--mint); color:white; }
-    #view-student .session-toggle button:not(.active) { background:var(--mint-pale); color:var(--mint); }
-    #view-student .status-msg { text-align:center; padding:10px; border-radius:10px; font-size:14px; margin-top:8px; }
-    #view-student .status-msg.ok { background:var(--mint-pale); color:var(--mint); }
-    #view-student .status-msg.no { background:#fdecea; color:var(--danger); }
-    #view-student .gift-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
-    #view-student .gift-card { position:relative; border:1px solid var(--border); border-radius:8px; padding:3px; text-align:center; background:var(--card); }
-    #view-student .gift-card img, #view-student .gift-card .noimg { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:5px; background:#eef7f3; display:block; }
-    #view-student .gift-card .num { position:absolute; top:5px; left:5px; background:var(--mint); color:white; font-size:9px; font-weight:bold; border-radius:8px; padding:1px 5px; line-height:1.4; }
-    #view-student .gift-card .name { font-size:10px; font-weight:bold; margin:3px 0 0; line-height:1.25; word-break:keep-all; }
-    #view-student .gift-card .name.expensive { font-size:12px; color:var(--danger); }
-    #view-student .gift-card .name.midprice { color:#2980b9; }
-    #view-student .sort-tabs { display:flex; gap:6px; margin-bottom:10px; }
-    #view-student .sort-tab { flex:1; padding:7px 4px; border-radius:8px; border:1px solid var(--border); background:var(--card); font-size:12px; color:var(--muted); cursor:pointer; }
-    #view-student .sort-tab.active { background:var(--mint); color:white; border-color:var(--mint); }
-    #view-student .locked { text-align:center; padding:40px 16px; color:var(--muted); }
-    #view-student .locked .emoji { font-size:40px; margin-bottom:8px; }
-    #view-student footer { text-align:center; padding:16px; font-size:12px; color:var(--muted); }
-    #view-student .loading { text-align:center; color:var(--muted); padding:20px; font-size:13px; }
-    @media (min-width:640px) { #view-student main { max-width:900px; } #view-student .gift-grid { grid-template-columns:repeat(6,1fr); gap:8px; } }
-    @media (min-width:1000px) { #view-student main { max-width:1300px; } #view-student .gift-grid { grid-template-columns:repeat(10,1fr); gap:8px; } }
+    #view-student .login-inline { display:flex; gap:6px; align-items:center; }
+    #view-student .login-inline input { width:138px; margin:0; padding:8px 10px; font-size:14px; text-align:center; letter-spacing:1px; border-radius:10px; }
+    #view-student .me-chip { display:flex; align-items:center; gap:8px; font-size:13.5px; min-width:0; }
+    #view-student .me-chip .av { width:30px; height:30px; border-radius:50%; background:var(--acc-soft); color:var(--acc-ink); display:grid; place-items:center; font-weight:800; font-size:13px; flex:none; }
+    #view-student .me-chip #st-welcomeText { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #view-student .login-msg { max-width:1180px; margin:10px auto 0; padding:10px 14px; border-radius:12px; background:var(--red-soft); color:#b4232a; font-size:13.5px; width:calc(100% - 32px); }
+    #view-student .me-name { font-size:21px; font-weight:800; letter-spacing:-.03em; }
+    #view-student .me-sub { font-size:13px; color:var(--sub); margin-top:3px; }
+    #view-student .check-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+    #view-student .check-row .btn.on { background:var(--acc); color:#fff; }
+    #view-student .msg { font-size:12.5px; color:var(--sub); margin-top:10px; min-height:1em; }
+    #view-student .msg.ok { color:var(--acc-ink); font-weight:600; }
+    #view-student .msg.no { color:var(--red); }
+    #view-student .locked { text-align:center; padding:28px 12px; color:var(--sub); font-size:14px; }
+    #view-student .locked .emoji { font-size:34px; margin-bottom:6px; }
+    /* 바로 가기 */
+    #view-student .links { display:flex; flex-direction:column; gap:8px; }
+    #view-student .lk { display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:12px; border:1px solid var(--line); text-decoration:none; color:var(--ink); background:#fff; transition:border-color .15s, background .15s; cursor:pointer; font:inherit; text-align:left; width:100%; }
+    #view-student .lk:hover { border-color:var(--acc); background:#fbfefd; }
+    #view-student .lk .e { width:36px; height:36px; border-radius:10px; background:var(--soft); display:grid; place-items:center; font-size:18px; flex:none; }
+    #view-student .lk b { display:block; font-size:14px; }
+    #view-student .lk span.d { display:block; font-size:12px; color:var(--sub); margin-top:1px; }
+    #view-student .lk .arr { margin-left:auto; color:#a7b4af; font-size:18px; }
+    /* 부원 톡 */
+    #view-student .chat { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
+    #view-student .chat li { display:flex; gap:10px; font-size:13.5px; line-height:1.45; }
+    #view-student .chat .av { width:30px; height:30px; border-radius:50%; background:var(--soft); display:grid; place-items:center; font-size:12px; font-weight:700; color:var(--sub); flex:none; }
+    #view-student .chat .bd { min-width:0; flex:1; }
+    #view-student .chat .bd b { margin-right:6px; }
+    #view-student .chat .bd time { font-size:11.5px; color:var(--sub); }
+    #view-student .chat .bd p { margin:2px 0 0; word-break:break-all; }
+    /* 선물 목록 */
+    #view-student .sort-tabs { display:inline-flex; padding:3px; background:var(--soft); border-radius:10px; gap:2px; }
+    #view-student .sort-tab { border:none; background:none; padding:6px 11px; border-radius:8px; font-size:12.5px; color:var(--sub); cursor:pointer; font-weight:600; }
+    #view-student .sort-tab.active { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08); }
+    #view-student .gift-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+    #view-student .gift-head h3 { margin:0; font-size:15px; display:flex; align-items:center; gap:9px; }
+    #view-student .gift-head h3 .ic { width:28px; height:28px; border-radius:9px; background:var(--acc-soft); display:grid; place-items:center; font-size:14px; }
+    #view-student .gift-head .sp { flex:1; }
+    #view-student .gift-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(112px, 1fr)); gap:12px; }
+    #view-student .gift-card { position:relative; min-width:0; }
+    #view-student .gift-card .ph { position:relative; aspect-ratio:3/4; border-radius:12px; overflow:hidden; background:var(--soft); }
+    #view-student .gift-card img, #view-student .gift-card .noimg { width:100%; height:100%; object-fit:cover; display:block; }
+    #view-student .gift-card .num { position:absolute; top:6px; left:6px; background:rgba(16,32,27,.78); color:#fff; font-size:11px; font-weight:700; border-radius:7px; padding:1px 7px; }
+    #view-student .gift-card .name { font-size:13px; font-weight:600; margin-top:6px; line-height:1.3; word-break:keep-all; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    #view-student .gift-card .price { font-size:12px; color:var(--sub); margin-top:1px; font-variant-numeric:tabular-nums; }
+    #view-student .gift-card .price.mid { color:#1c6fb8; }
+    #view-student .gift-card .price.high { color:var(--red); font-weight:700; }
+    #view-student .gift-card.drawn .ph::after { content:'뽑힘'; position:absolute; inset:0; display:grid; place-items:center; background:rgba(16,32,27,.5); color:#fff; font-weight:700; font-size:14px; }
+    /* 선물 등록 창 */
+    .sheet-bg { position:fixed; inset:0; background:rgba(9,20,17,.45); z-index:60; display:none; align-items:flex-end; justify-content:center; }
+    .sheet-bg.on { display:flex; }
+    .sheet { background:#fff; width:100%; max-width:480px; border-radius:22px 22px 0 0; padding:22px 20px 24px; max-height:92vh; overflow:auto; animation:sheet-up .22s ease-out; }
+    .sheet h3 { margin:0 0 4px; font-size:18px; font-weight:800; display:flex; align-items:center; }
+    .sheet h3 button { margin-left:auto; border:none; background:var(--soft); width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:15px; color:var(--sub); }
+    .sheet .help { font-size:13px; color:var(--sub); margin:0 0 14px; }
+    .photo-drop { border:1.5px dashed #c9d5d0; border-radius:14px; aspect-ratio:4/3; display:grid; place-items:center; background:var(--soft); color:var(--sub); cursor:pointer; overflow:hidden; margin-bottom:12px; font-size:14px; text-align:center; width:100%; padding:0; }
+    .photo-drop img { width:100%; height:100%; object-fit:cover; display:block; }
+    @keyframes sheet-up { from { transform:translateY(30px); opacity:0; } to { transform:none; opacity:1; } }
+    @media (min-width:640px) { .sheet-bg { align-items:center; } .sheet { border-radius:22px; } }
 
     /* ===================== 교사용 관리보드 ===================== */
-    #view-admin header { background:linear-gradient(135deg,var(--main),var(--main-light)); color:white; padding:20px 16px 14px; text-align:center; }
-    #view-admin header h1 { margin:0; font-size:22px; }
-    #view-admin header p { margin:4px 0 0; font-size:13px; opacity:0.9; }
-    #view-admin .notice-bar { background:#fff9db; border-bottom:1px solid #ffe58f; padding:10px 16px; font-size:13px; color:#614700; display:flex; gap:8px; align-items:flex-start; }
-    #view-admin #ad-noticeText { white-space:pre-wrap; }
-    #view-admin .notice-edit { display:none; margin-top:6px; }
-    #view-admin .notice-edit textarea { width:100%; min-height:60px; font-size:13px; padding:6px; border-radius:6px; border:1px solid #ddd; }
-    #view-admin nav.tabs { display:flex; overflow-x:auto; background:white; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
-    #view-admin nav.tabs button { flex:1; min-width:84px; padding:12px 6px; border:none; background:none; font-size:13px; color:var(--muted); cursor:pointer; white-space:nowrap; border-bottom:3px solid transparent; }
-    #view-admin nav.tabs button.active { color:var(--main); font-weight:bold; border-bottom-color:var(--main); }
-    #view-admin main { padding:16px; max-width:960px; margin:0 auto; padding-bottom:60px; }
+    #view-admin .gate { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px; }
+    #view-admin .gate-card { background:#fff; border:1px solid var(--line); border-radius:22px; padding:30px 26px; width:100%; max-width:340px; text-align:center; box-shadow:var(--shadow); }
+    #view-admin .gate-card .logo { width:52px; height:52px; border-radius:16px; margin:0 auto 12px; background:linear-gradient(135deg,#12c193,#0a8a6c); display:grid; place-items:center; font-size:24px; }
+    #view-admin .gate-card h2 { margin:0 0 6px; font-size:19px; }
+    #view-admin .gate-card p { font-size:13px; color:var(--sub); margin:0 0 18px; line-height:1.55; }
+    #view-admin .tabs-wrap { position:sticky; top:58px; z-index:15; background:rgba(243,246,245,.92); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+    #view-admin nav.tabs { max-width:1180px; margin:0 auto; padding:10px 16px; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; }
+    #view-admin nav.tabs::-webkit-scrollbar { display:none; }
+    #view-admin nav.tabs button { flex:none; padding:8px 14px; border:1px solid var(--line); background:#fff; border-radius:999px; font-size:13.5px; font-weight:600; color:var(--sub); cursor:pointer; white-space:nowrap; transition:all .15s; }
+    #view-admin nav.tabs button:hover { color:var(--ink); }
+    #view-admin nav.tabs button.active { background:var(--ink); border-color:var(--ink); color:#fff; }
+    #view-admin main.dash { padding-top:8px; }
     #view-admin .tab-content { display:none; }
     #view-admin .tab-content.active { display:block; }
-    #view-admin .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.05); }
-    #view-admin .card h2 { margin:0 0 12px; font-size:16px; color:var(--main); }
-    #view-admin .card .help { font-size:12px; color:var(--muted); margin:-6px 0 10px; line-height:1.5; }
-    #view-admin input, #view-admin select, #view-admin textarea { width:100%; padding:9px 10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:8px; font-family:inherit; }
+    #view-admin .tab-content:not(#tab-home) { max-width:960px; margin:0 auto; }
+    #view-admin .card { background:#fff; border:1px solid var(--line); border-radius:18px; padding:20px; margin-bottom:16px; box-shadow:var(--shadow); }
+    #view-admin .card h2 { margin:0 0 14px; font-size:15.5px; font-weight:700; color:var(--ink); }
+    #view-admin .card .help { font-size:12.5px; color:var(--sub); margin:-6px 0 12px; line-height:1.6; }
     #view-admin .row { display:flex; gap:8px; }
     #view-admin .row > * { flex:1; }
-    #view-admin button.btn { background:var(--main); color:white; border:none; border-radius:8px; padding:10px 14px; font-size:14px; cursor:pointer; font-family:inherit; }
-    #view-admin button.btn.secondary { background:#eee; color:var(--text); }
-    #view-admin button.btn.danger { background:var(--danger); }
-    #view-admin button.btn.small { padding:5px 9px; font-size:12px; }
-    #view-admin button.btn:disabled { opacity:0.5; cursor:not-allowed; }
     #view-admin .table-wrap { overflow-x:auto; }
     #view-admin table { width:100%; border-collapse:collapse; font-size:13px; }
-    #view-admin th, #view-admin td { padding:8px 6px; border-bottom:1px solid #eee; text-align:left; white-space:nowrap; }
-    #view-admin th { color:var(--muted); font-weight:600; }
-    #view-admin .member-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:14px; }
-    #view-admin .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; }
-    #view-admin .badge.ok { background:#e6f9ee; color:var(--ok); }
-    #view-admin .badge.no { background:#fdecea; color:var(--danger); }
-    #view-admin .attend-toggle { width:22px; height:22px; cursor:pointer; margin:0; }
-    #view-admin .gift-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; }
-    #view-admin .gift-card { border:1px solid var(--border); border-radius:10px; padding:6px; text-align:center; position:relative; background:white; }
-    #view-admin .gift-card img, #view-admin .gift-card .noimg { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:6px; background:#eee; display:block; }
+    #view-admin th, #view-admin td { padding:10px 8px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+    #view-admin th { color:var(--sub); font-weight:600; font-size:12px; background:var(--soft); }
+    #view-admin tr:hover td { background:#fafcfb; }
+    #view-admin .member-item { display:flex; justify-content:space-between; align-items:center; padding:10px 2px; border-bottom:1px solid var(--line); font-size:14px; }
+    #view-admin .member-item:last-child { border-bottom:none; }
+    #view-admin .badge { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600; }
+    #view-admin .badge.ok { background:var(--acc-soft); color:var(--acc-ink); }
+    #view-admin .badge.no { background:var(--red-soft); color:#b4232a; }
+    #view-admin .attend-toggle { width:22px; height:22px; cursor:pointer; margin:0; accent-color:var(--acc); }
+    #view-admin .gift-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(124px,1fr)); gap:10px; }
+    #view-admin .gift-card { border:1px solid var(--line); border-radius:14px; padding:6px; text-align:center; position:relative; background:#fff; }
+    #view-admin .gift-card img, #view-admin .gift-card .noimg { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:9px; background:var(--soft); display:block; }
     #view-admin .gift-card.drawn img { opacity:0.45; }
-    #view-admin .gift-card .num { position:absolute; top:9px; left:9px; background:var(--main); color:white; font-size:10px; font-weight:bold; border-radius:8px; padding:1px 6px; }
-    #view-admin .gift-card .name { font-size:13px; font-weight:bold; margin:5px 0 2px; word-break:keep-all; }
-    #view-admin .gift-card .price { font-size:12px; color:var(--muted); }
-    #view-admin .gift-card .btns { display:flex; gap:3px; justify-content:center; flex-wrap:wrap; margin-top:5px; }
-    #view-admin .gift-card .btns button { padding:4px 6px; font-size:11px; }
-    #view-admin .gift-tools { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    #view-admin .gift-card .num { position:absolute; top:11px; left:11px; background:rgba(16,32,27,.78); color:white; font-size:11px; font-weight:bold; border-radius:7px; padding:1px 7px; }
+    #view-admin .gift-card .name { font-size:13px; font-weight:700; margin:6px 0 2px; word-break:keep-all; }
+    #view-admin .gift-card .price { font-size:12px; color:var(--sub); }
+    #view-admin .gift-card .btns { display:flex; gap:3px; justify-content:center; flex-wrap:wrap; margin-top:6px; }
+    #view-admin .gift-card .btns button { padding:4px 7px; font-size:11px; }
+    #view-admin .gift-tools { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
     #view-admin .gift-tools .view-tog, #view-admin .gift-tools .del-tools { display:flex; gap:6px; }
     #view-admin .gift-table td { vertical-align:middle; }
     #view-admin .gift-table tr.sel td { background:#FFF4F2; }
     #view-admin .gift-thumb { display:block; width:40px; }
-    #view-admin .gift-thumb img, #view-admin .gift-thumb .noimg { width:40px; height:52px; object-fit:cover; border-radius:6px; background:#eee; display:block; }
-    #view-admin .mode-select { display:flex; gap:8px; margin-bottom:12px; }
+    #view-admin .gift-thumb img, #view-admin .gift-thumb .noimg { width:40px; height:52px; object-fit:cover; border-radius:7px; background:var(--soft); display:block; }
+    #view-admin .mode-select { display:flex; gap:4px; margin-bottom:12px; padding:4px; background:var(--soft); border-radius:12px; }
     #view-admin .mode-select button { flex:1; }
-    #view-admin .mode-select button.active { background:var(--main); color:white; }
-    #view-admin .mode-select button:not(.active) { background:#eee; color:var(--text); }
-    #view-admin .balance { font-size:20px; font-weight:bold; color:var(--main); }
-    #view-admin .placeholder { text-align:center; padding:40px 10px; color:var(--muted); }
-    #view-admin footer { text-align:center; padding:16px; font-size:12px; color:var(--muted); }
-    #view-admin .loading { text-align:center; color:var(--muted); padding:20px; font-size:13px; }
-    #view-admin .result-msg { font-size:13px; margin-top:6px; color:var(--main); white-space:pre-wrap; }
-    #view-admin .result-msg.err { color:var(--danger); }
-    #view-admin .gift-summary { font-size:13px; color:var(--muted); margin-bottom:10px; }
-    #view-admin .reg-count { display:inline-block; background:var(--mint-pale); color:var(--main); border-radius:12px; padding:3px 10px; font-size:12px; margin-left:6px; }
-    /* 여러 장 한꺼번에 등록 */
-    #view-admin .bulk-item { display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0; }
-    #view-admin .bulk-item img { width:54px; height:72px; object-fit:cover; border-radius:6px; flex-shrink:0; }
+    #view-admin .mode-select button.btn { background:transparent; color:var(--sub); padding:9px 10px; border-radius:9px; }
+    #view-admin .mode-select button.btn.active { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08); }
+    #view-admin .balance { font-size:28px; font-weight:800; letter-spacing:-.03em; color:var(--ink); font-variant-numeric:tabular-nums; }
+    #view-admin .placeholder { text-align:center; padding:36px 10px; color:var(--sub); }
+    #view-admin footer { text-align:center; padding:16px; font-size:12px; color:var(--sub); }
+    #view-admin .loading { text-align:center; color:var(--sub); padding:20px; font-size:13px; }
+    #view-admin .result-msg { font-size:13px; margin-top:6px; color:var(--acc-ink); white-space:pre-wrap; }
+    #view-admin .result-msg.err { color:var(--red); }
+    #view-admin .gift-summary { font-size:13px; color:var(--sub); margin-bottom:10px; }
+    #view-admin .reg-count { display:inline-block; background:var(--acc-soft); color:var(--acc-ink); border-radius:12px; padding:3px 10px; font-size:12px; margin-left:6px; }
+    #view-admin .bulk-item { display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+    #view-admin .bulk-item img { width:54px; height:72px; object-fit:cover; border-radius:8px; flex-shrink:0; }
     #view-admin .bulk-item .fields { flex:1; display:flex; gap:6px; flex-wrap:wrap; }
     #view-admin .bulk-item .fields input { margin:0; flex:1 1 120px; }
     #view-admin .bulk-item .fields input.price { flex:0 1 90px; }
-    #view-admin .bulk-item input.missing { border-color:var(--danger); background:#fff5f5; }
+    #view-admin .bulk-item input.missing { border-color:var(--red); background:#fff5f5; }
+    /* 관리보드 공지 칸 */
+    #view-admin #ad-noticeText { white-space:pre-wrap; }
+    #view-admin .notice-edit { display:none; margin-top:8px; }
+    #view-admin .notice-edit textarea { min-height:80px; }
+    /* 한눈에 탭: 오늘 안 온 부원 · 최근 가계부 */
+    #view-admin .chips { display:flex; flex-wrap:wrap; gap:6px; }
+    #view-admin .chips span { font-size:12.5px; padding:5px 10px; border-radius:999px; background:var(--soft); border:1px solid var(--line); }
+    #view-admin .mini-table td, #view-admin .mini-table th { padding:8px 6px; }
+    #view-admin .amt-in { color:var(--acc-ink); font-weight:700; }
+    #view-admin .amt-out { color:var(--red); font-weight:700; }
+
+    @media (max-width:900px) {
+      .dgrid > * { grid-column:span 12 !important; }
+      .tiles4 { grid-template-columns:repeat(2, minmax(0,1fr)); }
+      .hero { padding:24px 22px; }
+      .hero h1 { font-size:25px; }
+    }
+    @media (max-width:560px) {
+      .ring { display:none; }
+      .brand small { display:none; }
+      .topbar-in { gap:8px; }
+      .toplinks a.opt { display:none; }
+      #view-student .login-inline input { width:112px; }
+      #view-student .me-chip .av { display:none; }
+      .tile .v { font-size:27px; }
+      #view-student .gift-grid { grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; }
+      .dash { padding:14px 12px 40px; }
+      .dgrid, .tiles4 { gap:12px; }
+      .dcard { padding:16px; }
+    }
 
     /* ===================== 뽑기 공개 화면 ===================== */
     /* ===================== 뽑기 화면: 번호 추첨기 (아이패드 세로에 맞춤) ===================== */
@@ -437,108 +579,131 @@
 <div id="config-warning">⚠️ index.html 안의 <b>firebaseConfig</b>에 파이어베이스 프로젝트 정보를 넣어주세요.</div>
 
 <!-- ============================================================ -->
-<!-- 학생용 화면                                                     -->
+<!-- 학생용 화면 (대시보드)                                           -->
+<!--   칸은 비어 있고, 아래 script 의 st_render…() 가 자료로 채워요       -->
 <!-- ============================================================ -->
 <div id="view-student" class="view">
-  <header>
-    <a class="admin-link" href="?page=admin">🔧 교사용 관리보드</a>
-    <div class="mini-selector">
-      <div class="row">
-        <button class="theme-icon-btn" data-theme="d" onclick="st_setTheme('d')">👾</button>
-        <button class="theme-icon-btn" data-theme="e" onclick="st_setTheme('e')">🧸</button>
-        <button class="theme-icon-btn" data-theme="f" onclick="st_setTheme('f')">⚔️</button>
-      </div>
-      <div class="row">
-        <button class="theme-icon-btn" data-font="nanum" onclick="st_setFont('nanum')">🅰️</button>
-        <button class="theme-icon-btn" data-font="paper" onclick="st_setFont('paper')">📄</button>
-        <button class="theme-icon-btn" data-font="yuntaeng" onclick="st_setFont('yuntaeng')">✍️</button>
-      </div>
-    </div>
-    <h1 id="st-titleText">2026 또래상담부</h1>
-    <p id="st-taglineText">동아리 활동 웹앱</p>
-  </header>
-
-  <div class="notice-bar" id="st-noticeBar" style="display:none;">
-    <span>📌</span><span id="st-noticeText"></span>
-  </div>
-
-  <div class="user-bar">
+  <div class="topbar"><div class="topbar-in">
+    <a class="brand" href="?"><span class="logo">🤝</span>또래상담부 <small>2026</small></a>
+    <div class="spacer"></div>
     <div id="st-loginArea" class="login-inline">
-      <input type="text" id="st-loginId" placeholder="학번/폰뒷자리" inputmode="numeric" maxlength="5">
+      <input type="text" id="st-loginId" placeholder="학번 / 폰 뒷자리" inputmode="numeric" maxlength="5" aria-label="학번 또는 전화번호 뒷자리">
       <button class="btn small" onclick="st_doLogin()">입장</button>
     </div>
-    <div id="st-loggedArea" style="display:none; align-items:center; justify-content:space-between; width:100%;">
+    <div id="st-loggedArea" class="me-chip" style="display:none;">
+      <span class="av" id="st-avatar"></span>
       <span id="st-welcomeText"></span>
       <button class="btn-link" onclick="st_logout()">로그아웃</button>
     </div>
-    <div id="st-loginMsg" class="status-msg no" style="display:none; width:100%;"></div>
-  </div>
+  </div></div>
+  <div id="st-loginMsg" class="login-msg" style="display:none;"></div>
 
-  <nav class="cat-row">
-    <a class="game-link" href="?page=draw"><span>🎱</span> 행운의 번호 추첨 (게임 화면)</a>
-    <a class="game-link booth-link" href="/drs/booth/"><span>👾</span> 연화제 부스 현황</a>
-    <button class="cat-btn active" data-cat="gift"><span>🎁</span> 천원의 행복 뽑기 준비</button>
-    <button class="cat-btn" data-cat="attend"><span>✅</span> 출석체크</button>
-  </nav>
-
-  <main>
-    <div class="panel active" id="panel-gift">
-      <div class="card" id="st-giftCard"></div>
-    </div>
-    <div class="panel" id="panel-attend">
-      <div class="card" id="st-attendCard"></div>
+  <main class="dash">
+    <div class="dgrid">
+      <section class="hero" id="st-hero"></section>
+      <section class="dcard notice-card" id="st-notice" style="display:none;"></section>
+      <div class="tiles4" id="st-tiles"></div>
+      <section class="dcard span-4" id="st-me"></section>
+      <section class="dcard span-8" id="st-trend"></section>
+      <section class="dcard span-4" id="st-giftStats"></section>
+      <section class="dcard span-4" id="st-links"></section>
+      <section class="dcard span-4" id="st-chat"></section>
+      <section class="dcard" id="st-gifts"></section>
     </div>
   </main>
-  <footer>또래상담부 동아리 웹앱</footer>
+
+  <footer class="policy-foot"><details>
+    <summary>이용약관 · 개인정보 처리방침</summary>
+    <div class="pol">
+      <h4>이용약관</h4>
+      이 웹앱은 진선여고 또래상담부 동아리 활동(출석체크 · 천원의 행복 뽑기 준비 · 번호 추첨)을 돕기 위해 만들었어요. 동아리 활동 말고 다른 목적으로 쓰지 말아 주세요. 다른 사람의 학번으로 들어가거나 장난 글 · 사진을 올리면 지울 수 있어요.
+      <h4>개인정보 처리방침</h4>
+      학번(또는 전화번호 뒷자리 4자리), 출석한 날짜 · 시각, 직접 올린 선물 이름 · 가격 · 사진만 저장해요. 이 자료는 동아리 운영에만 쓰고, 학년이 끝나면 담당 선생님이 지워요. 내 기록을 지우고 싶으면 담당 선생님께 말해 주세요.
+    </div>
+  </details></footer>
+  <a class="admin-fab" href="?page=admin" title="교사용 관리보드" aria-label="교사용 관리보드">🔧</a>
+
+  <!-- 선물 등록 창 -->
+  <div class="sheet-bg" id="st-sheet" onclick="if (event.target === this) st_closeSheet()">
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="선물 등록하기">
+      <h3>🎁 선물 등록하기 <button type="button" onclick="st_closeSheet()" aria-label="닫기">✕</button></h3>
+      <p class="help">사진을 찍고 이름 · 가격을 넣으면 선물 목록에 바로 올라가요.</p>
+      <input type="file" id="st-giftPhoto" accept="image/*" capture="environment" style="display:none;">
+      <button type="button" class="photo-drop" id="st-giftPhotoBtn" onclick="document.getElementById('st-giftPhoto').click()">📷 눌러서 사진 찍기</button>
+      <input type="text" id="st-giftName" placeholder="선물 이름">
+      <input type="text" id="st-giftPrice" placeholder="가격 (숫자만)" inputmode="numeric">
+      <textarea id="st-giftDesc" placeholder="설명 (비워 둬도 돼요)" rows="2"></textarea>
+      <button class="btn block" id="st-giftSubmitBtn" onclick="st_submitGift()">등록하기</button>
+      <div id="st-giftUploadMsg" class="msg"></div>
+    </div>
+  </div>
 </div>
+<div id="tip"></div>
 
 <!-- ============================================================ -->
 <!-- 교사용 관리보드                                                 -->
 <!-- ============================================================ -->
 <div id="view-admin" class="view">
-  <div id="ad-pwGate" style="min-height:100vh; display:flex; align-items:center; justify-content:center;">
-    <div style="background:white; border-radius:14px; padding:28px 24px; width:85%; max-width:300px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
-      <div style="font-size:36px; margin-bottom:8px;">🔒</div>
-      <h2 style="margin:0 0 4px; color:var(--main);">관리자 확인</h2>
-      <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">관리자 구글 계정으로 들어와요. 관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
+  <div id="ad-pwGate" class="gate">
+    <div class="gate-card">
+      <div class="logo">🔒</div>
+      <h2>관리자 확인</h2>
+      <p>관리자 구글 계정으로 들어와요.<br>관리자 허브에 이미 들어와 있으면 바로 열려요.</p>
       <button class="btn" style="width:100%;" onclick="ad_googleLogin()">G 구글 계정으로 로그인</button>
-      <div id="ad-pwMsg" style="color:var(--danger); font-size:13px; margin-top:8px; display:none;"></div>
-      <p style="margin-top:14px;"><a href="?" style="font-size:12px;color:var(--muted);">← 학생용 화면</a></p>
+      <div id="ad-pwMsg" style="color:var(--red); font-size:13px; margin-top:10px; display:none;"></div>
+      <p style="margin:16px 0 0;"><a href="?" style="font-size:12.5px;color:var(--sub);">← 학생용 화면</a></p>
     </div>
   </div>
 
   <div id="ad-adminContent" style="display:none;">
-    <header>
-      <h1>🤝 또래상담부 <span style="font-size:14px;font-weight:normal;">교사용 관리보드</span></h1>
-      <p><a href="?" style="color:white;">← 학생용 화면으로 돌아가기</a> · <a href="#" style="color:white;" onclick="ad_logout(); return false;">로그아웃</a></p>
-      <p style="margin-top:10px;"><a href="?page=draw" style="display:inline-block; background:#FF9A4D; color:#12306B; font-weight:bold; text-decoration:none; padding:8px 16px; border-radius:18px;">🎱 행운의 번호 추첨 (게임 화면) 열기</a></p>
-    </header>
-
-    <div class="notice-bar">
-      <div>📌</div>
-      <div style="flex:1">
-        <div id="ad-noticeText">공지사항을 불러오는 중...</div>
-        <div class="notice-edit" id="ad-noticeEdit">
-          <textarea id="ad-noticeInput"></textarea>
-          <button class="btn small" onclick="ad_saveNoticeText()">저장</button>
-          <button class="btn small secondary" onclick="ad_toggleNoticeEdit(false)">취소</button>
-        </div>
+    <div class="topbar"><div class="topbar-in">
+      <a class="brand" href="?page=admin"><span class="logo">🤝</span>또래상담부 <small>관리보드</small></a>
+      <div class="spacer"></div>
+      <div class="toplinks">
+        <a class="opt" href="?">학생 화면</a>
+        <a class="hot" href="?page=draw">🎱 추첨 화면</a>
+        <a href="#" onclick="ad_logout(); return false;">로그아웃</a>
       </div>
-      <button class="btn small secondary" onclick="ad_toggleNoticeEdit(true)" id="ad-noticeEditBtn">수정</button>
+    </div></div>
+
+    <div class="tabs-wrap">
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="home">📊 한눈에</button>
+        <button class="tab-btn" data-tab="members">👥 명단</button>
+        <button class="tab-btn" data-tab="attendance">✅ 출석체크</button>
+        <button class="tab-btn" data-tab="ledger">💰 가계부</button>
+        <button class="tab-btn" data-tab="gifts">🎁 뽑기관리</button>
+        <button class="tab-btn" data-tab="import">📥 자료 가져오기</button>
+        <button class="tab-btn" data-tab="willy">🪨 워리스톤</button>
+      </nav>
     </div>
 
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="members">명단</button>
-      <button class="tab-btn" data-tab="attendance">출석체크</button>
-      <button class="tab-btn" data-tab="ledger">가계부</button>
-      <button class="tab-btn" data-tab="gifts">뽑기관리</button>
-      <button class="tab-btn" data-tab="import">📥 자료 가져오기</button>
-      <button class="tab-btn" data-tab="willy">워리스톤</button>
-    </nav>
+    <main class="dash">
+      <!-- 한눈에 (관리보드 첫 화면) -->
+      <div class="tab-content active" id="tab-home">
+        <div class="dgrid">
+          <div class="tiles4" id="ad-tiles"></div>
+          <section class="dcard notice-card" style="display:flex;">
+            <div class="pin">📌</div>
+            <div style="flex:1; min-width:0;">
+              <div class="nt" id="ad-noticeText">공지사항을 불러오는 중...</div>
+              <div class="notice-edit" id="ad-noticeEdit">
+                <textarea id="ad-noticeInput"></textarea>
+                <button class="btn small" onclick="ad_saveNoticeText()">저장</button>
+                <button class="btn small secondary" onclick="ad_toggleNoticeEdit(false)">취소</button>
+              </div>
+            </div>
+            <button class="btn small secondary" onclick="ad_toggleNoticeEdit(true)" id="ad-noticeEditBtn">공지 고치기</button>
+          </section>
+          <section class="dcard span-8" id="ad-trend"></section>
+          <section class="dcard span-4" id="ad-absent"></section>
+          <section class="dcard span-5" id="ad-giftStats"></section>
+          <section class="dcard span-7" id="ad-ledgerRecent"></section>
+        </div>
+      </div>
 
-    <main>
       <!-- 명단 -->
-      <div class="tab-content active" id="tab-members">
+      <div class="tab-content" id="tab-members">
         <div class="card">
           <h2>부원 추가</h2>
           <div class="row">
@@ -986,57 +1151,112 @@ async function addGift(g, serial) {
 }
 
 /* ============================================================ */
-/* 학생용 화면                                                     */
+/* 대시보드 공용 (학생 화면 · 관리보드 '한눈에' 가 같이 써요)          */
+/* ============================================================ */
+// 부원 명단 · 출석 기록을 실시간으로 받아 둬요 (watchGifts 와 같은 방식)
+let LIVE_MEMBERS = [], membersLoaded = false, memberWatchers = [], memberWatchStarted = false;
+function watchMembers(cb) {
+  memberWatchers.push(cb);
+  if (membersLoaded) cb();
+  if (memberWatchStarted) return;
+  memberWatchStarted = true;
+  db.collection(COL.members).onSnapshot(snap => {
+    LIVE_MEMBERS = snap.docs.map(d => ({ id: d.id, name: d.data().name || '' })).sort((a, b) => a.id.localeCompare(b.id));
+    membersLoaded = true;
+    memberWatchers.forEach(f => f());
+  }, err => console.error(err));
+}
+// ATT = { '2026-11-13': { 모임: Set(학번…), 헤어짐: Set(학번…) } } — 출석한(checked) 것만
+let ATT = {}, attLoaded = false, attWatchers = [], attWatchStarted = false;
+function watchAttendance(cb) {
+  attWatchers.push(cb);
+  if (attLoaded) cb();
+  if (attWatchStarted) return;
+  attWatchStarted = true;
+  db.collection(COL.attendance).onSnapshot(snap => {
+    ATT = {};
+    snap.docs.forEach(d => {
+      const a = d.data();
+      if (!a.checked || !a.date) return;
+      const day = ATT[a.date] || (ATT[a.date] = {});
+      (day[a.session] || (day[a.session] = new Set())).add(String(a.id));
+    });
+    attLoaded = true;
+    attWatchers.forEach(f => f());
+  }, err => console.error(err));
+}
+// 그날 모일 때 · 헤어질 때 중 한 번이라도 출석한 학번들
+function dayIds(date) {
+  const a = ATT[date];
+  if (!a) return new Set();
+  return new Set([...(a['모임'] || []), ...(a['헤어짐'] || [])]);
+}
+function meetingDates() { return Object.keys(ATT).filter(d => dayIds(d).size > 0).sort(); }
+function mdText(date) { const p = String(date).split('-'); return Number(p[1]) + '/' + Number(p[2]); }
+function longToday() { const d = new Date(); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + '일월화수목금토'[d.getDay()] + '요일'; }
+function cardHead(icon, title, more) { return `<h3><span class="ic">${icon}</span>${title}${more ? `<span class="more">${more}</span>` : ''}</h3>`; }
+
+// 모임별 출석 막대 그래프 (최근 8번)
+function attendChartHTML() {
+  if (!attLoaded) return '<div class="empty">불러오는 중…</div>';
+  const dates = meetingDates().slice(-8);
+  if (!dates.length) return '<div class="empty">아직 출석 기록이 없어요. 첫 모임 날 출석체크를 하면 여기에 막대가 생겨요.</div>';
+  const mc = LIVE_MEMBERS.length;
+  const max = Math.max(mc, ...dates.map(d => dayIds(d).size), 1);
+  const cols = dates.map((d, i) => {
+    const n = dayIds(d).size, last = i === dates.length - 1;
+    const pct = mc ? Math.round(n / mc * 100) : 0;
+    return `<div class="col${last ? ' last' : ''}" data-tip="${mdText(d)} · ${n}명 출석${mc ? ' (' + pct + '%)' : ''}">${last ? `<div class="val">${n}명</div>` : ''}<div class="bar" style="height:${n / max * 100}%"></div></div>`;
+  }).join('');
+  // 점선 = 부원 수 (위쪽 여백 20px 을 빼고 높이를 맞춰요)
+  const ref = mc ? `<div class="ref" style="bottom:calc((100% - 20px) * ${mc / max})"><span>부원 ${mc}명</span></div>` : '';
+  return `<div class="chart">${ref}${cols}</div><div class="chart-x">${dates.map(d => `<span>${mdText(d)}</span>`).join('')}</div>
+    <div class="chart-note">막대 = 그날 모일 때 · 헤어질 때 중 한 번이라도 출석한 부원 수</div>`;
+}
+// 천원의 행복 뽑기 현황 (뽑힌 수 · 가격대)
+function giftStatsHTML() {
+  if (!giftsLoaded) return '<div class="empty">불러오는 중…</div>';
+  const g = ALL_GIFTS, total = g.length, drawn = g.filter(x => x.drawn).length;
+  if (!total) return '<div class="empty">아직 모인 선물이 없어요.</div>';
+  const sum = g.reduce((a, x) => a + (Number(x.price) || 0), 0);
+  const bands = [
+    ['3천 원 미만', g.filter(x => Number(x.price) < 3000).length],
+    ['3천~5천 원', g.filter(x => Number(x.price) >= 3000 && Number(x.price) <= 5000).length],
+    ['5천 원 넘게', g.filter(x => Number(x.price) > 5000).length]
+  ];
+  const bmax = Math.max(1, ...bands.map(b => b[1]));
+  const pct = Math.round(drawn / total * 100);
+  return `<div class="bigline"><span class="n">${drawn} / ${total}</span><span class="muted">개 뽑혔어요</span></div>
+    <div class="meter" data-tip="뽑힌 선물 ${drawn}개 · 남은 선물 ${total - drawn}개"><i style="width:${pct}%"></i></div>
+    <div class="muted" style="font-size:12.5px; margin-bottom:8px;">모인 선물 값 모두 ${sum.toLocaleString()}원</div>
+    ${bands.map(b => `<div class="hbar" data-tip="${b[0]} 선물 ${b[1]}개"><span>${b[0]}</span><span class="t"><i style="width:${b[1] / bmax * 100}%"></i></span><b>${b[1]}</b></div>`).join('')}`;
+}
+
+// 마우스를 올리거나 손가락으로 누르면 뜨는 작은 설명
+(function () {
+  const tip = document.getElementById('tip');
+  if (!tip) return;
+  function show(e) {
+    const el = e.target.closest && e.target.closest('[data-tip]');
+    if (!el) { tip.classList.remove('on'); return; }
+    tip.textContent = el.dataset.tip;
+    tip.classList.add('on');
+    tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, Math.max(8, e.clientX - tip.offsetWidth / 2)) + 'px';
+    tip.style.top = Math.max(8, e.clientY - tip.offsetHeight - 14) + 'px';
+  }
+  document.addEventListener('pointermove', show);
+  document.addEventListener('pointerdown', show);
+  document.addEventListener('scroll', () => tip.classList.remove('on'), true);
+})();
+
+/* ============================================================ */
+/* 학생용 화면 (대시보드)                                           */
 /* ============================================================ */
 let st_me = null;
-let st_session = '모임';
 let st_giftSort = 'num';
 let st_giftPhoto = null;
-
-const st_titleMap = {
-  d: { emoji: '👾', title: '또래상담부', sub: '◆ 2026 ARCADE ◆' },
-  e: { emoji: '🧸', title: '2026 또래상담부', sub: '인형뽑기 한 판!' },
-  f: { emoji: '⚔️', title: '2026 또래상담부', sub: '동아리 퀘스트 보드' }
-};
-function st_setTheme(name) {
-  const view = document.getElementById('view-student');
-  ['d', 'e', 'f'].forEach(t => { view.classList.remove('theme-' + t); document.body.classList.remove('theme-' + t); });
-  view.classList.add('theme-' + name);
-  document.body.classList.add('theme-' + name);
-  document.querySelectorAll('.theme-icon-btn[data-theme]').forEach(b => b.classList.toggle('active', b.dataset.theme === name));
-  const info = st_titleMap[name];
-  document.getElementById('st-titleText').innerText = info.emoji + ' ' + info.title;
-  document.getElementById('st-taglineText').innerText = info.sub;
-  ss('pcClubTheme', name);
-}
-function st_setFont(name) {
-  const view = document.getElementById('view-student');
-  const btn = document.querySelector('.theme-icon-btn[data-font="' + name + '"]');
-  const wasActive = btn.classList.contains('active');
-  view.classList.remove('font-nanum', 'font-paper', 'font-yuntaeng');
-  document.querySelectorAll('.theme-icon-btn[data-font]').forEach(b => b.classList.remove('active'));
-  if (!wasActive) { view.classList.add('font-' + name); btn.classList.add('active'); ss('pcClubFont', name); }
-  else ss('pcClubFont', null);
-}
-
-document.querySelectorAll('.cat-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('panel-' + btn.dataset.cat).classList.add('active');
-  });
-});
-
-async function st_loadNotice() {
-  try {
-    const s = await getSettings();
-    if (s.notice) {
-      document.getElementById('st-noticeText').innerText = s.notice;
-      document.getElementById('st-noticeBar').style.display = 'flex';
-    }
-  } catch (e) { console.error(e); }
-}
+let st_notice = '';
+let st_chat = [];
 
 // 5자리: 학번 / 4자리: 방문객 (선생님은 교사용 관리보드에서 관리자 계정으로)
 async function loginStudent(input) {
@@ -1062,162 +1282,236 @@ async function st_doLogin() {
   const id = document.getElementById('st-loginId').value.trim();
   const msg = document.getElementById('st-loginMsg');
   msg.style.display = 'none';
-  if (!id) return;
+  if (!id) { document.getElementById('st-loginId').focus(); return; }
   try {
     const res = await loginStudent(id);
     if (!res.success) { msg.style.display = 'block'; msg.innerText = res.message; return; }
-    st_me = { id: res.id, name: res.name, role: res.role };
-    ss('pcClubUser', JSON.stringify({ ...st_me, welcome: res.welcome }));
-    st_showLoggedInBar(res.welcome);
-    st_renderLoggedIn();
+    st_me = { id: res.id, name: res.name, role: res.role, welcome: res.welcome };
+    ss('pcClubUser', JSON.stringify(st_me));
+    st_afterLoginChange();
   } catch (e) {
     msg.style.display = 'block'; msg.innerText = '연결 오류: ' + e.message;
   }
 }
-function st_showLoggedInBar(welcome) {
-  document.getElementById('st-loginArea').style.display = 'none';
-  document.getElementById('st-loggedArea').style.display = 'flex';
-  document.getElementById('st-welcomeText').innerText = welcome;
-}
 function st_logout() {
   st_me = null;
   ss('pcClubUser', null);
-  document.getElementById('st-loginArea').style.display = 'flex';
-  document.getElementById('st-loggedArea').style.display = 'none';
   document.getElementById('st-loginId').value = '';
-  st_renderLocked();
+  st_afterLoginChange();
 }
-function st_renderLoggedIn() { st_loadAttendPanel(); st_loadGiftPanel(); }
-function st_renderLocked() {
-  document.getElementById('st-attendCard').innerHTML = `<div class="locked"><div class="emoji">🔒</div><p>학번 또는 전화번호 뒷자리를 입력하고 입장해주세요.</p></div>`;
-  document.getElementById('st-giftCard').innerHTML = `<div class="locked"><div class="emoji">🔒</div><p>입장 후 선물을 등록하고 리스트를 볼 수 있어요.</p></div>`;
+function st_afterLoginChange() {
+  document.getElementById('st-loginArea').style.display = st_me ? 'none' : 'flex';
+  document.getElementById('st-loggedArea').style.display = st_me ? 'flex' : 'none';
+  if (st_me) {
+    document.getElementById('st-avatar').innerText = String(st_me.name).slice(-2);
+    document.getElementById('st-welcomeText').innerText = st_me.role === 'member' ? st_me.name + ' 님' : st_me.name;
+  }
+  st_renderHero(); st_renderMe(); st_renderGifts();
+}
+// 입장 전이면 위쪽 학번 칸으로 데려가요
+function st_needLogin(text) {
+  const msg = document.getElementById('st-loginMsg');
+  msg.style.display = 'block'; msg.innerText = text || '위쪽 칸에 학번(또는 전화번호 뒷자리)을 넣고 [입장]을 눌러 주세요.';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById('st-loginId').focus();
 }
 
-/* ----- 출석체크 ----- */
-function st_loadAttendPanel() {
-  document.getElementById('st-attendCard').innerHTML = `
-    <h2>✅ 출석체크</h2>
-    <input type="date" id="st-attendDate" value="${todayStr()}">
-    <div class="session-toggle">
-      <button id="st-sessMoim" class="${st_session === '모임' ? 'active' : ''}" onclick="st_setSession('모임')">모일 때</button>
-      <button id="st-sessEnd" class="${st_session === '헤어짐' ? 'active' : ''}" onclick="st_setSession('헤어짐')">헤어질 때</button>
+/* ----- 칸마다 그리기 ----- */
+function st_renderHero() {
+  const today = dayIds(todayStr()).size, mc = LIVE_MEMBERS.length;
+  const pct = mc ? Math.min(100, Math.round(today / mc * 100)) : 0;
+  const hello = st_me ? (st_me.role === 'member' ? `${esc(st_me.name)} 님, 반가워요 👋` : esc(st_me.welcome || st_me.name)) : '오늘의 또래상담부';
+  const sub = !attLoaded ? '출석 · 뽑기 준비 · 부원 소식을 한눈에 봐요.'
+    : today ? `오늘 모임에 부원 ${today}명이 출석했어요.` : '오늘은 아직 출석 기록이 없어요. 모임에 오면 출석체크를 눌러 주세요.';
+  const C = 2 * Math.PI * 50;
+  document.getElementById('st-hero').innerHTML = `
+    <div class="txt">
+      <div class="eyebrow">2026 또래상담부 · ${longToday()}</div>
+      <h1>${hello}</h1>
+      <p>${sub}</p>
+      <div class="cta">
+        <button class="w" onclick="st_openSheet()">🎁 선물 등록하기</button>
+        <a class="g" href="?page=draw">🎱 행운의 번호 추첨</a>
+      </div>
     </div>
-    <button class="btn" onclick="st_doAttendCheck()">출석체크 하기</button>
-    <div id="st-attendMsg" class="status-msg" style="display:none;"></div>`;
-  document.getElementById('st-attendDate').addEventListener('change', st_refreshAttendStatus);
-  st_refreshAttendStatus();
+    <div class="ring" data-tip="오늘 출석 ${today}명${mc ? ' / 부원 ' + mc + '명' : ''}">
+      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="10"/>
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct / 100)}"/></svg>
+      <div class="c"><b>${pct}%</b><span>오늘 출석</span></div>
+    </div>`;
 }
-function st_setSession(s) {
-  st_session = s;
-  document.getElementById('st-sessMoim').classList.toggle('active', s === '모임');
-  document.getElementById('st-sessEnd').classList.toggle('active', s === '헤어짐');
-  st_refreshAttendStatus();
+function st_renderNotice() {
+  const el = document.getElementById('st-notice');
+  // 공지가 비었거나 처음 넣어 둔 안내 글('여기에 공지사항을 입력하세요')이면 칸을 숨겨요
+  if (!st_notice.trim() || /^여기에 공지사항을 입력하세요/.test(st_notice.trim())) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = `<div class="pin">📌</div><div class="nt">${esc(st_notice)}</div>`;
 }
-async function st_refreshAttendStatus() {
-  if (!st_me) return;
-  const date = document.getElementById('st-attendDate').value;
-  const msg = document.getElementById('st-attendMsg');
-  const d = await db.collection(COL.attendance).doc(attDocId(date, st_session, st_me.id)).get();
-  const checked = d.exists && d.data().checked;
-  msg.style.display = 'block';
-  msg.className = 'status-msg ' + (checked ? 'ok' : 'no');
-  msg.innerText = checked ? '(' + st_session + ') 출석 완료!' : '아직 출석체크 전입니다.';
+function st_renderTiles() {
+  const mc = LIVE_MEMBERS.length, today = dayIds(todayStr()).size;
+  const total = ALL_GIFTS.length, left = ALL_GIFTS.filter(g => !g.drawn).length;
+  const pct = mc ? Math.min(100, Math.round(today / mc * 100)) : 0;
+  const tile = (icon, k, v, unit, s, bar) => `<div class="tile"><div class="k"><i>${icon}</i>${k}</div><div class="v">${v}<small>${unit}</small></div>${bar != null ? `<div class="mini"><i style="width:${bar}%"></i></div>` : `<div class="s">${s}</div>`}</div>`;
+  document.getElementById('st-tiles').innerHTML =
+    tile('👥', '부원', membersLoaded ? mc : '–', '명', '2026 또래상담부') +
+    tile('✅', '오늘 출석', attLoaded ? today : '–', '명', '', pct) +
+    tile('🎁', '모인 선물', giftsLoaded ? total : '–', '개', '천원의 행복 뽑기') +
+    tile('🎱', '남은 선물', giftsLoaded ? left : '–', '개', total ? '뽑힌 선물 ' + (total - left) + '개' : '선물을 모으는 중');
 }
-async function st_doAttendCheck() {
-  const date = document.getElementById('st-attendDate').value;
-  const msg = document.getElementById('st-attendMsg');
-  msg.style.display = 'block';
-  const mem = await db.collection(COL.members).doc(st_me.id).get();
-  if (!mem.exists) {
-    msg.className = 'status-msg no';
-    msg.innerText = '명단에 없는 학번입니다. 담당 선생님께 확인해주세요.';
+function st_renderMe() {
+  const box = document.getElementById('st-me');
+  if (!st_me) {
+    box.innerHTML = cardHead('👤', '내 출석') + `
+      <div class="me-sub" style="margin:0 0 14px; line-height:1.6;">학번(5자리)으로 입장하면 내 출석률을 보고, 오늘 출석체크를 할 수 있어요.</div>
+      <button class="btn block" onclick="st_needLogin()">입장하기</button>`;
     return;
   }
-  const ref = db.collection(COL.attendance).doc(attDocId(date, st_session, st_me.id));
-  const cur = await ref.get();
-  const now = !(cur.exists && cur.data().checked);
-  await setAttendance(date, st_session, st_me.id, now, '학생셀프체크');
-  msg.className = 'status-msg ' + (now ? 'ok' : 'no');
-  msg.innerText = now ? (mem.data().name + '님, 출석 처리되었습니다.') : '출석이 취소되었습니다.';
+  if (st_me.role !== 'member') {
+    box.innerHTML = cardHead('👤', '내 출석') + `
+      <div class="me-name">${esc(st_me.name)}</div>
+      <div class="me-sub" style="margin-top:8px; line-height:1.6;">출석체크는 또래상담부 부원만 할 수 있어요.<br>선물 등록은 누구나 할 수 있어요 🎁</div>`;
+    return;
+  }
+  const dates = meetingDates();
+  const mine = dates.filter(d => dayIds(d).has(st_me.id)).length;
+  const pct = dates.length ? Math.round(mine / dates.length * 100) : 0;
+  const t = ATT[todayStr()] || {};
+  const did = s => !!(t[s] && t[s].has(st_me.id));
+  box.innerHTML = cardHead('👤', '내 출석', `오늘 ${mdText(todayStr())}`) + `
+    <div class="me-name">${esc(st_me.name)}</div>
+    <div class="me-sub">지금까지 ${mine}번 출석 · 모임 ${dates.length}번</div>
+    <div class="meter" data-tip="출석률 ${pct}%"><i style="width:${pct}%"></i></div>
+    <div class="me-sub">출석률 <b style="color:var(--ink)">${pct}%</b>${pct >= 80 && dates.length ? ' · 최고예요 🎉' : ''}</div>
+    <div class="check-row">
+      <button class="btn ${did('모임') ? 'on' : 'ghost'}" onclick="st_checkIn('모임')">${did('모임') ? '✓ ' : ''}모일 때</button>
+      <button class="btn ${did('헤어짐') ? 'on' : 'ghost'}" onclick="st_checkIn('헤어짐')">${did('헤어짐') ? '✓ ' : ''}헤어질 때</button>
+    </div>
+    <div class="msg" id="st-attendMsg">모임에 오면 [모일 때], 끝나면 [헤어질 때]를 눌러요. 한 번 더 누르면 취소돼요.</div>`;
+}
+function st_renderTrend() {
+  document.getElementById('st-trend').innerHTML = cardHead('📊', '모임별 출석', '최근 8번') + attendChartHTML();
+}
+function st_renderGiftStats() {
+  document.getElementById('st-giftStats').innerHTML = cardHead('🎰', '천원의 행복 뽑기') + giftStatsHTML();
+}
+function st_renderLinks() {
+  const L = [
+    ['🎁', '선물 등록하기', '사진 찍고 이름 · 가격 넣기', 'button', 'st_openSheet()'],
+    ['🎱', '행운의 번호 추첨', '뽑기 게임 화면', 'a', '?page=draw'],
+    ['👾', '연화제 부스 현황', '부스 상황판 · 채팅', 'a', '/drs/booth/'],
+    ['🔧', '교사용 관리보드', '선생님만', 'a', '?page=admin']
+  ];
+  document.getElementById('st-links').innerHTML = cardHead('🚀', '바로 가기') + `<div class="links">${L.map(l => {
+    const inner = `<span class="e">${l[0]}</span><span><b>${l[1]}</b><span class="d">${l[2]}</span></span><span class="arr">›</span>`;
+    return l[3] === 'a' ? `<a class="lk" href="${l[4]}">${inner}</a>` : `<button class="lk" onclick="${l[4]}">${inner}</button>`;
+  }).join('')}</div>`;
+}
+function st_renderChat() {
+  const box = document.getElementById('st-chat');
+  const head = cardHead('💬', '부원 톡', '<a href="/drs/booth/" style="color:inherit">전체 보기 ›</a>');
+  if (!st_chat.length) { box.innerHTML = head + '<div class="empty">아직 올라온 말이 없어요.</div>'; return; }
+  box.innerHTML = head + `<ul class="chat">${st_chat.map(c => {
+    const t = c.at && c.at.toDate ? c.at.toDate() : null;
+    const tm = t ? (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '';
+    return `<li><span class="av">${esc(String(c.name || '?').slice(0, 1))}</span><div class="bd"><b>${esc(c.name)}</b><time>${tm}</time><p>${esc(c.text)}</p></div></li>`;
+  }).join('')}</ul>`;
+}
+function st_renderGifts() {
+  const box = document.getElementById('st-gifts');
+  const head = `<div class="gift-head"><h3><span class="ic">🎁</span>선물 목록 <span class="muted" style="font-weight:500; font-size:13px;">${giftsLoaded ? ALL_GIFTS.length + '개' : ''}</span></h3><span class="sp"></span>
+    <div class="sort-tabs">
+      <button class="sort-tab ${st_giftSort === 'num' ? 'active' : ''}" onclick="st_setGiftSort('num')">번호순</button>
+      <button class="sort-tab ${st_giftSort === 'name' ? 'active' : ''}" onclick="st_setGiftSort('name')">이름순</button>
+      <button class="sort-tab ${st_giftSort === 'price' ? 'active' : ''}" onclick="st_setGiftSort('price')">가격순</button>
+    </div>
+    <button class="btn small" onclick="st_openSheet()">＋ 선물 등록</button></div>`;
+  if (!st_me) { box.innerHTML = head + `<div class="locked"><div class="emoji">🔒</div>입장하면 모인 선물을 모두 볼 수 있어요.<br><br><button class="btn small" onclick="st_needLogin()">입장하기</button></div>`; return; }
+  if (!giftsLoaded) { box.innerHTML = head + '<div class="empty">불러오는 중…</div>'; return; }
+  if (!ALL_GIFTS.length) { box.innerHTML = head + '<div class="empty">등록된 선물이 없어요. 첫 선물을 올려 주세요!</div>'; return; }
+  const gifts = ALL_GIFTS.slice();
+  if (st_giftSort === 'name') gifts.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
+  else if (st_giftSort === 'price') gifts.sort((a, b) => Number(a.price) - Number(b.price));
+  else gifts.sort((a, b) => Number(a.serial) - Number(b.serial));
+  box.innerHTML = head + '<div class="gift-grid">' + gifts.map(g => {
+    const p = Number(g.price) || 0;
+    const cls = p > 5000 ? 'high' : (p >= 3000 ? 'mid' : '');
+    return `<div class="gift-card${g.drawn ? ' drawn' : ''}"><div class="ph">${imgTag(g)}<span class="num">${esc(g.serial)}</span></div>
+      <div class="name">${esc(g.name)}</div><div class="price ${cls}">${p ? p.toLocaleString() + '원' : '&nbsp;'}</div></div>`;
+  }).join('') + '</div>';
+}
+function st_setGiftSort(s) { st_giftSort = s; st_renderGifts(); }
+
+/* ----- 출석체크 (오늘 · 모일 때 / 헤어질 때) ----- */
+async function st_checkIn(session) {
+  if (!st_me || st_me.role !== 'member') return;
+  const date = todayStr();
+  const msg = document.getElementById('st-attendMsg');
+  try {
+    const mem = await db.collection(COL.members).doc(st_me.id).get();
+    if (!mem.exists) { msg.className = 'msg no'; msg.innerText = '명단에 없는 학번이에요. 담당 선생님께 확인해 주세요.'; return; }
+    const cur = await db.collection(COL.attendance).doc(attDocId(date, session, st_me.id)).get();
+    const now = !(cur.exists && cur.data().checked);
+    await setAttendance(date, session, st_me.id, now, '학생셀프체크');
+    // 실시간으로 다시 그려지면서 단추에 ✓ 가 붙어요. 안내 글만 잠깐 바꿔요
+    setTimeout(() => {
+      const m = document.getElementById('st-attendMsg');
+      if (m) { m.className = 'msg ' + (now ? 'ok' : ''); m.innerText = now ? `(${session === '모임' ? '모일 때' : '헤어질 때'}) 출석했어요!` : '출석을 취소했어요.'; }
+    }, 150);
+  } catch (e) { msg.className = 'msg no'; msg.innerText = '저장하지 못했어요: ' + e.message; }
 }
 
-/* ----- 천원의 행복 뽑기 준비 ----- */
-function st_loadGiftPanel() {
-  document.getElementById('st-giftCard').innerHTML = `
-    <h2>🎁 선물 등록하기</h2>
-    <input type="file" id="st-giftPhoto" accept="image/*" capture="environment" style="display:none;">
-    <button type="button" class="btn secondary" id="st-giftPhotoBtn" onclick="document.getElementById('st-giftPhoto').click()">📷 사진 촬영</button>
-    <div id="st-giftPhotoPreviewWrap" style="display:none; margin:10px 0;">
-      <img id="st-giftPhotoPreview" style="max-width:100%; max-height:180px; border-radius:10px; display:block;">
-    </div>
-    <input type="text" id="st-giftName" placeholder="선물 이름" style="margin-top:10px;">
-    <input type="text" id="st-giftPrice" placeholder="가격 (숫자만 입력)" inputmode="numeric">
-    <textarea id="st-giftDesc" placeholder="설명 (선택, 비워둬도 됩니다)" rows="2"></textarea>
-    <button class="btn" id="st-giftSubmitBtn" onclick="st_submitGift()">등록하기</button>
-    <div id="st-giftUploadMsg" class="status-msg" style="display:none;"></div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
-    <h2>전체 선물 리스트 <span id="st-giftCount" style="font-size:12px;color:var(--muted);font-weight:normal;"></span></h2>
-    <div class="sort-tabs">
-      <button class="sort-tab ${st_giftSort === 'num' ? 'active' : ''}" data-sort="num" onclick="st_setGiftSort('num')">번호순</button>
-      <button class="sort-tab ${st_giftSort === 'name' ? 'active' : ''}" data-sort="name" onclick="st_setGiftSort('name')">이름순</button>
-      <button class="sort-tab ${st_giftSort === 'price' ? 'active' : ''}" data-sort="price" onclick="st_setGiftSort('price')">가격순</button>
-    </div>
-    <div id="st-giftGrid" class="loading">불러오는 중...</div>`;
+/* ----- 선물 등록 창 ----- */
+function st_openSheet() {
+  if (!st_me) { st_needLogin('선물을 등록하려면 먼저 학번(또는 전화번호 뒷자리)으로 입장해 주세요.'); return; }
+  document.getElementById('st-sheet').classList.add('on');
+}
+function st_closeSheet() { document.getElementById('st-sheet').classList.remove('on'); }
+function st_bindGiftSheet() {
   document.getElementById('st-giftPhoto').addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
     try {
       st_giftPhoto = await compressImage(file);
-      document.getElementById('st-giftPhotoPreview').src = st_giftPhoto;
-      document.getElementById('st-giftPhotoPreviewWrap').style.display = 'block';
-      document.getElementById('st-giftPhotoBtn').innerText = '📷 다시 촬영';
+      document.getElementById('st-giftPhotoBtn').innerHTML = `<img src="${st_giftPhoto}" alt="찍은 사진">`;
+      document.getElementById('st-giftName').focus();
     } catch (err) { alert(err.message); }
   });
   document.getElementById('st-giftPrice').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
-  watchGifts(st_renderGiftGrid);
-}
-function st_setGiftSort(s) {
-  st_giftSort = s;
-  document.querySelectorAll('.sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === s));
-  st_renderGiftGrid();
-}
-function st_renderGiftGrid() {
-  const grid = document.getElementById('st-giftGrid');
-  if (!grid) return;
-  const cnt = document.getElementById('st-giftCount');
-  if (cnt) cnt.innerText = '(' + ALL_GIFTS.length + '개)';
-  if (ALL_GIFTS.length === 0) { grid.innerHTML = '<div class="loading">등록된 선물이 없습니다.</div>'; return; }
-  const gifts = ALL_GIFTS.slice();
-  if (st_giftSort === 'name') gifts.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
-  else if (st_giftSort === 'price') gifts.sort((a, b) => Number(a.price) - Number(b.price));
-  else gifts.sort((a, b) => Number(a.serial) - Number(b.serial));
-  grid.innerHTML = '<div class="gift-grid">' + gifts.map(g => {
-    const p = Number(g.price);
-    const cls = p > 5000 ? 'expensive' : (p >= 3000 ? 'midprice' : '');
-    return `<div class="gift-card"><span class="num">${esc(g.serial)}</span>${imgTag(g)}<div class="name ${cls}">${esc(g.name)}</div></div>`;
-  }).join('') + '</div>';
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') st_closeSheet(); });
 }
 async function st_submitGift() {
   const name = document.getElementById('st-giftName').value.trim();
   const price = document.getElementById('st-giftPrice').value;
   const desc = document.getElementById('st-giftDesc').value.trim();
-  if (!name) { alert('선물 이름을 입력해주세요.'); return; }
+  const msg = document.getElementById('st-giftUploadMsg');
+  if (!name) { msg.className = 'msg no'; msg.innerText = '선물 이름을 넣어 주세요.'; document.getElementById('st-giftName').focus(); return; }
   const btn = document.getElementById('st-giftSubmitBtn');
   btn.disabled = true; btn.innerText = '등록 중...';
   try {
     await addGift({ name, price, note: desc, method: '학생등록', uploader: st_me.name + '(' + st_me.id + ')', photo: st_giftPhoto });
-    document.getElementById('st-giftName').value = '';
-    document.getElementById('st-giftPrice').value = '';
-    document.getElementById('st-giftDesc').value = '';
-    document.getElementById('st-giftPhoto').value = '';
+    ['st-giftName', 'st-giftPrice', 'st-giftDesc', 'st-giftPhoto'].forEach(id => document.getElementById(id).value = '');
     st_giftPhoto = null;
-    document.getElementById('st-giftPhotoPreviewWrap').style.display = 'none';
-    document.getElementById('st-giftPhotoBtn').innerText = '📷 사진 촬영';
-    const msg = document.getElementById('st-giftUploadMsg');
-    msg.style.display = 'block'; msg.className = 'status-msg ok'; msg.innerText = '선물이 등록되었습니다!';
-    setTimeout(() => { msg.style.display = 'none'; }, 1200);
-  } catch (e) { alert('등록 실패: ' + e.message); }
+    document.getElementById('st-giftPhotoBtn').innerText = '📷 눌러서 사진 찍기';
+    msg.className = 'msg ok'; msg.innerText = '선물이 등록됐어요! 이어서 다음 선물을 올려도 돼요.';
+    setTimeout(() => { msg.innerText = ''; }, 2500);
+  } catch (e) { msg.className = 'msg no'; msg.innerText = '등록하지 못했어요: ' + e.message; }
   btn.disabled = false; btn.innerText = '등록하기';
+}
+
+/* ----- 학생 화면 시작 ----- */
+function st_start() {
+  const saved = ss('pcClubUser');
+  if (saved) { try { const d = JSON.parse(saved); if (d && d.id) st_me = { id: d.id, name: d.name, role: d.role, welcome: d.welcome }; } catch (e) { ss('pcClubUser', null); } }
+  document.getElementById('st-loginId').addEventListener('keydown', e => { if (e.key === 'Enter') st_doLogin(); });
+  st_bindGiftSheet();
+  st_renderLinks();
+  st_afterLoginChange();
+  st_renderTiles(); st_renderTrend(); st_renderGiftStats(); st_renderChat();
+  settingsRef.onSnapshot(s => { st_notice = s.exists ? (s.data().notice || '') : ''; st_renderNotice(); }, err => console.error(err));
+  watchMembers(() => { st_renderHero(); st_renderTiles(); st_renderTrend(); });
+  watchAttendance(() => { st_renderHero(); st_renderTiles(); st_renderMe(); st_renderTrend(); });
+  watchGifts(() => { st_renderTiles(); st_renderGiftStats(); st_renderGifts(); });
+  db.collection('drs_chat').orderBy('at', 'desc').limit(4).onSnapshot(snap => { st_chat = snap.docs.map(d => d.data()); st_renderChat(); }, err => console.error(err));
 }
 
 /* ============================================================ */
@@ -1283,6 +1577,67 @@ function ad_initAdminApp() {
   const a = document.getElementById('ad-drawLink');
   a.href = link; a.innerText = link;
   ad_bindGiftInputs();
+  ad_startOverview();
+}
+
+/* ----- 📊 한눈에 (관리보드 첫 화면) ----- */
+let AD_LEDGER = [];
+function ad_goTab(name) {
+  const btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
+  if (btn) { btn.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+}
+function ad_startOverview() {
+  const all = () => { ad_renderTiles(); ad_renderAbsent(); };
+  watchMembers(() => { all(); ad_renderTrend(); });
+  watchAttendance(() => { all(); ad_renderTrend(); });
+  watchGifts(() => { ad_renderTiles(); ad_renderGiftStats(); });
+  db.collection(COL.ledger).onSnapshot(snap => {
+    AD_LEDGER = snap.docs.map(d => d.data()).sort((a, b) => Number(b.serial) - Number(a.serial));
+    ad_renderTiles(); ad_renderLedgerRecent();
+  }, err => console.error(err));
+}
+function ad_balance() { return AD_LEDGER.reduce((s, e) => s + (e.type === '수입' ? 1 : -1) * (Number(e.amount) || 0), 0); }
+function ad_renderTiles() {
+  const mc = LIVE_MEMBERS.length, t = ATT[todayStr()] || {};
+  const moim = t['모임'] ? t['모임'].size : 0, end = t['헤어짐'] ? t['헤어짐'].size : 0;
+  const total = ALL_GIFTS.length, left = ALL_GIFTS.filter(g => !g.drawn).length;
+  const tile = (icon, k, v, unit, s) => `<div class="tile"><div class="k"><i>${icon}</i>${k}</div><div class="v">${v}<small>${unit}</small></div><div class="s">${s}</div></div>`;
+  document.getElementById('ad-tiles').innerHTML =
+    tile('👥', '부원', membersLoaded ? mc : '–', '명', '명단 탭에서 고쳐요') +
+    tile('✅', '오늘 출석', attLoaded ? dayIds(todayStr()).size : '–', '명', `모일 때 ${moim} · 헤어질 때 ${end}`) +
+    tile('💰', '가계부 잔액', ad_balance().toLocaleString(), '원', `내역 ${AD_LEDGER.length}건`) +
+    tile('🎁', '모인 선물', giftsLoaded ? total : '–', '개', total ? `남은 선물 ${left}개` : '아직 없어요');
+}
+function ad_renderTrend() {
+  document.getElementById('ad-trend').innerHTML = cardHead('📊', '모임별 출석', '<a href="#" onclick="ad_goTab(\'attendance\'); return false;" style="color:inherit">출석체크 ›</a>') + attendChartHTML();
+}
+function ad_renderAbsent() {
+  const box = document.getElementById('ad-absent');
+  const head = cardHead('🙋', '오늘 아직 안 온 부원', mdText(todayStr()));
+  if (!membersLoaded || !attLoaded) { box.innerHTML = head + '<div class="empty">불러오는 중…</div>'; return; }
+  if (!LIVE_MEMBERS.length) { box.innerHTML = head + '<div class="empty">명단이 비어 있어요. <a href="#" onclick="ad_goTab(\'members\'); return false;">부원 추가 ›</a></div>'; return; }
+  const here = dayIds(todayStr());
+  if (!here.size) { box.innerHTML = head + '<div class="empty">오늘은 아직 출석 기록이 없어요.<br>모임 날이면 학생들이 출석체크를 하거나 <a href="#" onclick="ad_goTab(\'attendance\'); return false;">출석체크 탭</a>에서 넣어 주세요.</div>'; return; }
+  const absent = LIVE_MEMBERS.filter(m => !here.has(m.id));
+  box.innerHTML = head + (absent.length
+    ? `<div class="muted" style="font-size:12.5px; margin-bottom:10px;">${here.size}명 출석 · ${absent.length}명 아직</div><div class="chips">${absent.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>`
+    : '<div class="empty">🎉 오늘은 모두 출석했어요!</div>');
+}
+function ad_renderGiftStats() {
+  document.getElementById('ad-giftStats').innerHTML = cardHead('🎰', '천원의 행복 뽑기', '<a href="#" onclick="ad_goTab(\'gifts\'); return false;" style="color:inherit">뽑기관리 ›</a>') + giftStatsHTML();
+}
+function ad_renderLedgerRecent() {
+  const box = document.getElementById('ad-ledgerRecent');
+  const inSum = AD_LEDGER.filter(e => e.type === '수입').reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const outSum = AD_LEDGER.filter(e => e.type !== '수입').reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const head = cardHead('💰', '가계부', '<a href="#" onclick="ad_goTab(\'ledger\'); return false;" style="color:inherit">전체 보기 ›</a>');
+  if (!AD_LEDGER.length) { box.innerHTML = head + '<div class="empty">아직 내역이 없어요.</div>'; return; }
+  box.innerHTML = head + `
+    <div class="bigline" style="margin-bottom:4px;"><span class="n">${ad_balance().toLocaleString()}</span><span class="muted">원 남음</span></div>
+    <div class="muted" style="font-size:12.5px; margin-bottom:12px;">들어온 돈 <span class="amt-in">${inSum.toLocaleString()}원</span> · 쓴 돈 <span class="amt-out">${outSum.toLocaleString()}원</span></div>
+    <div class="table-wrap"><table class="mini-table"><tr><th>날짜</th><th>항목</th><th style="text-align:right">금액</th></tr>
+    ${AD_LEDGER.slice(0, 5).map(e => `<tr><td>${esc(e.date)}</td><td>${esc(e.item)}</td><td style="text-align:right" class="${e.type === '수입' ? 'amt-in' : 'amt-out'}">${e.type === '수입' ? '+' : '−'}${(Number(e.amount) || 0).toLocaleString()}</td></tr>`).join('')}
+    </table></div>`;
 }
 
 /* ----- 공지 ----- */
@@ -2299,21 +2654,7 @@ const CURRENT_PAGE = pageParam === 'admin' ? 'admin' : pageParam === 'draw' ? 'd
 document.getElementById('view-' + CURRENT_PAGE).classList.add('active');
 
 if (CURRENT_PAGE === 'student') {
-  st_setTheme(ss('pcClubTheme') || ['d', 'e', 'f'][Math.floor(Math.random() * 3)]);
-  const savedFont = ss('pcClubFont');
-  if (savedFont) st_setFont(savedFont);
-  st_loadNotice();
-  st_renderLocked();
-  const saved = ss('pcClubUser');
-  if (saved) {
-    try {
-      const data = JSON.parse(saved);
-      st_me = { id: data.id, name: data.name, role: data.role };
-      st_showLoggedInBar(data.welcome);
-      st_renderLoggedIn();
-    } catch (e) { ss('pcClubUser', null); }
-  }
-  document.getElementById('st-loginId').addEventListener('keydown', e => { if (e.key === 'Enter') st_doLogin(); });
+  st_start();
 } else if (CURRENT_PAGE === 'admin') {
   ss('pcAdminAuthed', null); // 예전 방식 기록 지우기
   // 관리자 허브 등에서 이미 로그인돼 있으면 로그인 창 없이 바로 열어요
