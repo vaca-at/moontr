@@ -698,6 +698,27 @@ dialog.doc::backdrop{background:rgba(40,40,50,.45)}
 .dash-tabs button{border:2px solid var(--line);background:#fff;border-radius:999px;padding:.375rem 1rem;font-size:1.0625rem}
 .dash-tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 #dashBox h4{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem}
+/* 🤖 AI 총평 · 🧑‍🎓 개인 피드백 (이론편과 같은 모양) */
+.ai-how{margin:.25rem 0 .75rem;padding-left:1.25rem;line-height:1.9}
+.ai-how .chip{--c:var(--sky);font-size:1rem}
+.ai-in{width:100%;border:2px solid var(--line);border-radius:.75rem;padding:.5rem .75rem;font:inherit;font-size:max(16px,.9375rem)}
+.ai-doc{margin-top:.75rem;padding:.75rem 1rem;border:1.5px solid var(--line);border-radius:.875rem;background:#FFFDF9;line-height:1.7}
+.ai-doc h3{margin:.75rem 0 .25rem;color:var(--rose);font-size:1.0625rem}
+.ai-doc p{margin:.25rem 0}
+.ai-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:.625rem;margin-top:.75rem}
+.ai-card{border:1.5px solid var(--line);border-radius:.875rem;padding:.5rem .625rem;background:#fff}
+.ai-card-h{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap}
+.ai-card-h .link{margin-left:auto}
+.ai-flags{font-size:.8125rem;color:var(--ink2)}
+.ai-steps{display:grid;grid-template-columns:1fr 1fr;gap:.625rem;margin:.25rem 0 .5rem}
+@media(max-width:900px){.ai-steps{grid-template-columns:1fr}}
+.ai-step2{border:1.5px solid var(--line);border-radius:.875rem;padding:.5rem .625rem;display:flex;flex-direction:column;gap:.375rem}
+.ai-step2 .chip{--c:var(--sky);font-size:1rem}
+.ai-lab{display:block;margin-top:.375rem;font-size:.8125rem;color:var(--ink2)}
+.ai-lab.t{color:#B23A64}.ai-lab.a{color:#3F5BA9}
+.ai-note{width:100%;border:1.5px dashed var(--line);border-radius:.5rem;padding:.25rem .5rem;font:inherit;font-size:max(16px,.8125rem);background:#FFFDF6}
+.ai-fb{width:100%;margin-top:.375rem;border:1.5px solid var(--line);border-radius:.625rem;padding:.375rem .5rem;font:inherit;font-size:max(16px,.875rem)}
+.ai-tc{margin-top:.375rem;padding:.25rem .5rem;border-radius:.5rem;background:var(--soft);font-size:.8125rem;color:var(--ink2);white-space:pre-wrap}
 .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 .5rem}
 .tbl table{min-width:40rem}
 .tbl a{color:inherit}
@@ -3395,9 +3416,16 @@ function renderDash() {
   const box = $("dashBox");
   if (!teacher || !$("dlgAdmin").open) return;
   const top = box.scrollTop;
-  const TABS = [["rollA", "✅ A반 출석부"], ["A", "🧪 A반 실습"], ["rollB", "✅ B반 출석부"], ["B", "🧪 B반 실습"], ["visit", "📱 기기 접속 현황"]];
+  const TABS = [["rollA", "✅ A반 출석부"], ["A", "🧪 A반 실습"], ["aisumA", "🤖 A반 AI 총평"], ["aifbA", "🧑‍🎓 A반 개인 피드백"],
+    ["rollB", "✅ B반 출석부"], ["B", "🧪 B반 실습"], ["aisumB", "🤖 B반 AI 총평"], ["aifbB", "🧑‍🎓 B반 개인 피드백"], ["visit", "📱 기기 접속 현황"]];
   const bar = `<div class="dash-tabs" role="tablist">${TABS.map(([k, n]) => `<button type="button" role="tab" class="${dashTab === k ? "on" : ""}" data-dtab="${k}">${n}</button>`).join("")}</div>`;
   if (dashTab === "visit") { box.innerHTML = bar + visitStatsHTML(); box.scrollTop = top; return; }
+  // 🤖 AI 총평 · 🧑‍🎓 개인 피드백: 학생 기록이 바뀔 때마다 다시 그리면 쓰던 칸이 닫혀요 → 탭을 바꿀 때만 새로 그려요 (🔄 단추로 새로 모으기)
+  if (dashTab.startsWith("aisum") || dashTab.startsWith("aifb")) {
+    const cur = $("laiBox"); if (cur && cur.dataset.tab === dashTab) return;
+    box.innerHTML = bar + `<div id="laiBox" data-tab="${dashTab}"><p class="muted">학생 기록을 모으는 중…</p></div>`;
+    renderLabAi(dashTab.startsWith("aisum") ? "sum" : "fb", dashTab.slice(-1)); return;
+  }
   if (dashTab.startsWith("roll")) { box.innerHTML = bar + rosterHTML(dashTab.slice(-1)); box.scrollTop = top; return; }
   const b = dashTab, as = appsOfBan(b), cs = checks.filter(c => c.ban === b).sort(byTime), rs = reflects.filter(r => r.ban === b).sort(byName), ws = wall.filter(w => w.ban === b).sort(byTime), fs = fixes.filter(x => x.ban === b).sort(byName);
   const done = new Set(Object.values(appWho).filter(w => w.ban === b).map(w => w.name));
@@ -3523,6 +3551,414 @@ function dashCSV(kind) {
     wall.filter(x => x.ban === b).sort(byTime).forEach(x => { const p = w(wallWho[x.id]); rows.push([b, p.name, kindName(x.kind).replace(/^\S+ /, ""), x.text, fmtTime(x.createdAt)]); });
     saveCSV(rows, `실습_문장담벼락_${b}반.csv`);
   }
+}
+
+/* =========================================================================
+   🤖 AI 총평(교사용) · 🧑‍🎓 개인 피드백(학생별) — 대시보드 탭 (이론편 stuvibe 와 같은 방식, 2026-11-12)
+   API 키 없이: [질문 복사] → Gemini · Claude 에 붙여 넣기 → 대답을 칸에 붙여 넣기 → 출력 · PDF
+   · 교사용 총평: 반 전체 수업을 돌아보는 글 (선생님만 봐요)
+   · 학생용 공통 글 = '우리 반 수업 이야기': 모든 학생 출력물 1쪽에 똑같이 들어가요
+   · 개별 글: 🧑‍🏫 선생님 피드백(메모 → AI로 늘려 쓰기) + 🤖 AI 피드백, 학생마다 2쪽
+   개인정보: AI 에게는 이름 · 학번 · 닉네임을 보내지 않고 S01 같은 번호만 보내요 (번호 ↔ 학생은 이 화면에서만 이어요)
+   붙여 넣은 글은 선생님 기기에만 저장돼요 (vl_ai_반_종류 — 이론편의 vt_ai_ 와 섞이지 않게 이름을 달리 했어요)
+   ========================================================================= */
+const LAI_KEY = (b, k) => `vl_ai_${b}_${k}`;
+const laiGet = (b, k) => { try { return JSON.parse(localStorage.getItem(LAI_KEY(b, k)) || "null"); } catch (e) { return null; } };
+const laiSet = (b, k, v) => { try { localStorage.setItem(LAI_KEY(b, k), JSON.stringify(v)); } catch (e) {} };
+const laiCut = (s, n = 220) => { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n) + "…" : s; };
+// 점검 댓글 한 줄: 자유 댓글은 good 칸 하나, 예전 세 칸 댓글은 이름표와 함께
+const ckLine = c => c.good && !c.idea && !c.bug ? c.good : CK_KINDS.filter(([k]) => c[k]).map(([k, n]) => `${n.replace(/^\S+ /, "")}: ${c[k]}`).join(" / ");
+const laiPlanText = p => p.content || [p.problem, p.features].filter(Boolean).join(" / ");
+// 이론편 계획서 찾기: 학번 + 닉네임 → 계획서 열쇠 (이론편을 다른 반에서 들었어도 찾아요). 학번을 모르면 같은 반 · 같은 닉네임으로
+async function labTheoryPlan(b, nick, sid) {
+  if (sid) for (const bx of [b, b === "A" ? "B" : "A"]) {
+    const k = await keyOf(bx, sid, nick), x = planPeople.find(p => p.id === k), p = x && plans.find(y => y.id === x.planId);
+    if (p) return p;
+  }
+  const x = planPeople.find(p => p.ban === b && p.name === nick);
+  return (x && plans.find(y => y.id === x.planId)) || null;
+}
+let laiRecs = [], laiBan = "A";
+// 반 학생 한 명씩 기록 모으기 (닉네임 기준, 출석부 학번 순서)
+async function labRecords(b) {
+  const names = new Set(), add = n => { if (n) names.add(n); };
+  Object.values(appWho).filter(w => w.ban === b).forEach(w => add(w.name));
+  reflects.filter(r => r.ban === b).forEach(r => add(r.name));
+  fixes.filter(x => x.ban === b).forEach(x => add(x.name));
+  wall.filter(w => w.ban === b).forEach(w => add((wallWho[w.id] || {}).name));
+  checks.filter(c => c.ban === b && c.fromApp !== "teacher").forEach(c => add((checkWho[c.id] || {}).name));
+  checkins.filter(c => c.ban === b && c.course === COURSE).forEach(c => add(c.name));
+  const list = [...names].sort((x, y) => { const rx = realOf(b, x), ry = realOf(b, y); return String(rx ? rx.sid : "z" + x).localeCompare(String(ry ? ry.sid : "z" + y)); });
+  const rollUsed = rosterOf(b).some(r => r.st);   // ✅ 출석부에서 출석 체크를 했을 때만 출석 상태를 붙여요
+  return Promise.all(list.map(async (nick, i) => {
+    const real = realOf(b, nick), rr = rollUsed && real ? rosterOf(b).find(x => x.sid === real.sid) : null;
+    const att = rollUsed ? (rr ? rr.st || "미체크" : "출석부에 없음") : "";
+    const appId = Object.keys(appWho).find(id => appWho[id].ban === b && appWho[id].name === nick);
+    const app = appId ? apps.find(a => a.id === appId) || null : null;
+    const hs = app ? histOf(app.id) : [], last = hs.length ? histLast(hs) : null;
+    const recv = app ? checksOf(app.id).filter(c => c.fromApp !== app.id) : [];   // 받은 댓글: 친구 + 선생님
+    const gave = checks.filter(c => c.ban === b && c.fromApp !== "teacher" && (checkWho[c.id] || {}).name === nick && (!app || c.appId !== app.id)).sort(byTime);
+    const walls = wall.filter(w => w.ban === b && (wallWho[w.id] || {}).name === nick).sort(byTime).map(w => ({ kind: kindName(w.kind).replace(/^\S+ /, ""), text: w.text }));
+    const plan = await labTheoryPlan(b, nick, real && real.sid);
+    return { code: "S" + String(i + 1).padStart(2, "0"), nick, real, att, plan, app, hs, last, recv, gave, walls,
+      fix: fixes.find(x => x.ban === b && x.name === nick) || null, rf: reflects.find(r => r.ban === b && r.name === nick) || null,
+      tc: recv.filter(c => c.fromApp === "teacher").map(ckLine).filter(Boolean).join("\n") };   // 7번에서 선생님이 남긴 댓글
+  }));
+}
+// ✅ 출석 상태 → AI 에게 알려 줄 말 (결석은 미제출이 아니에요)
+const LAI_ATT = { 결석: "수업에 오지 않음 · 활동이 없어도 미제출이 아님", 지각: "늦게 옴 · 앞부분 활동이 없을 수 있음", 조퇴: "일찍 감 · 뒷부분 활동이 없을 수 있음", 미체크: "출석 체크 안 함", "출석부에 없음": "출석부 명단에 없음" };
+const laiAct = r => !!(r.app || r.walls.length || (r.rf && r.rf.final) || r.fix || r.gave.length);
+const laiFixN = r => !!(r.fix && (r.fix.selfFix || r.fix.aiFix));
+function labRecordText(r) {   // AI 에게 보낼 한 학생 기록 (이름 · 학번 · 닉네임 없이)
+  const L = [`### ${r.code}`];
+  if (r.att) L.push(`- 출석: ${r.att}${LAI_ATT[r.att] ? ` (${LAI_ATT[r.att]})` : ""}`);
+  L.push(r.plan ? `- 이론편 계획서: 「${laiCut(r.plan.appName, 60)}」 ${laiCut(laiPlanText(r.plan), 220)}` : "- 이론편 계획서: 찾지 못함 (실습편에 처음 왔거나 다른 닉네임)");
+  if (r.app) {
+    L.push(`- 오늘 올린 웹앱: 「${laiCut(r.app.appName, 60)}」${r.app.intro ? ` — ${laiCut(r.app.intro, 120)}` : ""} (${r.app.url ? "깃허브 Pages 주소로 올림" : "코드로 올림 · 깃허브 주소 없음"})`);
+    if (r.app.ask) L.push(`  · 친구에게 부탁한 점: ${laiCut(r.app.ask, 100)}`);
+    if (r.hs.length) {
+      const i = histInfo(r.last);
+      L.push(`  · 웹앱 변화: 기록 ${r.hs.length}장${histFinal(r.hs) ? " · 마무리에서 최종 제출함" : ""} · 처음 → 마지막: ${histDiff(r.hs[0], r.last)}`);
+      L.push(`  · 마지막 모습: 코드 ${r.last.lines || 0}줄${i.h && i.h.length ? `, 제목 ${i.h.slice(0, 4).join(" / ")}` : ""}${i.b && i.b.length ? `, 단추 ${i.b.slice(0, 8).join(" / ")}` : ""}${i.n ? `, 입력 칸 ${i.n}개` : ""}${i.s ? ", 새로고침해도 남는 저장 기능 있음" : ""}`);
+    }
+  } else L.push("- 오늘 올린 웹앱: 없음");
+  if (r.fix) {
+    if (r.fix.selfSum) L.push(`- 자기 점검 결과(계획서와 실제 화면 비교): ${r.fix.selfSum}`);
+    if (r.fix.selfFix) L.push(`- 자기 점검 뒤 고친 것: ${laiCut(r.fix.selfFix, 200)}`);
+    if (r.fix.aiFix) L.push(`- AI 점검 뒤 고친 것: ${laiCut(r.fix.aiFix, 200)}`);
+  }
+  if (r.recv.length) L.push(`- 받은 점검 댓글 ${r.recv.length}개 (친구 · 선생님): ${r.recv.slice(0, 4).map(c => (c.fromApp === "teacher" ? "[선생님] " : "") + laiCut(ckLine(c), 80)).join(" | ")}`);
+  if (r.gave.length) L.push(`- 친구 웹앱에 쓴 점검 댓글 ${r.gave.length}개: ${r.gave.slice(0, 4).map(c => laiCut(ckLine(c), 80)).join(" | ")}`);
+  if (r.walls.length) L.push(`- 문장 담벼락: ${r.walls.map(w => `${w.kind} "${laiCut(w.text, 120)}"`).join(" / ")}`);
+  if (r.rf && r.rf.final) L.push(`- 성찰 글: ${laiCut(r.rf.final, 500)}`);
+  return L.join("\n");
+}
+const LAI_FLOW = "[수업 흐름] 이론편에서 쓴 계획서 다시 보기 → Gemini 캔버스로 웹앱 만들고 폴더에 index.html 로 저장 → 깃허브에 올려 Pages 주소 만들기 → 꿀팁으로 웹앱 다듬기 → 새로고침해도 기록이 남게 하기(브라우저 저장 또는 파이어스토어) → 세 번 점검(1차 자기 점검: 계획서와 실제 화면 비교 · 2차 AI 점검 · 3차 친구 웹앱 써 보고 댓글) → 문장 담벼락(배운 점 · 느낀 점 · 알고 싶은 점)";
+const LAI_ME = "나는 서울의 여자고등학교에서 고1 · 고2 학생 대상 진로탐구수업 「바이브코딩으로 웹앱 만들기 (실습편, 100분)」을 한 교사야. 이론편(지난 수업)에서 웹앱 계획서를 쓰고, 실습편에서 그 계획서로 진짜 주소를 가진 웹앱을 만들었어.";
+// ✅ 출석부 → 출석 요약 (출석 체크를 안 했으면 null)
+function laiAttSum(b, recs) {
+  const RL = rosterOf(b); if (!RL.some(r => r.st)) return null;
+  const c = k => RL.filter(r => (r.st || "미체크") === k).length;
+  const shown = recs.filter(r => r.att !== "결석" || laiAct(r)), present = shown.filter(r => r.att !== "결석");
+  return { total: RL.length, 출석: c("출석"), 지각: c("지각"), 조퇴: c("조퇴"), 결석: c("결석"), 미체크: c("미체크"), shown, present, cameN: c("출석") + c("지각") + c("조퇴") };
+}
+function laiSumPrompt(b, recs) {
+  const at = laiAttSum(b, recs), R = at ? at.shown : recs, P = at ? at.present : recs, n = R.length, has = f => P.filter(f).length;
+  const attLine = at ? `[출석] 출석부 ${at.total}명 · 출석 ${at.출석} · 지각 ${at.지각} · 조퇴 ${at.조퇴} · 결석 ${at.결석}${at.미체크 ? ` · 출석 체크 안 함 ${at.미체크}` : ""} → 수업에 온 학생 ${at.cameN}명` : "";
+  return `${LAI_ME}
+아래는 ${b}반 학생 ${n}명의 실습 활동 기록이야 (학생은 S01 같은 번호로만 적었어).
+이 기록을 바탕으로 교사용 수업 총평을 써 줘.
+
+${LAI_FLOW}
+${attLine ? attLine + "\n" : ""}[숫자${at ? ` · 결석한 학생은 빼고 수업에 온 학생 기록 ${P.length}명 기준` : ""}] 이론편 계획서 있음 ${has(r => r.plan)}명 · 웹앱 올림 ${has(r => r.app)}명 · 깃허브 주소 ${has(r => r.app && r.app.url)}명 · 마무리 최종 제출 ${has(r => r.hs.length && histFinal(r.hs))}명 · 저장 기능 넣음 ${has(r => r.last && histInfo(r.last).s)}명 · 점검 뒤 고친 것 기록 ${has(laiFixN)}명 · 친구 점검 댓글 ${P.reduce((s, r) => s + r.gave.length, 0)}개 · 담벼락 쓴 학생 ${has(r => r.walls.length)}명
+${at ? `
+[출석 — 꼭 지켜 줘]
+- 결석한 학생은 수업에 오지 않았으니 활동이 없어도 '미제출 · 참여 부족'으로 쓰지 마. 결석한 학생은 기록에서 뺐어 (결석했지만 활동이 있는 학생만 '- 출석: 결석'으로 남겼어)
+- 제출률 · 참여율은 결석을 뺀, 수업에 온 학생 기준으로 말해 줘
+- 지각한 학생은 앞부분 활동(계획서 · 만들기), 조퇴한 학생은 뒷부분 활동(점검 · 담벼락)이 없을 수 있어. 그래서 빠진 활동은 '어려워한 점'으로 보지 마
+- 학생마다 '- 출석:' 줄을 보고 판단해
+` : ""}
+[쓰는 방식]
+- 아래 제목 그대로 6칸으로, 각 칸 3~6줄
+## 1. 수업 한눈에 보기
+## 2. 잘된 점
+## 3. 학생들이 어려워한 점 (만들기 · 깃허브 올리기 · 저장 · 점검 중 어디서 막혔는지)
+## 4. 계획서에서 웹앱으로 (이론편 계획이 실제 웹앱이 되며 달라진 점 · 처음 → 마지막 변화)
+## 5. 점검 · 친구 댓글 · 담벼락에서 드러난 배움
+## 6. 다음 수업에 이렇게 해 보세요
+- 기록에 있는 내용만 쓰고 지어내지 마. 인용할 때는 학생 번호(S01)를 붙여 줘.
+- 쉬운 우리말, 교사가 바로 출력해 보는 문서 말투(~했다 / ~함)로.
+
+[학생 기록]
+${R.map(labRecordText).join("\n\n")}`;
+}
+// 🧑‍🎓 학생용 공통 글: 개인 피드백 출력물 1쪽 '우리 반 수업 이야기' (교사용 총평과 따로 · 학생 번호 · 이름 없이)
+function laiStuPrompt(b, recs) {
+  const at = laiAttSum(b, recs); if (at) recs = at.shown;   // 결석하고 활동도 없는 학생은 빼요
+  return `${LAI_ME}
+아래 ${b}반 학생 ${recs.length}명의 실습 활동 기록을 보고, 이 반 학생들에게 나눠 줄 '우리 반 수업 이야기'를 써 줘.
+학생 한 명 한 명이 받는 개인 피드백 종이 맨 위에 똑같이 들어가는 글이야. 교사용 평가가 아니라, 학생이 읽고 '우리가 이런 실습을 했구나' 하고 돌아보는 글이야.
+
+${LAI_FLOW}
+
+[쓰는 방식 — 꼭 지켜 줘]
+- 아래 제목 그대로 4칸으로, 각 칸 3~5줄
+## 1. 우리가 함께한 실습 흐름
+## 2. 실습에서 익힌 것 (깃허브로 주소 만들기, 새로고침해도 남는 저장, 세 번 점검 등)
+## 3. 친구들이 만든 웹앱 (어떤 종류였는지: 퀴즈 · 테스트, 생활 도우미, 공부 도구 등 · 처음보다 어떻게 나아졌는지)
+## 4. 우리 반이 함께 배운 점 (담벼락 · 친구 댓글에서)
+- S01 같은 학생 번호, 이름, 닉네임은 절대 쓰지 마. 한 학생만 떠올릴 수 있는 문장을 그대로 옮기지도 마 (여러 친구의 경향으로 묶어서)
+- 교사에게 하는 말(다음 수업 조언, 어려워한 학생 지적, 제출 인원 같은 숫자 통계)은 쓰지 마
+- 학생에게 말하듯 다정한 존댓말(~했어요 / ~해요), 쉬운 우리말로
+- 기록에 있는 내용만 쓰고 지어내지 마
+
+[학생 기록]
+${recs.map(labRecordText).join("\n\n")}`;
+}
+// 학생용 글에서 혹시 남은 학생 번호(S01 · (S03, S07) …)는 지워요
+const laiStuClean = t => String(t || "").replace(/\s*[(\[]\s*S\d{2}(?:\s*[,·/와과및]\s*S\d{2})*\s*[)\]]/g, "").replace(/\bS\d{2}\b\s*(?:학생|친구)?\s*(?:은|는|이|가|의)?\s*/g, "").replace(/[ \t]{2,}/g, " ");
+// 🤖 AI 개별 피드백
+function laiFbPrompt(b, recs) {
+  return `나는 고등학교 진로탐구수업 「바이브코딩으로 웹앱 만들기 (실습편)」을 한 교사야. 이론편에서 쓴 계획서로, 실습편에서 진짜 주소를 가진 웹앱을 만들었어.
+아래 학생 ${recs.length}명의 실습 활동 기록을 보고, 학생마다 직접 읽을 개인 피드백을 써 줘.
+
+${LAI_FLOW}
+
+[쓰는 방식 — 꼭 지켜 줘]
+- 학생마다 "### S01" 처럼 번호 한 줄로 시작하고, 그 아래에 피드백만 써 줘 (번호 줄 말고 다른 제목은 쓰지 마)
+- 학생 한 명에 4~6문장: ① 이 학생이 실제로 잘한 점(기록에서 구체적으로) ② 이론편 계획서가 실제 웹앱이 되며 달라진 점, 또는 처음 → 마지막에 나아진 점 ③ 웹앱을 더 다듬으면 좋을 점 하나(방법과 함께) ④ 따뜻한 격려 한마디
+- 점검 뒤 고친 것 · 친구 댓글이 있으면 그 노력을 짚어 줘
+- 학생에게 말하듯 다정한 존댓말(~해요). 이름 대신 '여러분' · '나'를 쓰지 말고 그냥 바로 말해 줘
+- 기록에 없는 일은 지어내지 마. 기록이 거의 없는 학생은 참여를 북돋는 짧은 피드백으로
+- ${recs.length}명 모두 빠짐없이, 번호 순서대로
+
+[학생 기록]
+${recs.map(labRecordText).join("\n\n")}`;
+}
+// 🧑‍🏫 선생님 메모(좋은 점 · 개선할 점 · 7번에 남긴 댓글) → 선생님이 학생에게 건네는 긴 피드백으로 늘려 쓰기 (메모가 있는 학생만)
+const laiNoteOf = (notes, r) => notes[r.nick] || { good: "", bad: "" };
+function laiTPrompt(b, recs, notes) {
+  const rows = recs.map(r => ({ r, n: laiNoteOf(notes, r) })).filter(x => (x.n.good || "").trim() || (x.n.bad || "").trim() || x.r.tc);
+  return { n: rows.length, text: `나는 고등학교 진로탐구수업 「바이브코딩으로 웹앱 만들기 (실습편)」을 가르친 교사야.
+아래는 학생들이 만든 웹앱과, 그 웹앱을 보고 내가 짧게 적은 메모(좋은 점 · 개선할 점 · 수업 중에 남긴 댓글)야.
+이 메모를 바탕으로, 내가 학생에게 직접 건네는 피드백 글로 늘려 써 줘.
+
+[쓰는 방식 — 꼭 지켜 줘]
+- 학생마다 "### S01" 처럼 번호 한 줄로 시작하고, 그 아래에 피드백만
+- 내 메모의 내용과 판단은 그대로 살리고 하나도 빠뜨리지 마. 메모에 없는 새 칭찬 · 새 지적은 덧붙이지 마
+- 웹앱 내용과 변화를 근거로 풀어 써 줘: 좋은 점은 '왜 좋은지', 개선할 점은 '어떻게 고치면 좋을지' 방법 1~2가지
+- 점검 뒤 고친 것이 있으면 고쳐 온 노력도 한 문장 넣어 줘
+- 학생 한 명에 6~8문장, 교사가 학생에게 쓰는 다정한 존댓말(~해요). '선생님은 ~라고 생각해요'처럼 써도 돼
+- 번호 순서대로, 아래 학생 모두
+
+[학생 웹앱과 내 메모]
+${rows.map(({ r, n }) => [`### ${r.code}`,
+    r.app ? `- 웹앱: 「${laiCut(r.app.appName, 60)}」${r.app.intro ? ` — ${laiCut(r.app.intro, 200)}` : ""}` : "- 웹앱: (올리지 않음)",
+    r.plan ? `- 이론편 계획: ${laiCut(laiPlanText(r.plan), 200)}` : "",
+    r.hs.length > 1 ? `- 처음 → 마지막: ${histDiff(r.hs[0], r.last)}` : "",
+    laiFixN(r) ? `- 점검 뒤 고친 것: ${laiCut([r.fix.selfFix, r.fix.aiFix].filter(Boolean).join(" / "), 200)}` : "",
+    n.good ? `- 내가 쓴 좋은 점: ${n.good}` : "", n.bad ? `- 내가 쓴 개선할 점: ${n.bad}` : "", r.tc ? `- 수업 중 내가 남긴 댓글: ${laiCut(r.tc, 300)}` : ""].filter(Boolean).join("\n")).join("\n\n")}` };
+}
+// 붙여 넣은 대답 → { S01: "…" }
+function laiParse(raw) {
+  const out = {}, re = /^\s*#{1,4}\s*\**\s*(S\d{2})\b[^\n]*\n([\s\S]*?)(?=^\s*#{1,4}\s*\**\s*S\d{2}\b|$(?![\s\S]))/gm; let m;
+  while ((m = re.exec(String(raw || "")))) out[m[1]] = m[2].replace(/\*\*/g, "").trim();
+  return out;
+}
+const laiMd = t => esc(String(t || "")).split(/\n/).map(l => /^\s*#{1,3}\s+/.test(l) ? `<h3>${l.replace(/^\s*#{1,3}\s+/, "")}</h3>` : /^\s*[-*•]\s+/.test(l) ? `<li>${l.replace(/^\s*[-*•]\s+/, "")}</li>` : l.trim() ? `<p>${l}</p>` : "").join("").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+// 개인 피드백 저장 모양: { ai: {닉네임: 글}, tf: {닉네임: 글}, notes: {닉네임: {good, bad}}, real, inT, inAi, inSum }
+const laiFbStore = b => laiGet(b, "fb") || {};
+const laiFbSave = (b, f) => { const sv = laiFbStore(b); f(sv); laiSet(b, "fb", sv); };
+const LAI_LINKS = `<a class="chip" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini 열기</a> <a class="chip" href="https://claude.ai/new" target="_blank" rel="noopener">Claude 열기</a>`;
+async function renderLabAi(kind, b) {
+  laiBan = b;
+  laiRecs = await labRecords(b);
+  const box = $("laiBox"); if (!box || box.dataset.tab !== (kind === "sum" ? "aisum" : "aifb") + b) return;
+  const n = laiRecs.length, again = `<button type="button" class="btn sm" data-lai-again>🔄 기록 새로 모으기</button>`;
+  const how = k => `<ol class="ai-how"><li><button type="button" class="btn sm" data-lai-copy="${k}">📋 질문 복사</button> ${LAI_LINKS} <span class="muted">학생 ${n}명 기록이 담겨요 · 이름 · 학번 · 닉네임은 빼고 S01 번호로만</span></li>
+    <li>AI 창에 붙여 넣고(Ctrl+V) 보내요</li><li>AI의 대답을 통째로 복사해 아래 칸에 붙여 넣어요 <span class="muted">(이 기기에 저장돼요)</span></li></ol>`;
+  if (kind === "sum") {
+    const saved = laiGet(b, "sum") || {}, at = laiAttSum(b, laiRecs), stu = laiGet(b, "stu") || {}, left = /\bS\d{2}\b/.test(stu.text || "");
+    const attP = at ? `<p class="notice">✅ 출석부 반영: 출석 ${at.출석} · 지각 ${at.지각} · 조퇴 ${at.조퇴} · 결석 ${at.결석}${at.미체크 ? ` · 미체크 ${at.미체크}` : ""} / ${at.total}명 — 결석한 학생은 미제출로 보지 않고, 제출률은 수업에 온 학생 기준으로 질문에 담겨요</p>`
+      : `<p class="notice">⚠️ ${b}반 출석 체크가 아직 없어요. ✅ ${b}반 출석부에서 출석 · 결석을 체크한 뒤 질문을 복사하면, 결석한 학생을 미제출로 보지 않아요.</p>`;
+    box.innerHTML = `<h4>🤖 ${b}반 AI 총평 <span class="muted" style="font-size:.875rem">교사용 · 수업 전체를 돌아보는 글</span> ${again}</h4>${attP}${how("sum")}
+      <textarea id="laiSumIn" class="ai-in" rows="6" placeholder="AI가 쓴 총평을 여기에 붙여 넣어요">${esc(saved.text || "")}</textarea>
+      <div class="plan-act"><button type="button" class="btn" data-lai-print="sum">🖨 출력 · PDF로 저장</button><span class="muted">${saved.at ? "저장 " + fmtTime(saved.at) : ""}</span></div>
+      <div class="ai-doc" id="laiSumView">${saved.text ? laiMd(saved.text) : `<p class="muted">붙여 넣으면 여기에 보기 좋게 정리돼요.</p>`}</div>
+      <h4 style="margin-top:1.75rem">🧑‍🎓 ${b}반 학생용 공통 글 <span class="muted" style="font-size:.875rem">학생에게 설명하는 글 · 개인 피드백 출력물 1쪽에 '우리 반 수업 이야기'로 모두에게 똑같이 들어가요</span></h4>
+      <ol class="ai-how"><li><button type="button" class="btn sm" data-lai-copy="stu">📋 학생용 질문 복사</button> ${LAI_LINKS} <span class="muted">실습 흐름 · 익힌 것 · 친구들이 만든 웹앱 · 함께 배운 점 (학생 번호 · 이름 없이)</span></li>
+        <li>AI의 대답을 아래 칸에 붙여 넣고, 학생이 읽어도 괜찮은지 한 번 읽어 봐요 <span class="muted">(이 기기에 저장돼요)</span></li></ol>
+      <textarea id="laiStuIn" class="ai-in" rows="6" placeholder="AI가 쓴 학생용 공통 글을 여기에 붙여 넣어요">${esc(stu.text || "")}</textarea>
+      <p class="muted" id="laiStuWarn" ${left ? "" : "hidden"}>⚠️ 글에 S01 같은 학생 번호가 남아 있어요. 출력할 때는 번호를 지우고 내보내지만, 문장이 어색하면 칸에서 직접 고쳐 주세요.</p>
+      <div class="ai-doc" id="laiStuView">${stu.text ? laiMd(laiStuClean(stu.text)) : `<p class="muted">붙여 넣으면 여기에 학생이 보게 될 모양으로 정리돼요.</p>`}</div>`;
+    return;
+  }
+  const sv = laiFbStore(b), notes = sv.notes || {}, A = sv.ai || {}, T = sv.tf || {};
+  const nAi = laiRecs.filter(r => A[r.nick]).length, nT = laiRecs.filter(r => T[r.nick]).length, tq = laiTPrompt(b, laiRecs, notes);
+  box.innerHTML = `<h4>🧑‍🎓 ${b}반 개인 피드백 <span class="muted" style="font-size:.875rem">학생별 개별 글 · 🧑‍🏫 선생님 피드백 + 🤖 AI 피드백을 따로 · 한 사람에 한 쪽씩 출력</span> ${again}</h4>
+    <div class="ai-steps">
+      <div class="ai-step2"><b>🧑‍🏫 선생님 피드백 늘려 쓰기</b> <span class="muted">학생 카드에 좋은 점 · 개선할 점을 짧게 메모하고(7번에 남기신 선생님 댓글도 함께 담겨요) 질문을 복사해요 · 메모가 있는 학생 ${tq.n}명</span>
+        <div><button type="button" class="btn sm" data-lai-copy="tf">📋 늘려 쓰기 질문 복사</button> ${LAI_LINKS}</div>
+        <textarea id="laiTfIn" class="ai-in" rows="2" placeholder="AI가 늘려 쓴 대답(### S01 …)을 통째로 붙여 넣으면 학생마다 '선생님 피드백' 칸에 들어가요 (출력 전에 꼭 읽고 고쳐요)"></textarea></div>
+      <div class="ai-step2"><b>🤖 AI 피드백</b> <span class="muted">AI가 학생 실습 기록을 보고 쓰는 피드백 · 출력물에 'AI 피드백'이라고 따로 적혀요</span>
+        <div><button type="button" class="btn sm" data-lai-copy="fb">📋 AI 피드백 질문 복사</button> ${LAI_LINKS}</div>
+        <textarea id="laiFbIn" class="ai-in" rows="2" placeholder="AI의 대답(### S01 … ### S02 …)을 통째로 붙여 넣으면 학생마다 'AI 피드백' 칸에 들어가요"></textarea></div>
+    </div>
+    <div class="plan-act"><button type="button" class="btn" data-lai-print="fb">🖨 전체 출력 · PDF (${n}명)</button>
+      <label class="muted"><input type="checkbox" data-lai-opt="real" ${sv.real ? "checked" : ""}> 학번 · 이름 넣기</label>
+      <label class="muted"><input type="checkbox" data-lai-opt="inT" ${sv.inT !== false ? "checked" : ""}> 🧑‍🏫 선생님 피드백</label>
+      <label class="muted"><input type="checkbox" data-lai-opt="inAi" ${sv.inAi !== false ? "checked" : ""}> 🤖 AI 피드백</label>
+      <label class="muted"><input type="checkbox" data-lai-opt="inSum" ${sv.inSum !== false ? "checked" : ""}> 📚 우리 반 수업 이야기 (1쪽 · 개인 피드백은 2쪽)</label>
+      <span class="muted">선생님 피드백 ${nT}/${n} · AI 피드백 ${nAi}/${n} · 수업 이야기 ${(laiGet(b, "stu") || {}).text ? "있음" : `없음 (🤖 ${b}반 AI 총평 탭 아래 '학생용 공통 글'에 붙여 넣어요)`}</span></div>
+    <div class="ai-cards">${laiRecs.map(r => { const nt = laiNoteOf(notes, r); return `<div class="ai-card"><div class="ai-card-h"><b>${r.code}</b> ${esc(r.nick)}${r.real ? ` <span class="real">${esc(r.real.sid)} ${esc(r.real.name || "")}</span>` : ""}
+        <span class="ai-flags">${r.app ? (r.app.url ? "🌐" : "📄") : "<s>🌐</s>"}${r.hs.length && histFinal(r.hs) ? " 🏁" : ""}${laiFixN(r) ? " 🔧" : ""}${r.recv.length ? ` 💬${r.recv.length}` : ""}${r.gave.length ? ` ✏️${r.gave.length}` : ""}${r.walls.length ? ` 🧱${r.walls.length}` : ""}${r.att && r.att !== "출석" ? ` · ${esc(r.att)}` : ""}</span>
+        <button type="button" class="link" data-lai-print1="${esc(r.nick)}">🖨 이 학생만</button></div>
+      <div class="muted">${r.app ? `📱 ${r.app.url ? `<a href="${esc(safeUrl(r.app.url))}" target="_blank" rel="noopener">${esc(r.app.appName)}</a>` : esc(r.app.appName)}` : "올린 웹앱 없음"}${r.plan ? ` <span title="${esc(laiPlanText(r.plan))}">· 📝 이론편 「${esc(laiCut(r.plan.appName, 24))}」</span>` : ""}</div>
+      ${r.tc ? `<div class="ai-tc">💬 7번에 남긴 선생님 댓글: ${esc(r.tc)}</div>` : ""}
+      <label class="ai-lab">👍 선생님 메모 · 좋은 점<textarea class="ai-note" data-lai-note="good" data-nick="${esc(r.nick)}" rows="2">${esc(nt.good || "")}</textarea></label>
+      <label class="ai-lab">💡 선생님 메모 · 개선할 점<textarea class="ai-note" data-lai-note="bad" data-nick="${esc(r.nick)}" rows="2">${esc(nt.bad || "")}</textarea></label>
+      <label class="ai-lab t">🧑‍🏫 선생님 피드백 (늘려 쓴 글 · 출력됨)<textarea class="ai-fb" data-lai-tf="${esc(r.nick)}" rows="5">${esc(T[r.nick] || "")}</textarea></label>
+      <label class="ai-lab a">🤖 AI 피드백 (출력됨)<textarea class="ai-fb" data-lai-ai="${esc(r.nick)}" rows="4">${esc(A[r.nick] || "")}</textarea></label></div>`; }).join("") || `<p class="muted">아직 이 반 학생 기록이 없어요.</p>`}</div>`;
+}
+const laiRedraw = () => { const x = $("laiBox"); if (x) x.dataset.tab = ""; renderDash(); };
+document.addEventListener("click", async e => {
+  const t = e.target;
+  if (t.closest("[data-lai-again]")) { laiRedraw(); return; }
+  const c = t.closest("[data-lai-copy]");
+  if (c) {
+    const k = c.dataset.laiCopy, b = laiBan;
+    if (k === "tf") { const tq = laiTPrompt(b, laiRecs, laiFbStore(b).notes || {}); if (!tq.n) { toast("먼저 학생 카드에 선생님 메모(좋은 점 · 개선할 점)를 써 주세요"); return; } const ok = await copyText(tq.text); toast(ok ? `${tq.n}명 늘려 쓰기 질문을 복사했어요 · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return; }
+    const q = k === "sum" ? laiSumPrompt(b, laiRecs) : k === "stu" ? laiStuPrompt(b, laiRecs) : laiFbPrompt(b, laiRecs);
+    const ok = await copyText(q); toast(ok ? `질문을 복사했어요 (${q.length.toLocaleString()}자) · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return;
+  }
+  const pr = t.closest("[data-lai-print]"), p1 = t.closest("[data-lai-print1]");
+  if (pr || p1) printLabAi(pr ? pr.dataset.laiPrint : "fb", p1 ? p1.dataset.laiPrint1 : null);
+});
+document.addEventListener("input", e => {
+  const t = e.target, b = laiBan; if (!t.closest || !t.closest("#laiBox")) return;
+  if (t.id === "laiSumIn") { laiSet(b, "sum", { text: t.value, at: Date.now() }); const v = $("laiSumView"); if (v) v.innerHTML = laiMd(t.value); return; }
+  if (t.id === "laiStuIn") { laiSet(b, "stu", { text: t.value, at: Date.now() }); const v = $("laiStuView"), w = $("laiStuWarn"); if (v) v.innerHTML = laiMd(laiStuClean(t.value)); if (w) w.hidden = !/\bS\d{2}\b/.test(t.value); return; }
+  if (t.id === "laiFbIn" || t.id === "laiTfIn") {   // 붙여 넣은 대답 → 학생마다 (S01 → 닉네임)
+    const got = laiParse(t.value), keys = Object.keys(got); if (!keys.length) return;
+    const k = t.id === "laiFbIn" ? "ai" : "tf";
+    laiFbSave(b, sv => { sv[k] = sv[k] || {}; keys.forEach(code => { const r = laiRecs.find(x => x.code === code); if (r) sv[k][r.nick] = got[code]; }); });
+    toast(`${keys.length}명 ${k === "ai" ? "AI 피드백" : "선생님 피드백"}을 나눠 넣었어요${k === "tf" ? " · 출력 전에 꼭 읽고 고쳐요" : ""}`); t.value = ""; laiRedraw(); return;
+  }
+  if (t.dataset.laiAi) { laiFbSave(b, sv => { sv.ai = { ...(sv.ai || {}), [t.dataset.laiAi]: t.value }; }); return; }
+  if (t.dataset.laiTf) { laiFbSave(b, sv => { sv.tf = { ...(sv.tf || {}), [t.dataset.laiTf]: t.value }; }); return; }
+  if (t.dataset.laiNote) { const nick = t.dataset.nick; laiFbSave(b, sv => { sv.notes = sv.notes || {}; const cur = sv.notes[nick] || { good: "", bad: "" }; cur[t.dataset.laiNote] = t.value; sv.notes[nick] = cur; }); return; }
+});
+document.addEventListener("change", e => { const o = e.target.dataset && e.target.dataset.laiOpt; if (o) laiFbSave(laiBan, sv => { sv[o] = e.target.checked; }); });
+// 🖨 출력: 새 창에 출력용 문서를 만들고 인쇄 창을 열어요 (인쇄 창에서 'PDF로 저장'을 고르면 PDF) — 모양은 이론편 출력물과 같아요
+const LPR_CSS = `@font-face{font-family:'OngleipUnz';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2406-1@1.0/Ownglyph_UNZ-Rg.woff2') format('woff2');size-adjust:125%}
+@page{size:A4;margin:12mm 13mm}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#4B3A3A;font-size:10pt;line-height:1.65;background:#fff}
+.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}
+.ban{display:flex;align-items:center;gap:4mm;background:linear-gradient(120deg,#E6F0FB,#FFF7F2 60%,#E7F6ED);border:1px solid #DCE6F2;border-radius:5mm;padding:4mm 5mm;margin:0 0 4mm}
+.ban .em{font-size:22pt;line-height:1}
+.ban h1{margin:0;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:22pt;line-height:1.1;color:#4B3A3A}
+.ban p{margin:1mm 0 0;color:#9B8782;font-size:9pt}
+.ban .tag{margin-left:auto;align-self:flex-start;background:#fff;border:1px solid #7AAEDB;color:#2F6A9E;border-radius:99px;padding:.5mm 3mm;font-size:8.5pt;white-space:nowrap}
+table.kv{width:100%;border-collapse:collapse;margin:0 0 3mm;font-size:9.5pt}
+table.kv th,table.kv td{border:1px solid #F2DDD6;padding:1.6mm 2.4mm;text-align:left;vertical-align:top}
+table.kv th{background:#FFF7F2;color:#9B8782;font-weight:500;white-space:nowrap;width:1%}
+.chips{display:flex;flex-wrap:wrap;gap:1.5mm;margin:0 0 4mm}
+.chip{display:inline-block;border-radius:99px;padding:.4mm 2.6mm;font-size:8.5pt;border:1px solid}
+.c-pink{background:#FDE8EF;border-color:#EE8FAD;color:#B23A64}.c-green{background:#E7F6ED;border-color:#7FC59A;color:#2E7D4F}.c-blue{background:#E6F0FB;border-color:#7AAEDB;color:#2F6A9E}.c-mus{background:#FBF1DD;border-color:#D9A74C;color:#8A6215}.c-pur{background:#EFE9FB;border-color:#A78BDC;color:#6243A8}.c-off{background:#fff;border-color:#E8E2DE;color:#C2B8B3;text-decoration:line-through}
+.sec{display:flex;align-items:center;gap:2mm;margin:4mm 0 2mm;padding:1.2mm 3mm;border-radius:2.5mm;color:#fff;font-family:'OngleipUnz',sans-serif;font-size:14pt;line-height:1.2}
+.sec small{font-family:'Pretendard',sans-serif;font-size:8pt;opacity:.92;margin-left:auto}
+.s-pink{background:#EE8FAD}.s-green{background:#7FC59A}.s-blue{background:#7AAEDB}.s-mus{background:#D9A74C}.s-pur{background:#A78BDC}
+.box{border:1px solid #F2DDD6;border-radius:3mm;padding:3mm 4mm;margin:0 0 2mm;background:#fff}
+.b-pink{background:#FDE8EF;border-color:#F6C3D4}.b-green{background:#E7F6ED;border-color:#BFE3CC}.b-blue{background:#E6F0FB;border-color:#C2DAF1}.b-mus{background:#FBF1DD;border-color:#EFD8A8}.b-pur{background:#EFE9FB;border-color:#D5C7F1}
+.fb{white-space:pre-wrap;font-size:10.5pt;line-height:1.8}
+.note{color:#9B8782;font-size:8pt;margin:0 0 1.5mm}
+.sign{text-align:right;color:#9B8782;font-size:8.5pt;margin:1mm 0 0}
+.foot{margin-top:5mm;padding-top:2mm;border-top:1px solid #F2DDD6;color:#B9ABA5;font-size:7.5pt;display:flex;justify-content:space-between}
+.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:2mm;margin:0 0 4mm}
+.tile{border:1px solid #F2DDD6;border-radius:3mm;padding:2mm 2.5mm;text-align:center}
+.tile b{display:block;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:20pt;line-height:1.1}
+.tile small{color:#9B8782;font-size:8pt}.tile b i{font-style:normal;font-size:11pt;color:#9B8782}
+.card{border:1px solid #F2DDD6;border-left:2.2mm solid var(--c);border-radius:3mm;padding:2.5mm 4mm;margin:0 0 3mm;break-inside:avoid;background:#fff}
+.card h3{margin:0 0 1mm;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:14pt;color:var(--c)}
+.card ul{margin:.5mm 0;padding-left:4.5mm}.card li{margin:.6mm 0}.card p{margin:.8mm 0}
+table.list{width:100%;border-collapse:collapse;font-size:8.5pt;margin-top:1mm}
+table.list th,table.list td{border:1px solid #F2DDD6;padding:1.2mm 1.8mm;text-align:left;vertical-align:top}
+table.list th{background:#FFF7F2;color:#9B8782;font-weight:500}
+table.list tr:nth-child(even) td{background:#FFFCFA}
+.story{display:grid;grid-template-columns:1fr 1fr;gap:0 3mm}.story .card{margin:0 0 2.5mm;padding:2mm 3mm;font-size:9pt;line-height:1.55}.story .card h3{font-size:12pt}
+.sp{height:270mm;overflow:hidden;display:flex;flex-direction:column;--fs:12.5pt}
+.sp-hero{position:relative;border-radius:6mm;padding:7mm 8mm 6mm;margin:0 0 4mm;background:linear-gradient(125deg,#E7F6ED,#FFF7F2 45%,#E6F0FB 75%,#EFE9FB);border:1px solid #CFE6D8;overflow:hidden}
+.sp-hero:before,.sp-hero:after{content:"";position:absolute;border-radius:50%;opacity:.55}
+.sp-hero:before{width:48mm;height:48mm;right:-12mm;top:-18mm;background:#BFE3CC}
+.sp-hero:after{width:26mm;height:26mm;right:30mm;bottom:-14mm;background:#C2DAF1}
+.sp-hero *{position:relative;z-index:1}
+.sp-hero .k{display:inline-block;background:#fff;border:1px solid #7FC59A;color:#2E7D4F;border-radius:99px;padding:.4mm 3mm;font-size:8.5pt}
+.sp-hero h1{margin:2.5mm 0 1mm;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:30pt;line-height:1.05;color:#3F5B4E}
+.sp-hero p{margin:0;color:#7D8696;font-size:9.5pt}
+.sp-hero .to{margin-top:3mm;font-size:10.5pt;color:#4B3A3A}.sp-hero .to b{font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:15pt;color:#2F6A9E}
+@media screen{body{width:184mm;margin:0 auto}}
+.sp .story{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr);gap:3.5mm}
+.sp .story .card{margin:0;padding:4mm 5mm;font-size:var(--fs);line-height:1.7;border-left-width:2.6mm;background:color-mix(in srgb,var(--c) 6%,#fff);display:flex;flex-direction:column}
+.sp .story .card h3{font-size:calc(var(--fs) * 1.45);margin:0 0 2mm;padding-bottom:1.5mm;border-bottom:1px dashed color-mix(in srgb,var(--c) 45%,#fff)}
+.sp .story .card:only-child,.sp .story .card:last-child:nth-child(odd){grid-column:1/-1}
+.sp .foot{margin-top:4mm}`;
+const LPR_COL = ["blue", "green", "pink", "mus", "pur"], LPR_HEX = { pink: "#E27399", blue: "#5E97C9", green: "#5DAE7C", mus: "#C18E2C", pur: "#8D6BCF" };
+const laiChips = r => [[r.plan, "📝 이론편 계획서", "green"], [r.app, "📱 웹앱 올림", "blue"], [r.app && r.app.url, "🌐 깃허브 주소", "blue"], [r.hs.length && histFinal(r.hs), "🏁 최종 제출", "green"],
+  [r.last && histInfo(r.last).s, "💾 저장 기능", "pur"], [laiFixN(r), "🔧 점검 뒤 고침", "mus"], [r.recv.length, `💬 받은 댓글 ${r.recv.length}`, "pink"], [r.gave.length, `✏️ 쓴 댓글 ${r.gave.length}`, "mus"], [r.walls.length, `🧱 담벼락 ${r.walls.length}`, "pur"]]
+  .map(([on, t, c]) => `<span class="chip ${on ? "c-" + c : "c-off"}">${esc(t)}</span>`).join("");
+// 마크다운 비슷한 총평 → '## 제목' 마다 색 띠 카드
+function laiCards(text) {
+  const parts = String(text || "").split(/^\s*#{1,3}\s+/m).map(x => x.trim()).filter(Boolean);
+  return parts.map((p, i) => {
+    const [h, ...rest] = p.split("\n"), c = LPR_HEX[LPR_COL[i % LPR_COL.length]];
+    const body = rest.join("\n").trim().split("\n").map(l => l.trim()).filter(Boolean);
+    let html = "", inUl = false;
+    body.forEach(l => { const b = /^[-*•]\s+/.test(l); if (b && !inUl) { html += "<ul>"; inUl = true; } if (!b && inUl) { html += "</ul>"; inUl = false; } const t = esc(l.replace(/^[-*•]\s+/, "")).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); html += b ? `<li>${t}</li>` : `<p>${t}</p>`; });
+    if (inUl) html += "</ul>";
+    return rest.length || parts.length > 1 ? `<div class="card" style="--c:${c}"><h3>${esc(h.replace(/\*\*/g, ""))}</h3>${html}</div>` : `<div class="card" style="--c:${c}"><p>${esc(h)}</p></div>`;
+  }).join("");
+}
+function printLabAi(kind, only) {
+  const b = laiBan, date = new Date().toLocaleDateString("ko-KR"), course = "진로탐구수업 「바이브코딩으로 웹앱 만들기 (실습편)」";
+  const foot = `<div class="foot"><span>${course} · ${b}반</span><span>moontr.site/vibelab · ${date}</span></div>`;
+  let body = "";
+  if (kind === "sum") {
+    const sv = laiGet(b, "sum") || {};
+    if (!sv.text) { toast("먼저 AI 총평을 붙여 넣어 주세요"); return; }
+    const at = laiAttSum(b, laiRecs), R = laiRecs, P = at ? at.present : R, has = f => P.filter(f).length, of = at ? `<i>/${P.length}</i>` : "";
+    const tiles = [at ? [`${at.cameN}<i>/${at.total}</i>`, `출석 (결석 ${at.결석})`] : [R.length, "학생"], [has(r => r.app) + of, "웹앱 올림"], [has(r => r.app && r.app.url) + of, "깃허브 주소"], [has(r => r.hs.length && histFinal(r.hs)) + of, "최종 제출"], [has(laiFixN) + of, "점검 뒤 고침"], [P.reduce((s, r) => s + r.gave.length, 0), "친구 댓글"]];
+    const attCell = r => !r.att ? "" : `<td style="color:${{ 결석: "#C0392B", 지각: "#8A6215", 조퇴: "#8A6215", 출석: "#2E7D4F" }[r.att] || "#9B8782"}">${esc(r.att)}</td>`;
+    body = `<div class="page">
+      <div class="ban"><span class="em">📊</span><div><h1>수업 총평</h1><p>${course} · ${b}반 · ${date}</p></div><span class="tag">교사용</span></div>
+      <div class="tiles">${tiles.map(([n, t], i) => `<div class="tile b-${LPR_COL[i % 5]}"><b>${n}</b><small>${t}</small></div>`).join("")}</div>
+      <div class="sec s-pur">🤖 AI 총평<small>AI가 학생 활동 기록을 읽고 쓴 글이에요 · 참고용</small></div>
+      ${laiCards(sv.text)}
+      <div class="sec s-green">📋 학생별 활동 한눈에<small>이름 대신 닉네임 · 번호는 AI에게 보낸 번호</small></div>
+      ${at ? `<p class="note">${at.cameN === at.total ? "" : `결석 ${at.결석}명은 미제출로 세지 않았어요 · `}숫자는 수업에 온 학생 ${P.length}명 기준${at.미체크 ? ` · 출석 체크 안 한 학생 ${at.미체크}명` : ""}</p>` : ""}
+      <table class="list"><tr><th>번호</th><th>닉네임</th>${at ? "<th>출석</th>" : ""}<th>이론편 계획</th><th>오늘 만든 웹앱</th><th>활동</th><th>받은 댓글</th><th>쓴 댓글</th></tr>
+      ${R.map(r => `<tr${r.att === "결석" ? ' style="color:#B9ABA5"' : ""}><td>${r.code}</td><td>${esc(r.nick)}</td>${at ? attCell(r) || "<td>-</td>" : ""}<td>${r.plan ? esc(laiCut(r.plan.appName, 30)) : '<span style="color:#C2B8B3">-</span>'}</td><td>${r.app ? esc(r.app.appName) : '<span style="color:#C2B8B3">올리지 않음</span>'}</td><td>${[r.app && r.app.url && "🌐", r.hs.length && histFinal(r.hs) && "🏁", r.last && histInfo(r.last).s && "💾", laiFixN(r) && "🔧", r.walls.length && "🧱"].filter(Boolean).join(" ")}</td><td>${r.recv.length}</td><td>${r.gave.length}</td></tr>`).join("")}</table>
+      <p class="note" style="margin-top:2mm">🌐 깃허브 주소 · 🏁 마무리 최종 제출 · 💾 새로고침해도 남는 저장 · 🔧 점검 뒤 고친 것 기록 · 🧱 담벼락</p>
+      ${foot}</div>`;
+  } else {
+    const fs = laiFbStore(b), real = !!fs.real, inT = fs.inT !== false, inAi = fs.inAi !== false, A = fs.ai || {}, T = fs.tf || {};
+    // 📚 우리 반 수업 이야기 = 학생용 공통 글 (학생 번호는 지우고, 모든 학생 종이에 똑같이)
+    const stu = fs.inSum !== false ? laiStuClean((laiGet(b, "stu") || {}).text).trim() : "";
+    if (fs.inSum !== false && !stu) {
+      if (confirm(`${b}반 '우리 반 수업 이야기'(학생용 공통 글)가 이 기기에 아직 없어요.\n그대로 출력하면 1쪽 없이 개인 피드백 쪽만 나와요.\n\n[확인] 🤖 ${b}반 AI 총평 탭의 '학생용 공통 글' 칸으로 가서 먼저 만들기\n[취소] 1쪽 없이 그대로 출력`)) {
+        dashTab = "aisum" + b; renderDash();
+        setTimeout(() => { const s = $("laiStuIn"); if (s) { s.scrollIntoView({ block: "center" }); s.focus(); } }, 900);
+        return;
+      }
+    }
+    // 1쪽 = 우리 반 수업 이야기(A4 한 쪽 꽉 차게, 글이 길면 글씨를 저절로 줄여요) · 2쪽 = 이 학생 개인 피드백
+    const storyCards = stu ? laiCards(stu) : "";
+    const who = r => real && r.real ? (r.real.name || r.nick) : r.nick;
+    const story = r => stu ? `<div class="page sp">
+      <div class="sp-hero"><span class="k">📚 ${b}반 모두에게</span><h1>우리 반 수업 이야기</h1><p>${course} · ${date}</p>
+        <p class="to"><b>${esc(who(r))}</b> 님, 우리 반이 함께한 실습을 돌아봐요 · 다음 쪽은 나의 피드백이에요</p></div>
+      <div class="story">${storyCards}</div>
+      <div class="foot"><span>AI가 ${b}반 전체 활동 기록을 읽고 정리한 글이에요 (학생 이름 · 번호 없이)</span><span>moontr.site/vibelab · 1쪽</span></div></div>` : "";
+    const list = laiRecs.filter(r => (!only || r.nick === only) && ((inT && T[r.nick]) || (inAi && A[r.nick])));
+    if (!list.length) { toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
+    body = list.map(r => `${story(r)}<div class="page">
+      <div class="ban"><span class="em">🌱</span><div><h1>나의 바이브코딩 실습 피드백</h1><p>${course}</p></div><span class="tag">${b}반</span></div>
+      <table class="kv"><tr><th>반</th><td>${b}반</td><th>${real && r.real ? "학번 · 이름" : "닉네임"}</th><td>${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + ` <span style="color:#9B8782">(${esc(r.nick)})</span>` : esc(r.nick)}</td><th>날짜</th><td>${date}</td></tr></table>
+      <div class="chips">${laiChips(r)}</div>
+      ${r.app || r.plan ? `<div class="sec s-green">📱 내가 만든 웹앱</div>
+      <table class="kv">${r.plan ? `<tr><th>이론편 계획</th><td><b>${esc(r.plan.appName || "")}</b>${laiPlanText(r.plan) ? `<br>${nl(laiCut(laiPlanText(r.plan), 300))}` : ""}</td></tr>` : ""}
+        ${r.app ? `<tr><th>오늘 만든 웹앱</th><td><b>${esc(r.app.appName)}</b>${r.app.intro ? `<br>${nl(laiCut(r.app.intro, 260))}` : ""}</td></tr>` : ""}
+        ${r.app && r.app.url ? `<tr><th>주소</th><td>${esc(r.app.url)}</td></tr>` : ""}
+        ${r.hs.length > 1 ? `<tr><th>처음 → 마지막</th><td>${esc(histDiff(r.hs[0], r.last))}</td></tr>` : ""}
+        ${laiFixN(r) ? `<tr><th>점검 뒤 고친 것</th><td>${nl(laiCut([r.fix.selfFix, r.fix.aiFix].filter(Boolean).join("\n"), 300))}</td></tr>` : ""}</table>` : ""}
+      ${inT && T[r.nick] ? `<div class="sec s-pink">🧑‍🏫 선생님 피드백</div><div class="box b-pink"><div class="fb">${esc(T[r.nick])}</div><p class="sign">진로탐구수업 담당 교사</p></div>` : ""}
+      ${inAi && A[r.nick] ? `<div class="sec s-pur">🤖 AI 피드백<small>참고용</small></div><div class="box b-pur"><p class="note">※ AI(인공지능)가 이 수업에서 남긴 활동 기록(웹앱 · 점검 · 친구 댓글 · 담벼락)을 읽고 쓴 글이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
+      ${r.walls.length ? `<div class="sec s-mus">🧱 내가 담벼락에 붙인 생각</div><div class="box b-mus"><div class="fb">${r.walls.map(w => `${esc(w.kind)} · ${esc(laiCut(w.text, 200))}`).join("\n")}</div></div>` : r.rf && r.rf.final ? `<div class="sec s-mus">✍️ 내가 쓴 성찰</div><div class="box b-mus"><div class="fb">${esc(laiCut(r.rf.final, 520))}</div></div>` : ""}
+      ${foot}</div>`).join("");
+  }
+  const w = window.open("", "_blank"); if (!w) { toast("새 창이 막혔어요. 팝업을 허용해 주세요"); return; }
+  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${kind === "sum" ? `실습편 ${b}반 수업 총평` : `실습편 ${b}반 개인 피드백`}</title><link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"><style>${LPR_CSS}</style></head><body>${body}<script>document.fonts.ready.then(()=>{document.querySelectorAll(".sp").forEach(p=>{const over=()=>[...p.querySelectorAll(".card")].some(c=>c.scrollHeight>c.clientHeight+1);let f=12.5;p.style.setProperty("--fs",f+"pt");while(over()&&f>7){f-=.25;p.style.setProperty("--fs",f+"pt");}});setTimeout(()=>print(),400);})<\/script></body></html>`);
+  w.document.close();
 }
 
 let adminIntent = /[?&]admin/.test(location.search) || /^#(admin|teacher)/.test(location.hash);
