@@ -156,6 +156,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
   .picks .btn{display:block;text-align:center;padding:5px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
   .picks .btn b{margin-right:5px}
   .plab{flex-direction:row;gap:4px;font-size:13px}
+  .pgrp{grid-template-columns:88px repeat(9,minmax(0,1fr))}   /* 묶음 이름 칸을 넓혀 '레트로 게임'도 한 줄로 */
+  .plab small{white-space:nowrap}
   .tools .btn{padding:4px 10px}
 }
 /* 맥 바탕화면(34번)은 진짜 맥처럼: 위 알림 띠 · 왼쪽 아래 말풍선 캐릭터는 숨겨요 (메모 스티커는 그대로) */
@@ -974,7 +976,13 @@ html.appmode.hudoff .navbtn{opacity:0;pointer-events:none}
 .rb-gal button{display:flex;align-items:center;gap:5px;min-width:0;padding:2px 6px;border:0;border-radius:3px;background:none;color:var(--wink);font:inherit;font-size:11.5px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .rb-gal button i{flex:none;min-width:18px;height:14px;border-radius:2px;background:var(--wacc-soft);color:var(--waccsi);font-size:9.5px;font-weight:600;line-height:14px;font-style:normal;text-align:center}
 .rb-gal button:hover{background:color-mix(in srgb,var(--wacc) 10%,transparent)}
-.rb-gal button.on{background:var(--wacc-soft);box-shadow:0 0 0 1px var(--wacc) inset}
+.rb-gal button.on{background:var(--wacc-soft);box-shadow:0 0 0 1px var(--wacc) inset;font-weight:600;color:var(--waccsi)}
+/* 리본 갤러리의 📌 고정 (레트로 머리 단추와 같은 규칙: 올리면 흐리게, 고정하면 늘) */
+.rb-gal button{position:relative;padding-right:16px}
+.rb-gal button .nm{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.rb-gal button .spin{position:absolute;top:50%;right:2px;transform:translateY(-50%);font-size:9.5px;line-height:1;cursor:pointer;opacity:0;filter:grayscale(1);transition:opacity .15s}
+.rb-gal button:hover .spin{opacity:.6}.rb-gal button .spin:hover{opacity:1;filter:none}
+.rb-gal button.pinned .spin{opacity:1;filter:none}
 /* 갤러리 왼쪽 묶음 전환: 🖥 PC 10~18 · 🎮 게임 1~9 */
 .rb-gsw{display:flex;flex-direction:column;gap:3px;margin-right:4px}
 .rb-gsw button{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:84px;padding:3px 7px;border:1px solid var(--rline);border-radius:3px;background:var(--wcard);color:var(--wink);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
@@ -6545,6 +6553,7 @@ function pick(k, quiet){
   document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", +b.dataset.s === SI));
   if (bigOn()) renderBigPick();
   if ($("pNow")) $("pNow").textContent = `${NUM(SI)}. ${STRUCTS[SI].name}`;
+  rbGsw = isPC(SI) ? "pc" : "game"; renderRibbon();   // 리본 갤러리도 지금 고른 화면의 묶음으로 (게임 1~9 를 보다가 10~18 로 오면 PC 쪽에 지금 화면이 켜져요)
   requestAnimationFrame(fit);
   try { localStorage.setItem("desk-struct", SI); } catch (e) {}
   if (!/admin/.test(location.search + location.hash) && location.hash !== "#" + NUM(SI)) try { history.replaceState(null, "", "#" + NUM(SI)); } catch (e) {}   // 주소 끝 #번호 (뒤로 가기 기록은 안 늘려요)
@@ -6595,7 +6604,8 @@ function renderStructs(){
 const RB = $("ribbon");
 let rbTabNow = "home", rbGsw = "pc";   // rbGsw = 홈 탭 갤러리에 보일 묶음 (🖥 pc · 🎮 game)
 function renderRibbon(){
-  const o = shownOrder(), b = r => `<button type="button" class="${r === SI ? "on" : ""}" data-s="${r}" title="${NUM(r)}. ${escH(STRUCTS[r].name)}"><i>${NUM(r)}</i>${escH(STRUCTS[r].name)}</button>`;
+  // 📌 = 레트로 머리의 단추처럼 맨 앞에 고정 (올리면 보이고, 고정한 것은 늘 보여요)
+  const o = shownOrder(), b = r => { const pin = SPIN.includes(r); return `<button type="button" class="${r === SI ? "on" : ""}${pin ? " pinned" : ""}" data-s="${r}" title="${NUM(r)}. ${escH(STRUCTS[r].name)}"><i>${NUM(r)}</i><span class="nm">${escH(STRUCTS[r].name)}</span><span class="spin" data-spin="${r}" role="button" aria-label="${pin ? "고정 풀기" : "맨 앞에 고정"}" title="${pin ? "고정 풀기" : "맨 앞에 고정"}">📌</span></button>`; };
   $("rbGal").innerHTML = o.filter(r => rbGsw === "pc" ? isPC(r) : !isPC(r)).map(b).join("");
   $("rbGsw").querySelectorAll("[data-gsw]").forEach(x => { const on = x.dataset.gsw === rbGsw; x.classList.toggle("on", on); x.setAttribute("aria-pressed", on); });
   $("rbAll").innerHTML = [["🎮 레트로 게임", o.filter(r => !isPC(r))], ["🖥 무난한 PC", o.filter(isPC)]].map(([nm, rs]) => `<div class="rb-row"><span>${nm}</span><div class="rb-gal">${rs.map(b).join("")}</div></div>`).join("");
@@ -6620,6 +6630,7 @@ RB.addEventListener("click", e => {
   if (e.target.closest("#rbFold")){ setFold(!document.documentElement.hasAttribute("data-fold")); return; }
   const t = e.target.closest("[data-rtab]"); if (t){ rbTab(t.dataset.rtab); if (document.documentElement.hasAttribute("data-fold")) setFold(false); return; }
   const gs = e.target.closest("[data-gsw]"); if (gs){ rbGsw = gs.dataset.gsw; renderRibbon(); return; }
+  const sn = e.target.closest("[data-spin]"); if (sn){ const i = +sn.dataset.spin; setOrder(null, SPIN.includes(i) ? SPIN.filter(x => x !== i) : [...SPIN, i]); window.DESK.onLook?.(); return; }   // 📌 고정 · 풀기
   const c = e.target.closest("[data-click]"); if (c){ $(c.dataset.click)?.click(); return; }
   const s = e.target.closest("button[data-s]"); if (s){ pick(+s.dataset.s); rbTab("home"); return; }   // <html> 에도 data-s 가 있어서 단추만
   const sp = e.target.closest("[data-rspeed]"); if (sp){ document.querySelector(`#ctl [data-speed="${sp.dataset.rspeed}"]`)?.click(); syncRb(); return; }
