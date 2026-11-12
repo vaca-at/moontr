@@ -1109,6 +1109,21 @@
   .strip-btn{ font-family:var(--font-ui); font-weight:700; font-size:13px; border-radius:16px; padding:0 14px; height:36px; cursor:pointer; flex:none; border:1.5px solid var(--line); background:var(--card); color:var(--ink); }
   .strip-btn.primary{ background:var(--green); color:#fff; border-color:var(--green); }
   .strip-btn.note-on{ background:var(--memo); border-color:var(--gold); }
+  /* 🔍 위쪽 고정 줄의 키워드 검색 칸 (어느 화면에서나) */
+  .strip-search{ flex:none; display:flex; align-items:center; gap:2px; height:36px; padding:0 3px 0 12px; border:1.5px solid var(--line); border-radius:18px; background:var(--card); }
+  .strip-search:focus-within{ border-color:var(--green); }
+  .strip-search input{ width:130px; min-width:0; border:none; outline:none; background:transparent; color:var(--ink); font-family:var(--font-ui); font-size:13.5px; transition:width .2s; }
+  .strip-search input:focus{ width:200px; }
+  .strip-search button{ flex:none; width:30px; height:28px; border:none; border-radius:14px; background:var(--green-light); font-size:13px; cursor:pointer; }
+  .strip-search button:hover{ background:var(--green); }
+  @media (max-width:600px){
+    .strip-search{ padding-left:10px; }
+    .strip-search input{ width:84px; font-size:16px; }   /* 16px 아래면 아이폰이 화면을 확대해 버린다 */
+    /* 휴대폰: 검색 칸을 누르면 줄 전체를 검색 칸으로 쓰고, 다 쓰면 원래대로 */
+    .sticky-inner:has(.strip-search:focus-within) > :not(.strip-search){ display:none; }
+    .strip-search:focus-within{ flex:1; }
+    .strip-search:focus-within input{ width:auto; flex:1; }
+  }
 
   .login-form{ max-width:960px; margin:0 auto; padding:12px 20px 14px; display:none; flex-direction:column; align-items:stretch; gap:10px; background:transparent; border-bottom:none; }
   .login-form.open{ display:flex; }
@@ -1231,6 +1246,11 @@
   <div class="sticky-strip" id="sticky-strip">
     <div class="sticky-inner">
       <span class="status" id="login-status-text">로그인하면 오답노트・메모・노트・학습 현황이 저장돼요.</span>
+      <!-- 🔍 어느 화면에서나 키워드 검색 (낱말을 넣고 엔터 → 키워드 검색 화면으로) -->
+      <form class="strip-search" id="strip-search" role="search" autocomplete="off">
+        <input type="search" placeholder="키워드 검색" aria-label="키워드로 기출문제 찾기 (컴퓨터는 / 키)" enterkeyhint="search">
+        <button type="submit" aria-label="찾기" title="찾기">🔍</button>
+      </form>
       <button class="strip-btn" id="note-open-btn" type="button">📒 노트</button>
       <button class="strip-btn primary" id="login-open-btn" type="button">로그인</button>
     </div>
@@ -4367,6 +4387,34 @@ function initStudent(){
     }
     startQuiz('p13', queue, { headerHTML, bindHeader });   // 검색 결과에서도 이름은 가리고 시작
   }
+  // ----- 🔍 어느 화면에서나 키워드 검색 (위쪽 고정 줄) -----
+  // 낱말을 넣고 엔터(🔍)를 누르면 [기출문제 › 키워드 검색] 화면으로 가서 바로 결과를 보여 줘요.
+  // 찾는 곳(전체・발문・제시문…)은 키워드 검색 화면에서 마지막에 고른 것을 그대로 써요.
+  (function(){
+    const form = document.getElementById('strip-search');
+    if(!form) return;
+    const input = form.querySelector('input');
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const v = input.value.trim();
+      if(!v){ input.focus(); return; }
+      search.query = v;
+      input.value = '';
+      input.blur();            // 휴대폰 자판 닫기
+      goTab('p13');
+      window.scrollTo(0, 0);
+    });
+    // 컴퓨터에서는 / 키를 누르면 바로 검색 칸으로 (글을 쓰는 중일 때는 그냥 / 가 써져요)
+    document.addEventListener('keydown', e => {
+      if(e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target;
+      if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if(!form.offsetParent) return;   // 학생 화면이 아닐 때(관리자 화면)는 그냥 둔다
+      e.preventDefault();
+      input.focus();
+    });
+    input.addEventListener('keydown', e => { if(e.key === 'Escape'){ input.value = ''; input.blur(); } });
+  })();
 
   // ----- 내 학습 현황 대시보드 -----
   function barClass(r){ return r >= 75 ? 'bar-good' : r >= 50 ? 'bar-mid' : 'bar-bad'; }
