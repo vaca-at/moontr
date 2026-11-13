@@ -59,8 +59,8 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .tabs svg{width:24px;height:24px}
 .tabs button[aria-current="page"]{color:var(--mode);font-weight:600}
 /* ⏱ 오른쪽에서 밀려 나오는 타이머 */
-.edge svg{display:block;margin:0 auto}
-.edge{touch-action:none;position:absolute;right:0;top:44%;width:36px;height:100px;border:0;border-radius:18px 0 0 18px;background:var(--mode);color:#fff;font-size:19px;padding-left:3px;cursor:pointer;z-index:4;box-shadow:-2px 2px 8px rgba(0,0,0,.12)}
+.edge svg{display:block}
+.edge{touch-action:none;position:absolute;right:0;top:44%;width:36px;height:100px;border:0;border-radius:18px 0 0 18px;background:var(--mode);color:#fff;font-size:19px;padding:0;display:grid;place-items:center;cursor:pointer;z-index:4;box-shadow:-2px 2px 8px rgba(0,0,0,.12)}
 .edge.run{animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.6}}
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.2);z-index:5;opacity:0;pointer-events:none;transition:opacity .25s}
@@ -149,7 +149,9 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 @keyframes hop{50%{transform:translateY(-4px)}}
 .sayw .say{flex:1;border-radius:18px 18px 18px 6px}
 .say b{display:none}
-.prog{display:flex;align-items:center;gap:10px;font-size:13px;margin-top:14px}
+.prog{display:flex;align-items:center;gap:10px;font-size:13px;margin-top:14px;position:sticky;top:-18px;z-index:4;padding:12px 0 10px;margin-bottom:-10px}
+.prog::before{content:"";position:absolute;inset:0 -20px;z-index:-1;background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:0;transition:opacity .2s}
+main.scrolled .prog::before{opacity:1}
 .prog .tr{flex:1;height:8px;border-radius:4px;background:#F2EEF0;position:relative}
 .prog .tr i{display:block;height:100%;border-radius:4px;background:var(--mode);transition:width .6s cubic-bezier(.2,.8,.2,1)}
 .walker{position:absolute;width:32px;height:32px;top:-30px;margin-left:-16px;transition:left .6s cubic-bezier(.2,.8,.2,1);animation:hop .5s ease-in-out infinite;pointer-events:none}
@@ -221,7 +223,7 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 <div class="app" id="app">
   <main id="main" aria-live="polite"></main>
   <nav class="tabs" id="tabs" aria-label="메뉴"></nav>
-  <button type="button" class="edge" id="edge" aria-label="타이머 열기"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M10 3h4M18.5 6.5l1.5-1.5"/></svg></button>
+  <button type="button" class="edge" id="edge" aria-label="타이머 열기"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V10M10 3.5h4M12 3.5v2.5"/></svg></button>
   <div class="scrim" id="scrim"></div>
   <aside class="side" id="side" aria-label="타이머"></aside>
   <div id="sheetBox"></div>
@@ -231,7 +233,7 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 /* ===================== 저장 (이 기기에만) ===================== */
 const KEY = "first-v1";
 const SUBJ0 = [["국어","#FF6F91"],["수학","#0A84FF"],["영어","#30C46B"],["통합사회","#AF52DE"],["통합과학","#FF9F0A"],["한국사","#8E6E53"]];
-let D = { mode:"f", base:[{ s:"국어" },{ s:"수학" },{ s:"영어" }], seeded:"", exams:[], weekSeen:"", focusOff:false, bg:"w", acc:0, chars:["rabbit","bear","ham"], mine:[], th:[3,6,10], weak:"", subj:SUBJ0.map(([n, c]) => ({ n, c })), plans:{}, log:{}, timer:null, grades:[] };
+let D = { mode:"f", base:[{ s:"국어" },{ s:"수학" },{ s:"영어" },{ s:"사회" },{ s:"과학" },{ s:"독서" }], seeded:"", exams:[], weekSeen:"", focusOff:false, bg:"w", acc:0, chars:["rabbit","bear","ham"], mine:[], th:[3,6,10], weak:"", subj:SUBJ0.map(([n, c]) => ({ n, c })), plans:{}, log:{}, timer:null, grades:[] };
 try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v) D = { ...D, ...v }; } catch (e) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} if (typeof nativeSync === "function") nativeSync(); };
 const $ = id => document.getElementById(id);
@@ -385,6 +387,12 @@ const plansOf = k => (D.plans[k] = D.plans[k] || []);
 /* 할 일 순서 = 학생이 정한 순서 그대로 (↑ ↓ 로 바꿔요). 매일 처음 채울 때만 약한 과목을 맨 앞에 둬요 */
 const sorted = list => list;
 /* 매일 기본 할 일: 그날 처음 열 때 할 일이 비어 있으면 설정의 '매일 기본 할 일'(D.base)로 채워요. 다 지워도 그날은 다시 안 채워요 */
+/* 2026-11-13: 기본 할 일을 3과목 → 6과목(국어 · 수학 · 영어 · 사회 · 과학 · 독서)으로. 예전 기본 그대로인 사람은 바꿔 주고, 손대지 않은 오늘 목록엔 빠진 과목을 더해요 */
+(() => { const B = D.base.map(x => x.s).join(",");
+  if (B === "국어,수학,영어"){ D.base = ["국어","수학","영어","사회","과학","독서"].map(s => ({ s }));
+    const L = D.plans[today()]; if (L && L.length === 3 && L.every(p => !p.det.length && !p.done) && L.map(p => p.s).sort().join() === ["국어","수학","영어"].sort().join())
+      for (const n of ["사회","과학","독서"]) L.push({ id:uid(), s:n, det:[], done:false });
+    try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} } })();
 function seedToday(){
   const k = today(); if (D.seeded === k) return; D.seeded = k;
   if (!plansOf(k).length && D.base.length){ const w = weakSubj();
@@ -710,6 +718,7 @@ let edgeDragged = false;
   eg.addEventListener("touchend", end); eg.addEventListener("touchcancel", end);
 })();
 $("scrim").onclick = () => closeTimer();
+$("main").addEventListener("scroll", e => e.target.classList.toggle("scrolled", e.target.scrollTop > 40), { passive:true });
 /* ⏱ 타이머 닫기: ✕ · 바깥(어두운 곳) 누르기 · 오른쪽으로 밀기 모두 돼요. 열기는 ⏱ 단추로만 */
 function closeTimer(){ const sd = $("side"); sd.style.transform = sd.style.transition = ""; $("app").classList.remove("timer-open"); }
 (() => {
