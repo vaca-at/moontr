@@ -505,7 +505,12 @@
     .nmine { margin-top:10px; font-size:13px; }
     .nmine summary { cursor:pointer; color:var(--acc-ink); font-weight:600; }
     .nitem { padding:8px 0; border-bottom:1px solid var(--line); }
-    .nitem > span { font-size:11.5px; color:var(--sub); }
+    .nitem > span { font-size:11.5px; color:var(--sub); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .nitem .nact { margin-left:auto; display:flex; gap:12px; }
+    .nitem .nact .btn-link { font-size:12px; color:var(--acc-ink); text-decoration:none; font-weight:700; }
+    .nitem .nact .btn-link:last-child { color:#b4232a; }
+    .nitem.editing { background:var(--acc-soft); border-radius:12px; padding:10px; border-bottom:none; margin:6px 0; }
+    #view-student .nitem textarea { margin:6px 0 0; }
     .nitem p { margin:3px 0 0; font-size:13.5px; white-space:pre-wrap; line-height:1.55; }
     .nprev-top { display:flex; justify-content:space-between; align-items:baseline; gap:6px; font-size:13px; }
     .nprev-top span { color:var(--sub); font-size:11.5px; }
@@ -2417,6 +2422,9 @@ function renderNotes(p) {
   mine.forEach(n => { cnt[n.cat] = (cnt[n.cat] || 0) + 1; });
   const old = oldReportItems(me.id).length;
   NOTE_PAGE = NOTE_CAT === 'feel' || NOTE_CAT === 'next' ? 2 : 1;
+  // 기록을 고치는 중에 칸이 다시 그려져도 고치던 글이 그대로 남게
+  const editTa = NOTE_EDITING != null ? document.getElementById(p + '-niText-' + NOTE_EDITING) : null, editText = editTa ? editTa.value : null;
+  if (NOTE_EDITING != null) NOTE_LIST_OPEN = true;
   keepTyping(box, () => { box.innerHTML = head + `<div class="nwrap"><div class="nleft">
     <div class="nstep">① 무엇을 쓸까요? 활동을 골라요</div>
     <div class="ncats">${cats.map(c => `<button class="ncat${c.k === NOTE_CAT ? ' on' : ''}" onclick="noteSwitch('${p}', '${c.k}')">${cnt[c.k] ? '✓ ' : ''}${noteDraft(me.id, c.k) ? '✏️ ' : ''}${esc(c.t)}${cnt[c.k] ? ` <b>${cnt[c.k]}</b>` : ''}</button>`).join('')}</div>
@@ -2427,7 +2435,8 @@ function renderNotes(p) {
     <div class="addrow" style="margin-top:8px"><span class="muted" style="font-size:12.5px; flex:1">③ [올리기]를 누르면 보고서에 들어가요 · 이 기기에서 <b>${mine.length}개</b> 남겼어요</span><button class="btn" id="${p}-noteBtn" onclick="noteSubmit('${p}')">올리기</button></div>
     <div class="msg" id="${p}-noteMsg"></div>
     ${old ? `<div class="msg">📦 예전 '보고서 쓰기'에 쓴 글 ${old}개가 이 기기에 남아 있어요. <button class="btn-link" onclick="noteMigrate()">기록으로 올리기</button></div>` : ''}
-    ${mine.length ? `<details class="nmine"><summary>내가 남긴 기록 보기 (${mine.length})</summary>${mine.slice().reverse().map(n => `<div class="nitem"><span>${esc(noteCatTitle(g, n.cat))} · ${new Date(n.at).toLocaleDateString('ko-KR')}</span><p>${esc(n.text)}</p><div class="comps sm">${compChips(detectComps(n.text), { onlyOn: true })}</div></div>`).join('')}</details>` : ''}
+    ${mine.length ? `<details class="nmine"${NOTE_LIST_OPEN ? ' open' : ''}><summary>내가 남긴 기록 보기 · 고치기 (${mine.length})</summary>${mine.map((n, i) => [n, i]).reverse().map(([n, i]) => `<div class="nitem" id="${p}-ni-${i}"><span>${esc(noteCatTitle(g, n.cat))} · ${new Date(n.at).toLocaleDateString('ko-KR')}${n.edited ? ' · 고침' : ''}
+        <span class="nact"><button class="btn-link" onclick="noteEdit(${i})">✎ 고치기</button><button class="btn-link" onclick="noteDel(${i})">✕ 지우기</button></span></span><p>${esc(n.text)}</p><div class="comps sm">${compChips(detectComps(n.text), { onlyOn: true })}</div></div>`).join('')}</details>` : ''}
   </div><div class="nright">
     <div class="nprev-top"><b>📄 내 보고서 미리 보기</b><span id="${p}-nfill"></span></div>
     <div class="meter" style="margin:6px 0 8px"><i id="${p}-nbar" style="width:0%"></i></div>
@@ -2443,6 +2452,7 @@ function renderNotes(p) {
   }
   noteComps(p, ta ? ta.value : '');
   notePreview(p, ta && ta.value.trim() ? { cat: NOTE_CAT, text: ta.value.trim() } : null);
+  if (NOTE_EDITING != null && p === 'st') noteEdit(NOTE_EDITING, editText);
 }
 /* ----- 쓰던 글 임시 저장 (이 기기 · 활동마다 따로) -----
    뒤로 가기 · 새로고침 · 창 닫기 · 다른 활동 누르기를 해도 글이 남아요. [올리기]가 끝나면 지워요 */
@@ -2569,10 +2579,62 @@ function renderProg(p) {
   box.innerHTML = h + '<div class="roll-key">막대 = 보고서 채움 정도 (2,500자면 📄 꽉 차요) · 기록을 올릴 때마다 바로 올라가요 · 글 내용은 선생님만 봐요</div>';
 }
 async function noteAdd(id, cat, text) {
-  await db.collection('drs_notes').add({ sid: id, name: nameOf(id), cat, text: text.slice(0, 2000), at: FV.serverTimestamp() });
+  const ref = await db.collection('drs_notes').add({ sid: id, name: nameOf(id), cat, text: text.slice(0, 2000), at: FV.serverTimestamp() });
   noteStatBump(id, cat, text.slice(0, 2000));
-  const mine = myNotes(id); mine.push({ cat, text, at: Date.now() });
-  try { localStorage.setItem('drs-notes-' + id, JSON.stringify(mine)); } catch (e) {}
+  // 글 번호(ref.id)를 이 기기에만 남겨 둬요 → 나중에 이 기기에서 고치기 · 지우기
+  const mine = myNotes(id); mine.push({ id: ref.id, cat, text, at: Date.now() });
+  saveMine(id, mine);
+}
+function saveMine(id, mine) { try { localStorage.setItem('drs-notes-' + id, JSON.stringify(mine)); } catch (e) {} }
+
+/* ----- 올린 기록 고치기 · 지우기 (올린 기기에서만) -----
+   글 번호가 있으면 그 글을 바로 고쳐요. 번호가 없는 예전 기록은 '고친 새 글'(replaces = 예전 글 앞부분)로 올리고,
+   선생님이 관리보드를 열면 예전 글을 저절로 지워요 (cleanReplacedNotes) */
+let NOTE_LIST_OPEN = false, NOTE_EDITING = null;
+function noteEdit(i, keepText) {
+  const n = myNotes(st_me.id)[i], el = document.getElementById('st-ni-' + i); if (!n || !el) return;
+  NOTE_EDITING = i;
+  el.classList.add('editing');
+  el.innerHTML = `<span>${esc(noteCatTitle(st_me.id[0], n.cat))} · 고치는 중</span>
+    <textarea id="st-niText-${i}" rows="4" maxlength="2000">${esc(keepText != null ? keepText : n.text)}</textarea>
+    <div class="addrow" style="margin-top:6px"><span style="flex:1"></span><button class="btn small ghost" onclick="NOTE_EDITING = null; NOTE_LIST_OPEN = true; renderNotes('st')">취소</button><button class="btn small" onclick="noteEditSave(${i})">고친 글 저장</button></div>`;
+  const ta = document.getElementById('st-niText-' + i); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+async function noteEditSave(i) {
+  const id = st_me.id, mine = myNotes(id), n = mine[i], ta = document.getElementById('st-niText-' + i);
+  if (!n || !ta) return;
+  const text = ta.value.trim().slice(0, 2000);
+  if (!text) { ta.focus(); return; }
+  if (text === n.text) { NOTE_EDITING = null; NOTE_LIST_OPEN = true; renderNotes('st'); return; }
+  try {
+    if (n.id) await db.collection('drs_notes').doc(n.id).update({ text, edited: FV.serverTimestamp() });
+    else { const ref = await db.collection('drs_notes').add({ sid: id, name: nameOf(id), cat: n.cat, text, replaces: String(n.text).slice(0, 200), at: FV.serverTimestamp() }); n.id = ref.id; }
+    db.collection(COL.counters).doc('note_' + id).set({ chars: FV.increment(noteLen(text) - noteLen(n.text)), at: FV.serverTimestamp() }, { merge: true }).catch(() => {});
+    n.text = text; n.edited = Date.now(); saveMine(id, mine);
+    NOTE_EDITING = null; NOTE_LIST_OPEN = true; renderNotes('st');
+    const m = document.getElementById('st-noteMsg'); if (m) { m.className = 'msg ok'; m.textContent = '✎ 고친 글을 저장했어요. 보고서에도 고친 글로 들어가요'; }
+  } catch (e) { alert(noteErr(e)); }
+}
+async function noteDel(i) {
+  const id = st_me.id, mine = myNotes(id), n = mine[i]; if (!n) return;
+  if (!confirm('이 기록을 지울까요? 보고서에서도 빠져요.')) return;
+  try {
+    if (n.id) await db.collection('drs_notes').doc(n.id).delete();
+    else await db.collection('drs_notes').add({ sid: id, name: nameOf(id), cat: '_del', text: '(지운 기록)', replaces: String(n.text).slice(0, 200), at: FV.serverTimestamp() });
+    db.collection(COL.counters).doc('note_' + id).set({ value: FV.increment(-1), chars: FV.increment(-noteLen(n.text)), at: FV.serverTimestamp() }, { merge: true }).catch(() => {});
+    mine.splice(i, 1); saveMine(id, mine);
+    NOTE_LIST_OPEN = true; renderNotes('st');
+  } catch (e) { alert(noteErr(e)); }
+}
+// (관리자) 고친 새 글 · 지운 표시가 있으면 예전 글을 지우고, 보고서에는 살아 있는 글만 써요
+function liveNotes(raw) {
+  const gone = new Set();
+  raw.filter(n => n.replaces).forEach(n => {
+    const t = n.at && n.at.toMillis ? n.at.toMillis() : Infinity;
+    raw.forEach(o => { if (o.sid === n.sid && o.docId !== n.docId && (o.at && o.at.toMillis ? o.at.toMillis() : 0) <= t && String(o.text).startsWith(n.replaces)) gone.add(o.docId); });
+    if (n.cat === '_del') gone.add(n.docId);
+  });
+  return { live: raw.filter(n => !gone.has(n.docId)), gone: [...gone] };
 }
 function noteErr(e) { return /permission/i.test((e.code || '') + e.message) ? '아직 올릴 수 없어요. 선생님께 알려 주세요 (Firestore 규칙을 게시해야 해요).' : '올리지 못했어요: ' + e.message; }
 async function noteSubmit(p) {
@@ -2718,7 +2780,11 @@ const AI_SYSTEM = '너는 고등학교 또래상담 동아리 담당 선생님�
 function ad_startReports() {
   if (ad_startReports.on) return; ad_startReports.on = true;
   db.collection('drs_notes').onSnapshot(s => {
-    NOTES = s.docs.map(d => ({ docId: d.id, ...d.data() })).sort((a, b) => ((a.at && a.at.toMillis ? a.at.toMillis() : 0) - (b.at && b.at.toMillis ? b.at.toMillis() : 0)));
+    const raw = s.docs.map(d => ({ docId: d.id, ...d.data() })).sort((a, b) => ((a.at && a.at.toMillis ? a.at.toMillis() : 0) - (b.at && b.at.toMillis ? b.at.toMillis() : 0)));
+    // 학생이 고친 · 지운 예전 기록(번호 없이 올린 것)은 여기서 정리해요
+    const { live, gone } = liveNotes(raw);
+    NOTES = live;
+    if (gone.length && s.metadata && !s.metadata.hasPendingWrites) batchWrite(gone.map(id => b => b.delete(db.collection('drs_notes').doc(id)))).catch(e => console.warn(e));
     notesState = 'ok'; ad_renderReports();
     if (s.metadata && !s.metadata.hasPendingWrites) syncNoteStats();   // 서로서로 기록 현황 숫자를 실제 기록으로 맞춰요
   }, e => { notesState = /permission/i.test((e.code || '') + e.message) ? 'rule' : 'err'; ad_renderReports(); });

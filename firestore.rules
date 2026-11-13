@@ -249,15 +249,26 @@ service cloud.firestore {
     match /drs_ledger/{id}     { allow read, write: if isTeacher(); }
     match /drs_gifts/{id}      { allow read, write: if true; }
     match /drs_counters/{id}   { allow read, write: if true; }
-    // 학생 활동 기록 (대시보드 '✍️ 나의 활동 기록 남기기'): 학생은 새 글 쓰기만, 읽기 · 지우기는 관리자만
+    // 학생 활동 기록 (대시보드 '✍️ 나의 활동 기록 남기기'): 읽기(목록)는 관리자만
+    //   학생은 새 글 쓰기 + 자기가 올린 글 고치기 · 지우기 — 글 번호는 올린 기기에만 저장돼 있고,
+    //   목록을 볼 수 없어서 남의 글 번호는 알 수 없어요. 고칠 때는 글(text)만 바꿀 수 있어요
+    //   replaces = 번호 없이 올린 예전 글을 고친 새 글 (선생님이 관리보드를 열면 예전 글을 지워요)
     match /drs_notes/{id} {
-      allow read, update, delete: if isTeacher();
-      allow create: if request.resource.data.keys().hasOnly(['sid','name','cat','text','at'])
+      allow read: if isTeacher();
+      allow create: if request.resource.data.keys().hasOnly(['sid','name','cat','text','at','replaces'])
         && request.resource.data.sid is string && request.resource.data.sid.matches('^[0-9]{5}$')
         && request.resource.data.name is string && request.resource.data.name.size() <= 20
         && request.resource.data.cat is string && request.resource.data.cat.size() <= 40
         && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+        && request.resource.data.get('replaces', '') is string && request.resource.data.get('replaces', '').size() <= 200
         && request.resource.data.at == request.time;
+      allow update: if isTeacher() || (request.resource.data.keys().hasOnly(['sid','name','cat','text','at','replaces','edited'])
+        && request.resource.data.sid == resource.data.sid && request.resource.data.name == resource.data.name
+        && request.resource.data.cat == resource.data.cat && request.resource.data.at == resource.data.at
+        && request.resource.data.get('replaces', '') == resource.data.get('replaces', '')
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+        && request.resource.data.edited == request.time);
+      allow delete: if true;
     }
     // AI 활동 보고서 (관리보드 '📝 AI 활동 보고서'): 관리자만
     match /drs_reports/{id}    { allow read, write: if isTeacher(); }
