@@ -509,6 +509,8 @@
     .rp-comps .comp { font-size:9pt; padding:1mm 3mm; border-radius:10mm; border:1px solid #f0b429; background:#fff4d6; color:#7a4b00; font-weight:700; box-shadow:none; }
     .nmine { margin-top:10px; font-size:13px; }
     .nmine summary { cursor:pointer; color:var(--acc-ink); font-weight:600; }
+.nlock{border:1.5px dashed #cfe9df;background:#f6fcf9;border-radius:14px;padding:10px 12px;margin:0 0 12px;display:grid;gap:8px;font-size:13px}.nlock.on{border-style:solid;background:#e8f7f0}.nlock b{display:block;margin-bottom:2px}.nlock .muted{display:block;font-size:12px;line-height:1.5}.nlock .btn small{font-size:11px;opacity:.85}
+.rp-aiat{font-size:11px;color:#7a8a85;margin-top:4px}
 .nfix{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:#777;margin:2px 0 6px}.nfix button{border:1px solid #ddd;background:#fff;border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer}.nfix button.on{background:var(--acc);border-color:var(--acc);color:#fff}
     .nitem { padding:8px 0; border-bottom:1px solid var(--line); }
     .nitem > span { font-size:11.5px; color:var(--sub); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -2170,7 +2172,7 @@ async function st_doLogin() {
   }
 }
 function st_logout() {
-  st_me = null;
+  st_me = null; BOOK = null; BOOK_MSG = ''; bookBox.tried = false;
   ss('pcClubUser', null);
   document.getElementById('st-loginId').value = '';
   st_afterLoginChange();
@@ -2384,7 +2386,7 @@ let NOTE_CAT = '';
 let NOTE_FIX = null, NOTE_NEW = false;
 function noteCats(g, used) {
   const C = [], had = new Set(used || []);   // used = 이미 글을 남긴 칸 (다른 학년 활동이라도 남긴 글은 보고서에 그대로 보여요)
-  actDays().filter(d => (d.who || '') === g + '학년' || !(d.who || '') || had.has('act_' + d.id)).forEach(d => C.push({ k: 'act_' + d.id, t: (d.date ? korDay(d.date) + ' · ' : '') + d.title, h: '이 활동에서 한 일, 기억나는 장면, 느낀 점' }));
+  actDays().filter(d => (d.who || '') === g + '학년' || !(d.who || '') || had.has('act_' + d.id)).sort((a, b) => (a.date || '0') < (b.date || '0') ? -1 : (a.date || '0') > (b.date || '0') ? 1 : 0).forEach(d => C.push({ k: 'act_' + d.id, t: (d.date ? korDay(d.date) + ' · ' : '') + d.title, h: '이 활동에서 한 일, 기억나는 장면, 느낀 점' }));
   C.push({ k: 'vol', t: '1학기 봉사활동 (거북이편지함 · 칭찬배달)', h: '캠페인을 준비 · 운영하며 한 일과 느낀 점' });
   C.push({ k: 'booth', t: '연화제 부스 (천원의 행복 뽑기 · 워리스톤)', h: '맡은 역할, 손님 반응, 힘들었던 점 · 뿌듯했던 점' });
   if (g === '2') C.push({ k: 'sol1388', t: '1388 사전 · 사후 설문 · 이수', h: '설문을 하며 돌아본 나의 1년, 또래상담자로 이수를 마친 마음' });
@@ -2456,7 +2458,7 @@ function renderNotes(p) {
   // 기록을 고치는 중에 칸이 다시 그려져도 고치던 글이 그대로 남게
   const editTa = NOTE_EDITING != null ? document.getElementById(p + '-niText-' + NOTE_EDITING) : null, editText = editTa ? editTa.value : null;
   if (NOTE_EDITING != null) NOTE_LIST_OPEN = true;
-  keepTyping(box, () => { box.innerHTML = head + `<div class="nwrap"><div class="nleft">
+  keepTyping(box, () => { box.innerHTML = head + (p === 'st' ? bookBox(me) : '') + `<div class="nwrap"><div class="nleft">
     <div class="nstep">① 무엇을 쓸까요? 활동을 골라요</div>
     <div class="ncats">${cats.map(c => `<button class="ncat${c.k === NOTE_CAT ? ' on' : ''}" onclick="noteSwitch('${p}', '${c.k}')">${cnt[c.k] ? '✓ ' : ''}${noteDraft(me.id, c.k) ? '✏️ ' : ''}${esc(c.t)}${cnt[c.k] ? ` <b>${cnt[c.k]}</b>` : ''}</button>`).join('')}</div>
     <div class="nstep">② 생각나는 대로 써요 <span class="muted">— ${esc(cur.h)}</span></div>
@@ -2626,6 +2628,84 @@ async function noteAdd(id, cat, text) {
   // 글 번호(ref.id)를 이 기기에만 남겨 둬요 → 나중에 이 기기에서 고치기 · 지우기
   const mine = myNotes(id); mine.push({ id: ref.id, cat, text, at: Date.now() });
   saveMine(id, mine);
+  if (BOOK && BOOK.sid === id) db.collection('drs_books').doc(BOOK.key).update({ ids: FV.arrayUnion(ref.id), at: FV.serverTimestamp() }).catch(() => {});
+}
+/* ===================== 🔒 학번 + 비밀번호 (2026-11-14) =====================
+   비밀번호를 정하면 어느 기기에서나 내 기록을 불러와 고치고, 선생님이 다듬은 내 보고서(PDF)를 볼 수 있어요
+   drs_pins/{학번}  { key, at, sync }  ← 관리자만 읽기 · 학생은 처음 한 번만 만들기 (잊으면 선생님이 초기화)
+   drs_books/{key}  { sid, ids:[기록 번호], report, reportAt } ← key = '학번 + 비밀번호'를 알아볼 수 없게 바꾼 64글자.
+                    비밀번호를 아는 사람만 이 주소를 알 수 있어요. 목록 보기는 관리자만
+   이 기기에서 연 비밀번호 열쇠 = localStorage drs-book-{학번} */
+let BOOK = null, BOOK_BUSY = false, BOOK_MSG = '';
+async function bookKey(sid, pin) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('drs-2026|' + sid + '|' + pin));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+const bookSaved = sid => { try { return localStorage.getItem('drs-book-' + sid) || ''; } catch (e) { return ''; } };
+const fmtAt = t => { const d = t && t.toDate ? t.toDate() : t ? new Date(t) : null; if (!d || isNaN(d)) return ''; const h = d.getHours(); return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. ${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}`; };
+// 책 열기: 책에 적힌 기록 + 이 기기에만 있던 기록을 합쳐서 이 기기에 저장하고, 이 기기 기록은 책에도 더해요
+async function bookOpen(sid, key) {
+  const d = await db.collection('drs_books').doc(key).get();
+  if (!d.exists || d.data().sid !== sid) return false;
+  const b = d.data(), mine = myNotes(sid);
+  const ids = [...new Set([...(b.ids || []), ...mine.filter(n => n.id).map(n => n.id)])];
+  const got = await Promise.all(ids.map(id => db.collection('drs_notes').doc(id).get().then(x => x.exists ? { id, ...x.data() } : null).catch(() => undefined)));
+  const live = [];
+  ids.forEach((id, i) => {
+    const g = got[i], old = mine.find(n => n.id === id);
+    if (g) live.push({ id, cat: g.cat, text: g.text, at: g.at && g.at.toMillis ? g.at.toMillis() : (old ? old.at : Date.now()), edited: g.edited ? 1 : 0 });
+    else if (g === undefined && old) live.push(old);   // 못 읽었으면(인터넷) 이 기기 것 그대로
+  });
+  const noId = mine.filter(n => !n.id);
+  saveMine(sid, [...live, ...noId].sort((x, y) => (x.at || 0) - (y.at || 0)));
+  const add = live.map(n => n.id).filter(id => !(b.ids || []).includes(id));
+  if (add.length) db.collection('drs_books').doc(key).update({ ids: FV.arrayUnion(...add), at: FV.serverTimestamp() }).catch(() => {});
+  BOOK = { key, sid, ids: [...new Set([...(b.ids || []), ...add])], report: b.report || null, reportAt: b.reportAt || null };
+  try { localStorage.setItem('drs-book-' + sid, key); } catch (e) {}
+  return true;
+}
+function bookPin() { const v = String((document.getElementById('st-pin') || {}).value || '').trim(); return /^[0-9]{4,6}$/.test(v) ? v : ''; }
+async function bookSetPin() {
+  const pin = bookPin(); if (!pin) { BOOK_MSG = '숫자 4~6자리로 써 주세요 (6자리를 권해요)'; return renderNotes('st'); }
+  const pin2 = String((document.getElementById('st-pin2') || {}).value || '').trim();
+  if (pin2 !== pin) { BOOK_MSG = '두 번 쓴 비밀번호가 달라요'; return renderNotes('st'); }
+  const sid = st_me.id; BOOK_BUSY = true; BOOK_MSG = '정하는 중…'; renderNotes('st');
+  try {
+    const key = await bookKey(sid, pin);
+    try { await db.collection('drs_pins').doc(sid).set({ key, at: FV.serverTimestamp() }); }
+    catch (e) { BOOK_BUSY = false; BOOK_MSG = /permission/i.test((e.code || '') + e.message) ? '이미 이 학번에 비밀번호가 있어요. 아래 [불러오기]로 열거나, 잊었으면 선생님께 초기화를 부탁해요' : '정하지 못했어요: ' + e.message; return renderNotes('st'); }
+    await db.collection('drs_books').doc(key).set({ sid, ids: myNotes(sid).filter(n => n.id).map(n => n.id), at: FV.serverTimestamp() });
+    await bookOpen(sid, key);
+    BOOK_MSG = '🔒 비밀번호를 정했어요. 이제 다른 기기에서도 학번 + 비밀번호로 내 기록을 불러와요';
+  } catch (e) { BOOK_MSG = '정하지 못했어요: ' + e.message; }
+  BOOK_BUSY = false; renderNotes('st');
+}
+async function bookLogin() {
+  const pin = bookPin(); if (!pin) { BOOK_MSG = '비밀번호(숫자 4~6자리)를 써 주세요'; return renderNotes('st'); }
+  const sid = st_me.id; BOOK_BUSY = true; BOOK_MSG = '불러오는 중…'; renderNotes('st');
+  try { const ok = await bookOpen(sid, await bookKey(sid, pin)); BOOK_MSG = ok ? '📥 내 기록을 불러왔어요. 칩을 눌러 고칠 수 있어요' : '비밀번호가 맞지 않아요 (아직 안 정했다면 [비밀번호 정하기])'; }
+  catch (e) { BOOK_MSG = '불러오지 못했어요: ' + e.message; }
+  BOOK_BUSY = false; renderNotes('st');
+}
+function bookForget() { try { localStorage.removeItem('drs-book-' + st_me.id); } catch (e) {} BOOK = null; BOOK_MSG = '이 기기에서 잠갔어요. 다시 보려면 비밀번호로 불러와요'; renderNotes('st'); }
+function bookReport() {
+  if (!BOOK || !BOOK.report) return;
+  rp_open([reportFor(st_me.id, Object.assign({ at: BOOK.reportAt }, BOOK.report), myNotes(st_me.id))], `2026 또래상담부 활동 보고서_${BOOK.report.name || nameOf(st_me.id)}`);
+}
+function bookBox(me) {
+  const has = BOOK && BOOK.sid === me.id;
+  if (!has && bookSaved(me.id) && !BOOK_BUSY && !bookBox.tried) {   // 이 기기에서 연 적 있으면 저절로 다시 열어요 (다른 기기에서 고친 글도 받아와요)
+    bookBox.tried = true; BOOK_BUSY = true;
+    bookOpen(me.id, bookSaved(me.id)).catch(() => false).then(ok => { BOOK_BUSY = false; if (!ok) { try { localStorage.removeItem('drs-book-' + me.id); } catch (e) {} } renderNotes('st'); });
+  }
+  const msg = BOOK_MSG ? `<div class="msg" style="margin-top:6px">${esc(BOOK_MSG)}</div>` : '';
+  if (has) return `<div class="nlock on"><div><b>🔒 비밀번호로 지켜지고 있어요</b><span class="muted">다른 기기에서도 학번 + 비밀번호로 내 기록을 불러와 고쳐요</span></div>
+    ${BOOK.report ? `<button class="btn small" onclick="bookReport()">📄 선생님이 다듬은 내 보고서 <small>(AI · ${esc(fmtAt(BOOK.reportAt))})</small></button>` : '<span class="muted" style="font-size:12px">선생님이 보고서를 다듬으면 여기서 PDF로 볼 수 있어요</span>'}
+    <button class="btn-link" onclick="bookForget()">이 기기에서 잠그기</button>${msg}</div>`;
+  if (BOOK_BUSY) return `<div class="nlock"><b>🔒 불러오는 중…</b>${msg}</div>`;
+  return `<div class="nlock"><div><b>🔒 학번 + 비밀번호</b><span class="muted">비밀번호를 정하면 다른 기기에서도 내 기록을 고치고, 선생님이 다듬은 내 보고서를 볼 수 있어요. 친구는 내 비밀번호를 모르면 못 봐요</span></div>
+    <div class="row" style="gap:6px; flex-wrap:wrap"><input id="st-pin" type="password" inputmode="numeric" maxlength="6" placeholder="비밀번호 숫자 4~6자리" style="max-width:170px"><input id="st-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="(처음이면) 한 번 더" style="max-width:150px">
+    <button class="btn small" onclick="bookLogin()">불러오기</button><button class="btn small secondary" onclick="bookSetPin()">비밀번호 정하기</button></div>${msg}</div>`;
 }
 function saveMine(id, mine) { try { localStorage.setItem('drs-notes-' + id, JSON.stringify(mine)); } catch (e) {} }
 
@@ -2676,7 +2756,7 @@ async function noteDel(i) {
   const id = st_me.id, mine = myNotes(id), n = mine[i]; if (!n) return;
   if (!confirm('이 기록을 지울까요? 보고서에서도 빠져요.')) return;
   try {
-    if (n.id) await db.collection('drs_notes').doc(n.id).delete();
+    if (n.id) { await db.collection('drs_notes').doc(n.id).delete(); if (BOOK && BOOK.sid === id) db.collection('drs_books').doc(BOOK.key).update({ ids: FV.arrayRemove(n.id), at: FV.serverTimestamp() }).catch(() => {}); }
     else await db.collection('drs_notes').add({ sid: id, name: nameOf(id), cat: '_del', text: '(지운 기록)', replaces: String(n.text).slice(0, 200), at: FV.serverTimestamp() });
     db.collection(COL.counters).doc('note_' + id).set({ value: FV.increment(-1), chars: FV.increment(-noteLen(n.text)), at: FV.serverTimestamp() }, { merge: true }).catch(() => {});
     mine.splice(i, 1); saveMine(id, mine);
@@ -2843,13 +2923,37 @@ function ad_startReports() {
     const { live, gone } = liveNotes(raw);
     NOTES = live;
     if (gone.length && s.metadata && !s.metadata.hasPendingWrites) batchWrite(gone.map(id => b => b.delete(db.collection('drs_notes').doc(id)))).catch(e => console.warn(e));
-    notesState = 'ok'; ad_renderReports();
+    notesState = 'ok'; ad_renderReports(); syncBooksSoon();
     if (s.metadata && !s.metadata.hasPendingWrites) syncNoteStats();   // 서로서로 기록 현황 숫자를 실제 기록으로 맞춰요
   }, e => { notesState = /permission/i.test((e.code || '') + e.message) ? 'rule' : 'err'; ad_renderReports(); });
+  db.collection('drs_pins').onSnapshot(s => { PINS = {}; s.docs.forEach(d => { PINS[d.id] = d.data(); }); ad_renderReports(); syncBooksSoon(); }, e => console.warn(e));
   db.collection('drs_reports').onSnapshot(s => {
     REPORTS = {}; s.docs.forEach(d => { REPORTS[d.id] = d.data(); });
-    reportsState = 'ok'; ad_renderReports();
+    reportsState = 'ok'; ad_renderReports(); syncBooksSoon();
   }, e => { reportsState = /permission/i.test((e.code || '') + e.message) ? 'rule' : 'err'; ad_renderReports(); });
+}
+/* 🔒 (관리자) 비밀번호를 정한 학생의 책에 그 학생 기록 번호 전부 + 다듬은 보고서를 넣어 둬요
+   → 다른 기기에서 쓴 글도 묶이고, 학생은 어느 기기에서나 자기 보고서를 봐요. 바뀐 게 있을 때만 써요 (sync) */
+let PINS = {}, syncBooksT = 0;
+function syncBooksSoon() { clearTimeout(syncBooksT); syncBooksT = setTimeout(syncBooks, 1500); }
+async function syncBooks() {
+  if (notesState !== 'ok' || reportsState !== 'ok') return;
+  for (const [sid, pin] of Object.entries(PINS)) {
+    if (!pin.key) continue;
+    const ids = NOTES.filter(n => n.sid === sid).map(n => n.docId).sort(), R = REPORTS['s_' + sid];
+    const rAt = R && R.at && R.at.toMillis ? R.at.toMillis() : 0, eAt = R && R.editedAt && R.editedAt.toMillis ? R.editedAt.toMillis() : 0;
+    const sig = ids.join(',') + '|' + rAt + '|' + eAt;
+    if (pin.sync === sig) continue;
+    try {
+      await db.collection('drs_books').doc(pin.key).set({ sid, ids, report: R ? { name: R.name || nameOf(sid), title: R.title || '', activities: R.activities || [], reflection: R.reflection || [] } : null, reportAt: rAt || null, at: FV.serverTimestamp() }, { merge: true });
+      await db.collection('drs_pins').doc(sid).update({ sync: sig });
+    } catch (e) { console.warn('책 맞추기', sid, e.message); }
+  }
+}
+async function pinReset(sid) {
+  if (!confirm(`${nameOf(sid)} 학생 비밀번호를 초기화할까요?\n학생이 새 비밀번호를 정하면, 지금까지 남긴 기록이 모두 새 비밀번호에 다시 묶여요.`)) return;
+  try { const k = PINS[sid] && PINS[sid].key; await db.collection('drs_pins').doc(sid).delete(); if (k) await db.collection('drs_books').doc(k).delete(); }
+  catch (e) { alert('초기화하지 못했어요: ' + e.message); }
 }
 function aiSaveSettings() {
   AI.key = document.getElementById('ai-key').value.trim();
@@ -3010,8 +3114,8 @@ async function aiGrade(g, onlyNew) {
 }
 
 // 한 학생의 A4 보고서 (1쪽 공통 · 2쪽 나의 활동 · 3쪽 돌아보며)
-function reportFor(id) {
-  const g = id[0], R = REPORTS['s_' + id], C = REPORTS['common_' + g];
+function reportFor(id, Rover, notesOver) {
+  const g = id[0], R = Rover || REPORTS['s_' + id];
   const name = (R && R.name) || nameOf(id), cls = Number(id.slice(1, 3)), num = Number(id.slice(3));
   const myV = volActs().filter(a => (a.ids || []).includes(id)), hours = myV.reduce((s, a) => s + (Number(a.hours) || 0), 0);
   const att = meetingDates().filter(d => dayIds(d).has(id)).length, now = new Date();
@@ -3021,11 +3125,12 @@ function reportFor(id) {
       <div class="rp-t1">또래상담부 1년 활동 보고서</div>
       <div class="rp-who1"><b>${esc(name)}</b><span>${g}학년 ${cls}반 ${num}번</span></div>
       ${R && R.title ? `<div class="rp-title1">“${esc(R.title)}”</div>` : ''}
+      ${R && R.at ? `<div class="rp-aiat">AI로 다듬은 때 · ${esc(fmtAt(R.at))}</div>` : ''}
       <div class="rp-chips">${chips.map(c => `<span>${esc(c)}</span>`).join('')}</div></div>`,
     `<div class="rp-h">우리 또래상담부의 1년 <small>${g}학년 공통</small></div>`,
     ...commonFor(g).flatMap(sec)];
   const p2 = ['<div class="rp-h">나의 활동</div>', ...(R ? R.activities.flatMap(sec) : ['<p class="say muted">(아직 보고서를 만들지 않았어요)</p>'])];
-  const cc = compCounts(NOTES.filter(n => n.sid === id).map(n => n.text));
+  const cc = compCounts((notesOver || NOTES.filter(n => n.sid === id)).map(n => n.text));
   const p3 = ['<div class="rp-h">1년을 돌아보며</div>', ...(R ? R.reflection.flatMap(sec) : []),
     ...(Object.keys(cc).length ? ['<div class="rp-q">기록에서 드러난 역량</div>', `<div class="rp-comps">${compChips(compTop(cc, 8), { onlyOn: true, counts: cc })}</div>`] : []),
     `<div class="rp-sign">${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}.&nbsp;&nbsp;${esc(name)}</div>`];
@@ -3059,7 +3164,7 @@ async function saveEdit(docId) {
   if (n) R.name = n.value.trim(); if (t) R.title = t.value.trim();
   document.querySelectorAll('#popBody [data-k]').forEach(el => { R[el.dataset.k][Number(el.dataset.i)][el.dataset.f] = el.value; });
   R.edited = FV.serverTimestamp();
-  try { await db.collection('drs_reports').doc(docId).set(R, { merge: true }); closePop(); } catch (e) { alert('저장하지 못했어요: ' + e.message); }
+  try { if (/^s_/.test(docId)) R.editedAt = FV.serverTimestamp(); await db.collection('drs_reports').doc(docId).set(R, { merge: true }); closePop(); } catch (e) { alert('저장하지 못했어요: ' + e.message); }
 }
 function viewNotes(id) {
   const g = id[0], ns = NOTES.filter(n => n.sid === id);
@@ -3075,7 +3180,7 @@ async function delNote(docId, id) {
 function ad_renderReports() {
   const box = document.getElementById('ad-reports'); if (!box) return;
   const rule = notesState === 'rule' || reportsState === 'rule';
-  const ago = ts => ts && ts.toDate ? ts.toDate().toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) : '';
+  const ago = ts => fmtAt(ts).replace(/^\d{4}\. /, '');   // 11. 14. 오후 3:20 (AI로 만든 때)
   let h = `<div class="card"><h2>📝 AI 활동 보고서 만들기</h2>
     <p class="help" style="margin-top:0">학생들이 대시보드 <b>✍️ 나의 활동 기록 남기기</b>에 여러 번 나눠 쓴 글을 모아, Claude 가 학생 목소리로 정리해요. 보고서 = <b>1쪽 학년 공통 문구 + 2~3쪽 나의 활동 · 1년을 돌아보며</b> (A4 3쪽). 순서: ① 학년 공통 문구 만들기 → ② 학생 보고서 만들기 → ③ 보기 · 고치기 · 인쇄(PDF).</p>
     ${rule ? '<p class="result-msg err">⚠️ 학생 기록(drs_notes) · 보고서(drs_reports)를 쓰려면 저장소의 firestore.rules 를 Firebase 콘솔에 게시해야 해요.</p>' : ''}
@@ -3093,11 +3198,12 @@ function ad_renderReports() {
         <button class="btn small" ${AI_BUSY ? 'disabled' : ''} onclick="aiGrade('${g}', true)">🤖 기록 있는 학생 중 새로 만들기</button>
         <button class="btn small secondary" ${AI_BUSY ? 'disabled' : ''} onclick="aiGrade('${g}', false)">모두 다시</button>
         <button class="btn small secondary" onclick="viewGrade('${g}')">📄 ${g}학년 모두 보기 · 인쇄</button></div>
-      <div class="table-wrap"><table><tr><th>반</th><th>이름</th><th>남긴 기록</th><th>보이는 역량</th><th>보고서</th><th></th></tr>
+      <div class="table-wrap"><table><tr><th>반</th><th>이름</th><th>🔒</th><th>남긴 기록</th><th>보이는 역량</th><th>보고서 (AI로 만든 때)</th><th></th></tr>
       ${S.map(m => {
         const ns = NOTES.filter(n => n.sid === m.id), R = REPORTS['s_' + m.id];
         const stale = R && ns.length > (R.notes || 0);
         return `<tr><td>${Number(m.id.slice(1, 3))}반</td><td><b>${esc(m.name)}</b></td>
+          <td>${PINS[m.id] ? `<span title="비밀번호를 정했어요">🔒</span> <button class="btn-link" style="font-size:11.5px" onclick="pinReset('${m.id}')">초기화</button>` : '<span class="muted" title="아직 비밀번호를 안 정했어요">—</span>'}</td>
           <td>${ns.length ? `<button class="btn small secondary" onclick="viewNotes('${m.id}')">${ns.length}개 · ${ns.reduce((s, n) => s + String(n.text).length, 0).toLocaleString()}자</button>` : '<span class="muted">0</span>'}</td>
           <td><div class="comps sm">${(() => { const cc = compCounts(ns.map(n => n.text)); return compChips(compTop(cc, 3), { onlyOn: true, counts: cc }); })()}</div></td>
           <td>${R ? `<span class="badge ok">${ago(R.at)}</span>${stale ? ' <span class="badge no" title="보고서를 만든 뒤 새 기록이 있어요">새 기록</span>' : ''}` : '<span class="muted">—</span>'}</td>

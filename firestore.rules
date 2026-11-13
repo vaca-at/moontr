@@ -267,7 +267,9 @@ service cloud.firestore {
     //   목록을 볼 수 없어서 남의 글 번호는 알 수 없어요. 고칠 때는 글(text)만 바꿀 수 있어요
     //   replaces = 번호 없이 올린 예전 글을 고친 새 글 (선생님이 관리보드를 열면 예전 글을 지워요)
     match /drs_notes/{id} {
-      allow read: if isTeacher();
+      // 2026-11-14: 글 번호를 아는 사람은 그 글 하나만 읽기 (비밀번호 책에 적힌 번호로 다른 기기에서 불러와요). 목록은 관리자만
+      allow get: if true;
+      allow list: if isTeacher();
       allow create: if request.resource.data.keys().hasOnly(['sid','name','cat','text','at','replaces'])
         && request.resource.data.sid is string && request.resource.data.sid.matches('^[0-9]{5}$')
         && request.resource.data.name is string && request.resource.data.name.size() <= 20
@@ -282,6 +284,28 @@ service cloud.firestore {
         && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
         && request.resource.data.edited == request.time);
       allow delete: if true;
+    }
+    // 🔒 학번 + 비밀번호 (2026-11-14)
+    // drs_pins/{학번}: 관리자만 읽기 · 고치기 · 지우기(초기화). 학생은 처음 한 번만 만들기 (key = 학번+비밀번호를 바꾼 64글자)
+    match /drs_pins/{sid} {
+      allow read, update, delete: if isTeacher();
+      allow create: if sid.matches('^[0-9]{5}$') && request.resource.data.keys().hasOnly(['key', 'at'])
+        && request.resource.data.key is string && request.resource.data.key.matches('^[0-9a-f]{64}$')
+        && request.resource.data.at == request.time;
+    }
+    // drs_books/{key}: 주소(key)를 아는 사람 = 비밀번호를 아는 학생만 열기. 목록은 관리자만
+    //   만들기: 그 학번의 비밀번호 열쇠와 같을 때만 · 학생 고치기: 기록 번호(ids)와 시각만 · 보고서(report)는 관리자만 넣어요
+    match /drs_books/{key} {
+      allow get: if true;
+      allow list, delete: if isTeacher();
+      allow create: if isTeacher() || (request.resource.data.keys().hasOnly(['sid', 'ids', 'at'])
+        && request.resource.data.sid is string
+        && exists(/databases/$(database)/documents/drs_pins/$(request.resource.data.sid))
+        && get(/databases/$(database)/documents/drs_pins/$(request.resource.data.sid)).data.key == key
+        && request.resource.data.ids is list && request.resource.data.ids.size() <= 300);
+      allow update: if isTeacher() || (request.resource.data.sid == resource.data.sid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ids', 'at'])
+        && request.resource.data.ids is list && request.resource.data.ids.size() <= 300);
     }
     // AI 활동 보고서 (관리보드 '📝 AI 활동 보고서'): 관리자만
     match /drs_reports/{id}    { allow read, write: if isTeacher(); }
