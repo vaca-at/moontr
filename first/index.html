@@ -192,7 +192,7 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 /* ===================== 저장 (이 기기에만) ===================== */
 const KEY = "first-v1";
 const SUBJ0 = [["국어","#FF6F91"],["수학","#0A84FF"],["영어","#30C46B"],["통합사회","#AF52DE"],["통합과학","#FF9F0A"],["한국사","#8E6E53"]];
-let D = { mode:"f", bg:"w", acc:0, chars:["rabbit","bear","ham"], mine:[], th:[3,6,10], weak:"", subj:SUBJ0.map(([n, c]) => ({ n, c })), plans:{}, log:{}, timer:null, grades:[] };
+let D = { mode:"f", base:[{ s:"국어", min:30 },{ s:"수학", min:30 },{ s:"영어", min:30 }], seeded:"", bg:"w", acc:0, chars:["rabbit","bear","ham"], mine:[], th:[3,6,10], weak:"", subj:SUBJ0.map(([n, c]) => ({ n, c })), plans:{}, log:{}, timer:null, grades:[] };
 try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v) D = { ...D, ...v }; } catch (e) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
 const $ = id => document.getElementById(id);
@@ -343,7 +343,19 @@ function weakSubj(){
 }
 const plansOf = k => (D.plans[k] = D.plans[k] || []);
 /* 오늘 할 일 순서: 약한 과목이 늘 맨 위 (그다음은 넣은 순서) */
-const sorted = list => { const w = weakSubj(); return [...list].sort((a, b) => (b.s === w) - (a.s === w)); };
+/* 할 일 순서 = 학생이 정한 순서 그대로 (↑ ↓ 로 바꿔요). 매일 처음 채울 때만 약한 과목을 맨 앞에 둬요 */
+const sorted = list => list;
+/* 매일 기본 할 일: 그날 처음 열 때 할 일이 비어 있으면 설정의 '매일 기본 할 일'(D.base)로 채워요. 다 지워도 그날은 다시 안 채워요 */
+function seedToday(){
+  const k = today(); if (D.seeded === k) return; D.seeded = k;
+  if (!plansOf(k).length && D.base.length){ const w = weakSubj();
+    D.plans[k] = [...D.base].sort((a, b) => (b.s === w) - (a.s === w)).map(b => ({ id:uid(), s:b.s, min:+b.min || 30, det:[], done:false })); }
+  save();
+}
+/* 오늘 순공(초): 기록된 것 + 지금 재고 있는 타이머(아직 끝내기 전)까지 */
+const liveSec = () => secOf(today()) + (D.timer ? tsec() : 0);
+function progHtml(){ const L = plansOf(today()), plan = L.reduce((a, p) => a + (+p.min || 0), 0), m = Math.floor(liveSec() / 60), pct = plan ? Math.min(100, m / plan * 100) : 0;
+  return { txt:`${m}분 / ${plan}분`, pct }; }
 const secOf = k => Object.values(D.log[k] || {}).reduce((a, b) => a + b, 0);
 function daysSince(subj){ for (let i = 0; i < 60; i++){ const d = new Date(); d.setDate(d.getDate() - i); if ((D.log[dk(d)] || {})[subj] > 60) return i; } return 60; }
 
@@ -357,15 +369,17 @@ function todaySay(){
   const wp = L.find(p => p.s === w && !p.done);
   if (wp){ const n = daysSince(w); return say(`${w}를 맨 앞에 뒀어. ${wp.min}분만 같이 해 보자.`, n >= 2 ? `${w} ${n}일째 0분. ${w} 먼저.` : `${w} 먼저. ${wp.min}분.`); }
   if (w && !L.some(p => p.s === w)) return say(`오늘은 ${w}가 없네. 15분짜리 하나만 넣어 볼까?`, `${w} 계획 없음. 15분 추가해.`);
+  if (!done){ const f = L.find(p => !p.done); return say(`${f.s}부터 시작해 볼까? ▶를 누르면 타이머가 돌아가.`, `${f.s}부터. ▶ 눌러.`); }
   return say(`벌써 ${done}개 했어! 남은 것도 하나씩 가 보자.`, `${done}/${L.length} 완료. 남은 ${L.length - done}개.`);
 }
 
 /* ===================== 오늘 ===================== */
 const WD = ["일","월","화","수","목","금","토"];
 function viewToday(){
-  const k = today(), d = new Date(), w = weakSubj(), L = sorted(plansOf(k)), n = L.filter(p => p.done).length, pct = L.length ? n / L.length * 100 : 0;
+  seedToday();
+  const k = today(), d = new Date(), w = weakSubj(), L = sorted(plansOf(k)), n = L.filter(p => p.done).length, pg = progHtml(), pct = pg.pct;
   return `<div class="hd"><div><div class="sub" style="color:var(--mode)">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div><h1 class="big ttl">오늘 할 일</h1></div><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></div>
-    <div class="prog"><span>${n} / ${L.length}</span><span class="tr"><i style="width:${pct}%"></i><span class="walker" style="left:${pct}%">${ch(2)}</span></span><span>순공 ${hm(secOf(k))}</span></div>
+    <div class="prog"><span>할 일 ${n}/${L.length}</span><span class="tr"><i id="pgBar" style="width:${pct}%"></i><span class="walker" id="pgWalk" style="left:${pct}%">${ch(2)}</span></span><span id="pgTxt">${pg.txt}</span></div>
     ${todaySay()}
     ${L.length ? `<div class="list cards peek">${L.map((p, i) => { const o = S.open[p.id], sec = (D.log[k] || {})[p.s] || 0;
       return `<div class="item ${p.done ? "done" : ""}">${i === 0 ? `<span class="say2" id="say2"></span><span class="peeker">${ch(1)}</span>` : ""}<div class="row">
@@ -373,7 +387,7 @@ function viewToday(){
         <div class="nm" data-act="toggle" data-v="${p.id}"><span>${esc(p.s)}</span>${p.s === w && i === 0 ? '<span class="first">먼저</span>' : ""}<small>${p.min}분${sec ? ` · 순공 ${hm(sec)}` : ""}</small></div>
         ${p.done ? "" : `<button type="button" class="play" data-act="start" data-v="${p.id}">▶</button>`}</div>
         ${o ? `${p.det.length ? `<ol class="det">${p.det.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="det" style="list-style:none">순서 · 쪽수를 적어 두면 여기에 보여요</p>`}
-          <div class="det-act"><button type="button" class="link" data-act="edit" data-v="${p.id}">고치기</button><button type="button" class="link del" data-act="del" data-v="${p.id}">지우기</button></div>` : ""}</div>`; }).join("")}</div>
+          <div class="det-act"><button type="button" class="link" data-act="edit" data-v="${p.id}">고치기</button>${i ? `<button type="button" class="link" data-act="mv" data-v="${p.id}" data-d="-1">↑ 위로</button>` : ""}${i < L.length - 1 ? `<button type="button" class="link" data-act="mv" data-v="${p.id}" data-d="1">↓ 아래로</button>` : ""}<button type="button" class="link del" data-act="del" data-v="${p.id}">지우기</button></div>` : ""}</div>`; }).join("")}</div>
       <p class="note" style="text-align:center">과목 이름을 누르면 순서 · 쪽수가 펼쳐져요</p>` : `<div class="empty">아직 오늘 할 일이 없어요</div>`}
     <button type="button" class="add" data-act="addPlan">＋ 할 일 넣기</button>`;
 }
@@ -459,7 +473,9 @@ function viewSettings(){
     <p class="gh">약한 과목 (오늘 할 일 맨 앞에 와요)</p><div class="grp"><div class="row"><span>약한 과목</span><select id="weakSel" aria-label="약한 과목" style="border:0;background:none;text-align:right;color:var(--mode);font-weight:600"><option value="">자동${auto ? ` (${auto})` : ""}</option>${D.subj.map(s => `<option ${D.weak === s.n ? "selected" : ""}>${esc(s.n)}</option>`).join("")}</select></div></div>
     <p class="gh">달력 진하기 기준 (순공 시간)</p><div class="grp">${stepRow(0, "연하게", 2)}${stepRow(1, "진하게", 3)}${stepRow(2, "가장 진하게", 4)}</div>
     <p class="note" style="margin:-8px 4px 0">시험 기간엔 높게, 방학엔 낮게 바꿔도 돼요</p>
-    <p class="gh">과목</p><div class="grp">${D.subj.map((s, i) => `<div class="row"><span><i class="mini" style="background:${s.c}"></i>${esc(s.n)}</span><button type="button" class="link del" data-act="subDel" data-v="${i}">빼기</button></div>`).join("")}<div class="row"><input id="subNew" placeholder="과목 더하기 (예: 물리학Ⅰ)" maxlength="12" style="border:0;background:none;flex:1;font-size:15px"><button type="button" class="link" data-act="subAdd">더하기</button></div></div>
+    <p class="gh">매일 기본 할 일 (그날 처음 열면 오늘 할 일에 들어가요)</p><div class="grp">${D.base.map((x, i) => `<div class="row"><input data-base="${i}" value="${esc(x.s)}" maxlength="16" aria-label="기본 할 일 ${i + 1} 이름" style="border:0;background:none;flex:1;min-width:0;font-size:15px"><span class="step"><button type="button" data-act="baseMin" data-v="${i}" data-d="-1" aria-label="시간 줄이기">−</button><b>${x.min}분</b><button type="button" data-act="baseMin" data-v="${i}" data-d="1" aria-label="시간 늘리기">+</button></span>${i ? `<button type="button" class="link" data-act="baseUp" data-v="${i}" aria-label="위로">↑</button>` : ""}<button type="button" class="link del" data-act="baseDel" data-v="${i}">빼기</button></div>`).join("")}<div class="row"><input id="baseNew" placeholder="기본 할 일 더하기 (예: 통합과학)" maxlength="16" style="border:0;background:none;flex:1;font-size:15px"><button type="button" class="link" data-act="baseAdd">더하기</button></div></div>
+    <p class="note" style="margin:-8px 4px 0">오늘 것은 '오늘' 화면에서 이름 · 시간 · 순서 · 세부 내용을 바로 고칠 수 있어요</p>
+    <p class="gh">과목 (타이머 · 성적에 써요)</p><div class="grp">${D.subj.map((s, i) => `<div class="row"><span><i class="mini" style="background:${s.c}"></i>${esc(s.n)}</span><button type="button" class="link del" data-act="subDel" data-v="${i}">빼기</button></div>`).join("")}<div class="row"><input id="subNew" placeholder="과목 더하기 (예: 물리학Ⅰ)" maxlength="12" style="border:0;background:none;flex:1;font-size:15px"><button type="button" class="link" data-act="subAdd">더하기</button></div></div>
     <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기</span><button type="button" class="link del" data-act="wipe">${S.wipe ? "한 번 더 누르면 지워져요" : "지우기"}</button></div></div>
     <details class="policy"><summary>먼저 플래너 · 이용약관 · 개인정보 처리방침</summary><div>
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
@@ -488,6 +504,7 @@ function viewSide(){
 }
 function tick(){
   const t = D.timer; $("edge").classList.toggle("run", !!(t && t.start));
+  if ($("pgBar")){ const pg = progHtml(); $("pgBar").style.width = $("pgWalk").style.left = pg.pct + "%"; $("pgTxt").textContent = pg.txt; }
   if (!t || !$("tnum")) return;
   const goal = t.min || 25, sec = tsec(), left = goal * 60 - sec, mm = s => `${Math.floor(Math.abs(s) / 60)}:${pad(Math.floor(Math.abs(s) % 60))}`;
   $("tnum").textContent = left >= 0 ? mm(sec) : "+" + mm(-left); $("tbar").style.width = Math.min(100, sec / (goal * 60) * 100) + "%";
@@ -506,7 +523,8 @@ function endTimer(keep){
 function sheetPlan(p){
   const mins = [15, 25, 30, 45, 60, 90], cur = p ? p.s : (S.newS || weakSubj() || D.subj[0].n), cm = p ? +p.min : (S.newM || 25);
   return `<h2>${p ? "할 일 고치기" : "할 일 넣기"}</h2>
-    <label>과목<div class="chips" id="pS">${D.subj.map(s => `<button type="button" data-act="pS" data-v="${esc(s.n)}" aria-pressed="${s.n === cur}">${esc(s.n)}${s.n === weakSubj() ? " ★" : ""}</button>`).join("")}</div></label>
+    <label for="pName">이름 (직접 써도 돼요)<input id="pName" maxlength="16" value="${esc(cur)}" placeholder="예: 수학 · 단어 시험 준비"></label>
+    <div class="chips" id="pS">${D.subj.map(s => `<button type="button" data-act="pS" data-v="${esc(s.n)}" aria-pressed="${s.n === cur}">${esc(s.n)}${s.n === weakSubj() ? " ★" : ""}</button>`).join("")}</div>
     <label>시간<div class="chips" id="pM">${mins.map(m => `<button type="button" data-act="pM" data-v="${m}" aria-pressed="${m === cm}">${m}분</button>`).join("")}</div></label>
     <label for="pDet">순서 · 책 · 쪽수 (한 줄에 하나)<textarea id="pDet" placeholder="개념 다시 보기 · 수학의 바이블 42~45쪽&#10;예제 3개 풀기 · 46쪽">${esc(p ? p.det.join("\n") : "")}</textarea></label>
     <p class="note">${D.mode === "t" ? "작게. 25분짜리 여러 개가 실천률이 높아." : "작게 나눌수록 끝내기 쉬워요. 25분짜리부터!"}</p>
@@ -574,7 +592,8 @@ function closeTimer(){ const sd = $("side"); sd.style.transform = sd.style.trans
     if (dx > Math.min(90, sd.offsetWidth * .25)) closeTimer(); else { sd.style.transition = ""; sd.style.transform = ""; } };
   sd.addEventListener("touchend", end); sd.addEventListener("touchcancel", end);
 })();
-document.addEventListener("change", e => { if (e.target.id === "weakSel"){ D.weak = e.target.value; save(); render(); } if (e.target.id === "capFile") capLoad(e.target.files[0]); });
+document.addEventListener("change", e => { if (e.target.id === "weakSel"){ D.weak = e.target.value; save(); render(); }
+  if (e.target.dataset.base != null){ const x = D.base[+e.target.dataset.base], n = e.target.value.trim(); if (x && n){ x.s = n; save(); } else render(); } if (e.target.id === "capFile") capLoad(e.target.files[0]); });
 let capT = 0;
 document.addEventListener("input", e => {
   if (e.target.id === "capTol"){ CAPS.tol = +e.target.value; clearTimeout(capT); capT = setTimeout(() => { CAPS.res = null; capDraw(); }, 80); }
@@ -610,10 +629,15 @@ document.addEventListener("click", e => {
     case "addPlan": S.sheet = { t:"plan" }; S.newS = ""; S.newM = 25; openSheet(sheetPlan()); return;
     case "edit": { const p = plansOf(k).find(x => x.id === v); if (p){ S.sheet = { t:"plan", p }; openSheet(sheetPlan(p)); } return; }
     case "del": D.plans[k] = plansOf(k).filter(x => x.id !== v); save(); break;
-    case "pS": S.newS = v; pick("pS", "pS"); return;
+    case "mv": { const L = plansOf(k), i = L.findIndex(x => x.id === v), j = i + +b.dataset.d; if (i < 0 || j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; save(); break; }
+    case "baseDel": D.base.splice(+v, 1); save(); break;
+    case "baseMin": { const x = D.base[+v]; if (x){ x.min = Math.max(5, Math.min(180, (+x.min || 30) + +b.dataset.d * 5)); save(); } break; }
+    case "baseUp": { const i = +v; if (i > 0){ [D.base[i - 1], D.base[i]] = [D.base[i], D.base[i - 1]]; save(); } break; }
+    case "baseAdd": { const n = $("baseNew").value.trim(); if (!n) return; if (D.base.length >= 10){ toast("10개까지 넣을 수 있어요"); return; } D.base.push({ s:n, min:30 }); save(); break; }
+    case "pS": S.newS = v; pick("pS", "pS"); $("pName").value = v; return;
     case "pM": S.newM = +v; pick("pM", "pM"); return;
-    case "pSave": { const s = document.querySelector('#pS [aria-pressed="true"]')?.dataset.v, m = +(document.querySelector('#pM [aria-pressed="true"]')?.dataset.v || 25), det = $("pDet").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0, 8);
-      if (!s){ toast("과목을 골라 주세요"); return; }
+    case "pSave": { const s = $("pName").value.trim(), m = +(document.querySelector('#pM [aria-pressed="true"]')?.dataset.v || 25), det = $("pDet").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0, 8);
+      if (!s){ toast("이름을 써 주세요"); return; }
       if (v){ const p = plansOf(k).find(x => x.id === v); if (p) Object.assign(p, { s, min:m, det }); } else plansOf(k).push({ id:uid(), s, min:m, det, done:false });
       save(); closeSheet(); break; }
     case "sheetClose": closeSheet(); return;
