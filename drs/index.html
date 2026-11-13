@@ -305,6 +305,11 @@
 
     /* ===================== 할 일 · 출석부 · 활동 기록 · 봉사활동 · 부스 정산 · 가계부 · 서류 ===================== */
     .dcard { scroll-margin-top:80px; }
+    .tile.click { display:block; width:100%; text-align:left; font:inherit; color:inherit; cursor:pointer; transition:border-color .15s, transform .12s; }
+    .tile.click:hover { border-color:var(--acc); transform:translateY(-1px); }
+    .tile .go { margin-left:auto; color:#a7b4af; font-size:16px; line-height:1; }
+    .sheet.pop { max-width:560px; font-family:'Pretendard Variable', Pretendard, 'Malgun Gothic', sans-serif; color:var(--ink); letter-spacing:-0.01em; }
+    .sheet.pop h3 { margin-bottom:14px; }
     .admin-badge { font-size:12px; font-weight:700; color:#8a5a00; background:#fff1c2; padding:5px 10px; border-radius:999px; white-space:nowrap; cursor:default; }
     .ib { border:none; background:none; color:#9aa8a3; cursor:pointer; font-size:13px; padding:4px 6px; border-radius:7px; flex:none; }
     .ib:hover { background:var(--soft); color:var(--ink); }
@@ -331,6 +336,12 @@
     .roll-key i.a { background:var(--acc); } .roll-key i.b { background:#2f7fd6; margin-left:8px; }
     .vact, .aday { border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:12px; }
     .vact:last-child, .aday:last-child { margin-bottom:0; }
+    .vgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:12px; }
+    .vgrid .vact { margin-bottom:0; }
+    .vsum { background:var(--soft); border-radius:14px; padding:12px 14px; margin-bottom:12px; }
+    .vsum .vchip { border-style:solid; }
+    .vsum .vchip b { margin-left:2px; }
+    @media (max-width:560px) { .vgrid { grid-template-columns:minmax(0, 1fr); } }
     .vhead { display:flex; align-items:flex-start; gap:6px; }
     .vhead > div { flex:1; min-width:0; }
     .vhead b { display:block; font-size:14.5px; line-height:1.4; }
@@ -343,7 +354,8 @@
     .vchip.on { border:1px solid #bfe6d9; background:var(--acc-soft); color:var(--acc-ink); }
     button.vchip { cursor:pointer; }
     button.vchip:hover { filter:brightness(.97); }
-    .aparts { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+    .aparts { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:8px; margin-top:12px; }
+    @media (max-width:560px) { .aparts { grid-template-columns:minmax(0, 1fr); } }
     .apart { display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; background:var(--soft); }
     .apart .atx { flex:1; min-width:0; }
     .apart .atx a { color:inherit; text-decoration:none; }
@@ -697,8 +709,8 @@
       <section class="dcard span-7" id="st-roll"></section>
       <section class="dcard span-4" id="st-me"></section>
       <section class="dcard span-8" id="st-trend"></section>
-      <section class="dcard span-6" id="st-acts"></section>
-      <section class="dcard span-6" id="st-vol"></section>
+      <section class="dcard" id="st-vol"></section>
+      <section class="dcard" id="st-acts"></section>
       <section class="dcard span-6" id="st-booth"></section>
       <section class="dcard span-6" id="st-ledger"></section>
       <section class="dcard span-7" id="st-docs"></section>
@@ -734,6 +746,13 @@
   </div>
 </div>
 <div id="tip"></div>
+<!-- 팝업 (부스 정산 내역 등) -->
+<div class="sheet-bg" id="pop" onclick="if (event.target === this) closePop()">
+  <div class="sheet pop" role="dialog" aria-modal="true">
+    <h3><span id="popTitle"></span><button type="button" onclick="closePop()" aria-label="닫기">✕</button></h3>
+    <div id="popBody"></div>
+  </div>
+</div>
 
 <!-- ============================================================ -->
 <!-- 교사용 관리보드                                                 -->
@@ -792,8 +811,8 @@
           </section>
           <section class="dcard span-5" id="ad-todo"></section>
           <section class="dcard span-7" id="ad-roll"></section>
-          <section class="dcard span-6" id="ad-acts"></section>
-          <section class="dcard span-6" id="ad-vol"></section>
+          <section class="dcard" id="ad-vol"></section>
+          <section class="dcard" id="ad-acts"></section>
           <section class="dcard span-6" id="ad-booth"></section>
           <section class="dcard span-6" id="ad-ledger"></section>
           <section class="dcard span-7" id="ad-docs"></section>
@@ -1371,7 +1390,13 @@ const BOOTH_DEFAULT = {
   expense: [{ l:'동아리 부원들 지출', a:160500 }, { l:'클레이 (15,000원 × 9통)', a:135000 }, { l:'UV LED 램프 (2개)', a:49800 }, { l:'키캡 (11,900원 × 2개)', a:23800 }, { l:'부장 지출 - 추억의 뽑기판', a:15400 }, { l:'부장 지출 - 파츠', a:13900 }, { l:'딸기 저울 (4,900원 × 2개)', a:9800 }, { l:'UV 코팅제 (2,400원 × 2개)', a:4800 }]
 };
 // 1학기 봉사활동 처음 값 (관리자가 고치면 drs_settings/volunteer 에 저장돼요). 이름은 명단에서 학번으로 찾아요
-const VOL_DEFAULT = { acts: [{ id:'v0507', date:'2026-05-07', kind:'캠페인 활동', content:'교내 거북이편지함 캠페인 사전 준비 활동', hours:1, ids:['10213','10509','10810','11014','20123','20312','20319','20410','20608','20708'] }] };
+// (학교 교육계획에 의한 동아리 봉사활동 확인서 4장 그대로 · 장소 진선여자고등학교 · 영역 캠페인 활동)
+const VOL_DEFAULT = { acts: [
+  { id:'v0507', date:'2026-05-07', kind:'캠페인 활동', content:'교내 거북이편지함 캠페인 사전 준비 활동', hours:1, ids:['10213','10509','10810','11014','20123','20312','20319','20410','20608','20708'] },
+  { id:'v0514', date:'2026-05-14', kind:'캠페인 활동', content:'교내 거북이편지함 캠페인 운영 및 지원 활동', hours:1, ids:['10213','10216','10509','10810','11014','11019','20123','20312','20319','20410','20708'] },
+  { id:'v0702', date:'2026-07-02', kind:'캠페인 활동', content:'교내 칭찬배달프로젝트 사전 준비 활동', hours:1, ids:['10216','10509','10810','20123','20312','20319','20410','20608','20708','20806'] },
+  { id:'v0709', date:'2026-07-09', kind:'캠페인 활동', content:'교내 칭찬배달프로젝트 운영 및 지원 활동', hours:1, ids:['10509','10810','11126','20123','20312','20319','20410','20708'] }
+] };
 
 function rosterList() { return LIVE_MEMBERS.length ? LIVE_MEMBERS : SEED_MEMBERS.map(([id, name]) => ({ id, name })); }
 function nameOf(id) { const m = rosterList().find(x => x.id === String(id)); return m ? m.name : String(id); }
@@ -1384,12 +1409,13 @@ function renderTiles(p) {
   const mc = LIVE_MEMBERS.length, today = dayIds(todayStr()).size;
   const todo = (SET.todo && SET.todo.items) || [], done = todo.filter(t => t.done).length;
   const b = SET.booth || BOOTH_DEFAULT, left = sumA(b.income) - sumA(b.expense);
-  const tile = (icon, k, v, unit, s, bar) => `<div class="tile"><div class="k"><i>${icon}</i>${k}</div><div class="v">${v}<small>${unit}</small></div>${bar != null ? `<div class="mini"><i style="width:${bar}%"></i></div>` : `<div class="s">${s}</div>`}</div>`;
+  // 칸을 누르면: 부스 정산 = 내역 팝업, 나머지 = 그 칸으로 내려가요
+  const tile = (icon, k, v, unit, s, bar, go) => `<button class="tile click" onclick="${go}"><div class="k"><i>${icon}</i>${k}<span class="go">›</span></div><div class="v">${v}<small>${unit}</small></div>${bar != null ? `<div class="mini"><i style="width:${bar}%"></i></div>` : `<div class="s">${s}</div>`}</button>`;
   el.innerHTML =
-    tile('👥', '부원', membersLoaded ? mc : '–', '명', '2026 또래상담부') +
-    tile('✅', '오늘 출석', attLoaded ? today : '–', '명', '', mc ? Math.min(100, Math.round(today / mc * 100)) : 0) +
-    tile('📋', '할 일', todo.length ? done + '/' + todo.length : '0', '', '', todo.length ? Math.round(done / todo.length * 100) : 0) +
-    tile('🎪', '부스 정산', (left < 0 ? '−' : '') + Math.abs(left).toLocaleString(), '원', `수입 ${won(sumA(b.income))} · 지출 ${won(sumA(b.expense))}`);
+    tile('👥', '부원', rosterList().length, '명', '눌러서 명단 보기', null, 'openMembersPop()') +
+    tile('✅', '오늘 출석', attLoaded ? today : '–', '명', '', mc ? Math.min(100, Math.round(today / mc * 100)) : 0, `goCard('${p}-roll')`) +
+    tile('📋', '할 일', todo.length ? done + '/' + todo.length : '0', '', '', todo.length ? Math.round(done / todo.length * 100) : 0, `goCard('${p}-todo')`) +
+    tile('🎪', '부스 정산', (left < 0 ? '−' : '') + Math.abs(left).toLocaleString(), '원', `수입 ${won(sumA(b.income))} · 지출 ${won(sumA(b.expense))}`, null, 'openBoothPop()');
 }
 
 /* ----- 📋 해야 할 일 ----- */
@@ -1459,7 +1485,12 @@ function renderVolunteer(p) {
   const acts = volActs(), R = rosterList();
   let h = cardHead('🤝', '1학기 봉사활동', CAN_EDIT ? `<button class="btn-link" onclick="volCopy()">표로 복사</button> · <button class="btn-link" onclick="volAdd()">＋ 활동 추가</button>` : '');
   if (!acts.length) { box.innerHTML = h + '<div class="empty">아직 봉사활동 기록이 없어요.</div>'; return; }
-  box.innerHTML = h + acts.map(a => {
+  // 부원별 봉사 시간 합계 (0시간인 부원은 빨갛게)
+  const hrs = {};
+  acts.forEach(a => (a.ids || []).forEach(id => { hrs[id] = (hrs[id] || 0) + (Number(a.hours) || 0); }));
+  const total = acts.reduce((s, a) => s + (a.ids || []).length * (Number(a.hours) || 0), 0);
+  h += `<div class="vsum"><div class="vsub" style="margin-top:0">부원별 봉사 시간 · 활동 ${acts.length}번 · 모두 ${total}시간</div><div class="vchips">${R.map(m => `<span class="vchip ${hrs[m.id] ? 'on' : ''}" data-tip="${esc(m.name)} · ${(hrs[m.id] || 0)}시간">${esc(m.name)} <b>${hrs[m.id] || 0}</b></span>`).join('')}</div></div>`;
+  box.innerHTML = h + '<div class="vgrid">' + acts.map(a => {
     const ids = new Set(a.ids || []);
     const inList = R.filter(m => ids.has(m.id)), out = R.filter(m => !ids.has(m.id));
     const extra = [...ids].filter(id => !R.some(m => m.id === id));   // 명단에 없는 학번
@@ -1472,7 +1503,7 @@ function renderVolunteer(p) {
       <div class="vchips">${inList.map(m => chip(m, true)).join('')}${extra.map(id => `<span class="vchip on">✓ ${esc(id)}</span>`).join('')}</div>
       ${out.length ? `<div class="vsub miss">⚠️ 빠진 부원 ${out.length}명${CAN_EDIT ? ' · 누르면 넣어요' : ''}</div><div class="vchips">${out.map(m => chip(m, false)).join('')}</div>` : '<div class="vsub">🎉 부원 모두 들어가 있어요</div>'}
     </div>`;
-  }).join('');
+  }).join('') + '</div>';
 }
 function volToggle(actId, id) {
   const acts = volActs(), a = acts.find(x => x.id === actId); if (!a) return;
@@ -1504,17 +1535,54 @@ async function volCopy() {
 
 /* ----- 🎪 동아리 부스 수입 · 지출 ----- */
 function boothData() { return JSON.parse(JSON.stringify(SET.booth || BOOTH_DEFAULT)); }
-function renderBooth(p) {
-  const box = document.getElementById(p + '-booth'); if (!box) return;
+// 수입 · 지출 · 남은 돈 (edit = 고치기 단추 보이기)
+function boothBodyHTML(edit) {
   const b = boothData(), inS = sumA(b.income), outS = sumA(b.expense), left = inS - outS;
+  const btns = (key, i) => edit ? editBtns(`boothEdit('${key}', ${i})`, `boothDel('${key}', ${i})`) : '';
   const sec = (key, icon, title, rows, total) => `<div class="bsec ${key}"><div class="bhead"><span>${icon} ${title}</span><b class="pill">${won(total)}</b></div>
-    ${rows.map((r, i) => `<div class="brow"><span>${esc(r.l)}</span><b>${won(r.a)}</b>${editBtns(`boothEdit('${key}', ${i})`, `boothDel('${key}', ${i})`)}</div>`).join('')}
-    ${CAN_EDIT ? `<button class="btn-link" style="margin-top:6px" onclick="boothAdd('${key}')">＋ 줄 추가</button>` : ''}</div>`;
-  box.innerHTML = cardHead('🎪', '동아리 부스 수입 · 지출 정리') +
-    sec('income', '💰', '1. 총 수입 및 지원금', b.income, inS) + sec('expense', '🛍️', '2. 총 지출', b.expense, outS) +
+    ${rows.map((r, i) => `<div class="brow"><span>${esc(r.l)}</span><b>${won(r.a)}</b>${btns(key, i)}</div>`).join('')}
+    ${edit ? `<button class="btn-link" style="margin-top:6px" onclick="boothAdd('${key}')">＋ 줄 추가</button>` : ''}</div>`;
+  return sec('income', '💰', '1. 총 수입 및 지원금', b.income, inS) + sec('expense', '🛍️', '2. 총 지출', b.expense, outS) +
     `<div class="bleft${left < 0 ? ' neg' : ''}"><span>3. 남은 돈</span><b>${left < 0 ? '−' : ''}${won(Math.abs(left))}</b></div>` +
     (left < 0 ? `<div class="muted" style="font-size:12.5px; margin-top:8px;">지출이 수입보다 ${won(-left)} 많아요.</div>` : '');
 }
+function renderBooth(p) {
+  const box = document.getElementById(p + '-booth'); if (!box) return;
+  box.innerHTML = cardHead('🎪', '동아리 부스 수입 · 지출 정리') + boothBodyHTML(CAN_EDIT);
+}
+// 숫자 칸 '부스 정산'을 누르면 뜨는 팝업: 수입 · 지출 + 부원 지출 내역
+function openBoothPop() {
+  const rows = ledgerRowsNow();
+  const detail = rows.length ? `<div class="vsub" style="margin-top:16px">🧾 동아리 부원들 지출 내역 · ${rows.length}건 · ${won(rows.filter(r => r.type !== '수입').reduce((s, r) => s + r.amount, 0))}</div>
+    <div class="ltable-wrap" style="max-height:none"><table class="ltable"><tr><th>이름</th><th>항목</th><th class="amt">금액</th><th>환급</th></tr>
+    ${rows.map(r => `<tr><td><b>${esc(r.name || '-')}</b></td><td>${esc(r.item) || '<span class="muted">—</span>'}</td><td class="amt">${r.amount.toLocaleString()}</td><td>${r.hasStudent ? `<span class="lbadge ${r.refunded ? 'ok' : 'no'}">${r.refunded ? '환급 완료' : '미환급'}</span>` : ''}</td></tr>`).join('')}</table></div>` : '';
+  openPop('🎪 동아리 부스 수입 · 지출 정리', boothBodyHTML(false) + detail);
+}
+// 숫자 칸 '부원'을 누르면 뜨는 팝업: 학년별 명단 + 봉사 시간 · 출석 횟수
+// (학번은 입장 번호라 학생 화면에선 학년 · 반만, 관리자 모드에서만 학번까지)
+function openMembersPop() {
+  const R = rosterList(), dates = meetingDates();
+  const hrs = {};
+  volActs().forEach(a => (a.ids || []).forEach(id => { hrs[id] = (hrs[id] || 0) + (Number(a.hours) || 0); }));
+  const att = id => dates.filter(d => dayIds(d).has(id)).length;
+  const grades = [...new Set(R.map(m => m.id[0]))].sort();
+  const body = grades.map(g => {
+    const list = R.filter(m => m.id[0] === g);
+    return `<div class="vsub" style="margin-top:14px">${g}학년 · ${list.length}명</div>
+      <div class="ltable-wrap" style="max-height:none"><table class="ltable"><tr><th>반</th><th>이름</th>${CAN_EDIT ? '<th>학번</th>' : ''}<th class="amt">봉사</th><th class="amt">출석</th></tr>
+      ${list.map(m => `<tr><td>${Number(m.id.slice(1, 3))}반</td><td><b>${esc(m.name)}</b></td>${CAN_EDIT ? `<td>${esc(m.id)}</td>` : ''}<td class="amt">${hrs[m.id] || 0}시간</td><td class="amt">${att(m.id)}번</td></tr>`).join('')}
+      </table></div>`;
+  }).join('');
+  openPop(`👥 2026 또래상담부 부원 · ${R.length}명`, body + `<div class="muted" style="font-size:12px; margin-top:12px;">봉사 = 1학기 봉사활동 인정 시간 합계 · 출석 = 웹앱으로 출석체크한 모임 수</div>`);
+}
+function openPop(title, html) {
+  document.getElementById('popTitle').innerText = title;
+  document.getElementById('popBody').innerHTML = html;
+  document.getElementById('pop').classList.add('on');
+}
+function closePop() { document.getElementById('pop').classList.remove('on'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
+function goCard(id) { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function boothAsk(r) {
   const l = prompt('이름 (예: 클레이 (15,000원 × 9통))', r.l || ''); if (l == null || !l.trim()) return null;
   const a = prompt('금액 (숫자만)', r.a || ''); if (a == null) return null;
@@ -1541,11 +1609,16 @@ function startLedgerSync(cb) {
     ledgerWatchers.forEach(f => f());
   }, err => console.error(err));
 }
+// 관리자는 가계부를 바로, 학생은 요약(ledgerPub)을 봐요
+function ledgerRowsNow() {
+  return CAN_EDIT && ledgerLoaded
+    ? LEDGER_ROWS.map(e => ({ docId: e.docId, item: e.item || '', amount: Number(e.amount) || 0, type: e.type || '지출', name: e.studentName || '', refunded: !!e.refunded, hasStudent: !!e.studentId }))
+    : ((SET.ledgerPub && SET.ledgerPub.rows) || []);
+}
 function renderLedger(p) {
   const box = document.getElementById(p + '-ledger'); if (!box) return;
   const live = CAN_EDIT && ledgerLoaded;
-  const rows = live ? LEDGER_ROWS.map(e => ({ docId: e.docId, item: e.item || '', amount: Number(e.amount) || 0, type: e.type || '지출', name: e.studentName || '', refunded: !!e.refunded, hasStudent: !!e.studentId }))
-    : ((SET.ledgerPub && SET.ledgerPub.rows) || []);
+  const rows = ledgerRowsNow();
   const st = rows.filter(r => r.hasStudent), doneN = st.filter(r => r.refunded).length;
   const spend = rows.filter(r => r.type !== '수입').reduce((s, r) => s + r.amount, 0);
   const refunded = st.filter(r => r.refunded).reduce((s, r) => s + r.amount, 0);
