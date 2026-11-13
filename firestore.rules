@@ -249,6 +249,18 @@ service cloud.firestore {
     match /drs_ledger/{id}     { allow read, write: if isTeacher(); }
     match /drs_gifts/{id}      { allow read, write: if true; }
     match /drs_counters/{id}   { allow read, write: if true; }
+    // 학생 활동 기록 (대시보드 '✍️ 나의 활동 기록 남기기'): 학생은 새 글 쓰기만, 읽기 · 지우기는 관리자만
+    match /drs_notes/{id} {
+      allow read, update, delete: if isTeacher();
+      allow create: if request.resource.data.keys().hasOnly(['sid','name','cat','text','at'])
+        && request.resource.data.sid is string && request.resource.data.sid.matches('^[0-9]{5}$')
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20
+        && request.resource.data.cat is string && request.resource.data.cat.size() <= 40
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+        && request.resource.data.at == request.time;
+    }
+    // AI 활동 보고서 (관리보드 '📝 AI 활동 보고서'): 관리자만
+    match /drs_reports/{id}    { allow read, write: if isTeacher(); }
 
     // ===== 또래상담부 부스 상황판 (/drs/booth) =====
     // 채팅: 누구나 보기, 부원 21명 · 교사 테스트(문샘) 이름이나 구글 로그인한 선생님만 새 글 (2100자까지 · 긴 공지도 그대로), 고치기 · 지우기는 관리자만
