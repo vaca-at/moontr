@@ -240,6 +240,19 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // ===== 먼저 플래너 (/first) 공부 음악 추천 =====
+    // 학생(로그인 없음)은 추천 넣기만 (주소 · 이유 · 시각 세 칸, 유튜브 주소만). 보기 · 지우기는 관리자
+    match /first_recs/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['url', 'why', 'at'])
+        && request.resource.data.url is string && request.resource.data.url.size() <= 200
+        && request.resource.data.url.matches('https://(www[.]|m[.])?(youtube[.]com|youtu[.]be)/.*')
+        && request.resource.data.why is string && request.resource.data.why.size() <= 60
+        && request.resource.data.at is int;
+      allow read, update, delete: if isTeacher();
+    }
+    // 관리자가 확인해서 올린 곡: 누구나 읽기, 쓰기는 관리자
+    match /first_music/{id} { allow read: if true; allow write: if isTeacher(); }
+
     // ===== 또래상담부 (/drs) =====
     // 공지 · 명단 · 가계부는 관리자만 고치기 (가계부는 보기도 관리자만)
     // 출석 · 선물 · 번호표는 학생이 스스로 체크 · 선물 등록 · 뽑기를 해서 열어 둠

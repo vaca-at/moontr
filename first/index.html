@@ -176,11 +176,34 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .cap-view{display:flex;gap:16px;justify-content:center;align-items:center}
 .cap-view canvas{width:130px;height:130px;border-radius:16px;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
 .sheet input[type=range]{padding:0;background:none}
+/* 🌙 어두운 화면 (아이폰 설정이 다크 모드일 때) */
+@media (prefers-color-scheme:dark){
+  :root{color-scheme:dark;--bg:#16151A;--ink:#F2F0F4;--sub:#9C98A3;--hair:rgba(255,255,255,.12);--soft:#26242C;--soft2:#33303A}
+  body{background:#0E0D11}
+  .app{--mode-soft:color-mix(in srgb,var(--mode) 24%,#1E1C23)!important}
+  .app.bg-w{background:#16151A}
+  .app.bg-s{background-color:#1D1519;background-image:linear-gradient(90deg,rgba(255,111,145,.045) 50%,transparent 0),linear-gradient(rgba(255,111,145,.045) 50%,transparent 0)}
+  .app.bg-d{background-color:#1B1915;background-image:radial-gradient(circle,#3A342A 1.2px,transparent 1.6px)}
+  .app.bg-r{background-color:#12171D;background-image:radial-gradient(circle,rgba(255,255,255,.06) 5px,transparent 5.5px)}
+  .cards .item,.add,.week,.slot,.lib .it>button:first-child,.bgs button,.say2,.ied input,.ied textarea,.step button,.seg button[aria-pressed="true"]{background:#201E26!important;border-color:#34313B!important;color:var(--ink)}
+  .add{color:var(--mode)!important}
+  .bg-s .cards .item{box-shadow:0 3px 0 #3A2A31}.bg-d .cards .item{box-shadow:2px 3px 0 rgba(0,0,0,.4)}
+  .tabs{background:rgba(22,21,26,.94)}.side{background:rgba(26,25,31,.97)}.sheet{background:#1C1B21}
+  .prog .tr{background:#2C2A32}.pill{background:#F2F0F4;color:#16151A}.pill.light{background:var(--soft);color:var(--ink)}
+  .cal button{color:var(--ink)}.l0{box-shadow:inset 0 0 0 1px #3A3740}.l1{background:color-mix(in srgb,var(--mode) 18%,#16151A)!important}.l2{background:color-mix(in srgb,var(--mode) 45%,#16151A)!important}
+  .fut{color:#4A4752!important}.cal button.today{outline-color:var(--ink)}.toast{background:rgba(242,240,244,.92);color:#16151A}
+}
+/* 📱 아이패드 · 큰 화면: 조금 넓게 */
+@media (min-width:768px){ .app{max-width:620px} main{padding-left:32px;padding-right:32px} }
 /* 카드 안에서 바로 고치기 */
 .ied{display:grid;gap:8px;padding:12px 0}
 .ied input,.ied textarea{border:1.5px solid #E5E5EA;background:#fff;border-radius:12px;padding:9px 11px;font-size:16px;width:100%;font-family:inherit;resize:vertical}
 .ied input:focus,.ied textarea:focus{border-color:var(--mode);outline:0}
 .ied .chips{gap:5px}.ied .chips button{padding:6px 10px}
+.dday{margin-left:6px;background:var(--mode);color:#fff;border-radius:999px;padding:1px 8px;font-size:11.5px;vertical-align:1px}
+.week{background:#fff;border:1.5px solid #F0EAED;border-radius:18px;padding:14px;display:grid;gap:12px}
+.wk{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;gap:6px}.wk b{display:block;font-size:19px;color:var(--mode);font-weight:400}.wk small{font-size:11.5px;color:var(--sub)}
+.focus{margin-top:14px;max-width:270px;font-size:12.5px;color:var(--sub);background:var(--soft);border-radius:14px;padding:10px 12px;display:grid;gap:4px;text-align:left}.focus b{color:var(--ink);font-weight:400}.focus .link{justify-self:end;font-size:12px}
 .peek1{display:block;margin-left:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ied-b{display:flex;justify-content:flex-end;gap:18px}.ied-b .link{font-size:15px}
 .cards .item.editing{border-color:var(--mode);box-shadow:0 0 0 3px var(--mode-soft)}
@@ -200,9 +223,9 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 /* ===================== 저장 (이 기기에만) ===================== */
 const KEY = "first-v1";
 const SUBJ0 = [["국어","#FF6F91"],["수학","#0A84FF"],["영어","#30C46B"],["통합사회","#AF52DE"],["통합과학","#FF9F0A"],["한국사","#8E6E53"]];
-let D = { mode:"f", base:[{ s:"국어" },{ s:"수학" },{ s:"영어" }], seeded:"", bg:"w", acc:0, chars:["rabbit","bear","ham"], mine:[], th:[3,6,10], weak:"", subj:SUBJ0.map(([n, c]) => ({ n, c })), plans:{}, log:{}, timer:null, grades:[] };
+let D = { mode:"f", base:[{ s:"국어" },{ s:"수학" },{ s:"영어" }], seeded:"", exams:[], weekSeen:"", focusOff:false, bg:"w", acc:0, chars:["rabbit","bear","ham"], mine:[], th:[3,6,10], weak:"", subj:SUBJ0.map(([n, c]) => ({ n, c })), plans:{}, log:{}, timer:null, grades:[] };
 try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v) D = { ...D, ...v }; } catch (e) {}
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} if (typeof nativeSync === "function") nativeSync(); };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const pad = n => String(n).padStart(2, "0");
@@ -346,7 +369,7 @@ function charCompose(r, zoom=1, dx=0, dy=0, size=320, out){
 function weakSubj(){
   if (D.weak) return D.weak;
   const g = D.grades[D.grades.length - 1]; if (!g) return "";
-  let w = "", wg = 0; for (const [n, v] of Object.entries(g.g)) if (v > wg){ wg = v; w = n; }
+  let w = "", wg = 0; for (const [n, v] of Object.entries(g.g)) if (v > wg){ wg = v; w = n; }   // 한 시험 안에서는 등급 숫자가 클수록 약해요 (내신 1~5 · 모의 1~9)
   return w;
 }
 const plansOf = k => (D.plans[k] = D.plans[k] || []);
@@ -387,7 +410,7 @@ const WD = ["일","월","화","수","목","금","토"];
 function viewToday(){
   seedToday();
   const k = today(), d = new Date(), w = weakSubj(), L = sorted(plansOf(k)), n = L.filter(p => p.done).length, pg = progHtml(), pct = pg.pct;
-  return `<div class="hd"><div><div class="sub" style="color:var(--mode)">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div><h1 class="big ttl">오늘 할 일</h1></div><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></div>
+  return `<div class="hd"><div><div class="sub" style="color:var(--mode)">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일${ddayTag()}</div><h1 class="big ttl">오늘 할 일</h1></div><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></div>
     <div class="prog"><span>할 일 ${n}/${L.length}</span><span class="tr"><i id="pgBar" style="width:${pct}%"></i><span class="walker" id="pgWalk" style="left:${pct}%">${ch(2)}</span></span><span id="pgTxt">${pg.txt}</span></div>
     ${todaySay()}
     ${L.length ? `<div class="list cards peek">${L.map((p, i) => { const o = S.open[p.id], sec = (D.log[k] || {})[p.s] || 0;
@@ -403,15 +426,34 @@ function viewToday(){
 }
 
 /* 고치기: 카드 안에서 바로 이름 · 시간 · 순서/쪽수를 고쳐요 */
+/* 📅 시험 D-day: 설정에 넣은 시험 중 오늘부터 가장 가까운 것 */
+function nextExam(){ const t = today(); return [...D.exams].filter(x => x.d >= t).sort((a, b) => a.d < b.d ? -1 : 1)[0]; }
+const dLeft = d => Math.round((new Date(d + "T00:00") - new Date(today() + "T00:00")) / 864e5);
+function ddayTag(){ const x = nextExam(); if (!x) return ""; const n = dLeft(x.d); return ` <span class="dday">${esc(x.n)} ${n ? "D-" + n : "D-day"}</span>`; }
 function inlineEdit(p){
+  const dr = S.draft && S.draft.id === p.id ? S.draft : { name:p.s, det:p.det.join("\n") };
   return `<div class="ied">
-    <input id="eName" value="${esc(p.s)}" maxlength="16" aria-label="이름" placeholder="이름 (예: 수학)">
-    <textarea id="eDet" rows="3" aria-label="세부 계획" placeholder="세부 계획 (한 줄에 하나, 자유롭게)&#10;예: 국어 1~3쪽 30분 공부하기&#10;예: 수학 문제 20개 · 46쪽까지">${esc(p.det.join("\n"))}</textarea>
+    <input id="eName" value="${esc(dr.name)}" maxlength="16" aria-label="이름" placeholder="이름 (예: 수학)">
+    <textarea id="eDet" rows="3" aria-label="세부 계획" placeholder="세부 계획 (한 줄에 하나, 자유롭게)&#10;예: 국어 1~3쪽 30분 공부하기&#10;예: 수학 문제 20개 · 46쪽까지">${esc(dr.det)}</textarea>
     <div class="ied-b"><button type="button" class="link del" data-act="eCancel">취소</button><button type="button" class="link" data-act="eSave" data-v="${p.id}">저장</button></div></div>`;
 }
 
 /* ===================== 달력 ===================== */
 const lvOf = h => !h ? 0 : h < D.th[0] ? 1 : h < D.th[1] ? 2 : h < D.th[2] ? 3 : 4;
+/* 📊 지난 7일 돌아보기 (오늘 포함 7일): 순공 합 · 공부한 날 · 가장 많이 한 것 · 체크한 할 일 */
+function weekStats(end = new Date()){
+  let sec = 0, days = 0, by = {}, done = 0, all = 0;
+  for (let i = 0; i < 7; i++){ const d = new Date(end); d.setDate(d.getDate() - i); const k = dk(d), s1 = secOf(k); sec += s1; if (s1 >= 60) days++;
+    for (const [n, v] of Object.entries(D.log[k] || {})) by[n] = (by[n] || 0) + v;
+    const L = D.plans[k] || []; all += L.length; done += L.filter(p => p.done).length; }
+  const top = Object.entries(by).sort((a, b) => b[1] - a[1])[0];
+  return { sec, days, top: top ? top[0] : "", done, all };
+}
+function weekCard(w){
+  return `<div class="week"><div class="sayw"><span class="ava">${ch(0)}</span><div class="say">${esc(D.mode === "t" ? `7일 순공 ${hm(w.sec)} · ${w.days}일 · 체크 ${w.done}/${w.all}.` : w.days >= 5 ? `일주일에 ${w.days}일이나 공부했어! 정말 멋져.` : w.days ? `이번 주 ${w.days}일 공부했어. 다음 주엔 하루만 더 해 보자!` : "이번 주는 쉬어 갔네. 내일 10분부터 다시 해 보자!")}</div></div>
+    <div class="wk"><div><b>${hm(w.sec)}</b><small>순공 합계</small></div><div><b>${w.days}일</b><small>공부한 날</small></div><div><b>${w.all ? Math.round(w.done / w.all * 100) : 0}%</b><small>할 일 체크</small></div></div>
+    ${w.top ? `<p class="note" style="text-align:center">가장 많이 한 과목 · <b style="color:var(--mode)">${esc(w.top)}</b></p>` : ""}</div>`;
+}
 function viewCal(){
   const now = new Date(), m = S.calM || new Date(now.getFullYear(), now.getMonth(), 1), y = m.getFullYear(), mo = m.getMonth();
   const days = new Date(y, mo + 1, 0).getDate(), first = new Date(y, mo, 1).getDay(), tk = today();
@@ -427,19 +469,21 @@ function viewCal(){
   const studied = [...Array(upto)].filter((_, i) => secOf(`${y}-${pad(mo + 1)}-${pad(i + 1)}`) >= 60).length;
   return `<div class="hd"><div><div class="sub">하루 평균 순공 <b style="color:var(--ink)">${hm(avg)}</b></div><div class="mnav"><button type="button" class="ic" data-act="mPrev" aria-label="지난달">‹</button><h1 class="big">${y === now.getFullYear() ? "" : y + "년 "}${mo + 1}월</h1><button type="button" class="ic" data-act="mNext" aria-label="다음 달">›</button></div></div><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></div>
     <div class="cal">${cells}</div>
+
     <div class="lg"><span><i class="l0"></i>안 한 날</span><span><i class="l1"></i>${D.th[0]}시간 미만</span><span><i class="l2"></i>${D.th[0]}시간+</span><span><i class="l3"></i>${D.th[1]}시간+</span><span><i class="l4"></i>${D.th[2]}시간+</span></div>
+    ${isThis ? `<p class="gh" style="margin:6px 4px -8px">지난 7일 돌아보기</p>${weekCard(weekStats())}` : ""}
     ${sel ? `<div class="dayinfo"><b>${+sel.slice(5, 7)}월 ${+sel.slice(8)}일 · 순공 ${hm(secOf(sel))}</b>${dl.length ? dl.map(([n, v]) => `<div class="r"><span><i class="mini" style="background:${colorOf(n)}"></i>${esc(n)}</span><span>${hm(v)}</span></div>`).join("") : `<div class="r"><span class="sub">이날은 기록이 없어요</span></div>`}</div>` : ""}
     ${future ? "" : say(studied ? `이번 달 ${studied}일 공부했어! 안 한 날도 괜찮아, 내일 다시 하면 돼.` : "이번 달 첫 칸을 채워 볼까? 타이머로 10분만 재 봐.", `이번 달 ${studied}/${upto}일 · 하루 평균 ${hm(avg)}.`)}`;
 }
 
 /* ===================== 성적 ===================== */
 function viewGrades(){
-  const G = D.grades, subs = D.subj.map(s => s.n).filter(n => G.some(g => g.g[n]));
+  const T = S.gtype || "mock", MX = T === "naesin" ? 5 : 9, G = D.grades.filter(g => (g.type || "mock") === T), subs = D.subj.map(s => s.n).filter(n => G.some(g => g.g[n]));
   let chart = "";
   if (G.length){
-    const W = 300, H = 150, x = i => G.length === 1 ? W / 2 : 24 + i * (W - 48) / (G.length - 1), y = v => 14 + (v - 1) * (H - 40) / 8, w = weakSubj();
+    const W = 300, H = 150, x = i => G.length === 1 ? W / 2 : 24 + i * (W - 48) / (G.length - 1), y = v => 14 + (v - 1) * (H - 40) / (MX - 1), w = weakSubj();
     chart = `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="과목별 등급 변화">
-      ${[1,3,5,7,9].map(v => `<text x="0" y="${y(v) + 3}" font-size="9" fill="#8E8E93">${v}</text><path d="M12 ${y(v)}H${W}" stroke="rgba(60,60,67,.08)"/>`).join("")}
+      ${(MX === 5 ? [1,2,3,4,5] : [1,3,5,7,9]).map(v => `<text x="0" y="${y(v) + 3}" font-size="9" fill="#8E8E93">${v}</text><path d="M12 ${y(v)}H${W}" stroke="rgba(60,60,67,.08)"/>`).join("")}
       ${G.map((g, i) => `<text x="${x(i)}" y="${H - 6}" font-size="9" fill="#8E8E93" text-anchor="middle">${esc(g.name.slice(0, 6))}</text>`).join("")}
       ${subs.map(n => { const pts = G.map((g, i) => g.g[n] ? `${x(i)},${y(g.g[n])}` : null).filter(Boolean), on = n === w;
         return `<polyline points="${pts.join(" ")}" fill="none" stroke="${on ? "var(--mode)" : "#C7C7CC"}" stroke-width="${on ? 3 : 2}"/>${pts.length ? `<circle cx="${pts[pts.length - 1].split(",")[0]}" cy="${pts[pts.length - 1].split(",")[1]}" r="${on ? 4.5 : 3}" fill="${on ? "var(--mode)" : "#C7C7CC"}"/>` : ""}`; }).join("")}
@@ -448,13 +492,40 @@ function viewGrades(){
   const last = G[G.length - 1], prev = G[G.length - 2], w = weakSubj();
   let up = ""; if (last && prev) for (const [n, v] of Object.entries(last.g)) if (prev.g[n] && v < prev.g[n] && (!up || prev.g[n] - v > prev.g[up] - last.g[up])) up = n;
   return `<div class="hd"><div><div class="sub">${last ? esc(last.name) : "시험 성적을 넣어 보세요"}</div><h1 class="big">성적</h1></div><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></div>
+    <span class="seg" style="align-self:flex-start"><button type="button" data-act="gType" data-v="mock" aria-pressed="${T === "mock"}">모의고사 · 1~9등급</button><button type="button" data-act="gType" data-v="naesin" aria-pressed="${T === "naesin"}">내신 · 1~5등급</button></span>
     ${chart}
-    ${last ? say(up ? `${up}가 올랐어, 대단해! ${w && w !== up ? `이제 ${w} 차례야.` : ""}` : w ? `${w}를 조금씩 같이 올려 보자. 오늘 15분부터.` : "성적을 넣었어! 다음 시험이랑 비교해 보자.",
+    ${last ? say(up ? `${up}가 올랐어, 대단해! ${w && w !== up ? `이제 ${w} 차례야.` : ""}` : w ? `${w}를 조금씩 같이 올려 보자. 오늘 작게 하나부터.` : "성적을 넣었어! 다음 시험이랑 비교해 보자.",
       `${w ? `약한 과목 ${w} ${last.g[w] || "-"}등급.` : ""} ${up ? `${up} ${prev.g[up]}→${last.g[up]}.` : ""} 시간을 ${w || "약한 과목"}으로.`)
       : say("성적을 넣으면 약한 과목을 찾아서 오늘 할 일 맨 앞에 둘게.", "성적 0개. 등급부터 넣어.")}
     ${G.length ? `<div class="list glist">${[...G].reverse().map(g => `<div class="item"><div class="row"><div class="nm" data-act="gEdit" data-v="${g.id}"><span>${esc(g.name)}</span><small>${Object.entries(g.g).map(([n, v]) => `${n} ${v}`).join(" · ")}</small></div></div></div>`).join("")}</div>` : ""}
     <button type="button" class="add" data-act="gAdd">성적 넣기</button>
-    <p class="note" style="text-align:center">성적은 이 휴대폰에만 저장돼요. 성적표 사진 읽기는 다음 버전에 넣을게요</p>`;
+    <p class="note" style="text-align:center">성적은 이 휴대폰에만 저장돼요${NAT ? ". 성적표 사진은 휴대폰 안에서 숫자만 읽고 사진은 남기지 않아요" : ". 성적표 사진 읽기는 아이폰 앱에서 돼요"}</p>`;
+}
+
+/* 📷 성적표 사진 읽기 (아이폰 앱): 휴대폰 안(애플 Vision)에서 글자를 읽어 와서, 과목 줄마다 등급을 찾아요. 사진은 저장하지 않아요
+   lines = [{ t:글자, x, y, w, h }] (0~1, 위가 0). 같은 높이의 글자를 한 줄로 묶어요
+   내신(나이스 성적 통지표): 과목 줄에서 성취도(A~E) 뒤에 나오는 1~5 숫자 = 석차등급
+   모의고사(전국연합 성적표): 과목 줄에서 백분위(소수) 뒤에 나오는 1~9 숫자 = 등급, 없으면 줄의 마지막 1~9 숫자 */
+const ALIAS = { "국어":["국어","공통국어","국 어"], "수학":["수학","공통수학","수 학"], "영어":["영어","공통영어","영 어"], "한국사":["한국사"], "통합사회":["통합사회","사회"], "통합과학":["통합과학","과학"] };
+function parseReport(lines){
+  const all = lines.map(l => l.t).join(" "), type = /성취도|석차등급|통지표/.test(all) ? "naesin" : "mock", MX = type === "naesin" ? 5 : 9;
+  const L = [...lines].sort((a, b) => a.y - b.y), rows = [];
+  for (const l of L){ const r = rows.find(r => Math.abs(r.y - l.y) < Math.max(l.h, r.h) * .6); if (r){ r.items.push(l); r.y = (r.y + l.y) / 2; } else rows.push({ y:l.y, h:l.h, items:[l] }); }
+  const g = {};
+  for (const sb of D.subj.map(s => s.n)){
+    const keys = ALIAS[sb] || [sb];
+    for (const r of rows){
+      const it = r.items.sort((a, b) => a.x - b.x), i0 = it.findIndex(x => keys.some(k => x.t.replace(/\s/g, "").startsWith(k.replace(/\s/g, ""))));
+      if (i0 < 0 || g[sb]) continue;
+      const toks = it.slice(i0 + 1).flatMap(x => x.t.split(/\s+/)).filter(Boolean);
+      let v = 0;
+      if (type === "naesin"){ const a = toks.findIndex(t => /^[A-E]$/.test(t)); if (a >= 0) for (const t of toks.slice(a + 1)){ if (/\(/.test(t)) continue; if (/^[1-5]$/.test(t)){ v = +t; break; } } }
+      else { const pIdx = toks.findIndex(t => /^\d{1,3}\.\d{1,2}$/.test(t)); if (pIdx >= 0) for (const t of toks.slice(pIdx + 1)){ if (/^[1-9]$/.test(t)){ v = +t; break; } } }
+      if (!v){ const ns = toks.filter(t => new RegExp(`^[1-${MX}]$`).test(t)); if (ns.length) v = +ns[ns.length - 1]; }
+      if (v) g[sb] = v;
+    }
+  }
+  return { type, g };
 }
 
 /* ===================== 음악 (관리자가 고른 목록 · 누르면 유튜브) =====================
@@ -468,9 +539,18 @@ const MUSIC = [
   ["숲속 빗소리 · 장작 소리", "자연 소리", yt("rain forest fireplace sounds study")],
   ["백색소음 · 도서관 소리", "백색소음", yt("library ambience white noise study")]
 ];
+/* 선생님이 확인한 추천곡 (Firestore first_music, 누구나 읽기) + 위 MUSIC 기본 목록 */
+const FS = "https://firestore.googleapis.com/v1/projects/moon-d528d/databases/(default)/documents", FKEY = "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o";
+let MUSIC2 = [];
+fetch(`${FS}/first_music?key=${FKEY}&pageSize=100`).then(r => r.json()).then(j => {
+  MUSIC2 = (j.documents || []).map(d => { const f = d.fields || {}, v = k => f[k]?.stringValue || ""; return [v("t"), v("g") || "친구 추천", v("url"), +(f.at?.integerValue || 0)]; })
+    .filter(x => x[0] && /^https:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\//.test(x[2])).sort((a, b) => b[3] - a[3]);
+  if (S.tab === "music") render();
+}).catch(() => {});
 function viewMusic(){
+  const ALL = [...MUSIC2, ...MUSIC];
   return `<div class="hd"><div><div class="sub">공부할 때 틀어 두기 좋아요</div><h1 class="big">공부 음악</h1></div><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></div>
-    <div class="list">${MUSIC.map(([t, g, u]) => `<div class="item"><a class="row" href="${esc(u)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="nm"><span>${esc(t)}</span><small>${esc(g)}</small></div><span class="sub">유튜브 ↗</span></a></div>`).join("")}</div>
+    <div class="list">${ALL.map(([t, g, u]) => `<div class="item"><a class="row" href="${esc(u)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="nm"><span>${esc(t)}</span><small>${esc(g)}</small></div><span class="sub">유튜브 ↗</span></a></div>`).join("")}</div>
     <button type="button" class="add" data-act="rec">음악 추천하기</button>
     <p class="note" style="text-align:center">친구들이 추천한 음악 중 선생님이 확인한 것만 올라와요. 누르면 유튜브에서 열려요</p>`;
 }
@@ -489,6 +569,7 @@ function viewSettings(){
       <button type="button" class="capb" data-act="cap"><i>📸</i><span><b>캡처한 그림으로 내 캐릭터 만들기 (${D.mine.length}/${MINE_MAX})</b><small>좋아하는 캐릭터를 캡처해서 넣으면 바탕을 지우고 맞춰요. 무료 · 이 휴대폰에만 저장돼요.</small></span></button></div>
     <p class="gh">잔소리 쌤</p><div class="grp"><div class="row"><span>말투</span><span class="seg"><button type="button" data-act="mode" data-v="f" aria-pressed="${D.mode === "f"}">F쌤 · 다정하게</button><button type="button" data-act="mode" data-v="t" aria-pressed="${D.mode === "t"}">T쌤 · 딱</button></span></div></div>
     <p class="gh">약한 과목 (오늘 할 일 맨 앞에 와요)</p><div class="grp"><div class="row"><span>약한 과목</span><select id="weakSel" aria-label="약한 과목" style="border:0;background:none;text-align:right;color:var(--mode);font-weight:600"><option value="">자동${auto ? ` (${auto})` : ""}</option>${D.subj.map(s => `<option ${D.weak === s.n ? "selected" : ""}>${esc(s.n)}</option>`).join("")}</select></div></div>
+    <p class="gh">시험 D-day (오늘 화면 위에 가장 가까운 시험이 보여요)</p><div class="grp">${[...D.exams].sort((a, b) => a.d < b.d ? -1 : 1).map(x => `<div class="row"><span>${esc(x.n)} <small class="sub">${x.d.slice(5).replace("-", "/")} · ${dLeft(x.d) >= 0 ? (dLeft(x.d) ? "D-" + dLeft(x.d) : "D-day") : "지남"}</small></span><button type="button" class="link del" data-act="exDel" data-v="${x.id}">빼기</button></div>`).join("")}<div class="row"><input id="exName" placeholder="시험 이름 (예: 기말고사)" maxlength="12" style="border:0;background:none;flex:1;min-width:0;font-size:15px"><input id="exDate" type="date" aria-label="시험 날짜" style="border:0;background:none;font-size:14px;max-width:140px"><button type="button" class="link" data-act="exAdd">더하기</button></div></div>
     <p class="gh">달력 진하기 기준 (순공 시간)</p><div class="grp">${stepRow(0, "연하게", 2)}${stepRow(1, "진하게", 3)}${stepRow(2, "가장 진하게", 4)}</div>
     <p class="note" style="margin:-8px 4px 0">시험 기간엔 높게, 방학엔 낮게 바꿔도 돼요</p>
     <p class="gh">매일 기본 할 일 (그날 처음 열면 오늘 할 일에 들어가요)</p><div class="grp">${D.base.map((x, i) => `<div class="row"><input data-base="${i}" value="${esc(x.s)}" maxlength="16" aria-label="기본 할 일 ${i + 1} 이름" style="border:0;background:none;flex:1;min-width:0;font-size:15px">${i ? `<button type="button" class="link" data-act="baseUp" data-v="${i}" aria-label="위로">↑</button>` : ""}<button type="button" class="link del" data-act="baseDel" data-v="${i}">빼기</button></div>`).join("")}<div class="row"><input id="baseNew" placeholder="기본 할 일 더하기 (예: 통합과학)" maxlength="16" style="border:0;background:none;flex:1;font-size:15px"><button type="button" class="link" data-act="baseAdd">더하기</button></div></div>
@@ -497,7 +578,8 @@ function viewSettings(){
     <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기</span><button type="button" class="link del" data-act="wipe">${S.wipe ? "한 번 더 누르면 지워져요" : "지우기"}</button></div></div>
     <details class="policy"><summary>먼저 플래너 · 이용약관 · 개인정보 처리방침</summary><div>
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
-      <h4>개인정보 처리방침</h4>계획 · 공부 시간 · 성적 · 설정 · 내가 넣은 캐릭터 그림은 <b>이 휴대폰(브라우저) 안에만</b> 저장되고 서버로 보내지 않아요. 캡처해서 넣은 그림은 나만 보는 꾸미기용이에요. 이름 · 학교 · 연락처는 받지 않아요. '음악 추천하기'에 적은 링크와 이유만 선생님(운영자)에게 전달돼요. 앱을 지우거나 위의 '모든 기록 지우기'를 누르면 기록이 사라져요. 방문 수는 횟수만 세요.
+      <h4>개인정보 처리방침</h4>계획 · 공부 시간 · 성적 · 설정 · 내가 넣은 캐릭터 그림은 <b>이 휴대폰(브라우저) 안에만</b> 저장되고 서버로 보내지 않아요. 캡처해서 넣은 그림은 나만 보는 꾸미기용이에요. 아이폰 앱에서는 기기를 바꿔도 이어지도록 내 아이클라우드(Apple)에 백업하고, 홈 화면 위젯 · 잠금 화면 타이머에 오늘 할 일과 순공 시간을 보여 줘요. 성적표 사진은 휴대폰 안에서 숫자만 읽고 사진은 저장하거나 보내지 않아요. 이름 · 학교 · 연락처는 받지 않아요. '음악 추천하기'에 적은 링크와 이유만 선생님(운영자)에게 전달돼요. 앱을 지우거나 위의 '모든 기록 지우기'를 누르면 기록이 사라져요. 방문 수는 횟수만 세요.
+      <h4>음악 추천</h4>'음악 추천하기'로 보낸 유튜브 주소와 한 줄 이유는 운영자(선생님)가 확인하려고 서버에 저장해요. 누가 보냈는지는 저장하지 않아요. 확인한 곡만 모두에게 보여요.
       <h4>문의</h4>담임 선생님을 통해 운영자에게 알려 주세요.
     </div></details>`;
 }
@@ -517,21 +599,28 @@ function viewSide(){
       <div style="margin-top:14px;max-width:260px" id="tsay">${t ? (t.start ? say("잘하고 있어! 다 하면 끝내기를 눌러 줘.", "측정 중. 휴대폰 내려놔.") : say("잠깐 쉬는 중이야. 준비되면 다시 시작!", "일시정지 중.")) : say("시작을 누르면 순공 시간이 쌓여요.", "시작 누르면 측정.")}</div>
       <div class="btns" style="margin-top:12px">${!t ? `<button type="button" class="pill" data-act="tGo" data-v="${esc(sel)}">시작</button>`
         : `${t.start ? `<button type="button" class="pill light" data-act="tPause">잠깐 쉬기</button>` : `<button type="button" class="pill light" data-act="tResume">다시 시작</button>`}<button type="button" class="pill" data-act="tEnd">끝내기</button>`}</div>
-      ${t ? `<button type="button" class="link del" data-act="tCancel" style="margin-top:6px">기록하지 않고 그만두기</button>` : ""}</div>`;
+      ${t ? `<button type="button" class="link del" data-act="tCancel" style="margin-top:6px">기록하지 않고 그만두기</button>` : ""}
+      ${t && t.start && !D.focusOff ? `<div class="focus"><b>📵 집중 모드 켜기</b>오른쪽 위에서 쓸어내려 제어 센터 ▸ <b>집중 모드</b>를 켜면 알림이 안 와요.<button type="button" class="link del" data-act="focusOff">다시 안 보기</button></div>` : ""}</div>`;
 }
 function tick(){
-  const t = D.timer; $("edge").classList.toggle("run", !!(t && t.start));
+  const t = D.timer; $("edge")?.classList.toggle("run", !!(t && t.start));
   if ($("pgBar")){ const pg = progHtml(); $("pgBar").style.width = $("pgWalk").style.left = pg.pct + "%"; $("pgTxt").textContent = pg.txt; }
   if (!t || !$("tnum")) return;
   const sec = tsec(), h = Math.floor(sec / 3600), mm = `${h ? h + ":" + pad(Math.floor(sec / 60) % 60) : Math.floor(sec / 60)}:${pad(Math.floor(sec % 60))}`;
   $("tnum").textContent = mm; if ($("tgoal")) $("tgoal").textContent = `오늘 순공 ${hm(liveSec())}`;
 }
 setInterval(tick, 500);
+/* 끝내기: 자정을 넘긴 시간은 날짜별로 나눠서 넣어요 (쉬기 전에 잰 시간은 처음 시작한 날로) */
+function addLog(day, subj, sec){ if (sec < 1) return; D.log[day] = D.log[day] || {}; D.log[day][subj] = (D.log[day][subj] || 0) + Math.round(sec); }
 function endTimer(keep){
   const t = D.timer; if (!t) return;
-  const sec = Math.round(tsec()), k = today();
-  if (keep && sec >= 30){ D.log[k] = D.log[k] || {}; D.log[k][t.s] = (D.log[k][t.s] || 0) + sec;
-    toast(`${t.s} 순공 ${hm(sec)} 기록했어요`); }
+  const sec = Math.round(tsec());
+  if (keep && sec >= 30){
+    addLog(t.d0 || today(), t.s, t.acc);
+    if (t.start){ let a = t.start; const now = Date.now();
+      while (true){ const m = new Date(a); m.setHours(24, 0, 0, 0); if (m.getTime() >= now) break; addLog(dk(new Date(a)), t.s, (m - a) / 1000); a = m.getTime(); }
+      addLog(dk(new Date(a)), t.s, (now - a) / 1000); }
+    toast(`${t.s} 순공 ${hm(sec)} 기록했어요`); haptic("ok"); }
   D.timer = null; save();
 }
 
@@ -546,11 +635,13 @@ function sheetPlan(p){
     <div class="btns"><button type="button" class="pill light" data-act="sheetClose">닫기</button><button type="button" class="pill" data-act="pSave" data-v="${p ? p.id : ""}">${p ? "고치기" : "넣기"}</button></div>`;
 }
 function sheetGrade(g){
-  const cur = g ? g.g : (S.newG || {});
+  const cur = S.newG || (g ? g.g : {}), T = S.newT || (g ? g.type || "mock" : S.gtype || "mock"), MX = T === "naesin" ? 5 : 9;
   return `<h2>${g ? "성적 고치기" : "성적 넣기"}</h2>
-    <label for="gName">시험 이름<input id="gName" maxlength="20" placeholder="예: 11월 모의고사, 2학기 중간" value="${esc(g ? g.name : "")}"></label>
+    <span class="seg"><button type="button" data-act="gT" data-v="mock" aria-pressed="${T === "mock"}">모의고사 1~9</button><button type="button" data-act="gT" data-v="naesin" aria-pressed="${T === "naesin"}">내신 1~5</button></span>
+    ${NAT && !g ? `<button type="button" class="pill light" data-act="gPhoto" style="color:var(--ink)">📷 성적표 사진으로 채우기</button>` : ""}
+    <label for="gName">시험 이름<input id="gName" maxlength="20" placeholder="예: 11월 모의고사, 2학기 중간" value="${esc(S.newName ?? (g ? g.name : ""))}"></label>
     <p class="note">과목마다 등급을 눌러요 (모르면 비워 둬요)</p>
-    ${D.subj.map(s => `<div class="gpick"><span><i class="mini" style="background:${s.c}"></i>${esc(s.n)}</span><div class="chips">${[1,2,3,4,5,6,7,8,9].map(v => `<button type="button" data-act="gv" data-s="${esc(s.n)}" data-v="${v}" aria-pressed="${cur[s.n] === v}">${v}</button>`).join("")}</div></div>`).join("")}
+    ${D.subj.map(s => `<div class="gpick"><span><i class="mini" style="background:${s.c}"></i>${esc(s.n)}</span><div class="chips">${[...Array(MX)].map((_, i) => i + 1).map(v => `<button type="button" data-act="gv" data-s="${esc(s.n)}" data-v="${v}" aria-pressed="${cur[s.n] === v}">${v}</button>`).join("")}</div></div>`).join("")}
     <div class="btns">${g ? `<button type="button" class="pill light" data-act="gDel" data-v="${g.id}">지우기</button>` : `<button type="button" class="pill light" data-act="sheetClose">닫기</button>`}<button type="button" class="pill" data-act="gSave" data-v="${g ? g.id : ""}">${g ? "고치기" : "넣기"}</button></div>`;
 }
 function sheetRec(){
@@ -615,6 +706,7 @@ document.addEventListener("input", e => {
   if (e.target.id === "capTol"){ CAPS.tol = +e.target.value; clearTimeout(capT); capT = setTimeout(() => { CAPS.res = null; capDraw(); }, 80); }
   if (e.target.id === "capZoom"){ CAPS.zoom = +e.target.value; capDraw(); }
   if (e.target.id === "capPaste") e.target.innerHTML = "캡처한 그림을 여기에 붙여 넣어요";
+  if ((e.target.id === "eName" || e.target.id === "eDet") && S.editing) S.draft = { id:S.editing, name:$("eName").value, det:$("eDet").value };   // 고치는 중 다른 걸 눌러도 글이 남게
 });
 document.addEventListener("paste", e => { if (S.sheet?.t !== "cap") return; const it = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith("image/")); if (it){ e.preventDefault(); capLoad(it.getAsFile()); } });
 document.addEventListener("click", e => {
@@ -627,7 +719,7 @@ document.addEventListener("click", e => {
     case "back": S.tab = "today"; break;
     case "toggle": S.open[v] = !S.open[v]; break;
     case "check": { const p = plansOf(k).find(x => x.id === v); if (!p) return; p.done = !p.done; save(); render();
-      if (p.done){ const L = plansOf(k), all = L.every(x => x.done), s2 = $("say2");
+      if (p.done){ haptic("ok"); const L = plansOf(k), all = L.every(x => x.done), s2 = $("say2");
         if (s2){ s2.textContent = all ? (D.mode === "t" ? "전부 완료." : "다 했다! 최고야!") : (D.mode === "t" ? "체크. 다음." : "잘했어! 다음 칸 가자!"); requestAnimationFrame(() => s2.classList.add("on")); setTimeout(() => s2.classList.remove("on"), 1800); } }
       return; }
     case "bgSet": D.bg = v; D.acc = (BGS.find(b => b[0] === v) || [])[3] ?? D.acc; save(); break;
@@ -641,16 +733,20 @@ document.addEventListener("click", e => {
       const id = uid(); D.mine.push({ id, url:$("capOut").toDataURL("image/png") }); D.chars[S.slot] = "m:" + id;
       try { save(); localStorage.getItem(KEY); } catch (err) {} closeSheet(); toast("내 캐릭터를 넣었어요"); break; }
     case "start": { const p = plansOf(k).find(x => x.id === v); if (!p) return; if (D.timer){ toast("다른 타이머가 돌고 있어요"); $("app").classList.add("timer-open"); break; }
-      D.timer = { s:p.s, pid:p.id, start:Date.now(), acc:0 }; save(); $("app").classList.add("timer-open"); break; }
-    case "addPlan": S.sheet = { t:"plan" }; S.newS = ""; openSheet(sheetPlan()); return;
-    case "edit": S.editing = v; render(); setTimeout(() => { const el = $("eName"); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 30); return;
-    case "eCancel": S.editing = ""; break;
+      D.timer = { s:p.s, pid:p.id, start:Date.now(), acc:0, d0:k }; haptic("tap"); save(); $("app").classList.add("timer-open"); break; }
+    case "addPlan": { if (S.editing) return $("eName")?.focus(); const id = uid(); plansOf(k).push({ id, s:"", det:[], done:false, fresh:true }); S.editing = id; render();
+      setTimeout(() => { $("eName")?.focus(); $("eName")?.scrollIntoView({ block:"center", behavior:"smooth" }); }, 30); return; }
+    case "edit": S.editing = v; S.draft = null; render(); setTimeout(() => { const el = $("eName"); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 30); return;
+    case "eCancel": { const p = plansOf(k).find(x => x.id === S.editing); if (p && p.fresh) D.plans[k] = plansOf(k).filter(x => x !== p); S.editing = ""; S.draft = null; save(); break; }
     case "eSave": { const p = plansOf(k).find(x => x.id === v), n = $("eName").value.trim(); if (!n){ toast("이름을 써 주세요"); $("eName").focus(); return; }
-      if (p){ p.s = n; p.det = $("eDet").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0, 8); }
-      S.editing = ""; save(); toast("고쳤어요"); break; }
+      const was = p && p.fresh; if (p){ p.s = n; p.det = $("eDet").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0, 8); delete p.fresh; }
+      S.editing = ""; S.draft = null; save(); toast(was ? "넣었어요" : "고쳤어요"); break; }
     case "del": D.plans[k] = plansOf(k).filter(x => x.id !== v); save(); break;
     case "mv": { const L = plansOf(k), i = L.findIndex(x => x.id === v), j = i + +b.dataset.d; if (i < 0 || j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; save(); break; }
     case "baseDel": D.base.splice(+v, 1); save(); break;
+    case "exAdd": { const n = $("exName").value.trim(), d = $("exDate").value; if (!n || !d){ toast("시험 이름과 날짜를 넣어 주세요"); return; } D.exams.push({ id:uid(), n, d }); save(); break; }
+    case "exDel": D.exams = D.exams.filter(x => x.id !== v); save(); break;
+    case "focusOff": D.focusOff = true; save(); break;
     case "baseUp": { const i = +v; if (i > 0){ [D.base[i - 1], D.base[i]] = [D.base[i], D.base[i - 1]]; save(); } break; }
     case "baseAdd": { const n = $("baseNew").value.trim(); if (!n) return; if (D.base.length >= 10){ toast("10개까지 넣을 수 있어요"); return; } D.base.push({ s:n }); save(); break; }
     case "pS": S.newS = v; pick("pS", "pS"); $("pName").value = v; return;
@@ -661,26 +757,34 @@ document.addEventListener("click", e => {
     case "sheetClose": closeSheet(); return;
     case "closeT": closeTimer(); return;
     case "tsel": S.tsel = v; break;
-    case "tGo": { const p = sorted(plansOf(k)).find(x => x.s === v && !x.done); D.timer = { s:v, pid:p ? p.id : "", start:Date.now(), acc:0 }; save(); break; }
+    case "tGo": { const p = sorted(plansOf(k)).find(x => x.s === v && !x.done); D.timer = { s:v, pid:p ? p.id : "", start:Date.now(), acc:0, d0:k }; haptic("tap"); save(); break; }
     case "tPause": if (D.timer && D.timer.start){ D.timer.acc = tsec(); D.timer.start = 0; save(); } break;
     case "tResume": if (D.timer && !D.timer.start){ D.timer.start = Date.now(); save(); } break;
     case "tEnd": endTimer(true); break;
     case "tCancel": D.timer = null; save(); toast("기록하지 않았어요"); break;
     case "mPrev": case "mNext": { const now = new Date(), m = S.calM || new Date(now.getFullYear(), now.getMonth(), 1); S.calM = new Date(m.getFullYear(), m.getMonth() + (a === "mNext" ? 1 : -1), 1); S.calDay = ""; break; }
     case "day": S.calDay = S.calDay === v ? "" : v; break;
-    case "gAdd": S.sheet = { t:"grade" }; S.newG = {}; openSheet(sheetGrade()); return;
-    case "gEdit": { const g = D.grades.find(x => x.id === v); if (g){ S.sheet = { t:"grade", g }; S.newG = { ...g.g }; openSheet(sheetGrade(g)); } return; }
+    case "gAdd": S.sheet = { t:"grade" }; S.newG = {}; S.newT = S.gtype || "mock"; S.newName = null; openSheet(sheetGrade()); return;
+    case "gEdit": { const g = D.grades.find(x => x.id === v); if (g){ S.sheet = { t:"grade", g }; S.newG = { ...g.g }; S.newT = g.type || "mock"; S.newName = null; openSheet(sheetGrade(g)); } return; }
+    case "gType": S.gtype = v; break;
+    case "gT": { S.newT = v; S.newName = $("gName").value; const mx = v === "naesin" ? 5 : 9; for (const n in S.newG) if (S.newG[n] > mx) delete S.newG[n]; openSheet(sheetGrade(S.sheet.g)); return; }
+    case "gPhoto": { if (!NAT) return; S.newName = $("gName").value; toast("성적표 사진을 골라 주세요");
+      NAT.scanGrades().then(r => { const lines = (r && r.lines) || []; if (!lines.length){ toast("글자를 못 읽었어요. 밝은 곳에서 반듯하게 찍어 볼까요?"); return; }
+        const o = parseReport(lines), n = Object.keys(o.g).length; S.newT = o.type; S.newG = o.g;
+        if (!S.newName){ const d = new Date(); S.newName = `${d.getMonth() + 1}월 ${o.type === "naesin" ? "내신" : "모의고사"}`; }
+        openSheet(sheetGrade()); toast(n ? `${n}과목을 읽었어요. 맞는지 확인해 주세요` : "등급을 못 찾았어요. 직접 눌러 주세요"); }).catch(() => toast("사진 읽기를 그만뒀어요")); return; }
     case "gv": { S.newG = S.newG || {}; const s = b.dataset.s, n = +v; S.newG[s] = S.newG[s] === n ? 0 : n; if (!S.newG[s]) delete S.newG[s];
       b.parentElement.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", S.newG[s] === +x.dataset.v)); return; }
     case "gSave": { const name = $("gName").value.trim() || `${new Date().getMonth() + 1}월 시험`, g = { ...(S.newG || {}) };
       if (!Object.keys(g).length){ toast("등급을 하나 이상 눌러 주세요"); return; }
-      if (v){ const o = D.grades.find(x => x.id === v); if (o) Object.assign(o, { name, g }); } else D.grades.push({ id:uid(), name, at:Date.now(), g });
+      const type = S.newT || "mock"; S.gtype = type;
+      if (v){ const o = D.grades.find(x => x.id === v); if (o) Object.assign(o, { name, g, type }); } else D.grades.push({ id:uid(), name, at:Date.now(), g, type });
       save(); closeSheet(); break; }
     case "gDel": D.grades = D.grades.filter(x => x.id !== v); save(); closeSheet(); break;
     case "rec": S.sheet = { t:"rec" }; openSheet(sheetRec()); return;
     case "recSend": { const u = $("rUrl").value.trim(), why = $("rWhy").value.trim();
       if (!/^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\//i.test(u)){ toast("유튜브 주소를 붙여 넣어 주세요"); return; }
-      sendRec(u, why); closeSheet(); toast("추천을 보냈어요. 선생님이 확인할게요"); return; }
+      sendRec(u, why).then(() => toast("추천을 보냈어요. 선생님이 확인할게요")).catch(() => toast("보내지 못했어요. 인터넷을 확인해 주세요")); closeSheet(); return; }
     case "mode": D.mode = v; save(); break;
     case "th": { const i = +v, d = +b.dataset.d, lo = i ? D.th[i - 1] + 1 : 1, hi = i < 2 ? D.th[i + 1] - 1 : 16; D.th[i] = Math.max(lo, Math.min(hi, D.th[i] + d)); save(); break; }
     case "subDel": if (D.subj.length > 1){ D.subj.splice(+v, 1); save(); } break;
@@ -689,12 +793,95 @@ document.addEventListener("click", e => {
   }
   render();
 });
-/* 🎵 추천 보내기: 서버로 보내는 길(관리자 확인)은 아직 정하지 않았어요. 정할 때까지 이 기기에만 모아 둬요 */
-async function sendRec(url, why){
-  const item = { url, why, at:Date.now() };
-  try { const q = JSON.parse(localStorage.getItem("first-recq") || "[]"); q.push(item); localStorage.setItem("first-recq", JSON.stringify(q)); } catch (x) {}
+/* ===================== 🔐 관리자 (#admin 또는 ?admin): 학생이 보낸 공부 음악 추천 확인 =====================
+   moontr.site 공용 관리자 로그인(구글, 관리자 구글 계정)을 써요. 관리자 아닌 계정이면 바로 로그아웃
+   올리기 = first_music 에 제목 · 갈래 · 주소를 넣고 추천은 지워요 · 지우기 = 추천만 지워요 */
+const ADMIN_EMAILS = ["anstjsdud@sen.go.kr", "bellachord@gmail.com"];
+const isAdminEmail = e => ADMIN_EMAILS.includes(String(e || "").toLowerCase());
+const IS_ADMIN_PAGE = /(^|[?&])admin\b/.test(location.search) || location.hash === "#admin";
+async function loadScript(u){ await new Promise((ok, no) => { const sc = document.createElement("script"); sc.src = u; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); }); }
+async function adminPage(){
+  const app = $("app"); app.innerHTML = `<main id="main"><div class="hd"><div><div class="sub">먼저 플래너 · 관리자</div><h1 class="big">공부 음악 추천</h1></div></div><div id="adm" class="empty">불러오는 중…</div></main>`;
+  const V = "10.12.2"; for (const m of ["app", "auth", "firestore"]) await loadScript(`https://www.gstatic.com/firebasejs/${V}/firebase-${m}-compat.js`);
+  if (!firebase.apps.length) firebase.initializeApp({ apiKey:FKEY, authDomain:"moon-d528d.firebaseapp.com", projectId:"moon-d528d", storageBucket:"moon-d528d.firebasestorage.app", messagingSenderId:"126636401536", appId:"1:126636401536:web:25b8a8296ec42b86f99765" });
+  const auth = firebase.auth(), db = firebase.firestore(), box = () => $("adm");
+  const login = () => { box().className = ""; box().innerHTML = `<button type="button" class="pill" id="gIn">G 구글 계정으로 로그인</button><p class="note">관리자 구글 계정으로 로그인해 주세요.</p>`;
+    $("gIn").onclick = async () => { const pr = new firebase.auth.GoogleAuthProvider(); pr.setCustomParameters({ prompt:"select_account" });
+      try { const r = await auth.signInWithPopup(pr); if (!isAdminEmail(r.user.email)){ await auth.signOut(); toast("관리자 구글 계정으로 골라 주세요"); } } catch (e) { toast("로그인하지 못했어요"); } }; };
+  async function draw(){
+    const [rq, mq] = await Promise.all([db.collection("first_recs").orderBy("at", "desc").get(), db.collection("first_music").orderBy("at", "desc").get()]);
+    box().className = ""; box().innerHTML = `<p class="gh">새 추천 ${rq.size}개</p><div class="grp">${rq.docs.map(d => { const r = d.data(); return `<div class="row" style="flex-wrap:wrap;gap:6px;padding:10px 0"><a href="${esc(r.url)}" target="_blank" rel="noopener" style="flex:1 1 100%;color:var(--mode);word-break:break-all">${esc(r.url)}</a><span class="sub" style="flex:1 1 100%">${esc(r.why || "(이유 없음)")}</span>
+      <input data-t="${d.id}" placeholder="목록에 보일 제목" maxlength="30" style="flex:1;min-width:0;border:0;border-radius:10px;padding:8px;background:#fff"><input data-g="${d.id}" placeholder="갈래 (예: 피아노)" maxlength="10" style="width:110px;border:0;border-radius:10px;padding:8px;background:#fff">
+      <button type="button" class="link" data-adm="ok" data-id="${d.id}">올리기</button><button type="button" class="link del" data-adm="no" data-id="${d.id}">지우기</button></div>`; }).join("") || `<div class="row"><span class="sub">새 추천이 없어요</span></div>`}</div>
+      <p class="gh">목록에 올린 곡 ${mq.size}개</p><div class="grp">${mq.docs.map(d => { const m = d.data(); return `<div class="row"><span>${esc(m.t)} <small class="sub">${esc(m.g || "")}</small></span><button type="button" class="link del" data-adm="down" data-id="${d.id}">내리기</button></div>`; }).join("") || `<div class="row"><span class="sub">아직 없어요</span></div>`}</div>
+      <p class="note">다른 가수 노래를 모아 다시 올린 영상은 올리지 말아 주세요. 위 기본 5곡은 코드의 MUSIC 목록이에요.</p>
+      <button type="button" class="link del" id="gOut">로그아웃</button>`;
+    $("gOut").onclick = () => auth.signOut();
+  }
+  document.addEventListener("click", async e => { const b = e.target.closest("[data-adm]"); if (!b) return; const id = b.dataset.id;
+    try {
+      if (b.dataset.adm === "ok"){ const t = document.querySelector(`[data-t="${id}"]`).value.trim(); if (!t){ toast("제목을 써 주세요"); return; }
+        const r = (await db.collection("first_recs").doc(id).get()).data(); await db.collection("first_music").add({ t, g:document.querySelector(`[data-g="${id}"]`).value.trim(), url:r.url, at:Date.now() }); await db.collection("first_recs").doc(id).delete(); toast("올렸어요"); }
+      if (b.dataset.adm === "no"){ await db.collection("first_recs").doc(id).delete(); toast("지웠어요"); }
+      if (b.dataset.adm === "down"){ await db.collection("first_music").doc(id).delete(); toast("내렸어요"); }
+      draw();
+    } catch (err) { toast("안 됐어요. 보안 규칙을 게시했는지 확인해 주세요"); } });
+  auth.onAuthStateChanged(async u => { if (!u) return login(); if (!isAdminEmail(u.email)){ await auth.signOut(); return; } draw().catch(() => { box().innerHTML = `<p class="note">불러오지 못했어요. Firebase 콘솔에 새 보안 규칙(first_recs · first_music)을 게시했는지 확인해 주세요.</p>`; }); });
 }
+
+/* ===================== 📱 아이폰 앱 연결 =====================
+   앱(Capacitor)에서만 Capacitor.Plugins.First 가 있어요. 웹에서는 아무 일도 안 해요
+   - setData({json}): 위젯 · 잠금 화면 타이머용 (오늘 할 일 · 순공 · 타이머 · 말하는 쌤 그림)
+   - backup({json}) · restore(): 내 아이클라우드에 기록 백업 / 새 폰에서 되살리기
+   - haptic({style}): "tap" · "ok" 진동
+   - scanGrades(): 사진을 골라 글자 읽기 → { lines:[{t,x,y,w,h}] } */
+const NAT = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins.First : null;
+function haptic(style){ try { NAT?.haptic({ style }); } catch (e) {} }
+let avaKey = "", avaPng = "";
+function avaImage(){   // 말하는 쌤 그림을 위젯용 PNG로 (바뀔 때만 다시 그려요)
+  const id = D.chars[0]; if (id === avaKey) return Promise.resolve(avaPng);
+  return new Promise(ok => { const im = new Image(), src = charArt(id), url = src.startsWith("<img") ? src.match(/src="([^"]+)"/)[1] : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src.includes("xmlns") ? src : src.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"'));
+    im.onload = () => { const c = document.createElement("canvas"); c.width = c.height = 160; c.getContext("2d").drawImage(im, 0, 0, 160, 160); avaKey = id; avaPng = c.toDataURL("image/png"); ok(avaPng); };
+    im.onerror = () => ok(""); im.src = url; });
+}
+let natT = 0, bakT = 0;
+function nativeSync(){
+  if (!NAT) return;
+  clearTimeout(natT); natT = setTimeout(async () => {
+    const k = today(), L = plansOf(k), t = D.timer, c = COLORS[D.acc] || COLORS[0], x = nextExam();
+    const w = { date:k, tasks:L.filter(p => p.s).map(p => ({ t:p.s, d:!!p.done })), sec:Math.round(secOf(k)), color:c[0], soft:c[1], mode:D.mode,
+      say:D.mode === "t" ? "할 일부터. 지금 시작." : "오늘도 같이 해 보자!", dday:x ? `${x.n} ${dLeft(x.d) ? "D-" + dLeft(x.d) : "D-day"}` : "",
+      timer:t ? { s:t.s, run:!!t.start, from:Date.now() - tsec() * 1000, sec:Math.round(tsec()) } : null, ava:await avaImage() };
+    try { await NAT.setData({ json:JSON.stringify(w) }); } catch (e) {}
+  }, 300);
+  clearTimeout(bakT); bakT = setTimeout(() => { try { NAT.backup({ json:JSON.stringify(D) }); } catch (e) {} }, 4000);
+}
+async function nativeStart(){
+  if (!NAT) return;
+  try { const has = localStorage.getItem(KEY); if (!has){ const r = await NAT.restore(); if (r && r.json){ D = { ...D, ...JSON.parse(r.json) }; localStorage.setItem(KEY, r.json); toast("아이클라우드에서 기록을 되살렸어요"); render(); } } } catch (e) {}
+  nativeSync();
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") nativeSync(); else render(); });
+}
+/* 📊 새 주가 시작되면(월요일 이후 처음 열 때) 지난 7일 돌아보기를 한 번 보여 줘요 */
+function weekPopup(){
+  const d = new Date(), mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7)); const wk = dk(mon);
+  if (D.weekSeen === wk) return; const end = new Date(mon); end.setDate(mon.getDate() - 1); const w = weekStats(end);
+  D.weekSeen = wk; save(); if (!w.sec && !w.all) return;
+  S.sheet = { t:"week" }; openSheet(`<h2>지난주 돌아보기</h2>${weekCard(w)}<div class="btns"><button type="button" class="pill" data-act="sheetClose">좋아, 이번 주도!</button></div>`);
+}
+
+/* 🎵 추천 보내기: 서버로 보내는 길(관리자 확인)은 아직 정하지 않았어요. 정할 때까지 이 기기에만 모아 둬요 */
+/* 🎵 추천 보내기: Firestore first_recs 에 주소 · 이유 · 시각만 넣어요 (누가 보냈는지는 남기지 않아요). 선생님이 #admin 에서 확인해요 */
+async function sendRec(url, why){
+  const body = { fields:{ url:{ stringValue:url.slice(0, 200) }, why:{ stringValue:why.slice(0, 60) }, at:{ integerValue:String(Date.now()) } } };
+  const r = await fetch(`${FS}/first_recs?key=${FKEY}`, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) });
+  if (!r.ok) throw new Error("send");
+}
+if (IS_ADMIN_PAGE) adminPage(); else {
 render();
+nativeStart();
+setTimeout(weekPopup, 600);
+}
 </script>
 <script type="module" src="/visit.js?app=first"></script>
 <script src="/refresh.js" data-bg="rgba(242,242,247,.92)" data-fg="#8E8E93" defer></script>
