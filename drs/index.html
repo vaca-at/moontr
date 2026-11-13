@@ -354,6 +354,26 @@
     .vchip.on { border:1px solid #bfe6d9; background:var(--acc-soft); color:var(--acc-ink); }
     button.vchip { cursor:pointer; }
     button.vchip:hover { filter:brightness(.97); }
+    .agrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; align-items:start; }
+    .acol { min-width:0; }
+    .agh { font-weight:800; font-size:14.5px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+    .agh span { font-size:12px; font-weight:600; color:var(--sub); background:var(--soft); padding:2px 8px; border-radius:999px; }
+    .acol .aday { margin-bottom:10px; padding:12px 14px; }
+    .acol .aparts { grid-template-columns:minmax(0, 1fr) !important; }
+    .sol-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+    .sol-steps { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:13px; font-weight:600; }
+    .sol-steps span { background:var(--soft); border:1px solid var(--line); padding:5px 10px; border-radius:999px; }
+    .sol-steps i { font-style:normal; color:#a7b4af; }
+    .sgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:8px; margin-top:6px; }
+    .srow { display:flex; align-items:center; justify-content:space-between; gap:6px; border:1px solid var(--line); border-radius:12px; padding:8px 10px; background:#fff; }
+    .srow.done { background:var(--acc-soft); border-color:#bfe6d9; }
+    .srow.me { box-shadow:0 0 0 2px var(--acc); }
+    .srow .nm { font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .srow .ss { display:flex; gap:4px; flex:none; }
+    .sstep { width:28px; height:28px; border-radius:8px; border:1px solid var(--line); background:var(--soft); color:var(--sub); font:700 12px/1 'Pretendard Variable', Pretendard, sans-serif; display:grid; place-items:center; padding:0; }
+    button.sstep { cursor:pointer; background:#fff; }
+    button.sstep:hover { border-color:var(--acc); }
+    .sstep.on { background:var(--acc); border-color:var(--acc); color:#fff; }
     .aparts { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:8px; margin-top:12px; }
     @media (max-width:560px) { .aparts { grid-template-columns:minmax(0, 1fr); } }
     .apart { display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; background:var(--soft); }
@@ -363,6 +383,9 @@
     .apart .atx b { display:block; font-size:13.5px; line-height:1.4; }
     .apart .atx span { display:block; font-size:12px; color:var(--sub); margin-top:2px; line-height:1.45; }
     .afile { text-decoration:none; flex:none; }
+    .adesc { margin-top:10px; font-size:13px; }
+    .adesc summary { cursor:pointer; color:var(--acc-ink); font-weight:600; }
+    .adesc p { margin:8px 0 0; padding:12px 14px; background:#fffbeb; border:1px solid #f3e4ae; border-radius:12px; line-height:1.7; white-space:pre-wrap; color:#4a3c0b; }
     .bsec { border-radius:14px; padding:12px 16px 10px; margin-bottom:12px; }
     .bsec.income { background:#f0f7ff; border:1px solid #d6e8fb; }
     .bsec.expense { background:#fff4f4; border:1px solid #f6dada; }
@@ -705,6 +728,7 @@
       <section class="hero" id="st-hero"></section>
       <section class="dcard notice-card" id="st-notice" style="display:none;"></section>
       <div class="tiles4" id="st-tiles"></div>
+      <section class="dcard" id="st-sol"></section>
       <section class="dcard span-5" id="st-todo"></section>
       <section class="dcard span-7" id="st-roll"></section>
       <section class="dcard span-4" id="st-me"></section>
@@ -809,6 +833,7 @@
             </div>
             <button class="btn small secondary" onclick="ad_toggleNoticeEdit(true)" id="ad-noticeEditBtn">공지 고치기</button>
           </section>
+          <section class="dcard" id="ad-sol"></section>
           <section class="dcard span-5" id="ad-todo"></section>
           <section class="dcard span-7" id="ad-roll"></section>
           <section class="dcard" id="ad-vol"></section>
@@ -1231,7 +1256,7 @@ async function setAttendance(date, session, id, checked, mode) {
   const members = await getMembers();
   const m = members.find(x => x.id === String(id));
   await db.collection(COL.attendance).doc(attDocId(date, session, id)).set({
-    date, session, id: String(id), name: m ? m.name : '', checked: !!checked, mode: mode || '교사입력', time: nowTime()
+    date, session, id: String(id), name: m ? m.name : nameOf(id), checked: !!checked, mode: mode || '교사입력', time: nowTime()
   });
 }
 async function getAttendanceForDate(date, session) {
@@ -1309,7 +1334,8 @@ function dayIds(date) {
   if (!a) return new Set();
   return new Set([...(a['모임'] || []), ...(a['헤어짐'] || [])]);
 }
-function meetingDates() { return Object.keys(ATT).filter(d => dayIds(d).size > 0).sort(); }
+// 진짜 날짜(2026-11-13 모양)만 모임으로 세요 ('1388' 같은 설문 기록은 빼고)
+function meetingDates() { return Object.keys(ATT).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && dayIds(d).size > 0).sort(); }
 function mdText(date) { const p = String(date).split('-'); return Number(p[1]) + '/' + Number(p[2]); }
 function longToday() { const d = new Date(); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + '일월화수목금토'[d.getDay()] + '요일'; }
 function cardHead(icon, title, more) { return `<h3><span class="ic">${icon}</span>${title}${more ? `<span class="more">${more}</span>` : ''}</h3>`; }
@@ -1378,7 +1404,7 @@ function watchSettings(cb) {
 const setDoc = id => db.collection(COL.settings).doc(id);
 const won = n => (Number(n) || 0).toLocaleString() + '원';
 const sumA = arr => arr.reduce((s, x) => s + (Number(x.a) || 0), 0);
-function renderBoards() { BOARD_PREFIXES.forEach(p => { renderTiles(p); renderTodo(p); renderRoll(p); renderActs(p); renderVolunteer(p); renderBooth(p); renderLedger(p); renderDocs(p); }); }
+function renderBoards() { BOARD_PREFIXES.forEach(p => { renderTiles(p); renderSol(p); renderTodo(p); renderRoll(p); renderActs(p); renderVolunteer(p); renderBooth(p); renderLedger(p); renderDocs(p); }); }
 
 // 2026 부원 명단 (명단이 비어 있을 때 [넣기] 단추로 한 번에 올려요. 다 넣은 뒤엔 지워도 돼요)
 const SEED_MEMBERS = [['10124','유림'],['10213','정현'],['10216','수민'],['10410','아인'],['10425','유주'],['10509','지민'],['10629','하윤'],['10810','유빈'],['11014','예린'],['11019','다감'],['11126','채윤'],['20123','지수'],['20312','유정'],['20319','주연'],['20410','지현'],['20608','유진'],['20615','수희'],['20707','수담'],['20708','시현'],['20806','은혜'],['21022','유경']];
@@ -1429,14 +1455,30 @@ function renderTodo(p) {
       ${CAN_EDIT ? `<button class="tick" title="끝 ↔ 아직" onclick="todoToggle('${t.id}')">${t.done ? '✓' : ''}</button>` : `<span class="tick">${t.done ? '✓' : ''}</span>`}
       <span class="tx">${esc(t.text)}</span>${editBtns(`todoEdit('${t.id}')`, `todoDel('${t.id}')`)}</li>`).join('')}</ul>`
     : `<div class="empty">${CAN_EDIT ? '아래 칸에 할 일을 적고 [추가]를 눌러요.' : '아직 올라온 할 일이 없어요.'}</div>`;
-  if (CAN_EDIT) h += `<div class="addrow"><input type="text" id="${p}-todoIn" placeholder="할 일 적기 (Enter 로 추가)" onkeydown="if (event.key === 'Enter') todoAdd('${p}')"><button class="btn small" onclick="todoAdd('${p}')">추가</button></div>`;
-  box.innerHTML = h;
+  // 한글은 글자를 만드는 중(isComposing)에 Enter 가 먼저 오면 마지막 글자만 남아요 → 다 만든 뒤의 Enter 만 받아요
+  if (CAN_EDIT) h += `<div class="addrow"><input type="text" id="${p}-todoIn" placeholder="할 일 적기 (Enter 로 추가)" onkeydown="if (event.key === 'Enter' && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); todoAdd('${p}'); }"><button class="btn small" onclick="todoAdd('${p}')">추가</button></div>`;
+  keepTyping(box, () => { box.innerHTML = h; });
+}
+// 화면을 다시 그려도 쓰던 글 · 커서가 지워지지 않게 (다른 사람이 저장하면 칸이 다시 그려져요)
+function keepTyping(box, draw) {
+  const a = document.activeElement;
+  const typing = a && a.id && box.contains(a) && a.tagName === 'INPUT' ? { id: a.id, v: a.value, s: a.selectionStart } : null;
+  const old = box.querySelector('input[type=text]');
+  const keep = old && old.value ? { id: old.id, v: old.value } : null;
+  draw();
+  const back = typing || keep;
+  if (!back) return;
+  const el = document.getElementById(back.id);
+  if (!el) return;
+  el.value = back.v;
+  if (typing) { el.focus(); try { el.setSelectionRange(typing.s, typing.s); } catch (e) {} }
 }
 async function todoAdd(p) {
   const el = document.getElementById(p + '-todoIn'), text = el.value.trim();
   if (!text) return;
   const items = todoItems(); items.push({ id: Date.now().toString(36), text, done: false });
   el.value = '';
+  SET.todo = { items };   // 저장이 끝나기 전에 다시 그려져도 방금 쓴 할 일이 보이게
   await saveSet('todo', { items });
   const again = document.getElementById(p + '-todoIn'); if (again) again.focus();
 }
@@ -1651,45 +1693,105 @@ async function seedLedger() {
   } catch (e) { alert('넣지 못했어요: ' + e.message); }
 }
 
-/* ----- 📚 활동 기록 (날짜별 활동 + 활동지 PDF) ----- */
-// drs_settings/acts { days:[{ id, date, title, parts:[{ id, t, goal, url, path, ext }] }] }
-const ACTS_DEFAULT = { days: [{ id:'d0612', date:'2026-06-12', title:'관계 속의 나와 너 (시작 · 관심 · 공감)', parts: [
-  { id:'a1', t:'[활동 1] 나의 다가가기 온도 탑 쌓기 (자기 이해)', goal:'자신을 먼저 이해하고 타인을 인식하며 친구에게 다가가는 연습하기' },
-  { id:'a2', t:'[활동 2] 교실 속 ‘신호등’ 관찰 일지 (타인 인식)', goal:'타인의 마음 상태를 인식하고 친구에게 작은 관심을 표현하는 연습하기' },
-  { id:'a3', t:'[활동 3] 어색함을 깨는 3단계 대화법 (친구에게 다가가기 연습)', goal:'어색함을 깨고 친구에게 부담 없이 다가가는 구체적인 방법을 연습하기' }
-] }] };
+/* ----- 📚 1학기 활동 기록 (학년별 · 활동지 PDF) ----- */
+// drs_settings/acts { days:[{ id, who:'1학년'|'2학년'|'', date, title, desc, parts:[{ id, t, goal, url, path, ext }] }] }
+//   who 가 비어 있으면 '1 · 2학년 함께', date 가 비어 있으면 날짜 없이 보여요. 학년 안에서는 적힌 순서대로
+const ACTS_DEFAULT = { days: [
+  { id:'g1ot', who:'1학년', date:'', title:'오리엔테이션 (OT)', parts:[] },
+  { id:'g1plan', who:'1학년', date:'', title:'1학기 활동 계획 세우기', parts:[] },
+  { id:'d0605', who:'1학년', date:'2026-06-05', title:'에니어그램 활동 (나 · 친구 · 가족의 유형 알아보기)',
+    descT:'에니어그램이란?',
+    desc:'에니어그램은 인간의 아홉 가지 기본 유형에 대한 연구이다. 이는 우리가 특정한 방식으로 행동하는 이유를 설명해 주며 개인별 성장을 위한 방향을 구체적으로 제시해 준다. 또한 에니어그램은 가족, 친구, 동료와의 관계를 개선하는 데 중요한 도구가 된다.\n에니어그램은 아홉 개의 점으로 이루어진 하나의 원으로 나타낼 수 있다. 에니어(Ennea)는 숫자 ‘9’를 뜻하는 그리스어이며, 그램(gram)은 ‘그림’을 뜻하는 말이다. 즉, 에니어그램은 ‘아홉 개의 점이 있는 그림’이라는 뜻이다.\n에니어그램 작업을 통해 우리는 자신과 다른 사람들을 더 깊이 이해하고 우리의 행동 패턴을 대체할 수 있는 것들을 배우며 이제까지 사용하던 진부한 대응 전략에서 벗어나 더 넓은 관점에서 인생을 바라보기 시작할 것이다.',
+    parts: [
+      { id:'e1', t:'[활동 1] 나의 에니어그램 유형 알아보기', goal:'에니어그램 검사 후 나의 유형(□번)과 요약을 적고, 그 유형이라서 좋은 점 · 힘든 점을 다섯 가지씩 쓰기' },
+      { id:'e2', t:'[활동 2] 친구 · 가족의 유형 알아보기', goal:'친구 또는 가족의 유형을 판단해 좋은 점 · 힘든 점을 다섯 가지씩 쓰고, 그 사람에게 응원의 편지를 세 줄 이상 쓰기' }
+    ] },
+  { id:'g1movie', who:'1학년', date:'', title:'영화로 심리 분석하기', parts:[] },
+  { id:'g2sol', who:'2학년', date:'', title:'쏠리언 또래상담', parts:[] },
+  { id:'d0612', who:'', date:'2026-06-12', title:'관계 속의 나와 너 (시작 · 관심 · 공감)', parts: [
+      { id:'a1', t:'[활동 1] 나의 다가가기 온도 탑 쌓기 (자기 이해)', goal:'자신을 먼저 이해하고 타인을 인식하며 친구에게 다가가는 연습하기' },
+      { id:'a2', t:'[활동 2] 교실 속 ‘신호등’ 관찰 일지 (타인 인식)', goal:'타인의 마음 상태를 인식하고 친구에게 작은 관심을 표현하는 연습하기' },
+      { id:'a3', t:'[활동 3] 어색함을 깨는 3단계 대화법 (친구에게 다가가기 연습)', goal:'어색함을 깨고 친구에게 부담 없이 다가가는 구체적인 방법을 연습하기' }
+    ] }
+] };
 function actDays() { return JSON.parse(JSON.stringify((SET.acts || ACTS_DEFAULT).days || [])); }
-function korDay(d) { const t = new Date(d + 'T00:00:00'); return isNaN(t) ? esc(d) : `${t.getMonth() + 1}월 ${t.getDate()}일 (${'일월화수목금토'[t.getDay()]})`; }
-function renderActs(p) {
-  const box = document.getElementById(p + '-acts'); if (!box) return;
-  const days = actDays();
-  let h = cardHead('📚', '동아리 활동 기록', CAN_EDIT ? `<button class="btn-link" onclick="actDayAdd()">＋ 활동 날 추가</button>` : '');
-  if (!days.length) { box.innerHTML = h + '<div class="empty">아직 활동 기록이 없어요.</div>'; return; }
-  box.innerHTML = h + days.map(d => `<div class="aday">
-    <div class="vhead"><div><span class="adate">${korDay(d.date)}</span><b>${esc(d.title)}</b></div>${editBtns(`actDayEdit('${d.id}')`, `actDayDel('${d.id}')`)}</div>
-    <div class="aparts">${(d.parts || []).map(a => `<div class="apart">
+function korDay(d) { if (!d) return ''; const t = new Date(d + 'T00:00:00'); return isNaN(t) ? esc(d) : `${t.getMonth() + 1}월 ${t.getDate()}일 (${'일월화수목금토'[t.getDay()]})`; }
+function actDayHTML(p, d) {
+  return `<div class="aday">
+    <div class="vhead"><div>${d.date ? `<span class="adate">${korDay(d.date)}</span>` : ''}<b>${esc(d.title)}</b></div>${editBtns(`actDayEdit('${d.id}')`, `actDayDel('${d.id}')`)}</div>
+    ${d.desc ? `<details class="adesc"><summary>${esc(d.descT || '활동 소개')}</summary><p>${esc(d.desc)}</p></details>` : ''}
+    ${(d.parts || []).length ? `<div class="aparts">${d.parts.map(a => `<div class="apart">
       ${a.url ? `<a class="afile" href="${esc(a.url)}" target="_blank" rel="noopener" title="활동지 열기"><span class="fi pdf">${esc(String(a.ext || 'pdf').toUpperCase().slice(0, 4))}</span></a>` : `<span class="fi none" title="아직 활동지가 없어요">—</span>`}
-      <div class="atx">${a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener"><b>${esc(a.t)}</b></a>` : `<b>${esc(a.t)}</b>`}<span>활동 목표 : ${esc(a.goal || '')}</span></div>
+      <div class="atx">${a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener"><b>${esc(a.t)}</b></a>` : `<b>${esc(a.t)}</b>`}${a.goal ? `<span>활동 목표 : ${esc(a.goal)}</span>` : ''}</div>
       ${CAN_EDIT ? `<input type="file" id="${p}-af-${d.id}-${a.id}" accept=".pdf,.hwp,.hwpx,image/*" style="display:none;" onchange="actAttach(this, '${d.id}', '${a.id}')">
         <button class="ib" title="활동지 붙이기" onclick="document.getElementById('${p}-af-${d.id}-${a.id}').click()">📎</button>` : ''}
       ${editBtns(`actPartEdit('${d.id}', '${a.id}')`, `actPartDel('${d.id}', '${a.id}')`)}
-    </div>`).join('')}</div>
-    ${CAN_EDIT ? `<button class="btn-link" style="margin-top:8px" onclick="actPartAdd('${d.id}')">＋ 활동 추가</button>` : ''}
-  </div>`).join('');
+    </div>`).join('')}</div>` : ''}
+    ${CAN_EDIT ? `<button class="btn-link" style="margin-top:8px" onclick="actPartAdd('${d.id}')">＋ 세부 활동 · 활동지 칸 추가</button>` : ''}
+  </div>`;
+}
+function renderActs(p) {
+  const box = document.getElementById(p + '-acts'); if (!box) return;
+  const days = actDays();
+  let h = cardHead('📚', '2026 1학기 동아리 활동', CAN_EDIT ? `<button class="btn-link" onclick="actDayAdd()">＋ 활동 추가</button>` : '');
+  if (!days.length) { box.innerHTML = h + '<div class="empty">아직 활동 기록이 없어요.</div>'; return; }
+  const groups = [['1학년', '🐣 1학년'], ['2학년', '🌿 2학년'], ['', '🤝 1 · 2학년 함께']]
+    .map(([k, label]) => [label, days.filter(d => (d.who || '') === k)]).filter(g => g[1].length);
+  box.innerHTML = h + `<div class="agrid">${groups.map(([label, list]) => `<div class="acol"><div class="agh">${label}<span>${list.length}개</span></div>${list.map(d => actDayHTML(p, d)).join('')}</div>`).join('')}</div>`;
 }
 function actSave(days) { return saveSet('acts', { days }); }
+function actAskWho(cur) {
+  const w = prompt('학년 (1 = 1학년, 2 = 2학년, 비우면 1 · 2학년 함께)', cur ? cur[0] : ''); if (w == null) return null;
+  return /1/.test(w) ? '1학년' : /2/.test(w) ? '2학년' : '';
+}
 function actDayAdd() {
-  const date = prompt('활동한 날짜 (예: 2026-06-12)', todayStr()); if (!date) return;
-  const title = prompt('활동 제목', ''); if (title == null || !title.trim()) return;
-  const days = actDays(); days.push({ id: 'd' + Date.now().toString(36), date: date.trim(), title: title.trim(), parts: [] }); actSave(days);
+  const who = actAskWho(''); if (who == null) return;
+  const title = prompt('활동 이름', ''); if (title == null || !title.trim()) return;
+  const date = prompt('활동한 날짜 (예: 2026-06-12, 모르면 비워 두기)', '') || '';
+  const days = actDays(); days.push({ id: 'd' + Date.now().toString(36), who, date: date.trim(), title: title.trim(), parts: [] }); actSave(days);
 }
 function actDayEdit(id) {
   const days = actDays(), d = days.find(x => x.id === id); if (!d) return;
-  const date = prompt('활동한 날짜 (예: 2026-06-12)', d.date); if (date == null) return;
-  const title = prompt('활동 제목', d.title); if (title == null || !title.trim()) return;
-  d.date = date.trim(); d.title = title.trim(); actSave(days);
+  const who = actAskWho(d.who || ''); if (who == null) return;
+  const title = prompt('활동 이름', d.title); if (title == null || !title.trim()) return;
+  const date = prompt('활동한 날짜 (예: 2026-06-12, 모르면 비워 두기)', d.date || ''); if (date == null) return;
+  d.who = who; d.title = title.trim(); d.date = date.trim(); actSave(days);
 }
-function actDayDel(id) { if (confirm('이 활동 날 기록을 통째로 지울까요?')) actSave(actDays().filter(x => x.id !== id)); }
+function actDayDel(id) { if (confirm('이 활동 기록을 지울까요?')) actSave(actDays().filter(x => x.id !== id)); }
+
+/* ----- 🎓 또래상담 시스템 (1388) · 2학년 사전 · 사후 설문 · 이수 ----- */
+// 학생이 자기 칸을 직접 누를 수 있게 출석 기록(drs_attendance, 누구나 쓰기)에 함께 저장해요
+//   문서 이름 '1388_사전설문_20123' (date 칸 = '1388', session 칸 = 단계) → 모임별 출석 그래프에는 안 섞여요
+const SOL_URL = 'https://www.1388.go.kr/pnd/FDCSE_SC_PND_01';
+const SOL_STEPS = [['사전설문', '① 사전 설문'], ['사후설문', '② 사후 설문'], ['이수', '③ 이수 처리']];
+const SOL_GRADE = '2';   // 이번에 끝낼 학년
+function solDone(step, id) { const s = ATT['1388'] && ATT['1388'][step]; return !!(s && s.has(id)); }
+function renderSol(p) {
+  const box = document.getElementById(p + '-sol'); if (!box) return;
+  const list = rosterList().filter(m => m.id[0] === SOL_GRADE);
+  const all = list.filter(m => SOL_STEPS.every(([s]) => solDone(s, m.id))).length;
+  const canMe = id => CAN_EDIT || (typeof st_me !== 'undefined' && st_me && st_me.id === id);
+  const cell = (m, s, label) => {
+    const on = solDone(s, m.id);
+    return canMe(m.id) ? `<button class="sstep${on ? ' on' : ''}" onclick="solToggle('${m.id}', '${s}', ${!on})" title="${label} ${on ? '취소' : '끝'}">${on ? '✓' : label.slice(0, 1)}</button>`
+      : `<span class="sstep${on ? ' on' : ''}" title="${label}">${on ? '✓' : label.slice(0, 1)}</span>`;
+  };
+  box.innerHTML = cardHead('🎓', `또래상담 시스템 (1388) · ${SOL_GRADE}학년 설문 · 이수`, `모두 끝 ${all} / ${list.length}명`) + `
+    <div class="sol-top">
+      <a class="btn" href="${SOL_URL}" target="_blank" rel="noopener">🔗 1388 또래상담 시스템 열기</a>
+      <div class="sol-steps">${SOL_STEPS.map(([, l]) => `<span>${l}</span>`).join('<i>→</i>')}</div>
+    </div>
+    <div class="meter" data-tip="세 단계를 모두 끝낸 부원 ${all}명"><i style="width:${list.length ? all / list.length * 100 : 0}%"></i></div>
+    <div class="sgrid">${list.map(m => {
+      const done = SOL_STEPS.every(([s]) => solDone(s, m.id));
+      return `<div class="srow${done ? ' done' : ''}${canMe(m.id) && !CAN_EDIT ? ' me' : ''}"><span class="nm">${esc(m.name)}${done ? ' 🎉' : ''}</span><span class="ss">${SOL_STEPS.map(([s, l]) => cell(m, s, l)).join('')}</span></div>`;
+    }).join('')}</div>
+    <div class="roll-key">${CAN_EDIT ? '칸을 누르면 끝 ↔ 아직이 바뀌어요.' : '위쪽에 내 학번으로 입장하면 내 줄의 ①②③을 눌러 끝냈다고 표시할 수 있어요.'} 사전 → 사후 설문을 마치고 이수 처리까지 하면 🎉</div>`;
+}
+async function solToggle(id, step, on) {
+  try { await setAttendance('1388', step, id, on, CAN_EDIT ? '교사입력' : '학생셀프체크'); }
+  catch (e) { alert('저장하지 못했어요: ' + e.message); }
+}
 function actPartAdd(dayId) {
   const days = actDays(), d = days.find(x => x.id === dayId); if (!d) return;
   const t = prompt('활동 이름 (예: [활동 4] …)', ''); if (t == null || !t.trim()) return;
@@ -1817,6 +1919,9 @@ async function loginStudent(input) {
       const name = doc.data().name;
       return { success: true, id: input, name, role: 'member', welcome: name + ' 학생 반가워요!' };
     }
+    // 명단(DB)을 아직 안 넣었어도 2026 부원 명단에 있으면 부원으로 들어와요
+    const seed = SEED_MEMBERS.find(m => m[0] === input);
+    if (seed) return { success: true, id: input, name: seed[1], role: 'member', welcome: seed[1] + ' 학생 반가워요!' };
     const g = input.charAt(0);
     const label = (g === '1' || g === '2' || g === '3') ? '진선여고 ' + g + '학년' : '진선여고 학생';
     return { success: true, id: input, name: label, role: 'nonmember', welcome: label + ' 반가워요!' };
@@ -1855,7 +1960,7 @@ function st_afterLoginChange() {
     document.getElementById('st-avatar').innerText = String(st_me.name).slice(-2);
     document.getElementById('st-welcomeText').innerText = st_me.role === 'member' ? st_me.name + ' 님' : st_me.name;
   }
-  st_renderHero(); st_renderMe(); st_renderGifts();
+  st_renderHero(); st_renderMe(); st_renderGifts(); renderSol('st');
 }
 // 입장 전이면 위쪽 학번 칸으로 데려가요
 function st_needLogin(text) {
@@ -1881,7 +1986,8 @@ function st_renderHero() {
       <h1>${hello}</h1>
       <p>${sub}</p>
       <div class="cta">
-        <a class="w" href="#st-todo">📋 오늘 할 일</a>
+        <a class="w" href="#st-sol">🎓 1388 설문 · 이수</a>
+        <a class="g" href="#st-todo">📋 오늘 할 일</a>
         <a class="g" href="#st-roll">🗒️ 출석부</a>
         <a class="g" href="#st-docs">📄 서류</a>
       </div>
@@ -1936,11 +2042,12 @@ function st_renderTrend() {
 // 지난 활동 페이지: 아이콘 · 이름 · 주소(누르면 열려요)
 function st_renderLinks() {
   const L = [
-    ['🎱', '행운의 번호 추첨', '천원의 행복 뽑기 게임 화면', 'https://moontr.site/drs/?page=draw'],
-    ['👾', '연화제 부스 상황판', '부스 지도 · 재고 · 채팅', 'https://moontr.site/drs/booth/']
+    ['🎓', '또래상담 시스템 (1388)', '사전 · 사후 설문 · 이수 처리', SOL_URL, true],
+    ['🎱', '행운의 번호 추첨', '지난 활동 · 천원의 행복 뽑기 게임 화면', 'https://moontr.site/drs/?page=draw'],
+    ['👾', '연화제 부스 상황판', '지난 활동 · 부스 지도 · 재고 · 채팅', 'https://moontr.site/drs/booth/']
   ];
-  document.getElementById('st-links').innerHTML = cardHead('🗂️', '지난 활동 페이지') + `<ul class="plinks">${L.map(l => `
-    <li><span class="e">${l[0]}</span><div><b>${l[1]}</b><span class="d">${l[2]}</span><a href="${l[3]}">${l[3].replace('https://', '')}</a></div></li>`).join('')}</ul>`;
+  document.getElementById('st-links').innerHTML = cardHead('🔗', '링크 모음') + `<ul class="plinks">${L.map(l => `
+    <li><span class="e">${l[0]}</span><div><b>${l[1]}</b><span class="d">${l[2]}</span><a href="${l[3]}"${l[4] ? ' target="_blank" rel="noopener"' : ''}>${l[3].replace('https://', '')}</a></div></li>`).join('')}</ul>`;
 }
 function st_renderGifts() {
   const box = document.getElementById('st-gifts');
@@ -1975,7 +2082,7 @@ async function st_checkIn(session) {
   const msg = document.getElementById('st-attendMsg');
   try {
     const mem = await db.collection(COL.members).doc(st_me.id).get();
-    if (!mem.exists) { msg.className = 'msg no'; msg.innerText = '명단에 없는 학번이에요. 담당 선생님께 확인해 주세요.'; return; }
+    if (!mem.exists && !SEED_MEMBERS.some(m => m[0] === st_me.id)) { msg.className = 'msg no'; msg.innerText = '명단에 없는 학번이에요. 담당 선생님께 확인해 주세요.'; return; }
     const cur = await db.collection(COL.attendance).doc(attDocId(date, session, st_me.id)).get();
     const now = !(cur.exists && cur.data().checked);
     await setAttendance(date, session, st_me.id, now, '학생셀프체크');
@@ -2037,7 +2144,7 @@ function st_start() {
   st_renderTrend(); renderBoards();
   watchSettings(() => { st_notice = (SET.main && SET.main.notice) || ''; st_renderNotice(); st_renderHero(); renderBoards(); });
   watchMembers(() => { st_renderHero(); st_renderTrend(); renderBoards(); });
-  watchAttendance(() => { st_renderHero(); st_renderMe(); st_renderTrend(); renderTiles('st'); renderRoll('st'); });
+  watchAttendance(() => { st_renderHero(); st_renderMe(); st_renderTrend(); renderTiles('st'); renderRoll('st'); renderSol('st'); });
   watchGifts(() => { st_renderGifts(); });
   // 관리자 구글 계정으로 들어와 있으면(관리자 허브 · 관리보드에서 로그인) 이 화면에서 바로 고칠 수 있어요
   auth.onAuthStateChanged(u => {
@@ -2125,7 +2232,7 @@ function ad_startOverview() {
   BOARD_PREFIXES = ['ad'];
   watchSettings(renderBoards);
   watchMembers(() => { renderBoards(); ad_renderTrend(); ad_loadMembers(); });
-  watchAttendance(() => { renderTiles('ad'); renderRoll('ad'); ad_renderTrend(); });
+  watchAttendance(() => { renderTiles('ad'); renderRoll('ad'); renderSol('ad'); ad_renderTrend(); });
   startLedgerSync(() => ad_loadLedger());
   renderBoards(); ad_renderTrend();
 }
