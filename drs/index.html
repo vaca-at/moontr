@@ -508,6 +508,7 @@
     .rp-comps .comp { font-size:9pt; padding:1mm 3mm; border-radius:10mm; border:1px solid #f0b429; background:#fff4d6; color:#7a4b00; font-weight:700; box-shadow:none; }
     .nmine { margin-top:10px; font-size:13px; }
     .nmine summary { cursor:pointer; color:var(--acc-ink); font-weight:600; }
+.nfix{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:#777;margin:2px 0 6px}.nfix button{border:1px solid #ddd;background:#fff;border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer}.nfix button.on{background:var(--acc);border-color:var(--acc);color:#fff}
     .nitem { padding:8px 0; border-bottom:1px solid var(--line); }
     .nitem > span { font-size:11.5px; color:var(--sub); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
     .nitem .nact { margin-left:auto; display:flex; gap:12px; }
@@ -2371,6 +2372,9 @@ function st_start() {
 /*   이 기기에서 올린 기록은 localStorage 'drs-notes-학번' 에도 남겨 다시 볼 수 있어요 */
 /* ============================================================ */
 let NOTE_CAT = '';
+// 칩을 누르면 그 활동에 올린 글을 쓰는 칸에 불러와서 바로 고쳐요 (2026-11-14)
+// NOTE_FIX = 고치는 중인 내 기록 번호(myNotes 순서), null = 새 글 쓰기 · NOTE_NEW = 이 칩에서 [＋ 새 글]을 고름
+let NOTE_FIX = null, NOTE_NEW = false;
 function noteCats(g) {
   const C = [];
   actDays().filter(d => (d.who || '') === g + '학년' || !(d.who || '')).forEach(d => C.push({ k: 'act_' + d.id, t: (d.date ? korDay(d.date) + ' · ' : '') + d.title, h: '이 활동에서 한 일, 기억나는 장면, 느낀 점' }));
@@ -2436,6 +2440,11 @@ function renderNotes(p) {
   const cur = cats.find(c => c.k === NOTE_CAT), mine = myNotes(me.id), cnt = {};
   mine.forEach(n => { cnt[n.cat] = (cnt[n.cat] || 0) + 1; });
   const old = oldReportItems(me.id).length;
+  const catIdx = mine.map((n, i) => n.cat === NOTE_CAT ? i : -1).filter(i => i >= 0);
+  if (NOTE_FIX != null && !catIdx.includes(NOTE_FIX)) NOTE_FIX = null;
+  const drNow = noteDraft(me.id, NOTE_CAT);
+  if (drNow && drNow.fix != null && catIdx.includes(drNow.fix)) NOTE_FIX = drNow.fix;
+  else if (!drNow && NOTE_FIX == null && !NOTE_NEW && catIdx.length) NOTE_FIX = catIdx[catIdx.length - 1];
   NOTE_PAGE = NOTE_CAT === 'feel' || NOTE_CAT === 'next' ? 2 : 1;
   // 기록을 고치는 중에 칸이 다시 그려져도 고치던 글이 그대로 남게
   const editTa = NOTE_EDITING != null ? document.getElementById(p + '-niText-' + NOTE_EDITING) : null, editText = editTa ? editTa.value : null;
@@ -2444,10 +2453,11 @@ function renderNotes(p) {
     <div class="nstep">① 무엇을 쓸까요? 활동을 골라요</div>
     <div class="ncats">${cats.map(c => `<button class="ncat${c.k === NOTE_CAT ? ' on' : ''}" onclick="noteSwitch('${p}', '${c.k}')">${cnt[c.k] ? '✓ ' : ''}${noteDraft(me.id, c.k) ? '✏️ ' : ''}${esc(c.t)}${cnt[c.k] ? ` <b>${cnt[c.k]}</b>` : ''}</button>`).join('')}</div>
     <div class="nstep">② 생각나는 대로 써요 <span class="muted">— ${esc(cur.h)}</span></div>
+    ${catIdx.length ? `<div class="nfix">이 활동에 올린 글 ${catIdx.map((i, k) => `<button class="${i === NOTE_FIX ? 'on' : ''}" onclick="noteFixPick('${p}', ${i})">글 ${k + 1}</button>`).join('')}<button class="${NOTE_FIX == null ? 'on' : ''}" onclick="noteFixPick('${p}', -1)">＋ 새 글</button></div>` : ''}
     <textarea id="${p}-noteIn" rows="5" maxlength="2000" placeholder="한 줄이어도 괜찮아요. 맞춤법 걱정 말고 편하게! 쓰는 글이 옆 보고서에 바로 보여요. 쓰는 중에는 저절로 임시 저장돼요." oninput="notePreviewSoon('${p}'); noteDraftSoon('${p}')"></textarea>
     <div class="nsave" id="${p}-noteSave"></div>
     <div class="ncomp"><div class="ncomp-t">✨ 이 글에서 보이는 나의 역량 <span id="${p}-compsCap">글을 쓰면 저절로 표시돼요</span></div><div class="comps" id="${p}-comps">${compChips([])}</div></div>
-    <div class="addrow" style="margin-top:8px"><span class="muted" style="font-size:12.5px; flex:1">③ [올리기]를 누르면 보고서에 들어가요 · 이 기기에서 <b>${mine.length}개</b> 남겼어요</span><button class="btn" id="${p}-noteBtn" onclick="noteSubmit('${p}')">올리기</button></div>
+    <div class="addrow" style="margin-top:8px"><span class="muted" style="font-size:12.5px; flex:1">${NOTE_FIX != null ? '③ 고치고 [고친 글 저장]을 누르면 보고서도 고친 글로 바뀌어요' : '③ [올리기]를 누르면 보고서에 들어가요'} · 이 기기에서 <b>${mine.length}개</b> 남겼어요</span><button class="btn" id="${p}-noteBtn" onclick="noteSubmit('${p}')">${NOTE_FIX != null ? '고친 글 저장' : '올리기'}</button></div>
     <div class="msg" id="${p}-noteMsg"></div>
     ${old ? `<div class="msg">📦 예전 '보고서 쓰기'에 쓴 글 ${old}개가 이 기기에 남아 있어요. <button class="btn-link" onclick="noteMigrate()">기록으로 올리기</button></div>` : ''}
     ${mine.length ? `<details class="nmine"${NOTE_LIST_OPEN ? ' open' : ''}><summary>내가 남긴 기록 보기 · 고치기 (${mine.length})</summary>${mine.map((n, i) => [n, i]).reverse().map(([n, i]) => `<div class="nitem" id="${p}-ni-${i}"><span>${esc(noteCatTitle(g, n.cat))} · ${new Date(n.at).toLocaleDateString('ko-KR')}${n.edited ? ' · 고침' : ''}
@@ -2463,10 +2473,11 @@ function renderNotes(p) {
   const ta = document.getElementById(p + '-noteIn');
   if (ta && !ta.value) {
     const d = noteDraft(me.id, NOTE_CAT);
-    if (d) { ta.value = d.text; noteSaveMsg(p, `📝 쓰던 글을 다시 불러왔어요 (${d.time} 임시 저장) · 다 쓰면 [올리기]를 눌러요`); }
+    if (d) { ta.value = d.text; noteSaveMsg(p, `📝 쓰던 글을 다시 불러왔어요 (${d.time} 임시 저장) · 다 쓰면 [${NOTE_FIX != null ? '고친 글 저장' : '올리기'}]를 눌러요`); }
+    else if (NOTE_FIX != null && mine[NOTE_FIX]) { ta.value = mine[NOTE_FIX].text; noteSaveMsg(p, '📄 이 활동에 올린 글을 불러왔어요 · 고치고 [고친 글 저장]을 눌러요 (새로 쓰려면 ＋ 새 글)'); }
   }
   noteComps(p, ta ? ta.value : '');
-  notePreview(p, ta && ta.value.trim() ? { cat: NOTE_CAT, text: ta.value.trim() } : null);
+  notePreview(p, ta && ta.value.trim() ? { cat: NOTE_CAT, text: ta.value.trim(), fix: NOTE_FIX } : null);
   if (NOTE_EDITING != null && p === 'st') noteEdit(NOTE_EDITING, editText);
 }
 /* ----- 쓰던 글 임시 저장 (이 기기 · 활동마다 따로) -----
@@ -2481,7 +2492,9 @@ function noteDraftSave(p) {
   if (!ta || typeof st_me === 'undefined' || !st_me) return;
   const text = ta.value;
   try {
-    if (text.trim()) { const time = noteNow(); localStorage.setItem(noteDraftKey(st_me.id, NOTE_CAT), JSON.stringify({ text, time })); noteSaveMsg(p, `💾 임시 저장됐어요 · ${time} · 창을 닫아도 이 기기에 남아요`); }
+    const orig = NOTE_FIX != null ? (myNotes(st_me.id)[NOTE_FIX] || {}).text : null;
+    if (orig != null && text.trim() === String(orig).trim()) { localStorage.removeItem(noteDraftKey(st_me.id, NOTE_CAT)); return; }   // 불러온 글 그대로면 임시 저장 안 해요
+    if (text.trim()) { const time = noteNow(); localStorage.setItem(noteDraftKey(st_me.id, NOTE_CAT), JSON.stringify({ text, time, fix: NOTE_FIX })); noteSaveMsg(p, `💾 임시 저장됐어요 · ${time} · 창을 닫아도 이 기기에 남아요`); }
     else { localStorage.removeItem(noteDraftKey(st_me.id, NOTE_CAT)); noteSaveMsg(p, ''); }
   } catch (e) { noteSaveMsg(p, '⚠️ 임시 저장이 안 되는 창이에요 (사생활 보호 모드?) · 다 쓰면 바로 [올리기]를 눌러 주세요'); }
 }
@@ -2491,7 +2504,15 @@ function noteSwitch(p, k) {
   if (k === NOTE_CAT) return;
   clearTimeout(noteDraftTimer); noteDraftSave(p);
   const ta = document.getElementById(p + '-noteIn'); if (ta) ta.value = '';
-  NOTE_CAT = k; renderNotes(p);
+  NOTE_CAT = k; NOTE_FIX = null; NOTE_NEW = false; renderNotes(p);
+}
+// '글 1 · 글 2 · ＋ 새 글' 고르기: 지금 쓰던 글은 임시 저장하고 고른 글을 불러와요
+function noteFixPick(p, i) {
+  clearTimeout(noteDraftTimer); noteDraftSave(p);
+  try { localStorage.removeItem(noteDraftKey(st_me.id, NOTE_CAT)); } catch (e) {}
+  const ta = document.getElementById(p + '-noteIn'); if (ta) ta.value = '';
+  NOTE_FIX = i < 0 ? null : i; NOTE_NEW = i < 0; renderNotes(p);
+  if (i < 0 && ta) { const t2 = document.getElementById(p + '-noteIn'); if (t2) t2.focus(); }
 }
 // 뒤로 가기 · 새로고침 · 창 닫기 · 다른 앱으로 넘어갈 때 바로 저장
 addEventListener('pagehide', () => noteDraftSave('st'));
@@ -2500,7 +2521,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 let NOTE_PAGE = 1, notePrevTimer = 0;
 function draftReport(id, typing) {
   const g = id[0], name = nameOf(id), cls = Number(id.slice(1, 3)), num = Number(id.slice(3));
-  const cats = noteCats(g), notes = myNotes(id).map(n => ({ cat: n.cat, text: n.text }));
+  const cats = noteCats(g), notes = myNotes(id).map((n, i) => ({ cat: n.cat, text: n.text, i })).filter(n => !(typing && typing.fix != null && n.i === typing.fix));
   if (typing && typing.text) notes.push({ cat: typing.cat, text: typing.text, pend: true });
   const say = n => rp_paras(n.text).map(t => `<p class="say${n.pend ? ' pend' : ''}">${esc(t)}</p>`);
   const hours = volActs().filter(a => (a.ids || []).includes(id)).reduce((s, a) => s + (Number(a.hours) || 0), 0);
@@ -2534,7 +2555,7 @@ function notePreview(p, typing) {
   const s = wrap.clientWidth / 794;   // A4 너비 210mm ≈ 794px
   doc.style.transform = `scale(${s})`;
   wrap.style.height = Math.round(1123 * s) + 'px';
-  const chars = myNotes(st_me.id).reduce((a, n) => a + String(n.text).replace(/\s/g, '').length, 0) + (typing ? String(typing.text).replace(/\s/g, '').length : 0);
+  const chars = myNotes(st_me.id).reduce((a, n, i) => a + (typing && typing.fix === i ? 0 : String(n.text).replace(/\s/g, '').length), 0) + (typing ? String(typing.text).replace(/\s/g, '').length : 0);
   const pct = Math.min(100, Math.round(chars / 2500 * 100));
   const fill = document.getElementById(p + '-nfill'), bar = document.getElementById(p + '-nbar');
   if (fill) fill.textContent = `${chars.toLocaleString()}자 · ${pct}% 채움${pages.length > 3 ? ` · A4 ${pages.length}쪽` : ''}`;
@@ -2630,6 +2651,21 @@ async function noteEditSave(i) {
     const m = document.getElementById('st-noteMsg'); if (m) { m.className = 'msg ok'; m.textContent = '✎ 고친 글을 저장했어요. 보고서에도 고친 글로 들어가요'; }
   } catch (e) { alert(noteErr(e)); }
 }
+// 칩에서 불러온 글 고쳐서 저장 (아래 '내가 남긴 기록'의 고치기와 같은 방식)
+async function noteFixSave(p, text) {
+  const id = st_me.id, mine = myNotes(id), i = NOTE_FIX, n = mine[i], btn = document.getElementById(p + '-noteBtn'); if (!n) return;
+  text = text.slice(0, 2000);
+  const done = msg => { try { localStorage.removeItem(noteDraftKey(id, NOTE_CAT)); } catch (e) {} renderNotes(p); const m = document.getElementById(p + '-noteMsg'); if (m) { m.className = 'msg ok'; m.textContent = msg; } };
+  if (text === n.text) return done('바뀐 곳이 없어요. 그대로 두었어요');
+  if (btn) btn.disabled = true;
+  try {
+    if (n.id) await db.collection('drs_notes').doc(n.id).update({ text, edited: FV.serverTimestamp() });
+    else { const ref = await db.collection('drs_notes').add({ sid: id, name: nameOf(id), cat: n.cat, text, replaces: String(n.text).slice(0, 200), at: FV.serverTimestamp() }); n.id = ref.id; }
+    db.collection(COL.counters).doc('note_' + id).set({ chars: FV.increment(noteLen(text) - noteLen(n.text)), at: FV.serverTimestamp() }, { merge: true }).catch(() => {});
+    n.text = text; n.edited = Date.now(); saveMine(id, mine);
+    done('✎ 고친 글을 저장했어요. 보고서에도 고친 글로 들어가요');
+  } catch (e) { if (btn) btn.disabled = false; alert(noteErr(e)); }
+}
 async function noteDel(i) {
   const id = st_me.id, mine = myNotes(id), n = mine[i]; if (!n) return;
   if (!confirm('이 기록을 지울까요? 보고서에서도 빠져요.')) return;
@@ -2655,6 +2691,7 @@ function noteErr(e) { return /permission/i.test((e.code || '') + e.message) ? '�
 async function noteSubmit(p) {
   const ta = document.getElementById(p + '-noteIn'), btn = document.getElementById(p + '-noteBtn');
   const text = ta.value.trim(); if (!text) { ta.focus(); return; }
+  if (NOTE_FIX != null) return noteFixSave(p, text);
   btn.disabled = true;
   try {
     await noteAdd(st_me.id, NOTE_CAT, text);
