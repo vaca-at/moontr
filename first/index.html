@@ -59,7 +59,7 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .tabs svg{width:24px;height:24px}
 .tabs button[aria-current="page"]{color:var(--mode);font-weight:600}
 /* ⏱ 오른쪽에서 밀려 나오는 타이머 */
-.edge{position:absolute;right:0;top:46%;width:24px;height:68px;border:0;border-radius:12px 0 0 12px;background:var(--mode);color:#fff;font-size:13px;cursor:pointer;z-index:4;box-shadow:-2px 2px 8px rgba(0,0,0,.12)}
+.edge{touch-action:none;position:absolute;right:0;top:46%;width:24px;height:68px;border:0;border-radius:12px 0 0 12px;background:var(--mode);color:#fff;font-size:13px;cursor:pointer;z-index:4;box-shadow:-2px 2px 8px rgba(0,0,0,.12)}
 .edge.run{animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.6}}
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.2);z-index:5;opacity:0;pointer-events:none;transition:opacity .25s}
@@ -421,10 +421,10 @@ function viewToday(){
         <button type="button" class="dot" data-act="check" data-v="${p.id}" aria-label="${esc(p.s)} 했어요" aria-pressed="${!!p.done}"></button>
         <div class="nm" data-act="toggle" data-v="${p.id}"><span>${esc(p.s)}</span>${p.s === w && i === 0 ? '<span class="first">먼저</span>' : ""}${sec ? `<small>순공 ${hm(sec)}</small>` : ""}${!o && p.det[0] ? `<small class="peek1">${esc(p.det[0])}${p.det.length > 1 ? ` 외 ${p.det.length - 1}` : ""}</small>` : ""}</div>
         ${p.done ? "" : `<button type="button" class="play" data-act="start" data-v="${p.id}">▶</button>`}</div>
-        ${o ? `${p.det.length ? `<ol class="det">${p.det.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="det" style="list-style:none">세부 계획(쪽수 · 문제 수 등)을 적어 두면 여기에 보여요</p>`}
+        ${o ? `${p.det.length ? `<ol class="det">${p.det.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="det" style="list-style:none"><button type="button" class="link" data-act="edit" data-v="${p.id}">＋ 세부 계획을 추가해 보세요</button></p>`}
           <div class="det-act"><button type="button" class="link" data-act="edit" data-v="${p.id}">고치기</button>${i ? `<button type="button" class="link" data-act="mv" data-v="${p.id}" data-d="-1">↑ 위로</button>` : ""}${i < L.length - 1 ? `<button type="button" class="link" data-act="mv" data-v="${p.id}" data-d="1">↓ 아래로</button>` : ""}<button type="button" class="link del" data-act="del" data-v="${p.id}">지우기</button></div>` : ""}</div>`; }).join("")}</div>
-      <p class="note" style="text-align:center">과목 이름을 누르면 세부 계획이 펼쳐져요</p>` : `<div class="empty">아직 오늘 할 일이 없어요</div>`}
-    <button type="button" class="add" data-act="addPlan">＋ 할 일 넣기</button>`;
+      <p class="note" style="text-align:center">과목 이름을 누르면 세부 계획이 펼쳐져요<br>세부 계획을 추가해 보세요 (쪽수 · 문제 수 등)</p>` : `<div class="empty">아직 오늘 공부할 과목이 없어요</div>`}
+    <button type="button" class="add" data-act="addPlan">＋ 과목 추가</button>`;
 }
 
 /* 고치기: 카드 안에서 바로 이름 · 시간 · 순서/쪽수를 고쳐요 */
@@ -435,7 +435,7 @@ function ddayTag(){ const x = nextExam(); if (!x) return ""; const n = dLeft(x.d
 function inlineEdit(p){
   const dr = S.draft && S.draft.id === p.id ? S.draft : { name:p.s, det:p.det.join("\n") };
   return `<div class="ied">
-    <input id="eName" value="${esc(dr.name)}" maxlength="16" aria-label="이름" placeholder="이름 (예: 수학)">
+    <input id="eName" value="${esc(dr.name)}" maxlength="16" aria-label="이름" placeholder="과목 이름 (예: 수학)">
     <textarea id="eDet" rows="3" aria-label="세부 계획" placeholder="세부 계획 (한 줄에 하나, 자유롭게)&#10;예: 국어 1~3쪽 30분 공부하기&#10;예: 수학 문제 20개 · 46쪽까지">${esc(dr.det)}</textarea>
     <div class="ied-b"><button type="button" class="link del" data-act="eCancel">취소</button><button type="button" class="link" data-act="eSave" data-v="${p.id}">저장</button></div></div>`;
 }
@@ -684,7 +684,19 @@ function render(){
 }
 let toastT = 0;
 function toast(t){ document.querySelector(".toast")?.remove(); const el = document.createElement("div"); el.className = "toast"; el.textContent = t; $("app").appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2200); }
-$("edge").onclick = () => { $("app").classList.add("timer-open"); $("side").innerHTML = viewSide(); tick(); };
+$("edge").onclick = () => { if (edgeDragged){ edgeDragged = false; return; } $("app").classList.add("timer-open"); $("side").innerHTML = viewSide(); tick(); };
+/* ⏱ 단추를 왼쪽으로 끌어당겨도 타이머가 따라 나와요 (조금만 끌고 놓으면 다시 들어가요) */
+let edgeDragged = false;
+(() => {
+  const eg = $("edge"), sd = $("side"), sc = $("scrim"); let x0 = 0, dx = 0, on = false;
+  eg.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; dx = 0; on = true; edgeDragged = false; sd.innerHTML = viewSide(); tick(); }, { passive:true });
+  eg.addEventListener("touchmove", e => { if (!on) return; dx = Math.max(0, x0 - e.touches[0].clientX); if (dx < 6) return; edgeDragged = true;
+    const w = sd.offsetWidth; sd.style.transition = sc.style.transition = "none"; sd.style.transform = `translateX(${Math.max(0, w * 1.05 - dx)}px)`; sc.style.opacity = Math.min(1, dx / w); sc.style.pointerEvents = "none"; }, { passive:true });
+  const end = () => { if (!on) return; on = false; if (!edgeDragged) return;
+    sd.style.transition = sc.style.transition = sd.style.transform = sc.style.opacity = sc.style.pointerEvents = "";
+    if (dx > Math.min(70, sd.offsetWidth * .2)) $("app").classList.add("timer-open"); };
+  eg.addEventListener("touchend", end); eg.addEventListener("touchcancel", end);
+})();
 $("scrim").onclick = () => closeTimer();
 /* ⏱ 타이머 닫기: ✕ · 바깥(어두운 곳) 누르기 · 오른쪽으로 밀기 모두 돼요. 열기는 ⏱ 단추로만 */
 function closeTimer(){ const sd = $("side"); sd.style.transform = sd.style.transition = ""; $("app").classList.remove("timer-open"); }
