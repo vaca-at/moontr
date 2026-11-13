@@ -206,6 +206,11 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .week{background:#fff;border:1.5px solid #F0EAED;border-radius:18px;padding:14px;display:grid;gap:12px}
 .wk{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;gap:6px}.wk b{display:block;font-size:19px;color:var(--mode);font-weight:400}.wk small{font-size:11.5px;color:var(--sub)}
 .focus{margin-top:14px;max-width:270px;font-size:12.5px;color:var(--sub);background:var(--soft);border-radius:14px;padding:10px 12px;display:grid;gap:4px;text-align:left}.focus b{color:var(--ink);font-weight:400}.focus .link{justify-self:end;font-size:12px}
+.dl{list-style:none;margin:-6px 0 12px;padding:0 0 0 34px;display:grid;gap:6px}
+.dl li{display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.4;cursor:pointer}
+.dl .dd{flex:none;width:18px;height:18px;margin-top:1px;border-radius:6px;border:1.5px solid #D5CCD1;background:none;padding:0;cursor:pointer;position:relative}
+.dl .ok .dd{background:var(--mode);border-color:var(--mode)}.dl .ok .dd::after{content:"";position:absolute;left:5px;top:1.5px;width:4px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.dl .ok span{opacity:.45;text-decoration:line-through;text-decoration-color:var(--mode)}
 .peek1{display:block;margin-left:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ied-b{display:flex;justify-content:flex-end;gap:18px}.ied-b .link{font-size:15px}
 .cards .item.editing{border-color:var(--mode);box-shadow:0 0 0 3px var(--mode-soft)}
@@ -387,43 +392,49 @@ function seedToday(){
 }
 /* 오늘 순공(초): 기록된 것 + 지금 재고 있는 타이머(아직 끝내기 전)까지 */
 const liveSec = () => secOf(today()) + (D.timer ? tsec() : 0);
+/* 할 일 세기: 세부 계획이 있으면 한 줄 = 할 일 1개 (국어 2줄 + 수학 2줄 + 영어 2줄 = 6개), 없으면 과목 하나 = 1개
+   p.dd = 세부 계획 줄마다 했는지 [true, false…], p.done = 그 과목을 다 했는지 */
+const unitsOf = p => p.det.length ? p.det.map((t, i) => ({ t, d:!!(p.dd || [])[i] })) : [{ t:p.s, d:!!p.done }];
+const countUnits = L => { let n = 0, all = 0; for (const p of L.filter(p => p.s)) for (const u of unitsOf(p)){ all++; if (u.d) n++; } return { n, all }; };
+const syncDone = p => { if (p.det.length){ p.dd = p.det.map((_, i) => !!(p.dd || [])[i]); p.done = p.dd.every(Boolean); } };
 /* 진행 막대 = 체크한 할 일 비율 · 오른쪽 글씨 = 오늘 순공 전체(재는 중인 타이머 포함). 과목별 시간은 정하지 않아요 */
-function progHtml(){ const L = plansOf(today()), n = L.filter(p => p.done).length;
-  return { txt:`순공 ${hm(liveSec())}`, pct:L.length ? n / L.length * 100 : 0 }; }
+function progHtml(){ const c = countUnits(plansOf(today()));
+  return { txt:`순공 ${hm(liveSec())}`, pct:c.all ? c.n / c.all * 100 : 0, n:c.n, all:c.all }; }
 const secOf = k => Object.values(D.log[k] || {}).reduce((a, b) => a + b, 0);
 function daysSince(subj){ for (let i = 0; i < 60; i++){ const d = new Date(); d.setDate(d.getDate() - i); if ((D.log[dk(d)] || {})[subj] > 60) return i; } return 60; }
 
 /* ===================== 쌤 한마디 (F = 다정하게, T = 숫자로 딱) ===================== */
 const say = (f, t) => `<div class="sayw"><span class="ava">${ch(0)}</span><div class="say"><b>${D.mode === "t" ? "T쌤" : "F쌤"}</b>${esc(D.mode === "t" ? t : f)}</div></div>`;
 function todaySay(){
-  const L = plansOf(today()), w = weakSubj(), done = L.filter(p => p.done).length, sec = secOf(today());
+  const L = plansOf(today()), w = weakSubj(), cu = countUnits(L), done = cu.n, sec = secOf(today());
   if (!L.length) return say("오늘 할 일을 한두 개만 넣어 볼까? 작게 시작하면 돼.", "계획 0개. 1개부터 넣어.");
-  if (done === L.length) return say(`오늘 할 일 다 했어! 순공 ${hm(sec)}, 정말 대단해.`, `${done}/${L.length} 완료. 순공 ${hm(sec)}.`);
-  if (L.length > 7) return say("오늘 계획이 좀 많은데? 꼭 할 것만 남겨 보자.", `계획 ${L.length}개. 너무 많아. 줄여.`);
+  if (done === cu.all) return say(`오늘 할 일 다 했어! 순공 ${hm(sec)}, 정말 대단해.`, `${done}/${cu.all} 완료. 순공 ${hm(sec)}.`);
+  if (cu.all > 12) return say("오늘 할 일이 좀 많은데? 꼭 할 것만 남겨 보자.", `할 일 ${cu.all}개. 너무 많아. 줄여.`);
   const wp = L.find(p => p.s === w && !p.done);
   if (wp){ const n = daysSince(w); return say(`${w}를 맨 앞에 뒀어. 조금만 같이 해 보자.`, n >= 2 ? `${w} ${n}일째 0분. ${w} 먼저.` : `${w} 먼저.`); }
   if (w && !L.some(p => p.s === w)) return say(`오늘은 ${w}가 없네. 작게 하나만 넣어 볼까?`, `${w} 계획 없음. 하나 추가해.`);
   if (!done){ const f = L.find(p => !p.done); return say(`${f.s}부터 시작해 볼까? 오른쪽 ⏱를 당기면 타이머가 나와.`, `${f.s}부터. ⏱ 당겨.`); }
-  return say(`벌써 ${done}개 했어! 남은 것도 하나씩 가 보자.`, `${done}/${L.length} 완료. 남은 ${L.length - done}개.`);
+  return say(`벌써 ${done}개 했어! 남은 것도 하나씩 가 보자.`, `${done}/${cu.all} 완료. 남은 ${cu.all - done}개.`);
 }
 
 /* ===================== 오늘 ===================== */
 const WD = ["일","월","화","수","목","금","토"];
 function viewToday(){
   seedToday();
-  const k = today(), d = new Date(), w = weakSubj(), L = sorted(plansOf(k)), n = L.filter(p => p.done).length, pg = progHtml(), pct = pg.pct;
+  const k = today(), d = new Date(), w = weakSubj(), L = sorted(plansOf(k)), pg = progHtml(), pct = pg.pct;
   return `<div class="hd"><div><div class="sub" style="color:var(--mode)">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일${ddayTag()}</div><h1 class="big ttl">오늘 할 일</h1></div><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></div>
-    <div class="prog"><span>할 일 ${n}/${L.length}</span><span class="tr"><i id="pgBar" style="width:${pct}%"></i><span class="walker" id="pgWalk" style="left:${pct}%">${ch(2)}</span></span><span id="pgTxt">${pg.txt}</span></div>
+    <div class="prog"><span>할 일 ${pg.n}/${pg.all}</span><span class="tr"><i id="pgBar" style="width:${pct}%"></i><span class="walker" id="pgWalk" style="left:${pct}%">${ch(2)}</span></span><span id="pgTxt">${pg.txt}</span></div>
     ${todaySay()}
     ${L.length ? `<div class="list cards peek">${L.map((p, i) => { const o = S.open[p.id], sec = (D.log[k] || {})[p.s] || 0;
       if (S.editing === p.id) return `<div class="item editing">${i === 0 ? `<span class="peeker">${ch(1)}</span>` : ""}${inlineEdit(p)}</div>`;
       return `<div class="item ${p.done ? "done" : ""}">${i === 0 ? `<span class="say2" id="say2"></span><span class="peeker">${ch(1)}</span>` : ""}<div class="row">
         <button type="button" class="dot" data-act="check" data-v="${p.id}" aria-label="${esc(p.s)} 했어요" aria-pressed="${!!p.done}"></button>
-        <div class="nm" data-act="toggle" data-v="${p.id}"><span>${esc(p.s)}</span>${p.s === w && i === 0 ? '<span class="first">먼저</span>' : ""}${sec ? `<small>순공 ${hm(sec)}</small>` : ""}${!o && p.det[0] ? `<small class="peek1">${esc(p.det[0])}${p.det.length > 1 ? ` 외 ${p.det.length - 1}` : ""}</small>` : ""}</div>
+        <div class="nm" data-act="toggle" data-v="${p.id}"><span>${esc(p.s)}</span>${p.s === w && i === 0 ? '<span class="first">먼저</span>' : ""}${sec ? `<small>순공 ${hm(sec)}</small>` : ""}${p.det.length ? `<small>${unitsOf(p).filter(u => u.d).length}/${p.det.length}</small>` : ""}</div>
         </div>
-        ${o ? `${p.det.length ? `<ol class="det">${p.det.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="det" style="list-style:none"><button type="button" class="link" data-act="edit" data-v="${p.id}">＋ 세부 계획을 추가해 보세요</button></p>`}
+        ${p.det.length ? `<ul class="dl">${unitsOf(p).map((u, j) => `<li class="${u.d ? "ok" : ""}"><button type="button" class="dd" data-act="dchk" data-v="${p.id}" data-i="${j}" aria-label="${esc(u.t)} 했어요" aria-pressed="${u.d}"></button><span data-act="dchk" data-v="${p.id}" data-i="${j}">${esc(u.t)}</span></li>`).join("")}</ul>` : ""}
+        ${o ? `${p.det.length ? "" : `<p class="det" style="list-style:none"><button type="button" class="link" data-act="edit" data-v="${p.id}">＋ 세부 계획을 추가해 보세요</button></p>`}
           <div class="det-act"><button type="button" class="link" data-act="edit" data-v="${p.id}">고치기</button>${i ? `<button type="button" class="link" data-act="mv" data-v="${p.id}" data-d="-1">↑ 위로</button>` : ""}${i < L.length - 1 ? `<button type="button" class="link" data-act="mv" data-v="${p.id}" data-d="1">↓ 아래로</button>` : ""}<button type="button" class="link del" data-act="del" data-v="${p.id}">지우기</button></div>` : ""}</div>`; }).join("")}</div>
-      <p class="note" style="text-align:center">과목 이름을 누르면 세부 계획이 펼쳐져요<br>세부 계획을 추가해 보세요 (쪽수 · 문제 수 등)</p>` : `<div class="empty">아직 오늘 공부할 과목이 없어요</div>`}
+      <p class="note" style="text-align:center">과목 이름을 누르면 고치기 · 순서 바꾸기가 나와요<br>세부 계획을 한 줄씩 추가하면 할 일이 늘어나요 (쪽수 · 문제 수 등)</p>` : `<div class="empty">아직 오늘 공부할 과목이 없어요</div>`}
     <button type="button" class="add" data-act="addPlan">＋ 과목 추가</button>`;
 }
 
@@ -447,7 +458,7 @@ function weekStats(end = new Date()){
   let sec = 0, days = 0, by = {}, done = 0, all = 0;
   for (let i = 0; i < 7; i++){ const d = new Date(end); d.setDate(d.getDate() - i); const k = dk(d), s1 = secOf(k); sec += s1; if (s1 >= 60) days++;
     for (const [n, v] of Object.entries(D.log[k] || {})) by[n] = (by[n] || 0) + v;
-    const L = D.plans[k] || []; all += L.length; done += L.filter(p => p.done).length; }
+    const cu = countUnits(D.plans[k] || []); all += cu.all; done += cu.n; }
   const top = Object.entries(by).sort((a, b) => b[1] - a[1])[0];
   return { sec, days, top: top ? top[0] : "", done, all };
 }
@@ -732,8 +743,12 @@ document.addEventListener("click", e => {
     case "settings": S.tab = "settings"; break;
     case "back": S.tab = "today"; break;
     case "toggle": S.open[v] = !S.open[v]; break;
-    case "check": { const p = plansOf(k).find(x => x.id === v); if (!p) return; p.done = !p.done; save(); render();
-      if (p.done){ haptic("ok"); const L = plansOf(k), all = L.every(x => x.done), s2 = $("say2");
+    case "check": case "dchk": { const p = plansOf(k).find(x => x.id === v); if (!p) return;
+      let got;
+      if (a === "dchk"){ syncDone(p); const j = +b.dataset.i; p.dd[j] = !p.dd[j]; got = p.dd[j]; syncDone(p); }
+      else { p.done = !p.done; if (p.det.length) p.dd = p.det.map(() => p.done); got = p.done; }
+      save(); render();
+      if (got){ haptic("ok"); const c = countUnits(plansOf(k)), all = c.n === c.all, s2 = $("say2");
         if (s2){ s2.textContent = all ? (D.mode === "t" ? "전부 완료." : "다 했다! 최고야!") : (D.mode === "t" ? "체크. 다음." : "잘했어! 다음 칸 가자!"); requestAnimationFrame(() => s2.classList.add("on")); setTimeout(() => s2.classList.remove("on"), 1800); } }
       return; }
     case "bgSet": D.bg = v; D.acc = (BGS.find(b => b[0] === v) || [])[3] ?? D.acc; save(); break;
@@ -753,7 +768,7 @@ document.addEventListener("click", e => {
     case "edit": S.editing = v; S.draft = null; render(); setTimeout(() => { const el = $("eName"); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 30); return;
     case "eCancel": { const p = plansOf(k).find(x => x.id === S.editing); if (p && p.fresh) D.plans[k] = plansOf(k).filter(x => x !== p); S.editing = ""; S.draft = null; save(); break; }
     case "eSave": { const p = plansOf(k).find(x => x.id === v), n = $("eName").value.trim(); if (!n){ toast("이름을 써 주세요"); $("eName").focus(); return; }
-      const was = p && p.fresh; if (p){ p.s = n; p.det = $("eDet").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0, 8); delete p.fresh; }
+      const was = p && p.fresh; if (p){ syncDone(p); const old = {}; p.det.forEach((t, i) => old[t] = (p.dd || [])[i]); p.s = n; p.det = $("eDet").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0, 8); p.dd = p.det.map(t => !!old[t]); if (p.det.length) p.done = p.dd.every(Boolean); delete p.fresh; }
       S.editing = ""; S.draft = null; save(); toast(was ? "넣었어요" : "고쳤어요"); break; }
     case "del": D.plans[k] = plansOf(k).filter(x => x.id !== v); save(); break;
     case "mv": { const L = plansOf(k), i = L.findIndex(x => x.id === v), j = i + +b.dataset.d; if (i < 0 || j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; save(); break; }
@@ -863,7 +878,7 @@ function nativeSync(){
   if (!NAT) return;
   clearTimeout(natT); natT = setTimeout(async () => {
     const k = today(), L = plansOf(k), t = D.timer, c = COLORS[D.acc] || COLORS[0], x = nextExam();
-    const w = { date:k, tasks:L.filter(p => p.s).map(p => ({ t:p.s, d:!!p.done })), sec:Math.round(secOf(k)), color:c[0], soft:c[1], mode:D.mode,
+    const w = { date:k, tasks:L.filter(p => p.s).flatMap(p => p.det.length ? unitsOf(p).map(u => ({ t:`${p.s} · ${u.t}`, d:u.d })) : [{ t:p.s, d:!!p.done }]), sec:Math.round(secOf(k)), color:c[0], soft:c[1], mode:D.mode,
       say:D.mode === "t" ? "할 일부터. 지금 시작." : "오늘도 같이 해 보자!", dday:x ? `${x.n} ${dLeft(x.d) ? "D-" + dLeft(x.d) : "D-day"}` : "",
       timer:t ? { s:t.s, run:!!t.start, from:Date.now() - tsec() * 1000, sec:Math.round(tsec()) } : null, ava:await avaImage() };
     try { await NAT.setData({ json:JSON.stringify(w) }); } catch (e) {}
@@ -897,7 +912,7 @@ nativeStart();
 setTimeout(weekPopup, 600);
 }
 </script>
-<script type="module" src="/visit.js?app=first"></script>
+<script type="module" src="/visit.js?app=first&hide=1"></script>
 <script src="/refresh.js" data-bg="rgba(242,242,247,.92)" data-fg="#8E8E93" defer></script>
 </body>
 </html>
