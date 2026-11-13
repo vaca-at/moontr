@@ -2533,8 +2533,7 @@ function draftReport(id, typing) {
   const p1 = [`<div class="rp-head1"><div class="rp-cv-top">진선여자고등학교 · DRS(또래상담부)A · 2026학년도</div>
       <div class="rp-t1">또래상담부 1년 활동 보고서</div><div class="rp-who1"><b>${esc(name)}</b><span>${g}학년 ${cls}반 ${num}번</span></div>
       <div class="rp-chips"><span>함께한 활동 ${gradeActs(g).length + 2}개</span><span>1학기 봉사 ${hours}시간</span></div></div>`,
-    `<div class="rp-h">우리 또래상담부의 1년 <small>${g}학년 공통 · 선생님이 채워 줘요</small></div>`,
-    `<ul class="rp-list">${gradeActs(g).map(d => `<li>${d.date ? korDay(d.date) + ' · ' : ''}${esc(d.title)}</li>`).join('')}<li>1학기 봉사활동 (거북이편지함 · 칭찬배달프로젝트)</li><li>2학기 연화제 부스 (천원의 행복 뽑기 · 워리스톤 만들기)</li>${g === '2' ? '<li>또래상담 시스템(1388) 사전 · 사후 설문과 이수</li>' : ''}</ul>`];
+    `<div class="rp-h">우리 또래상담부의 1년 <small>${g}학년 공통</small></div>`, ...commonFor(g).flatMap(s => [`<div class="rp-q">${esc(s.heading)}</div>`, ...rp_paras(s.body).map(t => `<p class="say">${esc(t)}</p>`)])];
   const p2 = ['<div class="rp-h">나의 활동</div>'];
   cats.filter(c => c.k !== 'feel' && c.k !== 'next').forEach(c => { const ns = notes.filter(n => n.cat === c.k); if (ns.length) p2.push(`<div class="rp-q">${esc(c.t)}</div>`, ...ns.flatMap(say)); });
   if (p2.length === 1) p2.push('<p class="say ghost">아직 비어 있어요. 왼쪽에서 활동을 골라 써 보세요 ✏️</p>');
@@ -2554,7 +2553,7 @@ function notePreview(p, typing) {
   rp_render([draftReport(st_me.id, typing)], doc);
   // 보고서는 묶음마다 새 쪽이라 1쪽 = 공통, 2쪽~ = 나의 활동, 마지막 묶음 = 돌아보며
   const pages = [...doc.querySelectorAll('.rp-page')];
-  const sectionStart = [0, 1, pages.findIndex(pg => pg.querySelector('.rp-h') && /돌아보며/.test(pg.querySelector('.rp-h').textContent))];
+  const sectionStart = [0, Math.max(1, pages.findIndex(pg => [...pg.querySelectorAll('.rp-h')].some(h => /나의 활동/.test(h.textContent)))), pages.findIndex(pg => pg.querySelector('.rp-h') && /돌아보며/.test(pg.querySelector('.rp-h').textContent))];
   const show = Math.max(0, sectionStart[NOTE_PAGE] != null && sectionStart[NOTE_PAGE] >= 0 ? sectionStart[NOTE_PAGE] : NOTE_PAGE);
   pages.forEach((pg, i) => { pg.style.display = i === show ? '' : 'none'; pg.style.margin = '0'; });
   const s = wrap.clientWidth / 794;   // A4 너비 210mm ≈ 794px
@@ -2864,7 +2863,7 @@ async function aiCall(user, schema) {
   const body = {
     model: AI.model || 'claude-opus-5-5', max_tokens: 16000, system: AI_SYSTEM,
     messages: [{ role: 'user', content: user }],
-    output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+    output_config: { effort: 'high', format: { type: 'json_schema', schema } },
     fallbacks: 'default'   // 안전 검사로 거절되면 같은 요청을 다른 모델로 이어서 (서버가 알아서)
   };
   const send = (b, beta) => fetch(AI_URL, { method: 'POST', body: JSON.stringify(b), headers: Object.assign({
@@ -2913,6 +2912,25 @@ function studentFacts(id) {
   if (Object.keys(cc).length) L.push(`[기록 속 낱말로 자동 표시된 역량 (참고용)] ${compTop(cc, 14).map(k => COMPS.find(c => c.k === k).t.replace(/^\S+\s/, '') + '(' + cc[k] + ')').join(', ')}`);
   return L.join('\n');
 }
+/* 공통 문구 (AI 없이 저절로): 활동 기록 · 봉사 · 부스 자료로 문장을 만들어요. AI 로 만든 공통 문구가 있으면 그걸 써요
+   학생 화면에서도 보이게 AI 공통 문구는 drs_settings/reportCommon { g1, g2 } 에도 같이 저장해요 */
+const josaEul = w => { const c = String(w).charCodeAt(String(w).length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 ? '을' : '를'; };   // 받침 있으면 '을'
+function commonAuto(g) {
+  const acts = gradeActs(g), clean = t => String(t || '').replace(/^\[[^\]]*\]\s*/, '').replace(/\s*\([^)]*\)\s*$/, '');
+  const S = [{ heading: '또래상담부는', body: `또래상담부(DRS)는 친구의 고민에 귀 기울이고 마음을 나누는 또래상담자로 성장하기 위해 함께 배우는 동아리다.\n부원들은 상담의 바탕이 되는 관심과 공감을 배우고, 이를 학교생활 속에서 실천하며 서로 돕는 학교 문화를 만드는 데 힘을 모았다.` }];
+  const lines = acts.filter(d => d.title && !/계획 세우기/.test(d.title)).sort((a, b) => (a.date || '9') < (b.date || '9') ? -1 : 1).map(d => {
+    const parts = (d.parts || []).map(a => clean(a.t)).filter(Boolean);
+    const keys = (d.parts || []).map(a => (String(a.t).match(/\(([^)]+)\)\s*$/) || [])[1]).filter(Boolean).map(k => k.replace(/\s*연습$/, ''));
+    return `${d.date ? korDay(d.date).replace(/ \(.\)$/, '') + '에는 ' : ''}'${d.title.replace(/\s*\(.*\)$/, '')}' 활동${keys.length ? `으로 ${keys.join(' · ')}${josaEul(keys[keys.length - 1])} 연습했다` : '을 했다'}.`;
+  });
+  if (lines.length) S.push({ heading: `${g}학년이 함께한 활동`, body: [g === '2' ? '1학기에는 쏠리언 또래상담자로서 또래상담의 기본을 다졌다.' : '', ...lines.filter(l => !(g === '2' && /쏠리언/.test(l)))].filter(Boolean).join('\n') });
+  const v = volActs();
+  if (v.length) S.push({ heading: '나눔과 봉사', body: `1학기에는 ${[...new Set(v.map(a => String(a.content).replace(/^교내\s*/, '').replace(/\s*(캠페인)?\s*(사전 준비|운영 및 지원).*$/, '')))].join(' · ')} 캠페인을 준비하고 운영하며 학교 안에 따뜻한 마음을 전했다.` });
+  S.push({ heading: '연화제 부스', body: `2학기 연화제에서는 '천원의 행복 뽑기'와 '워리스톤 만들기' 부스를 역할을 나누어 함께 준비하고 운영했다.` });
+  if (g === '2') S.push({ heading: '또래상담 시스템(1388)', body: '2학년 부원들은 쏠리언 또래상담자로서 1388 또래상담 시스템의 사전 · 사후 설문에 참여하고 이수 과정을 마쳤다.' });
+  return S;
+}
+function commonFor(g) { const c = REPORTS['common_' + g] || (SET.reportCommon && SET.reportCommon['g' + g] && { sections: SET.reportCommon['g' + g] }); return c && c.sections && c.sections.length ? c.sections : commonAuto(g); }
 function commonPrompt(g) {
   return `${gradeFacts(g)}
 
@@ -2928,17 +2946,21 @@ function studentPrompt(id) {
 
 ${studentFacts(id)}
 
-위 학생이 1년 동안 여러 번 나눠 남긴 기록을 모아, 학생 본인이 쓴 '1년 활동 보고서'의 개인 부분을 써 줘. (첫 쪽에는 학년 공통 문구가 따로 들어가.)
+위 학생이 1년 동안 여러 번 나눠 남긴 짧은 기록들을 재료로, 학생 본인이 쓴 '1년 활동 보고서'의 개인 부분을 **완성된 글**로 새로 써 줘. (첫 쪽에는 학년 공통 문구가 따로 들어가.)
+기록을 그대로 이어 붙이지 말고, 같은 내용은 한 번으로 묶고, 순서를 정리하고, 활동 목표와 이어서 '무엇을 했고 → 그때 어떤 생각을 했고 → 그래서 무엇을 배우고 어떻게 달라졌는지'가 드러나는 매끄러운 문단으로 다시 써.
 - title: 이 학생의 1년을 담은 한 줄 제목 (20자 안팎, 따옴표 없이)
 - activities: '나의 활동' — 학생이 기록을 남긴 활동과 참여 기록이 있는 활동마다 소제목 하나씩, 모두 합해 1,300~1,700자
+  · 소제목은 활동 이름 그대로가 아니라 그 활동에서 이 학생이 얻은 것을 담은 짧은 말로 (예: '다가가는 용기를 배운 날')
+  · 각 활동은 활동 목표 · 한 일 → 학생이 쓴 장면과 생각 → 배운 점 순서로, 문단 2개 안팎
 - reflection: '1년을 돌아보며' — 아래 순서의 소제목으로, 모두 합해 1,000~1,300자
-  1) '올해 배우고 느낀 점' — 학생 기록(특히 '올해 배우고 느낀 점 · 소감')에서 배운 것 → 그래서 달라진 나 → 구체적인 장면 순서로 잘 정리
-  2) '1년을 마치며 (소감)' — 1년을 마친 마음, 고마운 사람
-  3) '내년에 하면 좋을 활동 추천' — 학생이 '내년에 하면 좋을 활동 추천'을 남겼을 때만. 추천 활동과 그 까닭을 정리 (남기지 않았으면 이 소제목은 빼)
-- 학생 1인칭 '~다' 체. 이름 대신 '나'.
-- 학생 기록에 없는 구체적인 사건 · 대화 · 사람 · 감정을 지어내지 마. 학생이 쓴 표현을 살리고 맞춤법과 문장만 다듬어.
-- 기록이 적으면 활동 목표와 참여 사실을 바탕으로 담백하게 쓰고, 분량을 채우려고 지어내지 마 (짧아도 괜찮아).
-- '자동 표시된 역량'은 참고만 해. 학생 기록에 실제 근거가 있는 역량만 활동 속 행동으로 자연스럽게 드러내고, 역량 이름을 나열하지 마.
+  1) '올해 배우고 느낀 점' — 배운 것 → 그래서 달라진 나 → 그것이 드러난 구체적인 장면
+  2) '1년을 마치며' — 1년을 마친 마음, 고마운 사람, 앞으로의 다짐
+  3) '내년에 하면 좋을 활동 추천' — 학생이 추천을 남겼을 때만. 추천 활동과 그 까닭 (남기지 않았으면 이 소제목은 빼)
+- 학생 1인칭 '~다' 체. 이름 대신 '나'. 고등학생이 정성껏 쓴 보고서처럼 자연스럽고 진솔하게, 너무 어려운 말이나 과장된 표현은 쓰지 마.
+- 사실은 지켜: 학생 기록 · 활동 기록에 없는 사건 · 대화 · 사람 · 숫자 · 날짜는 만들지 마. 다만 기록에 담긴 생각과 느낌을 더 분명한 문장으로 풀어 쓰고, 활동 목표에 비추어 그 의미를 해석하는 것은 해도 돼.
+- 학생이 쓴 인상적인 표현 한두 개는 살려.
+- 기록이 적은 활동은 활동 목표와 참여 사실을 바탕으로 담백하게 쓰고, 분량을 채우려고 지어내지 마 (짧아도 괜찮아).
+- '자동 표시된 역량'은 참고만 해. 학생 기록에 실제 근거가 있는 역량만 행동 속에서 자연스럽게 드러내고, 역량 이름을 나열하지 마.
 - 각 body 는 문단을 줄바꿈(\\n)으로 나눠.`;
 }
 async function aiCommon(g) {
@@ -2947,12 +2969,18 @@ async function aiCommon(g) {
   AI_BUSY = true; ad_aiMsg(`🤖 ${g}학년 공통 문구를 쓰는 중이에요… (1~2분)`); ad_renderReports();
   try {
     const out = await aiCall(commonPrompt(g), COMMON_SCHEMA);
-    await db.collection('drs_reports').doc('common_' + g).set({ sections: out.sections, at: FV.serverTimestamp(), model: AI.model });
+    await saveCommon(g, out.sections);
     ad_aiMsg(`✓ ${g}학년 공통 문구를 만들었어요`);
   } catch (e) { ad_aiMsg('⚠️ ' + e.message, true); }
   AI_BUSY = false; ad_renderReports();
 }
+async function saveCommon(g, sections) {
+  await db.collection('drs_reports').doc('common_' + g).set({ sections, at: FV.serverTimestamp(), model: AI.model });
+  await setDoc('reportCommon').set({ ['g' + g]: sections }, { merge: true });   // 학생 보고서 미리 보기에도 보이게
+}
+async function ensureCommon(g) { if (!REPORTS['common_' + g]) { const out = await aiCall(commonPrompt(g), COMMON_SCHEMA); await saveCommon(g, out.sections); REPORTS['common_' + g] = { sections: out.sections }; } }
 async function aiStudentCore(id) {
+  await ensureCommon(id[0]);   // 공통 문구가 없으면 먼저 저절로 만들어요
   const out = await aiCall(studentPrompt(id), STUDENT_SCHEMA);
   const keepName = REPORTS['s_' + id] && REPORTS['s_' + id].name;
   await db.collection('drs_reports').doc('s_' + id).set({ name: keepName || nameOf(id), title: out.title, activities: out.activities, reflection: out.reflection, notes: NOTES.filter(n => n.sid === id).length, at: FV.serverTimestamp(), model: AI.model });
@@ -2993,7 +3021,7 @@ function reportFor(id) {
       ${R && R.title ? `<div class="rp-title1">“${esc(R.title)}”</div>` : ''}
       <div class="rp-chips">${chips.map(c => `<span>${esc(c)}</span>`).join('')}</div></div>`,
     `<div class="rp-h">우리 또래상담부의 1년 <small>${g}학년 공통</small></div>`,
-    ...(C ? C.sections.flatMap(sec) : ['<p class="say muted">(공통 문구를 아직 만들지 않았어요)</p>'])];
+    ...commonFor(g).flatMap(sec)];
   const p2 = ['<div class="rp-h">나의 활동</div>', ...(R ? R.activities.flatMap(sec) : ['<p class="say muted">(아직 보고서를 만들지 않았어요)</p>'])];
   const cc = compCounts(NOTES.filter(n => n.sid === id).map(n => n.text));
   const p3 = ['<div class="rp-h">1년을 돌아보며</div>', ...(R ? R.reflection.flatMap(sec) : []),
