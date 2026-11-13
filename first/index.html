@@ -559,7 +559,21 @@ function render(){
 let toastT = 0;
 function toast(t){ document.querySelector(".toast")?.remove(); const el = document.createElement("div"); el.className = "toast"; el.textContent = t; $("app").appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2200); }
 $("edge").onclick = () => { $("app").classList.add("timer-open"); $("side").innerHTML = viewSide(); tick(); };
-$("scrim").onclick = () => $("app").classList.remove("timer-open");
+$("scrim").onclick = () => closeTimer();
+/* ⏱ 타이머 닫기: ✕ · 바깥(어두운 곳) 누르기 · 오른쪽으로 밀기 모두 돼요. 열기는 ⏱ 단추로만 */
+function closeTimer(){ const sd = $("side"); sd.style.transform = sd.style.transition = ""; $("app").classList.remove("timer-open"); }
+(() => {
+  const sd = $("side"); let x0 = 0, y0 = 0, dx = 0, drag = false, track = false;
+  sd.addEventListener("touchstart", e => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; dx = 0; drag = false; track = true; }, { passive:true });
+  sd.addEventListener("touchmove", e => {
+    if (!track) return; const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
+    if (!drag){ if (Math.abs(mx) < 8 && Math.abs(my) < 8) return; if (Math.abs(my) > Math.abs(mx) || mx < 0){ track = false; return; } drag = true; sd.style.transition = "none"; }
+    dx = Math.max(0, mx); sd.style.transform = `translateX(${dx}px)`;
+  }, { passive:true });
+  const end = () => { if (!track) return; track = false; if (!drag) return; drag = false;
+    if (dx > Math.min(90, sd.offsetWidth * .25)) closeTimer(); else { sd.style.transition = ""; sd.style.transform = ""; } };
+  sd.addEventListener("touchend", end); sd.addEventListener("touchcancel", end);
+})();
 document.addEventListener("change", e => { if (e.target.id === "weakSel"){ D.weak = e.target.value; save(); render(); } if (e.target.id === "capFile") capLoad(e.target.files[0]); });
 let capT = 0;
 document.addEventListener("input", e => {
@@ -603,7 +617,7 @@ document.addEventListener("click", e => {
       if (v){ const p = plansOf(k).find(x => x.id === v); if (p) Object.assign(p, { s, min:m, det }); } else plansOf(k).push({ id:uid(), s, min:m, det, done:false });
       save(); closeSheet(); break; }
     case "sheetClose": closeSheet(); return;
-    case "closeT": $("app").classList.remove("timer-open"); return;
+    case "closeT": closeTimer(); return;
     case "tsel": S.tsel = v; break;
     case "tGo": { const p = sorted(plansOf(k)).find(x => x.s === v && !x.done); D.timer = { s:v, pid:p ? p.id : "", min:p ? +p.min || 25 : 25, start:Date.now(), acc:0 }; save(); break; }
     case "tPause": if (D.timer && D.timer.start){ D.timer.acc = tsec(); D.timer.start = 0; save(); } break;
