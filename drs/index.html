@@ -475,6 +475,20 @@
     .ncat.on { background:var(--acc); color:#fff; border-color:var(--acc); }
     .ncat b { margin-left:2px; }
     #view-student .nleft textarea { margin-bottom:0; min-height:118px; line-height:1.6; resize:vertical; }
+    /* 🔥 서로서로 기록 현황 */
+    .pg { margin-bottom:14px; }
+    .pg-t { font-weight:800; font-size:13.5px; margin:2px 0 8px; }
+    .pg-t span { font-weight:500; font-size:12px; color:var(--sub); margin-left:4px; }
+    .pgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:4px 18px; }
+    .prow { display:grid; grid-template-columns:96px minmax(0, 1fr) auto; align-items:center; gap:10px; padding:6px 10px; border-radius:10px; font-size:13px; }
+    .prow:hover { background:var(--soft); }
+    .prow.me { background:var(--acc-soft); box-shadow:inset 0 0 0 1.5px var(--acc); }
+    .prow .nm { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .prow.zero .nm { color:var(--sub); font-weight:500; }
+    .pbar { height:9px; background:var(--soft); border-radius:6px; overflow:hidden; }
+    .prow.me .pbar { background:#fff; }
+    .pbar i { display:block; height:100%; background:linear-gradient(90deg, #6fdcb8, #0a9f7d); border-radius:6px; transition:width .5s; }
+    .prow .pv { font-size:12px; color:var(--sub); white-space:nowrap; font-variant-numeric:tabular-nums; }
     .nsave { font-size:12px; color:var(--acc-ink); min-height:18px; margin-top:5px; font-weight:600; }
     /* ✨ 역량 칩: 꺼진 칩은 연하게, 글에 보이면 켜져요 */
     .ncomp { margin-top:8px; padding:12px 14px; border-radius:14px; background:linear-gradient(135deg, #fffaf0, #f6fbf9); border:1px solid #efe6cf; }
@@ -885,6 +899,7 @@
       <!-- 맨 위: 초록 칸(인사 + 오늘 해야 할 일) → 나의 활동 기록 남기기 -->
       <section class="hero"><div class="txt" id="st-hero"></div><div class="hero-todo" id="st-todo"></div></section>
       <section class="dcard" id="st-notes"></section>
+      <section class="dcard" id="st-prog"></section>
       <section class="dcard notice-card" id="st-notice" style="display:none;"></section>
       <div class="tiles4" id="st-tiles"></div>
       <section class="dcard" id="st-sol"></section>
@@ -1002,6 +1017,7 @@
             </div>
             <button class="btn small secondary" onclick="ad_toggleNoticeEdit(true)" id="ad-noticeEditBtn">공지 고치기</button>
           </section>
+          <section class="dcard" id="ad-prog"></section>
           <section class="dcard" id="ad-sol"></section>
           <section class="dcard span-5" id="ad-todo"></section>
           <section class="dcard span-7" id="ad-roll"></section>
@@ -2138,7 +2154,7 @@ function st_afterLoginChange() {
     document.getElementById('st-avatar').innerText = String(st_me.name).slice(-2);
     document.getElementById('st-welcomeText').innerText = st_me.role === 'member' ? st_me.name + ' 님' : st_me.name;
   }
-  st_renderHero(); st_renderMe(); st_renderGifts(); renderSol('st'); renderNotes('st');
+  st_renderHero(); st_renderMe(); st_renderGifts(); renderSol('st'); renderNotes('st'); renderProg('st');
 }
 // 입장 전이면 위쪽 학번 칸으로 데려가요
 function st_needLogin(text) {
@@ -2319,6 +2335,7 @@ function st_start() {
   watchMembers(() => { st_renderHero(); st_renderTrend(); renderBoards(); });
   watchAttendance(() => { st_renderHero(); st_renderMe(); st_renderTrend(); renderTiles('st'); renderRoll('st'); renderSol('st'); });
   watchGifts(() => { st_renderGifts(); });
+  watchNoteStats(() => renderProg('st'));
   // 관리자 구글 계정으로 들어와 있으면(관리자 허브 · 관리보드에서 로그인) 이 화면에서 바로 고칠 수 있어요
   auth.onAuthStateChanged(u => {
     CAN_EDIT = !!(u && isAdminEmail(u.email));
@@ -2508,8 +2525,52 @@ function openDraft() {
   const ta = document.getElementById('st-noteIn');
   rp_open([draftReport(st_me.id, ta && ta.value.trim() ? { cat: NOTE_CAT, text: ta.value.trim() } : null)], `내 활동 보고서 초안_${nameOf(st_me.id)}`);
 }
+/* ----- 🔥 서로서로 기록 현황 -----
+   글 내용은 선생님만 보고, 개수 · 글자 수 · 쓴 활동만 drs_counters/note_학번 에 (누구나 보기)
+   선생님이 관리보드를 열면 실제 기록으로 숫자를 다시 맞춰요 */
+let NOTE_STATS = {}, noteStatsOn = false, noteStatsWatchers = [], noteSyncSig = '';
+function watchNoteStats(cb) {
+  noteStatsWatchers.push(cb);
+  if (noteStatsOn) return; noteStatsOn = true;
+  db.collection(COL.counters).onSnapshot(s => {
+    NOTE_STATS = {}; s.docs.forEach(d => { if (d.id.startsWith('note_')) NOTE_STATS[d.id.slice(5)] = d.data(); });
+    noteStatsWatchers.forEach(f => f());
+  }, err => console.error(err));
+}
+const noteLen = t => String(t || '').replace(/\s/g, '').length;
+function noteStatBump(id, cat, text) {
+  return db.collection(COL.counters).doc('note_' + id).set({ value: FV.increment(1), chars: FV.increment(noteLen(text)), cats: FV.arrayUnion(cat), at: FV.serverTimestamp() }, { merge: true }).catch(e => console.warn(e));
+}
+function syncNoteStats() {   // 관리자만: 실제 기록(NOTES)으로 숫자 맞추기
+  const out = {};
+  rosterList().forEach(m => { const ns = NOTES.filter(n => n.sid === m.id); out[m.id] = { value: ns.length, chars: ns.reduce((s, n) => s + noteLen(n.text), 0), cats: [...new Set(ns.map(n => n.cat))] }; });
+  // 숫자가 다른 부원만 고쳐 써요 (같아지면 더 쓰지 않아서 계속 돌지 않아요)
+  const ops =Object.entries(out).filter(([id, v]) => { const c = NOTE_STATS[id]; return c ? (c.value !== v.value || c.chars !== v.chars) : v.value > 0; })
+    .map(([id, v]) => b => b.set(db.collection(COL.counters).doc('note_' + id), Object.assign({}, v, { at: FV.serverTimestamp() })));
+  if (ops.length) batchWrite(ops).catch(e => console.warn(e));
+}
+function renderProg(p) {
+  const box = document.getElementById(p + '-prog'); if (!box) return;
+  const R = rosterList(), me = typeof st_me !== 'undefined' && st_me ? st_me.id : '';
+  const st = id => NOTE_STATS[id] || { value: 0, chars: 0, cats: [] };
+  const totalN = R.reduce((s, m) => s + (st(m.id).value || 0), 0), totalC = R.reduce((s, m) => s + (st(m.id).chars || 0), 0);
+  const writers = R.filter(m => st(m.id).value > 0).length;
+  let h = cardHead('🔥', '서로서로 기록 현황', `${writers} / ${R.length}명 참여 · 모두 ${totalN}개 · ${totalC.toLocaleString()}자`);
+  ['1', '2'].forEach(g => {
+    const list = R.filter(m => m.id[0] === g).sort((a, b) => (st(b.id).chars || 0) - (st(a.id).chars || 0) || a.name.localeCompare(b.name, 'ko'));
+    const catN = noteCats(g).length;
+    h += `<div class="pg"><div class="pg-t">${g === '1' ? '🐣' : '🌿'} ${g}학년 <span>${list.filter(m => st(m.id).value).length} / ${list.length}명 쓰는 중</span></div><div class="pgrid">${list.map((m, i) => {
+      const s = st(m.id), pct = Math.min(100, Math.round((s.chars || 0) / 2500 * 100)), medal = s.value ? (['🥇 ', '🥈 ', '🥉 '][i] || '') : '';
+      return `<div class="prow${m.id === me ? ' me' : ''}${s.value ? '' : ' zero'}" data-tip="${esc(m.name)} · 기록 ${s.value || 0}개 · ${(s.chars || 0).toLocaleString()}자 · 쓴 활동 ${(s.cats || []).length}/${catN}">
+        <span class="nm">${medal}${esc(m.name)}${m.id === me ? ' (나)' : ''}</span><span class="pbar"><i style="width:${pct}%"></i></span>
+        <span class="pv">${s.value ? `${s.value}개 · ${(s.chars || 0).toLocaleString()}자${pct >= 100 ? ' 📄' : ''}` : '아직'}</span></div>`;
+    }).join('')}</div></div>`;
+  });
+  box.innerHTML = h + '<div class="roll-key">막대 = 보고서 채움 정도 (2,500자면 📄 꽉 차요) · 기록을 올릴 때마다 바로 올라가요 · 글 내용은 선생님만 봐요</div>';
+}
 async function noteAdd(id, cat, text) {
   await db.collection('drs_notes').add({ sid: id, name: nameOf(id), cat, text: text.slice(0, 2000), at: FV.serverTimestamp() });
+  noteStatBump(id, cat, text.slice(0, 2000));
   const mine = myNotes(id); mine.push({ cat, text, at: Date.now() });
   try { localStorage.setItem('drs-notes-' + id, JSON.stringify(mine)); } catch (e) {}
 }
@@ -2659,6 +2720,7 @@ function ad_startReports() {
   db.collection('drs_notes').onSnapshot(s => {
     NOTES = s.docs.map(d => ({ docId: d.id, ...d.data() })).sort((a, b) => ((a.at && a.at.toMillis ? a.at.toMillis() : 0) - (b.at && b.at.toMillis ? b.at.toMillis() : 0)));
     notesState = 'ok'; ad_renderReports();
+    if (s.metadata && !s.metadata.hasPendingWrites) syncNoteStats();   // 서로서로 기록 현황 숫자를 실제 기록으로 맞춰요
   }, e => { notesState = /permission/i.test((e.code || '') + e.message) ? 'rule' : 'err'; ad_renderReports(); });
   db.collection('drs_reports').onSnapshot(s => {
     REPORTS = {}; s.docs.forEach(d => { REPORTS[d.id] = d.data(); });
@@ -2971,6 +3033,7 @@ function ad_startOverview() {
   watchMembers(() => { renderBoards(); ad_renderTrend(); ad_loadMembers(); });
   watchAttendance(() => { renderTiles('ad'); renderRoll('ad'); renderSol('ad'); ad_renderTrend(); });
   startLedgerSync(() => ad_loadLedger());
+  watchNoteStats(() => { renderProg('ad'); if (notesState === 'ok') syncNoteStats(); });
   ad_startReports();
   renderBoards(); ad_renderTrend();
 }
