@@ -26,6 +26,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquare/nanumsquare.css');
     @font-face { font-family:'Paperlogy'; src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
@@ -301,6 +302,94 @@
     #view-admin .mini-table td, #view-admin .mini-table th { padding:8px 6px; }
     #view-admin .amt-in { color:var(--acc-ink); font-weight:700; }
     #view-admin .amt-out { color:var(--red); font-weight:700; }
+
+    /* ===================== 할 일 · 출석부 · 활동 기록 · 봉사활동 · 부스 정산 · 가계부 · 서류 ===================== */
+    .dcard { scroll-margin-top:80px; }
+    .admin-badge { font-size:12px; font-weight:700; color:#8a5a00; background:#fff1c2; padding:5px 10px; border-radius:999px; white-space:nowrap; cursor:default; }
+    .ib { border:none; background:none; color:#9aa8a3; cursor:pointer; font-size:13px; padding:4px 6px; border-radius:7px; flex:none; }
+    .ib:hover { background:var(--soft); color:var(--ink); }
+    .addrow { display:flex; gap:8px; margin-top:12px; align-items:center; }
+    #view-student .addrow input, #view-admin .addrow input { margin:0; flex:1; min-width:0; }
+    .todo { list-style:none; margin:0; padding:0; }
+    .todo li { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+    .todo li:last-child { border-bottom:none; }
+    .todo .tick { width:22px; height:22px; border-radius:7px; border:1.5px solid #c9d5d0; display:grid; place-items:center; font-size:13px; font-weight:800; color:#fff; flex:none; background:#fff; padding:0; }
+    .todo button.tick { cursor:pointer; }
+    .todo li.done .tick { background:var(--acc); border-color:var(--acc); }
+    .todo li.done .tx { color:var(--sub); text-decoration:line-through; }
+    .todo .tx { flex:1; min-width:0; word-break:keep-all; line-height:1.45; }
+    .roll { display:grid; grid-template-columns:repeat(auto-fill, minmax(88px, 1fr)); gap:8px; }
+    .rc { border:1px solid var(--line); border-radius:12px; padding:9px 10px; display:flex; align-items:center; justify-content:space-between; gap:6px; background:#fff; min-width:0; }
+    .rc.in { background:var(--acc-soft); border-color:#bfe6d9; }
+    .rc .nm { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rc .ss { display:flex; gap:4px; flex:none; }
+    .dt { width:11px; height:11px; border-radius:50%; background:#e3e9e6; border:none; padding:0; display:block; }
+    button.dt { width:18px; height:18px; cursor:pointer; box-shadow:inset 0 0 0 1px #d3dcd8; }
+    .dt.a.on { background:var(--acc); box-shadow:none; } .dt.b.on { background:#2f7fd6; box-shadow:none; }
+    .roll-key { font-size:12px; color:var(--sub); margin-top:12px; }
+    .roll-key i { display:inline-block; width:9px; height:9px; border-radius:50%; margin:0 4px 0 2px; vertical-align:0; }
+    .roll-key i.a { background:var(--acc); } .roll-key i.b { background:#2f7fd6; margin-left:8px; }
+    .vact, .aday { border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:12px; }
+    .vact:last-child, .aday:last-child { margin-bottom:0; }
+    .vhead { display:flex; align-items:flex-start; gap:6px; }
+    .vhead > div { flex:1; min-width:0; }
+    .vhead b { display:block; font-size:14.5px; line-height:1.4; }
+    .vhead .muted { display:block; font-size:12.5px; margin-top:2px; }
+    .adate { display:inline-block; font-size:12px; font-weight:700; color:var(--acc-ink); background:var(--acc-soft); padding:2px 9px; border-radius:999px; margin-bottom:5px; }
+    .vsub { font-size:12.5px; color:var(--sub); margin:12px 0 6px; font-weight:600; }
+    .vsub.miss { color:#b4232a; }
+    .vchips { display:flex; flex-wrap:wrap; gap:6px; }
+    .vchip { font-size:12.5px; padding:5px 10px; border-radius:999px; border:1px dashed #e7b4b6; background:#fff7f7; color:#9b2c30; font-family:inherit; }
+    .vchip.on { border:1px solid #bfe6d9; background:var(--acc-soft); color:var(--acc-ink); }
+    button.vchip { cursor:pointer; }
+    button.vchip:hover { filter:brightness(.97); }
+    .aparts { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+    .apart { display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; background:var(--soft); }
+    .apart .atx { flex:1; min-width:0; }
+    .apart .atx a { color:inherit; text-decoration:none; }
+    .apart .atx a:hover b { text-decoration:underline; }
+    .apart .atx b { display:block; font-size:13.5px; line-height:1.4; }
+    .apart .atx span { display:block; font-size:12px; color:var(--sub); margin-top:2px; line-height:1.45; }
+    .afile { text-decoration:none; flex:none; }
+    .bsec { border-radius:14px; padding:12px 16px 10px; margin-bottom:12px; }
+    .bsec.income { background:#f0f7ff; border:1px solid #d6e8fb; }
+    .bsec.expense { background:#fff4f4; border:1px solid #f6dada; }
+    .bhead { display:flex; align-items:center; justify-content:space-between; font-weight:800; font-size:14.5px; padding-bottom:8px; border-bottom:1px solid rgba(0,0,0,.06); margin-bottom:4px; }
+    .bsec.income .bhead { color:#1d4f86; } .bsec.expense .bhead { color:#a3253a; }
+    .pill { font-size:13px; padding:3px 10px; border-radius:999px; background:#dcebfb; }
+    .bsec.expense .pill { background:#fbdde2; }
+    .brow { display:flex; align-items:center; gap:4px; padding:5px 0; font-size:13.5px; }
+    .brow span { flex:1; color:#3b4a45; min-width:0; }
+    .brow b { font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .bleft { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-radius:14px; background:var(--soft); font-weight:700; }
+    .bleft b { font-size:20px; font-variant-numeric:tabular-nums; }
+    .bleft.neg b { color:var(--red); }
+    .ltable-wrap { overflow-x:auto; max-height:420px; overflow-y:auto; }
+    .ltable { width:100%; border-collapse:collapse; font-size:13px; }
+    .ltable th, .ltable td { padding:8px 6px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+    .ltable th { color:var(--sub); font-weight:600; font-size:12px; background:var(--soft); position:sticky; top:0; }
+    .ltable .amt, #view-admin .ltable .amt { text-align:right; font-variant-numeric:tabular-nums; }
+    .lbadge { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:700; border:none; font-family:inherit; }
+    .lbadge.ok { background:var(--acc-soft); color:var(--acc-ink); }
+    .lbadge.no { background:var(--red-soft); color:#b4232a; }
+    button.lbadge { cursor:pointer; }
+    .docs { display:flex; flex-direction:column; gap:8px; }
+    .doc { display:flex; align-items:center; gap:4px; }
+    .doc a { flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:9px 12px; border:1px solid var(--line); border-radius:12px; text-decoration:none; color:var(--ink); transition:border-color .15s; }
+    .doc a:hover { border-color:var(--acc); }
+    .doc .dn { min-width:0; }
+    .doc b { display:block; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .doc .d { display:block; font-size:12px; color:var(--sub); }
+    .fi { width:36px; height:42px; border-radius:8px; background:#fdecea; color:#c4302b; font-size:10px; font-weight:800; display:grid; place-items:center; flex:none; letter-spacing:.02em; }
+    .fi.hwp { background:#e7f0fd; color:#1c5fb8; } .fi.xls { background:#e4f5ec; color:#18794e; } .fi.img { background:#f3ecfd; color:#6b3fb8; } .fi.etc { background:var(--soft); color:var(--sub); }
+    .fi.none { background:#fff; color:#c9d5d0; border:1.5px dashed #d3dcd8; font-size:14px; }
+    .plinks { list-style:none; margin:0; padding:0; }
+    .plinks li { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); }
+    .plinks li:last-child { border-bottom:none; }
+    .plinks .e { width:40px; height:40px; border-radius:12px; background:var(--soft); display:grid; place-items:center; font-size:20px; flex:none; }
+    .plinks b { display:block; font-size:14px; }
+    .plinks .d { display:block; font-size:12px; color:var(--sub); }
+    .plinks a { font-size:12.5px; color:var(--acc-ink); word-break:break-all; }
 
     @media (max-width:900px) {
       .dgrid > * { grid-column:span 12 !important; }
@@ -586,6 +675,7 @@
   <div class="topbar"><div class="topbar-in">
     <a class="brand" href="?"><span class="logo">🤝</span>또래상담부 <small>2026</small></a>
     <div class="spacer"></div>
+    <span id="st-adminBadge" class="admin-badge" style="display:none;" title="관리자 구글 계정으로 들어와 있어서 할 일 · 출석부 · 정산 · 서류를 고칠 수 있어요">✏️ 관리자 모드</span>
     <div id="st-loginArea" class="login-inline">
       <input type="text" id="st-loginId" placeholder="학번 / 폰 뒷자리" inputmode="numeric" maxlength="5" aria-label="학번 또는 전화번호 뒷자리">
       <button class="btn small" onclick="st_doLogin()">입장</button>
@@ -603,12 +693,17 @@
       <section class="hero" id="st-hero"></section>
       <section class="dcard notice-card" id="st-notice" style="display:none;"></section>
       <div class="tiles4" id="st-tiles"></div>
+      <section class="dcard span-5" id="st-todo"></section>
+      <section class="dcard span-7" id="st-roll"></section>
       <section class="dcard span-4" id="st-me"></section>
       <section class="dcard span-8" id="st-trend"></section>
-      <section class="dcard span-4" id="st-giftStats"></section>
-      <section class="dcard span-4" id="st-links"></section>
-      <section class="dcard span-4" id="st-chat"></section>
-      <section class="dcard" id="st-gifts"></section>
+      <section class="dcard span-6" id="st-acts"></section>
+      <section class="dcard span-6" id="st-vol"></section>
+      <section class="dcard span-6" id="st-booth"></section>
+      <section class="dcard span-6" id="st-ledger"></section>
+      <section class="dcard span-7" id="st-docs"></section>
+      <section class="dcard span-5" id="st-links"></section>
+      <section class="dcard" id="st-gifts" style="display:none;"></section>
     </div>
   </main>
 
@@ -695,10 +790,14 @@
             </div>
             <button class="btn small secondary" onclick="ad_toggleNoticeEdit(true)" id="ad-noticeEditBtn">공지 고치기</button>
           </section>
-          <section class="dcard span-8" id="ad-trend"></section>
-          <section class="dcard span-4" id="ad-absent"></section>
-          <section class="dcard span-5" id="ad-giftStats"></section>
-          <section class="dcard span-7" id="ad-ledgerRecent"></section>
+          <section class="dcard span-5" id="ad-todo"></section>
+          <section class="dcard span-7" id="ad-roll"></section>
+          <section class="dcard span-6" id="ad-acts"></section>
+          <section class="dcard span-6" id="ad-vol"></section>
+          <section class="dcard span-6" id="ad-booth"></section>
+          <section class="dcard span-6" id="ad-ledger"></section>
+          <section class="dcard span-7" id="ad-docs"></section>
+          <section class="dcard span-5" id="ad-trend"></section>
         </div>
       </div>
 
@@ -1232,6 +1331,383 @@ function giftStatsHTML() {
     ${bands.map(b => `<div class="hbar" data-tip="${b[0]} 선물 ${b[1]}개"><span>${b[0]}</span><span class="t"><i style="width:${b[1] / bmax * 100}%"></i></span><b>${b[1]}</b></div>`).join('')}`;
 }
 
+/* ============================================================ */
+/* 대시보드 칸: 할 일 · 출석부 · 봉사활동 · 부스 정산 · 가계부 · 서류      */
+/*   학생은 보기만, 관리자 구글 계정으로 들어오면(CAN_EDIT) 고칠 수 있어요  */
+/*   저장 위치: drs_settings 안의 문서 (누구나 보기, 쓰기는 관리자만)       */
+/*     todo      { items:[{ id, text, done }] }                          */
+/*     volunteer { acts:[{ id, date, kind, content, hours, ids:[학번…] }] } */
+/*     booth     { income:[{ l, a }], expense:[{ l, a }] }               */
+/*     docs      { items:[{ id, name, ext, url, path, size, at }] }  ← 파일은 Storage drs/docs/ */
+/*     ledgerPub { rows:[…] }  ← 가계부(drs_ledger, 관리자만 읽기)를 관리자가 열면 학생용으로 옮겨 적어요 (학번은 빼고) */
+/* ============================================================ */
+let CAN_EDIT = false;
+let BOARD_PREFIXES = [];        // 'st' = 학생 화면, 'ad' = 관리보드 한눈에
+let SET = {}, setLoaded = false, setWatchers = [], setWatchStarted = false;
+function watchSettings(cb) {
+  setWatchers.push(cb);
+  if (setLoaded) cb();
+  if (setWatchStarted) return;
+  setWatchStarted = true;
+  db.collection(COL.settings).onSnapshot(snap => {
+    SET = {};
+    snap.docs.forEach(d => { SET[d.id] = d.data(); });
+    setLoaded = true;
+    setWatchers.forEach(f => f());
+  }, err => console.error(err));
+}
+const setDoc = id => db.collection(COL.settings).doc(id);
+const won = n => (Number(n) || 0).toLocaleString() + '원';
+const sumA = arr => arr.reduce((s, x) => s + (Number(x.a) || 0), 0);
+function renderBoards() { BOARD_PREFIXES.forEach(p => { renderTiles(p); renderTodo(p); renderRoll(p); renderActs(p); renderVolunteer(p); renderBooth(p); renderLedger(p); renderDocs(p); }); }
+
+// 2026 부원 명단 (명단이 비어 있을 때 [넣기] 단추로 한 번에 올려요. 다 넣은 뒤엔 지워도 돼요)
+const SEED_MEMBERS = [['10124','유림'],['10213','정현'],['10216','수민'],['10410','아인'],['10425','유주'],['10509','지민'],['10629','하윤'],['10810','유빈'],['11014','예린'],['11019','다감'],['11126','채윤'],['20123','지수'],['20312','유정'],['20319','주연'],['20410','지현'],['20608','유진'],['20615','수희'],['20707','수담'],['20708','시현'],['20806','은혜'],['21022','유경']];
+// 부스 준비로 부원들이 쓴 돈 (가계부가 비어 있을 때 [넣기] 단추로 올려요) — 항목, 금액, 학번, 이름
+const SEED_LEDGER = [['파츠',13000,'20319','주연'],['말랑이',10000,'20312','유정'],['파츠',10000,'20123','지수'],['파츠',10000,'10509','지민'],['키티키링',10000,'21022','유경'],['다마고치키티키링',10000,'20707','수담'],['파츠',10000,'10629','하윤'],['파츠',10000,'10213','정현'],['볼꾸DIY',10000,'10425','유주'],['키티두르륵',7000,'11019','다감'],['볼꾸DIY',10000,'10410','아인'],['볼꾸DIY',10000,'11126','채윤'],['볼꾸DIY',10000,'10124','유림'],['키티',10500,'20615','수희'],['',10000,'10810','유빈'],['빅지퍼백(100개)',10000,'33333','문샘']];
+// 부스 수입 · 지출 처음 값 (관리자가 고치면 drs_settings/booth 에 저장돼요)
+const BOOTH_DEFAULT = {
+  income: [{ l:'학교 지원금', a:100000 }, { l:'뽑기 (200회 완판)', a:200000 }, { l:'워리스톤 만들기 (53회)', a:106000 }],
+  expense: [{ l:'동아리 부원들 지출', a:160500 }, { l:'클레이 (15,000원 × 9통)', a:135000 }, { l:'UV LED 램프 (2개)', a:49800 }, { l:'키캡 (11,900원 × 2개)', a:23800 }, { l:'부장 지출 - 추억의 뽑기판', a:15400 }, { l:'부장 지출 - 파츠', a:13900 }, { l:'딸기 저울 (4,900원 × 2개)', a:9800 }, { l:'UV 코팅제 (2,400원 × 2개)', a:4800 }]
+};
+// 1학기 봉사활동 처음 값 (관리자가 고치면 drs_settings/volunteer 에 저장돼요). 이름은 명단에서 학번으로 찾아요
+const VOL_DEFAULT = { acts: [{ id:'v0507', date:'2026-05-07', kind:'캠페인 활동', content:'교내 거북이편지함 캠페인 사전 준비 활동', hours:1, ids:['10213','10509','10810','11014','20123','20312','20319','20410','20608','20708'] }] };
+
+function rosterList() { return LIVE_MEMBERS.length ? LIVE_MEMBERS : SEED_MEMBERS.map(([id, name]) => ({ id, name })); }
+function nameOf(id) { const m = rosterList().find(x => x.id === String(id)); return m ? m.name : String(id); }
+function editBtns(edit, del) { return CAN_EDIT ? `<button class="ib" title="고치기" onclick="${edit}">✎</button><button class="ib" title="지우기" onclick="${del}">✕</button>` : ''; }
+async function saveSet(id, data) { try { await setDoc(id).set(data); } catch (e) { alert('저장하지 못했어요: ' + e.message); } }
+
+/* ----- 숫자 칸 4개 ----- */
+function renderTiles(p) {
+  const el = document.getElementById(p + '-tiles'); if (!el) return;
+  const mc = LIVE_MEMBERS.length, today = dayIds(todayStr()).size;
+  const todo = (SET.todo && SET.todo.items) || [], done = todo.filter(t => t.done).length;
+  const b = SET.booth || BOOTH_DEFAULT, left = sumA(b.income) - sumA(b.expense);
+  const tile = (icon, k, v, unit, s, bar) => `<div class="tile"><div class="k"><i>${icon}</i>${k}</div><div class="v">${v}<small>${unit}</small></div>${bar != null ? `<div class="mini"><i style="width:${bar}%"></i></div>` : `<div class="s">${s}</div>`}</div>`;
+  el.innerHTML =
+    tile('👥', '부원', membersLoaded ? mc : '–', '명', '2026 또래상담부') +
+    tile('✅', '오늘 출석', attLoaded ? today : '–', '명', '', mc ? Math.min(100, Math.round(today / mc * 100)) : 0) +
+    tile('📋', '할 일', todo.length ? done + '/' + todo.length : '0', '', '', todo.length ? Math.round(done / todo.length * 100) : 0) +
+    tile('🎪', '부스 정산', (left < 0 ? '−' : '') + Math.abs(left).toLocaleString(), '원', `수입 ${won(sumA(b.income))} · 지출 ${won(sumA(b.expense))}`);
+}
+
+/* ----- 📋 해야 할 일 ----- */
+function todoItems() { return ((SET.todo && SET.todo.items) || []).map(t => ({ ...t })); }
+function renderTodo(p) {
+  const box = document.getElementById(p + '-todo'); if (!box) return;
+  const items = todoItems(), done = items.filter(t => t.done).length;
+  let h = cardHead('📋', '오늘 해야 할 일', items.length ? `${done} / ${items.length} 끝` : '');
+  if (items.length) h += `<div class="meter" style="margin-top:0"><i style="width:${done / items.length * 100}%"></i></div>`;
+  h += items.length ? `<ul class="todo">${items.map(t => `<li class="${t.done ? 'done' : ''}">
+      ${CAN_EDIT ? `<button class="tick" title="끝 ↔ 아직" onclick="todoToggle('${t.id}')">${t.done ? '✓' : ''}</button>` : `<span class="tick">${t.done ? '✓' : ''}</span>`}
+      <span class="tx">${esc(t.text)}</span>${editBtns(`todoEdit('${t.id}')`, `todoDel('${t.id}')`)}</li>`).join('')}</ul>`
+    : `<div class="empty">${CAN_EDIT ? '아래 칸에 할 일을 적고 [추가]를 눌러요.' : '아직 올라온 할 일이 없어요.'}</div>`;
+  if (CAN_EDIT) h += `<div class="addrow"><input type="text" id="${p}-todoIn" placeholder="할 일 적기 (Enter 로 추가)" onkeydown="if (event.key === 'Enter') todoAdd('${p}')"><button class="btn small" onclick="todoAdd('${p}')">추가</button></div>`;
+  box.innerHTML = h;
+}
+async function todoAdd(p) {
+  const el = document.getElementById(p + '-todoIn'), text = el.value.trim();
+  if (!text) return;
+  const items = todoItems(); items.push({ id: Date.now().toString(36), text, done: false });
+  el.value = '';
+  await saveSet('todo', { items });
+  const again = document.getElementById(p + '-todoIn'); if (again) again.focus();
+}
+function todoToggle(id) { const items = todoItems(), t = items.find(x => x.id === id); if (t) { t.done = !t.done; saveSet('todo', { items }); } }
+function todoEdit(id) {
+  const items = todoItems(), t = items.find(x => x.id === id); if (!t) return;
+  const v = prompt('할 일 고치기', t.text); if (v == null || !v.trim()) return;
+  t.text = v.trim(); saveSet('todo', { items });
+}
+function todoDel(id) { if (confirm('이 할 일을 지울까요?')) saveSet('todo', { items: todoItems().filter(x => x.id !== id) }); }
+
+/* ----- 🗒️ 출석부 (오늘) ----- */
+function renderRoll(p) {
+  const box = document.getElementById(p + '-roll'); if (!box) return;
+  const date = todayStr(), t = ATT[date] || {}, M = LIVE_MEMBERS;
+  const moim = t['모임'] || new Set(), end = t['헤어짐'] || new Set();
+  const cnt = s => M.filter(m => s.has(m.id)).length;
+  let h = cardHead('🗒️', '출석부', `${mdText(date)} · 모일 때 ${cnt(moim)} · 헤어질 때 ${cnt(end)} / ${M.length}명`);
+  if (!membersLoaded) { box.innerHTML = h + '<div class="empty">불러오는 중…</div>'; return; }
+  if (!M.length) {
+    box.innerHTML = h + (CAN_EDIT ? `<div class="empty">명단이 비어 있어요. 아래 단추로 2026 부원 ${SEED_MEMBERS.length}명을 한 번에 넣어요.</div><button class="btn small" onclick="seedMembers()">📥 부원 ${SEED_MEMBERS.length}명 넣기</button>` : '<div class="empty">아직 명단이 없어요.</div>');
+    return;
+  }
+  const dot = (s, set, m, cls) => CAN_EDIT
+    ? `<button class="dt ${cls}${set.has(m.id) ? ' on' : ''}" title="${s === '모임' ? '모일 때' : '헤어질 때'} 출석 넣기 · 빼기" onclick="rollToggle('${m.id}', '${s}', ${!set.has(m.id)})"></button>`
+    : `<i class="dt ${cls}${set.has(m.id) ? ' on' : ''}"></i>`;
+  box.innerHTML = h + `<div class="roll">${M.map(m => `<div class="rc${moim.has(m.id) || end.has(m.id) ? ' in' : ''}"><span class="nm">${esc(m.name)}</span><span class="ss">${dot('모임', moim, m, 'a')}${dot('헤어짐', end, m, 'b')}</span></div>`).join('')}</div>
+    <div class="roll-key"><i class="a"></i>모일 때 <i class="b"></i>헤어질 때 · ${CAN_EDIT ? '점을 누르면 출석을 넣고 빼요' : '출석은 [내 출석] 칸에서 해요'}</div>`;
+}
+async function rollToggle(id, session, on) {
+  try { await setAttendance(todayStr(), session, id, on, '교사입력'); } catch (e) { alert('저장하지 못했어요: ' + e.message); }
+}
+async function seedMembers() {
+  if (!confirm(`2026 부원 ${SEED_MEMBERS.length}명을 명단에 넣을까요?\n(같은 학번이 있으면 이름만 바뀌어요)`)) return;
+  try {
+    await batchWrite(SEED_MEMBERS.map(([id, name]) => b => b.set(db.collection(COL.members).doc(id), { name })));
+    if (ad_opened) ad_loadMembers();
+  } catch (e) { alert('넣지 못했어요: ' + e.message); }
+}
+
+/* ----- 🤝 1학기 봉사활동 ----- */
+function volActs() { return JSON.parse(JSON.stringify((SET.volunteer || VOL_DEFAULT).acts || [])); }
+function korDate(d) { const p = String(d).split('-'); return p.length === 3 ? `${p[0]}년 ${Number(p[1])}월 ${Number(p[2])}일` : esc(d); }
+function renderVolunteer(p) {
+  const box = document.getElementById(p + '-vol'); if (!box) return;
+  const acts = volActs(), R = rosterList();
+  let h = cardHead('🤝', '1학기 봉사활동', CAN_EDIT ? `<button class="btn-link" onclick="volCopy()">표로 복사</button> · <button class="btn-link" onclick="volAdd()">＋ 활동 추가</button>` : '');
+  if (!acts.length) { box.innerHTML = h + '<div class="empty">아직 봉사활동 기록이 없어요.</div>'; return; }
+  box.innerHTML = h + acts.map(a => {
+    const ids = new Set(a.ids || []);
+    const inList = R.filter(m => ids.has(m.id)), out = R.filter(m => !ids.has(m.id));
+    const extra = [...ids].filter(id => !R.some(m => m.id === id));   // 명단에 없는 학번
+    const chip = (m, on) => CAN_EDIT
+      ? `<button class="vchip${on ? ' on' : ''}" title="${on ? '빼기' : '넣기'}" onclick="volToggle('${a.id}', '${m.id}')">${on ? '✓ ' : '＋ '}${esc(m.name)}</button>`
+      : `<span class="vchip${on ? ' on' : ''}">${on ? '✓ ' : ''}${esc(m.name)}</span>`;
+    return `<div class="vact">
+      <div class="vhead"><div><b>${esc(a.content)}</b><span class="muted">${korDate(a.date)} · ${esc(a.kind)} · ${Number(a.hours) || 0}시간</span></div>${editBtns(`volEdit('${a.id}')`, `volDel('${a.id}')`)}</div>
+      <div class="vsub">들어간 부원 ${inList.length + extra.length}명</div>
+      <div class="vchips">${inList.map(m => chip(m, true)).join('')}${extra.map(id => `<span class="vchip on">✓ ${esc(id)}</span>`).join('')}</div>
+      ${out.length ? `<div class="vsub miss">⚠️ 빠진 부원 ${out.length}명${CAN_EDIT ? ' · 누르면 넣어요' : ''}</div><div class="vchips">${out.map(m => chip(m, false)).join('')}</div>` : '<div class="vsub">🎉 부원 모두 들어가 있어요</div>'}
+    </div>`;
+  }).join('');
+}
+function volToggle(actId, id) {
+  const acts = volActs(), a = acts.find(x => x.id === actId); if (!a) return;
+  const ids = new Set(a.ids || []);
+  ids.has(id) ? ids.delete(id) : ids.add(id);
+  a.ids = [...ids].sort();
+  saveSet('volunteer', { acts });
+}
+function volAsk(a) {
+  const date = prompt('날짜 (예: 2026-05-07)', a.date || todayStr()); if (date == null) return null;
+  const kind = prompt('구분 (예: 캠페인 활동)', a.kind || '캠페인 활동'); if (kind == null) return null;
+  const content = prompt('활동 내용', a.content || ''); if (content == null || !content.trim()) return null;
+  const hours = prompt('시간 (숫자)', a.hours || 1); if (hours == null) return null;
+  return { date: date.trim(), kind: kind.trim(), content: content.trim(), hours: Number(hours) || 0 };
+}
+function volAdd() { const v = volAsk({}); if (!v) return; const acts = volActs(); acts.push({ id: 'v' + Date.now().toString(36), ...v, ids: [] }); saveSet('volunteer', { acts }); }
+function volEdit(actId) { const acts = volActs(), a = acts.find(x => x.id === actId); if (!a) return; const v = volAsk(a); if (!v) return; Object.assign(a, v); saveSet('volunteer', { acts }); }
+function volDel(actId) { if (confirm('이 봉사활동 기록을 지울까요?')) saveSet('volunteer', { acts: volActs().filter(x => x.id !== actId) }); }
+// 학년 · 반 · 번호 · 이름 · 시간 · 날짜 · 구분 · 내용 · 동아리 순서로 복사 (엑셀 · 구글 시트에 그대로 붙여 넣기)
+async function volCopy() {
+  const lines = [];
+  volActs().forEach(a => (a.ids || []).forEach(id => {
+    const s = String(id);
+    lines.push([s[0], Number(s.slice(1, 3)), Number(s.slice(3)), nameOf(s), a.hours, korDate(a.date), a.kind, a.content, 'DRS(또래상담부)A'].join('\t'));
+  }));
+  try { await navigator.clipboard.writeText(lines.join('\n')); alert(lines.length + '줄을 복사했어요. 엑셀 · 구글 시트에 붙여 넣으세요.\n(이름은 명단의 이름이라 성은 빠져 있어요)'); }
+  catch (e) { prompt('아래 글을 복사해 주세요', lines.join(' / ')); }
+}
+
+/* ----- 🎪 동아리 부스 수입 · 지출 ----- */
+function boothData() { return JSON.parse(JSON.stringify(SET.booth || BOOTH_DEFAULT)); }
+function renderBooth(p) {
+  const box = document.getElementById(p + '-booth'); if (!box) return;
+  const b = boothData(), inS = sumA(b.income), outS = sumA(b.expense), left = inS - outS;
+  const sec = (key, icon, title, rows, total) => `<div class="bsec ${key}"><div class="bhead"><span>${icon} ${title}</span><b class="pill">${won(total)}</b></div>
+    ${rows.map((r, i) => `<div class="brow"><span>${esc(r.l)}</span><b>${won(r.a)}</b>${editBtns(`boothEdit('${key}', ${i})`, `boothDel('${key}', ${i})`)}</div>`).join('')}
+    ${CAN_EDIT ? `<button class="btn-link" style="margin-top:6px" onclick="boothAdd('${key}')">＋ 줄 추가</button>` : ''}</div>`;
+  box.innerHTML = cardHead('🎪', '동아리 부스 수입 · 지출 정리') +
+    sec('income', '💰', '1. 총 수입 및 지원금', b.income, inS) + sec('expense', '🛍️', '2. 총 지출', b.expense, outS) +
+    `<div class="bleft${left < 0 ? ' neg' : ''}"><span>3. 남은 돈</span><b>${left < 0 ? '−' : ''}${won(Math.abs(left))}</b></div>` +
+    (left < 0 ? `<div class="muted" style="font-size:12.5px; margin-top:8px;">지출이 수입보다 ${won(-left)} 많아요.</div>` : '');
+}
+function boothAsk(r) {
+  const l = prompt('이름 (예: 클레이 (15,000원 × 9통))', r.l || ''); if (l == null || !l.trim()) return null;
+  const a = prompt('금액 (숫자만)', r.a || ''); if (a == null) return null;
+  return { l: l.trim(), a: Number(String(a).replace(/[^0-9]/g, '')) || 0 };
+}
+function boothEdit(key, i) { const b = boothData(), v = boothAsk(b[key][i]); if (!v) return; b[key][i] = v; saveSet('booth', b); }
+function boothAdd(key) { const b = boothData(), v = boothAsk({}); if (!v) return; b[key].push(v); saveSet('booth', b); }
+function boothDel(key, i) { const b = boothData(); if (!confirm(`'${b[key][i].l}' 줄을 지울까요?`)) return; b[key].splice(i, 1); saveSet('booth', b); }
+
+/* ----- 🧾 가계부 (부원 지출 · 환급) ----- */
+// 관리자: drs_ledger 를 바로 읽고(환급 배지를 눌러 바꿔요), 학생용 요약(ledgerPub)을 새로 적어 둬요
+let LEDGER_ROWS = [], ledgerLoaded = false, ledgerSyncStarted = false, ledgerWatchers = [];
+function startLedgerSync(cb) {
+  if (cb) ledgerWatchers.push(cb);
+  if (ledgerSyncStarted) return;
+  ledgerSyncStarted = true;
+  db.collection(COL.ledger).onSnapshot(snap => {
+    LEDGER_ROWS = snap.docs.map(d => ({ docId: d.id, ...d.data() })).sort((a, b) => Number(a.serial) - Number(b.serial));
+    ledgerLoaded = true;
+    const pub = LEDGER_ROWS.map(e => ({ item: e.item || '', amount: Number(e.amount) || 0, type: e.type || '지출', name: e.studentName || '', refunded: !!e.refunded, hasStudent: !!e.studentId }));
+    const old = SET.ledgerPub && SET.ledgerPub.rows;
+    if (JSON.stringify(old || []) !== JSON.stringify(pub)) setDoc('ledgerPub').set({ rows: pub }).catch(err => console.error(err));
+    BOARD_PREFIXES.forEach(renderLedger);
+    ledgerWatchers.forEach(f => f());
+  }, err => console.error(err));
+}
+function renderLedger(p) {
+  const box = document.getElementById(p + '-ledger'); if (!box) return;
+  const live = CAN_EDIT && ledgerLoaded;
+  const rows = live ? LEDGER_ROWS.map(e => ({ docId: e.docId, item: e.item || '', amount: Number(e.amount) || 0, type: e.type || '지출', name: e.studentName || '', refunded: !!e.refunded, hasStudent: !!e.studentId }))
+    : ((SET.ledgerPub && SET.ledgerPub.rows) || []);
+  const st = rows.filter(r => r.hasStudent), doneN = st.filter(r => r.refunded).length;
+  const spend = rows.filter(r => r.type !== '수입').reduce((s, r) => s + r.amount, 0);
+  const refunded = st.filter(r => r.refunded).reduce((s, r) => s + r.amount, 0);
+  let h = cardHead('🧾', '가계부 · 부원 지출 환급', st.length ? `환급 ${doneN} / ${st.length}명` : '');
+  if (!rows.length) {
+    box.innerHTML = h + (CAN_EDIT ? (ledgerLoaded ? `<div class="empty">가계부가 비어 있어요. 아래 단추로 부원 지출 ${SEED_LEDGER.length}건을 한 번에 넣어요.</div><button class="btn small" onclick="seedLedger()">📥 부원 지출 ${SEED_LEDGER.length}건 넣기</button>` : '<div class="empty">불러오는 중…</div>') : '<div class="empty">아직 가계부 내역이 없어요.</div>');
+    return;
+  }
+  const badge = r => !r.hasStudent ? '' : (live
+    ? `<button class="lbadge ${r.refunded ? 'ok' : 'no'}" title="눌러서 바꿔요" onclick="ledgerToggle('${r.docId}', ${!r.refunded})">${r.refunded ? '환급 완료' : '미환급'}</button>`
+    : `<span class="lbadge ${r.refunded ? 'ok' : 'no'}">${r.refunded ? '환급 완료' : '미환급'}</span>`);
+  box.innerHTML = h + `
+    <div class="bigline"><span class="n">${spend.toLocaleString()}</span><span class="muted">원 썼어요</span></div>
+    <div class="meter" data-tip="환급 ${won(refunded)} / ${won(spend)}"><i style="width:${spend ? Math.round(refunded / spend * 100) : 0}%"></i></div>
+    <div class="muted" style="font-size:12.5px; margin-bottom:10px;">환급 완료 ${won(refunded)} · 남은 환급 ${won(st.reduce((s, r) => s + (r.refunded ? 0 : r.amount), 0))}${live ? ' · 배지를 누르면 바뀌어요' : ''}</div>
+    <div class="ltable-wrap"><table class="ltable"><tr><th>이름</th><th>항목</th><th class="amt">금액</th><th>환급</th></tr>
+      ${rows.map(r => `<tr><td><b>${esc(r.name || '-')}</b></td><td>${esc(r.item) || '<span class="muted">—</span>'}</td><td class="amt">${r.type === '수입' ? '+' : ''}${r.amount.toLocaleString()}</td><td>${badge(r)}</td></tr>`).join('')}
+    </table></div>`;
+}
+async function ledgerToggle(docId, val) {
+  try { await db.collection(COL.ledger).doc(docId).update({ refunded: val }); if (ad_opened) ad_loadLedger(); }
+  catch (e) { alert('바꾸지 못했어요: ' + e.message); }
+}
+async function seedLedger() {
+  if (!confirm(`부원 지출 ${SEED_LEDGER.length}건(${won(SEED_LEDGER.reduce((s, r) => s + r[1], 0))})을 가계부에 넣을까요?\n날짜는 오늘, 모두 '지출 · 미환급'으로 들어가요.`)) return;
+  try {
+    const start = await nextSerial('ledger', SEED_LEDGER.length), date = todayStr();
+    await batchWrite(SEED_LEDGER.map((r, i) => b => b.set(db.collection(COL.ledger).doc(), { serial: start + i, date, type: '지출', item: r[0], amount: r[1], studentId: r[2], studentName: r[3], refunded: false, note: '부스 준비물' })));
+    if (ad_opened) ad_loadLedger();
+  } catch (e) { alert('넣지 못했어요: ' + e.message); }
+}
+
+/* ----- 📚 활동 기록 (날짜별 활동 + 활동지 PDF) ----- */
+// drs_settings/acts { days:[{ id, date, title, parts:[{ id, t, goal, url, path, ext }] }] }
+const ACTS_DEFAULT = { days: [{ id:'d0612', date:'2026-06-12', title:'관계 속의 나와 너 (시작 · 관심 · 공감)', parts: [
+  { id:'a1', t:'[활동 1] 나의 다가가기 온도 탑 쌓기 (자기 이해)', goal:'자신을 먼저 이해하고 타인을 인식하며 친구에게 다가가는 연습하기' },
+  { id:'a2', t:'[활동 2] 교실 속 ‘신호등’ 관찰 일지 (타인 인식)', goal:'타인의 마음 상태를 인식하고 친구에게 작은 관심을 표현하는 연습하기' },
+  { id:'a3', t:'[활동 3] 어색함을 깨는 3단계 대화법 (친구에게 다가가기 연습)', goal:'어색함을 깨고 친구에게 부담 없이 다가가는 구체적인 방법을 연습하기' }
+] }] };
+function actDays() { return JSON.parse(JSON.stringify((SET.acts || ACTS_DEFAULT).days || [])); }
+function korDay(d) { const t = new Date(d + 'T00:00:00'); return isNaN(t) ? esc(d) : `${t.getMonth() + 1}월 ${t.getDate()}일 (${'일월화수목금토'[t.getDay()]})`; }
+function renderActs(p) {
+  const box = document.getElementById(p + '-acts'); if (!box) return;
+  const days = actDays();
+  let h = cardHead('📚', '동아리 활동 기록', CAN_EDIT ? `<button class="btn-link" onclick="actDayAdd()">＋ 활동 날 추가</button>` : '');
+  if (!days.length) { box.innerHTML = h + '<div class="empty">아직 활동 기록이 없어요.</div>'; return; }
+  box.innerHTML = h + days.map(d => `<div class="aday">
+    <div class="vhead"><div><span class="adate">${korDay(d.date)}</span><b>${esc(d.title)}</b></div>${editBtns(`actDayEdit('${d.id}')`, `actDayDel('${d.id}')`)}</div>
+    <div class="aparts">${(d.parts || []).map(a => `<div class="apart">
+      ${a.url ? `<a class="afile" href="${esc(a.url)}" target="_blank" rel="noopener" title="활동지 열기"><span class="fi pdf">${esc(String(a.ext || 'pdf').toUpperCase().slice(0, 4))}</span></a>` : `<span class="fi none" title="아직 활동지가 없어요">—</span>`}
+      <div class="atx">${a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener"><b>${esc(a.t)}</b></a>` : `<b>${esc(a.t)}</b>`}<span>활동 목표 : ${esc(a.goal || '')}</span></div>
+      ${CAN_EDIT ? `<input type="file" id="${p}-af-${d.id}-${a.id}" accept=".pdf,.hwp,.hwpx,image/*" style="display:none;" onchange="actAttach(this, '${d.id}', '${a.id}')">
+        <button class="ib" title="활동지 붙이기" onclick="document.getElementById('${p}-af-${d.id}-${a.id}').click()">📎</button>` : ''}
+      ${editBtns(`actPartEdit('${d.id}', '${a.id}')`, `actPartDel('${d.id}', '${a.id}')`)}
+    </div>`).join('')}</div>
+    ${CAN_EDIT ? `<button class="btn-link" style="margin-top:8px" onclick="actPartAdd('${d.id}')">＋ 활동 추가</button>` : ''}
+  </div>`).join('');
+}
+function actSave(days) { return saveSet('acts', { days }); }
+function actDayAdd() {
+  const date = prompt('활동한 날짜 (예: 2026-06-12)', todayStr()); if (!date) return;
+  const title = prompt('활동 제목', ''); if (title == null || !title.trim()) return;
+  const days = actDays(); days.push({ id: 'd' + Date.now().toString(36), date: date.trim(), title: title.trim(), parts: [] }); actSave(days);
+}
+function actDayEdit(id) {
+  const days = actDays(), d = days.find(x => x.id === id); if (!d) return;
+  const date = prompt('활동한 날짜 (예: 2026-06-12)', d.date); if (date == null) return;
+  const title = prompt('활동 제목', d.title); if (title == null || !title.trim()) return;
+  d.date = date.trim(); d.title = title.trim(); actSave(days);
+}
+function actDayDel(id) { if (confirm('이 활동 날 기록을 통째로 지울까요?')) actSave(actDays().filter(x => x.id !== id)); }
+function actPartAdd(dayId) {
+  const days = actDays(), d = days.find(x => x.id === dayId); if (!d) return;
+  const t = prompt('활동 이름 (예: [활동 4] …)', ''); if (t == null || !t.trim()) return;
+  const goal = prompt('활동 목표', '') || '';
+  d.parts = d.parts || []; d.parts.push({ id: 'a' + Date.now().toString(36), t: t.trim(), goal: goal.trim() }); actSave(days);
+}
+function actPartEdit(dayId, id) {
+  const days = actDays(), d = days.find(x => x.id === dayId), a = d && d.parts.find(x => x.id === id); if (!a) return;
+  const t = prompt('활동 이름', a.t); if (t == null || !t.trim()) return;
+  const goal = prompt('활동 목표', a.goal || ''); if (goal == null) return;
+  a.t = t.trim(); a.goal = goal.trim(); actSave(days);
+}
+async function actPartDel(dayId, id) {
+  const days = actDays(), d = days.find(x => x.id === dayId), a = d && d.parts.find(x => x.id === id); if (!a) return;
+  if (!confirm(`'${a.t}' 을(를) 지울까요?`)) return;
+  if (a.path) { try { await firebase.storage().ref(a.path).delete(); } catch (e) { console.warn(e); } }
+  d.parts = d.parts.filter(x => x.id !== id); actSave(days);
+}
+async function actAttach(input, dayId, id) {
+  const f = input.files[0]; input.value = '';
+  if (!f) return;
+  try {
+    const up = await uploadFile(f, 'drs/acts/');
+    const days = actDays(), d = days.find(x => x.id === dayId), a = d && d.parts.find(x => x.id === id); if (!a) return;
+    if (a.path) { try { await firebase.storage().ref(a.path).delete(); } catch (e) { console.warn(e); } }
+    Object.assign(a, { url: up.url, path: up.path, ext: up.ext }); await actSave(days);
+  } catch (e) { alert(uploadErr(f, e)); }
+}
+
+/* ----- 파일 올리기 (Firebase Storage) ----- */
+async function uploadFile(f, folder) {
+  if (f.size > 30 * 1024 * 1024) throw new Error('30MB 보다 커서 올리지 못해요.');
+  const ext = (f.name.match(/\.([^.]+)$/) || [, ''])[1].toLowerCase();
+  const path = folder + Date.now() + '_' + f.name.replace(/[^\w.\-가-힣]/g, '_');
+  const ref = firebase.storage().ref(path);
+  await ref.put(f, { contentType: f.type || 'application/octet-stream' });
+  return { url: await ref.getDownloadURL(), path, ext, size: f.size };
+}
+function uploadErr(f, e) {
+  const rule = /unauthorized|permission/i.test((e.code || '') + e.message);
+  return f.name + '\n올리지 못했어요: ' + (rule ? 'Storage 규칙(storage.rules)을 Firebase 콘솔에 게시해야 해요.' : e.message);
+}
+
+/* ----- 📄 2026 또래상담부 서류 (PDF 등) ----- */
+function docItems() { return ((SET.docs && SET.docs.items) || []).map(d => ({ ...d })); }
+function fileKind(ext) { ext = String(ext || '').toLowerCase(); return ext === 'pdf' ? 'pdf' : /^(hwp|hwpx|doc|docx)$/.test(ext) ? 'hwp' : /^(xls|xlsx|csv)$/.test(ext) ? 'xls' : /^(png|jpe?g|gif|webp|heic)$/.test(ext) ? 'img' : 'etc'; }
+function fileSize(n) { n = Number(n) || 0; return n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+function renderDocs(p) {
+  const box = document.getElementById(p + '-docs'); if (!box) return;
+  const items = docItems();
+  let h = cardHead('📄', '2026 또래상담부 서류', items.length ? items.length + '개' : '');
+  h += items.length ? `<div class="docs">${items.map(d => `<div class="doc">
+      <a href="${esc(d.url)}" target="_blank" rel="noopener"><span class="fi ${fileKind(d.ext)}">${esc(String(d.ext || 'FILE').toUpperCase().slice(0, 4))}</span><span class="dn"><b>${esc(d.name)}</b><span class="d">${esc(d.at || '')} · ${fileSize(d.size)}</span></span></a>
+      ${editBtns(`docRename('${d.id}')`, `docDel('${d.id}')`)}</div>`).join('')}</div>`
+    : `<div class="empty">${CAN_EDIT ? '아래 [서류 올리기]로 PDF · 한글 파일을 올려요. 여러 개를 한 번에 골라도 돼요.' : '아직 올라온 서류가 없어요.'}</div>`;
+  if (CAN_EDIT) h += `<div class="addrow"><input type="file" id="${p}-docFile" multiple accept=".pdf,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" style="display:none;" onchange="docUpload(this)">
+    <button class="btn small" onclick="document.getElementById('${p}-docFile').click()">⬆ 서류 올리기</button><span class="doc-msg muted" style="font-size:12.5px; align-self:center;"></span></div>`;
+  box.innerHTML = h;
+}
+function docMsg(t) { document.querySelectorAll('.doc-msg').forEach(e => e.textContent = t); }
+async function docUpload(input) {
+  const files = [...input.files]; input.value = '';
+  if (!files.length) return;
+  let ok = 0;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    docMsg(`올리는 중 ${i + 1}/${files.length} · ${f.name}`);
+    try {
+      const up = await uploadFile(f, 'drs/docs/');
+      const items = docItems();
+      items.unshift({ id: Date.now().toString(36) + i, name: f.name.replace(/\.[^.]+$/, ''), ext: up.ext, url: up.url, path: up.path, size: up.size, at: todayStr() });
+      await setDoc('docs').set({ items });
+      SET.docs = { items };   // 다음 파일이 바로 이어 붙게
+      ok++;
+    } catch (e) { alert(uploadErr(f, e)); }
+  }
+  docMsg(ok ? ok + '개 올렸어요' : '');
+  setTimeout(() => docMsg(''), 3000);
+}
+function docRename(id) {
+  const items = docItems(), d = items.find(x => x.id === id); if (!d) return;
+  const v = prompt('서류 이름 고치기', d.name); if (v == null || !v.trim()) return;
+  d.name = v.trim(); saveSet('docs', { items });
+}
+async function docDel(id) {
+  const items = docItems(), d = items.find(x => x.id === id); if (!d) return;
+  if (!confirm(`'${d.name}' 서류를 지울까요? 되돌릴 수 없어요.`)) return;
+  try { if (d.path) await firebase.storage().ref(d.path).delete(); } catch (e) { console.warn(e); }
+  saveSet('docs', { items: items.filter(x => x.id !== id) });
+}
+
 // 마우스를 올리거나 손가락으로 누르면 뜨는 작은 설명
 (function () {
   const tip = document.getElementById('tip');
@@ -1321,8 +1797,10 @@ function st_renderHero() {
   const today = dayIds(todayStr()).size, mc = LIVE_MEMBERS.length;
   const pct = mc ? Math.min(100, Math.round(today / mc * 100)) : 0;
   const hello = st_me ? (st_me.role === 'member' ? `${esc(st_me.name)} 님, 반가워요 👋` : esc(st_me.welcome || st_me.name)) : '오늘의 또래상담부';
-  const sub = !attLoaded ? '출석 · 뽑기 준비 · 부원 소식을 한눈에 봐요.'
-    : today ? `오늘 모임에 부원 ${today}명이 출석했어요.` : '오늘은 아직 출석 기록이 없어요. 모임에 오면 출석체크를 눌러 주세요.';
+  const todo = (SET.todo && SET.todo.items) || [], left = todo.filter(t => !t.done).length;
+  const sub = (!attLoaded ? '할 일 · 출석 · 정산 · 서류를 한눈에 봐요.'
+    : today ? `오늘 모임에 부원 ${today}명이 출석했어요.` : '오늘은 아직 출석 기록이 없어요. 모임에 오면 출석체크를 눌러 주세요.')
+    + (todo.length ? (left ? ` 남은 할 일은 ${left}개예요.` : ' 오늘 할 일을 모두 끝냈어요 🎉') : '');
   const C = 2 * Math.PI * 50;
   document.getElementById('st-hero').innerHTML = `
     <div class="txt">
@@ -1330,8 +1808,9 @@ function st_renderHero() {
       <h1>${hello}</h1>
       <p>${sub}</p>
       <div class="cta">
-        <button class="w" onclick="st_openSheet()">🎁 선물 등록하기</button>
-        <a class="g" href="?page=draw">🎱 행운의 번호 추첨</a>
+        <a class="w" href="#st-todo">📋 오늘 할 일</a>
+        <a class="g" href="#st-roll">🗒️ 출석부</a>
+        <a class="g" href="#st-docs">📄 서류</a>
       </div>
     </div>
     <div class="ring" data-tip="오늘 출석 ${today}명${mc ? ' / 부원 ' + mc + '명' : ''}">
@@ -1347,17 +1826,7 @@ function st_renderNotice() {
   el.style.display = 'flex';
   el.innerHTML = `<div class="pin">📌</div><div class="nt">${esc(st_notice)}</div>`;
 }
-function st_renderTiles() {
-  const mc = LIVE_MEMBERS.length, today = dayIds(todayStr()).size;
-  const total = ALL_GIFTS.length, left = ALL_GIFTS.filter(g => !g.drawn).length;
-  const pct = mc ? Math.min(100, Math.round(today / mc * 100)) : 0;
-  const tile = (icon, k, v, unit, s, bar) => `<div class="tile"><div class="k"><i>${icon}</i>${k}</div><div class="v">${v}<small>${unit}</small></div>${bar != null ? `<div class="mini"><i style="width:${bar}%"></i></div>` : `<div class="s">${s}</div>`}</div>`;
-  document.getElementById('st-tiles').innerHTML =
-    tile('👥', '부원', membersLoaded ? mc : '–', '명', '2026 또래상담부') +
-    tile('✅', '오늘 출석', attLoaded ? today : '–', '명', '', pct) +
-    tile('🎁', '모인 선물', giftsLoaded ? total : '–', '개', '천원의 행복 뽑기') +
-    tile('🎱', '남은 선물', giftsLoaded ? left : '–', '개', total ? '뽑힌 선물 ' + (total - left) + '개' : '선물을 모으는 중');
-}
+function st_renderTiles() { renderTiles('st'); }
 function st_renderMe() {
   const box = document.getElementById('st-me');
   if (!st_me) {
@@ -1391,33 +1860,18 @@ function st_renderMe() {
 function st_renderTrend() {
   document.getElementById('st-trend').innerHTML = cardHead('📊', '모임별 출석', '최근 8번') + attendChartHTML();
 }
-function st_renderGiftStats() {
-  document.getElementById('st-giftStats').innerHTML = cardHead('🎰', '천원의 행복 뽑기') + giftStatsHTML();
-}
+// 지난 활동 페이지: 아이콘 · 이름 · 주소(누르면 열려요)
 function st_renderLinks() {
   const L = [
-    ['🎁', '선물 등록하기', '사진 찍고 이름 · 가격 넣기', 'button', 'st_openSheet()'],
-    ['🎱', '행운의 번호 추첨', '뽑기 게임 화면', 'a', '?page=draw'],
-    ['👾', '연화제 부스 현황', '부스 상황판 · 채팅', 'a', '/drs/booth/'],
-    ['🔧', '교사용 관리보드', '선생님만', 'a', '?page=admin']
+    ['🎱', '행운의 번호 추첨', '천원의 행복 뽑기 게임 화면', 'https://moontr.site/drs/?page=draw'],
+    ['👾', '연화제 부스 상황판', '부스 지도 · 재고 · 채팅', 'https://moontr.site/drs/booth/']
   ];
-  document.getElementById('st-links').innerHTML = cardHead('🚀', '바로 가기') + `<div class="links">${L.map(l => {
-    const inner = `<span class="e">${l[0]}</span><span><b>${l[1]}</b><span class="d">${l[2]}</span></span><span class="arr">›</span>`;
-    return l[3] === 'a' ? `<a class="lk" href="${l[4]}">${inner}</a>` : `<button class="lk" onclick="${l[4]}">${inner}</button>`;
-  }).join('')}</div>`;
-}
-function st_renderChat() {
-  const box = document.getElementById('st-chat');
-  const head = cardHead('💬', '부원 톡', '<a href="/drs/booth/" style="color:inherit">전체 보기 ›</a>');
-  if (!st_chat.length) { box.innerHTML = head + '<div class="empty">아직 올라온 말이 없어요.</div>'; return; }
-  box.innerHTML = head + `<ul class="chat">${st_chat.map(c => {
-    const t = c.at && c.at.toDate ? c.at.toDate() : null;
-    const tm = t ? (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '';
-    return `<li><span class="av">${esc(String(c.name || '?').slice(0, 1))}</span><div class="bd"><b>${esc(c.name)}</b><time>${tm}</time><p>${esc(c.text)}</p></div></li>`;
-  }).join('')}</ul>`;
+  document.getElementById('st-links').innerHTML = cardHead('🗂️', '지난 활동 페이지') + `<ul class="plinks">${L.map(l => `
+    <li><span class="e">${l[0]}</span><div><b>${l[1]}</b><span class="d">${l[2]}</span><a href="${l[3]}">${l[3].replace('https://', '')}</a></div></li>`).join('')}</ul>`;
 }
 function st_renderGifts() {
   const box = document.getElementById('st-gifts');
+  box.style.display = giftsLoaded && ALL_GIFTS.length ? '' : 'none';   // 선물이 없으면 칸을 숨겨요 (축제 때만 씀)
   const head = `<div class="gift-head"><h3><span class="ic">🎁</span>선물 목록 <span class="muted" style="font-weight:500; font-size:13px;">${giftsLoaded ? ALL_GIFTS.length + '개' : ''}</span></h3><span class="sp"></span>
     <div class="sort-tabs">
       <button class="sort-tab ${st_giftSort === 'num' ? 'active' : ''}" onclick="st_setGiftSort('num')">번호순</button>
@@ -1505,13 +1959,20 @@ function st_start() {
   document.getElementById('st-loginId').addEventListener('keydown', e => { if (e.key === 'Enter') st_doLogin(); });
   st_bindGiftSheet();
   st_renderLinks();
+  BOARD_PREFIXES = ['st'];
   st_afterLoginChange();
-  st_renderTiles(); st_renderTrend(); st_renderGiftStats(); st_renderChat();
-  settingsRef.onSnapshot(s => { st_notice = s.exists ? (s.data().notice || '') : ''; st_renderNotice(); }, err => console.error(err));
-  watchMembers(() => { st_renderHero(); st_renderTiles(); st_renderTrend(); });
-  watchAttendance(() => { st_renderHero(); st_renderTiles(); st_renderMe(); st_renderTrend(); });
-  watchGifts(() => { st_renderTiles(); st_renderGiftStats(); st_renderGifts(); });
-  db.collection('drs_chat').orderBy('at', 'desc').limit(4).onSnapshot(snap => { st_chat = snap.docs.map(d => d.data()); st_renderChat(); }, err => console.error(err));
+  st_renderTrend(); renderBoards();
+  watchSettings(() => { st_notice = (SET.main && SET.main.notice) || ''; st_renderNotice(); st_renderHero(); renderBoards(); });
+  watchMembers(() => { st_renderHero(); st_renderTrend(); renderBoards(); });
+  watchAttendance(() => { st_renderHero(); st_renderMe(); st_renderTrend(); renderTiles('st'); renderRoll('st'); });
+  watchGifts(() => { st_renderGifts(); });
+  // 관리자 구글 계정으로 들어와 있으면(관리자 허브 · 관리보드에서 로그인) 이 화면에서 바로 고칠 수 있어요
+  auth.onAuthStateChanged(u => {
+    CAN_EDIT = !!(u && isAdminEmail(u.email));
+    document.getElementById('st-adminBadge').style.display = CAN_EDIT ? '' : 'none';
+    if (CAN_EDIT) startLedgerSync();
+    renderBoards();
+  });
 }
 
 /* ============================================================ */
@@ -1581,63 +2042,22 @@ function ad_initAdminApp() {
 }
 
 /* ----- 📊 한눈에 (관리보드 첫 화면) ----- */
-let AD_LEDGER = [];
 function ad_goTab(name) {
   const btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
   if (btn) { btn.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 }
 function ad_startOverview() {
-  const all = () => { ad_renderTiles(); ad_renderAbsent(); };
-  watchMembers(() => { all(); ad_renderTrend(); });
-  watchAttendance(() => { all(); ad_renderTrend(); });
-  watchGifts(() => { ad_renderTiles(); ad_renderGiftStats(); });
-  db.collection(COL.ledger).onSnapshot(snap => {
-    AD_LEDGER = snap.docs.map(d => d.data()).sort((a, b) => Number(b.serial) - Number(a.serial));
-    ad_renderTiles(); ad_renderLedgerRecent();
-  }, err => console.error(err));
-}
-function ad_balance() { return AD_LEDGER.reduce((s, e) => s + (e.type === '수입' ? 1 : -1) * (Number(e.amount) || 0), 0); }
-function ad_renderTiles() {
-  const mc = LIVE_MEMBERS.length, t = ATT[todayStr()] || {};
-  const moim = t['모임'] ? t['모임'].size : 0, end = t['헤어짐'] ? t['헤어짐'].size : 0;
-  const total = ALL_GIFTS.length, left = ALL_GIFTS.filter(g => !g.drawn).length;
-  const tile = (icon, k, v, unit, s) => `<div class="tile"><div class="k"><i>${icon}</i>${k}</div><div class="v">${v}<small>${unit}</small></div><div class="s">${s}</div></div>`;
-  document.getElementById('ad-tiles').innerHTML =
-    tile('👥', '부원', membersLoaded ? mc : '–', '명', '명단 탭에서 고쳐요') +
-    tile('✅', '오늘 출석', attLoaded ? dayIds(todayStr()).size : '–', '명', `모일 때 ${moim} · 헤어질 때 ${end}`) +
-    tile('💰', '가계부 잔액', ad_balance().toLocaleString(), '원', `내역 ${AD_LEDGER.length}건`) +
-    tile('🎁', '모인 선물', giftsLoaded ? total : '–', '개', total ? `남은 선물 ${left}개` : '아직 없어요');
+  // 한눈에 탭의 칸들은 학생 화면과 같은 함수로 그리고, 여기서는 고치기 단추가 늘 보여요
+  CAN_EDIT = true;
+  BOARD_PREFIXES = ['ad'];
+  watchSettings(renderBoards);
+  watchMembers(() => { renderBoards(); ad_renderTrend(); ad_loadMembers(); });
+  watchAttendance(() => { renderTiles('ad'); renderRoll('ad'); ad_renderTrend(); });
+  startLedgerSync(() => ad_loadLedger());
+  renderBoards(); ad_renderTrend();
 }
 function ad_renderTrend() {
   document.getElementById('ad-trend').innerHTML = cardHead('📊', '모임별 출석', '<a href="#" onclick="ad_goTab(\'attendance\'); return false;" style="color:inherit">출석체크 ›</a>') + attendChartHTML();
-}
-function ad_renderAbsent() {
-  const box = document.getElementById('ad-absent');
-  const head = cardHead('🙋', '오늘 아직 안 온 부원', mdText(todayStr()));
-  if (!membersLoaded || !attLoaded) { box.innerHTML = head + '<div class="empty">불러오는 중…</div>'; return; }
-  if (!LIVE_MEMBERS.length) { box.innerHTML = head + '<div class="empty">명단이 비어 있어요. <a href="#" onclick="ad_goTab(\'members\'); return false;">부원 추가 ›</a></div>'; return; }
-  const here = dayIds(todayStr());
-  if (!here.size) { box.innerHTML = head + '<div class="empty">오늘은 아직 출석 기록이 없어요.<br>모임 날이면 학생들이 출석체크를 하거나 <a href="#" onclick="ad_goTab(\'attendance\'); return false;">출석체크 탭</a>에서 넣어 주세요.</div>'; return; }
-  const absent = LIVE_MEMBERS.filter(m => !here.has(m.id));
-  box.innerHTML = head + (absent.length
-    ? `<div class="muted" style="font-size:12.5px; margin-bottom:10px;">${here.size}명 출석 · ${absent.length}명 아직</div><div class="chips">${absent.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>`
-    : '<div class="empty">🎉 오늘은 모두 출석했어요!</div>');
-}
-function ad_renderGiftStats() {
-  document.getElementById('ad-giftStats').innerHTML = cardHead('🎰', '천원의 행복 뽑기', '<a href="#" onclick="ad_goTab(\'gifts\'); return false;" style="color:inherit">뽑기관리 ›</a>') + giftStatsHTML();
-}
-function ad_renderLedgerRecent() {
-  const box = document.getElementById('ad-ledgerRecent');
-  const inSum = AD_LEDGER.filter(e => e.type === '수입').reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const outSum = AD_LEDGER.filter(e => e.type !== '수입').reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const head = cardHead('💰', '가계부', '<a href="#" onclick="ad_goTab(\'ledger\'); return false;" style="color:inherit">전체 보기 ›</a>');
-  if (!AD_LEDGER.length) { box.innerHTML = head + '<div class="empty">아직 내역이 없어요.</div>'; return; }
-  box.innerHTML = head + `
-    <div class="bigline" style="margin-bottom:4px;"><span class="n">${ad_balance().toLocaleString()}</span><span class="muted">원 남음</span></div>
-    <div class="muted" style="font-size:12.5px; margin-bottom:12px;">들어온 돈 <span class="amt-in">${inSum.toLocaleString()}원</span> · 쓴 돈 <span class="amt-out">${outSum.toLocaleString()}원</span></div>
-    <div class="table-wrap"><table class="mini-table"><tr><th>날짜</th><th>항목</th><th style="text-align:right">금액</th></tr>
-    ${AD_LEDGER.slice(0, 5).map(e => `<tr><td>${esc(e.date)}</td><td>${esc(e.item)}</td><td style="text-align:right" class="${e.type === '수입' ? 'amt-in' : 'amt-out'}">${e.type === '수입' ? '+' : '−'}${(Number(e.amount) || 0).toLocaleString()}</td></tr>`).join('')}
-    </table></div>`;
 }
 
 /* ----- 공지 ----- */
