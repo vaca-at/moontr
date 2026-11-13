@@ -408,6 +408,10 @@
     .lbadge.ok { background:var(--acc-soft); color:var(--acc-ink); }
     .lbadge.no { background:var(--red-soft); color:#b4232a; }
     button.lbadge { cursor:pointer; }
+    button.lbadge.btn-on { box-shadow:0 1px 0 rgba(0,0,0,.08); transition:transform .1s, filter .15s; }
+    button.lbadge.btn-on:hover { filter:brightness(.95); transform:translateY(-1px); }
+    button.lbadge.btn-on.no { background:#fff; color:#b4232a; box-shadow:inset 0 0 0 1.5px #f2b8bb; }
+    button.lbadge.btn-on.no:hover { background:var(--red-soft); }
     .docs { display:flex; flex-direction:column; gap:8px; }
     .doc { display:flex; align-items:center; gap:4px; }
     .doc a { flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:9px 12px; border:1px solid var(--line); border-radius:12px; text-decoration:none; color:var(--ink); transition:border-color .15s; }
@@ -1861,29 +1865,40 @@ function renderLedger(p) {
   const refunded = st.filter(r => r.refunded).reduce((s, r) => s + r.amount, 0);
   let h = cardHead('🧾', '각자 낸 돈 · 환급', st.length ? `환급 ${doneN} / ${st.length}명` : '');
   // 가계부 DB 가 비어 있으면(받은 16건을 보여 주는 중) 관리자에게 [넣기] 단추 — 넣어야 환급 배지를 바꿀 수 있어요
-  if (rows[0] && rows[0].seed && CAN_EDIT && ledgerLoaded) h += `<div class="seed-note">가계부에 아직 안 넣었어요. 넣어야 환급 완료를 표시할 수 있어요. <button class="btn small" onclick="seedLedger()">📥 ${SEED_LEDGER.length}건 넣기</button></div>`;
-  const badge = r => !r.hasStudent ? '' : (live && r.docId
-    ? `<button class="lbadge ${r.refunded ? 'ok' : 'no'}" title="눌러서 바꿔요" onclick="ledgerToggle('${r.docId}', ${!r.refunded})">${r.refunded ? '환급 완료' : '미환급'}</button>`
-    : `<span class="lbadge ${r.refunded ? 'ok' : 'no'}">${r.refunded ? '환급 완료' : '미환급'}</span>`);
+  if (rows[0] && rows[0].seed && CAN_EDIT && ledgerLoaded) h += `<div class="seed-note">가계부에 아직 안 넣었어요. 아래 [미환급 → 환급]을 누르면 넣으면서 환급 완료로 표시돼요. <button class="btn small" onclick="seedLedger()">📥 ${SEED_LEDGER.length}건만 넣기</button></div>`;
+  // 관리자 로그인일 때만 배지가 단추: 미환급 → 누르면 환급 완료 (가계부를 아직 안 넣었으면 16건을 넣으면서)
+  const badge = (r, i) => !r.hasStudent ? '' : (live && r.docId
+    ? `<button class="lbadge btn-on ${r.refunded ? 'ok' : 'no'}" title="${r.refunded ? '눌러서 미환급으로 되돌리기' : '눌러서 환급 완료'}" onclick="ledgerToggle('${r.docId}', ${!r.refunded}, '${esc(r.name)}')">${r.refunded ? '✓ 환급 완료' : '미환급 → 환급'}</button>`
+    : (CAN_EDIT && r.seed && ledgerLoaded && !LEDGER_ROWS.length
+      ? `<button class="lbadge btn-on no" title="눌러서 환급 완료" onclick="ledgerSeedRefund(${i})">미환급 → 환급</button>`
+      : `<span class="lbadge ${r.refunded ? 'ok' : 'no'}">${r.refunded ? '환급 완료' : '미환급'}</span>`));
   box.innerHTML = h + `
     <div class="bigline"><span class="n">${spend.toLocaleString()}</span><span class="muted">원 썼어요</span></div>
     <div class="meter" data-tip="환급 ${won(refunded)} / ${won(spend)}"><i style="width:${spend ? Math.round(refunded / spend * 100) : 0}%"></i></div>
     <div class="muted" style="font-size:12.5px; margin-bottom:10px;">환급 완료 ${won(refunded)} · 남은 환급 ${won(st.reduce((s, r) => s + (r.refunded ? 0 : r.amount), 0))}${live ? ' · 배지를 누르면 바뀌어요' : ''}</div>
     <div class="ltable-wrap"><table class="ltable"><tr><th>이름</th><th>항목</th><th class="amt">금액</th><th>환급</th></tr>
-      ${rows.map(r => `<tr><td><b>${esc(r.name || '-')}</b></td><td>${esc(r.item) || '<span class="muted">—</span>'}</td><td class="amt">${r.type === '수입' ? '+' : ''}${r.amount.toLocaleString()}</td><td>${badge(r)}</td></tr>`).join('')}
+      ${rows.map((r, i) => `<tr><td><b>${esc(r.name || '-')}</b></td><td>${esc(r.item) || '<span class="muted">—</span>'}</td><td class="amt">${r.type === '수입' ? '+' : ''}${r.amount.toLocaleString()}</td><td>${badge(r, i)}</td></tr>`).join('')}
     </table></div>`;
 }
-async function ledgerToggle(docId, val) {
+async function ledgerToggle(docId, val, name) {
+  if (!val && !confirm(`${name || ''} 환급 완료를 미환급으로 되돌릴까요?`)) return;   // 되돌릴 때만 한 번 물어봐요
   try { await db.collection(COL.ledger).doc(docId).update({ refunded: val }); if (ad_opened) ad_loadLedger(); }
   catch (e) { alert('바꾸지 못했어요: ' + e.message); }
 }
+async function seedLedgerCore(refundIdx) {
+  const start = await nextSerial('ledger', SEED_LEDGER.length), date = todayStr();
+  await batchWrite(SEED_LEDGER.map((r, i) => b => b.set(db.collection(COL.ledger).doc(), { serial: start + i, date, type: '지출', item: r[0], amount: r[1], studentId: r[2], studentName: r[3], refunded: i === refundIdx, note: '부스 준비물' })));
+  if (ad_opened) ad_loadLedger();
+}
 async function seedLedger() {
   if (!confirm(`부원 지출 ${SEED_LEDGER.length}건(${won(SEED_LEDGER.reduce((s, r) => s + r[1], 0))})을 가계부에 넣을까요?\n날짜는 오늘, 모두 '지출 · 미환급'으로 들어가요.`)) return;
-  try {
-    const start = await nextSerial('ledger', SEED_LEDGER.length), date = todayStr();
-    await batchWrite(SEED_LEDGER.map((r, i) => b => b.set(db.collection(COL.ledger).doc(), { serial: start + i, date, type: '지출', item: r[0], amount: r[1], studentId: r[2], studentName: r[3], refunded: false, note: '부스 준비물' })));
-    if (ad_opened) ad_loadLedger();
-  } catch (e) { alert('넣지 못했어요: ' + e.message); }
+  try { await seedLedgerCore(-1); } catch (e) { alert('넣지 못했어요: ' + e.message); }
+}
+// 가계부가 비어 있을 때 미환급을 처음 누르면: 16건을 넣으면서 그 학생은 환급 완료로
+async function ledgerSeedRefund(i) {
+  const r = SEED_LEDGER[i]; if (!r) return;
+  if (!confirm(`가계부에 부원 지출 ${SEED_LEDGER.length}건을 넣고, ${r[3]}(${won(r[1])})을 환급 완료로 표시할까요?\n(처음 한 번만 물어봐요)`)) return;
+  try { await seedLedgerCore(i); } catch (e) { alert('넣지 못했어요: ' + e.message); }
 }
 
 /* ----- 📚 1학기 활동 기록 (학년별 · 활동지 PDF) ----- */
