@@ -1921,8 +1921,18 @@ const ACTS_DEFAULT = { days: [
     ] },
   { id:'g1movie', who:'1학년', date:'2026-06-05', title:'영화 <줄무늬 파자마를 입은 소년> 시청 및 감상 소감 나눔 (영화로 심리 분석)', parts:[] },
   { id:'g1rel', who:'1학년', date:'2026-07-10', title:'대인관계 속 나의 행동 양상에 대한 성찰 및 일지 작성', parts:[] },
-  { id:'g1fest', who:'1학년', date:'2026-08-21', title:'연화제 기획 및 진행 회의', parts:[] },
-  { id:'g2sol', who:'2학년', date:'', title:'쏠리언 또래상담', parts:[] },
+  { id:'g1fest', who:'', date:'2026-08-21', title:'연화제 기획 및 진행 회의', parts:[] },
+  // 2026-11-15 활동보고서에 맞춤: 2학년 1학기 = 솔리언 또래 상담자 기본 교육 4번 (g2sol 은 예전 칸 번호라 그대로 둬요)
+  { id:'g2sol', who:'2학년', date:'2026-03-27', title:'솔리언 또래 상담자 기본 교육 (1차)', parts:[] },
+  { id:'g2sol2', who:'2학년', date:'2026-05-15', title:'솔리언 또래 상담자 기본 교육 (2차)', parts:[] },
+  { id:'g2sol3', who:'2학년', date:'2026-06-05', title:'솔리언 또래 상담자 기본 교육 (3차)', parts:[] },
+  { id:'g2sol4', who:'2학년', date:'2026-07-10', title:'솔리언 또래 상담자 기본 교육 (4차)', parts:[] },
+  // 2학기 (1 · 2학년 함께)
+  { id:'f0904', who:'', date:'2026-09-04', title:'연화제 필요 물품 구매', parts:[] },
+  { id:'f1016', who:'', date:'2026-10-16', title:'연화제 물품 준비 및 제작', parts:[] },
+  { id:'f1022', who:'', date:'2026-10-22', title:'연화제 물품 준비 및 제작, 최종 점검', parts:[] },
+  { id:'f1023', who:'', date:'2026-10-23', title:'연화제', parts:[] },
+  { id:'f1113', who:'', date:'2026-11-13', title:'부장 · 차장 선거 및 동아리 피드백', parts:[] },
   { id:'d0612', who:'1학년', date:'2026-06-12', title:'관계 속의 나와 너 (시작 · 관심 · 공감)', parts: [
       { id:'a1', t:'[활동 1] 나의 다가가기 온도 탑 쌓기 (자기 이해)', goal:'자신을 먼저 이해하고 타인을 인식하며 친구에게 다가가는 연습하기' },
       { id:'a2', t:'[활동 2] 교실 속 ‘신호등’ 관찰 일지 (타인 인식)', goal:'타인의 마음 상태를 인식하고 친구에게 작은 관심을 표현하는 연습하기' },
@@ -1931,7 +1941,7 @@ const ACTS_DEFAULT = { days: [
 ] };
 function actDays() {
   const L = JSON.parse(JSON.stringify((SET.acts || ACTS_DEFAULT).days || []));
-  // 2026-11-14: 6월 12일 '관계 속의 나와 너'는 1학년 활동 (2학년은 1학기에 쏠리언만). 예전에 공통으로 저장된 것도 1학년으로 봐요
+  // 2026-11-14: 6월 12일 '관계 속의 나와 너'는 1학년 활동 (2학년은 1학기에 솔리언만). 예전에 공통으로 저장된 것도 1학년으로 봐요
   L.forEach(d => { if (d.id === 'd0612' && !(d.who || '')) d.who = '1학년'; });
   return L;
 }
@@ -3000,7 +3010,7 @@ function gradeFacts(g) {
   volActs().forEach(a => L.push(`- ${korDate(a.date)} · ${a.content} · ${a.hours}시간 · 참여 ${(a.ids || []).length}명`));
   const b = SET.booth || BOOTH_DEFAULT;
   L.push('[2학기 연화제 부스 운영]', `- 수입 및 지원금: ${b.income.map(r => r.l + ' ' + won(r.a)).join(', ')}`, `- 지출 합계 ${won(sumA(b.expense))}`);
-  if (g === '2') L.push('[또래상담 시스템(1388)]', '- 쏠리언 또래상담자로서 1388 또래상담 시스템에서 사전 · 사후 설문과 이수 처리');
+  if (g === '2') L.push('[또래상담 시스템(1388)]', '- 솔리언 또래상담자로서 1388 또래상담 시스템에서 사전 · 사후 설문과 이수 처리');
   return L.join('\n');
 }
 function studentFacts(id) {
@@ -3029,11 +3039,18 @@ function commonAuto(g) {
     const keys = (d.parts || []).map(a => (String(a.t).match(/\(([^)]+)\)\s*$/) || [])[1]).filter(Boolean).map(k => k.replace(/\s*연습$/, ''));
     return `${d.date ? korDay(d.date).replace(/ \(.\)$/, '') + '에는 ' : ''}'${d.title.replace(/\s*\(.*\)$/, '')}' 활동${keys.length ? `으로 ${keys.join(' · ')}${josaEul(keys[keys.length - 1])} 연습했다` : '을 했다'}.`;
   });
-  if (lines.length) S.push({ heading: `${g}학년이 함께한 활동`, body: [g === '2' ? '1학기에는 쏠리언 또래상담자로서 또래상담의 기본을 다졌다.' : '', ...lines.filter(l => !(g === '2' && /쏠리언/.test(l)))].filter(Boolean).join('\n') });
+  // 학년 활동은 한 줄씩, 1 · 2학년이 함께한 2학기 활동은 한 문장으로 묶어요. 2학년 솔리언 교육은 한 문장으로
+  const own = acts.filter(d => (d.who || '') && d.title && !/계획 세우기|솔리언/.test(d.title)).sort((a, b) => (a.date || '9') < (b.date || '9') ? -1 : 1);
+  const both = acts.filter(d => !(d.who || '') && d.title).sort((a, b) => (a.date || '9') < (b.date || '9') ? -1 : 1);
+  const md = d => d.date ? korDay(d.date).replace(/ \(.\)$/, '') : '';
+  const sol = acts.filter(d => /솔리언/.test(d.title) && d.date);
+  const L1 = lines.filter(l => own.some(d => l.includes("'" + d.title.replace(/\s*\(.*\)$/, '') + "'")));
+  const bothTxt = both.length ? `2학기에는 1 · 2학년이 함께 ${both.map(d => `${d.title === '연화제' ? '연화제 부스 운영' : d.title.replace(/\s*\(.*\)$/, '')}(${md(d)})`).join(', ')}을 하며 한 해를 마무리했다.` : '';
+  S.push({ heading: `${g}학년이 함께한 활동`, body: [sol.length && g === '2' ? `1학기에는 솔리언 또래 상담자 기본 교육을 ${sol.length}차례(${sol.map(md).join(' · ')}) 받으며 또래상담의 기본을 다졌다.` : '', ...L1, bothTxt].filter(Boolean).join('\n') });
   const v = volActs();
   if (v.length) S.push({ heading: '나눔과 봉사', body: `1학기에는 ${[...new Set(v.map(a => String(a.content).replace(/^교내\s*/, '').replace(/\s*(캠페인)?\s*(사전 준비|운영 및 지원).*$/, '')))].join(' · ')} 캠페인을 준비하고 운영하며 학교 안에 따뜻한 마음을 전했다.` });
   S.push({ heading: '연화제 부스', body: `2학기 연화제에서는 '천원의 행복 뽑기'와 '워리스톤 만들기' 부스를 역할을 나누어 함께 준비하고 운영했다.` });
-  if (g === '2') S.push({ heading: '또래상담 시스템(1388)', body: '2학년 부원들은 쏠리언 또래상담자로서 1388 또래상담 시스템의 사전 · 사후 설문에 참여하고 이수 과정을 마쳤다.' });
+  if (g === '2') S.push({ heading: '또래상담 시스템(1388)', body: '2학년 부원들은 솔리언 또래상담자로서 1388 또래상담 시스템의 사전 · 사후 설문에 참여하고 이수 과정을 마쳤다.' });
   return S;
 }
 function commonFor(g) { const c = REPORTS['common_' + g] || (SET.reportCommon && SET.reportCommon['g' + g] && { sections: SET.reportCommon['g' + g] }); return c && c.sections && c.sections.length ? c.sections : commonAuto(g); }
