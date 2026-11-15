@@ -1000,6 +1000,19 @@ service cloud.firestore {
         && (resource == null || deskMember(resource.data.desk));
       allow delete: if request.auth != null && deskMember(resource.data.desk);
     }
+    // 📒 먼저 플래너 (2026-11-15 로그인): first_users = 학생 기록(본인만), first_stat = 가입 · 마지막 사용일 · 기기 숫자(관리자는 이것만 셈)
+    match /first_users/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['d', 'at', 'v'])
+        && request.resource.data.d is string && request.resource.data.d.size() < 1000000;
+    }
+    match /first_stat/{uid} {
+      allow read: if (request.auth != null && request.auth.uid == uid) || isTeacher();
+      allow delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['created', 'lastDay', 'plat', 'kinds']);
+    }
     // 👥 이메일로 친구 맺기 · 1:1 채팅은 2026-11-15에 없앴어요 (desk_req · desk_dm 은 이제 아무도 못 읽고 못 써요)
     // 예전에 만들어 둔 desk_email(로그인 이메일을 바꾼 값) 문서는 본인이 지우기만 할 수 있어요 (앱이 로그인할 때 지워요)
     match /desk_email/{h} {

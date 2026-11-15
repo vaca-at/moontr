@@ -374,9 +374,37 @@ main.scrolled .prog::before{opacity:1}
   .gbar,.gs,.gnum input,.gadd input,.sheet .cand input.ct,.sheet .cand input[type=date],.ck span{background:#2A2830}
   .ib.del{background:none}
 }
+/* 🔐 로그인 화면 (2026-11-15) */
+.gate[hidden],.gb[hidden]{display:none!important}
+.gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px max(20px,env(safe-area-inset-left,0px));background:linear-gradient(180deg,#FFE3EA 0%,#FFF6F8 70%);font-family:'OngleipUnz','Jua',var(--sys)}
+.gbox{width:min(360px,100%);display:grid;justify-items:center;gap:10px;text-align:center}
+.gbox img{width:96px;height:96px;border-radius:24px;box-shadow:0 10px 24px rgba(255,111,145,.25)}
+.gbox h1{margin:6px 0 0;font-size:34px;font-weight:400;color:#FF5C84}
+.gbox>p{margin:0;color:#6B5E66;font-family:var(--sys);font-size:15px}
+.gbtns{display:grid;gap:10px;width:100%;margin-top:14px}
+.gb{display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:14px;padding:14px;font:600 16px var(--sys);cursor:pointer}
+.gb.apple{background:#000;color:#fff}.gb.google{background:#fff;color:#1D1D1F;box-shadow:inset 0 0 0 1.5px #E5E5EA}.gb.google b{color:#4285F4;font-size:17px}.gb.kakao{background:#FEE500;color:#191600}
+.gb:disabled{opacity:.6}
+.gerr{min-height:1.2em;color:#E5394F;font:14px var(--sys);margin:0}
+.gnote{font:12.5px/1.6 var(--sys);color:#8E8E93;margin:6px 0 0}.gnote a{color:inherit}
+@media (prefers-color-scheme:dark){.gate{background:linear-gradient(180deg,#2A1C22 0%,#16151A 70%)}.gbox>p{color:#C9C3CC}}
 </style>
 </head>
 <body>
+<div class="gate" id="gate" hidden>
+  <div class="gbox">
+    <img src="icon-512.png" alt="" width="96" height="96">
+    <h1>먼저 플래너</h1>
+    <p>약한 과목을 먼저, 작게 계획하고 실천해요</p>
+    <div class="gbtns">
+      <button type="button" class="gb apple" id="gApple" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="fill:currentColor"><path d="M16.37 12.6c-.02-2.1 1.72-3.12 1.8-3.17-.98-1.43-2.5-1.63-3.04-1.65-1.29-.13-2.52.76-3.18.76-.66 0-1.67-.74-2.74-.72-1.41.02-2.71.82-3.44 2.08-1.47 2.54-.37 6.3 1.05 8.36.7 1 1.53 2.13 2.61 2.09 1.05-.04 1.45-.68 2.72-.68 1.27 0 1.62.68 2.74.66 1.13-.02 1.85-1.02 2.54-2.03.8-1.17 1.13-2.3 1.15-2.36-.03-.01-2.2-.84-2.21-3.34zM14.3 6.43c.58-.7.97-1.68.86-2.65-.83.03-1.84.55-2.44 1.25-.53.62-1 1.62-.88 2.57.93.07 1.88-.47 2.46-1.17z"/></svg> Apple로 시작하기</button>
+      <button type="button" class="gb google" id="gGoogle"><b>G</b> 구글로 시작하기</button>
+      <button type="button" class="gb kakao" id="gKakao">💬 카카오로 시작하기</button>
+    </div>
+    <p class="gerr" id="gErr" role="alert"></p>
+    <p class="gnote">로그인하면 계획 · 순공 시간 · 성적이 서버에 안전하게 저장돼서, 휴대폰을 바꾸거나 컴퓨터(moontr.site/first)에서도 그대로 이어져요.<br>시작하면 <a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의하는 것으로 봐요.</p>
+  </div>
+</div>
 <div class="app" id="app">
   <main id="main" aria-live="polite"></main>
   <nav class="tabs" id="tabs" aria-label="메뉴"></nav>
@@ -422,7 +450,7 @@ function migrate(v){
   }
 }
 if (RAW && (!RAW.subjV || !RAW.crew)){ migrate(RAW); try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} if (typeof nativeSync === "function") nativeSync(); };
+const save = () => { D.at = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} if (typeof nativeSync === "function") nativeSync(); window.FB?.push(); };   // D.at = 마지막으로 고친 때 (서버 기록과 비교)
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const pad = n => String(n).padStart(2, "0");
@@ -1012,7 +1040,9 @@ function viewSettings(){
       <div class="row"><span>백업 파일로 내보내기</span><button type="button" class="link" data-act="bakOut">내보내기</button></div>
       <div class="row"><span>백업 파일 가져오기</span><label class="link" style="cursor:pointer">가져오기<input type="file" id="bakFile" accept=".json,application/json" hidden></label></div></div>
     <p class="note" style="margin:-8px 4px 0">할 일 · 순공 · 성적 · 설정 · 내 캐릭터가 파일 하나에 담겨요 (사진첩 사진은 빼고)${NAT ? ". 아이클라우드에도 저절로 백업돼요" : ""}</p>
-    <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기</span><button type="button" class="link dim" data-act="wipe">지우기</button></div></div>
+    <p class="gh">계정</p><div class="grp"><div class="row"><span>${esc(window.FB?.who() || "로그인 정보를 불러오는 중")}</span><button type="button" class="link" data-act="logout">로그아웃</button></div>
+      <div class="row"><span>탈퇴 <small class="sub">(계정과 서버 기록 지우기)</small></span><button type="button" class="link dim" data-act="quit">탈퇴</button></div></div>
+    <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기 <small class="sub">(계정은 남겨요)</small></span><button type="button" class="link dim" data-act="wipe">지우기</button></div></div>
     <details class="policy"><summary>먼저 플래너 · 이용약관 · 개인정보 처리방침</summary><div>
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
       <h4>개인정보 처리방침</h4>계획 · 공부 시간 · 성적 · 설정 · 내가 넣은 캐릭터 그림 · 사진첩 사진은 <b>이 휴대폰(브라우저) 안에만</b> 저장되고 서버로 보내지 않아요. 사진 속 글자도 휴대폰 안에서 읽어요(웹에서는 글자 읽기 도구만 한 번 받아요). 아이폰 앱에서는 기기를 바꿔도 이어지도록 내 아이클라우드(Apple)에 기록을 백업하고(사진은 빼고), 홈 화면 위젯 · 잠금 화면 타이머에 오늘 할 일과 순공 시간을 보여 줘요. 성적표 사진은 숫자만 읽고 저장하지 않아요. 이름 · 학교 · 연락처는 받지 않아요. 앱을 지우거나 위의 '모든 기록 지우기'를 누르면 기록이 사라져요. 웹에서는 방문 수(횟수)만 세고, 아이폰 앱에서는 세지 않아요.
@@ -1375,8 +1405,14 @@ document.addEventListener("click", e => {
     case "bakOut": backupOut(); return;
     case "bakOk": { const v2 = S.bak; if (!v2) return; try { localStorage.setItem(KEY, JSON.stringify(v2)); } catch (err) { toast("가져오지 못했어요"); return; } location.reload(); return; }
     case "wipe": S.sheet = { t:"wipe" };
-      openSheet(`<h2>모든 기록을 지울까요?</h2><p class="note">할 일 · 순공 시간 · 성적 · 설정 · 내 캐릭터 · 사진첩이 모두 사라지고 되돌릴 수 없어요. 필요하면 먼저 [백업 파일로 내보내기]를 해 두세요.</p><div class="btns"><button type="button" class="pill light" data-act="sheetClose">그만두기</button><button type="button" class="pill danger" data-act="wipeOk">모두 지우기</button></div>`); return;
-    case "wipeOk": try { localStorage.setItem(KEY, JSON.stringify({ subjV:1, crew:["rabbit","bear","ham"], wiped:Date.now() })); indexedDB.deleteDatabase("first-pics"); } catch (err) {} location.reload(); return;   // 빈 기록을 남겨 두어 아이클라우드에서 다시 살아나지 않게
+      openSheet(`<h2>모든 기록을 지울까요?</h2><p class="note">할 일 · 순공 시간 · 성적 · 설정 · 내 캐릭터 · 사진첩이 이 기기와 서버에서 모두 사라지고 되돌릴 수 없어요. 계정은 남아요. 필요하면 먼저 [백업 파일로 내보내기]를 해 두세요.</p><div class="btns"><button type="button" class="pill light" data-act="sheetClose">그만두기</button><button type="button" class="pill danger" data-act="wipeOk">모두 지우기</button></div>`); return;
+    case "logout": S.sheet = { t:"out" };
+      openSheet(`<h2>로그아웃할까요?</h2><p class="note">기록은 서버에 저장돼 있어서, 다시 로그인하면 그대로 돌아와요. 이 기기에 남은 기록은 지워요 (사진첩 사진은 이 기기에만 있어요).</p><div class="btns"><button type="button" class="pill light" data-act="sheetClose">취소</button><button type="button" class="pill" data-act="logoutOk">로그아웃</button></div>`); return;
+    case "logoutOk": window.FB?.out(); return;
+    case "quit": S.sheet = { t:"quit" };
+      openSheet(`<h2>탈퇴할까요?</h2><p class="note">계정과 서버에 저장된 할 일 · 순공 시간 · 성적 · 설정, 이 기기의 기록과 사진첩, 아이클라우드 백업까지 모두 지워요. 되돌릴 수 없어요.</p><div class="btns"><button type="button" class="pill light" data-act="sheetClose">취소</button><button type="button" class="pill danger" data-act="quitOk">모두 지우고 탈퇴</button></div>`); return;
+    case "quitOk": b.disabled = true; b.textContent = "지우는 중…"; window.FB?.quit(); return;
+    case "wipeOk": try { localStorage.setItem(KEY, JSON.stringify({ subjV:1, crew:["rabbit","bear","ham"], wiped:Date.now(), at:Date.now() }));   /* at: 서버 기록보다 최근이라 서버도 빈 기록으로 바뀌어요 */ indexedDB.deleteDatabase("first-pics"); } catch (err) {} location.reload(); return;   // 빈 기록을 남겨 두어 아이클라우드에서 다시 살아나지 않게
   }
   render();
 });
@@ -1511,6 +1547,147 @@ setTimeout(weekPopup, 600);
 setTimeout(() => { if (D.hello === today() || document.querySelector(".sheet")) return; D.hello = today(); save();
   const x = nextExam(), n = x ? dLeft(x.d) : 99;
   moment(n <= 3 ? (D.mode === "t" ? `${x.n}까지 ${n ? n + "일" : "오늘"} 남았어. 오늘 계획부터 보자.` : `${x.n}이 ${n ? n + "일" : "오늘"} 남았어! 같이 힘내자 💪`) : (D.mode === "t" ? "오늘 할 일부터 하나씩 하자." : "안녕! 오늘도 같이 해 보자 😊")); }, 900);
+}
+</script>
+<script type="module">
+/* ===================== 🔐 로그인 · 서버 저장 (2026-11-15) =====================
+   - 처음 열면 로그인부터 (Apple은 아이폰 · 아이패드 앱에서만, 구글 · 카카오는 어디서나)
+   - 기록 = first_users/{로그인 번호} { d:기록 전체(JSON 글), at:마지막으로 고친 때 } — 본인만 읽고 써요
+   - 숫자 = first_stat/{로그인 번호} { created:가입한 때, lastDay:마지막으로 쓴 날, plat:ios · web, kinds:로그인 종류 } — 관리자는 이것만 세요
+   - 기기와 서버 중 더 최근에 고친 쪽을 써요 (D.at 비교). 사진첩 사진은 서버에 안 올려요 (이 기기에만)
+   - 이름 붙은 파이어베이스 앱 "first" (moontr.site 관리자 로그인과 섞이지 않게). 관리자 화면(#admin)만 기본 앱
+   - 탈퇴: ⚙︎ 설정 › 계정 › 탈퇴 → 서버 기록 · 숫자 · 로그인 정보를 지우고 이 기기 기록도 지워요 */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, getCountFromServer, collection, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const firebaseConfig = { apiKey:"AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain:"moon-d528d.firebaseapp.com", projectId:"moon-d528d", storageBucket:"moon-d528d.firebasestorage.app", messagingSenderId:"126636401536", appId:"1:126636401536:web:25b8a8296ec42b86f99765" };
+const ADMIN = location.hash === "#admin" || /[?&]admin\b/.test(location.search);
+const ADMIN_EMAILS = ["anstjsdud@sen.go.kr", "bellachord@gmail.com"];   // 보안 규칙 isTeacher() 와 같게
+const fbApp = ADMIN ? initializeApp(firebaseConfig) : initializeApp(firebaseConfig, "first");
+const auth = getAuth(fbApp), db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling:true });
+const NATIVE = !!window.Capacitor?.isNativePlatform?.(), IOS = NATIVE && window.Capacitor.getPlatform?.() === "ios";
+const KAKAO = "oidc.kakao";
+const el = id => document.getElementById(id), gate = el("gate"), gErr = el("gErr");
+const dkey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const SEEN = "first-auth";   // 이 기기에서 로그인한 적 있음 → 처음 화면에서 로그인 창을 깜빡이지 않게
+let user = null, known = false, pushT = 0;
+
+/* ---------- 로그인 ---------- */
+if (IOS) el("gApple").hidden = false;
+try { if (!localStorage.getItem(SEEN) && !ADMIN) gate.hidden = false; } catch (e) { if (!ADMIN) gate.hidden = false; }
+const gProv = () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); return p; };
+const FA = () => NATIVE ? window.Capacitor.Plugins.FirebaseAuthentication : null;
+// 아이폰 앱: 휴대폰 로그인 창으로 받은 열쇠를 파이어베이스에 넘겨요 (교무실 타이쿤 · 아이아이노트와 같은 방식)
+async function appCreds(kind){
+  const P = FA(); if (!P) throw new Error("앱을 최신 버전으로 업데이트해 주세요");
+  if (kind === "kakao"){
+    const r = await P.signInWithOpenIdConnect({ providerId:KAKAO, skipNativeAuth:true }), c = (r && r.credential) || {}, L = [];
+    if (c.idToken) L.push({ idToken:c.idToken, ...(c.nonce ? { rawNonce:c.nonce } : {}), ...(c.accessToken ? { accessToken:c.accessToken } : {}) });
+    if (c.accessToken) L.push({ accessToken:c.accessToken });
+    if (!L.length) throw new Error("카카오 로그인을 하지 못했어요. 다시 눌러 주세요");
+    return L.map(o => new OAuthProvider(KAKAO).credential(o));
+  }
+  if (kind === "apple"){
+    const r = await P.signInWithApple({ skipNativeAuth:true }), c = r && r.credential;
+    if (!c || !c.idToken) throw new Error("Apple 로그인을 하지 못했어요. 다시 눌러 주세요");
+    return [new OAuthProvider("apple.com").credential({ idToken:c.idToken, rawNonce:c.nonce })];
+  }
+  const r = await P.signInWithGoogle(), c = r && r.credential;
+  if (!c || !c.idToken) throw new Error("구글 로그인을 하지 못했어요. 다시 눌러 주세요");
+  return [GoogleAuthProvider.credential(c.idToken, c.accessToken || null)];
+}
+const INAPP = /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|\bLine\/|DaumApps|everytimeApp|BAND\/|; wv\)/i.test(navigator.userAgent);
+async function signIn(kind){
+  gErr.textContent = "";
+  if (!NATIVE && INAPP){
+    if (/KAKAOTALK/i.test(navigator.userAgent)){ location.href = "kakaotalk://web/openExternal?url=" + encodeURIComponent(location.href); return; }
+    gErr.textContent = "이 앱 안의 브라우저에서는 로그인이 막혀요. ⋮ 메뉴에서 '다른 브라우저로 열기'를 눌러 주세요"; return;
+  }
+  gate.querySelectorAll(".gb").forEach(b => b.disabled = true);
+  try {
+    if (NATIVE){ let err; for (const c of await appCreds(kind)){ try { await signInWithCredential(auth, c); err = null; break; } catch (e){ err = e; } } if (err) throw err; }
+    else await signInWithPopup(auth, kind === "kakao" ? new OAuthProvider(KAKAO) : gProv());
+  } catch (e){
+    const m = String((e && (e.code || e.message)) || "");
+    gErr.textContent = /cancel|popup-closed|1001|취소/i.test(m) ? "" : /account-exists/.test(m) ? "이미 다른 방법(구글 · 카카오 · Apple)으로 가입한 이메일이에요. 처음 가입한 방법으로 로그인해 주세요" : /network/.test(m) ? "인터넷 연결을 확인해 주세요" : (e && e.message && !/^Firebase/.test(e.message) ? e.message : "로그인하지 못했어요. 다시 눌러 주세요");
+  } finally { gate.querySelectorAll(".gb").forEach(b => b.disabled = false); }
+}
+el("gApple").onclick = () => signIn("apple"); el("gGoogle").onclick = () => signIn("google"); el("gKakao").onclick = () => signIn("kakao");
+
+/* ---------- 서버 저장 ---------- */
+const userRef = () => doc(db, "first_users", user.uid), statRef = () => doc(db, "first_stat", user.uid);
+async function pull(){
+  let snap; try { snap = await getDoc(userRef()); } catch (e) { return; }   // 인터넷이 막혀도 이 기기 기록으로 계속 써요
+  known = snap.exists();
+  if (known){
+    const s = snap.data();
+    if (s.d && (s.at || 0) > (D.at || 0)){   // 서버가 더 최근 → 서버 기록으로 바꾸고 한 번 다시 열어요
+      try { localStorage.setItem(KEY, s.d); } catch (e) {}
+      if (!sessionStorage.getItem("first-pulled")){ sessionStorage.setItem("first-pulled", "1"); location.reload(); return; }
+    }
+  }
+  push(true);
+}
+function push(now){ if (!user) return; clearTimeout(pushT); pushT = setTimeout(doPush, now ? 0 : 3000); }
+async function doPush(){
+  if (!user) return;
+  let d = JSON.stringify(D); if (d.length > 900000) d = JSON.stringify({ ...D, mine:[] });   // 너무 크면 내 캐릭터 그림은 빼고 (서버 한 칸 1MB)
+  try {
+    await setDoc(userRef(), { d, at:D.at || Date.now(), v:1 });
+    await setDoc(statRef(), { lastDay:dkey(new Date()), plat:IOS ? "ios" : NATIVE ? "app" : "web", kinds:(user.providerData || []).map(p => p.providerId).slice(0, 4), ...(known ? {} : { created:serverTimestamp() }) }, { merge:true });
+    known = true;
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") push(true); });
+
+/* ---------- 계정 (⚙︎ 설정 › 계정) ---------- */
+function who(){
+  if (!user) return "";
+  const k = (user.providerData[0] || {}).providerId || "", n = k === "apple.com" ? "Apple" : k === KAKAO ? "카카오" : "구글";
+  const em = user.email || (user.providerData.find(p => p.email) || {}).email || "";
+  return `${n} 계정${em ? " · " + em.replace(/^(.{2}).*(@.*)$/, "$1***$2") : ""}`;
+}
+async function out(){ await doPush(); try { localStorage.removeItem(KEY); localStorage.removeItem(SEEN); } catch (e) {} await signOut(auth); location.reload(); }   // 로그아웃: 서버에 올리고 이 기기 기록은 지워요 (다시 로그인하면 돌아와요)
+async function quit(){
+  const u = auth.currentUser; if (!u) return;
+  try { await deleteDoc(userRef()); await deleteDoc(statRef()); } catch (e) { toast?.("지우지 못했어요. 인터넷을 확인해 주세요"); return; }
+  try { window.Capacitor?.Plugins?.First?.backup({ json:"{}" }); } catch (e) {}   // 아이클라우드 백업도 비워요
+  try { localStorage.removeItem(KEY); localStorage.removeItem(SEEN); indexedDB.deleteDatabase("first-pics"); } catch (e) {}
+  try { await deleteUser(u); alert?.("모두 지웠어요. 그동안 써 줘서 고마워요."); }
+  catch (e){ await signOut(auth); }   // 오래전에 로그인했으면 로그인 정보는 다시 로그인한 뒤에 지워져요 (기록은 이미 지웠어요)
+  location.reload();
+}
+window.FB = { push:() => push(false), who, out, quit };
+
+/* ---------- 로그인 상태 ---------- */
+if (!ADMIN) onAuthStateChanged(auth, async u => {
+  user = u;
+  if (!u){ try { localStorage.removeItem(SEEN); } catch (e) {} gate.hidden = false; return; }
+  try { localStorage.setItem(SEEN, "1"); } catch (e) {}
+  gate.hidden = true; await pull(); window.render?.();
+});
+
+/* ===================== 📊 관리자 화면 (#admin): 가입 · 사용 숫자만 ===================== */
+if (ADMIN){
+  gate.hidden = true;
+  const box = document.createElement("div"); box.className = "gate"; box.innerHTML = `<div class="gbox" id="admBox"><h1>먼저 플래너 · 관리자</h1><p>불러오는 중…</p></div>`; document.body.appendChild(box);
+  const B = el("admBox");
+  const cnt = async q => { try { return (await getCountFromServer(q)).data().count; } catch (e) { return "—"; } };
+  onAuthStateChanged(auth, async u => {
+    if (!u || !ADMIN_EMAILS.includes(String(u.email || "").toLowerCase())){
+      if (u) await signOut(auth);   // 관리자가 아닌 계정은 바로 로그아웃 (공용 로그인에 남지 않게)
+      B.innerHTML = `<h1>먼저 플래너 · 관리자</h1><p>관리자 구글 계정으로 로그인해 주세요</p><div class="gbtns"><button type="button" class="gb google" id="admIn"><b>G</b> 구글 계정으로 로그인</button></div><p class="gerr" id="admErr"></p>`;
+      el("admIn").onclick = async () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); try { await signInWithPopup(auth, p); } catch (e) { el("admErr").textContent = "로그인하지 못했어요"; } };
+      return;
+    }
+    const C = collection(db, "first_stat"), t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const ago = n => { const d = new Date(); d.setDate(d.getDate() - n); return dkey(d); };
+    const [all, today, week, d1, ios] = await Promise.all([cnt(C), cnt(query(C, where("created", ">=", Timestamp.fromDate(t0)))), cnt(query(C, where("lastDay", ">=", ago(6)))), cnt(query(C, where("lastDay", "==", dkey(new Date())))), cnt(query(C, where("plat", "==", "ios")))]);
+    const tile = (n, t) => `<div style="background:#fff;border-radius:16px;padding:14px 10px;box-shadow:0 2px 8px rgba(0,0,0,.06)"><b style="display:block;font-size:30px;color:#FF5C84;font-weight:400;font-variant-numeric:tabular-nums">${n}</b><span style="font:13px var(--sys);color:#6B5E66">${t}</span></div>`;
+    B.innerHTML = `<h1>먼저 플래너 · 관리자</h1><p>가입 · 사용 숫자만 보여요 (학생 기록은 볼 수 없어요)</p>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:100%;margin-top:12px">${tile(all, "전체 가입")}${tile(today, "오늘 가입")}${tile(d1, "오늘 쓴 사람")}${tile(week, "7일 안에 쓴 사람")}${tile(ios, "아이폰 · 아이패드 앱")}${tile(all === "—" ? "—" : all - ios, "웹 · 기타")}</div>
+      <p class="gnote">설치 수는 App Store Connect › 먼저 플래너 › 앱 분석에서 봐요</p>`;
+  });
 }
 </script>
 <script>/* 방문 수: 웹에서만 세요 (아이폰 앱은 '데이터 수집 안 함'이라 안 세요, 2026-11-15) */
