@@ -376,6 +376,10 @@ main.scrolled .prog::before{opacity:1}
   .gbar,.gs,.gnum input,.gadd input,.sheet .cand input.ct,.sheet .cand input[type=date],.ck span{background:#2A2830}
   .ib.del{background:none}
 }
+.backb{border:0;background:var(--mode-soft);color:var(--mode);font:inherit;font-size:17px;padding:7px 14px 7px 10px;border-radius:999px;cursor:pointer;margin-bottom:6px}
+.sndbox{display:grid;gap:6px;background:var(--mode-soft);border-radius:16px;padding:10px 12px;border:1.5px solid color-mix(in srgb,var(--mode) 35%,transparent)}
+.sndbox.on{border-color:var(--mode)}.sndh{font-size:14px;color:var(--mode)}.sndbox .chips button{background:#fff}.sndbox .chips button[aria-pressed="true"]{background:var(--mode);color:#fff}.sndbox .note{font-size:11.5px}
+@media (prefers-color-scheme:dark){.sndbox .chips button{background:#2A2830}}
 /* 📈 공부 돌아보기 */
 .habit{background:#fff;border:1.5px solid #F0EAED;border-radius:18px;padding:14px;display:grid;gap:12px}
 .hh{display:flex;justify-content:space-between;align-items:baseline}.hh b{font-weight:400;font-size:18px}
@@ -762,8 +766,9 @@ function habit(mon){
   const top = slots.slice().sort((a, b) => b[1] - a[1])[0];
   const avg = ss.length ? Math.round(ss.reduce((s, x) => s + x.m, 0) / ss.length) : 0;
   let streak = 0; for (let i = mins(tk) ? 0 : 1; i < 90; i++){ if (mins(addDays(tk, -i)) >= 1) streak++; else break; }
-  const weekday = cur.slice(0, 5).reduce((a, b) => a + (b || 0), 0), weekend = (cur[5] || 0) + (cur[6] || 0);
-  return { wk, days, cur, sum, psum, studied, nPast:past.length, best, done, all, top:top[1] ? top[0] : "", night:slots[3][1], avg, sessN:ss.length, streak, weekday, weekend, endPast:days[6] < tk };
+  const isEnd = k => [0, 6].includes(new Date(k + "T00:00").getDay());   // 토 · 일 (최근 7일로 볼 때도 날짜로 따져요)
+  const weekday = days.reduce((a, k, i) => a + (isEnd(k) ? 0 : cur[i] || 0), 0), weekend = days.reduce((a, k, i) => a + (isEnd(k) ? cur[i] || 0 : 0), 0);
+  return { wk, days, cur, sum, psum, studied, nPast:past.length, best, done, all, top:top[1] ? top[0] : "", night:slots[3][1], avg, sessN:ss.length, streak, weekday, weekend, endPast:days[6] <= tk };
 }
 function habitTips(h){
   const T = D.mode === "t", L = [];
@@ -785,9 +790,12 @@ function habitTips(h){
   if (!L.length) L.push(h.sum ? (T ? `이번 주 순공은 ${hm(h.sum * 60)}이야.` : "이번 주도 차곡차곡 쌓고 있어!") : (T ? "아직 이번 주 순공이 없어. 타이머로 10분부터 재 보자." : "이번 주 첫 순공을 재 볼까? 10분이면 충분해!"));
   return L.slice(0, 3);
 }
+/* 처음 일주일은 월~일(이번 주), 쓴 지 일주일이 넘으면 '최근 7일'(오늘까지)로 보여 줘요 */
+function rolling(){ const ks = Object.keys(D.log).filter(k => secOf(k) > 0).sort(); return !!ks.length && ks[0] <= addDays(today(), -6); }
+function nowCard(){ return rolling() ? habitCard(new Date(addDays(today(), -6) + "T00:00"), "최근 7일 공부 돌아보기") : habitCard(weekStart(new Date()), "이번 주 공부 돌아보기"); }
 function habitCard(mon, title){
   const h = habit(mon), mx = Math.max(30, ...h.cur.map(v => v || 0)), e = addDays(h.wk, 6);
-  const bars = h.cur.map((v, i) => `<div class="hb${v === null ? " fut" : ""}${i === h.best && v ? " top" : ""}"><span class="hv">${v ? (v >= 60 ? Math.floor(v / 60) + "h" + (v % 60 ? v % 60 : "") : v + "m") : ""}</span><i style="height:${v ? Math.max(6, v / mx * 100) : 2}%"></i><small>${"월화수목금토일"[i]}</small></div>`).join("");
+  const bars = h.cur.map((v, i) => `<div class="hb${v === null ? " fut" : ""}${i === h.best && v ? " top" : ""}"><span class="hv">${v ? (v >= 60 ? Math.floor(v / 60) + "h" + (v % 60 ? v % 60 : "") : v + "m") : ""}</span><i style="height:${v ? Math.max(6, v / mx * 100) : 2}%"></i><small>${WD[new Date(h.days[i] + "T00:00").getDay()]}</small></div>`).join("");
   return `<div class="habit">
     <div class="hh"><b>${esc(title)}</b><span class="sub">${+h.wk.slice(5, 7)}/${+h.wk.slice(8)} ~ ${+e.slice(5, 7)}/${+e.slice(8)}</span></div>
     <div class="wk"><div><b>${hm(h.sum * 60)}</b><small>순공 합계</small></div><div><b>${h.studied}/${h.nPast}일</b><small>공부한 날</small></div><div><b>${h.all ? Math.round(h.done / h.all * 100) + "%" : "-"}</b><small>할 일 체크</small></div></div>
@@ -832,7 +840,7 @@ function viewCal(){
     <div class="cal">${cells}</div>
     <div class="lg"><span><i class="l0"></i>안 한 날</span><span><i class="l1"></i>${D.th[0]}시간 미만</span><span><i class="l2"></i>${D.th[0]}시간+</span><span><i class="l3"></i>${D.th[1]}시간+</span><span><i class="l4"></i>${D.th[2]}시간+</span><span><i class="hasd"></i>할 일 있음</span></div>
     ${sel ? dayPanel(sel) : ""}
-    ${isThis ? habitCard(weekStart(new Date()), "이번 주 공부 돌아보기") : ""}
+    ${isThis ? nowCard() : ""}
     ${future ? "" : say(studied ? `이번 달 ${studied}일 공부했어! 안 한 날도 괜찮아, 내일 다시 하면 돼.` : "이번 달 첫 칸을 채워 볼까? 타이머로 10분만 재 봐.", `이번 달 ${upto}일 중 ${studied}일 공부했어. 하루 평균은 ${hm(avg)}이야.`)}`;
 }
 /* 주간 보기: 월~일 7일을 세로로 · 이번 주 목표(진행 막대) · 반복 할 일 */
@@ -845,7 +853,7 @@ function viewWeek(){
   let sec = 0; days.forEach(k => sec += secOf(k));
   return `<div class="hd"><div><div class="sub">이 주 순공 <b style="color:var(--ink)">${hm(sec)}</b></div><div class="mnav"><button type="button" class="ic" data-act="wPrev" aria-label="지난주">‹</button><h1 class="big wtt">${mon.getMonth() + 1}/${mon.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}</h1><button type="button" class="ic" data-act="wNext" aria-label="다음 주">›</button></div></div>${topBtns()}</div>
     <div class="calbar">${calSeg()}${isThis ? "" : `<button type="button" class="link" data-act="wNow">이번 주로</button>`}</div>
-    ${days[0] <= tk ? habitCard(mon, isThis ? "이번 주 공부 돌아보기" : "이 주 공부 돌아보기") : ""}
+    ${days[0] <= tk ? (isThis ? nowCard() : habitCard(mon, "이 주 공부 돌아보기")) : ""}
     <p class="gh">${isThis ? "이번 주" : "이 주"} 목표</p><div class="grp pad">
       ${G.map(g => { const st = goalStep(g.n); return `<div class="goal"><div class="gr"><span>${esc(g.t)}</span><span class="gnum"><input type="number" inputmode="numeric" min="0" data-goal="${g.id}" data-w="${wk}" value="${g.c}" aria-label="${esc(g.t)} 한 만큼">/${g.n}${esc(g.u)}</span></div>
         <div class="gbar"><i style="width:${Math.min(100, g.c / g.n * 100)}%"></i></div>
@@ -927,7 +935,7 @@ function parseReport(lines){
 
 /* ===================== 🎧 공부 소리 (타이머 안 🎧 단추) =====================
    앱이 직접 만드는 소리라 인터넷도 저작권 걱정도 없어요: 빗소리 · 백색소음 · 잔잔한 파도 */
-const SOUNDS = [["rain","🌧 빗소리"],["white","🌫 백색소음"],["wave","🌊 잔잔한 파도"]];
+const SOUNDS = [["white","🌫 백색소음"],["wave","🌊 잔잔한 파도"],["rain","🌧 빗소리"]];
 const PLAY = { k:"", on:false, ctx:null, src:null, lfo:null };
 function soundStop(){ try { PLAY.src && PLAY.src.stop(); } catch (e) {} try { PLAY.lfo && PLAY.lfo.stop(); } catch (e) {} PLAY.src = PLAY.lfo = null; PLAY.on = false; PLAY.k = ""; }
 function soundPlay(kind){
@@ -1069,7 +1077,7 @@ function viewPics(){
 const topBtns = () => `<span class="tops"><button type="button" class="ic" data-act="deco" aria-label="꾸미기 메뉴"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></span>`;
 const seg2 = (act, on) => `<span class="seg"><button type="button" data-act="${act}" data-v="1" aria-pressed="${on}">켜기</button><button type="button" data-act="${act}" data-v="0" aria-pressed="${!on}">끄기</button></span>`;
 function viewDeco(){
-  return `<div class="hd"><div><button type="button" class="link" data-act="back">‹ 뒤로</button><h1 class="big">꾸미기</h1></div></div>
+  return `<div class="hd"><div><button type="button" class="backb" data-act="back">‹ 뒤로</button><h1 class="big">꾸미기</h1></div><button type="button" class="ic" data-act="back" aria-label="닫기">✕</button></div>
     <p class="note" style="margin:-6px 4px 0">좋아하는 캐릭터와 화면으로 나만의 플래너를 만들어요</p>
     <p class="gh">화면에 나올 친구들 (여러 명 골라도 돼요 · ${D.crew.length}명)</p><div class="grp pad">
       <div class="lib">${CHARS.map(([id, n]) => `<div class="it"><button type="button" data-act="crewT" data-v="${id}" aria-pressed="${D.crew.includes(id)}" aria-label="${n}"><span class="ch">${CHAR_SVG[id]}</span></button></div>`).join("")}${D.mine.map((m, i) => `<div class="it"><button type="button" data-act="crewT" data-v="m:${m.id}" aria-pressed="${D.crew.includes("m:" + m.id)}" aria-label="내 그림 ${i + 1}"><span class="ch"><img src="${m.url}" alt=""></span></button><button type="button" class="x" data-act="mineDel" data-v="${m.id}" aria-label="내 그림 ${i + 1} 지우기">✕</button></div>`).join("")}</div>
@@ -1090,7 +1098,7 @@ function viewDeco(){
 function viewSettings(){
   const stepRow = (k, name, lv) => `<div class="row"><span><i class="mini l${lv}"></i>${name}</span><span class="step"><button type="button" data-act="th" data-v="${k}" data-d="-1" aria-label="${name} 줄이기">−</button><b>${D.th[k]}시간</b><button type="button" data-act="th" data-v="${k}" data-d="1" aria-label="${name} 늘리기">+</button></span></div>`;
   const auto = (() => { const s = D.weak; D.weak = ""; const w = weakSubj(); D.weak = s; return w; })();
-  return `<div class="hd"><div><button type="button" class="link" data-act="back">‹ 뒤로</button><h1 class="big">설정</h1></div></div>
+  return `<div class="hd"><div><button type="button" class="backb" data-act="back">‹ 뒤로</button><h1 class="big">설정</h1></div><button type="button" class="ic" data-act="back" aria-label="닫기">✕</button></div>
     <p class="gh">잔소리 쌤</p><div class="grp"><div class="row"><span>말투</span><span class="seg"><button type="button" data-act="mode" data-v="f" aria-pressed="${D.mode === "f"}">F쌤 · 다정하게</button><button type="button" data-act="mode" data-v="t" aria-pressed="${D.mode === "t"}">T쌤 · 사실대로</button></span></div></div>
     <p class="gh">과목 (오늘 할 일 · 타이머 · 성적에 함께 써요)</p>
     <div class="grp" data-drag="subj">${D.subj.map((s, i) => `<div class="row item srow" data-pid="${i}"><i class="mini" style="background:${s.c}"></i><input class="sin" data-sub="${i}" value="${esc(s.n)}" maxlength="12" aria-label="과목 ${i + 1} 이름"><label class="sw"><input type="checkbox" data-daily="${i}" ${s.daily ? "checked" : ""} aria-label="${esc(s.n)} 매일 할 일에 넣기"><span></span></label><button type="button" class="grip" aria-label="꾹 눌러 끌어 순서 바꾸기">${GRIP}</button><button type="button" class="link dim" data-act="subDel" data-v="${i}">빼기</button></div>`).join("")}
@@ -1112,7 +1120,7 @@ function viewSettings(){
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
       <h4>개인정보 처리방침</h4>Apple · 구글 · 카카오로 로그인하면 그 서비스가 알려 주는 로그인 번호와 이메일, 내가 쓴 계획 · 공부 시간 · 성적 · 설정 · 내 캐릭터 그림을 <b>구글 Firebase 서버에 본인 계정으로만</b> 저장해요 (휴대폰을 바꾸거나 컴퓨터에서도 이어 쓰려고). 운영자는 학생 기록을 볼 수 없고 가입 · 사용 숫자만 봐요. 광고 · 다른 회사에 넘기는 데 쓰지 않아요. 사진첩 사진과 사진 속 글자 읽기는 이 휴대폰 안에서만 해요. 아이폰 앱은 기록을 내 아이클라우드에도 백업해요. ⚙︎ 설정 › 계정 › 탈퇴를 누르면 모두 지워요. 자세히: moontr.site/first/privacy.html
       <h4>공부 소리</h4>타이머의 🎧 소리(빗소리 · 백색소음 · 파도)는 앱이 직접 만드는 소리예요.
-      <h4>문의</h4>담임 선생님을 통해 운영자에게 알려 주세요.
+      <h4>문의</h4>운영자 메일 anstjsdud@sen.go.kr (제목에 '먼저 플래너'). 개인정보 · 계정 삭제 요청도 이 메일로 받아요.
     </div></details>`;
 }
 /* 과목 이름을 바꾸면: 오늘 · 앞으로의 할 일, 반복 할 일, 성적, 약한 과목도 같이 바꿔요 */
@@ -1147,8 +1155,8 @@ function viewSide(){
   const L = sorted(plansOf(today())).filter(p => !p.done), t = D.timer;
   const sel = TSUB, left = countUnits(plansOf(today())), sec = tsec();   // ⏱ 과목 없이 하나의 순공 타이머 (2026-11-15)
   const mm = s => `${Math.floor(Math.abs(s) / 60)}:${pad(Math.floor(Math.abs(s) % 60))}`;
-  return `<div class="hd" style="align-items:center"><div class="sub">타이머</div><span class="tops"><button type="button" class="ic snd ${PLAY.on ? "on" : ""}" data-act="snd" aria-label="공부 소리" aria-expanded="${!!S.snd}">🎧</button><button type="button" class="ic" data-act="closeT" aria-label="타이머 닫기">✕</button></span></div>
-    ${S.snd ? `<div class="chips sndc" role="group" aria-label="공부 소리">${SOUNDS.map(([k, n]) => `<button type="button" data-act="sndPlay" data-v="${k}" aria-pressed="${PLAY.k === k}">${n}</button>`).join("")}<span class="note">${PLAY.on ? "한 번 더 누르면 꺼져요" : "앱이 만드는 소리예요"}</span></div>` : ""}
+  return `<div class="hd" style="align-items:center"><div class="sub">타이머</div><button type="button" class="ic" data-act="closeT" aria-label="타이머 닫기">✕</button></div>
+    <div class="sndbox ${PLAY.on ? "on" : ""}" role="group" aria-label="공부 소리"><span class="sndh">🎧 공부 소리</span><div class="chips">${SOUNDS.map(([k, n]) => `<button type="button" data-act="sndPlay" data-v="${k}" aria-pressed="${PLAY.k === k}">${n}</button>`).join("")}</div><span class="note">${PLAY.on ? "한 번 더 누르면 꺼져요" : "누르면 바로 들려요 · 앱이 만드는 소리"}</span></div>
     <div class="clock"><div class="sub">${t && t.start ? "공부 중" : t ? "잠깐 쉬는 중" : "순공 타이머"}${left.all ? ` · 할 일 ${left.n}/${left.all}` : ""}</div>
       <div class="num" id="tnum">${mm(sec)}</div><div class="sub" id="tgoal">오늘 순공 ${hm(liveSec())}</div>
       <div style="margin-top:14px;max-width:260px" id="tsay">${t ? (t.start ? say("잘하고 있어! 다 하면 끝내기를 눌러 줘.", "지금 재는 중이야. 휴대폰은 잠깐 내려놓자.") : say("잠깐 쉬는 중이야. 준비되면 다시 시작!", "잠깐 멈춘 상태야. 준비되면 다시 시작하면 돼.")) : say("시작을 누르면 순공 시간이 쌓여요.", "시작을 누르면 순공 시간이 쌓여.")}</div>
@@ -1606,6 +1614,15 @@ function popOnce(){
 }
 (function popLoop(){ setTimeout(() => { popOnce(); popLoop(); }, (120 + Math.random() * 120) * 1000); })();
 
+/* 🔄 새 화면 확인 (2026-11-15): 사이트는 10분 동안 예전 화면을 보관해서, 앱을 열면 고친 것이 늦게 보였어요.
+   열 때마다 서버의 마지막 수정 시각과 지금 화면의 시각을 비교해, 더 새것이 있으면 한 번 다시 열어요 */
+(async () => {
+  try {
+    if (sessionStorage.getItem("first-fresh")) return;
+    const r = await fetch(location.pathname + "?lm=" + Date.now(), { method:"HEAD", cache:"no-store" }), lm = Date.parse(r.headers.get("last-modified") || "");
+    if (lm && lm > Date.parse(document.lastModified) + 2000){ sessionStorage.setItem("first-fresh", "1"); const q = new URLSearchParams(location.search); q.set("fresh", lm); location.replace(location.pathname + "?" + q + location.hash); }
+  } catch (e) {}
+})();
 /* ===================== 📱 아이폰 앱 연결 =====================
    앱(Capacitor)에서만 Capacitor.Plugins.First 가 있어요. 웹에서는 아무 일도 안 해요
    - setData({json}): 위젯 · 잠금 화면 타이머용 (오늘 할 일 · 순공 · 타이머 · 첫 번째 친구 그림)
