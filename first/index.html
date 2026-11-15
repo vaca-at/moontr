@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"><!-- 확대 막기 (2026-11-15): 글 칸을 누르면 아이폰이 저절로 확대하고 안 돌아오던 것 -->
 <meta name="theme-color" content="#FFFFFF">
 <meta property="og:title" content="먼저 플래너">
 <meta property="og:image" content="https://moontr.site/first/icon-512.png">
@@ -330,7 +330,8 @@ main.scrolled .prog::before{opacity:1}
 .pt img{width:100%;height:100%;object-fit:cover;display:block}
 .pt span{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;border-radius:999px;padding:2px 7px}
 .pt.gone{opacity:.4}
-.pv img{width:100%;max-height:60vh;object-fit:contain;border-radius:14px;background:var(--soft);display:block}
+.pv{cursor:zoom-in;overflow:auto;max-height:64vh;border-radius:14px;-webkit-overflow-scrolling:touch}.pv img{width:100%;max-height:60vh;object-fit:contain;border-radius:14px;background:var(--soft);display:block}
+.pv.big{cursor:zoom-out}.pv.big img{width:220%;max-width:none;max-height:none;border-radius:0}
 .cands{display:grid;gap:8px}
 .cand{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border-radius:14px;padding:10px}
 .ck{position:relative;width:24px;height:24px;flex:none;margin-top:6px}.ck input{position:absolute;inset:0;opacity:0;margin:0;z-index:1;cursor:pointer}
@@ -953,9 +954,9 @@ function sheetCands(){
 function candRead(){ const q = s => document.querySelector(s); S.cands = S.cands.map((c, i) => ({ ...c, on:!!q(`[data-ci="${i}"]`)?.checked, t:q(`[data-ct="${i}"]`)?.value ?? c.t, d:q(`[data-cd="${i}"]`)?.value ?? c.d, ex:q(`[data-cx="${i}"]`) ? q(`[data-cx="${i}"]`).checked : c.ex })); }
 function openPic(id){ const r = D.pics.find(x => x.id === id); if (!r){ toast("사진이 없어요 (지웠거나 정리됐어요)"); return; } S.sheet = { t:"pic", id }; openSheet(sheetPic(r)); picHydrate(); }
 function sheetPic(r){
-  return `<div class="pv"><img data-pic="${r.id}" alt="저장한 사진"></div>
+  return `<div class="pv" data-act="pvZoom" title="눌러서 크게 · 작게"><img data-pic="${r.id}" alt="저장한 사진"></div>
     <div class="chips" id="pc">${PIC_CATS.map(c => `<button type="button" data-act="picCat" data-v="${c}" aria-pressed="${r.cat === c}">${c}</button>`).join("")}</div>
-    <p class="note">${new Date(r.at).getMonth() + 1}월 ${new Date(r.at).getDate()}일에 저장 · 사진을 두 손가락으로 벌리면 크게 볼 수 있어요</p>
+    <p class="note">${new Date(r.at).getMonth() + 1}월 ${new Date(r.at).getDate()}일에 저장 · 사진을 누르면 크게 볼 수 있어요</p>
     <div class="btns"><button type="button" class="pill light" data-act="picDel" data-v="${r.id}">지우기</button><button type="button" class="pill light" data-act="picFind" data-v="${r.id}">할 일 찾기</button><button type="button" class="pill" data-act="sheetClose">닫기</button></div>`;
 }
 function viewPics(){
@@ -1335,6 +1336,7 @@ document.addEventListener("click", e => {
     /* 사진 */
     case "picF": S.picCat = v; break;
     case "picView": openPic(v); return;
+    case "pvZoom": b.classList.toggle("big"); return;   // 사진 크게 · 작게 (화면 확대를 막아서 두 손가락 대신)
     case "picCat": { const r = D.pics.find(x => x.id === S.sheet?.id); if (r){ r.cat = v; save(); pick("pc", "picCat"); render(); } return; }
     case "picFind": { const r = D.pics.find(x => x.id === v); if (!r) return;
       const go = lines => { const c = findTasks(lines); if (c.length) openCands(r.id, c); else toast("이 사진에서는 할 일을 찾지 못했어요"); };
