@@ -699,7 +699,7 @@ function todaySay(){
 function planCard(p, i, k, w){
   if (S.editing === p.id) return `<div class="item editing">${inlineEdit(p)}</div>`;
   const o = S.open[p.id], pic = (p.pics || []).find(id => D.pics.some(x => x.id === id));
-  return `<div class="item ${p.done ? "done" : ""}" data-pid="${p.id}"><div class="row">
+  return `<div class="item ${p.done ? "done" : ""}" data-pid="${p.id}"><div class="row" data-act="toggle" data-v="${p.id}">
     <button type="button" class="dot" data-act="check" data-v="${p.id}" data-k="${k}" aria-label="${esc(p.s)} 했어요" aria-pressed="${!!p.done}"></button>
     <div class="nm" data-act="toggle" data-v="${p.id}"><span>${esc(p.s)}</span>${p.s === w && i === 0 ? '<span class="first">먼저</span>' : ""}${p.det.length ? `<small>${unitsOf(p).filter(u => u.d).length}/${p.det.length}</small>` : ""}</div>
     ${pic ? `<button type="button" class="ib pic" data-act="picView" data-v="${pic}" aria-label="원본 사진 보기">🖼</button>` : ""}
@@ -716,7 +716,7 @@ function viewToday(){
     <div class="prog"><span>할 일 ${pg.n}/${pg.all}</span><span class="tr"><i id="pgBar" style="width:${pg.pct}%"></i></span><span id="pgTxt">${pg.txt}</span></div>
     ${todaySay()}
     ${L.length ? `<div class="list cards" data-drag="plans" data-day="${k}">${L.map((p, i) => planCard(p, i, k, w)).join("")}</div>
-      <p class="note howto">과목 이름을 누르면 ✏️ 고치기 · 🗑 지우기 단추가 나와요<br>오른쪽 ⠿ 를 꾹 누른 채 위아래로 끌면 순서가 바뀌어요<br>세부 계획을 한 줄씩 추가하면 할 일이 늘어나요 (쪽수 · 문제 수 등)</p>` : `<div class="empty">아직 오늘 공부할 과목이 없어요</div>`}
+      <p class="note howto">과목 칸을 누르면 세부 계획을 바로 쓰거나 ✏️ 고치기 · 🗑 지우기 단추가 나와요<br>화면의 친구를 톡 누르면 옆으로 비켜요<br>오른쪽 ⠿ 를 꾹 누른 채 위아래로 끌면 순서가 바뀌어요<br>세부 계획을 한 줄씩 추가하면 할 일이 늘어나요 (쪽수 · 문제 수 등)</p>` : `<div class="empty">아직 오늘 공부할 과목이 없어요</div>`}
     <button type="button" class="add" data-act="addPlan">＋ 과목 추가</button>
     ${left && pg.all ? `<button type="button" class="link carry" data-act="carry" data-k="${k}">↪ 다 못 한 ${left}개 내일로 넘기기</button>` : ""}`;
 }
@@ -725,7 +725,8 @@ function viewToday(){
 function nextExam(){ const t = today(); return [...D.exams].filter(x => x.d >= t).sort((a, b) => a.d < b.d ? -1 : 1)[0]; }
 const dLeft = d => Math.round((new Date(d + "T00:00") - new Date(today() + "T00:00")) / 864e5);
 function ddayTag(){ const x = nextExam(); if (!x) return ""; const n = dLeft(x.d); return ` <span class="dday">${esc(x.n)} ${n ? "D-" + n : "D-day"}</span>`; }
-/* 고치기: 카드 안에서 바로 이름 · 세부 계획을 고쳐요 */
+/* 고치기: 카드 안에서 바로 이름 · 세부 계획을 고쳐요. 커서는 세부 계획 칸 맨 끝 (새 줄을 바로 쓰게) */
+function focusDet(){ const el = $("eDet"); if (!el) return; el.focus(); const n = el.value.length; el.setSelectionRange(n, n); el.scrollIntoView({ block:"center", behavior:"smooth" }); }
 function inlineEdit(p){
   const dr = S.draft && S.draft.id === p.id ? S.draft : { name:p.s, det:p.det.join("\n") };
   return `<div class="ied">
@@ -810,8 +811,7 @@ function dayPanel(k){
   const tk = today(), left = undoneCount(k), dl = Object.entries(D.log[k] || {}).filter(([, v]) => v >= 60).sort((a, b) => b[1] - a[1]);
   return `<div class="dayinfo"><div class="dph"><b>${mdw(k)}${k === tk ? " · 오늘" : ""}</b>${k <= tk ? `<span class="sub">순공 ${hm(secOf(k))}</span>` : ""}</div>
     ${dayTasks(k)}
-    <div class="dpb"><button type="button" class="link" data-act="addDay" data-k="${k}">＋ 할 일 넣기</button>${left && k <= tk ? `<button type="button" class="link dim" data-act="carry" data-k="${k}">↪ 다 못 한 ${left}개 ${k < tk ? "오늘" : "내일"}로</button>` : ""}</div>
-    ${dl.length ? `<div class="dlog">${dl.map(([n, v]) => `<span><i class="mini" style="background:${colorOf(n)}"></i>${esc(n)} ${hm(v)}</span>`).join("")}</div>` : ""}</div>`;
+    <div class="dpb"><button type="button" class="link" data-act="addDay" data-k="${k}">＋ 할 일 넣기</button>${left && k <= tk ? `<button type="button" class="link dim" data-act="carry" data-k="${k}">↪ 다 못 한 ${left}개 ${k < tk ? "오늘" : "내일"}로</button>` : ""}</div></div>`;
 }
 const calSeg = () => `<span class="seg"><button type="button" data-act="calV" data-v="m" aria-pressed="${S.calV !== "w"}">월</button><button type="button" data-act="calV" data-v="w" aria-pressed="${S.calV === "w"}">주</button></span>`;
 function viewCal(){
@@ -1142,18 +1142,17 @@ async function backupIn(file){
 /* ===================== ⏱ 타이머 (오른쪽에서) =====================
    D.timer = { s:과목, pid:할 일 번호, start:시작 시각(돌고 있을 때), acc:이미 잰 초 } — 앱을 껐다 켜도 이어져요 */
 const tsec = () => { const t = D.timer; return t ? t.acc + (t.start ? (Date.now() - t.start) / 1000 : 0) : 0; };
+const TSUB = "열심히";   // 위젯 · 잠금 화면에 "열심히 공부 중"으로 보여요 (기록 이름도 이것 하나)
 function viewSide(){
   const L = sorted(plansOf(today())).filter(p => !p.done), t = D.timer;
-  const sel = t ? t.s : S.tsel || (L[0] && L[0].s) || (D.subj[0] && D.subj[0].n);
-  const p = t && t.pid ? plansOf(today()).find(x => x.id === t.pid) : L.find(x => x.s === sel), sec = tsec();
+  const sel = TSUB, left = countUnits(plansOf(today())), sec = tsec();   // ⏱ 과목 없이 하나의 순공 타이머 (2026-11-15)
   const mm = s => `${Math.floor(Math.abs(s) / 60)}:${pad(Math.floor(Math.abs(s) % 60))}`;
   return `<div class="hd" style="align-items:center"><div class="sub">타이머</div><span class="tops"><button type="button" class="ic snd ${PLAY.on ? "on" : ""}" data-act="snd" aria-label="공부 소리" aria-expanded="${!!S.snd}">🎧</button><button type="button" class="ic" data-act="closeT" aria-label="타이머 닫기">✕</button></span></div>
     ${S.snd ? `<div class="chips sndc" role="group" aria-label="공부 소리">${SOUNDS.map(([k, n]) => `<button type="button" data-act="sndPlay" data-v="${k}" aria-pressed="${PLAY.k === k}">${n}</button>`).join("")}<span class="note">${PLAY.on ? "한 번 더 누르면 꺼져요" : "앱이 만드는 소리예요"}</span></div>` : ""}
-    <div class="chips" role="group" aria-label="과목">${(t ? [{ n:t.s }] : D.subj).map(s => `<button type="button" data-act="tsel" data-v="${esc(s.n)}" aria-pressed="${s.n === sel}" ${t ? "disabled" : ""}>${esc(s.n)}</button>`).join("")}</div>
-    <div class="clock"><div class="sub">${esc(sel)}${p && p.det[0] ? ` · ${esc(p.det[0])}` : ""}</div>
+    <div class="clock"><div class="sub">${t && t.start ? "공부 중" : t ? "잠깐 쉬는 중" : "순공 타이머"}${left.all ? ` · 할 일 ${left.n}/${left.all}` : ""}</div>
       <div class="num" id="tnum">${mm(sec)}</div><div class="sub" id="tgoal">오늘 순공 ${hm(liveSec())}</div>
       <div style="margin-top:14px;max-width:260px" id="tsay">${t ? (t.start ? say("잘하고 있어! 다 하면 끝내기를 눌러 줘.", "지금 재는 중이야. 휴대폰은 잠깐 내려놓자.") : say("잠깐 쉬는 중이야. 준비되면 다시 시작!", "잠깐 멈춘 상태야. 준비되면 다시 시작하면 돼.")) : say("시작을 누르면 순공 시간이 쌓여요.", "시작을 누르면 순공 시간이 쌓여.")}</div>
-      <div class="btns" style="margin-top:12px">${!t ? `<button type="button" class="pill" data-act="tGo" data-v="${esc(sel)}">시작</button>`
+      <div class="btns" style="margin-top:12px">${!t ? `<button type="button" class="pill" data-act="tGo">시작</button>`
         : `${t.start ? `<button type="button" class="pill light" data-act="tPause">잠깐 쉬기</button>` : `<button type="button" class="pill light" data-act="tResume">다시 시작</button>`}<button type="button" class="pill" data-act="tEnd">끝내기</button>`}</div>
       ${t ? `<button type="button" class="link del" data-act="tCancel" style="margin-top:6px">기록하지 않고 그만두기</button>` : ""}
       ${t && t.start && !D.focusOff ? `<div class="focus"><b>📵 집중 모드 켜기</b>오른쪽 위에서 쓸어내려 제어 센터 ▸ <b>집중 모드</b>를 켜면 알림이 안 와요.<button type="button" class="link del" data-act="focusOff">다시 안 보기</button></div>` : ""}</div>`;
@@ -1177,8 +1176,8 @@ function endTimer(keep){
       while (true){ const m = new Date(a); m.setHours(24, 0, 0, 0); if (m.getTime() >= now) break; addLog(dk(new Date(a)), t.s, (m - a) / 1000); a = m.getTime(); }
       addLog(dk(new Date(a)), t.s, (now - a) / 1000); }
     (D.sess = D.sess || []).push({ d:t.d0 || today(), h:new Date(Date.now() - sec * 1000).getHours(), m:Math.round(sec / 60) }); D.sess = D.sess.slice(-500);   // 📈 공부 돌아보기용
-    toast(`${t.s} 순공 ${hm(sec)} 기록했어요`); haptic("ok");
-    setTimeout(() => moment(D.mode === "t" ? `${t.s} ${hm(sec)} 기록했어. 오늘 순공은 ${hm(secOf(today()))}이야.` : `${t.s} ${hm(sec)}! 수고했어, 잠깐 쉬자 ☕`), 400); }
+    toast(`순공 ${hm(sec)} 기록했어요`); haptic("ok");
+    setTimeout(() => moment(D.mode === "t" ? `순공 ${hm(sec)} 기록했어. 오늘 순공은 ${hm(secOf(today()))}이야.` : `${hm(sec)} 집중했어! 수고했어, 잠깐 쉬자 ☕`), 400); }
   D.timer = null; save();
 }
 
@@ -1373,7 +1372,9 @@ document.addEventListener("click", e => {
     case "settings": S.tab = "settings"; S.editing = ""; break;
     case "deco": S.tab = "deco"; S.editing = ""; break;
     case "back": S.tab = "today"; break;
-    case "toggle": S.open[v] = !S.open[v]; break;
+    case "toggle": { const p = plansOf(k).find(x => x.id === v);
+      if (p && !p.det.length && !S.open[v]){ S.editing = v; S.draft = null; render(); setTimeout(() => focusDet(), 30); return; }   // 세부 계획이 없으면 바로 쓰는 칸으로
+      S.open[v] = !S.open[v]; break; }
     case "check": case "dchk": { const p = plansOf(k).find(x => x.id === v); if (!p) return;
       let got;
       if (a === "dchk"){ syncDone(p); const j = +b.dataset.i; p.dd[j] = !p.dd[j]; got = p.dd[j]; syncDone(p); }
@@ -1406,7 +1407,7 @@ document.addEventListener("click", e => {
       try { save(); } catch (err) {} closeSheet(); toast("내 캐릭터를 넣었어요"); break; }
     case "addPlan": { if (S.editing) return $("eName")?.focus(); const id = uid(); plansOf(k).push({ id, s:"", det:[], done:false, fresh:true }); S.editing = id; render();
       setTimeout(() => { $("eName")?.focus(); $("eName")?.scrollIntoView({ block:"center", behavior:"smooth" }); }, 30); return; }
-    case "edit": S.editing = v; S.draft = null; render(); setTimeout(() => { const el = $("eName"); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 30); return;
+    case "edit": S.editing = v; S.draft = null; render(); setTimeout(() => focusDet(), 30); return;
     case "eCancel": { const p = plansOf(k).find(x => x.id === S.editing); if (p && p.fresh) D.plans[k] = plansOf(k).filter(x => x !== p); S.editing = ""; S.draft = null; save(); break; }
     case "eSave": { const p = plansOf(k).find(x => x.id === v), n = $("eName").value.trim(); if (!n){ toast("이름을 써 주세요"); $("eName").focus(); return; }
       const was = p && p.fresh, old = p && p.s;
@@ -1441,7 +1442,7 @@ document.addEventListener("click", e => {
     case "snd": S.snd = !S.snd; break;
     case "sndPlay": if (PLAY.on && PLAY.k === v) soundStop(); else soundPlay(v); break;
     case "tsel": S.tsel = v; break;
-    case "tGo": { const p = sorted(plansOf(k)).find(x => x.s === v && !x.done); D.timer = { s:v, pid:p ? p.id : "", start:Date.now(), acc:0, d0:k }; haptic("tap"); save(); break; }
+    case "tGo": D.timer = { s:TSUB, pid:"", start:Date.now(), acc:0, d0:k }; haptic("tap"); save(); break;
     case "tPause": if (D.timer && D.timer.start){ D.timer.acc = tsec(); D.timer.start = 0; D.timer.paused = Date.now(); save(); } break;
     case "tResume": if (D.timer && !D.timer.start){ D.timer.start = Date.now(); D.timer.paused = 0; save(); } break;
     case "tEnd": endTimer(true); break;
@@ -1581,7 +1582,9 @@ document.addEventListener("pointerdown", e => {
     if (!CREW.drag){ if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10){ clearTimeout(t); off(); } return; }
     const r = $("app").getBoundingClientRect(); crewPlace(hit, { x:Math.max(.04, Math.min(.96, (ev.clientX - r.left) / r.width)), y:Math.max(.06, Math.min(.94, (ev.clientY - r.top) / r.height)) });
   };
-  const up = () => { clearTimeout(t); off(); if (!CREW.drag) return; D.spots[hit.dataset.id] = hit._p; save(); hit.classList.remove("held"); CREW.drag = null; CREW.eat = Date.now(); mateSay(D.mode === "t" ? "여기 있을게." : "여기 좋다!", hit.dataset.id); };
+  const up = ev => { clearTimeout(t); off();
+    if (!CREW.drag){ if (ev && ev.type === "pointerup" && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 10){   // 톡 = 가리지 않게 가까운 옆으로 비키기
+        const p = hit._p || crewRnd(), np = { x:p.x < .5 ? .05 : .95, y:p.y }; hit.style.transitionDuration = "0.5s"; crewPlace(hit, np); D.spots[hit.dataset.id] = np; save(); CREW.eat = Date.now(); haptic("tap"); } return; } D.spots[hit.dataset.id] = hit._p; save(); hit.classList.remove("held"); CREW.drag = null; CREW.eat = Date.now(); mateSay(D.mode === "t" ? "여기 있을게." : "여기 좋다!", hit.dataset.id); };
   const off = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); };
   addEventListener("pointermove", mv); addEventListener("pointerup", up); addEventListener("pointercancel", up);
 }, true);
