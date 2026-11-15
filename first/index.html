@@ -374,6 +374,18 @@ main.scrolled .prog::before{opacity:1}
   .gbar,.gs,.gnum input,.gadd input,.sheet .cand input.ct,.sheet .cand input[type=date],.ck span{background:#2A2830}
   .ib.del{background:none}
 }
+/* 📈 공부 돌아보기 */
+.habit{background:#fff;border:1.5px solid #F0EAED;border-radius:18px;padding:14px;display:grid;gap:12px}
+.hh{display:flex;justify-content:space-between;align-items:baseline}.hh b{font-weight:400;font-size:18px}
+.hbars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:118px;align-items:end}
+.hb{display:grid;grid-template-rows:16px 1fr 16px;height:100%;text-align:center;align-items:end}
+.hb i{display:block;width:62%;margin:0 auto;border-radius:6px 6px 3px 3px;background:color-mix(in srgb,var(--mode) 45%,#fff);align-self:end}
+.hb.top i{background:var(--mode)}.hb.fut i{background:#EEE}
+.hb .hv{font-size:10.5px;color:var(--sub);font-variant-numeric:tabular-nums;white-space:nowrap;align-self:end}.hb.top .hv{color:var(--mode)}
+.hb small{font-size:12px;color:var(--sub)}
+.hrow{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--sub)}
+.htips{display:grid;gap:4px}.htips p{margin:0}
+@media (prefers-color-scheme:dark){.habit{background:#201E26;border-color:#34313B}.hb.fut i{background:#2C2A32}.hb i{background:color-mix(in srgb,var(--mode) 55%,#16151A)}}
 /* 🔐 로그인 화면 (2026-11-15) */
 .gate[hidden],.gb[hidden]{display:none!important}
 .gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px max(20px,env(safe-area-inset-left,0px));background:linear-gradient(180deg,#FFE3EA 0%,#FFF6F8 70%);font-family:'OngleipUnz','Jua',var(--sys)}
@@ -731,6 +743,56 @@ function weekStats(end = new Date()){
   const top = Object.entries(by).sort((a, b) => b[1] - a[1])[0];
   return { sec, days, top: top ? top[0] : "", done, all };
 }
+/* 📈 공부 돌아보기 (자습 습관 분석, 2026-11-15)
+   한 주(월~일)의 순공 · 공부한 날 · 할 일 체크 · 요일별 막대 · 지난주와 비교 · 연속 공부 · 한 번에 집중한 시간 · 주로 공부한 때
+   타이머를 끝낼 때마다 D.sess 에 { d:날짜, h:시작 시각(시), m:분 }을 남겨요 (최근 500개). 쌤 한마디는 규칙으로 (F = 다정하게, T = 사실대로) */
+function habit(mon){
+  const wk = dk(mon), tk = today(), days = [...Array(7)].map((_, i) => addDays(wk, i));
+  const mins = k => Math.round(secOf(k) / 60);
+  const cur = days.map(k => k > tk ? null : mins(k)), sum = cur.reduce((a, b) => a + (b || 0), 0);
+  const psum = [...Array(7)].reduce((a, _, i) => a + mins(addDays(wk, i - 7)), 0);
+  const past = cur.filter(v => v !== null), studied = past.filter(v => v >= 1).length;
+  const best = cur.reduce((bi, v, i) => (v || 0) > (cur[bi] || 0) ? i : bi, 0);
+  let done = 0, all = 0; days.forEach(k => { if (k <= tk){ const c = countUnits(D.plans[k] || []); done += c.n; all += c.all; } });
+  const ss = (D.sess || []).filter(x => x.d >= wk && x.d <= days[6]);
+  const slots = [["아침", 5, 12], ["오후", 12, 18], ["저녁", 18, 22], ["밤", 22, 29]].map(([n, a, b]) => [n, ss.filter(x => { const h = x.h < 5 ? x.h + 24 : x.h; return h >= a && h < b; }).reduce((s, x) => s + x.m, 0)]);
+  const top = slots.slice().sort((a, b) => b[1] - a[1])[0];
+  const avg = ss.length ? Math.round(ss.reduce((s, x) => s + x.m, 0) / ss.length) : 0;
+  let streak = 0; for (let i = mins(tk) ? 0 : 1; i < 90; i++){ if (mins(addDays(tk, -i)) >= 1) streak++; else break; }
+  const weekday = cur.slice(0, 5).reduce((a, b) => a + (b || 0), 0), weekend = (cur[5] || 0) + (cur[6] || 0);
+  return { wk, days, cur, sum, psum, studied, nPast:past.length, best, done, all, top:top[1] ? top[0] : "", night:slots[3][1], avg, sessN:ss.length, streak, weekday, weekend, endPast:days[6] < tk };
+}
+function habitTips(h){
+  const T = D.mode === "t", L = [];
+  if (h.psum && (h.sum || h.endPast)){ const r = Math.round((h.sum - h.psum) / h.psum * 100);
+    L.push(r >= 0 ? (T ? `지난주보다 순공이 ${r}% 늘었어.` : `지난주보다 ${r}% 더 공부했어! 멋져.`) : (T ? `지난주보다 순공이 ${-r}% 줄었어. 하루 20분만 더하면 따라잡아.` : `지난주보다 조금 줄었어. 괜찮아, 하루 20분만 더해 보자.`)); }
+  if (h.nPast >= 3){
+    if (h.studied >= Math.min(5, h.nPast)) L.push(T ? `${h.nPast}일 중 ${h.studied}일 공부했어. 매일 하는 습관이 잡혀 가고 있어.` : `거의 매일 공부했어! 꾸준함이 제일 큰 힘이야.`);
+    else if (h.studied <= Math.floor(h.nPast / 2)) L.push(T ? `${h.nPast}일 중 ${h.studied}일만 공부했어. 쉬는 날도 10분짜리 할 일 하나면 돼.` : `쉬는 날이 좀 있었네. 바쁜 날은 10분짜리 할 일 하나만 해 보자.`);
+  }
+  if (h.sessN >= 2){
+    if (h.avg < 15) L.push(T ? `한 번에 평균 ${h.avg}분 집중했어. 25분 하고 5분 쉬는 걸로 늘려 보자.` : `한 번에 ${h.avg}분씩 했어. 다음엔 25분 버티고 5분 쉬어 볼까?`);
+    else if (h.avg > 70) L.push(T ? `한 번에 평균 ${h.avg}분이야. 50분마다 10분 쉬면 덜 지쳐.` : `한 번에 ${h.avg}분이나 집중했어! 중간에 물 마시고 쉬어 가자.`);
+  }
+  if (h.night >= 60 && h.night >= h.sum * 0.4) L.push(T ? `밤 10시 넘어 한 공부가 ${hm(h.night * 60)}이야. 잠이 줄면 다음 날 집중이 떨어져.` : `밤늦게 공부를 많이 했네. 잠은 꼭 챙기자 🌙`);
+  if (h.endPast && h.weekday >= 60 && h.weekend === 0) L.push(T ? `주말 순공이 0분이야. 주말에 30분씩만 해도 한 주가 달라져.` : `주말엔 푹 쉬었네. 다음 주말엔 30분만 해 볼까?`);
+  if (h.all >= 4){ const p = Math.round(h.done / h.all * 100);
+    if (p < 50) L.push(T ? `할 일 ${h.all}개 중 ${h.done}개(${p}%)를 했어. 계획을 더 작게 나누면 체크가 늘어.` : `계획이 조금 많았나 봐. 할 일을 더 작게 나눠 보자.`);
+    else if (p >= 80) L.push(T ? `할 일 ${p}%를 끝냈어. 계획과 실천이 잘 맞고 있어.` : `계획한 걸 거의 다 해냈어! 정말 대단해 🎉`); }
+  if (!L.length) L.push(h.sum ? (T ? `이번 주 순공은 ${hm(h.sum * 60)}이야.` : "이번 주도 차곡차곡 쌓고 있어!") : (T ? "아직 이번 주 순공이 없어. 타이머로 10분부터 재 보자." : "이번 주 첫 순공을 재 볼까? 10분이면 충분해!"));
+  return L.slice(0, 3);
+}
+function habitCard(mon, title){
+  const h = habit(mon), mx = Math.max(30, ...h.cur.map(v => v || 0)), e = addDays(h.wk, 6);
+  const bars = h.cur.map((v, i) => `<div class="hb${v === null ? " fut" : ""}${i === h.best && v ? " top" : ""}"><span class="hv">${v ? (v >= 60 ? Math.floor(v / 60) + "h" + (v % 60 ? v % 60 : "") : v + "m") : ""}</span><i style="height:${v ? Math.max(6, v / mx * 100) : 2}%"></i><small>${"월화수목금토일"[i]}</small></div>`).join("");
+  return `<div class="habit">
+    <div class="hh"><b>${esc(title)}</b><span class="sub">${+h.wk.slice(5, 7)}/${+h.wk.slice(8)} ~ ${+e.slice(5, 7)}/${+e.slice(8)}</span></div>
+    <div class="wk"><div><b>${hm(h.sum * 60)}</b><small>순공 합계</small></div><div><b>${h.studied}/${h.nPast}일</b><small>공부한 날</small></div><div><b>${h.all ? Math.round(h.done / h.all * 100) + "%" : "-"}</b><small>할 일 체크</small></div></div>
+    <div class="hbars" role="img" aria-label="요일별 순공 시간">${bars}</div>
+    <div class="hrow"><span>🔥 연속 ${h.streak}일</span>${h.sessN ? `<span>⏱ 한 번에 평균 ${h.avg}분</span>` : ""}${h.top ? `<span>🕘 주로 ${h.top}에</span>` : ""}${h.psum ? `<span>지난주 ${hm(h.psum * 60)}</span>` : ""}</div>
+    <div class="say htips">${habitTips(h).map(t => `<p>${esc(t)}</p>`).join("")}</div>
+  </div>`;
+}
 function weekCard(w){
   return `<div class="week">${say(w.days >= 5 ? `일주일에 ${w.days}일이나 공부했어! 정말 멋져.` : w.days ? `이번 주 ${w.days}일 공부했어. 다음 주엔 하루만 더 해 보자!` : "이번 주는 쉬어 갔네. 내일 10분부터 다시 해 보자!", `지난 7일 순공은 ${hm(w.sec)}, 공부한 날은 ${w.days}일이야. 할 일은 ${w.all}개 중 ${w.done}개 했어.`)}
     <div class="wk"><div><b>${hm(w.sec)}</b><small>순공 합계</small></div><div><b>${w.days}일</b><small>공부한 날</small></div><div><b>${w.all ? Math.round(w.done / w.all * 100) : 0}%</b><small>할 일 체크</small></div></div></div>`;
@@ -768,7 +830,7 @@ function viewCal(){
     <div class="cal">${cells}</div>
     <div class="lg"><span><i class="l0"></i>안 한 날</span><span><i class="l1"></i>${D.th[0]}시간 미만</span><span><i class="l2"></i>${D.th[0]}시간+</span><span><i class="l3"></i>${D.th[1]}시간+</span><span><i class="l4"></i>${D.th[2]}시간+</span><span><i class="hasd"></i>할 일 있음</span></div>
     ${sel ? dayPanel(sel) : ""}
-    ${isThis ? `<p class="gh" style="margin:6px 4px -8px">지난 7일 돌아보기</p>${weekCard(weekStats())}` : ""}
+    ${isThis ? habitCard(weekStart(new Date()), "이번 주 공부 돌아보기") : ""}
     ${future ? "" : say(studied ? `이번 달 ${studied}일 공부했어! 안 한 날도 괜찮아, 내일 다시 하면 돼.` : "이번 달 첫 칸을 채워 볼까? 타이머로 10분만 재 봐.", `이번 달 ${upto}일 중 ${studied}일 공부했어. 하루 평균은 ${hm(avg)}이야.`)}`;
 }
 /* 주간 보기: 월~일 7일을 세로로 · 이번 주 목표(진행 막대) · 반복 할 일 */
@@ -781,6 +843,7 @@ function viewWeek(){
   let sec = 0; days.forEach(k => sec += secOf(k));
   return `<div class="hd"><div><div class="sub">이 주 순공 <b style="color:var(--ink)">${hm(sec)}</b></div><div class="mnav"><button type="button" class="ic" data-act="wPrev" aria-label="지난주">‹</button><h1 class="big wtt">${mon.getMonth() + 1}/${mon.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}</h1><button type="button" class="ic" data-act="wNext" aria-label="다음 주">›</button></div></div>${topBtns()}</div>
     <div class="calbar">${calSeg()}${isThis ? "" : `<button type="button" class="link" data-act="wNow">이번 주로</button>`}</div>
+    ${days[0] <= tk ? habitCard(mon, isThis ? "이번 주 공부 돌아보기" : "이 주 공부 돌아보기") : ""}
     <p class="gh">${isThis ? "이번 주" : "이 주"} 목표</p><div class="grp pad">
       ${G.map(g => { const st = goalStep(g.n); return `<div class="goal"><div class="gr"><span>${esc(g.t)}</span><span class="gnum"><input type="number" inputmode="numeric" min="0" data-goal="${g.id}" data-w="${wk}" value="${g.c}" aria-label="${esc(g.t)} 한 만큼">/${g.n}${esc(g.u)}</span></div>
         <div class="gbar"><i style="width:${Math.min(100, g.c / g.n * 100)}%"></i></div>
@@ -1111,6 +1174,7 @@ function endTimer(keep){
     if (t.start){ let a = t.start; const now = Date.now();
       while (true){ const m = new Date(a); m.setHours(24, 0, 0, 0); if (m.getTime() >= now) break; addLog(dk(new Date(a)), t.s, (m - a) / 1000); a = m.getTime(); }
       addLog(dk(new Date(a)), t.s, (now - a) / 1000); }
+    (D.sess = D.sess || []).push({ d:t.d0 || today(), h:new Date(Date.now() - sec * 1000).getHours(), m:Math.round(sec / 60) }); D.sess = D.sess.slice(-500);   // 📈 공부 돌아보기용
     toast(`${t.s} 순공 ${hm(sec)} 기록했어요`); haptic("ok");
     setTimeout(() => moment(D.mode === "t" ? `${t.s} ${hm(sec)} 기록했어. 오늘 순공은 ${hm(secOf(today()))}이야.` : `${t.s} ${hm(sec)}! 수고했어, 잠깐 쉬자 ☕`), 400); }
   D.timer = null; save();
@@ -1536,7 +1600,8 @@ function weekPopup(){
   const d = new Date(), mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7)); const wk = dk(mon);
   if (D.weekSeen === wk) return; const end = new Date(mon); end.setDate(mon.getDate() - 1); const w = weekStats(end);
   D.weekSeen = wk; save(); if (!w.sec && !w.all) return;
-  S.sheet = { t:"week" }; openSheet(`<h2>지난주 돌아보기</h2>${weekCard(w)}<div class="btns"><button type="button" class="pill" data-act="sheetClose">좋아, 이번 주도!</button></div>`);
+  const lm = new Date(mon); lm.setDate(mon.getDate() - 7);
+  S.sheet = { t:"week" }; openSheet(`${habitCard(lm, "지난주 공부 돌아보기")}<div class="btns"><button type="button" class="pill" data-act="sheetClose">좋아, 이번 주도!</button></div>`);
 }
 
 {
