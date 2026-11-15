@@ -332,6 +332,13 @@ body.editing .del{display:inline-block}
 .store-b{display:flex;align-items:center;gap:10px;margin:2px 0 12px}
 .store-b a{line-height:0}
 .store-b img{height:40px;width:auto;display:block}
+/* 🍎 앱스토어에 나온 우리 앱 */
+.ios-app .ia-top{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.ios-app .ia-top img{width:56px;height:56px;border-radius:13px;box-shadow:0 2px 8px rgba(0,0,0,.15);flex:none}
+.ios-app .ia-top b{display:block;font-size:1.05rem}
+.ios-app .ia-top small{display:block;opacity:.7;font-size:.78rem;margin-top:2px}
+.ios-app .ia-line{margin:0 0 12px;font-size:.88rem;opacity:.85;line-height:1.5}
+.ios-app .ia-url{display:block;width:100%;text-align:left;font:12px ui-monospace,Consolas,monospace;padding:7px 10px;border-radius:8px;border:1px dashed rgba(127,127,127,.45);background:transparent;color:inherit;cursor:copy;word-break:break-all;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -373,6 +380,8 @@ body.editing .del{display:inline-block}
     <div class="insights" id="homeInsights"></div>
     <h2 class="sec-h">📈 방문 흐름 <small>그래프에 마우스를 올리면 숫자가 보여요</small></h2>
     <div class="panels" id="homeCharts"></div>
+    <h2 class="sec-h">🍎 앱스토어에 나온 우리 앱 <small>아이폰 · 아이패드 · 배지를 누르면 스토어, [링크 복사]로 알리기</small></h2>
+    <div class="panels" id="homeApps"></div>
     <h2 class="sec-h">📱 아이아이노트 앱 이용 현황 <small>플레이스토어 · 앱스토어 · 앱 안 이용 · 매일 아침 9시 반에 모아요</small></h2>
     <div class="panels" id="homeIi"></div>
     <h2 class="sec-h">🏯 메타버스 4곳 · 🏫 교무실 타이쿤 <small>지금 접속 · 동시접속 최고 · 머문 시간 · 가입</small></h2>
@@ -672,7 +681,30 @@ async function loadIiStats(refresh){
 // 🏷 스토어 공식 배지 (2026-11-11): 누르면 스토어 페이지, 옆 단추로 주소 복사
 const II_PLAY = 'https://play.google.com/store/apps/details?id=kr.co.iinote.app', II_APPSTORE = 'https://apps.apple.com/kr/app/id6831842667';
 const storeBadge = (url, img, alt) => `<div class="store-b"><a href="${url}" target="_blank" rel="noopener"><img src="${img}" alt="${alt}"></a><button type="button" class="btn" data-copyurl="${url}">링크 복사</button></div>`;
-document.addEventListener('click', e => { const b = e.target.closest('[data-copyurl]'); if (!b) return; navigator.clipboard.writeText(b.dataset.copyurl).then(() => { b.textContent = '복사했어요'; setTimeout(() => { b.textContent = '링크 복사'; }, 1500); }); });
+document.addEventListener('click', e => { const b = e.target.closest('[data-copyurl]'); if (!b) return; const was = b.textContent; navigator.clipboard.writeText(b.dataset.copyurl).then(() => { b.textContent = '복사했어요'; setTimeout(() => { b.textContent = was; }, 1500); }); });
+/* 🍎 앱스토어에 나온 우리 앱 (2026-11-16): 새 앱이 나오면 여기 한 줄만 더해요
+   icon = 이 폴더의 그림 (아이아이노트는 앱스토어 그대로의 크림색 아이콘) */
+const IOS_APPS = [
+  { name:'아이아이노트', icon:'iinote-app-icon.png', date:'2026-11-08', genre:'라이프스타일', id:'6831842667', play:II_PLAY,
+    line:'온 가족이 함께 쓰고 서로 읽어 주는 일기장', web:'https://iinote.co.kr', admin:II_ADMIN },
+  { name:'교무실 타이쿤', icon:'app-tycoon.jpg', date:'2026-11-15', genre:'교육', id:'6834141029',
+    line:'선생님의 하루를 게임처럼 보여 주는 시간표', web:'https://moontr.site/tycoon/', admin:'/tycoon/?admin' },
+  { name:'먼저 플래너', icon:'/first/icon-512.png', date:'2026-11-15', genre:'교육', id:'6835064683',
+    line:'약한 과목을 먼저, 작게 계획하고 실천하는 공부 플래너', web:'https://moontr.site/first/', admin:'/first/?admin' }
+];
+const iosUrl = a => `https://apps.apple.com/kr/app/id${a.id}`;
+function renderIosApps(){
+  const box = $('#homeApps'); if (!box) return;
+  const days = d => Math.max(0, Math.round((new Date(ymd(new Date()) + 'T00:00:00') - new Date(d + 'T00:00:00')) / 864e5));
+  box.innerHTML = IOS_APPS.map(a => `<div class="panel third mv-card ios-app">
+    <div class="ia-top"><img src="${esc(a.icon)}" alt=""><div><b>${esc(a.name)}</b><small>${a.date.slice(5).replace('-', '월 ')}일 출시 · ${days(a.date) ? `${days(a.date)}일째` : '오늘 출시 🎉'} · 무료 · ${esc(a.genre)}</small></div></div>
+    <p class="ia-line">${esc(a.line)}</p>
+    ${storeBadge(iosUrl(a), 'badge-appstore.svg', 'App Store에서 다운로드')}
+    ${a.play ? storeBadge(a.play, 'badge-play.png', 'Google Play에서 다운로드') : ''}
+    <button type="button" class="ia-url" data-copyurl="${esc(iosUrl(a))}" title="눌러서 복사">${esc(iosUrl(a))}</button>
+    <div class="lnk"><a class="btn" href="${esc(a.web)}" target="_blank" rel="noopener">웹으로 열기 ↗</a><a class="btn" href="${esc(a.admin)}" target="_blank" rel="noopener">관리자 ↗</a></div>
+  </div>`).join('');
+}
 function renderIiStats(){
   const box = $('#homeIi'); if (!box) return;
   if (!iiStats){ box.innerHTML = '<p class="msg">불러오는 중...</p>'; loadIiStats(); return; }
@@ -1114,6 +1146,7 @@ async function renderHome(force){
   renderInsights(series, all, relays);
   renderCharts(series, all, relays);
   renderMeta(relays);
+  renderIosApps();
   renderIiStats();
   /* 카드는 오늘 방문이 많은 순서로 (같으면 누적이 많은 순, 기록을 못 읽은 카드는 맨 뒤) */
   const score = ({ a }) => { const d = homeData[a.admin]; return d && !d.error ? d : { today:-1, total:-1 }; };
