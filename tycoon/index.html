@@ -10085,18 +10085,32 @@ async function exportAll(){
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `교무실타이쿤-${dkey(new Date())}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   } catch (e){ say("내려받지 못했어요 (" + (e.code || e.message) + ")"); }
 }
-async function deleteAll(){
-  const w = prompt("내 데스크탑(시간표 · 할 일 · 메모 · 문의)을 모두 지우고 탈퇴해요. 되돌릴 수 없어요.\n\n계속하려면 '지우기'라고 써 주세요.");
-  if (w === null) return;
-  if (w.trim() !== "지우기"){ alert("'지우기'라고 써야 지워져요."); return; }
+/* 🗑 탈퇴: 앱 안의 확인 창 [취소] · [모두 지우기] (2026-11-15, 예전엔 '지우기'를 직접 쓰는 창) */
+function deleteAll(){
+  let el = $("shDel");
+  if (!el){
+    el = document.createElement("div"); el.className = "sheet"; el.id = "shDel"; el.hidden = true;
+    el.innerHTML = `<div class="pane box" role="dialog" aria-modal="true" aria-labelledby="dlTitle">
+      <header><h2 id="dlTitle">🗑 내 데스크탑 지우기</h2><button type="button" class="close" data-close aria-label="닫기">✕</button></header>
+      <div class="body"><p style="margin:0 0 8px">시간표 · 할 일 · 메모 · 문의 · 친한 선생님과 <b>로그인 정보까지 모두 지우고 탈퇴해요.</b></p><p class="note" style="margin:0">지운 뒤에는 되돌릴 수 없어요.</p></div>
+      <div class="foot"><button type="button" class="big ghost" data-close>취소</button><button type="button" class="big" id="delGo" style="background:var(--hi);border-color:var(--hi);color:#fff">모두 지우기</button></div></div>`;
+    document.body.appendChild(el);
+    $("delGo").addEventListener("click", reallyDelete);
+  }
+  const g = $("delGo"); g.disabled = false; g.textContent = "모두 지우기";
+  show("shDel");
+}
+async function reallyDelete(){
+  const g = $("delGo"); g.disabled = true; g.textContent = "지우는 중…";
   try {
     if (cfg && cfg.board) await deleteDoc(doc(db, "desk_board", cfg.board)).catch(() => {});   // 📺 전자칠판 공개 칸도
     await wipeDesk(db, deskId);
     await deleteDoc(doc(db, "desk_links", user.uid)).catch(() => {});
+    if (myEmail()) await deleteDoc(doc(db, "desk_email", await sha(myEmail()))).catch(() => {});   // 예전 이메일 찾기 문서도
     try { await deleteUser(auth.currentUser); alert("모두 지웠어요. 그동안 써 주셔서 고마워요."); }
     catch (e){ await signOut(auth); alert(/requires-recent-login/.test(e.code || "") ? "기록은 모두 지웠어요. 로그인 정보까지 지우려면 다시 로그인한 뒤 [내 데스크탑 지우기]를 한 번 더 눌러 주세요." : "기록은 모두 지웠어요."); }
     location.reload();
-  } catch (e){ alert("지우지 못했어요 (" + (e.code || e.message) + ")"); }
+  } catch (e){ g.disabled = false; g.textContent = "모두 지우기"; alert("지우지 못했어요 (" + (e.code || e.message) + ")"); }
 }
 
 /* ---------- 창 닫기 (✕ · 바깥 · Esc) ---------- */
