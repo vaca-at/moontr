@@ -201,6 +201,8 @@ main.scrolled .prog::before{opacity:1}
 .capb i{font-style:normal;font-size:24px}.capb b{display:block;color:var(--mode);font-weight:400}.capb small{display:block;font-size:11.5px;color:var(--sub);line-height:1.4}
 .cap-paste{border:1.5px dashed #C7C7CC;border-radius:14px;min-height:64px;padding:12px;text-align:center;color:var(--sub);font-size:13px;outline:0}
 .cap-view{display:flex;gap:16px;justify-content:center;align-items:center}
+.capsrc{display:grid;grid-template-columns:1fr 1fr;gap:8px}.capsrc .pill{text-align:center;color:var(--ink);font-size:15px;padding:12px 8px}
+.capcrop{display:block;width:100%;max-height:46vh;object-fit:contain;border-radius:14px;touch-action:none;cursor:crosshair;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
 .cap-view canvas{width:130px;height:130px;border-radius:16px;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
 .sheet input[type=range]{padding:0;background:none}
 /* 🌙 어두운 화면 (아이폰 설정이 다크 모드일 때) */
@@ -1205,19 +1207,59 @@ function closeSheet(){ $("sheetBox").innerHTML = ""; S.sheet = null; S.newG = nu
 /* 🖼 내 캐릭터 만들기: 사진 · 그림을 넣으면 바탕을 지우고 정사각형으로 맞춰요 (2026-11-15 다시 넣음 — 11/14에 실수로 빠졌어요) */
 function sheetCap(){
   return `<h2>🖼 내 캐릭터 만들기</h2>
-    <div class="cap-paste" id="capPaste" contenteditable="true" role="textbox" aria-label="그림 붙여 넣는 칸">그림을 여기에 붙여 넣어요<br><small>휴대폰: 이 칸을 길게 눌러 '붙여넣기' · 컴퓨터: ⌘+V (Ctrl+V)</small></div>
-    <label class="pill light" style="text-align:center;color:var(--ink);font-size:15px">사진에서 고르기<input type="file" id="capFile" accept="image/*" hidden></label>
+    <div class="capsrc"><label class="pill light">📷 사진 찍기<input type="file" id="capCam" accept="image/*" capture="environment" hidden></label><label class="pill light">🖼 사진에서 고르기<input type="file" id="capFile" accept="image/*" hidden></label></div>
+    <div class="cap-paste" id="capPaste" contenteditable="true" role="textbox" aria-label="그림 붙여 넣는 칸">또는 그림을 여기에 붙여 넣어요<br><small>휴대폰: 이 칸을 길게 눌러 '붙여넣기' · 컴퓨터: ⌘+V (Ctrl+V)</small></div>
+    <div id="capCropBox" hidden>
+      <p class="note">✂️ 남길 부분만 네모로 감싸요 · 모서리를 끌면 크기, 안쪽을 끌면 자리, 바깥을 끌면 새로 그려요</p>
+      <canvas id="capCrop" class="capcrop" aria-label="자를 부분 고르기"></canvas>
+      <div class="btns" style="justify-content:flex-start"><button type="button" class="link" data-act="cropAll">↺ 자르기 처음처럼</button></div>
+    </div>
     <div class="cap-view" id="capView" hidden><canvas id="capOut" width="200" height="200"></canvas></div>
     <div id="capCtl" hidden style="display:grid;gap:8px">
       <label>바탕 지우기 <small>(0이면 안 지워요)</small><input type="range" id="capTol" min="0" max="180" step="5" value="60"></label>
       <label>크기<input type="range" id="capZoom" min="0.5" max="2.5" step="0.05" value="1"></label></div>
     <div class="btns"><button type="button" class="pill light" data-act="sheetClose">닫기</button><button type="button" class="pill" data-act="capOk">넣기</button></div>`;
 }
-const CAPS = { base:null, res:null, tol:60, zoom:1 };
+const CAPS = { base:null, res:null, tol:60, zoom:1, orig:null, r:null };
 function capDraw(){ if (!CAPS.base) return; CAPS.res = CAPS.res || charProcess(CAPS.base, CAPS.tol); charCompose(CAPS.res, CAPS.zoom, 0, 0, 200, $("capOut")); $("capView").hidden = false; $("capCtl").hidden = false; }
+/* ✂️ 가장자리 자르기 (2026-11-15): 원래 사진 위에 네모를 그려 남길 부분만 → 그 부분으로 바탕 지우기 · 크기 맞추기 */
+function cropShow(){
+  const cv = $("capCrop"), o = CAPS.orig, r = CAPS.r; if (!cv || !o || !r) return;
+  const W = cv.width = o.width, H = cv.height = o.height, g = cv.getContext("2d"), lw = Math.max(2, W / 160), hs = Math.max(10, W / 22);
+  g.drawImage(o, 0, 0);
+  g.fillStyle = "rgba(0,0,0,.5)"; g.beginPath(); g.rect(0, 0, W, H); g.rect(r.x, r.y, r.w, r.h); g.fill("evenodd");
+  g.strokeStyle = "#fff"; g.lineWidth = lw; g.setLineDash([lw * 4, lw * 3]); g.strokeRect(r.x, r.y, r.w, r.h); g.setLineDash([]);
+  g.fillStyle = "#FF5C84"; [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]].forEach(([x, y]) => { g.fillRect(x - hs / 2, y - hs / 2, hs, hs); g.strokeStyle = "#fff"; g.lineWidth = lw; g.strokeRect(x - hs / 2, y - hs / 2, hs, hs); });
+}
+function cropApply(){
+  const o = CAPS.orig, r = CAPS.r; if (!o || !r) return;
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(r.w)); c.height = Math.max(1, Math.round(r.h));
+  c.getContext("2d").drawImage(o, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
+  CAPS.base = c; CAPS.res = null; capDraw();
+}
+document.addEventListener("pointerdown", e => {
+  const cv = e.target.closest?.("#capCrop"); if (!cv || !CAPS.r) return;
+  e.preventDefault(); cv.setPointerCapture?.(e.pointerId);
+  const b = cv.getBoundingClientRect(), k = cv.width / b.width, at = ev => ({ x:Math.max(0, Math.min(cv.width, (ev.clientX - b.left) * k)), y:Math.max(0, Math.min(cv.height, (ev.clientY - b.top) * k)) });
+  const p0 = at(e), r0 = { ...CAPS.r }, near = Math.max(16, cv.width / 12);
+  const corners = [["tl", r0.x, r0.y], ["tr", r0.x + r0.w, r0.y], ["bl", r0.x, r0.y + r0.h], ["br", r0.x + r0.w, r0.y + r0.h]];
+  const hit = corners.find(([, x, y]) => Math.abs(p0.x - x) < near && Math.abs(p0.y - y) < near);
+  const inside = p0.x > r0.x && p0.x < r0.x + r0.w && p0.y > r0.y && p0.y < r0.y + r0.h;
+  const mode = hit ? hit[0] : inside ? "move" : "new";
+  const mv = ev => {
+    const p = at(ev); let x1 = r0.x, y1 = r0.y, x2 = r0.x + r0.w, y2 = r0.y + r0.h;
+    if (mode === "move"){ const dx = Math.max(-r0.x, Math.min(cv.width - x2, p.x - p0.x)), dy = Math.max(-r0.y, Math.min(cv.height - y2, p.y - p0.y)); x1 += dx; x2 += dx; y1 += dy; y2 += dy; }
+    else if (mode === "new"){ x1 = p0.x; y1 = p0.y; x2 = p.x; y2 = p.y; }
+    else { if (mode[1] === "l") x1 = p.x; else x2 = p.x; if (mode[0] === "t") y1 = p.y; else y2 = p.y; }
+    const L = Math.min(x1, x2), T = Math.min(y1, y2); CAPS.r = { x:L, y:T, w:Math.max(12, Math.abs(x2 - x1)), h:Math.max(12, Math.abs(y2 - y1)) }; cropShow();
+  };
+  const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); cropApply(); };
+  addEventListener("pointermove", mv); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+});
 async function capLoad(blob){
   if (!blob || (blob.type && !/^image\//.test(blob.type))) return toast("그림 파일만 넣을 수 있어요");
-  try { CAPS.base = await charLoad(blob); CAPS.res = null; capDraw(); } catch (e) { toast("그림을 열 수 없어요. 다른 그림으로 해 볼까요?"); }
+  try { CAPS.orig = await charLoad(blob); CAPS.r = { x:0, y:0, w:CAPS.orig.width, h:CAPS.orig.height }; $("capCropBox").hidden = false; cropShow(); cropApply(); }
+  catch (e) { toast("그림을 열 수 없어요. 다른 그림으로 해 볼까요?"); }
 }
 
 /* ===================== 그리기 · 누르기 ===================== */
@@ -1309,7 +1351,7 @@ document.addEventListener("change", e => {
     save(); }
   if (ds.goal != null){ const g = (D.goals[ds.w] || []).find(x => x.id === ds.goal); if (g){ g.c = Math.max(0, Math.round(+t.value || 0)); save(); render(); } }
   if (t.id === "picClean"){ D.picClean = t.checked; save(); if (D.picClean){ const n = D.pics.length; picCleanup(); toast(n - D.pics.length ? `30일 지난 사진 ${n - D.pics.length}장을 정리했어요` : "30일이 지난 사진부터 저절로 정리해요"); render(); } }
-  if (t.id === "capFile") capLoad(t.files[0]);
+  if (t.id === "capFile" || t.id === "capCam"){ const f = t.files[0]; t.value = ""; capLoad(f); }
   if (t.id === "picFile"){ const f = t.files[0]; t.value = ""; picAdd(f); }
   if (t.id === "bakFile"){ const f = t.files[0]; t.value = ""; if (f) backupIn(f); }
 });
@@ -1357,7 +1399,8 @@ document.addEventListener("click", e => {
       D.mine.splice(i, 1); D.crew = D.crew.filter(c => c !== "m:" + v); if (!D.crew.length) D.crew = ["rabbit"]; save(); render();
       undoToast("내 그림을 지웠어요", () => { D.mine.splice(i, 0, m); if (had) D.crew.push("m:" + v); }); return; }
     case "cap": if (D.mine.length >= MINE_MAX){ toast(`내 그림은 ${MINE_MAX}개까지예요. ✕로 하나 지우고 넣어요`); return; }
-      S.sheet = { t:"cap" }; CAPS.base = CAPS.res = null; CAPS.tol = 60; CAPS.zoom = 1; openSheet(sheetCap()); return;
+      S.sheet = { t:"cap" }; CAPS.base = CAPS.res = CAPS.orig = CAPS.r = null; CAPS.tol = 60; CAPS.zoom = 1; openSheet(sheetCap()); return;
+    case "cropAll": if (CAPS.orig){ CAPS.r = { x:0, y:0, w:CAPS.orig.width, h:CAPS.orig.height }; cropShow(); cropApply(); } return;
     case "capOk": { if (!CAPS.base){ toast("그림을 먼저 넣어 주세요"); return; }
       const id = uid(); D.mine.push({ id, url:$("capOut").toDataURL("image/png") }); D.crew.push("m:" + id);
       try { save(); } catch (err) {} closeSheet(); toast("내 캐릭터를 넣었어요"); break; }
