@@ -1843,9 +1843,12 @@ function startLedgerSync(cb) {
   if (cb) ledgerWatchers.push(cb);
   if (ledgerSyncStarted) return;
   ledgerSyncStarted = true;
+  watchSettings(maybeAutoSeedLedger);
   db.collection(COL.ledger).onSnapshot(snap => {
     LEDGER_ROWS = snap.docs.map(d => ({ docId: d.id, ...d.data() })).sort((a, b) => Number(a.serial) - Number(b.serial));
     ledgerLoaded = true;
+    LEDGER_EMPTY_SERVER = snap.empty && !snap.metadata.fromCache;
+    maybeAutoSeedLedger();
     const pub = LEDGER_ROWS.map(e => ({ item: e.item || '', amount: Number(e.amount) || 0, type: e.type || '지출', name: e.studentName || '', refunded: !!e.refunded, hasStudent: !!e.studentId }));
     const old = SET.ledgerPub && SET.ledgerPub.rows;
     if (JSON.stringify(old || []) !== JSON.stringify(pub)) setDoc('ledgerPub').set({ rows: pub }).catch(err => console.error(err));
@@ -1893,7 +1896,15 @@ async function ledgerToggle(docId, val, name) {
 async function seedLedgerCore(refundIdx) {
   const start = await nextSerial('ledger', SEED_LEDGER.length), date = todayStr();
   await batchWrite(SEED_LEDGER.map((r, i) => b => b.set(db.collection(COL.ledger).doc(), { serial: start + i, date, type: '지출', item: r[0], amount: r[1], studentId: r[2], studentName: r[3], refunded: i === refundIdx, note: '부스 준비물' })));
+  setDoc('ledgerSeeded').set({ at: FV.serverTimestamp(), n: SEED_LEDGER.length }).catch(() => {});   // 넣었다는 표시 (다시 넣지 않게)
   if (ad_opened) ad_loadLedger();
+}
+// 관리자가 열었는데 가계부가 비어 있으면 부원 지출 16건을 저절로 넣어요 (딱 한 번 · 지운 뒤에는 다시 넣지 않아요)
+let LEDGER_EMPTY_SERVER = false, ledgerAutoTried = false;
+function maybeAutoSeedLedger() {
+  if (ledgerAutoTried || !CAN_EDIT || !LEDGER_EMPTY_SERVER || !setLoaded || SET.ledgerSeeded) return;
+  ledgerAutoTried = true;
+  seedLedgerCore(-1).catch(e => { ledgerAutoTried = false; console.warn('가계부 자동 넣기 실패', e); });
 }
 async function seedLedger() {
   if (!confirm(`부원 지출 ${SEED_LEDGER.length}건(${won(SEED_LEDGER.reduce((s, r) => s + r[1], 0))})을 가계부에 넣을까요?\n날짜는 오늘, 모두 '지출 · 미환급'으로 들어가요.`)) return;
