@@ -5,7 +5,7 @@
 //  학생은 학번을 보내지 않아요. 하루 사용 횟수만 알아보기 어려운 번호(who)로 세요 (Durable Object 'Quota')
 //  비밀값: ANTHROPIC_API_KEY  (npx wrangler@4 secret put ANTHROPIC_API_KEY)
 import Anthropic from '@anthropic-ai/sdk';
-import { z } from 'zod';
+import { z } from 'zod/v4';   // SDK 의 zodOutputFormat 은 zod v4 문법이 필요해요
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { DurableObject } from 'cloudflare:workers';
 
