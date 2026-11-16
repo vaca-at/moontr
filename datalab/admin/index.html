@@ -9,7 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="../topics.js?v=11162100"></script>
+<script src="../topics.js?v=11162230"></script>
 <style>
 /* 선생님 화면: 학생 화면(연수 과정형)과 같은 문법 · 흰 바탕 · 남색 머리 띠 */
 :root{--ink:#1A1A1A;--sub:#6E6E73;--line:#E5E5E8;--line2:#C9C9CF;--bg:#F7F7F8;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--navy:#0E2A5C;--done:#0E8A5F;--warn:#B54708}
@@ -58,7 +58,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 .dots i.on{background:var(--acc)}
 .dots i.sub{background:var(--done)}
 .st{font-size:12px;font-weight:600;padding:2px 7px;border:1px solid;white-space:nowrap}
-.st.d{color:var(--done);border-color:#B7E0D1;background:#F1FAF6}.st.o{color:var(--acc);border-color:var(--acc-l);background:var(--acc-s)}.st.w{color:#999;border-color:var(--line)}
+.st.d{color:var(--done);border-color:#B7E0D1;background:#F1FAF6}.st.o{color:var(--acc);border-color:var(--acc-l);background:var(--acc-s)}.st.w{color:#999;border-color:var(--line)}.st.r{color:#7A4B00;border-color:#F5D58A;background:#FFF8E6}
 .hb{display:grid;grid-template-columns:220px 1fr 60px;gap:10px;align-items:center;height:26px;font-size:13px}
 .hb i{display:block;height:10px;background:var(--acc)}
 .hb em{font-style:normal;text-align:right}
@@ -122,6 +122,10 @@ const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["seteuk",
 const fmtT = (ms) => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const topicsOf = (m) => TOPICS.filter((t) => (m.rec || {})[t.id] && (m.rec[t.id].s && Object.keys(m.rec[t.id].s).length));
 const progOf = (t, x) => STEPS.filter((st) => stepDone(t, x, st.k)).length;
+// 상태: 제출 · 멈춤 · 8단계 성찰 중(1~7단계 가운데 다섯 이상 마쳤거나 성찰을 쓰기 시작) · 진행 중
+const stageOf = (m, t) => { const x = m.rec[t.id] || {}, s = x.s || {}; if (x.sub) return ["d", "제출"]; if ((m.stop || {})[t.id]) return ["w", "멈춤"];
+  const n7 = STEPS.slice(0, 7).filter((st) => stepDone(t, x, st.k)).length; return n7 >= 5 || String(s.reflect || s.aiRef || "").trim() ? ["r", "8단계 성찰 중"] : ["o", "진행 중"]; };
+const stageTag = (m, t) => { const [c, n] = stageOf(m, t); return `<span class="st ${c}">${n}</span>`; };
 const bans = () => [...new Set(A.members.map((m) => m.ban))].sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
 const inBan = () => A.members.filter((m) => !A.ban || m.ban === A.ban).sort((a, b) => a.sid.localeCompare(b.sid));
 const nbytes = (s) => { let b = 0; for (const ch of String(s || "")) b += ch === "\n" ? 2 : ch.charCodeAt(0) > 127 ? 3 : 1; return b; };
@@ -180,7 +184,7 @@ function progView() {
   <div class="kpi"><div>학생<b>${L.length}명</b></div><div>시작한 탐구<b>${all.length}개</b></div><div>제출한 보고서<b>${sub}개</b></div><div>AI 검토 · 질문<b>${ai}회</b></div><div>평균 진도<b>${all.length ? Math.round(all.reduce((s, [t, x]) => s + progOf(t, x), 0) / all.length / 8 * 100) : 0}%</b></div></div>
   <div class="box"><h2>학생별 진행</h2><table class="tb"><thead><tr><th>학번</th><th>반</th><th>탐구</th><th>8단계 진행</th><th>AI</th><th>상태</th><th>마지막 저장</th><th></th></tr></thead><tbody>
   ${L.map((m) => { const T = topicsOf(m); if (!T.length) return `<tr><td>${esc(m.sid)}</td><td>${esc(m.ban)}</td><td class="l note">아직 시작 전</td><td></td><td></td><td><span class="st w">시작 전</span></td><td>${fmtT(m.updatedAt)}</td><td></td></tr>`;
-    return T.map((t, i) => { const x = m.rec[t.id]; return `<tr>${i ? `<td></td><td></td>` : `<td rowspan="1"><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td>`}<td class="l">${t.no}. ${esc(t.name)}</td><td><span class="dots">${STEPS.map((st) => `<i class="${stepDone(t, x, st.k) ? (st.k === "s8" ? "sub" : "on") : ""}" title="${st.name}"></i>`).join("")}</span></td><td>${(x.ai || []).length}</td><td>${x.sub ? `<span class="st d">제출</span>` : (m.stop || {})[t.id] ? `<span class="st w">멈춤</span>` : `<span class="st o">진행 중</span>`}</td><td>${i ? "" : fmtT(m.updatedAt)}</td><td><button class="btn w sm" data-act="see" data-v="${m.key}" data-t="${t.id}">보기</button></td></tr>`; }).join(""); }).join("") || `<tr><td colspan="8" class="note">아직 들어온 학생이 없어요</td></tr>`}</tbody></table></div>
+    return T.map((t, i) => { const x = m.rec[t.id]; return `<tr>${i ? `<td></td><td></td>` : `<td rowspan="1"><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td>`}<td class="l">${t.no}. ${esc(t.name)}</td><td><span class="dots">${STEPS.map((st) => `<i class="${stepDone(t, x, st.k) ? (st.k === "s8" ? "sub" : "on") : ""}" title="${st.name}"></i>`).join("")}</span></td><td>${(x.ai || []).length}</td><td>${stageTag(m, t)}</td><td>${i ? "" : fmtT(m.updatedAt)}</td><td><button class="btn w sm" data-act="see" data-v="${m.key}" data-t="${t.id}">보기</button></td></tr>`; }).join(""); }).join("") || `<tr><td colspan="8" class="note">아직 들어온 학생이 없어요</td></tr>`}</tbody></table></div>
   <div class="two" style="grid-template-columns:1fr 1fr"><div class="box"><h2>주제 선택</h2>${per.map(([t, n]) => `<div class="hb"><span>${t.no}. ${esc(t.name)}</span><i style="width:${n / mx * 100}%"></i><em>${n}명</em></div>`).join("") || `<p class="note">아직 고른 학생이 없어요</p>`}
     ${zero.length ? `<p class="note" style="margin:12px 0 4px">아무도 안 고른 주제 ${zero.length}개</p>${zero.map(([t]) => `<div class="hb" style="opacity:.45"><span>${t.no}. ${esc(t.name)}</span><i style="width:0"></i><em>0명</em></div>`).join("")}` : ""}</div>
   <div class="box"><h2>단계별 완료율</h2>${STEPS.map((st, i) => `<div class="hb"><span>${i + 1}. ${esc(st.name)}</span><i style="width:${stepRate[i]}%"></i><em>${Math.round(stepRate[i])}%</em></div>`).join("")}
@@ -201,7 +205,7 @@ function paper(t, m) {
   const x = m.rec[t.id], stop = (m.stop || {})[t.id];
   const stopBtn = x.sub ? "" : stop ? `<button class="btn w sm noprint" data-act="unstopT" data-v="${m.key}" data-t="${t.id}">다시 열기</button>` : `<button class="btn w sm noprint" data-act="stopT" data-v="${m.key}" data-t="${t.id}" title="학생이 다른 주제를 시작할 수 있게 이 탐구를 멈춰요 (쓴 내용은 남아요)">주제 바꾸기 허락</button>`;
   return `<div class="paper" id="p_${m.key.slice(0, 8)}_${t.id}"><div style="display:flex;justify-content:space-between;gap:10px"><h3>${esc(t.title)}</h3><span style="display:flex;gap:6px;align-items:flex-start">${stopBtn}<button class="btn w sm" data-act="printRep" data-v="${m.key}" data-t="${t.id}">인쇄</button></span></div>
-    <div class="who">AI활용탐구 ${t.no} · ${esc(GROUPS[t.g].name)} · ${esc(m.sid)} · ${progOf(t, x)}/8단계 · ${x.sub ? "제출 " + fmtT(x.sub) : stop ? `멈춤 ${fmtT(stop)} (선생님이 주제 바꾸기 허락)` : "제출 전"}</div>
+    <div class="who">AI활용탐구 ${t.no} · ${esc(GROUPS[t.g].name)} · ${esc(m.sid)} · ${progOf(t, x)}/8단계 · ${x.sub ? "제출 " + fmtT(x.sub) : stop ? `멈춤 ${fmtT(stop)} (선생님이 주제 바꾸기 허락)` : stageOf(m, t)[1] + " (제출 전)"}</div>
     ${REPORT.map(([k, n]) => `<section><h4>${esc(n)}</h4><p>${esc(repVal(t, x, k) || "—")}</p></section>`).join("")}
     <section><h4>5단계 반박 · AI 활용 기록</h4><p>${esc((x.s || {}).rebut || "—")}</p><div class="ailog">${(x.ai || []).map((a) => a.k === "review" ? `<div>AI 검토 ${fmtT(a.at)} · 수치 ${a.scores.data} / 원인 ${a.scores.other} / 개념 ${a.scores.concept}${a.local ? " (기본 점검)" : ""} — ${esc(a.next)}</div>` : `<div>질문 ${fmtT(a.at)} · ${esc(a.q)} → ${esc(a.a)}</div>`).join("") || `<div>기록 없음</div>`}</div></section>
     <section><h4>활동 기록 (단계마다 날짜 · 시간 · 그때 쓴 내용)</h4><div class="ailog">${logHTML(x)}</div></section></div>`;
@@ -210,7 +214,7 @@ function paper(t, m) {
 function seteukView() {
   const L = inBan();
   return `<div class="bar-h"><div><h1>세특</h1><p>제출 · 진행한 탐구 기록만 근거로 초안을 만들어요. 학번 · 이름은 AI에 보내지 않아요. 확정한 글은 학생 기록에 함께 저장돼요.</p></div><div class="ctl">${banSel()}</div></div>
-  ${L.filter((m) => topicsOf(m).length).map((m) => { const draft = A.out[m.key] ?? m.seteuk ?? ""; return `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">${esc(m.sid)} <span class="note">${topicsOf(m).map((t) => `${t.no}. ${esc(t.name)}${m.rec[t.id].sub ? "" : "(진행 중)"}`).join(" · ")}</span></h2>
+  ${L.filter((m) => topicsOf(m).length).map((m) => { const draft = A.out[m.key] ?? m.seteuk ?? ""; return `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">${esc(m.sid)} <span class="note">${topicsOf(m).map((t) => `${t.no}. ${esc(t.name)} ${stageTag(m, t)}`).join(" · ")}</span></h2>
     <div class="ctl"><button class="btn b sm" data-act="aiSeteuk" data-v="${m.key}" ${A.busy ? "disabled" : ""}>AI로 초안</button><button class="btn w sm" data-act="copyPrompt" data-v="${m.key}">프롬프트 복사</button><button class="btn sm" data-act="saveSeteuk" data-v="${m.key}">저장</button></div></div>
     <textarea data-sk="${m.key}" style="margin-top:10px" placeholder="AI로 초안을 만들거나, 프롬프트를 복사해 다른 AI에 붙여 넣은 뒤 결과를 여기에 넣어요">${esc(draft)}</textarea>
     <p class="note">${[...draft].length}자 · ${nbytes(draft)}바이트 (나이스 1,500바이트 안쪽)${m.seteukAt ? ` · 저장 ${fmtT(m.seteukAt)}` : ""}</p></div>`; }).join("") || `<div class="box note">탐구를 시작한 학생이 없어요</div>`}`;

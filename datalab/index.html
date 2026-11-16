@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="topics.js?v=11162100"></script>
+<script src="topics.js?v=11162230"></script>
 <style>
 /* ===== 연수 과정형 디자인 (2026-11-16 문쌤이 고른 2번 시안) =====
    흰 바탕 · 검은 글씨 · 파란 강조 하나 · 각진 단추 · 얇은 선 · 실제 사진. 그라데이션 · 이모지 · 둥근 알약은 쓰지 않아요 */
@@ -242,6 +242,27 @@ footer.foot .pol th,footer.foot .pol td{border:1px solid var(--line2);padding:6p
 .thk .tp b{font-size:15px}.thk .tp em{font-style:normal;font-size:12px;color:var(--acc);margin-left:6px}.thk .tp p{font-size:13px;color:var(--ink);margin-top:4px}
 .thk .note{margin-top:8px}
 @media (max-width:640px){.thk .tp{grid-template-columns:1fr}}
+/* 🧱 5 · 6단계 비계: 틀린 AI 결론 알림 · 내 숫자 · 힌트 · 문장 틀 · 사상가 표와 원문 */
+.msg.warn{color:#7A4B00;border-color:#F5D58A;background:#FFF8E6}
+.mynum{border:1px dashed var(--acc-l);background:var(--acc-s);padding:10px 14px;font-size:14px;margin:10px 0}.mynum small{display:block;font-size:12px;color:var(--sub);font-weight:700}
+details.hint{border:1px solid var(--line2);padding:10px 14px;margin:10px 0 14px;font-size:14px}details.hint summary{cursor:pointer;font-weight:700}
+details.hint ol{margin:8px 0 0 20px}details.hint li{margin:4px 0}
+.frm{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-6px 0 16px}
+.body2.wide{grid-template-columns:1fr 380px;gap:32px}
+.body2.wide .side>.box{display:none}
+.thwrap{position:sticky;top:76px;max-height:calc(100vh - 90px);overflow:auto;margin-bottom:16px}.thwrap .box:last-child{margin-bottom:0}
+@media (max-width:980px){.body2.wide{grid-template-columns:1fr}.thwrap{position:static;max-height:none;overflow:visible}}
+.thbox h5{margin-bottom:8px}
+.tht{width:100%;border-collapse:collapse;font-size:13px;line-height:1.5}
+.tht th{text-align:left;font-size:14px;padding:8px 6px 4px;border-top:2px solid var(--ink)}.tht th em{font-style:normal;font-size:11px;color:#fff;background:var(--acc);padding:1px 6px;margin-left:6px;vertical-align:1px}
+.tht tbody.r th em{background:var(--sub)}
+.tht td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}.tht td.k{width:84px;color:var(--sub);font-size:12px;white-space:nowrap}
+.tht tbody.m td,.tht tbody.m th{background:var(--acc-s)}
+.tht tbody:not(.m):not(.r){opacity:.75}
+.qt{margin:10px 0 14px}.qt>b{font-size:14px}.qt>em{font-style:normal;font-size:11px;color:var(--acc);margin-left:6px}
+.qt blockquote,.qt1{margin:6px 0 0;padding:8px 12px;border-left:3px solid var(--acc-l);background:#FBFBFC;font-size:13.5px;line-height:1.65}
+.qt blockquote cite,.qt1 cite{display:block;font-style:normal;font-size:11.5px;color:var(--sub);margin-top:3px}
+.qt1{margin-top:8px;font-size:12.5px}
 /* 🔒 다른 탐구를 하고 있을 때 */
 .lock{border:1px solid var(--line2);background:#FFFBEB;padding:18px 20px;margin-top:6px}
 .lock h3{font-size:17px;margin-bottom:8px}.lock p{font-size:14.5px;margin:6px 0}.lock .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -297,7 +318,7 @@ footer.foot .pol th,footer.foot .pol td{border:1px solid var(--line2);padding:6p
    기록 모양: rec = { last: 마지막 연 주제, [주제]: { s:{쓴 칸}, calcOk, ai:[AI 기록], sub: 제출 시각 } }  */
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const filled = (v) => String(v || "").trim().length >= 2;
+const filled = (v) => String(v || "").trim().length >= 2 && !String(v).includes("___");   // 문장 틀 빈칸이 남으면 아직
 // 받침 따라 조사 (벤담이라면 · 칸트라면, 벤담은 · 칸트는)
 const jo = (n, a, b) => { const c = String(n).charCodeAt(String(n).length - 1) - 0xAC00; return n + (c >= 0 && c <= 11171 && c % 28 ? a : b); };
 const { TOPICS, GROUPS, STEPS, REPORT, values, fmt, fmtCell, close, tableText } = DL;
@@ -435,6 +456,7 @@ async function review(t) {
   if (needLogin()) return;
   const x = myT(t.id), text = String(x.s.rebut || "").trim();
   if (text.length < 20) return toast("반박을 조금 더 써 주세요 (20자 이상)");
+  if (text.includes("___")) return toast("빈칸 ___ 을 내 말로 모두 채운 뒤 검토를 받아요");
   if (x.ai.filter((a) => a.k === "review").length >= 5) return toast("이 탐구의 AI 검토는 5번까지예요. 보고서로 넘어가 볼까요?");
   S.aiBusy = true; render();
   let out;
@@ -516,9 +538,9 @@ function topicView(t) {
     <div><div class="cat">AI활용탐구 ${t.no} · ${esc(G.name)}</div><h1>${esc(t.title)}</h1><p class="lead">${esc(t.lead)}</p>
       <div class="meta"><div>탐구 시간<b>50분</b></div><div>수업 모형<b>${NS}단계</b></div><div>계산할 값<b>${esc(t.calc.label)}</b></div><div>결과물<b>한 장 보고서</b></div></div>
       <div class="prog"><div class="bar"><i style="width:${Math.round(n / NS * 100)}%"></i></div><small>진도율 <b>${Math.round(n / NS * 100)}%</b> · ${n} / ${NS}단계</small>${lk ? `<a class="btn lg" href="#/t/${lk.id}">지금 하는 탐구로 가기</a>` : `<button class="btn lg" data-act="resume">${n ? "이어서 탐구하기" : "탐구 시작하기"}</button>`}</div></div></section>
-  <div class="body2"><main><div class="tabs">${tabs.map(([k, v]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-v="${k}">${v}</button>`).join("")}</div>
+  <div class="body2 ${!lk && S.tab === "steps" && ["s5", "s6", "s8"].includes(S.open) ? "wide" : ""}"><main><div class="tabs">${tabs.map(([k, v]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-v="${k}">${v}</button>`).join("")}</div>
     ${S.tab === "steps" ? (lk ? lockView(t, lk) : stepsView(t, x)) : S.tab === "intro" ? introView(t) : S.tab === "data" ? dataView(t) : reportRead(t, x)}</main>
-  <aside class="side"><div class="box"><h5>같은 묶음의 다른 탐구</h5>${others.map((o) => `<a class="oth" href="#/t/${o.id}"><i style="${pic(o)}"></i><span>AI활용탐구 ${o.no} · ${esc(o.name)}<small>${esc(o.q)}</small></span></a>`).join("")}</div>
+  <aside class="side">${!lk && S.tab === "steps" && ["s5", "s6", "s8"].includes(S.open) ? thinkBox(t) : ""}<div class="box"><h5>같은 묶음의 다른 탐구</h5>${others.map((o) => `<a class="oth" href="#/t/${o.id}"><i style="${pic(o)}"></i><span>AI활용탐구 ${o.no} · ${esc(o.name)}<small>${esc(o.q)}</small></span></a>`).join("")}</div>
     <div class="box"><h5>나의 탐구 현황</h5><ul class="kv"><li>진행 단계<b>${n} / ${NS}</b></li><li>AI 검토 · 질문<b>${nAI}회</b></li><li>보고서 칸<b>${nF} / ${REPORT.length}</b></li><li>보고서<b>${x.sub ? "제출 완료" : "제출 전"}</b></li></ul></div>
     <div class="box"><h5>수업 모형</h5><p class="note"><b style="color:var(--ink)">${esc(DL.MODEL.name)}</b> (수업 유형: ${esc(DL.MODEL.type)})</p></div>
     <div class="box"><h5>탐구 안내</h5><p class="note">쓴 내용은 저절로 저장돼요. 다른 사람의 이름 · 연락처 · 개인 경험은 적지 않아요. AI의 답은 그대로 옮기지 말고 데이터로 확인해요.</p></div></aside></div></div>`;
@@ -545,6 +567,24 @@ function stepsView(t, x) {
 const fld = (t, x, k, label, ph, small, rows) => `<div class="fld"><label for="f_${k}">${label}${small ? `<small>${small}</small>` : ""}</label><textarea id="f_${k}" data-f="${k}" placeholder="${esc(ph)}" ${rows ? `style="min-height:${rows}px"` : ""}>${esc((x.s || {})[k])}</textarea></div>`;
 const nextBtn = (t, x, k, msg) => { const i = STEPS.findIndex((s) => s.k === k), nx = STEPS[i + 1]; return `<div class="act" style="margin-top:16px"><span>${stepDone(t, x, k) ? `${i + 1}단계를 마쳤어요` : msg}</span><div>${nx ? `<button class="btn" data-act="open" data-v="${nx.k}">다음 단계</button>` : ""}</div></div>`; };
 const tableHTML = (t, rows, mine, opt = {}) => `<div class="tbl-wrap"><table class="tb"><thead><tr>${t.cols.map((c, j) => `<th>${esc(c)}</th>`).join("")}${opt.head ? `<th>${opt.head}</th>` : ""}</tr></thead><tbody>${rows.map((o, j) => { const r = o.r || o; return `<tr class="${opt.cls ? opt.cls(o, j) : j === mine ? "mine" : ""}">${r.map((c) => `<td>${c === "" ? `<i style="color:#B54708">(빈칸)</i>` : esc(fmtCell(c))}</td>`).join("")}${opt.cell ? `<td>${opt.cell(o, j)}</td>` : ""}</tr>`; }).join("")}</tbody></table></div>`;
+/* ✍️ 문장 틀 (비계): 빈칸(___)을 채우면 되는 틀을 칸에 넣어 줘요. 빈칸이 남아 있으면 그 단계는 끝나지 않아요 */
+const frameBtn = (x, k) => `<div class="frm"><button class="btn w sm" data-act="frame" data-v="${k}">✍️ 문장 틀 넣기</button><span class="note">${String(((x.s || {})[k]) || "").includes("___") ? "빈칸 ___ 을 내 말로 모두 바꿔요" : "칸이 비어 있을 때 눌러요 · ___ 만 채우면 돼요"}</span></div>`;
+function frameOf(t, x, k) {
+  const s = x.s || {}, i = s.pick, V = values(t), nm = i != null && t.rows[i] ? t.rows[i][0] : `내가 고른 ${t.pick}`;
+  const val = x.calcOk && i != null && V[i] != null ? `${fmt(V[i], t.calc.dp)}${t.calc.unit}` : "___", m = t.th.m, r = t.th.r;
+  const q = ((DL.QUOTES[m] || [])[0] || [""])[0];
+  if (k === "rebut") return `AI는 “${t.claim.split(". ")[0].replace(/\.?$/, ".")}”라고 결론 내렸다. 하지만 4단계에서 ${jo(t.calc.label, "을", "를")} 계산해 보니 ${jo(nm, "은", "는")} ${val}이고, ___. 그러므로 AI의 결론은 ___을(를) 빠뜨렸다는 점에서 틀렸다. 또 숫자만으로는 알 수 없는 ___라는 다른 원인도 있다. 이 결론대로 하면 ___이(가) 손해를 보므로 공정하지 않다.`;
+  if (k === "concept") return `${jo(m, "은", "는")} “${q.length > 70 ? q.slice(0, 70) + "…" : q}”라고 말한다. 내가 확인한 데이터를 보면 ___. 그러므로 ${m}의 입장에서 보면 ${jo("이 결과", "은", "는")} (정당하다 / 정당하지 않다) — ___. 왜냐하면 ___이기 때문이다.`;
+  if (k === "rival") return `하지만 ${jo(r, "은", "는")} ___라고 볼 것이다. 왜냐하면 ${r}에게 중요한 것은 ___이기 때문이다. 나는 ___의 생각에 더 가깝다. 그 까닭은 ___.`;
+  return "";
+}
+/* 🧭 오른쪽 '사상가 한눈에' 표 + 원문 (5 · 6 · 8단계를 열었을 때) */
+function thinkBox(t) {
+  const T = DL.THINK_TAB[t.g], names = GROUPS[t.g].thinkers, tag = (n) => n === t.th.m ? `<em>주 사상가</em>` : n === t.th.r ? `<em>맞서는 관점</em>` : "";
+  return `<div class="thwrap"><div class="box thbox"><h5>🧭 사상가 한눈에</h5><table class="tht">${names.map((n) => `<tbody class="${n === t.th.m ? "m" : n === t.th.r ? "r" : ""}"><tr><th colspan="2">${esc(n)}${tag(n)}</th></tr>${T.cols.map((c, j) => `<tr><td class="k">${esc(c)}</td><td>${esc(T.rows[n][j])}</td></tr>`).join("")}</tbody>`).join("")}</table></div>
+    <div class="box thbox"><h5>📜 원문으로 읽기</h5>${[t.th.m, t.th.r].map((n) => `<div class="qt"><b>${esc(n)}</b>${tag(n)}${(DL.QUOTES[n] || []).map(([q, src]) => `<blockquote>“${esc(q)}”<cite>${esc(src)}</cite></blockquote>`).join("")}</div>`).join("")}
+    <p class="note">기출 제시문: 생활과 윤리 · 윤리와 사상 문제의 제시문이에요. 반박 · 판단에 한 구절을 따와 “○○은 ‘…’라고 했다”처럼 써 보세요.</p></div></div>`;
+}
 function panel(t, x, k) {
   const s = x.s || {}, V = values(t);
   if (k === "s1") return `<div class="ask"><small>주제와 문제 상황</small>${esc(t.lead)}</div><div class="ask"><small>핵심 질문</small>${esc(t.q)}</div>
@@ -597,8 +637,14 @@ function panel(t, x, k) {
   if (k === "s5") {
     const reviews = (x.ai || []).filter((a) => a.k === "review"), last = reviews[reviews.length - 1], asks = (x.ai || []).filter((a) => a.k === "ask");
     const lv = (n) => [`<b class="lv0">보완 필요</b>`, `<b class="lv1">조금 더</b>`, `<b class="lv2">잘했어요</b>`][n ?? 0];
+    const i = s.pick, ok = V.map((v, j) => [j, v]).filter(([, v]) => v != null).sort((a, b) => b[1] - a[1]);
+    const mine = x.calcOk && i != null && V[i] != null ? `<div class="mynum"><small>내가 4단계에서 찾은 숫자 (반박의 근거)</small>${esc(t.calc.label)} · 내가 고른 <b>${esc(t.rows[i][0])} ${fmt(V[i], t.calc.dp)}${esc(t.calc.unit)}</b> · 가장 큰 곳 ${esc(t.rows[ok[0][0]][0])} ${fmt(ok[0][1], t.calc.dp)} · 가장 작은 곳 ${esc(t.rows[ok[ok.length - 1][0]][0])} ${fmt(ok[ok.length - 1][1], t.calc.dp)}</div>` : `<div class="msg info">4단계에서 계산을 마치면 여기에 반박에 쓸 숫자가 모여요.</div>`;
     return `<div class="claim"><small>AI 모델의 분석 결과 · 평가 대상</small>“${esc(t.claim)}”</div>
-      ${fld(t, x, "rebut", "AI 결과 평가: 나의 반박", "4단계에서 계산한 수치를 인용해, AI의 결론에서 무엇이 빠졌는지 써요", "수치 인용 · 다른 원인 · 윤리적 근거(사상가)", 120)}
+      <div class="msg warn">⚠️ 이 결론은 <b>일부러 틀리게 만든 AI의 결론</b>이에요. 그럴듯해 보이지만 숫자를 잘못 읽었거나 중요한 것을 빠뜨렸어요. 내 임무는 <b>어디가 틀렸는지 4단계 숫자로 찾아 반박하기</b>예요. AI도 이렇게 틀릴 수 있어요!</div>
+      ${mine}
+      <details class="hint"><summary>💡 막히면 힌트 보기 · 이렇게 따져 봐요</summary><ol><li><b>숫자</b> — AI는 무엇을 기준으로 비교했나요? 내가 계산한 값으로 비교하면 결론이 같은가요?</li><li><b>다른 원인</b> — 숫자가 말해 주지 않는 까닭이나 데이터의 한계는?</li><li><b>윤리</b> — 이 결론대로 하면 누가 손해를 보나요? 사상가라면 뭐라고 할까요?</li></ol><p class="note" style="margin-top:6px">이 주제의 힌트: ${t.look.map((l) => esc(l)).join(" · ")}</p></details>
+      ${fld(t, x, "rebut", "AI 결과 평가: 나의 반박", "4단계에서 계산한 수치를 인용해, AI의 결론에서 무엇이 빠졌는지 써요 · 막막하면 아래 ‘문장 틀 넣기’", "수치 인용 · 다른 원인 · 윤리적 근거(사상가)", 120)}
+      ${frameBtn(x, "rebut")}
       <div class="act"><span>${S.aiBusy ? "AI가 읽고 있어요…" : `저절로 저장돼요 · AI 검토 ${reviews.length}/5회`}</span><div><button class="btn b" data-act="review" ${S.aiBusy ? "disabled" : ""}>AI 검토 받기</button></div></div>
       ${last ? `<div class="rev"><div class="hd">AI 검토 의견 · ${reviews.length}번째<span>${last.local ? "기본 점검 (AI 서버 연결 전)" : "AI 검토"} · ${new Date(last.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span></div>
         <div class="rub"><div>수치 인용${lv(last.scores.data)}</div><div>다른 원인 · 한계${lv(last.scores.other)}</div><div>윤리적 근거${lv(last.scores.concept)}</div></div>
@@ -611,9 +657,11 @@ function panel(t, x, k) {
   if (k === "s6") {
     const ch = s.checks || [], G = GROUPS[t.g];
     return `${fld(t, x, "interp", "결과 해석: 숫자가 말하지 않는 것", "다른 원인, 데이터의 치우침, 더 필요한 자료를 써요", "", 84)}
-      <div class="thk"><div class="tq">🧭 사상가의 눈으로 판단하기<small>${esc(t.th.ask)}</small></div><div class="tp">${[t.th.m, t.th.r].map((n, i) => `<div><b>${esc(n)}</b><em>${i ? "맞서는 관점" : "주 사상가"}</em><p>${esc(DL.THINKERS[n])}</p></div>`).join("")}</div><p class="note">연결 고리: ${esc(t.th.link)}</p></div>
-      ${fld(t, x, "concept", `${esc(jo(t.th.m, "이라면", "라면"))} 이 결과를 어떻게 판단할까?`, `${t.th.m}의 원리 + 내가 확인한 데이터 → 나의 판단 순서로 써요`, "도덕 원리 · 사실 판단 · 도덕 판단", 84)}
+      <div class="thk"><div class="tq">🧭 사상가의 눈으로 판단하기<small>${esc(t.th.ask)}</small></div><div class="tp">${[t.th.m, t.th.r].map((n, i) => `<div><b>${esc(n)}</b><em>${i ? "맞서는 관점" : "주 사상가"}</em><p>${esc(DL.THINKERS[n])}</p>${(DL.QUOTES[n] || [])[0] ? `<blockquote class="qt1">“${esc(DL.QUOTES[n][0][0])}”<cite>${esc(DL.QUOTES[n][0][1])}</cite></blockquote>` : ""}</div>`).join("")}</div><p class="note">연결 고리: ${esc(t.th.link)} · 더 자세한 표와 원문은 ${matchMedia("(max-width:980px)").matches ? "이 페이지 아래" : "오른쪽"} ‘사상가 한눈에’에 있어요</p></div>
+      ${fld(t, x, "concept", `${esc(jo(t.th.m, "이라면", "라면"))} 이 결과를 어떻게 판단할까?`, `${t.th.m}의 원리(원문 한 구절) + 내가 확인한 데이터 → 나의 판단 순서로 써요 · 막막하면 아래 ‘문장 틀 넣기’`, "도덕 원리 · 사실 판단 · 도덕 판단", 84)}
+      ${frameBtn(x, "concept")}
       ${fld(t, x, "rival", `${esc(jo(t.th.r, "이라면", "라면"))}? (선택)`, `${jo(t.th.r, "은", "는")} 무엇을 다르게 볼까요? 나는 어느 쪽에 더 가까운가요?`, "", 64)}
+      ${frameBtn(x, "rival")}
       ${fld(t, x, "plan", "해결안", "무엇을 어떻게 바꾸거나 바로잡아야 할까요?", "", 84)}
       <div class="fld"><span class="lab">해결안에서 따져 본 것<small>두 가지 이상 고르고, 해결안 칸에 그 내용을 함께 써요</small></span><div class="picks">${DL.CHECKS.map((c) => `<button class="pk ${ch.includes(c) ? "on" : ""}" data-act="chk" data-v="${esc(c)}" aria-pressed="${ch.includes(c)}">${esc(c)}</button>`).join("")}</div></div>
       ${nextBtn(t, x, "s6", "해석 · 사상가의 판단 · 해결안을 쓰고 따져 본 것을 두 가지 이상 고르면 6단계가 끝나요")}`;
@@ -739,6 +787,7 @@ function act(a, v, ev) {
   if (lockedBy(t)) return;
   if (needLogin()) return;
   const x = myT(t.id); S.rec.last = t.id;
+  if (a === "frame") { if (String(x.s[v] || "").trim().length >= 2) return toast("칸을 비우면 틀을 넣을 수 있어요. 지금 쓴 글을 이어서 고쳐도 좋아요"); x.s[v] = frameOf(t, x, v); save(); render(); const el = $("#f_" + v); if (el) { el.focus(); const p = el.value.indexOf("___"); if (p >= 0) el.setSelectionRange(p, p + 3); } return; }
   if (a === "pick") { const i = +v; if (x.s.pick !== i) { x.s.pick = i; x.calcOk = false; x.s.calc = ""; x.s.calcTry = 0; } save(); return render(); }
   if (a === "check") {
     const i = x.s.pick, val = $("#calcIn").value; x.s.calc = val;
