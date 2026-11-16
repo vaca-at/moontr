@@ -1288,11 +1288,14 @@ function dataSummary(o){
   const n = x => Object.keys(x || {}).length;
   return [n(o.plans) && `할 일 ${n(o.plans)}일`, n(o.log) && `순공 ${n(o.log)}일`, n(o.diary) && `일기 ${n(o.diary)}편`, (o.grades || []).length && `성적 ${o.grades.length}개`, (o.exams || []).length && `시험 ${o.exams.length}개`].filter(Boolean).join(" · ") || "거의 비어 있어요";
 }
-function mergeData(o){
+// 기록이 얼마나 있나 (서버 기록과 이 기기 기록 중 어느 쪽이 많은지 견줄 때)
+function dataSize(o){ const n = x => Object.keys(x || {}).length; return n(o.plans) + n(o.log) + n(o.diary) + n(o.goals) + (o.grades || []).length + (o.exams || []).length + (o.reps || []).length + (o.mine || []).length * 5; }
+// same = 같은 계정의 다른 기기 기록: 순공은 더하지 않고 큰 쪽으로 (같은 시간을 두 번 세지 않게)
+function mergeData(o, same){
   if (!o || typeof o !== "object") return;
   const sig = p => JSON.stringify([p.s, p.det || []]);
   for (const [k, L] of Object.entries(o.plans || {})){ const A = D.plans[k] = D.plans[k] || []; const ids = new Set(A.map(p => p.id)), ss = new Set(A.map(sig)); (L || []).forEach(p => { if (!ids.has(p.id) && !ss.has(sig(p))) A.push(p); }); }
-  for (const [k, by] of Object.entries(o.log || {})){ const A = D.log[k] = D.log[k] || {}; for (const [s, v] of Object.entries(by || {})) A[s] = (A[s] || 0) + v; }   // 두 계정에서 따로 잰 시간이라 더해요
+  for (const [k, by] of Object.entries(o.log || {})){ const A = D.log[k] = D.log[k] || {}; for (const [s, v] of Object.entries(by || {})) A[s] = same ? Math.max(A[s] || 0, v) : (A[s] || 0) + v; }   // 다른 계정에서 따로 잰 시간이면 더해요
   for (const [k, v] of Object.entries(o.fix || {})) if (D.fix[k] == null) D.fix[k] = v;
   for (const [k, v] of Object.entries(o.diary || {})){ const a = D.diary[k]; if (!a || (v && (v.at || 0) > (a.at || 0) && !(a.log || a.cheer || a.fix))) D.diary[k] = v; }
   for (const [w, G] of Object.entries(o.goals || {})){ const A = D.goals[w] = D.goals[w] || []; const ids = new Set(A.map(g => g.id)); (G || []).forEach(g => { if (!ids.has(g.id)) A.push(g); }); }
@@ -2081,25 +2084,36 @@ el("gApple").onclick = () => signIn("apple"); el("gGoogle").onclick = () => sign
 
 /* ---------- 서버 저장 ---------- */
 const userRef = () => doc(db, "first_users", user.uid), statRef = () => doc(db, "first_stat", user.uid);
+/* 2026-11-17 고침: 로그아웃했다가 같은 창(앱)에서 다시 로그인하면 'first-pulled' 표시 때문에 서버 기록을 불러오지 못한 채
+   빈 기록을 서버에 올려 덮어 버렸어요 (내 캐릭터 · 할 일이 사라짐). 이제는
+   ① 다시 열기 표시는 서버 기록마다(저장 시각) 따로 ② 서버 기록을 못 불러왔으면 절대 올리지 않아요(ready) ③ 이 기기에 서버보다 많은 기록이 있으면 물어보고 합쳐요 */
+const PULLED = "first-pulled";
+let ready = false;
 async function pull(){
-  let snap; try { snap = await getDoc(userRef()); } catch (e) { return; }   // 인터넷이 막혀도 이 기기 기록으로 계속 써요
+  let snap; try { snap = await getDoc(userRef()); } catch (e) { return; }   // 인터넷이 막혀도 이 기기 기록으로 계속 써요 (서버엔 다시 확인한 뒤에 올려요)
   known = snap.exists();
   if (known){
     const s = snap.data();
-    if (s.d && (s.at || 0) > (D.at || 0)){   // 서버가 더 최근 → 서버 기록으로 바꾸고 한 번 다시 열어요
+    if (s.d && (s.at || 0) > (D.at || 0)){   // 서버가 더 최근
+      let srv = null; try { srv = JSON.parse(s.d); } catch (e) {}
+      if (srv && D.at && typeof dataSize === "function" && dataSize(D) > dataSize(srv)){
+        if (confirm(`이 기기에 서버보다 더 많은 기록이 있어요.\n· 이 기기: ${dataSummary(D)}\n· 서버: ${dataSummary(srv)}\n\n확인 = 두 기록을 합쳐서 지켜요\n취소 = 서버 기록으로 바꿔요`)){ ready = true; mergeData(srv, true); push(true); return; }
+      }
       try { localStorage.setItem(KEY, s.d); } catch (e) {}
-      if (!sessionStorage.getItem("first-pulled")){ sessionStorage.setItem("first-pulled", "1"); location.reload(); return; }
+      const tag = String(s.at || 0);
+      if (sessionStorage.getItem(PULLED) !== tag){ sessionStorage.setItem(PULLED, tag); location.reload(); }
+      return;   // 서버 기록을 이 화면에 못 불러왔으면 올리지 않아요 (빈 기록으로 덮지 않게)
     }
   }
-  push(true);
+  ready = true; push(true);
 }
-function push(now){ if (!user) return; clearTimeout(pushT); pushT = setTimeout(doPush, now ? 0 : 3000); }
+function push(now){ if (!user || !ready) return; clearTimeout(pushT); pushT = setTimeout(doPush, now ? 0 : 3000); }
 /* ☁️ 서버 저장 상태 (2026-11-16): 마지막으로 잘 올린 때 · 실패했는지 → ⚙︎ 설정 › 계정에 보여요. 처음 실패하면 한 번 알려 줘요 */
 const SYNC = "first-synced";
 let syncOk = (() => { try { return +localStorage.getItem(SYNC) || 0; } catch (e) { return 0; } })(), syncErr = "", syncWarned = false;
 const bytes = s => new Blob([s]).size;   // 서버 한 칸 한도는 글자 수가 아니라 바이트 (한글 한 글자 = 3바이트)
 async function doPush(){
-  if (!user) return false;
+  if (!user || !ready) return false;
   const O = typeof outData === "function" ? outData() : D;   // 사진에서 읽은 글자는 빼고 올려요
   let d = JSON.stringify(O); if (bytes(d) > 950000) d = JSON.stringify({ ...O, mine:[] });   // 너무 크면 내 캐릭터 그림은 빼고 (서버 한 칸 1MB)
   if (bytes(d) > 1000000){ syncErr = "기록이 너무 커서 서버에 다 못 올렸어요. 오래된 사진첩 기록을 정리해 주세요"; return false; }
@@ -2120,7 +2134,7 @@ function syncText(){
   const m = Math.round((Date.now() - syncOk) / 60000);
   return `☁️ 서버에 저장됨 · ${m < 1 ? "방금" : m < 60 ? m + "분 전" : m < 1440 ? Math.round(m / 60) + "시간 전" : Math.round(m / 1440) + "일 전"}`;
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") push(true); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") push(true); else if (user && !ready) pull(); });   // 처음에 서버 확인을 못 했으면 돌아올 때 다시
 
 /* ---------- 계정 (⚙︎ 설정 › 계정) ---------- */
 function who(){
@@ -2132,7 +2146,7 @@ function who(){
 // 로그아웃: 서버에 올리고 이 기기 기록은 지워요 (다시 로그인하면 돌아와요). 서버에 못 올렸으면 지우지 않고 멈춰요 (기록이 사라지지 않게)
 async function out(){
   if (!(await doPush())){ window.closeSheet?.(); window.toast?.("서버에 올리지 못해서 로그아웃을 멈췄어요. 인터넷이 될 때 다시 해 주세요"); return; }
-  try { localStorage.removeItem(KEY); localStorage.removeItem(SEEN); localStorage.removeItem(SYNC); } catch (e) {} try { await FA()?.signOut(); } catch (e) {} await signOut(auth); location.reload();   // 휴대폰 안 로그인(카카오)도 함께 나가요
+  try { localStorage.removeItem(KEY); localStorage.removeItem(SEEN); localStorage.removeItem(SYNC); sessionStorage.removeItem(PULLED); } catch (e) {} try { await FA()?.signOut(); } catch (e) {} await signOut(auth); location.reload();   // 휴대폰 안 로그인(카카오)도 함께 나가요
 }
 async function quit(){
   const u = auth.currentUser; if (!u) return;
