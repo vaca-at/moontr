@@ -1590,18 +1590,25 @@ function mateSay(text, id){
   el._t = setTimeout(() => el.classList.remove("talk", "hop"), 2800);
 }
 function crewCheer(){ const b = $("crew"); if (!b) return; b.classList.add("cheer"); setTimeout(() => b.classList.remove("cheer"), 2000); }
-/* 과목 박스 안 빈자리 (과목 이름 오른쪽 ~ ⠿ 왼쪽): 친구가 들어가 쉬었다 가요 */
+/* 친구가 들어가 쉬는 자리 (시안 초록 칸): ① 제목 오른쪽 ~ 위 단추 왼쪽 · ② 진행바 위를 걷기 · ③ 아래 메뉴 지붕 위 · 과목 박스 안 빈자리 (이름 오른쪽 ~ ⠿ 왼쪽)
+   한 자리에 한 친구만 (지붕은 둘까지). 체크 · ⠿ · 타이머 · 위 단추 · 메뉴 그림은 가리지 않아요 */
 function cardSpot(){
   const box = $("crew"), B = box?.getBoundingClientRect(); if (!B?.height) return null;
-  const used = Object.values(CREW.els).map(e => e._card);
-  const rows = [...document.querySelectorAll(".item[data-pid] > .row")].filter(r => { const b = r.getBoundingClientRect(); return b.top > B.top + B.height * .2 && b.bottom < B.bottom - 70 && !used.includes(r.parentNode.dataset.pid); });
-  for (let k = 0; k < 4 && rows.length; k++){
-    const r = rows.splice(Math.floor(Math.random() * rows.length), 1)[0], b = r.getBoundingClientRect(), nm = r.querySelector(".nm");
-    const L = Math.max(...[...(nm?.children || [])].map(c => c.getBoundingClientRect().right), b.left + 60) + 34, R = b.right - 58;
-    if (R - L < 30) continue;
-    return { x:(L + Math.random() * (R - L) - B.left) / B.width, y:(b.top + b.height / 2 - B.top) / B.height, card:r.parentNode.dataset.pid };
-  }
-  return null;
+  const used = Object.values(CREW.els).map(e => e._card), rnd = (l, r) => l + Math.random() * (r - l), Z = [];
+  const see = b => b.height && b.top > B.top + 8 && b.bottom < B.bottom - 8;
+  const h1 = document.querySelector(".hd h1.big"), hd = h1?.closest(".hd");
+  if (h1 && !used.includes("z1")){ const t = (h1.closest(".mnav") || h1).getBoundingClientRect(), r = hd.lastElementChild.getBoundingClientRect(), L = t.right + 30, R = r.left - 30;
+    if (see(t) && R - L > 10) Z.push({ x:rnd(L, R), y:t.top + t.height / 2, key:"z1" }); }
+  const tr = document.querySelector(".prog .tr");
+  if (tr && !used.includes("z2")){ const t = tr.getBoundingClientRect(); if (see(t) && t.width > 80) Z.push({ x:rnd(t.left + 20, t.right - 20), y:t.top - 18, key:"z2" }); }
+  const nav = $("tabs"), roof = used.filter(k => k === "z3").length;
+  if (nav && roof < 2){ const t = nav.getBoundingClientRect(); if (t.height) Z.push({ x:rnd(t.left + t.width * .12, t.right - t.width * .12), y:t.top - 18, key:"z3" }); }
+  [...document.querySelectorAll(".item[data-pid] > .row")].forEach(r => { const id = r.parentNode.dataset.pid, b = r.getBoundingClientRect(); if (used.includes(id) || b.top < B.top + B.height * .2 || b.bottom > B.bottom - 70) return;
+    const L = Math.max(...[...(r.querySelector(".nm")?.children || [])].map(c => c.getBoundingClientRect().right), b.left + 60) + 34, R = b.right - 58;
+    if (R - L >= 30) Z.push({ x:rnd(L, R), y:b.top + b.height / 2, key:id }); });
+  if (!Z.length) return null;
+  const z = Z[Math.floor(Math.random() * Z.length)];
+  return { x:(z.x - B.left) / B.width, y:(z.y - B.top) / B.height, card:z.key };
 }
 /* 돌아다니기: 4초마다 몇몇 친구가 가까운 곳이나 과목 박스 안 빈자리로 천천히 걸어가요 */
 setInterval(() => {
