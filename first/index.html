@@ -78,6 +78,7 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .bar{width:220px;height:6px;border-radius:3px;background:var(--soft);overflow:hidden}.bar i{display:block;height:100%;background:var(--mode);border-radius:3px}
 .pill{border:0;border-radius:999px;padding:13px 32px;font-weight:600;font-size:16px;background:var(--ink);color:#fff;cursor:pointer}
 .pill.light{background:var(--soft);color:var(--ink)}
+.pill.sm{padding:8px 14px;font-size:13.5px}
 .btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 /* 📅 달력 */
 .mnav{display:flex;align-items:center;gap:8px}
@@ -202,7 +203,7 @@ main.scrolled .prog::before{opacity:1}
 .cap-paste{border:1.5px dashed #C7C7CC;border-radius:14px;min-height:64px;padding:12px;text-align:center;color:var(--sub);font-size:13px;outline:0}
 .cap-view{display:flex;gap:16px;justify-content:center;align-items:center}
 .capsrc{display:grid;grid-template-columns:1fr 1fr;gap:8px}.capsrc .pill{text-align:center;color:var(--ink);font-size:15px;padding:12px 8px}
-.capcrop{display:block;width:100%;max-height:46vh;object-fit:contain;border-radius:14px;touch-action:none;cursor:crosshair;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
+.capcrop{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:14px;touch-action:none;cursor:crosshair;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
 .cap-view canvas{width:130px;height:130px;border-radius:16px;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
 .sheet input[type=range]{padding:0;background:none}
 /* 🌙 어두운 화면 (아이폰 설정이 다크 모드일 때) */
@@ -550,7 +551,7 @@ function pixel(o){
 CHAR_SVG.woman = pixel({ hair:"wave", hc:"#6B4430", oc:"#2E2A33", tc:"#5B5468", top:"blazer" });
 CHAR_SVG.man = pixel({ hair:"part", hc:"#2E2A33", oc:"#FFFFFF", tc:"#3B4A63", top:"vest", tie:"#E55A6A" });
 const CHARS = [["rabbit","토쌤"],["bear","곰쌤"],["ham","햄쌤"],["cat","냥쌤"],["woman","여자 쌤"],["man","남자 쌤"]];
-const MINE_MAX = 3;
+const MINE_MAX = 10;   // 내 캐릭터 10개까지 (2026-11-16, 그림은 160px 로 가볍게 저장)
 const BAND = { rabbit:"36%", bear:"27%", ham:"19%", cat:"31%", woman:"16%", man:"16%" };   // 시험 머리띠 높이 (캐릭터마다 이마 자리)
 function charArt(id){
   if (String(id).startsWith("m:")){ const m = D.mine.find(x => x.id === id.slice(2)); if (m) return `<img src="${m.url}" alt="">`; id = "rabbit"; }
@@ -1218,9 +1219,9 @@ function sheetCap(){
     <div class="capsrc"><label class="pill light">📷 사진 찍기<input type="file" id="capCam" accept="image/*" capture="environment" hidden></label><label class="pill light">🖼 사진에서 고르기<input type="file" id="capFile" accept="image/*" hidden></label></div>
     <div class="cap-paste" id="capPaste" contenteditable="true" role="textbox" aria-label="그림 붙여 넣는 칸">또는 그림을 여기에 붙여 넣어요<br><small>휴대폰: 이 칸을 길게 눌러 '붙여넣기' · 컴퓨터: ⌘+V (Ctrl+V)</small></div>
     <div id="capCropBox" hidden>
-      <p class="note">✂️ 남길 부분만 네모로 감싸요 · 모서리를 끌면 크기, 안쪽을 끌면 자리, 바깥을 끌면 새로 그려요</p>
-      <canvas id="capCrop" class="capcrop" aria-label="자를 부분 고르기"></canvas>
-      <div class="btns" style="justify-content:flex-start"><button type="button" class="link" data-act="cropAll">↺ 자르기 처음처럼</button></div>
+      <p class="note">✨ 캐릭터를 저절로 찾아 맞췄어요. 다르면 <b>손가락으로 캐릭터를 쓱 감싸 그려</b> 주세요 (다시 그리면 바뀌어요)</p>
+      <canvas id="capCrop" class="capcrop" aria-label="손가락으로 감싸 그려 남길 부분 고르기"></canvas>
+      <div class="btns" style="justify-content:flex-start;gap:8px"><button type="button" class="pill light sm" data-act="cropAuto">✨ 저절로 맞추기</button><button type="button" class="pill light sm" data-act="cropAll">↺ 사진 전체</button></div>
     </div>
     <div class="cap-view" id="capView" hidden><canvas id="capOut" width="200" height="200"></canvas></div>
     <div id="capCtl" hidden style="display:grid;gap:8px">
@@ -1237,7 +1238,15 @@ function cropShow(){
   g.drawImage(o, 0, 0);
   g.fillStyle = "rgba(0,0,0,.5)"; g.beginPath(); g.rect(0, 0, W, H); g.rect(r.x, r.y, r.w, r.h); g.fill("evenodd");
   g.strokeStyle = "#fff"; g.lineWidth = lw; g.setLineDash([lw * 4, lw * 3]); g.strokeRect(r.x, r.y, r.w, r.h); g.setLineDash([]);
-  g.fillStyle = "#FF5C84"; [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]].forEach(([x, y]) => { g.fillRect(x - hs / 2, y - hs / 2, hs, hs); g.strokeStyle = "#fff"; g.lineWidth = lw; g.strokeRect(x - hs / 2, y - hs / 2, hs, hs); });
+  g.strokeStyle = "#FF5C84"; g.lineWidth = lw * 1.4; g.strokeRect(r.x - lw, r.y - lw, r.w + lw * 2, r.h + lw * 2);
+}
+/* ✨ 저절로 맞추기: 바탕을 지워 보고 남은 덩어리(캐릭터) 둘레에 조금 여유를 둔 네모 */
+function cropAuto(){
+  const o = CAPS.orig; if (!o) return;
+  const b = charProcess(o, CAPS.tol || 60).box, m = Math.max(o.width, o.height) * 0.04;
+  const x = Math.max(0, b[0] - m), y = Math.max(0, b[1] - m), x2 = Math.min(o.width, b[2] + m), y2 = Math.min(o.height, b[3] + m);
+  CAPS.r = (x2 - x) * (y2 - y) > o.width * o.height * 0.9 || x2 - x < 20 ? { x:0, y:0, w:o.width, h:o.height } : { x, y, w:x2 - x, h:y2 - y };
+  cropShow(); cropApply();
 }
 function cropApply(){
   const o = CAPS.orig, r = CAPS.r; if (!o || !r) return;
@@ -1249,24 +1258,17 @@ document.addEventListener("pointerdown", e => {
   const cv = e.target.closest?.("#capCrop"); if (!cv || !CAPS.r) return;
   e.preventDefault(); cv.setPointerCapture?.(e.pointerId);
   const b = cv.getBoundingClientRect(), k = cv.width / b.width, at = ev => ({ x:Math.max(0, Math.min(cv.width, (ev.clientX - b.left) * k)), y:Math.max(0, Math.min(cv.height, (ev.clientY - b.top) * k)) });
-  const p0 = at(e), r0 = { ...CAPS.r }, near = Math.max(16, cv.width / 12);
-  const corners = [["tl", r0.x, r0.y], ["tr", r0.x + r0.w, r0.y], ["bl", r0.x, r0.y + r0.h], ["br", r0.x + r0.w, r0.y + r0.h]];
-  const hit = corners.find(([, x, y]) => Math.abs(p0.x - x) < near && Math.abs(p0.y - y) < near);
-  const inside = p0.x > r0.x && p0.x < r0.x + r0.w && p0.y > r0.y && p0.y < r0.y + r0.h;
-  const mode = hit ? hit[0] : inside ? "move" : "new";
+  const p0 = at(e); let drew = false;   // (2026-11-16) 쉽게: 어디서 끌든 새 네모를 그려요
   const mv = ev => {
-    const p = at(ev); let x1 = r0.x, y1 = r0.y, x2 = r0.x + r0.w, y2 = r0.y + r0.h;
-    if (mode === "move"){ const dx = Math.max(-r0.x, Math.min(cv.width - x2, p.x - p0.x)), dy = Math.max(-r0.y, Math.min(cv.height - y2, p.y - p0.y)); x1 += dx; x2 += dx; y1 += dy; y2 += dy; }
-    else if (mode === "new"){ x1 = p0.x; y1 = p0.y; x2 = p.x; y2 = p.y; }
-    else { if (mode[1] === "l") x1 = p.x; else x2 = p.x; if (mode[0] === "t") y1 = p.y; else y2 = p.y; }
-    const L = Math.min(x1, x2), T = Math.min(y1, y2); CAPS.r = { x:L, y:T, w:Math.max(12, Math.abs(x2 - x1)), h:Math.max(12, Math.abs(y2 - y1)) }; cropShow();
+    const p = at(ev); if (Math.abs(p.x - p0.x) < 8 && Math.abs(p.y - p0.y) < 8) return; drew = true;
+    CAPS.r = { x:Math.min(p0.x, p.x), y:Math.min(p0.y, p.y), w:Math.max(12, Math.abs(p.x - p0.x)), h:Math.max(12, Math.abs(p.y - p0.y)) }; cropShow();
   };
-  const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); cropApply(); };
+  const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); if (drew) cropApply(); };
   addEventListener("pointermove", mv); addEventListener("pointerup", up); addEventListener("pointercancel", up);
 });
 async function capLoad(blob){
   if (!blob || (blob.type && !/^image\//.test(blob.type))) return toast("그림 파일만 넣을 수 있어요");
-  try { CAPS.orig = await charLoad(blob); CAPS.r = { x:0, y:0, w:CAPS.orig.width, h:CAPS.orig.height }; $("capCropBox").hidden = false; cropShow(); cropApply(); }
+  try { CAPS.orig = await charLoad(blob); $("capCropBox").hidden = false; cropAuto(); }
   catch (e) { toast("그림을 열 수 없어요. 다른 그림으로 해 볼까요?"); }
 }
 
@@ -1410,9 +1412,11 @@ document.addEventListener("click", e => {
       undoToast("내 그림을 지웠어요", () => { D.mine.splice(i, 0, m); if (had) D.crew.push("m:" + v); }); return; }
     case "cap": if (D.mine.length >= MINE_MAX){ toast(`내 그림은 ${MINE_MAX}개까지예요. ✕로 하나 지우고 넣어요`); return; }
       S.sheet = { t:"cap" }; CAPS.base = CAPS.res = CAPS.orig = CAPS.r = null; CAPS.tol = 60; CAPS.zoom = 1; openSheet(sheetCap()); return;
+    case "cropAuto": cropAuto(); return;
     case "cropAll": if (CAPS.orig){ CAPS.r = { x:0, y:0, w:CAPS.orig.width, h:CAPS.orig.height }; cropShow(); cropApply(); } return;
     case "capOk": { if (!CAPS.base){ toast("그림을 먼저 넣어 주세요"); return; }
-      const id = uid(); D.mine.push({ id, url:$("capOut").toDataURL("image/png") }); D.crew.push("m:" + id);
+      const sm = document.createElement("canvas"); sm.width = sm.height = 160; sm.getContext("2d").drawImage($("capOut"), 0, 0, 160, 160);   // 10개를 넣어도 저장 한도에 안 걸리게 작게
+      const id = uid(); D.mine.push({ id, url:sm.toDataURL("image/png") }); D.crew.push("m:" + id);
       try { save(); } catch (err) {} closeSheet(); toast("내 캐릭터를 넣었어요"); break; }
     case "addPlan": { if (S.editing) return $("eName")?.focus(); const id = uid(); plansOf(k).push({ id, s:"", det:[], done:false, fresh:true }); S.editing = id; render();
       setTimeout(() => { $("eName")?.focus(); $("eName")?.scrollIntoView({ block:"center", behavior:"smooth" }); }, 30); return; }
