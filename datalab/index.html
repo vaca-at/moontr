@@ -598,7 +598,7 @@ async function shareGallery(t, x) {
 function loginView() {
   if (!S.login) return "";
   const nw = S.loginNew;
-  return `<div class="modal" data-act="closeLogin"><div class="box" role="dialog" aria-modal="true" aria-labelledby="lgT" onclick="event.stopPropagation()">
+  return `<div class="modal" data-act="closeLogin"><div class="box" role="dialog" aria-modal="true" aria-labelledby="lgT">
     <h3 id="lgT">${nw ? "처음 오셨네요" : "학번으로 들어가기"}</h3>
     <p>${nw ? `<b>${esc(nw.sid)}</b> 학번으로 처음 들어와요. 이 비밀번호로 시작할까요? 다음부터 같은 비밀번호로 들어와요.` : "학번 다섯 자리와 비밀번호 네 자리를 넣어요. 처음이면 지금 정한 네 자리가 내 비밀번호가 돼요."}</p>
     ${nw ? `<div class="fld"><label for="lgPin2">비밀번호 한 번 더</label><input type="password" id="lgPin2" inputmode="numeric" maxlength="4" autocomplete="off"></div>` : `<div class="two"><div class="fld"><label for="lgSid">학번</label><input id="lgSid" inputmode="numeric" maxlength="5" placeholder="예: 10305" autocomplete="off" value="${esc(LS.get("lastSid", ""))}"></div><div class="fld"><label for="lgPin">비밀번호</label><input type="password" id="lgPin" inputmode="numeric" maxlength="4" placeholder="숫자 4자리" autocomplete="off"></div></div>`}
@@ -634,7 +634,9 @@ document.addEventListener("keydown", (e) => {
   if (["lgSid", "lgPin", "lgPin2"].includes(e.target.id)) { e.preventDefault(); act(S.loginNew ? "doNew" : "doLogin"); }
   if (e.key === "Escape" && S.login) act("closeLogin");
 });
-document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (!b) return; act(b.dataset.act, b.dataset.v, e); });
+// 로그인 창 바깥(어두운 곳)을 눌렀을 때만 닫아요. 창 안의 '들어가기' · '닫기' 단추는 그대로 눌려요
+// (2026-11-16 고침: 예전엔 창 안 누르기를 통째로 막아서 단추가 안 눌리고 엔터로만 들어가졌어요)
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (!b) return; if (b.classList.contains("modal") && e.target !== b) return; act(b.dataset.act, b.dataset.v, e); });
 
 function act(a, v, ev) {
   const t = DL.topic(route().b);
