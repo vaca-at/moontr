@@ -1996,11 +1996,17 @@ const FA = () => NATIVE ? window.Capacitor.Plugins.FirebaseAuthentication : null
 async function appCreds(kind){
   const P = FA(); if (!P) throw new Error("앱을 최신 버전으로 업데이트해 주세요");
   if (kind === "kakao"){
-    const r = await P.signInWithOpenIdConnect({ providerId:KAKAO, skipNativeAuth:true }), c = (r && r.credential) || {}, L = [];
-    if (c.idToken) L.push({ idToken:c.idToken, ...(c.nonce ? { rawNonce:c.nonce } : {}), ...(c.accessToken ? { accessToken:c.accessToken } : {}) });
-    if (c.accessToken) L.push({ accessToken:c.accessToken });
-    if (!L.length) throw new Error("카카오 로그인을 하지 못했어요. 다시 눌러 주세요");
-    return L.map(o => new OAuthProvider(KAKAO).credential(o));
+    /* 2026-11-16 아이폰에서 '카카오 로그인을 하지 못했어요'가 떠서 고침:
+       아이폰 파이어베이스는 휴대폰 안에서 로그인을 끝내지 않으면(skipNativeAuth:true) 카카오 열쇠(idToken · accessToken)를 돌려주지 않을 때가 있어요
+       → 열쇠가 비어 있으면 한 번 더, 이번엔 휴대폰 안에서 로그인을 끝내고(skipNativeAuth:false) 그 열쇠를 받아 웹 로그인에 넘겨요 */
+    const ask = async (skip) => { const r = await P.signInWithOpenIdConnect({ providerId:KAKAO, skipNativeAuth:skip }), c = (r && r.credential) || {}, L = [];
+      if (c.idToken) L.push({ idToken:c.idToken, ...(c.nonce ? { rawNonce:c.nonce } : {}), ...(c.accessToken ? { accessToken:c.accessToken } : {}) });
+      if (c.accessToken) L.push({ accessToken:c.accessToken });
+      return { L, got:Object.keys(c).filter(k => c[k]).join(",") || "없음" }; };
+    let a = await ask(true);
+    if (!a.L.length && IOS){ const b = await ask(false); if (b.L.length) a = b; else a.got += " / " + b.got; }
+    if (!a.L.length) throw new Error(`카카오 로그인을 하지 못했어요. 다시 눌러 주세요 (받은 것: ${a.got})`);
+    return a.L.map(o => new OAuthProvider(KAKAO).credential(o));
   }
   if (kind === "apple"){
     const r = await P.signInWithApple({ skipNativeAuth:true }), c = r && r.credential;
@@ -2082,7 +2088,7 @@ function who(){
 // 로그아웃: 서버에 올리고 이 기기 기록은 지워요 (다시 로그인하면 돌아와요). 서버에 못 올렸으면 지우지 않고 멈춰요 (기록이 사라지지 않게)
 async function out(){
   if (!(await doPush())){ window.closeSheet?.(); window.toast?.("서버에 올리지 못해서 로그아웃을 멈췄어요. 인터넷이 될 때 다시 해 주세요"); return; }
-  try { localStorage.removeItem(KEY); localStorage.removeItem(SEEN); localStorage.removeItem(SYNC); } catch (e) {} await signOut(auth); location.reload();
+  try { localStorage.removeItem(KEY); localStorage.removeItem(SEEN); localStorage.removeItem(SYNC); } catch (e) {} try { await FA()?.signOut(); } catch (e) {} await signOut(auth); location.reload();   // 휴대폰 안 로그인(카카오)도 함께 나가요
 }
 async function quit(){
   const u = auth.currentUser; if (!u) return;
@@ -2090,7 +2096,8 @@ async function quit(){
   try { window.Capacitor?.Plugins?.First?.backup({ json:"{}" }); } catch (e) {}   // 아이클라우드 백업도 비워요
   try { localStorage.removeItem(KEY); localStorage.removeItem(SEEN); indexedDB.deleteDatabase("first-pics"); } catch (e) {}
   try { await deleteUser(u); alert?.("모두 지웠어요. 그동안 써 줘서 고마워요."); }
-  catch (e){ await signOut(auth); }   // 오래전에 로그인했으면 로그인 정보는 다시 로그인한 뒤에 지워져요 (기록은 이미 지웠어요)
+  catch (e){ await signOut(auth); }
+  try { await FA()?.signOut(); } catch (e) {}   // 휴대폰 안 로그인(카카오)도 나가요 · 아래: 오래전에 로그인했으면 로그인 정보는 다시 로그인한 뒤에 지워져요 (기록은 이미 지웠어요)
   location.reload();
 }
 window.FB = { push:() => push(false), who, out, quit, syncText, syncBad:() => !!syncErr };
