@@ -64,6 +64,8 @@ const ASC_ISSUER = defineString("ASC_ISSUER", { default: "" });            // Ap
 const ASC_KEY_ID = defineString("ASC_KEY_ID", { default: "" });            // 키 ID (10글자)
 const ASC_VENDOR = defineString("ASC_VENDOR", { default: "" });            // 공급업체 번호 (판매 및 추세 화면 왼쪽 위)
 const ASC_APP_ID = defineString("ASC_APP_ID", { default: "6831842667" });  // 아이아이노트 앱스토어 번호
+// 같은 개발자 계정의 다른 앱도 함께 세요 (moontr 관리자 허브 🍎 카드): 앱스토어 번호 → 이름
+const IOS_APPS = { "6831842667": "아이아이노트", "6834141029": "교무실 타이쿤", "6835064683": "먼저 플래너" };
 const ASC_P8 = defineSecret("ASC_P8");                                     // 키 파일(.p8) 내용 — 비밀 저장소에만
 
 const kday = (ms = Date.now()) => new Date(ms + 9 * 36e5).toISOString().slice(0, 10);   // 한국 날짜
@@ -114,20 +116,22 @@ async function iosStats(days = 10) {
     const day = kday(Date.now() - i * 864e5);
     const q = new URLSearchParams({ "filter[frequency]": "DAILY", "filter[reportDate]": day, "filter[reportSubType]": "SUMMARY", "filter[reportType]": "SALES", "filter[vendorNumber]": ASC_VENDOR.value(), "filter[version]": "1_1" });
     const r = await fetch(`https://api.appstoreconnect.apple.com/v1/salesReports?${q}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/a-gzip" } });
-    if (r.status === 404) { out[day] = { downloads: 0, redownloads: 0, updates: 0, countries: {} }; continue; }   // 그날 기록 없음
+    if (r.status === 404) { out[day] = { downloads: 0, redownloads: 0, updates: 0, countries: {}, apps: {} }; continue; }   // 그날 기록 없음
     if (!r.ok) { out[day] = { error: `${r.status}` }; continue; }
     const tsv = zlib.gunzipSync(Buffer.from(await r.arrayBuffer())).toString("utf8").split(/\r?\n/).filter(Boolean).map(l => l.split("\t"));
     const head = tsv.shift() || [], col = n => head.indexOf(n);
     const cType = col("Product Type Identifier"), cUnits = col("Units"), cId = col("Apple Identifier"), cCountry = col("Country Code");
-    const o = { downloads: 0, redownloads: 0, updates: 0, countries: {} };
+    // 앱마다 따로 세고, 아이아이노트(ASC_APP_ID)는 예전처럼 맨 위에도 둬요 (관리자 화면이 그대로 읽게)
+    const blank = () => ({ downloads: 0, redownloads: 0, updates: 0, countries: {} }), apps = {};
+    Object.keys(IOS_APPS).forEach(id => { apps[id] = blank(); });
     for (const row of tsv) {
-      if (String(row[cId]) !== String(ASC_APP_ID.value())) continue;
+      const o = apps[String(row[cId])]; if (!o) continue;
       const t = row[cType] || "", u = Number(row[cUnits]) || 0;
       if (/^(1|1F|1T|F1)$/.test(t)) { o.downloads += u; o.countries[row[cCountry]] = (o.countries[row[cCountry]] || 0) + u; }
       else if (/^(3|3F|3T|F3)$/.test(t)) o.redownloads += u;
       else if (/^(7|7F|7T|F7)$/.test(t)) o.updates += u;
     }
-    out[day] = o;
+    out[day] = { ...(apps[String(ASC_APP_ID.value())] || blank()), apps };
   }
   return out;
 }

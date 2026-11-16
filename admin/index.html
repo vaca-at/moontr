@@ -338,6 +338,10 @@ body.editing .del{display:inline-block}
 .ios-app .ia-top b{display:block;font-size:1.05rem}
 .ios-app .ia-top small{display:block;opacity:.7;font-size:.78rem;margin-top:2px}
 .ios-app .ia-line{margin:0 0 12px;font-size:.88rem;opacity:.85;line-height:1.5}
+.panel.ios-app{grid-column:span 4}
+@media (max-width:1100px){ .panel.ios-app{grid-column:1 / -1} }
+.ios-app .ia-sec{display:flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:700;opacity:.75;margin-top:.2rem}.ios-app .ia-sec span{margin-left:auto;font-weight:400;opacity:.8}
+.ios-app .ia-badges{display:flex;flex-wrap:wrap;gap:0 14px}
 .ios-app .ia-url{display:block;width:100%;text-align:left;font:12px ui-monospace,Consolas,monospace;padding:7px 10px;border-radius:8px;border:1px dashed rgba(127,127,127,.45);background:transparent;color:inherit;cursor:copy;word-break:break-all;margin-bottom:10px}
 </style>
 </head>
@@ -380,7 +384,7 @@ body.editing .del{display:inline-block}
     <div class="insights" id="homeInsights"></div>
     <h2 class="sec-h">📈 방문 흐름 <small>그래프에 마우스를 올리면 숫자가 보여요</small></h2>
     <div class="panels" id="homeCharts"></div>
-    <h2 class="sec-h">🍎 앱스토어에 나온 우리 앱 <small>아이폰 · 아이패드 · 배지를 누르면 스토어, [링크 복사]로 알리기</small></h2>
+    <h2 class="sec-h">🍎 우리 아이폰 앱 3개 <small>앱스토어 다운로드(아침 9시 반에 모아요) · 앱 안 이용 · 배지를 누르면 스토어, [링크 복사]로 알리기</small></h2>
     <div class="panels" id="homeApps"></div>
     <h2 class="sec-h">📱 아이아이노트 앱 이용 현황 <small>플레이스토어 · 앱스토어 · 앱 안 이용 · 매일 아침 9시 반에 모아요</small></h2>
     <div class="panels" id="homeIi"></div>
@@ -409,7 +413,7 @@ body.editing .del{display:inline-block}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, getCountFromServer, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, getCountFromServer, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
@@ -677,7 +681,7 @@ async function loadIiStats(refresh){
     iiStats = await r.json();
   } catch (e){ iiStats = { error: e.message === 'Failed to fetch' ? '아직 함수를 올리지 않았어요' : (e.message || String(e)) }; }
   iiStatsBusy = false;
-  if (cur === 'home') renderIiStats();
+  if (cur === 'home'){ renderIiStats(); renderIosApps(); }
 }
 // 🏷 스토어 공식 배지 (2026-11-11): 누르면 스토어 페이지, 옆 단추로 주소 복사
 const II_PLAY = 'https://play.google.com/store/apps/details?id=kr.co.iinote.app', II_APPSTORE = 'https://apps.apple.com/kr/app/id6831842667';
@@ -697,14 +701,30 @@ const iosUrl = a => `https://apps.apple.com/kr/app/id${a.id}`;
 function renderIosApps(){
   const box = $('#homeApps'); if (!box) return;
   const days = d => Math.max(0, Math.round((new Date(ymd(new Date()) + 'T00:00:00') - new Date(d + 'T00:00:00')) / 864e5));
-  box.innerHTML = IOS_APPS.map(a => `<div class="panel third mv-card ios-app">
+  const n = v => v == null ? '-' : Number(v).toLocaleString();
+  // 앱스토어 다운로드: 아이아이노트 통계 함수가 아침 9시 반에 세 앱을 함께 모아요 (애플 보고서는 하루 이틀 늦어요)
+  const S = iiStats && !iiStats.error ? (iiStats.store || {}) : null;
+  const dl = id => { if (!S) return null; const ser = {}; let last = null, total = 0;
+    Object.keys(S).sort().forEach(d => { const o = S[d].ios?.apps?.[id] ?? (id === '6831842667' && S[d].ios && !S[d].ios.error ? S[d].ios : null); if (!o || o.error) return; ser[d] = o.downloads || 0; total += o.downloads || 0; last = d; });
+    return { ser, last, total, w7: last ? sumK(ser, dayKeys(7)) : 0, d1: last ? ser[last] : 0 }; };
+  // 앱 안 숫자: 앱마다 다른 곳에서 세요
+  const inApp = a => {
+    if (a.id === '6834141029') return tyStat ? (tyStat.error ? `<p class="msg">가입 숫자를 읽지 못했어요</p>` : `<div class="kv"><div><small>가입 선생님</small><b>${n(tyStat.all)}</b></div><div><small>오늘 접속</small><b>${n(tyStat.todayN)}</b></div><div><small>7일 새 가입</small><b>${n(tyStat.newN)}</b></div></div>`) : '<p class="msg">불러오는 중...</p>';
+    if (a.id === '6835064683') return fpStat ? (fpStat.error ? `<p class="msg">가입 숫자를 읽지 못했어요 (${esc(fpStat.error)})</p>` : `<div class="kv"><div><small>가입 학생</small><b>${n(fpStat.all)}</b></div><div><small>오늘 쓴 사람</small><b>${n(fpStat.d1)}</b></div><div><small>아이폰 앱으로</small><b>${n(fpStat.ios)}</b></div></div>`) : '<p class="msg">불러오는 중...</p>';
+    const U = iiStats?.use || {}, uk = Object.keys(U).sort(), u = uk.length ? U[uk[uk.length - 1]] : null;
+    return u ? `<div class="kv"><div><small>가족</small><b>${n(u.families)}</b></div><div><small>7일 동안 쓴 사람</small><b>${n(u.writers7)}</b></div><div><small>7일 일기</small><b>${n(u.diaries7)}</b></div></div>` : (iiStats ? '' : '<p class="msg">불러오는 중...</p>');
+  };
+  box.innerHTML = IOS_APPS.map(a => { const D = dl(a.id);
+    return `<div class="panel mv-card ios-app">
     <div class="ia-top"><img src="${esc(a.icon)}" alt=""><div><b>${esc(a.name)}</b><small>${a.date.slice(5).replace('-', '월 ')}일 출시 · ${days(a.date) ? `${days(a.date)}일째` : '오늘 출시 🎉'} · 무료 · ${esc(a.genre)}</small></div></div>
+    <div class="ia-sec">📥 앱스토어 다운로드${D?.last ? `<span>${mdw(D.last)}까지</span>` : ''}</div>
+    ${D == null ? `<p class="msg">${iiStats?.error ? '다운로드 숫자를 아직 볼 수 없어요' : '불러오는 중...'}</p>` : D.last ? `<div class="kv"><div><small>${mdw(D.last)}</small><b>${n(D.d1)}</b></div><div><small>최근 7일</small><b>${n(D.w7)}</b></div><div><small>모은 기간 합계</small><b>${n(D.total)}</b></div></div>${spark(D.ser, 30, '#0A84FF')}` : '<p class="msg">아직 숫자가 없어요 · 애플 보고서는 출시 다음 날부터 하루 이틀 늦게 와요</p>'}
+    <div class="ia-sec">📱 앱 안 이용</div>
+    ${inApp(a)}
     <p class="ia-line">${esc(a.line)}</p>
-    ${storeBadge(iosUrl(a), 'badge-appstore.svg', 'App Store에서 다운로드')}
-    ${a.play ? storeBadge(a.play, 'badge-play.png', 'Google Play에서 다운로드') : ''}
-    <button type="button" class="ia-url" data-copyurl="${esc(iosUrl(a))}" title="눌러서 복사">${esc(iosUrl(a))}</button>
-    <div class="lnk"><a class="btn" href="${esc(a.web)}" target="_blank" rel="noopener">웹으로 열기 ↗</a><a class="btn" href="${esc(a.admin)}" target="_blank" rel="noopener">관리자 ↗</a></div>
-  </div>`).join('');
+    <div class="ia-badges">${storeBadge(iosUrl(a), 'badge-appstore.svg', 'App Store에서 다운로드')}${a.play ? storeBadge(a.play, 'badge-play.png', 'Google Play에서 다운로드') : ''}</div>
+    <div class="lnk"><a class="btn" href="${esc(a.web)}" target="_blank" rel="noopener">웹으로 열기 ↗</a><a class="btn" href="${esc(a.admin)}" target="_blank" rel="noopener">관리자 ↗</a><a class="btn" href="https://appstoreconnect.apple.com/apps/${a.id}/distribution" target="_blank" rel="noopener">App Store Connect ↗</a></div>
+  </div>`; }).join('');
 }
 function renderIiStats(){
   const box = $('#homeIi'); if (!box) return;
@@ -1093,10 +1113,20 @@ async function loadTycoon(){
   } catch (e){ console.error('타이쿤 숫자를 세지 못했어요', e); tyStat = { error: e.code || e.message }; }
 }
 
+let fpStat = null;   // 먼저 플래너 숫자 (가입 · 오늘 쓴 사람 · 아이폰 앱) — first_stat 은 관리자만 셀 수 있어요
+async function loadFirst(){
+  const cnt = async q => (await getCountFromServer(q)).data().count;
+  try {
+    const C = collection(db, 'first_stat'), t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const [all, d1, ios, today] = await Promise.all([cnt(C), cnt(query(C, where('lastDay', '==', ymd(new Date())))), cnt(query(C, where('plat', '==', 'ios'))), cnt(query(C, where('created', '>=', Timestamp.fromDate(t0))))]);
+    fpStat = { all, d1, ios, today };
+  } catch (e){ console.error('먼저 플래너 숫자를 세지 못했어요', e); fpStat = { error: e.code || e.message }; }
+}
+
 async function renderHome(force){
   if (!homeData || force){
     $('#homeCards').innerHTML = '<p class="msg">불러오는 중...</p>';
-    [homeData] = await Promise.all([loadStats(), loadTycoon()]);
+    [homeData] = await Promise.all([loadStats(), loadTycoon(), loadFirst()]);
     if (cur !== 'home') return;
   }
   const apps = ADMIN_GROUPS.flatMap(g => g.items.map(a => ({ a, g })));
