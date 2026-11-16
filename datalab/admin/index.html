@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="../topics.js?v=11162230"></script>
+<script src="../../algolab/algos.js?v=11161600"></script>
 <style>
 /* 선생님 화면: 학생 화면(연수 과정형)과 같은 문법 · 흰 바탕 · 남색 머리 띠 */
 :root{--ink:#1A1A1A;--sub:#6E6E73;--line:#E5E5E8;--line2:#C9C9CF;--bg:#F7F7F8;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--navy:#0E2A5C;--done:#0E8A5F;--warn:#B54708}
@@ -118,7 +119,7 @@ const isAdmin = (e) => DL.ADMIN_EMAILS.includes(String(e || "").toLowerCase());
 firebase.initializeApp(DL.FIREBASE_CONFIG);
 const db = firebase.firestore(), auth = firebase.auth();
 const A = { user: null, tab: location.hash.replace("#", "") || "prog", members: [], ban: "", sel: null, topic: TOPICS[0].id, out: {}, busy: false, msg: "" };
-const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["seteuk", "세특"], ["plan", "지도안"], ["refl", "수업 실천 성찰"], ["users", "학생 관리"]];
+const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["seteuk", "세특"], ["plan", "지도안"], ["refl", "수업 실천 성찰"], ["algo", "알고리즘 실험실"], ["users", "학생 관리"]];
 const fmtT = (ms) => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const topicsOf = (m) => TOPICS.filter((t) => (m.rec || {})[t.id] && (m.rec[t.id].s && Object.keys(m.rec[t.id].s).length));
 const progOf = (t, x) => STEPS.filter((st) => stepDone(t, x, st.k)).length;
@@ -150,9 +151,12 @@ async function callAdminAI(path, body) {
 }
 // 세특 재료: 학번 · 이름 없이 제출한 탐구만
 function evidence(m) {
-  return topicsOf(m).map((t) => { const x = m.rec[t.id]; return { topic: `AI활용탐구 ${t.no} ${t.title}`, group: GROUPS[t.g].name, steps: `${progOf(t, x)}/8단계${x.sub ? " · 제출" : ""}`, claim: t.claim,
+  return [...topicsOf(m).map((t) => { const x = m.rec[t.id]; return { topic: `AI활용탐구 ${t.no} ${t.title}`, group: GROUPS[t.g].name, steps: `${progOf(t, x)}/8단계${x.sub ? " · 제출" : ""}`, claim: t.claim,
     report: Object.fromEntries(REPORT.map(([k, n]) => [n, String(repVal(t, x, k) || "").slice(0, 700)])),
-    ai: (x.ai || []).slice(-6).map((a) => a.k === "review" ? `[AI 검토] 수치 ${a.scores.data} · 원인 ${a.scores.other} · 윤리 ${a.scores.concept}` : `[질문] ${a.q}`) }; });
+    ai: (x.ai || []).slice(-6).map((a) => a.k === "review" ? `[AI 검토] 수치 ${a.scores.data} · 원인 ${a.scores.other} · 윤리 ${a.scores.concept}` : `[질문] ${a.q}`) }; }),
+    ...algoOf(m).map(([id, x]) => ({ topic: `알고리즘 실험실 · ${ALGO.NAMES[id][1]} (판단 규칙을 카드로 조립하는 알고리즘 설계 탐구)`, steps: `${Object.keys(x.done || {}).length}/7단계${x.sub ? " · 제출" : ""}`,
+      report: { "고른 규칙": algoRule(id, x.s), "가치 검토": String(x.s.why || "").slice(0, 600), "공정성 시험: 손해 보는 사람과 고칠 점": String(x.s.loser || "").slice(0, 600), "마치며": String(x.s.ref || "").slice(0, 600) },
+      ai: (x.ai || []).slice(-4).map((a) => `[질문] ${a.q}`) }))];
 }
 const promptOf = (m) => `아래는 고등학교 통합사회 ‘AI활용탐구’(데이터 분석 · 8단계 문제해결학습)에서 한 학생이 실제로 남긴 탐구 기록이다. 이 기록만 근거로 학교생활기록부 ‘세부능력 및 특기사항’ 문장을 써 줘.
 - 500자 안팎(공백 포함), 한 문단, ‘~함.’ ‘~임.’처럼 명사형으로 끝맺기
@@ -167,7 +171,7 @@ function render() {
   $("#who").innerHTML = A.user ? `${esc(A.user.email.replace(/@.*/, "@…"))} · <a href="#" data-act="logout" style="color:#fff">로그아웃</a>` : "";
   $("#tabs").innerHTML = A.user ? TABS.map(([k, n]) => `<button class="${A.tab === k ? "on" : ""}" data-act="tab" data-v="${k}">${n}</button>`).join("") : "";
   if (!A.user) { $("#app").innerHTML = `<div class="login"><h1>선생님 화면</h1><p>학생 탐구 기록 · 보고서 · 세특 · 지도안을 보는 화면이에요. 관리자 구글 계정으로 들어와요.</p><button class="gbtn" data-act="login"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>G 구글 계정으로 로그인</button>${A.msg ? `<p class="note" style="margin-top:14px;color:var(--warn)">${esc(A.msg)}</p>` : ""}</div>`; return; }
-  const v = { prog: progView, rep: repView, seteuk: seteukView, plan: planView, refl: reflView, users: usersView }[A.tab] || progView;
+  const v = { prog: progView, rep: repView, seteuk: seteukView, plan: planView, refl: reflView, algo: algoView, users: usersView }[A.tab] || progView;
   $("#app").innerHTML = (A.msg ? `<div class="msg">${esc(A.msg)}</div>` : "") + v();
 }
 const banSel = () => `<select data-act="ban" aria-label="반">${bans().map((b) => `<option ${b === A.ban ? "selected" : ""}>${esc(b)}</option>`).join("")}<option value="" ${!A.ban ? "selected" : ""}>모든 반</option></select>`;
@@ -189,6 +193,29 @@ function progView() {
     ${zero.length ? `<p class="note" style="margin:12px 0 4px">아무도 안 고른 주제 ${zero.length}개</p>${zero.map(([t]) => `<div class="hb" style="opacity:.45"><span>${t.no}. ${esc(t.name)}</span><i style="width:0"></i><em>0명</em></div>`).join("")}` : ""}</div>
   <div class="box"><h2>단계별 완료율</h2>${STEPS.map((st, i) => `<div class="hb"><span>${i + 1}. ${esc(st.name)}</span><i style="width:${stepRate[i]}%"></i><em>${Math.round(stepRate[i])}%</em></div>`).join("")}
     <p class="note" style="margin-top:12px">학생 화면 맨 아래 ‘📊 반별 단계 완료율’을 열면 학생들과 함께 볼 수 있어요 (학번 · 이름 없이 숫자만). 기록을 지운 학생이 남아 있으면 <button class="btn w sm" data-act="cpSync">지금 기록으로 다시 맞추기</button></p></div></div>`;
+}
+
+/* 🧩 알고리즘 실험실 (/algolab): 같은 학번 문서의 rec["a_주제"] 를 읽어요 */
+const algoOf = (m) => Object.entries(m.rec || {}).filter(([k, x]) => k.startsWith("a_") && x && x.s).map(([k, x]) => [k.slice(2), x]).filter(([id]) => ALGO.A[id]);
+function algoRule(id, s) {
+  const g = ALGO.A[id], c = g.crit.find((v) => v.id === s.crit); if (!c) return "아직 기준을 고르지 않음";
+  const P = g.param, hp = P && [].concat(P.crit).includes(s.crit);
+  return c.name + (hp ? ` · ${s.p}${P.unit}` : "") + g.optc.filter((o) => s[o.id]).map((o) => ` · ${o.n ? `${o.text} ${s[o.id + "N"]}${o.after}` : o.text.split("→")[0].replace(/^만약 /, "").trim()}`).join("");
+}
+function algoView() {
+  const L = inBan(), rows = L.flatMap((m) => algoOf(m).map(([id, x]) => [m, id, x]));
+  const sub = rows.filter(([, , x]) => x.sub).length;
+  const byAlgo = ALGO.OPEN.map((id) => [id, rows.filter((r) => r[1] === id)]);
+  return `<div class="bar-h"><div><h1>알고리즘 실험실</h1><p>moontr.site/algolab · 학생이 고른 규칙 · 가치 검토 · 공정성 · 성찰 · 학번 순 · 세특 초안에도 함께 들어가요</p></div><div class="ctl">${banSel()}<a class="btn w" href="/algolab/" target="_blank" rel="noopener">학생 화면 ↗</a></div></div>
+  <div class="kpi"><div>시작한 알고리즘<b>${rows.length}개</b></div><div>제출<b>${sub}개</b></div>${byAlgo.map(([id, r]) => `<div>${esc(ALGO.NAMES[id][0])}<b>${r.length}명</b></div>`).join("")}</div>
+  <div class="box"><h2>학생별 진행</h2>${rows.length ? `<table class="tb"><thead><tr><th>학번</th><th>반</th><th>알고리즘</th><th>7단계</th><th>고른 규칙</th><th>상태</th><th>마지막 저장</th></tr></thead><tbody>
+  ${rows.map(([m, id, x]) => `<tr><td><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td><td class="l">${esc(ALGO.NAMES[id][1])}</td><td><span class="dots">${ALGO.STEPS.map((n, i) => `<i class="${(x.done || {})[i + 1] ? (i === 6 ? "sub" : "on") : ""}" title="${i + 1}. ${n}"></i>`).join("")}</span></td><td class="l" style="font-size:13px">${esc(algoRule(id, x.s))}</td><td>${x.sub ? `<span class="st d">제출</span>` : `<span class="st o">진행 중</span>`}</td><td>${fmtT(m.updatedAt)}</td></tr>`).join("")}</tbody></table>` : `<p class="note">이 반에서 알고리즘 실험실을 시작한 학생이 아직 없어요.</p>`}</div>
+  ${rows.filter(([, , x]) => filled(x.s.why) || filled(x.s.loser) || filled(x.s.ref)).map(([m, id, x]) => `<details class="box"><summary><b>${esc(m.sid)}</b> · ${esc(ALGO.NAMES[id][1])} ${x.sub ? `<span class="st d">제출</span>` : ""}</summary>
+    <p class="note" style="margin:10px 0 4px">고른 규칙</p><p>${esc(algoRule(id, x.s))}</p>
+    <p class="note" style="margin:10px 0 4px">5 · 가치 검토</p><p style="white-space:pre-wrap">${esc(x.s.why || "—")}</p>
+    <p class="note" style="margin:10px 0 4px">6 · 공정성 시험: 손해 보는 사람과 고칠 점</p><p style="white-space:pre-wrap">${esc(x.s.loser || "—")}</p>
+    <p class="note" style="margin:10px 0 4px">7 · 마치며 (알고리즘은 중립적일까?)</p><p style="white-space:pre-wrap">${esc(x.s.ref || "—")}</p>
+    ${(x.ai || []).length ? `<p class="note" style="margin:10px 0 4px">AI 짝꿍에게 한 질문</p>${x.ai.map((a) => `<p style="font-size:13px">· ${esc(a.q)}</p>`).join("")}` : ""}</details>`).join("")}`;
 }
 
 function repView() {
@@ -214,7 +241,7 @@ function paper(t, m) {
 function seteukView() {
   const L = inBan();
   return `<div class="bar-h"><div><h1>세특</h1><p>제출 · 진행한 탐구 기록만 근거로 초안을 만들어요. 학번 · 이름은 AI에 보내지 않아요. 확정한 글은 학생 기록에 함께 저장돼요.</p></div><div class="ctl">${banSel()}</div></div>
-  ${L.filter((m) => topicsOf(m).length).map((m) => { const draft = A.out[m.key] ?? m.seteuk ?? ""; return `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">${esc(m.sid)} <span class="note">${topicsOf(m).map((t) => `${t.no}. ${esc(t.name)} ${stageTag(m, t)}`).join(" · ")}</span></h2>
+  ${L.filter((m) => topicsOf(m).length || algoOf(m).length).map((m) => { const draft = A.out[m.key] ?? m.seteuk ?? ""; return `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">${esc(m.sid)} <span class="note">${topicsOf(m).map((t) => `${t.no}. ${esc(t.name)} ${stageTag(m, t)}`).join(" · ")}</span></h2>
     <div class="ctl"><button class="btn b sm" data-act="aiSeteuk" data-v="${m.key}" ${A.busy ? "disabled" : ""}>AI로 초안</button><button class="btn w sm" data-act="copyPrompt" data-v="${m.key}">프롬프트 복사</button><button class="btn sm" data-act="saveSeteuk" data-v="${m.key}">저장</button></div></div>
     <textarea data-sk="${m.key}" style="margin-top:10px" placeholder="AI로 초안을 만들거나, 프롬프트를 복사해 다른 AI에 붙여 넣은 뒤 결과를 여기에 넣어요">${esc(draft)}</textarea>
     <p class="note">${[...draft].length}자 · ${nbytes(draft)}바이트 (나이스 1,500바이트 안쪽)${m.seteukAt ? ` · 저장 ${fmtT(m.seteukAt)}` : ""}</p></div>`; }).join("") || `<div class="box note">탐구를 시작한 학생이 없어요</div>`}`;
