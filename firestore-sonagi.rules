@@ -554,6 +554,17 @@ service cloud.firestore {
             && request.resource.data.rec is map);
       allow delete: if isTeacher();
     }
+    // datalab_prog/{반}: 학생 화면 푸터 '반별 단계 완료율' (2026-11-16). p = { 해시 앞 24자: "10110000" } 학번 · 이름 · 쓴 내용 없음
+    // 누구나 보기 · 학생은 한 번에 한 칸(자기 것)만 더하거나 바꾸기 · 선생님은 다시 맞추기 · 지우기
+    match /datalab_prog/{ban} {
+      allow read: if true;
+      allow create: if isTeacher() || (ban.matches('^[0-9]-[0-9]{1,2}$')
+        && request.resource.data.keys().hasOnly(['p']) && request.resource.data.p is map && request.resource.data.p.size() == 1);
+      allow update: if isTeacher() || (request.resource.data.keys().hasOnly(['p']) && request.resource.data.p is map
+        && request.resource.data.p.size() <= 80
+        && request.resource.data.p.diff(resource.data.p).affectedKeys().size() == 1);
+      allow delete: if isTeacher();
+    }
     // datalab_gallery/{해시 앞 24자_주제}: 우리 반 갤러리(이름 · 학번 없이 해결안 · 실행물만). 누구나 보기, 정해진 칸만 쓰기
     match /datalab_gallery/{id} {
       allow read: if true;

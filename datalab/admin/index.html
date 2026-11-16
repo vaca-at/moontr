@@ -9,7 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="../topics.js?v=11161345"></script>
+<script src="../topics.js?v=11162100"></script>
 <style>
 /* 선생님 화면: 학생 화면(연수 과정형)과 같은 문법 · 흰 바탕 · 남색 머리 띠 */
 :root{--ink:#1A1A1A;--sub:#6E6E73;--line:#E5E5E8;--line2:#C9C9CF;--bg:#F7F7F8;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--navy:#0E2A5C;--done:#0E8A5F;--warn:#B54708}
@@ -94,6 +94,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
   body{background:#fff}
   body>*:not(#printArea){display:none!important}
   #printArea{display:block!important}
+  #printArea .btn{display:none!important}
   #printArea .plan,#printArea .paper{border:0;padding:0}
   @page{size:A4;margin:14mm}
 }
@@ -171,15 +172,19 @@ const topicSel = (all) => `<select data-act="topic" aria-label="주제">${all ? 
 function progView() {
   const L = inBan(), all = L.flatMap((m) => topicsOf(m).map((t) => [t, m.rec[t.id]]));
   const sub = all.filter(([, x]) => x.sub).length, ai = all.reduce((s, [, x]) => s + (x.ai || []).length, 0);
-  const per = TOPICS.map((t) => [t, all.filter(([u]) => u.id === t.id).length]).filter(([, n]) => n).sort((a, b) => b[1] - a[1]), mx = Math.max(1, ...per.map(([, n]) => n));
+  // 주제 선택: 고른 주제는 많은 순, 아무도 안 고른 주제(0명)는 그 아래에 주제 번호 순으로 흐리게
+  const cnt = TOPICS.map((t) => [t, all.filter(([u]) => u.id === t.id).length]);
+  const per = cnt.filter(([, n]) => n).sort((a, b) => b[1] - a[1]), zero = cnt.filter(([, n]) => !n), mx = Math.max(1, ...per.map(([, n]) => n));
   const stepRate = STEPS.map((st) => all.length ? all.filter(([t, x]) => stepDone(t, x, st.k)).length / all.length * 100 : 0);
   return `<div class="bar-h"><div><h1>진행 현황</h1><p>학생이 쓰는 대로 바로 바뀌어요 · 학번 순</p></div><div class="ctl">${banSel()}</div></div>
   <div class="kpi"><div>학생<b>${L.length}명</b></div><div>시작한 탐구<b>${all.length}개</b></div><div>제출한 보고서<b>${sub}개</b></div><div>AI 검토 · 질문<b>${ai}회</b></div><div>평균 진도<b>${all.length ? Math.round(all.reduce((s, [t, x]) => s + progOf(t, x), 0) / all.length / 8 * 100) : 0}%</b></div></div>
   <div class="box"><h2>학생별 진행</h2><table class="tb"><thead><tr><th>학번</th><th>반</th><th>탐구</th><th>8단계 진행</th><th>AI</th><th>상태</th><th>마지막 저장</th><th></th></tr></thead><tbody>
   ${L.map((m) => { const T = topicsOf(m); if (!T.length) return `<tr><td>${esc(m.sid)}</td><td>${esc(m.ban)}</td><td class="l note">아직 시작 전</td><td></td><td></td><td><span class="st w">시작 전</span></td><td>${fmtT(m.updatedAt)}</td><td></td></tr>`;
-    return T.map((t, i) => { const x = m.rec[t.id]; return `<tr>${i ? `<td></td><td></td>` : `<td rowspan="1"><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td>`}<td class="l">${t.no}. ${esc(t.name)}</td><td><span class="dots">${STEPS.map((st) => `<i class="${stepDone(t, x, st.k) ? (st.k === "s8" ? "sub" : "on") : ""}" title="${st.name}"></i>`).join("")}</span></td><td>${(x.ai || []).length}</td><td>${x.sub ? `<span class="st d">제출</span>` : `<span class="st o">진행 중</span>`}</td><td>${i ? "" : fmtT(m.updatedAt)}</td><td><button class="btn w sm" data-act="see" data-v="${m.key}" data-t="${t.id}">보기</button></td></tr>`; }).join(""); }).join("") || `<tr><td colspan="8" class="note">아직 들어온 학생이 없어요</td></tr>`}</tbody></table></div>
-  <div class="two" style="grid-template-columns:1fr 1fr"><div class="box"><h2>주제 선택</h2>${per.map(([t, n]) => `<div class="hb"><span>${t.no}. ${esc(t.name)}</span><i style="width:${n / mx * 100}%"></i><em>${n}명</em></div>`).join("") || `<p class="note">아직 없어요</p>`}</div>
-  <div class="box"><h2>단계별 완료율</h2>${STEPS.map((st, i) => `<div class="hb"><span>${i + 1}. ${esc(st.name)}</span><i style="width:${stepRate[i]}%"></i><em>${Math.round(stepRate[i])}%</em></div>`).join("")}</div></div>`;
+    return T.map((t, i) => { const x = m.rec[t.id]; return `<tr>${i ? `<td></td><td></td>` : `<td rowspan="1"><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td>`}<td class="l">${t.no}. ${esc(t.name)}</td><td><span class="dots">${STEPS.map((st) => `<i class="${stepDone(t, x, st.k) ? (st.k === "s8" ? "sub" : "on") : ""}" title="${st.name}"></i>`).join("")}</span></td><td>${(x.ai || []).length}</td><td>${x.sub ? `<span class="st d">제출</span>` : (m.stop || {})[t.id] ? `<span class="st w">멈춤</span>` : `<span class="st o">진행 중</span>`}</td><td>${i ? "" : fmtT(m.updatedAt)}</td><td><button class="btn w sm" data-act="see" data-v="${m.key}" data-t="${t.id}">보기</button></td></tr>`; }).join(""); }).join("") || `<tr><td colspan="8" class="note">아직 들어온 학생이 없어요</td></tr>`}</tbody></table></div>
+  <div class="two" style="grid-template-columns:1fr 1fr"><div class="box"><h2>주제 선택</h2>${per.map(([t, n]) => `<div class="hb"><span>${t.no}. ${esc(t.name)}</span><i style="width:${n / mx * 100}%"></i><em>${n}명</em></div>`).join("") || `<p class="note">아직 고른 학생이 없어요</p>`}
+    ${zero.length ? `<p class="note" style="margin:12px 0 4px">아무도 안 고른 주제 ${zero.length}개</p>${zero.map(([t]) => `<div class="hb" style="opacity:.45"><span>${t.no}. ${esc(t.name)}</span><i style="width:0"></i><em>0명</em></div>`).join("")}` : ""}</div>
+  <div class="box"><h2>단계별 완료율</h2>${STEPS.map((st, i) => `<div class="hb"><span>${i + 1}. ${esc(st.name)}</span><i style="width:${stepRate[i]}%"></i><em>${Math.round(stepRate[i])}%</em></div>`).join("")}
+    <p class="note" style="margin-top:12px">학생 화면 맨 아래 ‘📊 반별 단계 완료율’을 열면 학생들과 함께 볼 수 있어요 (학번 · 이름 없이 숫자만). 기록을 지운 학생이 남아 있으면 <button class="btn w sm" data-act="cpSync">지금 기록으로 다시 맞추기</button></p></div></div>`;
 }
 
 function repView() {
@@ -189,12 +194,17 @@ function repView() {
   <div class="two"><div class="list">${L.map((v) => `<button class="${m && v.key === m.key ? "on" : ""}" data-act="sel" data-v="${v.key}"><span>${esc(v.sid)}</span><span class="note">${topicsOf(v).length}개 · 제출 ${topicsOf(v).filter((t) => v.rec[t.id].sub).length}</span></button>`).join("") || `<p class="note" style="padding:14px">학생이 없어요</p>`}</div>
   <div>${!m ? "" : T.length ? T.map((t) => paper(t, m)).join("") : `<div class="box note">아직 시작한 탐구가 없어요</div>`}</div></div>`;
 }
+// 활동 기록: 학생 화면이 단계마다 남긴 날짜 · 시간 · 내용 (x.log)
+const hm = (ms) => new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+const logHTML = (x) => (x.log || []).map((l) => { const i = STEPS.findIndex((s) => s.k === l.k); return `<div>${fmtT(l.from)}${l.at - l.from >= 60e3 ? ` ~ ${hm(l.at)}` : ""} · <b>${i + 1}단계 ${esc((STEPS[i] || {}).name || "")}</b>${l.d ? " ✓" : ""} — ${esc(l.c || "")}</div>`; }).join("") || `<div>기록 없음 (2026-11-16 저녁부터 남아요)</div>`;
 function paper(t, m) {
-  const x = m.rec[t.id];
-  return `<div class="paper" id="p_${m.key.slice(0, 8)}_${t.id}"><div style="display:flex;justify-content:space-between;gap:10px"><h3>${esc(t.title)}</h3><button class="btn w sm" data-act="printRep" data-v="${m.key}" data-t="${t.id}">인쇄</button></div>
-    <div class="who">AI활용탐구 ${t.no} · ${esc(GROUPS[t.g].name)} · ${esc(m.sid)} · ${progOf(t, x)}/8단계 · ${x.sub ? "제출 " + fmtT(x.sub) : "제출 전"}</div>
+  const x = m.rec[t.id], stop = (m.stop || {})[t.id];
+  const stopBtn = x.sub ? "" : stop ? `<button class="btn w sm noprint" data-act="unstopT" data-v="${m.key}" data-t="${t.id}">다시 열기</button>` : `<button class="btn w sm noprint" data-act="stopT" data-v="${m.key}" data-t="${t.id}" title="학생이 다른 주제를 시작할 수 있게 이 탐구를 멈춰요 (쓴 내용은 남아요)">주제 바꾸기 허락</button>`;
+  return `<div class="paper" id="p_${m.key.slice(0, 8)}_${t.id}"><div style="display:flex;justify-content:space-between;gap:10px"><h3>${esc(t.title)}</h3><span style="display:flex;gap:6px;align-items:flex-start">${stopBtn}<button class="btn w sm" data-act="printRep" data-v="${m.key}" data-t="${t.id}">인쇄</button></span></div>
+    <div class="who">AI활용탐구 ${t.no} · ${esc(GROUPS[t.g].name)} · ${esc(m.sid)} · ${progOf(t, x)}/8단계 · ${x.sub ? "제출 " + fmtT(x.sub) : stop ? `멈춤 ${fmtT(stop)} (선생님이 주제 바꾸기 허락)` : "제출 전"}</div>
     ${REPORT.map(([k, n]) => `<section><h4>${esc(n)}</h4><p>${esc(repVal(t, x, k) || "—")}</p></section>`).join("")}
-    <section><h4>5단계 반박 · AI 활용 기록</h4><p>${esc((x.s || {}).rebut || "—")}</p><div class="ailog">${(x.ai || []).map((a) => a.k === "review" ? `<div>AI 검토 ${fmtT(a.at)} · 수치 ${a.scores.data} / 원인 ${a.scores.other} / 개념 ${a.scores.concept}${a.local ? " (기본 점검)" : ""} — ${esc(a.next)}</div>` : `<div>질문 ${fmtT(a.at)} · ${esc(a.q)} → ${esc(a.a)}</div>`).join("") || `<div>기록 없음</div>`}</div></section></div>`;
+    <section><h4>5단계 반박 · AI 활용 기록</h4><p>${esc((x.s || {}).rebut || "—")}</p><div class="ailog">${(x.ai || []).map((a) => a.k === "review" ? `<div>AI 검토 ${fmtT(a.at)} · 수치 ${a.scores.data} / 원인 ${a.scores.other} / 개념 ${a.scores.concept}${a.local ? " (기본 점검)" : ""} — ${esc(a.next)}</div>` : `<div>질문 ${fmtT(a.at)} · ${esc(a.q)} → ${esc(a.a)}</div>`).join("") || `<div>기록 없음</div>`}</div></section>
+    <section><h4>활동 기록 (단계마다 날짜 · 시간 · 그때 쓴 내용)</h4><div class="ailog">${logHTML(x)}</div></section></div>`;
 }
 
 function seteukView() {
@@ -301,6 +311,23 @@ document.addEventListener("click", async (e) => {
     const nk = await DL.keyOf(m.sid, pin); if (nk === v) return alert("지금과 같은 비밀번호예요");
     const { key, ...data } = m, bt = db.batch(); bt.set(db.collection("datalab_members").doc(nk), { ...data, updatedAt: Date.now() }); bt.delete(db.collection("datalab_members").doc(v)); await bt.commit();
     A.msg = `${m.sid} 학생의 비밀번호를 바꿨어요`; return render();
+  }
+  // 주제 바꾸기 허락: 그 탐구를 멈춤(stop.주제)으로 → 학생이 '다시 확인'을 누르거나 다시 열면 새 주제를 시작할 수 있어요
+  if (a === "stopT" || a === "unstopT") {
+    const t = DL.topic(b.dataset.t);
+    if (a === "stopT" && !confirm(`${m.sid} 학생의 ‘${t.no}. ${t.name}’ 탐구를 멈추고, 다른 주제를 시작할 수 있게 할까요?\n쓴 내용은 그대로 남고, ‘다시 열기’로 되돌릴 수 있어요.`)) return;
+    try { await db.collection("datalab_members").doc(v).update({ ["stop." + t.id]: a === "stopT" ? Date.now() : firebase.firestore.FieldValue.delete() }); A.msg = a === "stopT" ? `${m.sid} 학생이 이제 다른 주제를 시작할 수 있어요. 학생 화면에서 ‘다시 확인’을 누르게 해 주세요` : `${m.sid} 학생의 ‘${t.name}’ 탐구를 다시 열었어요`; }
+    catch (er) { A.msg = "바꾸지 못했어요 (" + (er.code || er.message) + ")"; }
+    return render();
+  }
+  // 학생 화면의 반별 단계 완료율을 지금 학생 기록으로 다시 만들어요 (지운 학생 빼기)
+  if (a === "cpSync") {
+    const P = {};
+    A.members.forEach((mm) => { const T = topicsOf(mm); if (!T.length || !mm.ban) return; const t = DL.topic(mm.rec.last) && mm.rec[mm.rec.last] ? DL.topic(mm.rec.last) : T[T.length - 1];
+      (P[mm.ban] = P[mm.ban] || {})[mm.key.slice(0, 24)] = STEPS.map((st) => stepDone(t, mm.rec[t.id], st.k) ? 1 : 0).join(""); });
+    try { const old = await db.collection("datalab_prog").get(), bt = db.batch(); old.docs.forEach((d) => { if (!P[d.id]) bt.delete(d.ref); }); Object.entries(P).forEach(([bn, p]) => bt.set(db.collection("datalab_prog").doc(bn), { p })); await bt.commit(); A.msg = `반별 완료율을 다시 맞췄어요 (${Object.keys(P).length}개 반)`; }
+    catch (er) { A.msg = "다시 맞추지 못했어요 (" + (er.code || er.message) + "). Firestore 규칙에 datalab_prog 가 게시되었는지 확인해 주세요."; }
+    return render();
   }
   if (a === "delMember") {
     if (!confirm(`${m.sid} 학생의 탐구 기록을 모두 지울까요? 되돌릴 수 없어요.`)) return;

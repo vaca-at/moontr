@@ -357,7 +357,33 @@
     m9: ["스미스", "하이에크", "보이지 않는 손과 공감", "자유무역의 이익은 모두에게 공정하게 돌아갈까?"],
     m10: ["하이에크", "스미스", "소비자의 자유로운 선택 / 공정한 관찰자의 눈", "공짜를 고른 건 정말 자유로운 선택일까?"]
   };
-  TOPICS.forEach((t, i) => { t.no = i + 1; t.photo = PHOTO[t.img]; t.need = NEED[t.id]; const h = TH[t.id] || []; t.th = { m: h[0], r: h[1], link: h[2], ask: h[3] }; });
+  /* 1단계 '나만의 탐구 질문' 예시 (2026-11-16): 학생이 고른 대상으로 바뀌는 모범 질문 하나. 표의 숫자로 바로 답할 수 있게 단순하고 분명하게
+     {x} = 고른 줄 이름(표 첫 칸) · {y} = 표 둘째 칸 · {x:은/는} 처럼 쓰면 받침에 맞는 조사가 붙어요 */
+  const MYQ = {
+    j1: "{x}의 인구 10만 명당 범죄 건수는 다른 구보다 많을까, 적을까?",
+    j2: "{x:은/는} 다른 죄보다 실형을 받는 비율이 높을까, 낮을까?",
+    j3: "{x}에서 피해를 신고한 사람 가운데 몇 %가 지원 상담을 받았을까?",
+    j4: "{x}({y}) 조치는 전체 조치 가운데 몇 %일까?",
+    j5: "{x}년에 만 10~13세 10만 명당 송치 인원은 몇 명이고, 앞선 해보다 늘었을까?",
+    j6: "같은 벌금 100만 원은 {x} 가구의 한 달 소득에서 몇 %일까?",
+    j7: "‘{x}’ 출소자의 3년 안 재복역률은 다른 출소자보다 낮을까, 높을까?",
+    j8: "{x}년의 음주운전 사고는 지난해보다 몇 % 늘었을까, 줄었을까?",
+    j9: "{x}년의 근로자 1만 명당 사고 사망자는 다른 해보다 많을까, 적을까?",
+    j10: "AI가 ‘위험 높음’이라고 판정한 {x} 사람 가운데 실제로 재범하지 않은 사람은 몇 %일까?",
+    m1: "{x:은/는} 5년 동안 임대료가 몇 % 올랐고, 그사이 10년 넘은 가게는 얼마나 줄었을까?",
+    m2: "{x}의 한 해 폐점률은 다른 브랜드보다 높을까, 낮을까?",
+    m3: "{x}의 청년이 한 해 소득을 하나도 쓰지 않고 모으면 아파트를 사는 데 몇 년이 걸릴까?",
+    m4: "{x}의 2년 동안 점포 증가율은 다른 지역보다 높을까, 낮을까?",
+    m5: "{x} 라이더의 시간당 순수입은 최저시급(9,860원)보다 많을까, 적을까?",
+    m6: "최저시급이 오른 {x}년에 숙박 · 음식점 취업자는 줄었을까, 늘었을까?",
+    m7: "소득 {x} 가구는 전체 순자산 가운데 몇 %를 가지고 있을까?",
+    m8: "{x:은/는} ESG 환경 등급만큼 실제로 온실가스 배출을 줄였을까?",
+    m9: "커피 한 잔 4,500원 가운데 ‘{x}’에게 돌아가는 몫은 몇 %일까?",
+    m10: "{x} 앱을 쓰는 동안 하루에 광고를 몇 번이나 볼까?"
+  };
+  const myq = (t, i) => { const r = t.rows[i]; if (!r || !t.myq) return "";
+    return t.myq.replace(/\{([xy])(?::([^/}]+)\/([^}]+))?\}/g, (_, k, a, b) => { const w = String(k === "x" ? r[0] : r[1]); if (!a) return w; const c = w.charCodeAt(w.length - 1) - 0xAC00; return w + (c >= 0 && c <= 11171 && c % 28 ? a : b); }); };
+  TOPICS.forEach((t, i) => { t.no = i + 1; t.photo = PHOTO[t.img]; t.need = NEED[t.id]; t.myq = MYQ[t.id]; const h = TH[t.id] || []; t.th = { m: h[0], r: h[1], link: h[2], ask: h[3] }; });
   Object.values(GROUPS).forEach((G) => { G.thinkers = G.key === "j" ? ["칸트", "벤담", "베카리아", "루소"] : ["스미스", "케인즈", "하이에크"]; G.words.push(...G.thinkers, "응보", "예방", "교화", "사회계약", "보이지 않는 손", "공감", "수정 자본주의", "신자유주의", "자생적 질서"); });
 
   // 계산 값 모두 (앞 줄이 없어 계산할 수 없는 줄은 null)
@@ -422,7 +448,7 @@
     return { result: s.find, limit: s.interp, concept: s.concept ? `[${t.th.m}의 관점] ${s.concept}${filled(s.rival) ? `\n[${t.th.r}의 관점] ${s.rival}` : ""}` : "", plan: s.plan ? `${s.plan}${(s.checks || []).length ? `\n(고려한 것: ${s.checks.join(" · ")})` : ""}` : "", product: s.product ? `[${(FORMS.find((f) => f[0] === s.form) || ["", ""])[1]}] ${s.product}` : "", reflect: s.reflect, ai: s.aiRef }[k] || "";
   };
 
-  window.DL = { THINKERS, GROUPS, TOPICS, PHOTO, STEPS, REPORT, OTHER, MODEL, CHECKS, TOOLS, FORMS, BAD, dirty, values, fmt, fmtCell, close, tableText, filled, stepDone, repVal,
+  window.DL = { THINKERS, GROUPS, TOPICS, PHOTO, STEPS, REPORT, OTHER, MODEL, CHECKS, TOOLS, FORMS, BAD, dirty, values, fmt, fmtCell, close, tableText, filled, stepDone, repVal, myq,
     topic: (id) => TOPICS.find((t) => t.id === id),
     byGroup: (g) => TOPICS.filter((t) => t.g === g),
     APP: "datalab",
