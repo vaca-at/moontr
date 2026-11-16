@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>알고리즘 실험실 · 판단하는 규칙을 만들고 가치를 시험해요</title>
+<meta name="description" content="코딩을 몰라도 돼요. 규칙 카드를 조립해 판단하는 알고리즘을 만들고, 그 안에 숨은 가치와 공정성을 데이터로 시험해요.">
+<meta property="og:title" content="알고리즘 실험실">
+<meta property="og:description" content="판단하는 규칙을 직접 조립하고, 누구에게 공정한지 시험해요">
+<meta property="og:image" content="https://moontr.site/datalab/img/police.jpg">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../datalab/topics.js?v=11161430"></script>
+<style>
+/* 알고리즘 실험실: 데이터 실험실과 같은 문법 (흰 바탕 · 검은 글씨 · 파란 강조 하나 · 각진 단추) */
+:root{--ink:#1A1A1A;--sub:#6E6E73;--line:#E5E5E8;--line2:#C9C9CF;--bg:#F7F7F8;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--ok:#0E6B47;--ok-s:#E3F4EA;--no:#B42318;--no-s:#FDECEC;--warn:#9A4A00;--warn-s:#FFF4E5;--code:#0F1720;--w:1180px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;color:var(--ink);font:400 15px/1.6 Pretendard,-apple-system,"Malgun Gothic",sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+.wrap{width:var(--w);max-width:calc(100% - 32px);margin:0 auto}
+.mono{font-family:"SF Mono",Menlo,Consolas,monospace}
+.top{border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:20}
+.top .wrap{height:64px;display:flex;align-items:center;gap:28px}
+.logo{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;white-space:nowrap}
+.logo i{width:26px;height:26px;border:2px solid var(--ink);display:grid;place-items:center;font:700 11px "SF Mono",Menlo,monospace;font-style:normal}
+.me{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 16px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-size:14px;font-weight:600;white-space:nowrap}
+.btn:hover{background:#333}.btn.w{background:#fff;color:var(--ink);border-color:var(--line2)}.btn.w:hover{border-color:var(--ink)}
+.btn.b{background:var(--acc);border-color:var(--acc)}.btn.sm{height:32px;padding:0 12px;font-size:13px}.btn.lg{height:48px;padding:0 24px;font-size:15px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.note{font-size:13px;color:var(--sub)}
+/* 첫 화면 */
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:44px;padding:44px 0 34px;border-bottom:1px solid var(--line)}
+.hero .k{color:var(--acc);font-size:13px;font-weight:700}
+.hero h1{font-size:36px;line-height:1.3;font-weight:800;letter-spacing:-.03em;margin:10px 0 14px}
+.hero p{color:#444;line-height:1.75}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);margin-top:20px}
+.flow div{padding:12px 10px 12px 0;font-size:13px;color:var(--sub)}.flow b{display:block;color:var(--ink);font-size:14px}
+.code{background:var(--code);color:#D6E2F0;font:13.5px/1.8 "SF Mono",Menlo,Consolas,monospace;padding:18px 20px;white-space:pre;overflow-x:auto}
+.code .c{color:#7D8EA3}.code .k{color:#7FB8FF}.code .f{color:#FFD479}.code .n{color:#9FE0B5}
+.sec{padding:30px 0 10px}.sec h2{font-size:21px;font-weight:800}.sec .lead{color:var(--sub);font-size:14px;margin:4px 0 16px}
+.cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.card{border:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:6px;min-height:138px;background:#fff;text-align:left}
+.card .fn{font:12px "SF Mono",Menlo,monospace;color:var(--acc)}.card b{font-size:15px;line-height:1.4}
+.card .th{margin-top:auto;font-size:12px;color:var(--sub)}.card .st{font-size:12px;font-weight:700}
+.card.on{border-color:var(--ink)}.card.on:hover{background:var(--acc-s)}
+.card.off{opacity:.55}
+/* 탐구 화면 */
+.lab{display:grid;grid-template-columns:240px minmax(0,1fr);gap:30px;padding:26px 0 60px}
+.rail{position:sticky;top:84px;align-self:start;display:flex;flex-direction:column;gap:6px}
+.rail .fn{font:12px "SF Mono",Menlo,monospace;color:var(--acc)}.rail h1{font-size:19px;line-height:1.4;margin:2px 0 12px}
+.rail button{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);background:#fff;text-align:left;font-size:14px}
+.rail button i{width:22px;height:22px;display:grid;place-items:center;font-size:12px;font-weight:700;font-style:normal;background:#EEF0F3;color:var(--sub);flex:none}
+.rail button.done i{background:var(--ok);color:#fff}.rail button.now{border-color:var(--acc);background:var(--acc-s);font-weight:700}.rail button.now i{background:var(--acc);color:#fff}
+.rail .th{margin-top:12px;border-top:1px solid var(--line);padding-top:12px;font-size:13px;color:var(--sub);line-height:1.7}
+.step{border:1px solid var(--line);padding:20px 22px;margin-bottom:16px}
+.step>h2{font-size:17px;display:flex;align-items:baseline;gap:10px;margin-bottom:12px}.step>h2 small{font-size:13px;color:var(--sub);font-weight:400}
+.step.cur{border-color:var(--acc)}
+.ask{background:var(--bg);padding:12px 14px;margin-bottom:12px;font-size:14px;line-height:1.7}.ask small{display:block;color:var(--sub);font-size:12px;font-weight:700}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0 10px}.tbl th,.tbl td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:right}.tbl th:first-child,.tbl td:first-child,.tbl th:nth-child(2),.tbl td:nth-child(2){text-align:left}.tbl th{font-size:12px;color:var(--sub);font-weight:600;background:var(--bg)}
+.tblw{overflow-x:auto}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border:1px solid var(--line);background:#fff;text-align:left;width:100%}
+.opt.on{border-color:var(--acc);background:var(--acc-s)}.opt input{margin-top:4px}
+.opt b{display:block;font-size:14px}.opt span{font-size:12.5px;color:var(--sub)}
+.msg{padding:10px 12px;font-size:14px;margin-top:10px;line-height:1.6}.msg.ok{background:var(--ok-s);color:var(--ok)}.msg.no{background:var(--no-s);color:var(--no)}.msg.info{background:var(--acc-s);color:#0B3C78}
+.rcards{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.rc{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line2);background:#fff;font-size:14px}
+.rc .tag{font-size:12px;font-weight:700;padding:1px 6px;flex:none}
+.tag.계산{background:var(--acc-s);color:var(--acc)}.tag.반복{background:var(--ok-s);color:var(--ok)}.tag.조건{background:var(--warn-s);color:var(--warn)}
+.rc .mv{margin-left:auto;display:flex;gap:4px;flex:none}.rc .mv button{width:32px;height:32px;border:1px solid var(--line2);background:#fff}
+.rc.opt2{border-style:dashed}.rc.opt2.on{border-style:solid;border-color:var(--warn)}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.bars{display:flex;flex-direction:column;gap:5px}
+.bar{display:grid;grid-template-columns:52px minmax(0,1fr) 52px;gap:10px;align-items:center;font-size:13.5px}
+.bar span.t{height:14px;background:#EEF1F5;display:block}.bar span.t i{display:block;height:14px;background:var(--acc)}.bar b{text-align:right}
+.tests{display:flex;flex-direction:column;gap:7px}
+.test{display:flex;gap:10px;align-items:flex-start;font-size:14px}.test em{font-style:normal;font-weight:700;font-size:12px;width:48px;text-align:center;padding:2px 0;flex:none}
+.test em.p{background:var(--ok-s);color:var(--ok)}.test em.f{background:var(--no-s);color:var(--no)}
+.cmp{display:grid;grid-template-columns:52px repeat(3,minmax(0,1fr));gap:6px 10px;align-items:center;font-size:13.5px}
+.cmp .h{font-size:12px;color:var(--sub)}.cmp .h.me{color:var(--acc);font-weight:700}
+.cmp .v{display:flex;align-items:center;gap:6px}.cmp .v i{height:12px;display:block;flex:none}
+.thk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.thk div{border:1px solid var(--line);padding:12px 14px;background:#fff}.thk em{font-style:normal;font-size:12px;color:var(--acc);margin-left:6px}.thk p{font-size:13.5px;margin-top:4px;line-height:1.6}
+.fld{display:flex;flex-direction:column;gap:6px;margin-top:12px}.fld label{font-size:14px;font-weight:700}
+textarea,input[type=text],input[type=number],input[type=password]{border:1px solid var(--line2);padding:10px 12px;font-size:14px;background:#fff;width:100%}
+textarea{min-height:76px;resize:vertical;line-height:1.6}
+textarea:focus,input:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.act{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}.act .note{flex:1}
+.calc{border:1px solid var(--line2);background:#FBFBFC;padding:14px;margin-top:10px}
+.pair{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:var(--acc-s);border:1px solid var(--acc-l);margin-top:12px;font-size:14px;line-height:1.6}
+.pair b{flex:none}.qa{display:flex;flex-direction:column;gap:6px;margin-top:8px}.qa div{font-size:14px}.qa .a{padding-left:12px;border-left:3px solid var(--acc-l)}
+/* 로그인 */
+.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:20px}
+.modal .box{width:420px;max-width:100%;background:#fff;padding:28px}
+.modal h3{font-size:19px;margin-bottom:6px}.modal p{font-size:14px;color:var(--sub);margin-bottom:12px}
+.modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.modal .err{color:var(--no);font-size:13px;min-height:20px;margin-top:6px}
+.modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;font-size:14px;z-index:60}
+.foot{border-top:1px solid var(--line);padding:22px 0 40px;font-size:13px;color:var(--sub);margin-top:30px}
+.admbtn{position:fixed;right:12px;bottom:12px;z-index:9;font-size:11px;padding:6px 8px;border:1px solid var(--line2);background:rgba(255,255,255,.5);color:var(--sub);opacity:.35}.admbtn:hover{opacity:1}
+@media (max-width:980px){.hero{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.lab{grid-template-columns:1fr}.rail{position:static}.two,.thk{grid-template-columns:1fr}}
+@media (max-width:520px){.hero h1{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}.top .wrap{gap:12px}.logo{font-size:16px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="logo" href="#/"><i>{ }</i>알고리즘 실험실</a><div class="me" id="me"></div></div></header>
+<main id="app"></main>
+<footer class="foot"><div class="wrap">알고리즘 실험실 · 통합사회 윤리 × 알고리즘 · 표의 숫자는 수업 연습용 예시예요 · 학번 계정은 <a href="../datalab/" style="text-decoration:underline">데이터 실험실</a>과 같아요 · 궁금한 점: anstjsdud@sen.go.kr</div></footer>
+<a class="admbtn" href="../datalab/admin/" title="선생님 화면">관리자</a>
+
+<script>
+/* ===================== 알고리즘 실험실 (moontr.site/algolab, 2026-11-16) =====================
+   코딩을 몰라도 돼요: 기준을 고르고 규칙 카드를 조립하면 → 알고리즘이 돌아가고, 코드가 저절로 보여요.
+   20개 주제는 데이터 실험실(topics.js)의 주제 · 표 · 사상가를 그대로 써요. 지금은 1번 '순찰 배분'부터 열려 있어요.
+   로그인 · 저장: 데이터 실험실과 같은 학번 계정 (datalab_members/{해시}.rec["a_j1"]) — 규칙을 새로 게시하지 않아도 돼요 */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const filled = (v) => String(v || "").trim().length >= 2;
+const fmt = (v, d = 0) => v == null || !isFinite(v) ? "—" : Number(v).toLocaleString("ko-KR", { maximumFractionDigits: d, minimumFractionDigits: d });
+const LS = { get(k, d) { try { return JSON.parse(localStorage.getItem("algolab:" + k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem("algolab:" + k, JSON.stringify(v)); } catch (e) {} }, del(k) { try { localStorage.removeItem("algolab:" + k); } catch (e) {} } };
+const jo = (n, a, b) => { const c = String(n).charCodeAt(String(n).length - 1) - 0xAC00; return n + (c >= 0 && c <= 11171 && c % 28 ? a : b); };
+let db = null; try { firebase.initializeApp(DL.FIREBASE_CONFIG); db = firebase.firestore(); } catch (e) { console.error(e); }
+
+/* ---------- 20개 알고리즘 (지금은 01만 열려 있어요) ---------- */
+const ALGO = {
+  j1: "순찰배분", j2: "형량계산", j3: "회복지원", j4: "조치추천", j5: "책임판정", j6: "일수벌금", j7: "재범효과", j8: "정책효과", j9: "안전예산", j10: "위험점수",
+  m1: "임대경보", m2: "폐점경보", m3: "내집기간", m4: "효과추정", m5: "실수입", m6: "임금시뮬", m7: "분배지수", m8: "녹색검증", m9: "몫나누기", m10: "진짜비용"
+};
+const ATITLE = {
+  j1: "순찰 인력 배분 알고리즘", j2: "감경 · 가중 형량 계산기", j3: "피해 회복 지원 우선순위", j4: "학교 조치 추천 규칙", j5: "책임 연령 판정 규칙", j6: "소득 비례 벌금 계산기", j7: "교정 프로그램 효과 비교", j8: "처벌 강화 전후 변화 계산", j9: "산재 예방 예산 배분", j10: "재범 위험 점수 · 오판률",
+  m1: "임대료 급등 경보", m2: "가맹점 폐점 위험 알리미", m3: "내 집 마련 걸리는 해 계산", m4: "지역화폐 효과 추정기", m5: "라이더 실제 시급 계산기", m6: "최저임금 인상 시뮬레이터", m7: "자산 몫 · 불평등 지수", m8: "ESG 등급 검증", m9: "커피 한 잔 몫 나누기", m10: "무료 앱 숨은 비용 계산기"
+};
+const OPEN = ["j1"];
+
+/* ---------- 01 순찰 배분: 데이터 (데이터 실험실 1번 표 + 하루 유동 인구, 수업 연습용 예시) ---------- */
+const FLOAT = [260000, 30000, 110000, 40000, 70000, 90000];   // A 번화가 · B 아파트 · C 대학가 · D 신도시 · E 공단 · F 구도심 · 시장
+const T1 = () => { const t = DL.topic("j1"); return t.rows.map((r, i) => ({ 이름: r[0], 특징: r[1], 건수: r[2], 인구: r[3], 유동: FLOAT[i] })); };
+const CRIT = [
+  { id: "count", name: "범죄 건수 그대로", sub: "많이 일어난 곳에 많이 · AI가 처음 고른 기준" },
+  { id: "per", name: "인구 10만 명당 범죄", sub: "사는 사람 수로 나눠 같은 기준으로 비교" },
+  { id: "mix", name: "10만 명당 + 유동 인구 반영", sub: "오가는 사람이 많은 번화가도 함께 고려 · 반영 비율을 정해요" }
+];
+const CARDS = [
+  { id: "c1", tag: "반복", text: "구마다 위험도를 구한다 (고른 기준대로)" },
+  { id: "c2", tag: "반복", text: "모든 구의 위험도를 더해 합계를 구한다" },
+  { id: "c3", tag: "계산", text: "구마다 내 위험도 ÷ 합계 × 순찰 인원" },
+  { id: "c4", tag: "계산", text: "소수점은 반올림해 사람 수로 만든다" }
+];
+const OPTC = [
+  { id: "fit", text: "만약 합이 순찰 인원과 다르면 → 소수점이 큰 구부터 1명씩 맞춘다" },
+  { id: "zero", text: "만약 인구가 0이면 → 위험도를 0으로 둔다 (나눌 수 없으니까)" },
+  { id: "min", text: "모든 구에 최소 몇 명은 보낸다" }
+];
+
+/* 알고리즘 엔진: 위험도 → 비율 → 반올림 → (조건 카드) */
+function risk(rows, crit, w, zero) {
+  return rows.map((r) => {
+    const den = crit === "count" ? 1 : r.인구 + (crit === "mix" ? w / 100 * r.유동 : 0);
+    if (crit !== "count" && r.인구 === 0 && crit === "per") return zero ? 0 : NaN;
+    if (crit === "count") return r.건수;
+    if (!den) return zero ? 0 : NaN;
+    return r.건수 / den * 100000;
+  });
+}
+function allocate(vals, N, opt) {
+  const k = vals.length, minEach = opt.min ? Math.min(opt.minN, Math.floor(N / k)) : 0, rest = N - minEach * k;
+  const sum = vals.reduce((a, b) => a + b, 0);
+  const raw = vals.map((v) => minEach + v / sum * rest);
+  let out = raw.map((x) => Math.round(x));
+  if (opt.fit && out.every(isFinite)) {
+    let diff = N - out.reduce((a, b) => a + b, 0);
+    const order = raw.map((x, i) => [i, x - Math.floor(x)]).sort((a, b) => b[1] - a[1]).map((p) => p[0]);
+    out = raw.map((x) => Math.floor(x)); diff = N - out.reduce((a, b) => a + b, 0);
+    for (let j = 0; diff > 0; j = (j + 1) % k, diff--) out[order[j]]++;
+  }
+  return out;
+}
+const run = (rows, x, N = x.N || 20) => allocate(risk(rows, x.crit, x.w, x.zero), N, x);
+
+/* ---------- 상태 · 저장 ---------- */
+const S = { me: LS.get("me", null), rec: LS.get("rec", {}), open: null, login: false, loginMsg: "", busy: false, aiBusy: false };
+const KEY = (id) => "a_" + id;
+const blank = () => ({ s: { out: null, crit: null, w: 30, order: null, fit: false, zero: false, min: false, minN: 1, N: 20 }, done: {}, ai: [] });
+const my = (id) => { const k = KEY(id); S.rec[k] = S.rec[k] || blank(); const x = S.rec[k]; x.s = { ...blank().s, ...x.s }; x.done = x.done || {}; x.ai = x.ai || []; return x; };
+let saveT = null;
+function save(now, id) {
+  LS.set("rec", S.rec);
+  if (!S.me || !db || !id) return;
+  clearTimeout(saveT);
+  saveT = setTimeout(async () => {
+    try { await db.collection("datalab_members").doc(S.me.key).update({ ["rec." + KEY(id)]: S.rec[KEY(id)], updatedAt: Date.now() }); }
+    catch (e) { console.error(e); toast("저장하지 못했어요. 인터넷 연결을 확인해 주세요 (이 기기에는 남아 있어요)"); }
+  }, now ? 0 : 1200);
+}
+function toast(m) { const d = document.createElement("div"); d.className = "toast"; d.textContent = m; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+
+/* ---------- 로그인: 데이터 실험실과 같은 학번 5자리 + 비밀번호 4자리 ---------- */
+async function signIn(sid, pin, isNew) {
+  if (!/^[0-9]{5}$/.test(sid)) return loginMsg("학번은 숫자 다섯 자리예요 (예: 10305)");
+  if (!/^[0-9]{4}$/.test(pin)) return loginMsg("비밀번호는 숫자 네 자리예요");
+  if (!db) return loginMsg("서버에 연결하지 못했어요. 잠시 뒤에 다시 해 주세요");
+  S.busy = true; render();
+  try {
+    const key = await DL.keyOf(sid, pin), ref = db.collection("datalab_members").doc(key), snap = await ref.get();
+    if (snap.exists) {
+      const d = snap.data(), server = d.rec || {};
+      Object.keys(S.rec).forEach((k) => { if (k.startsWith("a_") && !server[k]) server[k] = S.rec[k]; });   // 들어오기 전에 한 것도 함께
+      S.rec = Object.fromEntries(Object.entries(server).filter(([k]) => k.startsWith("a_")));
+      S.me = { sid, key, ban: d.ban };
+      for (const k of Object.keys(S.rec)) await ref.update({ ["rec." + k]: S.rec[k], updatedAt: Date.now() }).catch(() => {});
+    } else {
+      if ((await db.collection("datalab_ids").doc(sid).get()).exists) { S.busy = false; return loginMsg("비밀번호가 맞지 않아요. 데이터 실험실에서 쓰던 비밀번호를 넣어 주세요. 생각나지 않으면 선생님께 말씀해 주세요"); }
+      if (!isNew) { S.busy = false; S.loginNew = { sid, pin }; return loginMsg(""); }
+      const b = db.batch(), now = Date.now(), ban = DL.banOf(sid);
+      b.set(db.collection("datalab_ids").doc(sid), { at: now });
+      b.set(ref, { sid, ban, rec: S.rec || {}, at: now, updatedAt: now });
+      await b.commit(); S.me = { sid, key, ban };
+    }
+    LS.set("me", S.me); LS.set("rec", S.rec); LS.set("lastSid", sid);
+    S.login = false; S.loginNew = null; S.busy = false; S.loginMsg = ""; toast(`${sid} 학생, 반가워요`); render();
+  } catch (e) { console.error(e); S.busy = false; loginMsg("들어가지 못했어요 (" + (e.code || e.message) + ")"); }
+}
+function loginMsg(m) { S.loginMsg = m; S.busy = false; render(); }
+function signOut() { if (!confirm("이 기기에서 나갈까요? 내 기록은 서버에 저장되어 있어요")) return; S.me = null; S.rec = {}; LS.del("me"); LS.del("rec"); render(); toast("나갔어요"); }
+const needLogin = () => { if (S.me) return false; S.login = true; S.loginMsg = "기록을 저장하려면 먼저 학번과 비밀번호로 들어와요 (데이터 실험실과 같은 계정)"; render(); return true; };
+
+/* ---------- AI 코드 짝꿍 (데이터 실험실 AI 서버의 탐구 파트너: 답 대신 질문) ---------- */
+async function ask(id, q) {
+  if (needLogin()) return;
+  q = String(q || "").trim(); if (q.length < 4) return toast("질문을 조금 더 자세히 써 주세요");
+  const x = my(id), asks = x.ai.filter((a) => a.k === "ask"); if (asks.length >= 8) return toast("이 알고리즘의 질문은 8번까지예요");
+  const t = DL.topic(id), s = x.s, rows = T1(), res = s.crit ? run(rows, s) : [];
+  S.aiBusy = true; render();
+  let a, local = false;
+  try {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 30000);
+    const r = await fetch(DL.AI_URL + "/partner", { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal, body: JSON.stringify({
+      who: S.me.key.slice(0, 24), q,
+      topic: { id, group: DL.GROUPS[t.g].name, title: `알고리즘 실험실 · ${ATITLE[id]} (학생이 기준과 규칙 카드를 골라 알고리즘을 조립하는 수업. 코드를 대신 써 주지 말고, 기준 선택의 가치와 공정성을 생각하게 하는 질문을 해)`, q: t.q, claim: t.claim, calc: `기준 3가지: 건수 그대로 / 인구 10만 명당 / 10만 명당 + 유동 인구 반영`, table: rows.map((r) => `${r.이름} ${r.특징} 건수 ${r.건수} 인구 ${r.인구} 유동 ${r.유동}`).join("\n"), words: DL.GROUPS[t.g].words, thinkers: `${t.th.m}: ${DL.THINKERS[t.th.m]} / ${t.th.r}: ${DL.THINKERS[t.th.r]}` },
+      mine: s.crit ? `학생 기준: ${CRIT.find((c) => c.id === s.crit).name}${s.crit === "mix" ? ` (유동 ${s.w}%)` : ""}, 조건 카드: ${["fit", "zero", "min"].filter((k) => s[k]).join(", ") || "없음"}, 결과: ${rows.map((r, i) => `${r.이름} ${res[i]}명`).join(" ")}` : "",
+      notes: { guess: s.why || "", find: s.loser || "", rebut: s.ref || "" }, history: asks.slice(-4).map((v) => ({ q: v.q, a: v.a })) }) });
+    clearTimeout(tm); const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error || r.status); a = String(j.reply || "").replace(/\*\*/g, "");
+  } catch (e) { local = true; a = ["기준을 1번에서 2번으로 바꾸면 어느 구가 가장 많이 얻고, 어느 구가 가장 많이 잃나요?", "반올림하면 왜 합이 20명이 안 될 수 있을까요? 남는 1명은 어디에 주는 게 공정할까요?", "순찰을 0명 받는 구의 주민은 어떻게 느낄까요? 최소 인원 규칙은 누구의 생각에 가까울까요?"][asks.length % 3]; }
+  x.ai.push({ k: "ask", q: q.slice(0, 300), a, local, at: Date.now() });
+  S.aiBusy = false; save(true, id); render();
+}
+
+/* ---------- 화면 ---------- */
+const route = () => { const h = location.hash.replace(/^#\/?/, ""); const [a, b] = h.split("/"); return { a: a || "", b: b || "" }; };
+function renderTop() { $("#me").innerHTML = S.me ? `<span><b>${esc(S.me.sid)}</b> 학생</span><button class="btn w sm" data-act="out">나가기</button>` : `<button class="btn sm" data-act="login">학번으로 들어가기</button>`; }
+
+function home() {
+  const card = (t) => { const on = OPEN.includes(t.id), x = S.rec[KEY(t.id)], st = x && x.sub ? "제출 완료" : x ? `진행 중 ${Object.keys(x.done || {}).length}/7` : on ? "열기" : "준비 중";
+    return on ? `<a class="card on" href="#/t/${t.id}"><span class="fn">${String(t.no).padStart(2, "0")} · ${ALGO[t.id]}()</span><b>${esc(ATITLE[t.id])}</b><span class="th">${esc(t.th.m)} ↔ ${esc(t.th.r)}</span><span class="st" style="color:var(--acc)">${st}</span></a>`
+      : `<div class="card off"><span class="fn">${String(t.no).padStart(2, "0")} · ${ALGO[t.id]}()</span><b>${esc(ATITLE[t.id])}</b><span class="th">${esc(t.th.m)} ↔ ${esc(t.th.r)}</span><span class="st">${st}</span></div>`; };
+  return `<div class="wrap"><section class="hero"><div><div class="k">통합사회 · 윤리 × 알고리즘</div><h1>판단하는 규칙을 직접 조립하고,<br>그 안의 가치를 시험합니다</h1>
+    <p>순찰을 어디에 보낼지, 벌금을 얼마로 할지, 누가 위험한지. 사람과 AI가 내리는 판단의 규칙을 카드로 조립하면 알고리즘이 돌아가고 코드가 저절로 만들어져요. <b>코딩을 몰라도 괜찮아요.</b> 내가 넣은 기준이 누구에게 공정한지 데이터로 확인해요.</p>
+    <div class="flow"><div>1 · 2단계<b>문제 정의 · 기준 고르기</b></div><div>3 · 4단계<b>규칙 조립 · 실행 · 테스트</b></div><div>5 · 6단계<b>가치 검토 · 공정성 시험</b></div><div>7단계<b>계산기 · 성찰 · 제출</b></div></div></div>
+    <div class="code"><span class="c">// 순찰 인력 배분 · 내가 고른 기준은?</span>
+<span class="k">function</span> <span class="f">순찰배분</span>(구들, 인원) {
+  <span class="k">const</span> 위험 = 구들.map(구 =&gt;
+    구.건수 / 구.인구 * <span class="n">100000</span>);
+  <span class="c">// 벤담: 시 전체의 범죄가 가장 많이 줄도록</span>
+  <span class="k">return</span> 비율로나누기(위험, 인원);
+}</div></section>
+    ${["j", "m"].map((g) => `<section class="sec"><h2>${esc(DL.GROUPS[g].name)}</h2><p class="lead">${g === "j" ? "칸트 · 벤담 · 베카리아 · 루소의 기준을 규칙으로 옮겨 봐요" : "스미스 · 케인즈 · 하이에크의 기준을 규칙으로 옮겨 봐요"} · 지금은 01번부터 열려 있어요</p><div class="cards">${DL.byGroup(g).map(card).join("")}</div></section>`).join("")}</div>`;
+}
+
+const STEPS = ["문제 정의", "기준 고르기", "규칙 조립", "실행 · 테스트", "가치 검토", "공정성 시험", "계산기 · 성찰"];
+function lab(id) {
+  const t = DL.topic(id), x = my(id), s = x.s, rows = T1(), d = x.done, cur = STEPS.findIndex((_, i) => !d[i + 1]) + 1 || 7;
+  const rail = `<aside class="rail"><span class="fn">01 · ${ALGO[id]}()</span><h1>${esc(ATITLE[id])}</h1>${STEPS.map((n, i) => `<button type="button" class="${d[i + 1] ? "done" : ""} ${cur === i + 1 ? "now" : ""}" data-act="go" data-v="${i + 1}"><i>${d[i + 1] ? "✓" : i + 1}</i>${n}</button>`).join("")}
+    <div class="th">주 사상가 <b style="color:var(--ink)">${esc(t.th.m)}</b><br>맞서는 관점 <b style="color:var(--ink)">${esc(t.th.r)}</b><br><br>코드를 몰라도 돼요. 기준을 고르고 카드를 조립하면 코드가 저절로 생겨요.</div></aside>`;
+  const st = (n, title, sub, body) => `<section class="step ${cur === n ? "cur" : ""}" id="s${n}"><h2>${n} · ${title} <small>${sub}</small>${d[n] ? `<small style="color:var(--ok);margin-left:auto">✓ 완료</small>` : ""}</h2>${body}</section>`;
+  const tbl = `<div class="tblw"><table class="tbl"><thead><tr><th>구</th><th>특징</th><th>범죄 건수(건)</th><th>인구(명)</th><th>하루 유동 인구(명)</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${r.이름}</td><td>${esc(r.특징)}</td><td>${fmt(r.건수)}</td><td>${fmt(r.인구)}</td><td>${fmt(r.유동)}</td></tr>`).join("")}</tbody></table></div><p class="note">우리 시 6개 구 · 수업 연습용 예시 데이터 (데이터 실험실 1번 표 + 하루 유동 인구)</p>`;
+  // 1 문제 정의
+  const outs = [["a", "구마다 보낼 순찰 인원 (모두 더하면 20명)"], ["b", "가장 위험한 구 한 곳의 이름"], ["c", "구마다 범죄 건수의 순위"]];
+  const s1 = st(1, "문제 정의", "입력과 출력 정하기", `<div class="ask"><small>상황</small>우리 시 경찰서에 순찰 인원이 <b>20명</b> 있어요. 6개 구에 몇 명씩 보낼지 정하는 알고리즘을 만들어요. AI는 “범죄 건수가 가장 많은 B구에 집중해야 한다”고 했어요.</div>
+    <p style="font-size:14px;font-weight:700">입력 (알고리즘이 받는 데이터)</p>${tbl}
+    <p style="font-size:14px;font-weight:700;margin-top:6px">출력 (알고리즘이 내놓을 답)은 무엇이어야 할까요?</p>
+    <div class="opts" style="margin-top:8px">${outs.map(([k, v]) => `<button type="button" class="opt ${s.out === k ? "on" : ""}" data-act="outp" data-v="${k}"><input type="radio" tabindex="-1" ${s.out === k ? "checked" : ""}><span style="color:var(--ink);font-size:14px">${v}</span></button>`).join("")}</div>
+    ${s.out ? s.out === "a" ? `<div class="msg ok">맞아요. 입력은 6개 구의 표와 순찰 20명, 출력은 구마다 순찰 인원이에요.</div>` : `<div class="msg no">그건 알고리즘이 계산하는 중간값일 수 있지만, 경찰서가 실제로 정해야 하는 건 ‘몇 명씩 보낼지’예요.</div>` : ""}`);
+  // 2 기준
+  const s2 = st(2, "기준 고르기", "무엇으로 위험을 잴까?", `<div class="opts">${CRIT.map((c) => `<button type="button" class="opt ${s.crit === c.id ? "on" : ""}" data-act="crit" data-v="${c.id}"><input type="radio" tabindex="-1" ${s.crit === c.id ? "checked" : ""}><span><b>${c.name}</b><span>${c.sub}</span></span></button>`).join("")}</div>
+    ${s.crit === "mix" ? `<div class="fld"><label for="w">유동 인구를 얼마나 반영할까? <span style="color:var(--acc)">${s.w}%</span></label><input id="w" type="range" min="0" max="100" step="10" value="${s.w}" data-act="w"><div style="display:flex;justify-content:space-between" class="note"><span>사는 사람만 (0%)</span><span>오가는 사람도 똑같이 (100%)</span></div></div>` : ""}
+    <p class="note" style="margin-top:10px">정답은 없어요. 4 · 6단계에서 세 기준을 모두 비교해 볼 거예요.</p>`);
+  // 3 규칙 조립
+  const order = s.order || ["c3", "c1", "c4", "c2"], okOrder = order.join() === "c1,c2,c3,c4";
+  const s3 = st(3, "규칙 조립", "카드 순서를 맞추고, 필요한 조건 카드를 켜요", `<p style="font-size:14px;font-weight:700">기본 규칙 카드 · ↑ ↓ 로 순서를 맞춰요</p>
+    <div class="rcards">${order.map((cid, i) => { const c = CARDS.find((k) => k.id === cid); return `<div class="rc"><span class="mono note">${i + 1}</span><span class="tag ${c.tag}">${c.tag}</span><span>${c.text}</span><span class="mv"><button type="button" data-act="up" data-v="${i}" aria-label="위로" ${i ? "" : "disabled"}>↑</button><button type="button" data-act="dn" data-v="${i}" aria-label="아래로" ${i < 3 ? "" : "disabled"}>↓</button></span></div>`; }).join("")}</div>
+    <div class="act" style="margin-top:6px"><span class="note">${s.ordTry ? okOrder ? "" : "순서를 다시 생각해 봐요. 합계를 알아야 비율을 구할 수 있어요." : ""}</span><button class="btn w sm" data-act="ordCheck">순서 확인</button></div>
+    ${s.ordTry && okOrder ? `<div class="msg ok">맞아요. 위험도 → 합계 → 비율 → 사람 수 순서예요.</div>` : ""}
+    <p style="font-size:14px;font-weight:700;margin-top:14px">조건 카드 · 필요하다고 생각하면 켜요 (4단계 테스트에서 확인해요)</p>
+    <div class="rcards">${OPTC.map((c) => `<label class="rc opt2 ${s[c.id] ? "on" : ""}"><input type="checkbox" data-act="opt" data-v="${c.id}" ${s[c.id] ? "checked" : ""}><span class="tag 조건">조건</span><span>${c.text}${c.id === "min" ? ` <select data-act="minN" aria-label="최소 인원" ${s.min ? "" : "disabled"}>${[1, 2, 3].map((n) => `<option ${s.minN === n ? "selected" : ""}>${n}</option>`).join("")}</select> 명` : ""}</span></label>`).join("")}</div>`);
+  // 4 실행 · 테스트
+  let s4;
+  if (!s.crit || !okOrder || !s.ordTry) s4 = st(4, "실행 · 테스트", "", `<div class="msg info">2단계 기준을 고르고, 3단계 카드 순서를 맞추면 실행할 수 있어요.</div>`);
+  else {
+    const res = run(rows, s), sum = res.reduce((a, b) => a + b, 0), mx = Math.max(1, ...res.filter(isFinite));
+    const tests = testsOf(s);
+    s4 = st(4, "실행 · 테스트", "▶ 실행하고, 이상한 경우에도 잘 돌아가는지 시험해요", `<div class="two"><div><p style="font-size:14px;font-weight:700;margin-bottom:6px">내 규칙을 코드로 쓰면 <span class="note" style="font-weight:400">· 저절로 만들어져요 · 읽기만</span></p><div class="code">${codeOf(s)}</div></div>
+      <div><p style="font-size:14px;font-weight:700;margin-bottom:6px">실행 결과 · 순찰 ${s.N}명</p><div class="bars">${rows.map((r, i) => `<div class="bar"><span>${r.이름}</span><span class="t"><i style="width:${isFinite(res[i]) ? Math.max(2, res[i] / mx * 100) : 0}%"></i></span><b>${isFinite(res[i]) ? res[i] + "명" : "오류"}</b></div>`).join("")}</div>
+      <p class="note" style="margin-top:8px">합계 <b style="color:${sum === s.N ? "var(--ok)" : "var(--no)"}">${isFinite(sum) ? sum : "오류"}명</b>${sum === s.N ? "" : " · 20명과 달라요!"}</p>
+      <p style="font-size:14px;font-weight:700;margin:14px 0 6px">테스트</p><div class="tests">${tests.map((q) => `<div class="test"><em class="${q.ok ? "p" : "f"}">${q.ok ? "통과" : "실패"}</em><span>${q.name}${q.ok ? "" : `<br><span class="note">${q.hint}</span>`}</span></div>`).join("")}</div></div></div>
+      <div class="msg info">테스트 네 개를 모두 통과하면 4단계가 끝나요. 실패하면 3단계 조건 카드를 켜고 다시 확인해요. 마지막 테스트(0명인 구)는 정답이 없는 질문이에요. 켤지 말지는 5단계에서 정당화해요.</div>`);
+  }
+  // 5 가치 검토
+  const s5 = st(5, "가치 검토", "내 알고리즘에는 어떤 생각이 들어 있을까?", `<div class="thk">${[t.th.m, t.th.r].map((n, i) => `<div><b>${esc(n)}</b><em>${i ? "맞서는 관점" : "주 사상가"}</em><p>${esc(DL.THINKERS[n])}</p></div>`).join("")}</div><p class="note">연결 고리: ${esc(t.th.link)}</p>
+    <div class="fld"><label for="f_why">내가 고른 기준${s.crit ? `(${esc(CRIT.find((c) => c.id === s.crit).name)}${s.crit === "mix" ? ` · 유동 ${s.w}%` : ""}${s.min ? ` · 최소 ${s.minN}명` : ""})` : ""}은 누구의 생각에 가까운가요? 왜?</label><textarea id="f_why" data-f="why" placeholder="${esc(jo(t.th.m, "은", "는"))} … / ${esc(jo(t.th.r, "은", "는"))} … 그래서 내 기준은 …">${esc(s.why || "")}</textarea></div>`);
+  // 6 공정성 시험
+  let s6;
+  if (!d[4]) s6 = st(6, "공정성 시험", "", `<div class="msg info">4단계 테스트를 통과하면 열려요.</div>`);
+  else {
+    const A = run(rows, { ...s, crit: "count", min: false }), B = run(rows, { ...s, crit: "per", min: false }), C = run(rows, s), mx = Math.max(...A, ...B, ...C, 1);
+    const ch = rows.map((r, i) => ({ n: r.이름, f: r.특징, g: C[i] - A[i] })), up = [...ch].sort((a, b) => b.g - a.g)[0], dn = [...ch].sort((a, b) => a.g - b.g)[0], lo = Math.min(...C), los = rows.filter((r, i) => C[i] === lo).map((r) => `${r.이름}(${r.특징})`).join(", ");
+    const cell = (v, c) => `<span class="v"><i style="width:${Math.max(3, v / mx * 70)}%;background:${c}"></i>${v}</span>`;
+    s6 = st(6, "공정성 시험", "기준을 바꾸면 누가 얻고 누가 잃을까?", `<div class="cmp"><span></span><span class="h">건수 그대로</span><span class="h">10만 명당</span><span class="h me">내 알고리즘</span>${rows.map((r, i) => `<span>${r.이름}</span>${cell(A[i], "#C9C9CF")}${cell(B[i], "#8FB3DC")}${cell(C[i], "var(--acc)")}`).join("")}</div>
+      <div class="msg info"><b>저절로 찾은 것</b><br>· AI의 기준(건수 그대로)과 비교하면 <b>${up.n}</b>는 ${up.g >= 0 ? "+" : ""}${up.g}명, <b>${dn.n}</b>는 ${dn.g}명 바뀌어요.<br>· 내 알고리즘에서 가장 적게 받는 곳: <b>${esc(los)}</b> ${lo}명</div>
+      <div class="fld"><label for="f_loser">내 알고리즘 때문에 손해 보는 사람은 누구이고, 그걸 고치려면 규칙을 어떻게 바꿀까요?</label><textarea id="f_loser" data-f="loser" placeholder="예: ○구 주민. ‘최소 ○명’ 조건 카드를 켜서 다시 실행해 보면 …">${esc(s.loser || "")}</textarea></div>`);
+  }
+  // 7 계산기 · 성찰 · 제출
+  const s7 = st(7, "계산기 · 성찰", "내 알고리즘을 계산기로 써 보고, 마치며 써요", d[4] ? `<div class="calc"><b style="font-size:14px">${esc(S.me ? S.me.sid : "나")}의 순찰 배분 계산기</b><p class="note">기준: ${esc(CRIT.find((c) => c.id === s.crit).name)}${s.crit === "mix" ? ` · 유동 ${s.w}%` : ""}${s.min ? ` · 최소 ${s.minN}명` : ""}</p>
+      <div class="act" style="margin-top:8px"><label for="calcN" style="font-size:14px">순찰 인원</label><input id="calcN" type="number" min="6" max="200" value="${s.calcN || 30}" style="width:90px"><button class="btn sm" data-act="calc">계산</button></div>
+      <p style="margin-top:8px;font-size:14px">${(() => { const N = s.calcN || 30, r = run(rows, s, N); return rows.map((x, i) => `${x.이름} <b>${r[i]}</b>`).join(" · ") + ` <span class="note">(합 ${r.reduce((a, b) => a + b, 0)}명)</span>`; })()}</p></div>
+    <div class="fld"><label for="f_ref">마치며 · 알고리즘은 중립적일까?</label><textarea id="f_ref" data-f="ref" placeholder="기준 카드 하나를 바꿨을 때 무엇이 달라졌나요? 알고리즘을 만드는 사람이 조심해야 할 것은?">${esc(s.ref || "")}</textarea></div>
+    <div class="act"><span class="note">${x.sub ? `제출했어요 · ${new Date(x.sub).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} (고친 뒤 다시 제출할 수 있어요)` : "1~6단계를 마치고 ‘마치며’를 쓰면 제출할 수 있어요"}</span><button class="btn b" data-act="submit">${x.sub ? "다시 제출" : "제출하기"}</button></div>` : `<div class="msg info">4단계 테스트를 통과하면 열려요.</div>`);
+  // AI 짝꿍
+  const asks = x.ai.filter((a) => a.k === "ask");
+  const pair = `<section class="step"><h2>AI 코드 짝꿍 <small>답 대신 생각할 질문을 돌려줘요 · ${asks.length}/8회</small></h2>${asks.length ? `<div class="qa">${asks.map((a) => `<div><b>나</b> ${esc(a.q)}</div><div class="a"><b>${a.local ? "도움 질문" : "AI 짝꿍"}</b> ${esc(a.a)}</div>`).join("")}</div>` : ""}
+    <div class="act"><input type="text" id="askIn" maxlength="300" placeholder="예: 반올림하면 왜 합이 20명이 안 되나요?" style="flex:1;min-width:200px"><button class="btn w" data-act="ask" ${S.aiBusy ? "disabled" : ""}>${S.aiBusy ? "생각하는 중…" : "묻기"}</button></div></section>`;
+  return `<div class="wrap"><div class="lab">${rail}<div>${s1}${s2}${s3}${s4}${s5}${s6}${s7}${pair}</div></div></div>`;
+}
+
+/* 테스트 네 개: 합 · 인구 0 · 같은 위험도 · 0명인 구 */
+function testsOf(s) {
+  const base = T1(), N = s.N;
+  const r1 = run(base, s), t1 = r1.reduce((a, b) => a + b, 0) === N && r1.every(isFinite);
+  const z = base.map((r) => ({ ...r })); z.push({ 이름: "G구", 특징: "새로 생긴 산업단지 (주민 0명)", 건수: 30, 인구: 0, 유동: 5000 });
+  const r2 = run(z, s), t2 = r2.every((v) => isFinite(v) && v >= 0) && r2.reduce((a, b) => a + b, 0) === N;
+  const tw = base.map((r) => ({ ...r })); tw[5] = { ...tw[2], 이름: "F구" };
+  const r3 = run(tw, s), t3 = Math.abs(r3[2] - r3[5]) <= 1 && r3.every(isFinite);
+  const t4 = r1.every((v) => v >= 1);
+  return [
+    { name: "모든 구를 더하면 순찰 인원과 같다", ok: t1, hint: "반올림하면 합이 달라질 수 있어요 → ‘합 맞추기’ 조건 카드" },
+    { name: "주민이 0명인 구가 있어도 멈추지 않는다", ok: t2 || s.crit === "count", hint: "0으로 나누면 계산이 망가져요 → ‘인구가 0이면’ 조건 카드" },
+    { name: "위험도가 같은 두 구는 거의 같은 인원을 받는다 (차이 1명 이하)", ok: t3, hint: "규칙을 다시 확인해 봐요" },
+    { name: "순찰을 한 명도 못 받는 구가 없다", ok: t4, hint: "꼭 필요할까요? 켜면 누가 얻고 누가 잃을까요? → ‘최소 인원’ 조건 카드" }
+  ];
+}
+/* 학생이 고른 규칙 → 코드 글 (모양을 보여 주는 용도) */
+function codeOf(s) {
+  const c = (t) => `<span class="c">${t}</span>`, k = (t) => `<span class="k">${t}</span>`, n = (t) => `<span class="n">${t}</span>`;
+  const den = s.crit === "count" ? "" : s.crit === "per" ? "구.인구" : `(구.인구 + ${n(s.w / 100)} * 구.유동)`;
+  const L = [
+    `${k("function")} <span class="f">순찰배분</span>(구들, 인원) {`,
+    `  ${c(`// 기준: ${CRIT.find((x) => x.id === s.crit).name}${s.crit === "mix" ? ` · 유동 ${s.w}%` : ""}`)}`,
+    `  ${k("const")} 위험 = 구들.map(구 =&gt; {`,
+    ...(s.zero && s.crit !== "count" ? [`    ${k("if")} (구.인구 === ${n(0)}) ${k("return")} ${n(0)};   ${c("// 조건: 인구 0")}`] : []),
+    `    ${k("return")} ${s.crit === "count" ? "구.건수" : `구.건수 / ${den} * ${n(100000)}`};`,
+    `  });`,
+    `  ${k("const")} 합계 = 위험.reduce((a, b) =&gt; a + b, ${n(0)});`,
+    ...(s.min ? [`  ${k("const")} 기본 = ${n(s.minN)};   ${c("// 조건: 모든 구 최소 인원")}`] : []),
+    `  ${k("let")} 순찰 = 위험.map(v =&gt; ${s.min ? "기본 + " : ""}Math.round(v / 합계 * ${s.min ? "(인원 - 기본 * 구들.length)" : "인원"}));`,
+    ...(s.fit ? [`  순찰 = 합맞추기(순찰, 인원);   ${c("// 조건: 소수점 큰 구부터 1명씩")}`] : []),
+    `  ${k("return")} 순찰;`, `}`
+  ];
+  return L.join("\n");
+}
+
+function loginView() {
+  if (!S.login) return "";
+  const nw = S.loginNew;
+  return `<div class="modal" data-act="closeLogin"><div class="box" role="dialog" aria-modal="true" aria-labelledby="lgT" onclick="event.stopPropagation()"><h3 id="lgT">${nw ? "처음 오셨네요" : "학번으로 들어가기"}</h3>
+    <p>${nw ? `<b>${esc(nw.sid)}</b> 학번으로 처음 들어와요. 이 비밀번호로 시작할까요?` : "데이터 실험실과 같은 계정이에요. 학번 다섯 자리와 비밀번호 네 자리를 넣어요. 처음이면 지금 정한 네 자리가 내 비밀번호가 돼요."}</p>
+    ${nw ? `<div class="fld"><label for="lgPin2">비밀번호 한 번 더</label><input type="password" id="lgPin2" inputmode="numeric" maxlength="4" autocomplete="off"></div>` : `<div class="row2"><div class="fld"><label for="lgSid">학번</label><input type="text" id="lgSid" inputmode="numeric" maxlength="5" placeholder="예: 10305" autocomplete="off" value="${esc(LS.get("lastSid", ""))}"></div><div class="fld"><label for="lgPin">비밀번호</label><input type="password" id="lgPin" inputmode="numeric" maxlength="4" placeholder="숫자 4자리" autocomplete="off"></div></div>`}
+    <div class="err">${esc(S.loginMsg)}</div><div class="acts"><button class="btn w" data-act="closeLogin">닫기</button><button class="btn" data-act="${nw ? "doNew" : "doLogin"}" ${S.busy ? "disabled" : ""}>${S.busy ? "확인 중…" : nw ? "이 비밀번호로 시작" : "들어가기"}</button></div></div></div>`;
+}
+
+function render() {
+  renderTop();
+  const r = route(), id = r.a === "t" && OPEN.includes(r.b) ? r.b : null;
+  const keep = document.activeElement && document.activeElement.id, sel = keep && document.activeElement.selectionStart;
+  $("#app").innerHTML = (id ? lab(id) : home()) + loginView();
+  document.title = id ? `${ATITLE[id]} · 알고리즘 실험실` : "알고리즘 실험실";
+  if (keep && $("#" + keep)) { const el = $("#" + keep); el.focus(); try { el.setSelectionRange(sel, sel); } catch (e) {} }
+  if (S.login) setTimeout(() => { const f = $("#lgPin2") || ($("#lgSid") && $("#lgSid").value ? $("#lgPin") : $("#lgSid")); if (f && document.activeElement !== f) f.focus(); }, 0);
+}
+
+/* 단계가 끝났는지 다시 따져요 (바꾸면 뒤 단계 완료가 풀릴 수 있어요) */
+function judge(id) {
+  const x = my(id), s = x.s, d = {};
+  d[1] = s.out === "a";
+  d[2] = d[1] && !!s.crit;
+  d[3] = d[2] && s.ordTry && (s.order || []).join() === "c1,c2,c3,c4";
+  d[4] = d[3] && testsOf(s).slice(0, 3).every((q) => q.ok);
+  d[5] = d[4] && filled(s.why);
+  d[6] = d[5] && filled(s.loser);
+  d[7] = !!x.sub;
+  x.done = Object.fromEntries(Object.entries(d).filter(([, v]) => v));
+}
+
+document.addEventListener("input", (e) => {
+  const el = e.target, id = route().b; if (!OPEN.includes(id)) return;
+  if (el.dataset.f) { const x = my(id); x.s[el.dataset.f] = el.value; judge(id); save(false, id); }
+  if (el.dataset.act === "w") { my(id).s.w = +el.value; judge(id); save(false, id); render(); }
+});
+document.addEventListener("change", (e) => {
+  const el = e.target, id = route().b; if (!OPEN.includes(id)) return;
+  if (el.dataset.act === "opt") { if (needLogin()) return; const x = my(id); x.s[el.dataset.v] = el.checked; judge(id); save(false, id); render(); }
+  if (el.dataset.act === "minN") { const x = my(id); x.s.minN = +el.value; judge(id); save(false, id); render(); }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && S.login) return act("closeLogin");
+  if (e.key !== "Enter") return;
+  if (e.target.id === "askIn") { e.preventDefault(); act("ask"); }
+  if (e.target.id === "calcN") { e.preventDefault(); act("calc"); }
+  if (["lgSid", "lgPin", "lgPin2"].includes(e.target.id)) { e.preventDefault(); act(S.loginNew ? "doNew" : "doLogin"); }
+});
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (!b || b.tagName === "INPUT" || b.tagName === "SELECT") return; act(b.dataset.act, b.dataset.v, e); });
+
+function act(a, v) {
+  if (a === "login") { S.login = true; S.loginMsg = ""; S.loginNew = null; return render(); }
+  if (a === "closeLogin") { S.login = false; S.loginNew = null; return render(); }
+  if (a === "out") return signOut();
+  if (a === "doLogin") return signIn($("#lgSid").value.trim(), $("#lgPin").value.trim(), false);
+  if (a === "doNew") { if ($("#lgPin2").value.trim() !== S.loginNew.pin) return loginMsg("비밀번호가 서로 달라요. 다시 확인해 주세요"); return signIn(S.loginNew.sid, S.loginNew.pin, true); }
+  const id = route().b; if (!OPEN.includes(id)) return;
+  if (a === "go") { const el = $("#s" + v); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  if (a === "ask") return ask(id, $("#askIn") && $("#askIn").value);
+  if (needLogin()) return;
+  const x = my(id), s = x.s;
+  if (a === "outp") { s.out = v; }
+  if (a === "crit") { s.crit = v; }
+  if (a === "up" || a === "dn") { const o = (s.order || ["c3", "c1", "c4", "c2"]).slice(), i = +v, j = a === "up" ? i - 1 : i + 1; [o[i], o[j]] = [o[j], o[i]]; s.order = o; s.ordTry = false; }
+  if (a === "ordCheck") { s.order = s.order || ["c3", "c1", "c4", "c2"]; s.ordTry = true; }
+  if (a === "calc") { s.calcN = Math.max(6, Math.min(200, +$("#calcN").value || 30)); }
+  if (a === "submit") {
+    judge(id); if (!x.done[6]) return toast("1~6단계를 먼저 마쳐 주세요");
+    if (!filled(s.ref)) return toast("‘마치며’를 써 주세요");
+    x.sub = Date.now(); toast("제출했어요. 수고했어요!");
+  }
+  judge(id); save(true, id); render();
+}
+
+window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+render();
+if (S.me && db) db.collection("datalab_members").doc(S.me.key).get().then((snap) => { if (snap.exists) { const rec = snap.data().rec || {}; S.rec = Object.fromEntries(Object.entries(rec).filter(([k]) => k.startsWith("a_"))); LS.set("rec", S.rec); render(); } else { S.me = null; LS.del("me"); render(); } }).catch((e) => console.warn(e));
+</script>
+<script type="module" src="/visit.js?app=algolab&hide=1"></script>
+<script src="/refresh.js" defer></script>
+</body>
+</html>
