@@ -58,6 +58,14 @@
 - 세로 그림(270×480)은 시안마다 `xxx(true)` 로 만들어 `makeStructs()` 끝의 `PORTS` 에 붙어 있어요. 가로 그림을 고치면 세로 그림도 `?port` 로 열어 같이 확인해 주세요. 🖥 무난한 PC 시안은 웹에서도 휴대폰을 세우면(700px 이하 세로) 세로 그림으로 보여요 (문쌤 요청, 레트로 게임 시안은 예전처럼 앱에서만).
 - 위젯 모양 · 앱 아이콘 · 권한 · 플러그인을 바꿀 때만 새 AAB 가 필요해요 (`tycoon-app` 에서 `npm run aab`).
 
+### 📊 통합사회 데이터 실험실 `/datalab` (2026-11-16, crime · market 을 합침)
+- 학생 화면 `datalab/index.html`, 선생님 화면 `datalab/admin/index.html`(따로 둔 페이지, 관리자 구글 로그인), 주제 20개 내용 `datalab/topics.js`(두 화면이 함께 씀).
+- 수업 흐름은 아이에답 '데이터 분석' 유형 8단계(문제 이해 → 수집 방법 · 도구 → 정제 → 분석 · 시각화 → AI 모델 적용 · 평가 → 해석 · 해결안 → 실행 → 공유 · 성찰)를 그대로 따라요. 단계 이름 · 시간은 `DL.STEPS`, 완료 기준은 `DL.stepDone` 한 곳에서만 고쳐요.
+- 학생 로그인 = 학번 5자리 + 비밀번호 4자리 → `datalab_members/{sha256("datalab|학번|비밀번호")}` (소나기 프로젝트 `sonagi-1cc00`, 규칙은 `firestore-sonagi.rules`).
+- AI 서버 `datalab/server`(Cloudflare `moontr-datalab-ai`, Anthropic Claude, 비밀값 `ANTHROPIC_API_KEY`). 서버가 없으면 학생 화면은 '기본 점검'으로 대신해요.
+- 디자인은 '연수 과정형'(흰 바탕 · 각진 단추 · 실제 사진). 그라데이션 · 이모지 · 둥근 알약 단추를 쓰지 않아요 (문쌤: "AI스러운 디자인 싫음").
+- 예전 `/crime` · `/market` 은 새 주소로 넘기는 짧은 페이지이고, 예전 앱 · 기록은 `old.html` 에 남아 있어요.
+
 ## Firebase
 - 프로젝트: `moon-d528d` (moontr.site와 jinseon50th.com이 함께 씁니다).
 - 보안 규칙은 이 저장소의 `firestore.rules` 하나에 모두 들어 있습니다. 새 컬렉션을 쓰면 여기에 규칙을 추가하고, 관리자만 써야 하는 곳은 `isTeacher()`를 씁니다.

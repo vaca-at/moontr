@@ -529,6 +529,44 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // ===== 통합사회 데이터 실험실 (/datalab, 2026-11-16 crime · market 을 합침) =====
+    // 학생은 학번 5자리 + 비밀번호 4자리로 들어와요. 비밀번호는 저장하지 않고 sha256("datalab|학번|비밀번호") 문서 이름으로만 써요.
+    // datalab_ids/{학번}: 이미 시작한 학번인지 확인용(비밀번호를 잘못 쳐서 새 기록이 생기지 않게). 내용은 처음 온 시각뿐
+    match /datalab_ids/{sid} {
+      allow get: if true;
+      allow create: if sid.matches('^[0-9]{5}$')
+        && request.resource.data.keys().hasOnly(['at'])
+        && request.resource.data.at is int;
+      allow list, delete: if isTeacher();
+    }
+    // datalab_members/{해시}: 내 탐구 기록 전부(rec). 문서 이름을 아는 사람(= 학번 · 비밀번호를 아는 사람)만 하나 열어요. 목록은 선생님만
+    match /datalab_members/{key} {
+      allow get: if true;
+      allow list: if isTeacher();
+      allow create: if isTeacher() || (key.matches('^[0-9a-f]{64}$')
+        && request.resource.data.keys().hasOnly(['sid', 'ban', 'rec', 'at', 'updatedAt'])
+        && request.resource.data.sid is string && request.resource.data.sid.matches('^[0-9]{5}$')
+        && request.resource.data.ban is string && request.resource.data.ban.size() <= 8
+        && request.resource.data.rec is map
+        && existsAfter(/databases/$(database)/documents/datalab_ids/$(request.resource.data.sid)));
+      allow update: if isTeacher()
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rec', 'updatedAt'])
+            && request.resource.data.rec is map);
+      allow delete: if isTeacher();
+    }
+    // datalab_gallery/{해시 앞 24자_주제}: 우리 반 갤러리(이름 · 학번 없이 해결안 · 실행물만). 누구나 보기, 정해진 칸만 쓰기
+    match /datalab_gallery/{id} {
+      allow read: if true;
+      allow create, update: if id.matches('^[0-9a-f]{24}_[jm][0-9]{1,2}$')
+        && request.resource.data.keys().hasOnly(['ban', 'topic', 'plan', 'product', 'at'])
+        && request.resource.data.ban is string && request.resource.data.ban.size() <= 8
+        && request.resource.data.topic is string && request.resource.data.topic.size() <= 4
+        && request.resource.data.plan is string && request.resource.data.plan.size() <= 1300
+        && request.resource.data.product is string && request.resource.data.product.size() <= 1600
+        && request.resource.data.at is int;
+      allow delete: if isTeacher() || id.matches('^[0-9a-f]{24}_[jm][0-9]{1,2}$');
+    }
+
     match /{document=**} { allow read, write: if false; }
   }
 }

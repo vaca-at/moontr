@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>선생님 화면 · 통합사회 데이터 실험실</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="../topics.js"></script>
+<style>
+/* 선생님 화면: 학생 화면(연수 과정형)과 같은 문법 · 흰 바탕 · 남색 머리 띠 */
+:root{--ink:#1A1A1A;--sub:#6E6E73;--line:#E5E5E8;--line2:#C9C9CF;--bg:#F7F7F8;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--navy:#0E2A5C;--done:#0E8A5F;--warn:#B54708}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:400 14.5px/1.6 Pretendard,"Malgun Gothic",sans-serif;letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+.util{background:var(--navy);color:#C9D3E6;font-size:12.5px}
+.util .in{max-width:1280px;margin:0 auto;padding:0 24px;height:34px;display:flex;align-items:center;justify-content:space-between}
+.util b{color:#fff}
+header{background:#fff;border-bottom:1px solid var(--line)}
+header .in{max-width:1280px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;gap:30px}
+.logo{font-size:18px;font-weight:800;letter-spacing:-.035em;display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo i{width:28px;height:28px;border:2px solid var(--ink);display:grid;place-items:center;font-style:normal;font-size:12px}
+.logo small{font-size:12.5px;font-weight:600;color:var(--acc);margin-left:4px}
+nav.tabs{display:flex;gap:4px;margin-left:auto}
+nav.tabs button{height:64px;padding:0 14px;border:0;background:none;font-size:14.5px;font-weight:500;color:#444;border-bottom:2px solid transparent}
+nav.tabs button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--ink)}
+main{max-width:1280px;margin:0 auto;padding:26px 24px 70px}
+.bar-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.bar-h h1{font-size:23px;letter-spacing:-.035em}
+.bar-h p{color:var(--sub);font-size:13.5px}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input[type=text],input[inputmode],textarea{border:1px solid var(--line2);background:#fff;padding:8px 10px;font-size:14px;border-radius:0;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--ink)}
+textarea{width:100%;min-height:150px;resize:vertical;line-height:1.7}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 14px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-size:13.5px;font-weight:600;white-space:nowrap}
+.btn.w{background:#fff;color:var(--ink);border-color:var(--line2)}
+.btn.b{background:var(--acc);border-color:var(--acc)}
+.btn.sm{height:30px;padding:0 10px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.box{background:#fff;border:1px solid var(--line);padding:20px 22px;margin-bottom:16px}
+.box h2{font-size:16.5px;margin-bottom:12px;letter-spacing:-.02em}
+.kpi{display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border:1px solid var(--line);margin-bottom:16px}
+.kpi div{padding:16px 18px;border-left:1px solid var(--line);font-size:13px;color:var(--sub)}
+.kpi div:first-child{border-left:0}
+.kpi b{display:block;font-size:24px;color:var(--ink);letter-spacing:-.02em;margin-top:2px}
+table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
+.tb th{border-top:2px solid var(--ink);background:var(--bg);padding:9px 8px;font-weight:600;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+.tb td{padding:8px;border-bottom:1px solid var(--line);text-align:center;font-variant-numeric:tabular-nums;vertical-align:middle}
+.tb td.l{text-align:left}
+.tb tr:hover td{background:#FAFAFB}
+.dots{display:inline-flex;gap:2px}
+.dots i{width:12px;height:12px;background:#E5E7EB}
+.dots i.on{background:var(--acc)}
+.dots i.sub{background:var(--done)}
+.st{font-size:12px;font-weight:600;padding:2px 7px;border:1px solid;white-space:nowrap}
+.st.d{color:var(--done);border-color:#B7E0D1;background:#F1FAF6}.st.o{color:var(--acc);border-color:var(--acc-l);background:var(--acc-s)}.st.w{color:#999;border-color:var(--line)}
+.hb{display:grid;grid-template-columns:220px 1fr 60px;gap:10px;align-items:center;height:26px;font-size:13px}
+.hb i{display:block;height:10px;background:var(--acc)}
+.hb em{font-style:normal;text-align:right}
+.two{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+.list{background:#fff;border:1px solid var(--line);max-height:70vh;overflow:auto}
+.list button{display:flex;justify-content:space-between;align-items:center;width:100%;padding:10px 14px;border:0;border-bottom:1px solid var(--line);background:#fff;text-align:left;font-size:13.5px}
+.list button.on{background:var(--acc-s);color:var(--acc);font-weight:700}
+.paper{background:#fff;border:1px solid var(--line);padding:26px 30px;margin-bottom:14px}
+.paper h3{font-size:19px;letter-spacing:-.03em}
+.paper .who{font-size:12.5px;color:var(--sub);margin-bottom:12px}
+.paper section{padding:10px 0;border-top:1px solid var(--line)}
+.paper section h4{font-size:13px;color:var(--acc);margin-bottom:2px}
+.paper section p{white-space:pre-wrap;font-size:14px}
+.ailog{font-size:13px;color:#444}
+.ailog div{padding:6px 0;border-top:1px dashed var(--line)}
+.note{font-size:12.5px;color:var(--sub)}
+.msg{padding:10px 14px;border:1px solid var(--acc-l);background:var(--acc-s);color:#1F3B63;font-size:13.5px;margin-bottom:14px}
+.login{max-width:440px;margin:80px auto;background:#fff;border:1px solid var(--line);padding:34px}
+.login h1{font-size:22px;letter-spacing:-.03em;margin-bottom:6px}
+.login p{color:var(--sub);font-size:13.5px;margin-bottom:20px}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:46px;border:1px solid var(--line2);background:#fff;font-size:15px;font-weight:600}
+/* 지도안 (인쇄용) */
+.plan{background:#fff;border:1px solid var(--line);padding:30px 34px}
+.plan h2{font-size:21px;text-align:center;letter-spacing:-.02em;margin-bottom:4px}
+.plan .sub{text-align:center;color:var(--sub);font-size:13px;margin-bottom:18px}
+.plan table{width:100%;border-collapse:collapse;font-size:12.8px;margin-bottom:14px}
+.plan th,.plan td{border:1px solid #9AA3B2;padding:7px 8px;vertical-align:top;text-align:left}
+.plan th{background:#EEF1F5;font-weight:700;text-align:center;white-space:nowrap}
+.plan td.c{text-align:center;white-space:nowrap}
+.plan ul{padding-left:16px}
+#printArea{display:none}
+@media print{
+  body{background:#fff}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  #printArea .plan,#printArea .paper{border:0;padding:0}
+  @page{size:A4;margin:14mm}
+}
+@media (max-width:900px){.two{grid-template-columns:1fr}.kpi{grid-template-columns:repeat(2,1fr)}nav.tabs{overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="util"><div class="in"><span>통합사회 데이터 실험실 · <b>선생님 화면</b></span><span id="who"></span></div></div>
+<header><div class="in"><a class="logo" href="../"><i>통</i>통합사회 데이터 실험실<small>선생님</small></a><nav class="tabs" id="tabs"></nav></div></header>
+<main id="app"></main>
+<div id="printArea"></div>
+<script>
+/* ===================== 선생님 화면 (moontr.site/datalab/admin/) =====================
+   관리자 구글 계정으로만 들어와요(관리자가 아니면 바로 로그아웃). 학생 화면과 따로 둔 페이지예요.
+   탭: 진행 현황 · 학생 보고서 · 세특 · 지도안 · 수업 실천 성찰 · 학생 관리
+   AI(세특 초안 · 성찰문 초안)는 datalab/server 가 Firebase 로그인 표를 확인한 뒤에만 답해요. */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const { TOPICS, GROUPS, STEPS, REPORT, filled, stepDone, repVal } = DL;
+const isAdmin = (e) => DL.ADMIN_EMAILS.includes(String(e || "").toLowerCase());
+firebase.initializeApp(DL.FIREBASE_CONFIG);
+const db = firebase.firestore(), auth = firebase.auth();
+const A = { user: null, tab: location.hash.replace("#", "") || "prog", members: [], ban: "", sel: null, topic: TOPICS[0].id, out: {}, busy: false, msg: "" };
+const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["seteuk", "세특"], ["plan", "지도안"], ["refl", "수업 실천 성찰"], ["users", "학생 관리"]];
+const fmtT = (ms) => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+const topicsOf = (m) => TOPICS.filter((t) => (m.rec || {})[t.id] && (m.rec[t.id].s && Object.keys(m.rec[t.id].s).length));
+const progOf = (t, x) => STEPS.filter((st) => stepDone(t, x, st.k)).length;
+const bans = () => [...new Set(A.members.map((m) => m.ban))].sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
+const inBan = () => A.members.filter((m) => !A.ban || m.ban === A.ban).sort((a, b) => a.sid.localeCompare(b.sid));
+const nbytes = (s) => { let b = 0; for (const ch of String(s || "")) b += ch === "\n" ? 2 : ch.charCodeAt(0) > 127 ? 3 : 1; return b; };
+
+/* ---------- 로그인 ---------- */
+auth.onAuthStateChanged((u) => {
+  if (u && !isAdmin(u.email)) { auth.signOut(); A.msg = "관리자 구글 계정이 아니에요. 관리자 계정으로 다시 로그인해 주세요."; A.user = null; return render(); }
+  A.user = u; if (u) watch(); render();
+});
+function login() { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" }); auth.signInWithPopup(p).catch((e) => { A.msg = "로그인하지 못했어요 (" + (e.code || e.message) + ")"; render(); }); }
+let unsub = null;
+function watch() {
+  if (unsub) return;
+  unsub = db.collection("datalab_members").onSnapshot((q) => { A.members = q.docs.map((d) => ({ key: d.id, ...d.data() })); if (!A.ban) A.ban = bans()[0] || ""; render(); }, (e) => { A.msg = "학생 기록을 불러오지 못했어요 (" + e.code + "). Firestore 보안 규칙에 datalab 규칙이 게시되었는지 확인해 주세요."; render(); });
+}
+
+/* ---------- AI (서버 datalab/server) ---------- */
+async function callAdminAI(path, body) {
+  const tok = await auth.currentUser.getIdToken();
+  const r = await fetch(DL.AI_URL + path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || ("서버 " + r.status)); return j;
+}
+// 세특 재료: 학번 · 이름 없이 제출한 탐구만
+function evidence(m) {
+  return topicsOf(m).map((t) => { const x = m.rec[t.id]; return { topic: `AI활용탐구 ${t.no} ${t.title}`, group: GROUPS[t.g].name, steps: `${progOf(t, x)}/8단계${x.sub ? " · 제출" : ""}`, claim: t.claim,
+    report: Object.fromEntries(REPORT.map(([k, n]) => [n, String(repVal(t, x, k) || "").slice(0, 700)])),
+    ai: (x.ai || []).slice(-6).map((a) => a.k === "review" ? `[AI 검토] 수치 ${a.scores.data} · 원인 ${a.scores.other} · 개념 ${a.scores.concept}` : `[질문] ${a.q}`) }; });
+}
+const promptOf = (m) => `아래는 고등학교 통합사회 ‘AI활용탐구’(데이터 분석 · 8단계 문제해결학습)에서 한 학생이 실제로 남긴 탐구 기록이다. 이 기록만 근거로 학교생활기록부 ‘세부능력 및 특기사항’ 문장을 써 줘.
+- 500자 안팎(공백 포함), 한 문단, ‘~함.’ ‘~임.’처럼 명사형으로 끝맺기
+- 학생 이름 · 학번은 쓰지 말고 주어를 생략하기
+- 탐구 주제, 데이터 정제 · 계산 · 시각화 과정, AI의 주장을 데이터로 검증한 장면, 개념(교정적 정의 또는 자본주의의 윤리적 쟁점) 연결, 해결안과 실행물, 성찰 가운데 실제로 기록에 있는 것만 구체적으로
+- 기록에 없는 활동 · 수상 · 외부 대회 · 사교육 · 부모 직업은 쓰지 않기, 과장하는 꾸밈말(뛰어난, 탁월한) 쓰지 않기
+[탐구 기록]
+${JSON.stringify(evidence(m), null, 1)}`;
+
+/* ---------- 화면 ---------- */
+function render() {
+  $("#who").innerHTML = A.user ? `${esc(A.user.email.replace(/@.*/, "@…"))} · <a href="#" data-act="logout" style="color:#fff">로그아웃</a>` : "";
+  $("#tabs").innerHTML = A.user ? TABS.map(([k, n]) => `<button class="${A.tab === k ? "on" : ""}" data-act="tab" data-v="${k}">${n}</button>`).join("") : "";
+  if (!A.user) { $("#app").innerHTML = `<div class="login"><h1>선생님 화면</h1><p>학생 탐구 기록 · 보고서 · 세특 · 지도안을 보는 화면이에요. 관리자 구글 계정으로 들어와요.</p><button class="gbtn" data-act="login"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>G 구글 계정으로 로그인</button>${A.msg ? `<p class="note" style="margin-top:14px;color:var(--warn)">${esc(A.msg)}</p>` : ""}</div>`; return; }
+  const v = { prog: progView, rep: repView, seteuk: seteukView, plan: planView, refl: reflView, users: usersView }[A.tab] || progView;
+  $("#app").innerHTML = (A.msg ? `<div class="msg">${esc(A.msg)}</div>` : "") + v();
+}
+const banSel = () => `<select data-act="ban" aria-label="반">${bans().map((b) => `<option ${b === A.ban ? "selected" : ""}>${esc(b)}</option>`).join("")}<option value="" ${!A.ban ? "selected" : ""}>모든 반</option></select>`;
+const topicSel = (all) => `<select data-act="topic" aria-label="주제">${all ? `<option value="">모든 주제</option>` : ""}${TOPICS.map((t) => `<option value="${t.id}" ${A.topic === t.id ? "selected" : ""}>AI활용탐구 ${t.no} · ${esc(t.name)}</option>`).join("")}</select>`;
+
+function progView() {
+  const L = inBan(), all = L.flatMap((m) => topicsOf(m).map((t) => [t, m.rec[t.id]]));
+  const sub = all.filter(([, x]) => x.sub).length, ai = all.reduce((s, [, x]) => s + (x.ai || []).length, 0);
+  const per = TOPICS.map((t) => [t, all.filter(([u]) => u.id === t.id).length]).filter(([, n]) => n).sort((a, b) => b[1] - a[1]), mx = Math.max(1, ...per.map(([, n]) => n));
+  const stepRate = STEPS.map((st) => all.length ? all.filter(([t, x]) => stepDone(t, x, st.k)).length / all.length * 100 : 0);
+  return `<div class="bar-h"><div><h1>진행 현황</h1><p>학생이 쓰는 대로 바로 바뀌어요 · 학번 순</p></div><div class="ctl">${banSel()}</div></div>
+  <div class="kpi"><div>학생<b>${L.length}명</b></div><div>시작한 탐구<b>${all.length}개</b></div><div>제출한 보고서<b>${sub}개</b></div><div>AI 검토 · 질문<b>${ai}회</b></div><div>평균 진도<b>${all.length ? Math.round(all.reduce((s, [t, x]) => s + progOf(t, x), 0) / all.length / 8 * 100) : 0}%</b></div></div>
+  <div class="box"><h2>학생별 진행</h2><table class="tb"><thead><tr><th>학번</th><th>반</th><th>탐구</th><th>8단계 진행</th><th>AI</th><th>상태</th><th>마지막 저장</th><th></th></tr></thead><tbody>
+  ${L.map((m) => { const T = topicsOf(m); if (!T.length) return `<tr><td>${esc(m.sid)}</td><td>${esc(m.ban)}</td><td class="l note">아직 시작 전</td><td></td><td></td><td><span class="st w">시작 전</span></td><td>${fmtT(m.updatedAt)}</td><td></td></tr>`;
+    return T.map((t, i) => { const x = m.rec[t.id]; return `<tr>${i ? `<td></td><td></td>` : `<td rowspan="1"><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td>`}<td class="l">${t.no}. ${esc(t.name)}</td><td><span class="dots">${STEPS.map((st) => `<i class="${stepDone(t, x, st.k) ? (st.k === "s8" ? "sub" : "on") : ""}" title="${st.name}"></i>`).join("")}</span></td><td>${(x.ai || []).length}</td><td>${x.sub ? `<span class="st d">제출</span>` : `<span class="st o">진행 중</span>`}</td><td>${i ? "" : fmtT(m.updatedAt)}</td><td><button class="btn w sm" data-act="see" data-v="${m.key}" data-t="${t.id}">보기</button></td></tr>`; }).join(""); }).join("") || `<tr><td colspan="8" class="note">아직 들어온 학생이 없어요</td></tr>`}</tbody></table></div>
+  <div class="two" style="grid-template-columns:1fr 1fr"><div class="box"><h2>주제 선택</h2>${per.map(([t, n]) => `<div class="hb"><span>${t.no}. ${esc(t.name)}</span><i style="width:${n / mx * 100}%"></i><em>${n}명</em></div>`).join("") || `<p class="note">아직 없어요</p>`}</div>
+  <div class="box"><h2>단계별 완료율</h2>${STEPS.map((st, i) => `<div class="hb"><span>${i + 1}. ${esc(st.name)}</span><i style="width:${stepRate[i]}%"></i><em>${Math.round(stepRate[i])}%</em></div>`).join("")}</div></div>`;
+}
+
+function repView() {
+  const L = inBan(), m = A.members.find((v) => v.key === A.sel) || L.find((v) => topicsOf(v).length) || L[0];
+  const T = m ? topicsOf(m) : [];
+  return `<div class="bar-h"><div><h1>학생 보고서</h1><p>한 장 보고서와 AI 활용 기록 · 인쇄하면 이름 없이 학번만 나와요</p></div><div class="ctl">${banSel()}</div></div>
+  <div class="two"><div class="list">${L.map((v) => `<button class="${m && v.key === m.key ? "on" : ""}" data-act="sel" data-v="${v.key}"><span>${esc(v.sid)}</span><span class="note">${topicsOf(v).length}개 · 제출 ${topicsOf(v).filter((t) => v.rec[t.id].sub).length}</span></button>`).join("") || `<p class="note" style="padding:14px">학생이 없어요</p>`}</div>
+  <div>${!m ? "" : T.length ? T.map((t) => paper(t, m)).join("") : `<div class="box note">아직 시작한 탐구가 없어요</div>`}</div></div>`;
+}
+function paper(t, m) {
+  const x = m.rec[t.id];
+  return `<div class="paper" id="p_${m.key.slice(0, 8)}_${t.id}"><div style="display:flex;justify-content:space-between;gap:10px"><h3>${esc(t.title)}</h3><button class="btn w sm" data-act="printRep" data-v="${m.key}" data-t="${t.id}">인쇄</button></div>
+    <div class="who">AI활용탐구 ${t.no} · ${esc(GROUPS[t.g].name)} · ${esc(m.sid)} · ${progOf(t, x)}/8단계 · ${x.sub ? "제출 " + fmtT(x.sub) : "제출 전"}</div>
+    ${REPORT.map(([k, n]) => `<section><h4>${esc(n)}</h4><p>${esc(repVal(t, x, k) || "—")}</p></section>`).join("")}
+    <section><h4>5단계 반박 · AI 활용 기록</h4><p>${esc((x.s || {}).rebut || "—")}</p><div class="ailog">${(x.ai || []).map((a) => a.k === "review" ? `<div>AI 검토 ${fmtT(a.at)} · 수치 ${a.scores.data} / 원인 ${a.scores.other} / 개념 ${a.scores.concept}${a.local ? " (기본 점검)" : ""} — ${esc(a.next)}</div>` : `<div>질문 ${fmtT(a.at)} · ${esc(a.q)} → ${esc(a.a)}</div>`).join("") || `<div>기록 없음</div>`}</div></section></div>`;
+}
+
+function seteukView() {
+  const L = inBan();
+  return `<div class="bar-h"><div><h1>세특</h1><p>제출 · 진행한 탐구 기록만 근거로 초안을 만들어요. 학번 · 이름은 AI에 보내지 않아요. 확정한 글은 학생 기록에 함께 저장돼요.</p></div><div class="ctl">${banSel()}</div></div>
+  ${L.filter((m) => topicsOf(m).length).map((m) => { const draft = A.out[m.key] ?? m.seteuk ?? ""; return `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">${esc(m.sid)} <span class="note">${topicsOf(m).map((t) => `${t.no}. ${esc(t.name)}${m.rec[t.id].sub ? "" : "(진행 중)"}`).join(" · ")}</span></h2>
+    <div class="ctl"><button class="btn b sm" data-act="aiSeteuk" data-v="${m.key}" ${A.busy ? "disabled" : ""}>AI로 초안</button><button class="btn w sm" data-act="copyPrompt" data-v="${m.key}">프롬프트 복사</button><button class="btn sm" data-act="saveSeteuk" data-v="${m.key}">저장</button></div></div>
+    <textarea data-sk="${m.key}" style="margin-top:10px" placeholder="AI로 초안을 만들거나, 프롬프트를 복사해 다른 AI에 붙여 넣은 뒤 결과를 여기에 넣어요">${esc(draft)}</textarea>
+    <p class="note">${[...draft].length}자 · ${nbytes(draft)}바이트 (나이스 1,500바이트 안쪽)${m.seteukAt ? ` · 저장 ${fmtT(m.seteukAt)}` : ""}</p></div>`; }).join("") || `<div class="box note">탐구를 시작한 학생이 없어요</div>`}`;
+}
+
+/* 지도안: 아이에답 '데이터 분석' 유형 8단계 표 */
+const PLAN_T = [
+  ["학습 주제 및 문제 상황 이해", (t) => [`주제와 문제 상황 제시: “${t.q}”`, "학생이 예상을 세우고 살펴볼 대상을 고르게 하며, 나만의 탐구 질문으로 문제를 좁히도록 안내"], (t) => ["내 예상 쓰기", `살펴볼 ${t.pick} 고르기(개별화)`, "나만의 탐구 질문 쓰기(문제 발견)"], "—"],
+  ["데이터 수집 방법 및 도구 학습", (t) => [`‘${t.calc.label}’을 구하는 데 필요한 데이터 묻기`, "실제 출처(공공데이터포털 · KOSIS 등)와 분석 도구 안내"], (t) => [`필요한 열 고르기(${t.need.map((j) => t.cols[j]).join(", ")})`, "출처 확인 · 분석 도구 선택(엑셀 · 구글 시트 · Orange3 · 화면 계산)"], "—"],
+  ["데이터 수집 및 정제", () => ["공공데이터에 흔한 오류(중복 · 누락 · 합계 줄) 설명", "정제 결과 확인 · 피드백"], () => ["중복 줄 · 빈칸 줄 · 합계 줄을 찾아 지우기", "지운 까닭 확인"], "—"],
+  ["데이터 분석 및 시각화", (t) => [`‘${t.calc.formula}’ 계산 방법 안내`, "그래프와 기초 통계(평균 · 최댓값 · 최솟값)로 패턴을 읽도록 발문"], (t) => [`고른 ${t.pick}의 ${t.calc.label} 직접 계산`, "막대그래프 비교 · 기초 통계 확인", "패턴과 인사이트를 수치로 쓰기"], "—"],
+  ["AI 모델 적용 및 평가", (t) => ["AI 모델의 분석 결과 제시 · 평가 기준(수치 인용 · 다른 원인 · 개념 연결) 안내", "AI의 답을 그대로 믿지 않고 데이터로 검증하도록 안내"], (t) => [`AI의 결론 “${t.claim}”을 수치로 반박`, "AI 검토(3기준 피드백) 받고 고쳐 쓰기", "AI 탐구 파트너에게 질문하기"], "생성형 AI(Claude) 검토 · 탐구 파트너(답 대신 질문)"],
+  ["결과 해석 및 해결안 도출", (t) => ["숫자가 말하지 않는 것 토의", `${GROUPS[t.g].name}의 개념과 연결하도록 발문`, "해결안의 실현 가능성 · 한계 · 윤리 · 프라이버시 · 사회적 영향 검토 안내"], () => ["결과 해석 · 한계 쓰기", "개념 연결 쓰기", "해결안 쓰기 · 고려 요소 두 가지 이상 선택"], "—"],
+  ["문제 해결 (실행)", () => ["해결안을 실제로 전할 결과물 형식 안내"], () => ["정책 제안서 · 캠페인 문구 · 편지 · 기사 가운데 하나로 실행물 만들기(데이터 한 줄 포함)"], "—"],
+  ["공유 및 성찰", () => ["우리 반 갤러리 공유 · 동료 해결안 읽기 안내", "AI 활용 성찰 발문: ‘AI의 결론에서 무엇이 틀렸고, 무엇으로 확인했나?’"], () => ["한 장 보고서 제출(자동 정리)", "갤러리에서 친구 해결안 읽기", "탐구 성찰 · AI 활용 성찰 쓰기"], "AI 활용 기록 자동 정리"]
+];
+function planHTML(t) {
+  const G = GROUPS[t.g];
+  return `<div class="plan"><h2>심화탐구 지도안 · AI활용탐구 ${t.no}</h2><p class="sub">${esc(t.title)}</p>
+  <table><tr><th>교과</th><td>통합사회</td><th>단원</th><td>${esc(G.full)}</td></tr>
+    <tr><th>수업 유형</th><td>${esc(DL.MODEL.type)}</td><th>수업 모형</th><td>${esc(DL.MODEL.name)}</td></tr>
+    <tr><th>차시</th><td>1차시(50분) · 개인 탐구</td><th>도구</th><td>moontr.site/datalab · ${esc(DL.MODEL.tools)}</td></tr>
+    <tr><th>학습 목표</th><td colspan="3">${esc(t.goal)}</td></tr>
+    <tr><th>핵심 질문</th><td colspan="3">${esc(t.q)}</td></tr>
+    <tr><th>사용 데이터</th><td colspan="3">${t.src.map((s) => esc(s[0])).join(" · ")} (수업에서는 정리한 표를 제공하고, 더 해 보기에서 원자료를 다룸)</td></tr></table>
+  <table><tr><th style="width:15%">단계</th><th style="width:6%">시간</th><th style="width:31%">교수 활동</th><th style="width:31%">학습 활동</th><th style="width:17%">AI 활용 · 유의점</th></tr>
+    ${PLAN_T.map(([nm, tf, sf, ai], i) => `<tr><td><b>${i + 1}. ${esc(nm)}</b></td><td class="c">${STEPS[i].min}분</td><td><ul>${tf(t).map((v) => `<li>${esc(v)}</li>`).join("")}</ul></td><td><ul>${sf(t).map((v) => `<li>${esc(v)}</li>`).join("")}</ul></td><td>${esc(ai)}</td></tr>`).join("")}</table>
+  <table><tr><th style="width:15%">평가</th><td><ul><li>데이터 리터러시: 정제 · 계산이 정확하고, 그래프와 통계를 근거로 패턴을 설명하는가</li><li>AI 리터러시: AI의 결론을 수치로 검증하고, AI 활용 과정을 성찰하는가</li><li>개념 적용: ${esc(G.name)}의 개념을 사용해 결과를 해석하고 해결안을 제시하는가</li></ul></td></tr>
+    <tr><th>개별화</th><td>학생마다 살펴볼 대상과 나만의 탐구 질문을 고르고, 한 반 안에서도 20개 주제 가운데 하나를 선택해 서로 다른 데이터 · 결론 · 실행물을 만든다.</td></tr>
+    <tr><th>기록 연계</th><td>단계 기록 · 한 장 보고서 · AI 활용 기록이 자동 저장되어 학생별 세부능력 및 특기사항의 근거로 쓰인다.</td></tr>
+    <tr><th>유의점</th><td>개인 경험 · 타인 이름 등 개인정보를 쓰지 않게 한다. 화면의 숫자는 연습용 예시이므로 실제 통계는 출처에서 확인하도록 안내한다.</td></tr></table></div>`;
+}
+function planView() {
+  const t = DL.topic(A.topic);
+  return `<div class="bar-h"><div><h1>지도안</h1><p>아이에답 ‘데이터 분석’ 유형 · 8단계 수업 모형 · 주제마다 한 장</p></div><div class="ctl">${topicSel()}<button class="btn" data-act="printPlan">인쇄 · PDF로 저장</button></div></div>${planHTML(t)}`;
+}
+
+function reflView() {
+  const L = inBan(), all = L.flatMap((m) => topicsOf(m).map((t) => [t, m.rec[t.id], m]));
+  const reviews = all.flatMap(([, x]) => (x.ai || []).filter((a) => a.k === "review" && !a.local));
+  const firsts = all.map(([, x]) => (x.ai || []).filter((a) => a.k === "review")).filter((r) => r.length >= 2);
+  const gain = firsts.length ? firsts.reduce((s, r) => { const sc = (a) => a.scores.data + a.scores.other + a.scores.concept; return s + sc(r[r.length - 1]) - sc(r[0]); }, 0) / firsts.length : 0;
+  const sub = all.filter(([, x]) => x.sub);
+  const stats = { 반: A.ban || "모든 반", 학생: L.length, 시작한탐구: all.length, 제출: sub.length, 주제수: new Set(all.map(([t]) => t.id)).size, AI검토: all.reduce((s, [, x]) => s + (x.ai || []).filter((a) => a.k === "review").length, 0), AI질문: all.reduce((s, [, x]) => s + (x.ai || []).filter((a) => a.k === "ask").length, 0), 다시쓴뒤점수변화: +gain.toFixed(2),
+    단계완료율: Object.fromEntries(STEPS.map((st, i) => [`${i + 1}.${st.name}`, all.length ? Math.round(all.filter(([t, x]) => stepDone(t, x, st.k)).length / all.length * 100) + "%" : "0%"])) };
+  const samples = sub.slice(0, 3).map(([t, x]) => ({ 주제: `${t.no}. ${t.name}`, 결과: String(repVal(t, x, "result")).slice(0, 200), 해결안: String(repVal(t, x, "plan")).slice(0, 200), AI성찰: String(repVal(t, x, "ai")).slice(0, 200) }));
+  A.reflData = { stats, samples };
+  const draft = A.out.refl || "";
+  return `<div class="bar-h"><div><h1>수업 실천 성찰</h1><p>아이에답 ‘수업 실천 성찰하기’에 올릴 자료 · 학번 없이 통계와 보고서 예시만</p></div><div class="ctl">${banSel()}<button class="btn" data-act="printRefl">인쇄 · PDF로 저장</button></div></div>
+  <div id="reflDoc"><div class="kpi"><div>참여 학생<b>${stats.학생}명</b></div><div>시작한 탐구<b>${stats.시작한탐구}개</b></div><div>제출한 보고서<b>${stats.제출}개</b></div><div>선택된 주제<b>${stats.주제수}개</b></div><div>AI 검토 · 질문<b>${stats.AI검토 + stats.AI질문}회</b></div></div>
+  <div class="two" style="grid-template-columns:1fr 1fr"><div class="box"><h2>단계별 완료율</h2>${STEPS.map((st, i) => { const v = parseInt(Object.values(stats.단계완료율)[i]); return `<div class="hb"><span>${i + 1}. ${esc(st.name)}</span><i style="width:${v}%"></i><em>${v}%</em></div>`; }).join("")}</div>
+  <div class="box"><h2>AI 검토 뒤 고쳐 쓰기</h2><p style="font-size:14px">AI 검토를 두 번 이상 받은 탐구 ${firsts.length}개에서, 첫 검토보다 마지막 검토의 점수(수치 인용 · 다른 원인 · 개념 연결, 6점 만점)가 평균 <b>${gain >= 0 ? "+" : ""}${gain.toFixed(2)}점</b> 바뀌었어요.</p><p class="note" style="margin-top:8px">AI 서버 검토 ${reviews.length}회 · 기본 점검 포함 전체 ${stats.AI검토}회 · 탐구 파트너 질문 ${stats.AI질문}회</p></div></div>
+  <div class="box"><h2>학생 보고서 예시 (이름 · 학번 없이)</h2>${samples.map((s) => `<div class="paper" style="padding:16px 18px"><div class="who">${esc(s.주제)}</div><section><h4>결과</h4><p>${esc(s.결과)}</p></section><section><h4>해결안</h4><p>${esc(s.해결안)}</p></section><section><h4>AI 활용 성찰</h4><p>${esc(s.AI성찰)}</p></section></div>`).join("") || `<p class="note">제출한 보고서가 생기면 여기에 세 개까지 보여요</p>`}</div>
+  <div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">성찰문 초안</h2><button class="btn b sm" data-act="aiRefl" ${A.busy ? "disabled" : ""}>AI로 초안</button></div><textarea data-refl style="margin-top:10px" placeholder="위 통계와 예시를 바탕으로 AI가 초안을 써 줘요. 내 경험과 느낀 점으로 고쳐 써 주세요">${esc(draft)}</textarea></div></div>`;
+}
+
+function usersView() {
+  const L = inBan();
+  return `<div class="bar-h"><div><h1>학생 관리</h1><p>비밀번호를 잊은 학생은 새 비밀번호로 기록을 옮겨 줘요 (예전 비밀번호 기록은 지워져요)</p></div><div class="ctl">${banSel()}</div></div>
+  <div class="box"><table class="tb"><thead><tr><th>학번</th><th>반</th><th>탐구</th><th>처음 들어온 때</th><th>새 비밀번호(숫자 4자리)</th><th></th></tr></thead><tbody>
+  ${L.map((m) => `<tr><td><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td><td>${topicsOf(m).length}개</td><td>${fmtT(m.at)}</td><td><input inputmode="numeric" maxlength="4" data-pin="${m.key}" style="width:110px"></td><td><button class="btn w sm" data-act="resetPin" data-v="${m.key}">비밀번호 바꾸기</button> <button class="btn w sm" data-act="delMember" data-v="${m.key}">기록 지우기</button></td></tr>`).join("") || `<tr><td colspan="6" class="note">학생이 없어요</td></tr>`}</tbody></table></div>`;
+}
+
+/* ---------- 누르기 ---------- */
+document.addEventListener("change", (e) => {
+  const a = e.target.dataset.act;
+  if (a === "ban") { A.ban = e.target.value; A.sel = null; render(); }
+  if (a === "topic") { A.topic = e.target.value; render(); }
+});
+document.addEventListener("input", (e) => { if (e.target.dataset.sk) A.out[e.target.dataset.sk] = e.target.value; if (e.target.hasAttribute("data-refl")) A.out.refl = e.target.value; });
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-act]"); if (!b || b.tagName === "SELECT") return;
+  const a = b.dataset.act, v = b.dataset.v, m = A.members.find((x) => x.key === v);
+  if (a === "login") return login();
+  if (a === "logout") { e.preventDefault(); return auth.signOut(); }
+  if (a === "tab") { A.tab = v; A.msg = ""; history.replaceState(null, "", "#" + v); return render(); }
+  if (a === "see" || a === "sel") { A.sel = v; A.tab = "rep"; render(); if (b.dataset.t) { const el = document.getElementById(`p_${v.slice(0, 8)}_${b.dataset.t}`); if (el) el.scrollIntoView({ block: "start" }); } return; }
+  if (a === "printRep") { $("#printArea").innerHTML = paper(DL.topic(b.dataset.t), m); return window.print(); }
+  if (a === "printPlan") { $("#printArea").innerHTML = planHTML(DL.topic(A.topic)); return window.print(); }
+  if (a === "printRefl") { $("#printArea").innerHTML = $("#reflDoc").outerHTML; return window.print(); }
+  if (a === "copyPrompt") { try { await navigator.clipboard.writeText(promptOf(m)); b.textContent = "복사됨"; } catch (er) { prompt("아래를 복사해요", promptOf(m)); } return; }
+  if (a === "aiSeteuk") {
+    A.busy = true; render();
+    try { const j = await callAdminAI("/seteuk", { evidence: evidence(m) }); A.out[v] = j.text; A.msg = ""; } catch (er) { A.msg = "AI 서버에 연결하지 못했어요 (" + er.message + "). ‘프롬프트 복사’로 다른 AI에 붙여 넣어 쓸 수 있어요."; }
+    A.busy = false; return render();
+  }
+  if (a === "saveSeteuk") { const txt = A.out[v] ?? m.seteuk ?? ""; await db.collection("datalab_members").doc(v).update({ seteuk: txt, seteukAt: Date.now() }); A.msg = `${m.sid} 세특을 저장했어요`; return render(); }
+  if (a === "aiRefl") {
+    A.busy = true; render();
+    try { const j = await callAdminAI("/reflect", A.reflData); A.out.refl = j.text; A.msg = ""; } catch (er) { A.msg = "AI 서버에 연결하지 못했어요 (" + er.message + ")"; }
+    A.busy = false; return render();
+  }
+  if (a === "resetPin") {
+    const pin = (document.querySelector(`[data-pin="${v}"]`).value || "").trim();
+    if (!/^[0-9]{4}$/.test(pin)) return alert("새 비밀번호는 숫자 네 자리예요");
+    if (!confirm(`${m.sid} 학생의 비밀번호를 ${pin}(으)로 바꿀까요? 학생에게 새 비밀번호를 알려 주세요.`)) return;
+    const nk = await DL.keyOf(m.sid, pin); if (nk === v) return alert("지금과 같은 비밀번호예요");
+    const { key, ...data } = m, bt = db.batch(); bt.set(db.collection("datalab_members").doc(nk), { ...data, updatedAt: Date.now() }); bt.delete(db.collection("datalab_members").doc(v)); await bt.commit();
+    A.msg = `${m.sid} 학생의 비밀번호를 바꿨어요`; return render();
+  }
+  if (a === "delMember") {
+    if (!confirm(`${m.sid} 학생의 탐구 기록을 모두 지울까요? 되돌릴 수 없어요.`)) return;
+    const bt = db.batch(); bt.delete(db.collection("datalab_members").doc(v)); bt.delete(db.collection("datalab_ids").doc(m.sid)); await bt.commit();
+    A.msg = `${m.sid} 학생의 기록을 지웠어요 (같은 학번으로 다시 처음부터 시작할 수 있어요)`; return render();
+  }
+});
+render();
+</script>
+<script type="module" src="/visit.js?app=datalab&hide=1"></script>
+</body>
+</html>
