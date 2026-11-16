@@ -505,7 +505,7 @@ const subj0 = () => SUBJ0.map(([n, c]) => ({ n, c, daily:true }));
 let D = { mode:"f", tside:"r", font:"unz", move:"roam", pop:true, react:true, subjV:1, crew:["rabbit","bear","ham"], spots:{}, seeded:"", exams:[], weekSeen:"", focusOff:false, bg:"w", acc:0, mine:[], th:[3,6,10], weak:"", subj:subj0(), plans:{}, log:{}, timer:null, grades:[], reps:[], rs:{}, goals:{}, pics:[], picClean:false,
   /* 2026-11-16: dayStart = 하루가 바뀌는 시각(0 = 자정, 1~5 = 새벽) · diary = 하루 마무리 일기 { 날짜:{ mood, log, cheer, fix, at } }
      fix = 학생이 고친 그날 순공(초) { 날짜:초 } · rem = 알림 · vol = 공부 소리 크기 */
-  dayStart:0, diary:{}, fix:{}, rem:{ on:false, plan:"07:30", check:"21:00", diary:"22:00", exam:true }, vol:0.8 };
+  island:"on", dayStart:0, diary:{}, fix:{}, rem:{ on:false, plan:"07:30", check:"21:00", diary:"22:00", exam:true }, vol:0.8 };
 let RAW = null;
 try { RAW = JSON.parse(localStorage.getItem(KEY) || "null"); if (RAW) D = { ...D, ...RAW }; } catch (e) {}
 /* 예전 기록 옮기기 (2026-11-15)
@@ -1244,6 +1244,8 @@ function viewSettings(){
       <div class="row"><span>알림 받기</span>${seg2("remOn", !!(D.rem && D.rem.on))}</div>
       ${D.rem && D.rem.on ? [["plan","☀️ 오늘 계획 세우기"],["check","✅ 할 일 체크했니?"],["diary","🌙 하루 마무리 일기"]].map(([f, n]) => `<div class="row"><span>${n}</span><span class="timein"><input type="time" data-rem="${f}" value="${esc(D.rem[f] || "")}" aria-label="${n} 시각"></span></div>`).join("") + `<div class="row"><span>📅 시험 전날 저녁 8시</span>${seg2("remExam", D.rem.exam !== false)}</div>` : ""}</div>
     <p class="note" style="margin:-8px 4px 0">${LN() ? "휴대폰 알림으로 와요 · 서버로 보내는 것 없이 이 휴대폰 안에서만 울려요" : NAT ? "휴대폰 알림은 다음 앱 업데이트부터 와요. 지금은 그 시각이 지나 앱을 열면 쌤이 알려 줘요" : "웹에서는 그 시각이 지나 앱을 열면 쌤이 알려 줘요 (휴대폰 알림은 아이폰 앱에서)"}</p>
+    ${NAT ? `<p class="gh">⏱ 타이머를 아일랜드 · 잠금 화면에</p><div class="grp"><div class="row"><span>타이머</span><span class="seg">${[["on","늘 보이기"],["run","잴 때만"],["off","안 보이기"]].map(([v, n]) => `<button type="button" data-act="island" data-v="${v}" aria-pressed="${(D.island || "on") === v}">${n}</button>`).join("")}</span></div></div>
+    <p class="note" style="margin:-8px 4px 0">잴 때만 = 일시정지하면 내려가요 · 안 보이기여도 타이머와 순공 기록은 앱 안에서 그대로예요</p>` : ""}
     <p class="gh">달력 진하기 기준 (순공 시간)</p><div class="grp">${stepRow(0, "연하게", 2)}${stepRow(1, "진하게", 3)}${stepRow(2, "가장 진하게", 4)}</div>
     <p class="note" style="margin:-8px 4px 0">시험 기간엔 높게, 방학엔 낮게 바꿔도 돼요</p>
     <p class="gh">백업 (휴대폰을 바꿀 때)</p><div class="grp">
@@ -1652,6 +1654,7 @@ document.addEventListener("click", e => {
     case "dayStart": D.dayStart = +v; S.dEdit = ""; save(); toast(+v ? `새벽 ${v}시가 지나야 새 하루가 시작돼요` : "자정에 새 하루가 시작돼요"); break;
     case "remOn": D.rem = { ...(D.rem || {}), on:v === "1" }; save(); remSchedule(true); break;
     case "remExam": D.rem.exam = v === "1"; save(); remSchedule(); break;
+    case "island": D.island = v; save(); toast(v === "off" ? "아일랜드 · 잠금 화면에 타이머가 안 떠요" : v === "run" ? "타이머를 잴 때만 떠요 (일시정지하면 내려가요)" : "타이머가 켜져 있으면 늘 떠요"); break;
     /* 달력 */
     case "calV": S.calV = v; break;
     case "mPrev": case "mNext": { const now = new Date(), m = S.calM || new Date(now.getFullYear(), now.getMonth(), 1); S.calM = new Date(m.getFullYear(), m.getMonth() + (a === "mNext" ? 1 : -1), 1); S.calDay = ""; break; }
@@ -1918,7 +1921,9 @@ let natT = 0, bakT = 0;
 function nativeSync(){
   if (!NAT) return;
   clearTimeout(natT); natT = setTimeout(async () => {
-    const k = today(), L = plansOf(k), t = D.timer, c = COLORS[D.acc] || COLORS[0], x = nextExam();
+    /* D.island (2026-11-16): "on" 늘 · "run" 잴 때만(일시정지면 내려가요) · "off" 안 보이기 → 안 보일 땐 timer 를 비워 보내요 (그러면 앱이 아일랜드를 내려요) */
+    const isl = D.island || "on", t0 = D.timer, t = t0 && isl !== "off" && (isl === "on" || t0.start) ? t0 : null;
+    const k = today(), L = plansOf(k), c = COLORS[D.acc] || COLORS[0], x = nextExam();
     const w = { date:k, tasks:L.filter(p => p.s).flatMap(p => p.det.length ? unitsOf(p).map(u => ({ t:`${p.s} · ${u.t}`, d:u.d })) : [{ t:p.s, d:!!p.done }]), sec:Math.round(secOf(k)), color:c[0], soft:c[1], mode:D.mode,
       say:D.mode === "t" ? "오늘 할 일부터 하나씩 하자." : "오늘도 같이 해 보자!", dday:x ? `${x.n} ${dLeft(x.d) ? "D-" + dLeft(x.d) : "D-day"}` : "",
       timer:t ? { s:t.s, run:!!t.start, from:Date.now() - tsec() * 1000, sec:Math.round(tsec()) } : null, ava:await avaImage() };
