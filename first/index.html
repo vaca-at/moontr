@@ -160,8 +160,8 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .mv-lots .sayw .ava{animation:wig 1.8s ease-in-out infinite!important}.mv-lots .peeker{animation:jump 1.4s ease-in-out infinite!important}.mv-lots .walker{animation:jump .7s ease-in-out infinite!important}
 /* 중요할 때 가운데로 · 가끔 튀어나오기 */
 .moment{position:absolute;inset:0;z-index:30;display:grid;place-items:center;background:rgba(0,0,0,.18);animation:mfade .25s both}
-.moment .mc{display:grid;justify-items:center;gap:10px;animation:mpop .55s cubic-bezier(.3,1.6,.5,1) both}
-.moment .mc .ch{width:150px;height:150px}.moment .mc p{margin:0;background:#fff;color:var(--ink);border-radius:20px;padding:12px 18px;font-size:18px;max-width:260px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+.moment .mc{position:relative;z-index:1;display:grid;justify-items:center;gap:10px;animation:mpop .55s cubic-bezier(.3,1.6,.5,1) both}
+.moment .mc .ch{width:150px;height:150px}.moment .mc p{margin:0;background:#fff;color:#2B2B33;border-radius:20px;padding:12px 18px;font-size:18px;max-width:260px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.15)}
 @keyframes mfade{from{opacity:0}}@keyframes mpop{from{transform:scale(.3) translateY(40px);opacity:0}}
 .popper{position:absolute;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:12;display:flex;align-items:flex-end;gap:6px;pointer-events:none;animation:pin 3.2s cubic-bezier(.3,1.4,.5,1) both}
 .popper.l{left:-8px}.popper.r{right:-8px;flex-direction:row-reverse}
@@ -353,6 +353,7 @@ main.scrolled .prog::before{opacity:1}
 .app.timer-open .crew{opacity:0;transition:opacity .2s}
 .mate{position:absolute;width:56px;height:56px;transform:translate(-50%,-50%);transition:left 6s linear,top 6s linear;filter:drop-shadow(0 3px 4px rgba(0,0,0,.14))}
 .mate .fl{position:absolute;inset:0;display:block}.mate.lft .fl{transform:scaleX(-1)}
+.mate.incard .fl{transform:scale(.78)}.mate.incard.lft .fl{transform:scale(-.78,.78)}
 .mate .ch{transform-origin:50% 92%}
 .mv-breath .mate .ch,.mv-roam .mate .ch{animation:breath 3.6s ease-in-out infinite}
 .mv-roam .mate.walk .ch{animation:waddle .55s ease-in-out infinite}
@@ -389,8 +390,14 @@ main.scrolled .prog::before{opacity:1}
 @keyframes bigHop{50%{transform:translateY(-26px) scale(1.06,.95)}}
 .mcw{position:relative;display:block}.mband{position:absolute;left:12%;right:12%;top:30%;height:26px;border-radius:13px;background:#E5394F;color:#fff;font:700 13px/26px var(--sys);text-align:center;font-style:normal;letter-spacing:.3em;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
 .cf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-.cf i{position:absolute;top:-24px;width:9px;height:14px;border-radius:2px;font-style:normal;font-size:20px;line-height:1;animation:cfall 2.8s cubic-bezier(.25,.6,.4,1) forwards}
-@keyframes cfall{to{transform:translate(var(--dx),110vh) rotate(var(--r));opacity:.3}}
+.cf i{position:absolute;top:-20px;animation:cfall var(--t) cubic-bezier(.3,.5,.5,1) both}
+.cf i.bu{left:50%;top:42%;animation:cburst 2.6s cubic-bezier(.15,.8,.4,1) both}
+.cf b{display:block;width:calc(9px*var(--z));height:calc(12px*var(--z));background:var(--c);border-radius:2px;animation:cflip var(--w) ease-in-out infinite alternate;box-shadow:inset 0 -2px 0 rgba(0,0,0,.06)}
+.cf b.st{width:calc(5px*var(--z));height:calc(18px*var(--z));border-radius:3px}
+.cf b.dot{width:calc(9px*var(--z));height:calc(9px*var(--z));border-radius:50%}
+@keyframes cfall{0%{transform:translate(0,0)}25%{transform:translate(calc(var(--dx)*.6),26vh)}50%{transform:translate(calc(var(--dx)*-.3),54vh)}75%{transform:translate(var(--dx),82vh);opacity:1}100%{transform:translate(calc(var(--dx)*.4),108vh);opacity:.6}}
+@keyframes cburst{0%{transform:translate(0,0) scale(.2);opacity:0}8%{opacity:1}30%{transform:translate(var(--bx),var(--by)) scale(1)}100%{transform:translate(calc(var(--bx)*1.2),calc(var(--by) + 55vh)) scale(1);opacity:0}}
+@keyframes cflip{0%{transform:rotate3d(1,.4,.2,0deg)}100%{transform:rotate3d(1,.4,.2,170deg) rotate(40deg)}}
 @media (prefers-reduced-motion:reduce){.cf{display:none}.moment.big .mc .ch{animation:none}}
 /* 📈 공부 돌아보기 */
 .habit{background:#fff;border:1.5px solid #F0EAED;border-radius:18px;padding:14px;display:grid;gap:12px}
@@ -1583,11 +1590,25 @@ function mateSay(text, id){
   el._t = setTimeout(() => el.classList.remove("talk", "hop"), 2800);
 }
 function crewCheer(){ const b = $("crew"); if (!b) return; b.classList.add("cheer"); setTimeout(() => b.classList.remove("cheer"), 2000); }
-/* 돌아다니기: 4초마다 몇몇 친구가 가까운 곳으로 천천히 걸어가요 */
+/* 과목 박스 안 빈자리 (과목 이름 오른쪽 ~ ⠿ 왼쪽): 친구가 들어가 쉬었다 가요 */
+function cardSpot(){
+  const box = $("crew"), B = box?.getBoundingClientRect(); if (!B?.height) return null;
+  const used = Object.values(CREW.els).map(e => e._card);
+  const rows = [...document.querySelectorAll(".item[data-pid] > .row")].filter(r => { const b = r.getBoundingClientRect(); return b.top > B.top + B.height * .2 && b.bottom < B.bottom - 70 && !used.includes(r.parentNode.dataset.pid); });
+  for (let k = 0; k < 4 && rows.length; k++){
+    const r = rows.splice(Math.floor(Math.random() * rows.length), 1)[0], b = r.getBoundingClientRect(), nm = r.querySelector(".nm");
+    const L = Math.max(...[...(nm?.children || [])].map(c => c.getBoundingClientRect().right), b.left + 60) + 34, R = b.right - 58;
+    if (R - L < 30) continue;
+    return { x:(L + Math.random() * (R - L) - B.left) / B.width, y:(b.top + b.height / 2 - B.top) / B.height, card:r.parentNode.dataset.pid };
+  }
+  return null;
+}
+/* 돌아다니기: 4초마다 몇몇 친구가 가까운 곳이나 과목 박스 안 빈자리로 천천히 걸어가요 */
 setInterval(() => {
   if (D.move !== "roam" || CREW.sleep || document.visibilityState !== "visible") return;
   Object.values(CREW.els).forEach(el => { if (el === CREW.drag?.el || Math.random() > .35) return;
-    const p = el._p || crewRnd(), n = { x:Math.max(.08, Math.min(.92, p.x + (Math.random() - .5) * .5)), y:Math.max(.2, Math.min(.88, p.y + (Math.random() - .5) * .3)) };
+    const c = !el._card && Math.random() < .45 ? cardSpot() : null; el._card = c?.card || null; el.classList.toggle("incard", !!c);
+    const p = el._p || crewRnd(), n = c ? { x:c.x, y:c.y } : { x:Math.max(.08, Math.min(.92, p.x + (Math.random() - .5) * .5)), y:Math.max(.2, Math.min(.88, p.y + (Math.random() - .5) * .3)) };
     const dist = Math.hypot((n.x - p.x) * 4, n.y - p.y * 1), sec = Math.max(2, dist * 7);
     el.style.transitionDuration = sec + "s"; el.classList.toggle("lft", n.x < p.x); el.classList.add("walk"); crewPlace(el, n);
     clearTimeout(el._w); el._w = setTimeout(() => el.classList.remove("walk"), sec * 1000); });
@@ -1632,9 +1653,13 @@ function moment(text, big = false, band = false){
   if (big) crewCheer();
 }
 function confettiHtml(){
-  const C = ["var(--mode)", "#FFD43B", "#7FD3A8", "#7FB8FF", "#C9A7FF", "#FF9F7A"], E = ["🎉", "✨", "⭐", "💖"];
+  /* 종이 꽃가루: 위에서 팔랑팔랑 떨어지는 조각 + 친구 둘레에서 팡 터지는 조각 (네모 · 긴 띠 · 동그라미) */
+  const C = ["#FF8FAB", "#FFC2D4", "#FFD43B", "#FFE8A3", "#7FD3A8", "#B5EAD7", "#7FB8FF", "#BFD9FF", "#C9A7FF", "#FFB38A"], S = ["", "st", "dot"];
+  const r = (a, b) => (a + Math.random() * (b - a)).toFixed(2);
   let h = '<div class="cf" aria-hidden="true">';
-  for (let i = 0; i < 44; i++){ const e = i % 6 === 0; h += `<i style="left:${(Math.random() * 100).toFixed(1)}%;animation-delay:${(Math.random() * .9).toFixed(2)}s;--dx:${(Math.random() * 120 - 60).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;${e ? "" : `background:${C[i % C.length]};`}">${e ? E[i % E.length] : ""}</i>`; }
+  for (let i = 0; i < 64; i++) h += `<i style="left:${r(0, 100)}%;--c:${C[i % C.length]};--dx:${r(-70, 70)}px;--t:${r(2.6, 4)}s;--w:${r(.5, 1.1)}s;animation-delay:${r(0, 1.2)}s"><b class="${S[i % 3]}" style="--z:${r(.7, 1.3)}"></b></i>`;
+  for (let i = 0; i < 36; i++){ const g = Math.random() * Math.PI * 2, d = 90 + Math.random() * 120;
+    h += `<i class="bu" style="--c:${C[i % C.length]};--bx:${(Math.cos(g) * d).toFixed(0)}px;--by:${(Math.sin(g) * d - 60).toFixed(0)}px;--w:${r(.4, .9)}s;animation-delay:${r(0, .15)}s"><b class="${S[i % 3]}" style="--z:${r(.7, 1.2)}"></b></i>`; }
   return h + "</div>";
 }
 /* 기록 · 연속 공부 계산 (특별한 순간 고르기용) */
