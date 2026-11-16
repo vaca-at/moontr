@@ -1260,7 +1260,9 @@ function viewSettings(){
       <div class="row"><span>백업 파일 가져오기</span><label class="link" style="cursor:pointer">가져오기<input type="file" id="bakFile" accept=".json,application/json" hidden></label></div></div>
     <p class="note" style="margin:-8px 4px 0">할 일 · 순공 · 성적 · 일기 · 설정 · 내 캐릭터가 파일 하나에 담겨요 (사진첩 사진 · 사진에서 읽은 글자는 빼고)${NAT ? ". 아이클라우드에도 저절로 백업돼요" : ""}</p>
     <p class="gh">계정</p><div class="grp"><div class="row"><span>${esc(window.FB?.who() || "로그인 정보를 불러오는 중")}<small style="display:block" class="${window.FB?.syncBad?.() ? "syncbad" : "syncok"}">${esc(window.FB?.syncText?.() || "")}</small></span><button type="button" class="link" data-act="logout">로그아웃</button></div>
+      ${(window.FB?.kinds?.() || []).map(([k, n, on]) => `<div class="row"><span>${n}로 로그인</span>${on ? `<small class="syncok">✓ 연결됨</small>` : `<button type="button" class="link" data-act="linkLogin" data-v="${k}">연결하기</button>`}</div>`).join("")}
       <div class="row"><span>탈퇴 <small class="sub">(계정과 서버 기록 지우기)</small></span><button type="button" class="link dim" data-act="quit">탈퇴</button></div></div>
+    <p class="note" style="margin:-8px 4px 0">연결해 두면 구글 · 카카오${NAT ? " · Apple" : ""} 어느 쪽으로 들어와도 같은 기록이에요. 다른 방법으로 따로 가입해 둔 기록이 있으면 연결할 때 하나로 합쳐요.</p>
     <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기 <small class="sub">(계정은 남겨요)</small></span><button type="button" class="link dim" data-act="wipe">지우기</button></div></div>
     <details class="policy"><summary>먼저 플래너 · 이용약관 · 개인정보 처리방침</summary><div>
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
@@ -1280,6 +1282,28 @@ function renameSubj(old, n, alsoPlans = true){
 /* 💾 백업 파일: 아이폰 앱이면 공유 창(파일에 저장 · 에어드롭), 웹이면 내려받기 */
 /* 서버 · 아이클라우드 · 백업 파일로 내보낼 기록: 사진에서 읽은 글자(txt)는 빼요 (사진과 함께 이 기기에만) */
 const outData = () => ({ ...D, pics:(D.pics || []).map(({ txt, ...r }) => r) });
+/* 🔗 로그인 합치기 (2026-11-16): 구글 · 카카오 · Apple 로 따로 만든 계정의 기록 o 를 지금 기록 D 에 모아요
+   날짜마다 있는 것(할 일 · 순공 · 일기 · 목표 …)은 합치고, 설정(말투 · 과목 · 친구들 …)은 지금 것을 그대로 둬요 */
+function dataSummary(o){
+  const n = x => Object.keys(x || {}).length;
+  return [n(o.plans) && `할 일 ${n(o.plans)}일`, n(o.log) && `순공 ${n(o.log)}일`, n(o.diary) && `일기 ${n(o.diary)}편`, (o.grades || []).length && `성적 ${o.grades.length}개`, (o.exams || []).length && `시험 ${o.exams.length}개`].filter(Boolean).join(" · ") || "거의 비어 있어요";
+}
+function mergeData(o){
+  if (!o || typeof o !== "object") return;
+  const sig = p => JSON.stringify([p.s, p.det || []]);
+  for (const [k, L] of Object.entries(o.plans || {})){ const A = D.plans[k] = D.plans[k] || []; const ids = new Set(A.map(p => p.id)), ss = new Set(A.map(sig)); (L || []).forEach(p => { if (!ids.has(p.id) && !ss.has(sig(p))) A.push(p); }); }
+  for (const [k, by] of Object.entries(o.log || {})){ const A = D.log[k] = D.log[k] || {}; for (const [s, v] of Object.entries(by || {})) A[s] = (A[s] || 0) + v; }   // 두 계정에서 따로 잰 시간이라 더해요
+  for (const [k, v] of Object.entries(o.fix || {})) if (D.fix[k] == null) D.fix[k] = v;
+  for (const [k, v] of Object.entries(o.diary || {})){ const a = D.diary[k]; if (!a || (v && (v.at || 0) > (a.at || 0) && !(a.log || a.cheer || a.fix))) D.diary[k] = v; }
+  for (const [w, G] of Object.entries(o.goals || {})){ const A = D.goals[w] = D.goals[w] || []; const ids = new Set(A.map(g => g.id)); (G || []).forEach(g => { if (!ids.has(g.id)) A.push(g); }); }
+  for (const [k, L] of Object.entries(o.rs || {})) D.rs[k] = [...new Set([...(D.rs[k] || []), ...(L || [])])];
+  const byId = (a, b, same) => { const ids = new Set(a.map(x => x.id)); (b || []).forEach(x => { if (!ids.has(x.id) && !(same && a.some(y => same(x, y)))) a.push(x); }); };
+  byId(D.grades, o.grades, (x, y) => x.name === y.name && JSON.stringify(x.g) === JSON.stringify(y.g));
+  byId(D.exams, o.exams, (x, y) => x.n === y.n && x.d === y.d);
+  byId(D.reps, o.reps, (x, y) => x.s === y.s && x.t === y.t);
+  byId(D.mine, (o.mine || []).slice(0, Math.max(0, 10 - D.mine.length)));
+  save(); render();
+}
 async function backupOut(){
   const json = JSON.stringify({ app:"first", v:1, at:new Date().toISOString(), data:outData() }), name = `먼저플래너-백업-${today()}.json`;
   if (NAT){ try { await NAT.shareFile({ name, text:json }); return; } catch (e) {} }
@@ -1735,6 +1759,7 @@ document.addEventListener("click", e => {
     case "logout": S.sheet = { t:"out" };
       openSheet(`<h2>로그아웃할까요?</h2><p class="note">기록은 서버에 저장돼 있어서, 다시 로그인하면 그대로 돌아와요. 이 기기에 남은 기록은 지워요 (사진첩 사진은 이 기기에만 있어요).</p><div class="btns"><button type="button" class="pill light" data-act="sheetClose">취소</button><button type="button" class="pill" data-act="logoutOk">로그아웃</button></div>`); return;
     case "logoutOk": window.FB?.out(); return;
+    case "linkLogin": if (b.dataset.busy) return; b.dataset.busy = "1"; b.textContent = "확인 중…"; window.FB?.link(v).finally(() => render()); return;
     case "quit": S.sheet = { t:"quit" };
       openSheet(`<h2>탈퇴할까요?</h2><p class="note">계정과 서버에 저장된 할 일 · 순공 시간 · 성적 · 설정, 이 기기의 기록과 사진첩, 아이클라우드 백업까지 모두 지워요. 되돌릴 수 없어요.</p><div class="btns"><button type="button" class="pill light" data-act="sheetClose">취소</button><button type="button" class="pill danger" data-act="quitOk">모두 지우고 탈퇴</button></div>`); return;
     case "quitOk": b.disabled = true; b.textContent = "지우는 중…"; window.FB?.quit(); return;
@@ -1980,7 +2005,7 @@ setTimeout(() => { const t = D.timer; if (t && t.start && !t.asked && tsec() >= 
    - 이름 붙은 파이어베이스 앱 "first" (moontr.site 관리자 로그인과 섞이지 않게). 관리자 화면(#admin)만 기본 앱
    - 탈퇴: ⚙︎ 설정 › 계정 › 탈퇴 → 서버 기록 · 숫자 · 로그인 정보를 지우고 이 기기 기록도 지워요 */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithPopup, signInWithCredential, signInWithCustomToken, GoogleAuthProvider, OAuthProvider, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithPopup, signInWithCredential, signInWithCustomToken, linkWithPopup, linkWithCredential, GoogleAuthProvider, OAuthProvider, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, getCountFromServer, collection, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const firebaseConfig = { apiKey:"AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain:"moon-d528d.firebaseapp.com", projectId:"moon-d528d", storageBucket:"moon-d528d.firebasestorage.app", messagingSenderId:"126636401536", appId:"1:126636401536:web:25b8a8296ec42b86f99765" };
 const ADMIN = location.hash === "#admin" || /[?&]admin\b/.test(location.search);
@@ -2017,18 +2042,24 @@ async function appCreds(kind){
    → ① 휴대폰 안에서 카카오 로그인을 끝내고 ② 그 로그인 표를 로그인 다리(auth/server, Cloudflare)에 보내면
      ③ 같은 계정(같은 uid)의 커스텀 토큰을 받아 웹 화면도 signInWithCustomToken 으로 들어가요. 웹에서 카카오로 가입한 계정과 같은 계정이에요 */
 const AUTH_BRIDGE = "https://moontr-auth.bellachord.workers.dev";
-async function kakaoApp(){
+const bridge = async (path, body) => {
+  let j = {};
+  try { const r = await fetch(AUTH_BRIDGE + path, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) }); j = await r.json().catch(() => ({})); }
+  catch (e){ throw new Error("로그인 서버에 연결하지 못했어요. 인터넷을 확인해 주세요"); }
+  if (j.error) throw new Error(j.error); return j;
+};
+// 휴대폰 안에서 카카오 로그인 → 같은 계정의 웹 열쇠(커스텀 토큰)
+async function kakaoToken(){
   const P = FA(); if (!P) throw new Error("앱을 최신 버전으로 업데이트해 주세요");
   await P.signInWithOpenIdConnect({ providerId:KAKAO, skipNativeAuth:false });
   const t = await P.getIdToken({ forceRefresh:false }), idToken = t && t.token;
-  if (!idToken) throw new Error("카카오 로그인을 하지 못했어요. 다시 눌러 주세요 (로그인 표 없음)");
-  let j = {};
-  try { const r = await fetch(AUTH_BRIDGE + "/kakao", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ idToken }) }); j = await r.json().catch(() => ({})); }
-  catch (e){ throw new Error("카카오 로그인 서버에 연결하지 못했어요. 인터넷을 확인해 주세요"); }
-  if (!j.token) throw new Error("카카오 로그인을 하지 못했어요 (" + (j.error || "서버 응답 없음") + ")");
-  await signInWithCustomToken(auth, j.token);
   try { await P.signOut(); } catch (e) {}   // 휴대폰 안 로그인은 다리 건너는 데만 쓰고 나와요
+  if (!idToken) throw new Error("카카오 로그인을 하지 못했어요. 다시 눌러 주세요 (로그인 표 없음)");
+  const j = await bridge("/kakao", { idToken });
+  if (!j.token) throw new Error("카카오 로그인을 하지 못했어요 (서버 응답 없음)");
+  return j.token;
 }
+async function kakaoApp(){ await signInWithCustomToken(auth, await kakaoToken()); }
 const INAPP = /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|\bLine\/|DaumApps|everytimeApp|BAND\/|; wv\)/i.test(navigator.userAgent);
 async function signIn(kind){
   gErr.textContent = "";
@@ -2094,7 +2125,7 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 /* ---------- 계정 (⚙︎ 설정 › 계정) ---------- */
 function who(){
   if (!user) return "";
-  const k = (user.providerData[0] || {}).providerId || "", n = k === "apple.com" ? "Apple" : k === KAKAO ? "카카오" : "구글";
+  const n = [...new Set(user.providerData.map(p => p.providerId === "apple.com" ? "Apple" : p.providerId === KAKAO ? "카카오" : "구글"))].join(" · ") || "구글";   // 연결한 로그인 방법을 모두
   const em = user.email || (user.providerData.find(p => p.email) || {}).email || "";
   return `${n} 계정${em ? " · " + em.replace(/^(.{2}).*(@.*)$/, "$1***$2") : ""}`;
 }
@@ -2113,7 +2144,67 @@ async function quit(){
   try { await FA()?.signOut(); } catch (e) {}   // 휴대폰 안 로그인(카카오)도 나가요 · 아래: 오래전에 로그인했으면 로그인 정보는 다시 로그인한 뒤에 지워져요 (기록은 이미 지웠어요)
   location.reload();
 }
-window.FB = { push:() => push(false), who, out, quit, syncText, syncBad:() => !!syncErr };
+/* 🔗 로그인 연결 · 합치기 (2026-11-16): 구글 · 카카오 · Apple 어느 쪽으로 들어와도 같은 계정
+   ① 그 방법으로 만든 계정이 없으면 바로 붙여요 (linkWithPopup / linkWithCredential)
+   ② 이미 따로 만든 계정이 있으면(또는 아이폰 카카오) 그 계정으로 한 번 더 로그인해 본인 확인 → 기록을 지금 계정에 합치고
+      → 로그인 다리 /merge 가 그 계정의 로그인 방법을 지금 계정에 옮겨 붙이고 그 계정은 지워요
+   확인용 로그인은 따로 둔 파이어베이스 앱(first-link)에서 해서, 지금 로그인은 그대로예요 */
+const LK = [["google", "구글", "google.com"], ["kakao", "카카오", KAKAO], ["apple", "Apple", "apple.com"]];
+const kinds = () => !user ? [] : LK.filter(([k, , p]) => k !== "apple" || IOS || user.providerData.some(x => x.providerId === p)).map(([k, n, p]) => [k, n, user.providerData.some(x => x.providerId === p)]);
+let SIDE = null;
+const side = () => SIDE = SIDE || (() => { const a = initializeApp(firebaseConfig, "first-link"); return { auth:getAuth(a), db:initializeFirestore(a, { experimentalAutoDetectLongPolling:true }) }; })();
+const isCancel = m => /cancel|popup-closed|1001|취소/i.test(m);
+async function link(kind){
+  if (!user) return;
+  const name = (LK.find(x => x[0] === kind) || [])[1] || kind, T = m => window.toast?.(m);
+  try {
+    let cred = null;
+    if (!(NATIVE && kind === "kakao")){
+      try {
+        if (NATIVE){ const [c] = await appCreds(kind); cred = c; await linkWithCredential(user, c); }
+        else await linkWithPopup(user, kind === "kakao" ? new OAuthProvider(KAKAO) : gProv());
+        await user.reload(); push(true); T(`${name} 연결했어요. 이제 어느 쪽으로 들어와도 같은 기록이에요`); return;
+      } catch (e){
+        const m = String((e && (e.code || e.message)) || "");
+        if (isCancel(m)) return;
+        if (/provider-already-linked/.test(m)){ await user.reload(); T(`이미 ${name}가 연결돼 있어요`); return; }
+        if (!/credential-already-in-use|account-exists|email-already-in-use/.test(m)) throw e;
+        cred = (kind === "google" ? GoogleAuthProvider.credentialFromError(e) : OAuthProvider.credentialFromError(e)) || cred;
+      }
+    }
+    await mergeWith(kind, name, cred);
+  } catch (e){
+    const m = String((e && (e.code || e.message)) || "");
+    if (!isCancel(m)) T(`${name} 연결을 하지 못했어요 (${(e && e.message) || m})`.slice(0, 160));
+  }
+}
+async function mergeWith(kind, name, cred){
+  const S2 = side(), T = m => window.toast?.(m);
+  // 따로 만든 계정으로 한 번 더 로그인 (본인 확인)
+  if (NATIVE && kind === "kakao") await signInWithCustomToken(S2.auth, await kakaoToken());
+  else {
+    let ok = false;
+    if (cred){ try { await signInWithCredential(S2.auth, cred); ok = true; } catch (e) {} }
+    if (!ok){ if (NATIVE){ const [c] = await appCreds(kind); await signInWithCredential(S2.auth, c); } else await signInWithPopup(S2.auth, kind === "kakao" ? new OAuthProvider(KAKAO) : gProv()); }
+  }
+  const o = S2.auth.currentUser;
+  try {
+    if (!o) throw new Error("확인 로그인을 하지 못했어요");
+    if (o.uid === user.uid){ await user.reload(); T(`이미 ${name}가 연결돼 있어요`); return; }
+    let od = null;
+    try { const s = await getDoc(doc(S2.db, "first_users", o.uid)); if (s.exists() && s.data().d) od = JSON.parse(s.data().d); } catch (e) {}
+    const msg = od ? `${name}로 따로 만든 계정에 기록이 있어요 (${window.dataSummary?.(od) || ""}).\n\n지금 계정과 하나로 합칠까요?\n· 할 일 · 순공 · 일기 · 성적 · 시험이 모두 지금 계정으로 모여요\n· 앞으로 어느 방법으로 들어와도 같은 기록이에요\n· 합친 뒤에는 되돌릴 수 없어요`
+      : `${name}로 들어와도 지금 기록이 열리게 연결할까요?`;
+    if (!confirm(msg)) return;
+    if (od) window.mergeData?.(od);
+    if (!(await doPush())) throw new Error("지금 기록을 서버에 올리지 못했어요. 인터넷을 확인해 주세요");
+    try { await deleteDoc(doc(S2.db, "first_users", o.uid)); await deleteDoc(doc(S2.db, "first_stat", o.uid)); } catch (e) {}
+    await bridge("/merge", { main:await user.getIdToken(true), other:await o.getIdToken(true) });
+    await user.reload(); push(true);
+    T(od ? `하나로 합쳤어요. 이제 ${name}로 들어와도 같은 기록이에요` : `${name} 연결했어요. 이제 어느 쪽으로 들어와도 같은 기록이에요`);
+  } finally { try { await signOut(S2.auth); } catch (e) {} }
+}
+window.FB = { push:() => push(false), who, out, quit, syncText, syncBad:() => !!syncErr, kinds, link };
 
 /* ---------- 로그인 상태 ---------- */
 if (!ADMIN) onAuthStateChanged(auth, async u => {
