@@ -176,6 +176,113 @@
     calc: { label: "커피 한 잔 값(원)", def: 5000, min: 1000, max: 20000, show(rows, s, v) { const r = this.run(rows, s, v); return rows.map((x, i) => `${x.이름} <b>${won(r[i])}</b>`).join(" · ") + ` <span class="note">(합 ${won(r.reduce((a, b) => a + b, 0))}원)</span>`; } }
   };
 
+  /* ───────── 10 재범 위험 점수 · 집단별 오판률 ───────── */
+  // 집단마다 위험 점수(1~10점)별 사람 수 [재범 안 함, 재범함] · 기준선 7점이면 데이터 실험실 10번 표와 같아요
+  const G10 = [
+    ["가 집단", "순찰이 많던 동네 · 체포 기록이 많아요", [60, 70, 80, 90, 100, 110, 100, 80, 50, 22], [5, 8, 12, 18, 25, 40, 70, 110, 120, 100], 1],
+    ["나 집단", "", [120, 110, 100, 90, 70, 50, 40, 30, 16, 10], [5, 8, 10, 15, 20, 30, 60, 80, 90, 74], 0],
+    ["다 집단", "순찰이 많던 동네", [80, 90, 90, 90, 80, 70, 70, 55, 35, 15], [5, 8, 12, 18, 25, 35, 65, 90, 90, 80], 1],
+    ["라 집단", "", [130, 120, 100, 80, 60, 40, 25, 20, 10, 8], [3, 5, 8, 10, 15, 25, 50, 60, 70, 57], 0]
+  ];
+  // 한 집단을 판정: 기준선 T 이상이면 '높음' (사람 판사 카드: 기준선 바로 그 점수는 사람이 다시 봐서 빼요)
+  function judge10(gr, s, T) {
+    const shift = s.past ? gr.shift : 0; let fp = 0, tp = 0;
+    for (let sc = 1; sc <= 10; sc++) { const e = sc - shift; if (e >= T && !(s.review && e === T)) { fp += gr.no[sc - 1]; tp += gr.yes[sc - 1]; } }
+    const N0 = gr.no.reduce((a, b) => a + b, 0), N1 = gr.yes.reduce((a, b) => a + b, 0);
+    return { fpr: N0 ? fp / N0 * 100 : (s.zero ? 0 : NaN), rec: N1 ? tp / N1 * 100 : (s.zero ? 0 : NaN), fp, tp, N0, N1 };
+  }
+  const thOf10 = (gr, s) => { if (s.crit !== "group") return s.p; for (let T = 1; T <= 10; T++) if (judge10(gr, s, T).fpr <= 20) return T; return 10; };
+  A.j10 = {
+    fn: "위험점수", title: "재범 위험 점수 · 오판률", unit: "%",
+    intro: "AI가 사람마다 재범 위험 점수(1~10점)를 매겼어요. 점수가 <b>기준선</b> 이상이면 ‘위험 높음’으로 판정해 보석을 막아요. 그런데 2년 동안 보니 ‘높음’ 판정을 받고도 재범하지 않은 사람(오판)이 있었어요. AI는 “감정이 없으니 사람보다 공정하다”고 했어요.",
+    rows: () => G10.map(([이름, 특징, no, yes, shift]) => ({ 이름, 특징, no, yes, shift, 사람: no.reduce((a, b) => a + b, 0) + yes.reduce((a, b) => a + b, 0), 재범: yes.reduce((a, b) => a + b, 0) })),
+    cols: [["집단", "이름"], ["특징", "특징"], ["사람(명)", "사람"], ["2년 안에 실제 재범(명)", "재범"]],
+    outs: ["집단마다 ‘높음’ 판정의 오판률(재범 안 한 사람 가운데 ‘높음’ 받은 비율)", "가장 위험한 집단 한 곳", "사람마다 재범할지 아닐지 정답"],
+    outNo: "알고리즘은 미래를 정확히 알 수 없어요. 우리가 따질 수 있는 건 판정이 집단마다 얼마나 틀리는지(오판률)예요.",
+    crit: [{ id: "one", name: "모든 사람 같은 기준선", sub: "같은 점수면 같은 판정 · AI가 처음 고른 방식 · 기준선 점수를 정해요" }, { id: "group", name: "집단마다 다른 기준선", sub: "집단마다 오판률이 20% 아래가 되게 기준선을 따로 정해요" }, { id: "past", name: "과거 체포 기록 점수를 빼고 같은 기준선", sub: "순찰이 많던 동네는 체포가 많아 점수가 부풀었을 수 있어요" }],
+    param: { crit: ["one", "past"], label: "‘위험 높음’ 기준선은 몇 점?", min: 4, max: 10, step: 1, def: 7, unit: "점", left: "낮게 (많이 잡아요)", right: "높게 (확실한 사람만)" },
+    cards: [{ tag: "반복", text: "사람마다 위험 점수를 읽는다" }, { tag: "조건", text: "만약 점수가 기준선 이상이면 → ‘위험 높음’" }, { tag: "반복", text: "집단마다 재범 안 한 사람 가운데 ‘높음’ 받은 사람을 센다" }, { tag: "계산", text: "오판률 = 그 수 ÷ 재범 안 한 사람 × 100" }],
+    start: [2, 3, 1, 0], orderHint: "판정을 먼저 해야 틀린 판정을 셀 수 있어요.",
+    optc: [{ id: "zero", text: "만약 집단에 재범 안 한 사람이 0명이면 → 오판률을 0으로 둔다 (나눌 수 없으니까)" }, { id: "review", text: "만약 점수가 기준선과 딱 같으면 → ‘높음’ 대신 사람 판사가 다시 본다" }],
+    run(rows, s) { const sx = { ...s, past: s.past || s.crit === "past" }; return rows.map((gr) => { const r = judge10(gr, sx, thOf10(gr, sx)).fpr; return isFinite(r) ? Math.round(r) : r; }); },
+    need: 2,
+    tests(s) {
+      const rows = this.rows(), sx = { ...s, past: s.past || s.crit === "past" }, f = this.run(rows, s), J = rows.map((gr) => judge10(gr, sx, thOf10(gr, sx)));
+      const empty = { 이름: "마 집단", no: Array(10).fill(0), yes: [0, 0, 0, 0, 0, 1, 1, 1, 1, 1], shift: 0 }, ez = judge10(empty, sx, thOf10(empty, sx)).fpr;
+      const rec = J.reduce((a, j) => a + j.tp, 0) / J.reduce((a, j) => a + j.N1, 0) * 100;
+      return [
+        { name: "재범 안 한 사람이 0명인 집단이 있어도 멈추지 않는다", ok: isFinite(ez), hint: "0으로 나누면 계산이 망가져요 → ‘0명이면’ 조건 카드" },
+        { name: "실제로 재범한 사람의 절반 이상을 ‘높음’으로 찾아낸다", ok: rec >= 50, hint: `지금은 ${Math.round(rec)}%만 찾아요 → 기준선을 낮춰 볼까요? 그러면 오판은 어떻게 될까요?` },
+        { name: "집단끼리 오판률 차이가 10%p 이하다", ok: Math.max(...f) - Math.min(...f) <= 10, hint: `지금 차이는 ${Math.max(...f) - Math.min(...f)}%p예요. 어느 집단이 더 자주 억울하게 ‘높음’을 받나요?`, q: true },
+        { name: "모든 사람에게 같은 기준선을 쓴다 (같은 점수 = 같은 판정)", ok: s.crit !== "group", hint: "집단마다 기준선이 다르면 같은 점수인데 판정이 달라요. 위 테스트와 함께 통과할 수 있을까요?", q: true }
+      ];
+    },
+    code(s, cn) {
+      return [`${K("function")} ${F("위험판정")}(사람들, 기준선) {`, `  ${C(`// 기준: ${cn}`)}`, `  ${K("for")} (${K("const")} 사람 ${K("of")} 사람들) {`,
+        `    ${K("let")} 점수 = 사람.점수${s.past || s.crit === "past" ? " - 사람.체포점수   " + C("// 과거 체포 기록 빼기") : ""};`,
+        ...(s.crit === "group" ? [`    ${K("const")} 선 = 집단별기준선[사람.집단];   ${C("// 오판률 20% 아래가 되게")}`] : [`    ${K("const")} 선 = ${N(s.p)};`]),
+        ...(s.review ? [`    ${K("if")} (점수 === 선) { 사람.판정 = ${N('"판사 검토"')}; ${K("continue")}; }   ${C("// 조건: 경계는 사람이")}`] : []),
+        `    사람.판정 = 점수 &gt;= 선 ? ${N('"높음"')} : ${N('"낮음"')};`, `  }`,
+        `  ${K("return")} 집단마다(g =&gt; ${s.zero ? `g.안함 === ${N(0)} ? ${N(0)} : ` : ""}g.오판 / g.안함 * ${N(100)});`, `}`].join("\n");
+    },
+    extra(rows, r, s) { const sx = { ...s, past: s.past || s.crit === "past" }; return rows.map((gr) => { const T = thOf10(gr, sx), j = judge10(gr, sx, T); return `${gr.이름} 기준선 ${T}점 · 재범 ${Math.round(j.rec)}% 찾음`; }).join(" · "); },
+    extraLabel: "기준선과 찾아낸 재범",
+    cmp: [["같은 기준선 7점", { crit: "one", p: 7, review: false }], ["집단마다 다른 기준선", { crit: "group", review: false }]],
+    cmpNote: "단위: 오판률(%) · 낮을수록 억울한 ‘높음’ 판정이 적어요",
+    find(rows, A0, Cm) {
+      const mx = Math.max(...Cm), mn = Math.min(...Cm), hi = rows[Cm.indexOf(mx)], lo = rows[Cm.indexOf(mn)];
+      return `· AI 방식(같은 기준선 7점)에서 오판률은 ${rows.map((r, i) => `${r.이름} ${A0[i]}%`).join(", ")}예요.<br>· 내 알고리즘에서 가장 억울한 집단: <b>${hi.이름}</b> ${mx}% · 가장 덜한 집단: <b>${lo.이름}</b> ${mn}% · 차이 <b>${mx - mn}%p</b>`;
+    },
+    loserPh: "예: 가 집단에서 재범하지 않았는데 ‘높음’을 받은 사람들. 규칙을 이렇게 바꾸면 …",
+    calc: { label: "어떤 사람의 위험 점수(1~10)", def: 7, min: 1, max: 10, show(rows, s, v) { const sx = { ...s, past: s.past || s.crit === "past" }; return rows.map((gr) => { const T = thOf10(gr, sx), e = v - (sx.past ? gr.shift : 0); return `${gr.이름}: <b>${sx.review && e === T ? "판사 검토" : e >= T ? "높음" : "낮음"}</b>`; }).join(" · ") + ` <span class="note">(같은 ${v}점인데 집단마다 같을까요?)</span>`; } }
+  };
+
+  /* ───────── 16 최저임금 인상 시뮬레이터 ───────── */
+  const Y16 = [[2019, 8350, 0.4, 2.2, 230], [2020, 8590, 0.5, -0.7, 215], [2021, 8720, 2.5, 4.3, 212], [2022, 9160, 5.1, 2.6, 221], [2023, 9620, 3.6, 1.4, 226], [2024, 9860, 2.3, 2.0, 230]];
+  const rate16 = (y, s) => { let r = s.crit === "small" ? s.p : s.crit === "cpi" ? y.물가 : y.물가 + y.성장 + s.p; if (s.floor && r < 0) r = 0; if (s.cap && r > s.capN) r = s.capN; return r; };
+  const path16 = (rows, s) => { let w = 7530; return rows.map((y) => { if (s.crit === "real") return y.실제; w = Math.round(w * (1 + rate16(y, s) / 100) / 10) * 10; return w; }); };
+  A.m6 = {
+    fn: "임금시뮬", title: "최저임금 인상 시뮬레이터", unit: "원",
+    intro: "2018년 최저시급은 <b>7,530원</b>이었어요. 해마다 최저임금을 얼마나 올릴지 정하는 <b>규칙</b>을 만들고, 그 규칙대로 했다면 2024년까지 시급이 어떻게 됐을지 시뮬레이션해요. AI는 “최저임금 인상은 일자리를 줄여 노동자에게 해롭다”고 했어요.",
+    rows: () => Y16.map(([y, 실제, 물가, 성장, 일자리]) => ({ 이름: y + "년", 연도: y, 실제, 물가, 성장, 일자리 })),
+    cols: [["연도", "이름"], ["실제 최저시급(원)", "실제"], ["물가 상승률(%)", "물가"], ["경제 성장률(%)", "성장"], ["숙박 · 음식점 취업자(만 명)", "일자리"]],
+    outs: ["해마다 내 규칙대로 정한 최저시급(원)", "일자리가 가장 많이 준 해", "최저임금이 옳은지 그른지 한 문장"],
+    outNo: "알고리즘이 할 수 있는 건 규칙대로 숫자를 계산하는 거예요. 옳고 그름은 그 결과를 보고 우리가 판단해요.",
+    crit: [{ id: "small", name: "해마다 작게 정해진 비율만", sub: "시장 부담을 줄이자 (하이에크) · 인상률을 정해요" }, { id: "cpi", name: "물가가 오른 만큼", sub: "실제 생활비(실질 임금)를 지키자" }, { id: "need", name: "물가 + 경제 성장 + 더하기", sub: "임금이 수요를 만든다 (케인즈) · 더할 몫을 정해요" }],
+    param: { crit: ["small", "need"], label: "인상률(또는 더할 몫)은 몇 %?", min: 0, max: 8, step: 0.5, def: 2, unit: "%", left: "0%", right: "8%" },
+    cards: [{ tag: "반복", text: "해마다 지난해 최저시급을 읽는다" }, { tag: "계산", text: "고른 기준대로 인상률을 정한다" }, { tag: "조건", text: "조건 카드(내리지 않기 · 상한)를 적용한다" }, { tag: "계산", text: "올해 시급 = 지난해 × (1 + 인상률), 10원 단위로" }],
+    start: [3, 0, 2, 1], orderHint: "지난해 시급을 알아야 올해를 계산할 수 있고, 조건은 계산 전에 적용해요.",
+    optc: [{ id: "floor", text: "만약 인상률이 0%보다 작으면 → 0% (시급은 내리지 않는다)" }, { id: "cap", text: "인상률은 아무리 높아도", n: [5, 7, 10], after: "%까지 (한 번에 너무 오르지 않게)" }],
+    run(rows, s) { return path16(rows, s); },
+    need: 1,
+    tests(s) {
+      const rows = this.rows(), w = path16(rows, s), all = [7530, ...w], cpiAcc = rows.reduce((a, y) => a * (1 + y.물가 / 100), 7530), rates = rows.map((y) => rate16(y, s));
+      return [
+        { name: "시급이 한 번도 내려가지 않는다", ok: all.every((v, i) => !i || v >= all[i - 1]), hint: "경제 성장률이 마이너스인 해(2020년)가 있어요 → ‘내리지 않기’ 조건 카드" },
+        { name: "2024년 시급이 물가가 오른 만큼은 올랐다 (실질 임금 지키기)", ok: w[w.length - 1] >= Math.round(cpiAcc / 10) * 10, hint: `물가만큼이면 ${Math.round(cpiAcc / 10) * 10}원이어야 해요. 노동자의 생활은 괜찮을까요?`, q: true },
+        { name: "한 해에 7% 넘게 오른 적이 없다 (가게 부담)", ok: rates.every((r) => r <= 7), hint: "급하게 오르면 작은 가게가 사람을 줄일 수 있어요. 데이터에서 일자리는 언제 줄었나요?", q: true },
+        { name: "2024년 시급이 실제(9,860원)보다 낮다 (일자리 부담 줄이기)", ok: w[w.length - 1] < 9860, hint: "실제보다 높으면 노동자는 좋지만 고용은? 위 테스트와 함께 통과할 수 있을까요?", q: true }
+      ];
+    },
+    code(s, cn) {
+      const rate = s.crit === "small" ? N(s.p) : s.crit === "cpi" ? "해.물가" : `해.물가 + 해.성장 + ${N(s.p)}`;
+      return [`${K("function")} ${F("최저임금")}(해들) {`, `  ${C(`// 기준: ${cn}`)}`, `  ${K("let")} 시급 = ${N(7530)};   ${C("// 2018년")}`, `  ${K("for")} (${K("const")} 해 ${K("of")} 해들) {`, `    ${K("let")} 인상률 = ${rate};`,
+        ...(s.floor ? [`    ${K("if")} (인상률 &lt; ${N(0)}) 인상률 = ${N(0)};   ${C("// 조건: 내리지 않기")}`] : []),
+        ...(s.cap ? [`    ${K("if")} (인상률 &gt; ${N(s.capN)}) 인상률 = ${N(s.capN)};   ${C("// 조건: 상한")}`] : []),
+        `    시급 = Math.round(시급 * (${N(1)} + 인상률 / ${N(100)}) / ${N(10)}) * ${N(10)};`, `    해.내규칙 = 시급;`, `  }`, `}`].join("\n");
+    },
+    extra(rows, r, s) { return rows.map((y) => `${y.연도} ${Math.round(rate16(y, s) * 10) / 10}%`).join(" · "); },
+    extraLabel: "해마다 내 규칙의 인상률",
+    cmp: [["실제 최저시급", { crit: "real" }], ["물가가 오른 만큼", { crit: "cpi", floor: false, cap: false }]],
+    cmpNote: "단위: 원 · 첫째 칸은 실제로 정해진 최저시급이에요",
+    find(rows, A0, Cm) {
+      const last = rows.length - 1, d = Cm[last] - A0[last];
+      return `· 내 규칙이면 2024년 시급은 <b>${won(Cm[last])}원</b>, 실제(${won(A0[last])}원)보다 <b>${d >= 0 ? "+" : ""}${won(d)}원</b>이에요.<br>· 숙박 · 음식점 취업자는 2020 · 2021년(코로나)에 줄었다가 2024년 230만 명으로 돌아왔어요. 일자리가 준 까닭이 최저임금뿐일까요?`;
+    },
+    loserPh: "예: 시급을 받는 노동자 / 작은 가게 사장님. 규칙을 이렇게 바꾸면 …",
+    calc: { label: "내년 물가 상승률(%)", def: 2, min: -2, max: 10, show(rows, s, v) { const y = { 물가: +v, 성장: 2.0 }, w0 = path16(rows, s).slice(-1)[0], r = rate16(y, s), w = Math.round(w0 * (1 + r / 100) / 10) * 10; return `물가 ${v}% · 성장 2.0%(가정)이면 → 인상률 <b>${Math.round(r * 10) / 10}%</b> → 내년 시급 <b>${won(w)}원</b> <span class="note">(올해 내 규칙 ${won(w0)}원)</span>`; } }
+  };
+
   // 20개 이름 (열린 것은 위 A 에 설정이 있어요)
   const NAMES = {
     j1: ["순찰배분", "순찰 인력 배분 알고리즘"], j2: ["형량계산", "감경 · 가중 형량 계산기"], j3: ["회복지원", "피해 회복 지원 우선순위"], j4: ["조치추천", "학교 조치 추천 규칙"], j5: ["책임판정", "책임 연령 판정 규칙"],
