@@ -242,6 +242,9 @@ footer.foot .pol th,footer.foot .pol td{border:1px solid var(--line2);padding:6p
 .thk .tp b{font-size:15px}.thk .tp em{font-style:normal;font-size:12px;color:var(--acc);margin-left:6px}.thk .tp p{font-size:13px;color:var(--ink);margin-top:4px}
 .thk .note{margin-top:8px}
 @media (max-width:640px){.thk .tp{grid-template-columns:1fr}}
+/* 📥 엑셀로 계산하기 상자 (4단계) */
+.xl{border:1px solid var(--line2);background:#FBFBFC;padding:14px 16px;margin:14px 0}
+.xl ol{margin:8px 0 0 20px;font-size:14px}.xl li{margin:5px 0}.xl code{background:#EEF1F5;padding:1px 5px;font-size:13px}
 </style>
 </head>
 <body>
@@ -393,6 +396,15 @@ const mineLine = (t, x) => { const i = x.s.pick; if (i == null || !t.rows[i]) re
 const notesOf = (x) => ({ guess: x.s.guess || "", find: x.s.find || "", rebut: x.s.rebut || "" });
 
 /* ---------- 화면 ---------- */
+/* 📥 정제한 표를 엑셀용 CSV 로 (한글이 깨지지 않게 BOM, 맨 오른쪽에 계산할 빈 열) */
+function downloadCSV(t) {
+  const q = (v) => { const x = String(v ?? ""); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
+  const lines = [[...t.cols, `${t.calc.label}(직접 계산)`], ...t.rows.map((r) => [...r, ""])].map((r) => r.map(q).join(","));
+  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `AI활용탐구${t.no}_${t.name.replace(/\s+/g, "")}.csv`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  toast("내려받았어요. 엑셀이나 구글 시트로 열어 보세요");
+}
 function toast(m) { const d = document.createElement("div"); d.className = "toast"; d.textContent = m; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
 const route = () => { const h = location.hash.replace(/^#\/?/, ""); const [a, b] = h.split("/"); return { a: a || "", b: b || "" }; };
 const pic = (t) => `background-image:url('${t.photo.src}')`;
@@ -487,7 +499,15 @@ function panel(t, x, k) {
     const chart = x.calcOk ? `<div class="chart"><h4>${esc(t.calc.label)} · 모든 ${esc(t.pick)} 비교 (큰 순서)</h4>${order.map(([j, v]) => `<div class="cb ${j === i ? "me" : ""}"><span>${esc(t.rows[j][0])}</span><i style="width:${Math.max(2, Math.abs(v) / mx * 100)}%"></i><em>${fmt(v, t.calc.dp)}${esc(t.calc.unit)}</em></div>`).join("")}</div>
       <div class="meta" style="margin:14px 0 18px"><div>평균<b>${fmt(avg, t.calc.dp)}${esc(t.calc.unit)}</b></div><div>가장 큰 값<b>${esc(t.rows[hi[0]][0])} ${fmt(hi[1], t.calc.dp)}</b></div><div>가장 작은 값<b>${esc(t.rows[lo[0]][0])} ${fmt(lo[1], t.calc.dp)}</b></div><div>평균보다 큰 곳<b>${ok.filter(([, v]) => v > avg).length}곳</b></div></div>
       ${fld(t, x, "find", "패턴과 인사이트: 어떤 현상이 보이고, 왜 그럴까?", `예: ${t.rows[hi[0]][0]}이(가) ${fmt(hi[1], t.calc.dp)}${t.calc.unit}로 가장 크고, 내가 고른 ${t.rows[i][0]}은(는) 평균보다 …`, "숫자를 두 개 이상 넣어 써요")}` : "";
-    return `${tableHTML(t, t.rows, i)}<p class="cap">${esc(t.cap)} · 정제한 표 · 수업 연습용 예시 데이터</p>${calc}${chart}${nextBtn(t, x, "s4", "직접 계산하고, 그래프와 통계를 보고 한 문장을 쓰면 4단계가 끝나요")}`;
+    const L = (j) => String.fromCharCode(65 + j), X = L(t.cols.length);
+    const xl = `<div class="xl"><b>📥 엑셀로 계산하기</b><ol>
+      <li><button class="btn sm" data-act="csv">정제한 표 내려받기 (엑셀 · 구글 시트)</button></li>
+      <li>내려받은 파일을 엑셀(크롬북은 구글 시트)로 열어요</li>
+      <li>칸 주소: ${t.cols.map((c, j) => `<code>${L(j)}열</code> ${esc(c)}`).join(" · ")} · <code>${X}열</code> ${esc(t.calc.label)}(비어 있음)</li>
+      <li><code>${X}2</code> 칸에 식을 수식으로 써요. 식: <b>${esc(t.calc.formula)}</b> → 낱말 대신 칸 주소를 넣고 <code>=</code>로 시작해요 (예: ‘범죄 건수 ÷ 인구 × 100,000’에서 범죄 건수가 C열, 인구가 D열이면 <code>=C2/D2*100000</code>)</li>
+      <li>${X}2 칸 오른쪽 아래 점을 끌어 모든 줄을 채우고, ${X}열을 큰 순서로 정렬해요</li>
+      <li>엑셀에서 구한 <b>내가 고른 ${esc(t.pick)}</b>의 값을 아래 칸에 넣어 확인해요</li></ol></div>`;
+    return `${tableHTML(t, t.rows, i)}<p class="cap">${esc(t.cap)} · 정제한 표 · 수업 연습용 예시 데이터</p>${xl}${calc}${chart}${nextBtn(t, x, "s4", "직접 계산하고, 그래프와 통계를 보고 한 문장을 쓰면 4단계가 끝나요")}`;
   }
   if (k === "s5") {
     const reviews = (x.ai || []).filter((a) => a.k === "review"), last = reviews[reviews.length - 1], asks = (x.ai || []).filter((a) => a.k === "ask");
@@ -626,6 +646,7 @@ function act(a, v, ev) {
   if (!t) return;
   if (a === "tab") { S.tab = v; return render(); }
   if (a === "open") { const onRow = ev && ev.target.closest(".row"); S.tab = "steps"; S.open = S.open === v && onRow ? null : v; render(); const el = document.querySelector(`[data-act="open"][data-v="${v}"]`); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
+  if (a === "csv") return downloadCSV(t);
   if (a === "resume") { const x = peek(t.id), nx = STEPS.find((st) => !stepDone(t, x, st.k)); S.tab = "steps"; S.open = (nx || STEPS[STEPS.length - 1]).k; render(); const el = document.querySelector(`[data-v="${S.open}"]`); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
   if (needLogin()) return;
   const x = myT(t.id); S.rec.last = t.id;
