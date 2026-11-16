@@ -382,6 +382,16 @@ main.scrolled .prog::before{opacity:1}
 .sndbox{display:grid;gap:6px;background:var(--mode-soft);border-radius:16px;padding:10px 12px;border:1.5px solid color-mix(in srgb,var(--mode) 35%,transparent)}
 .sndbox.on{border-color:var(--mode)}.sndh{font-size:14px;color:var(--mode)}.sndbox .chips button{background:#fff}.sndbox .chips button[aria-pressed="true"]{background:var(--mode);color:#fff}.sndbox .note{font-size:11.5px}
 @media (prefers-color-scheme:dark){.sndbox .chips button{background:#2A2830}}
+/* 🎉 특별한 순간 */
+.moment.big{background:rgba(0,0,0,.28)}
+.moment.big .mc .ch{width:210px;height:210px;animation:bigHop .7s cubic-bezier(.3,1.6,.5,1) .2s 3 both}
+.moment.big .mc p{font-size:19px;max-width:290px}.moment.big .mc p b{display:block;font-weight:400;color:var(--mode);font-size:23px;margin-bottom:2px}
+@keyframes bigHop{50%{transform:translateY(-26px) scale(1.06,.95)}}
+.mcw{position:relative;display:block}.mband{position:absolute;left:12%;right:12%;top:30%;height:26px;border-radius:13px;background:#E5394F;color:#fff;font:700 13px/26px var(--sys);text-align:center;font-style:normal;letter-spacing:.3em;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
+.cf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.cf i{position:absolute;top:-24px;width:9px;height:14px;border-radius:2px;font-style:normal;font-size:20px;line-height:1;animation:cfall 2.8s cubic-bezier(.25,.6,.4,1) forwards}
+@keyframes cfall{to{transform:translate(var(--dx),110vh) rotate(var(--r));opacity:.3}}
+@media (prefers-reduced-motion:reduce){.cf{display:none}.moment.big .mc .ch{animation:none}}
 /* 📈 공부 돌아보기 */
 .habit{background:#fff;border:1.5px solid #F0EAED;border-radius:18px;padding:14px;display:grid;gap:12px}
 .hh{display:flex;justify-content:space-between;align-items:baseline}.hh b{font-weight:400;font-size:18px}
@@ -1181,13 +1191,20 @@ function endTimer(keep){
   const t = D.timer; if (!t) return;
   const sec = Math.round(tsec());
   if (keep && sec >= 30){
+    const tk0 = today(), before = secOf(tk0), best = bestDay(tk0);   // 끝내기 전 값 (특별한 순간 고르기)
     addLog(t.d0 || today(), t.s, t.acc);
     if (t.start){ let a = t.start; const now = Date.now();
       while (true){ const m = new Date(a); m.setHours(24, 0, 0, 0); if (m.getTime() >= now) break; addLog(dk(new Date(a)), t.s, (m - a) / 1000); a = m.getTime(); }
       addLog(dk(new Date(a)), t.s, (now - a) / 1000); }
     (D.sess = D.sess || []).push({ d:t.d0 || today(), h:new Date(Date.now() - sec * 1000).getHours(), m:Math.round(sec / 60) }); D.sess = D.sess.slice(-500);   // 📈 공부 돌아보기용
     toast(`순공 ${hm(sec)} 기록했어요`); haptic("ok");
-    setTimeout(() => moment(D.mode === "t" ? `순공 ${hm(sec)} 기록했어. 오늘 순공은 ${hm(secOf(today()))}이야.` : `${hm(sec)} 집중했어! 수고했어, 잠깐 쉬자 ☕`), 400); }
+    const after = secOf(tk0), st = streakTo(tk0), cel = (D.cel = D.cel || {})[tk0] = D.cel[tk0] || [], once = k => cel.includes(k) ? false : (cel.push(k), true);
+    for (const x in D.cel) if (x < addDays(tk0, -7)) delete D.cel[x];
+    const T = D.mode === "t";
+    if (before <= best && after > best && best >= 1800 && once("best")) setTimeout(() => moment(T ? `오늘 순공 ${hm(after)}, 지금까지 하루 최고 기록이야.` : `오늘 ${hm(after)}! 내 하루 최고 기록이야`, "🏆 순공 최고 기록"), 400);
+    else if (before < 60 && [7, 14, 30, 50, 100].includes(st) && once("streak")) setTimeout(() => moment(T ? `${st}일 연속으로 공부했어.` : `${st}일 연속 공부! 꾸준함이 최고야`, `🔥 ${st}일 연속`), 400);
+    else if (sec >= 3600 && once("hour")) setTimeout(() => moment(T ? `한 번에 ${hm(sec)} 집중했어.` : `한 번에 ${hm(sec)}이나 집중했어! 대단해`, "⏱ 1시간 집중"), 400);
+    else setTimeout(() => moment(T ? `순공 ${hm(sec)} 기록했어. 오늘 순공은 ${hm(after)}이야.` : `${hm(sec)} 집중했어! 수고했어, 잠깐 쉬자 ☕`), 400); }
   D.timer = null; save();
 }
 
@@ -1392,7 +1409,7 @@ document.addEventListener("click", e => {
       else { p.done = !p.done; if (p.det.length) p.dd = p.det.map(() => p.done); got = p.done; }
       save(); render();
       if (got){ haptic("ok"); if (k !== today()) return; const c = countUnits(plansOf(k)), all = c.n === c.all;
-        if (all) setTimeout(() => { moment(D.mode === "t" ? `오늘 할 일 ${c.all}개를 다 했어. 순공은 ${hm(liveSec())}이야.` : "오늘 할 일 다 했다! 정말 대단해 🎉"); crewCheer(); }, 350);
+        if (all) setTimeout(() => moment(D.mode === "t" ? `오늘 할 일 ${c.all}개를 다 했어. 순공은 ${hm(liveSec())}이야.` : "오늘 할 일 다 했다! 정말 대단해", "🎉 오늘 할 일 끝!"), 350);
         else mateSay(D.mode === "t" ? "하나 끝. 다음 칸으로 가자." : ["잘했어!", "하나 끝! 최고야", "좋아, 다음 칸 가자!"][Math.floor(Math.random() * 3)]); }
       return; }
     case "bgSet": D.bg = v; D.acc = (BGS.find(b => b[0] === v) || [])[3] ?? D.acc; save(); break;
@@ -1482,7 +1499,7 @@ document.addEventListener("click", e => {
     case "goalAdd": { const t = $("gT").value.trim(), n = Math.round(+$("gN").value), u = $("gU").value.trim(); if (!t || !(n > 0)){ toast("목표 이름과 숫자를 넣어 주세요"); return; }
       (D.goals[b.dataset.w] = D.goals[b.dataset.w] || []).push({ id:uid(), t, n, u, c:0 }); save(); break; }
     case "goalStep": { const g = (D.goals[b.dataset.w] || []).find(x => x.id === v); if (!g) return; const was = g.c >= g.n; g.c = Math.max(0, g.c + +b.dataset.d); save(); render();
-      if (!was && g.c >= g.n){ haptic("ok"); moment(D.mode === "t" ? `${g.t} ${g.n}${g.u} 목표를 채웠어.` : `${g.t} 목표 달성! 대단해 🎉`); crewCheer(); } return; }
+      if (!was && g.c >= g.n) moment(D.mode === "t" ? `${g.t} ${g.n}${g.u} 목표를 채웠어.` : `${g.t} 목표 달성! 대단해`, "🎯 이번 주 목표 달성"); return; }
     case "goalDel": { const G = D.goals[b.dataset.w] || [], i = G.findIndex(x => x.id === v); if (i < 0) return; const [g] = G.splice(i, 1); save(); render(); undoToast(`${g.t} 목표를 뺐어요`, () => G.splice(i, 0, g)); return; }
     /* 사진 */
     case "picF": S.picCat = v; break;
@@ -1605,12 +1622,24 @@ document.addEventListener("touchmove", e => { if (CREW.drag) e.preventDefault();
 document.addEventListener("click", e => { if (Date.now() - CREW.eat < 450){ e.stopPropagation(); e.preventDefault(); } }, true);   // 옮긴 뒤 아래 버튼이 눌리지 않게
 document.addEventListener("contextmenu", e => { if (CREW.drag) e.preventDefault(); });
 /* moment(말): 중요할 때 친구 하나가 화면 가운데로 크게 나와요 (2.6초, 누르면 바로 닫혀요) — 설정 D.react */
-function moment(text){
+/* 🎉 특별한 순간(big): 더 크게 나와 콩콩 뛰고 꽃가루가 터져요 (4.2초) — 할 일 다 함 · 이번 주 목표 · 순공 최고 기록 · 연속 7 · 14 · 30 · 50 · 100일 · 한 번에 1시간 · 시험 날 아침 */
+function moment(text, big = false, band = false){
   if (D.react === false || !$("app")) return;
   document.querySelector(".moment")?.remove();
-  const el = document.createElement("div"); el.className = "moment"; el.innerHTML = `<div class="mc">${ch()}<p>${esc(text)}</p></div>`;
-  el.onclick = () => el.remove(); $("app").appendChild(el); haptic("tap"); setTimeout(() => el.remove(), 2600);
+  const el = document.createElement("div"); el.className = "moment" + (big ? " big" : "");
+  el.innerHTML = `<div class="mc"><span class="mcw">${ch()}${band ? '<i class="mband">필승</i>' : ""}</span><p>${big ? `<b>${esc(big === true ? "🎉" : big)}</b>` : ""}${esc(text)}</p></div>${big ? confettiHtml() : ""}`;
+  el.onclick = () => el.remove(); $("app").appendChild(el); haptic(big ? "ok" : "tap"); setTimeout(() => el.remove(), big ? 4200 : 2600);
+  if (big) crewCheer();
 }
+function confettiHtml(){
+  const C = ["var(--mode)", "#FFD43B", "#7FD3A8", "#7FB8FF", "#C9A7FF", "#FF9F7A"], E = ["🎉", "✨", "⭐", "💖"];
+  let h = '<div class="cf" aria-hidden="true">';
+  for (let i = 0; i < 44; i++){ const e = i % 6 === 0; h += `<i style="left:${(Math.random() * 100).toFixed(1)}%;animation-delay:${(Math.random() * .9).toFixed(2)}s;--dx:${(Math.random() * 120 - 60).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;${e ? "" : `background:${C[i % C.length]};`}">${e ? E[i % E.length] : ""}</i>`; }
+  return h + "</div>";
+}
+/* 기록 · 연속 공부 계산 (특별한 순간 고르기용) */
+const bestDay = (skip) => Object.keys(D.log).filter(k => k !== skip).reduce((m, k) => Math.max(m, secOf(k)), 0);
+function streakTo(k){ let n = 0; for (let i = 0; i < 400; i++){ if (secOf(addDays(k, -i)) >= 60) n++; else break; } return n; }
 const POP_F = ["잘하고 있어!", "물 한 잔 마시고 하자 💧", "조금만 더 힘내!", "오늘도 멋져!", "자세 한 번 펴 볼까?", "쉬는 것도 공부야 🌱"];
 const POP_T = ["지금까지 순공을 이어 가는 중이야.", "물 한 잔 마시면 집중이 오래가.", "남은 할 일부터 하나씩 하자.", "자세를 펴면 덜 피곤해.", "25분 하고 5분 쉬면 돼."];
 function popOnce(){
@@ -1679,7 +1708,7 @@ nativeStart();
 setTimeout(weekPopup, 600);
 setTimeout(() => { if (D.hello === today() || document.querySelector(".sheet")) return; D.hello = today(); save();
   const x = nextExam(), n = x ? dLeft(x.d) : 99;
-  moment(n <= 3 ? (D.mode === "t" ? `${x.n}까지 ${n ? n + "일" : "오늘"} 남았어. 오늘 계획부터 보자.` : `${x.n}이 ${n ? n + "일" : "오늘"} 남았어! 같이 힘내자 💪`) : (D.mode === "t" ? "오늘 할 일부터 하나씩 하자." : "안녕! 오늘도 같이 해 보자 😊")); }, 900);
+  if (n === 0) moment(D.mode === "t" ? `오늘 ${x.n}이야. 준비한 만큼 하면 돼.` : `오늘 ${x.n}! 준비한 만큼 보여 주자, 화이팅`, "📝 시험 날", true); else moment(n <= 3 ? (D.mode === "t" ? `${x.n}까지 ${n ? n + "일" : "오늘"} 남았어. 오늘 계획부터 보자.` : `${x.n}이 ${n ? n + "일" : "오늘"} 남았어! 같이 힘내자 💪`) : (D.mode === "t" ? "오늘 할 일부터 하나씩 하자." : "안녕! 오늘도 같이 해 보자 😊")); }, 900);
 }
 </script>
 <script type="module">
