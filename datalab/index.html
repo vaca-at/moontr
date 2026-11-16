@@ -235,6 +235,13 @@ footer.foot .pol th,footer.foot .pol td{border:1px solid var(--line2);padding:6p
 .admbtn{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:9;font-size:11px;line-height:1;padding:6px 8px;border:1px solid var(--line2);background:rgba(255,255,255,.5);color:var(--sub);opacity:.35;transition:opacity .2s}
 .admbtn:hover,.admbtn:focus-visible{opacity:1}
 @media print{.admbtn{display:none}}
+/* 🧭 사상가 상자 (6단계) */
+.thk{border:1px solid var(--acc-l);background:var(--acc-s);padding:14px 16px;margin:4px 0 16px}
+.thk .tq{font-weight:700;margin-bottom:10px}.thk .tq small{display:block;font-weight:400;color:var(--sub);margin-top:2px}
+.thk .tp{display:grid;grid-template-columns:1fr 1fr;gap:10px}.thk .tp>div{background:#fff;border:1px solid var(--line);padding:10px 12px}
+.thk .tp b{font-size:15px}.thk .tp em{font-style:normal;font-size:12px;color:var(--acc);margin-left:6px}.thk .tp p{font-size:13px;color:var(--ink);margin-top:4px}
+.thk .note{margin-top:8px}
+@media (max-width:640px){.thk .tp{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -276,6 +283,8 @@ footer.foot .pol th,footer.foot .pol td{border:1px solid var(--line2);padding:6p
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const filled = (v) => String(v || "").trim().length >= 2;
+// 받침 따라 조사 (벤담이라면 · 칸트라면, 벤담은 · 칸트는)
+const jo = (n, a, b) => { const c = String(n).charCodeAt(String(n).length - 1) - 0xAC00; return n + (c >= 0 && c <= 11171 && c % 28 ? a : b); };
 const { TOPICS, GROUPS, STEPS, REPORT, values, fmt, fmtCell, close, tableText } = DL;
 const LS = { get(k, d) { try { return JSON.parse(localStorage.getItem("datalab:" + k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem("datalab:" + k, JSON.stringify(v)); } catch (e) {} }, del(k) { try { localStorage.removeItem("datalab:" + k); } catch (e) {} } };
 
@@ -352,7 +361,7 @@ function localReview(t, text) {
   const sc = { data: hits >= 2 ? 2 : hits ? 1 : 0, other: has(DL.OTHER) >= 2 ? 2 : has(DL.OTHER) ? 1 : 0, concept: has(GROUPS[t.g].words) >= 2 ? 2 : has(GROUPS[t.g].words) ? 1 : 0 };
   const low = Object.entries(sc).sort((a, b) => a[1] - b[1])[0][0];
   const good = sc.data === 2 ? "표의 수치를 인용해 근거를 분명히 했어요." : filled(text) ? "AI의 주장에 의문을 던진 점이 좋아요." : "";
-  const next = { data: `표와 그래프에서 숫자 두 개 이상을 골라 넣어 볼까요? (예: ${t.rows[0][0]}의 ${t.calc.label})`, other: "숫자가 말해 주지 않는 다른 원인이나 데이터의 한계를 한 가지 더 써 볼까요?", concept: `‘${GROUPS[t.g].name}’의 개념(${GROUPS[t.g].words.slice(0, 4).join(" · ")})과 이어서 한 문장 더 써 볼까요?` }[low];
+  const next = { data: `표와 그래프에서 숫자 두 개 이상을 골라 넣어 볼까요? (예: ${t.rows[0][0]}의 ${t.calc.label})`, other: "숫자가 말해 주지 않는 다른 원인이나 데이터의 한계를 한 가지 더 써 볼까요?", concept: `${jo(t.th.m, "이라면", "라면")} 이 결론을 어떻게 판단할까요? ${t.th.m}의 생각(${t.th.link})을 써서 한 문장 더 써 볼까요?` }[low];
   return { scores: sc, good, next, local: true };
 }
 async function review(t) {
@@ -379,7 +388,7 @@ async function ask(t, q) {
   x.ai.push({ k: "ask", q: q.slice(0, 300), a, local, at: Date.now() });
   S.aiBusy = false; save(true); render();
 }
-const aiTopic = (t) => ({ id: t.id, group: GROUPS[t.g].name, title: t.title, q: t.q, claim: t.claim, calc: `${t.calc.label} = ${t.calc.formula}`, table: tableText(t), words: GROUPS[t.g].words });
+const aiTopic = (t) => ({ id: t.id, group: GROUPS[t.g].name, title: t.title, q: t.q, claim: t.claim, calc: `${t.calc.label} = ${t.calc.formula}`, table: tableText(t), words: GROUPS[t.g].words, thinkers: `${t.th.m}: ${DL.THINKERS[t.th.m]} / 맞서는 관점 ${t.th.r}: ${DL.THINKERS[t.th.r]} / 연결 고리: ${t.th.link}` });
 const mineLine = (t, x) => { const i = x.s.pick; if (i == null || !t.rows[i]) return ""; const v = values(t)[i]; return `학생이 고른 ${t.pick}: ${t.rows[i][0]} (${t.calc.label} ${fmt(v, t.calc.dp)}${t.calc.unit})`; };
 const notesOf = (x) => ({ guess: x.s.guess || "", find: x.s.find || "", rebut: x.s.rebut || "" });
 
@@ -484,10 +493,10 @@ function panel(t, x, k) {
     const reviews = (x.ai || []).filter((a) => a.k === "review"), last = reviews[reviews.length - 1], asks = (x.ai || []).filter((a) => a.k === "ask");
     const lv = (n) => [`<b class="lv0">보완 필요</b>`, `<b class="lv1">조금 더</b>`, `<b class="lv2">잘했어요</b>`][n ?? 0];
     return `<div class="claim"><small>AI 모델의 분석 결과 · 평가 대상</small>“${esc(t.claim)}”</div>
-      ${fld(t, x, "rebut", "AI 결과 평가: 나의 반박", "4단계에서 계산한 수치를 인용해, AI의 결론에서 무엇이 빠졌는지 써요", "수치 인용 · 다른 원인 · 개념 연결", 120)}
+      ${fld(t, x, "rebut", "AI 결과 평가: 나의 반박", "4단계에서 계산한 수치를 인용해, AI의 결론에서 무엇이 빠졌는지 써요", "수치 인용 · 다른 원인 · 윤리적 근거(사상가)", 120)}
       <div class="act"><span>${S.aiBusy ? "AI가 읽고 있어요…" : `저절로 저장돼요 · AI 검토 ${reviews.length}/5회`}</span><div><button class="btn b" data-act="review" ${S.aiBusy ? "disabled" : ""}>AI 검토 받기</button></div></div>
       ${last ? `<div class="rev"><div class="hd">AI 검토 의견 · ${reviews.length}번째<span>${last.local ? "기본 점검 (AI 서버 연결 전)" : "AI 검토"} · ${new Date(last.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span></div>
-        <div class="rub"><div>수치 인용${lv(last.scores.data)}</div><div>다른 원인 · 한계${lv(last.scores.other)}</div><div>개념 연결${lv(last.scores.concept)}</div></div>
+        <div class="rub"><div>수치 인용${lv(last.scores.data)}</div><div>다른 원인 · 한계${lv(last.scores.other)}</div><div>윤리적 근거${lv(last.scores.concept)}</div></div>
         ${last.good ? `<p><b>잘한 점</b>${esc(last.good)}</p>` : ""}<p><b>더 생각해 볼 것</b>${esc(last.next)}</p></div>` : ""}
       <div class="partner"><span class="lab">AI 탐구 파트너에게 묻기<small>답을 알려 주기보다 생각할 질문을 돌려줘요 · ${asks.length}/8회</small></span>
         ${asks.length ? `<div class="qa">${asks.map((a) => `<div><b>나</b>${esc(a.q)}</div><div class="a"><b>${a.local ? "도움 질문" : "AI 파트너"}</b>${esc(a.a)}</div>`).join("")}</div>` : ""}
@@ -497,10 +506,12 @@ function panel(t, x, k) {
   if (k === "s6") {
     const ch = s.checks || [], G = GROUPS[t.g];
     return `${fld(t, x, "interp", "결과 해석: 숫자가 말하지 않는 것", "다른 원인, 데이터의 치우침, 더 필요한 자료를 써요", "", 84)}
-      ${fld(t, x, "concept", "개념과 연결", `${G.words.slice(0, 5).join(" · ")} 가운데 무엇과 이어지나요?`, G.name, 84)}
+      <div class="thk"><div class="tq">🧭 사상가의 눈으로 판단하기<small>${esc(t.th.ask)}</small></div><div class="tp">${[t.th.m, t.th.r].map((n, i) => `<div><b>${esc(n)}</b><em>${i ? "맞서는 관점" : "주 사상가"}</em><p>${esc(DL.THINKERS[n])}</p></div>`).join("")}</div><p class="note">연결 고리: ${esc(t.th.link)}</p></div>
+      ${fld(t, x, "concept", `${esc(jo(t.th.m, "이라면", "라면"))} 이 결과를 어떻게 판단할까?`, `${t.th.m}의 원리 + 내가 확인한 데이터 → 나의 판단 순서로 써요`, "도덕 원리 · 사실 판단 · 도덕 판단", 84)}
+      ${fld(t, x, "rival", `${esc(jo(t.th.r, "이라면", "라면"))}? (선택)`, `${jo(t.th.r, "은", "는")} 무엇을 다르게 볼까요? 나는 어느 쪽에 더 가까운가요?`, "", 64)}
       ${fld(t, x, "plan", "해결안", "무엇을 어떻게 바꾸거나 바로잡아야 할까요?", "", 84)}
       <div class="fld"><span class="lab">해결안에서 따져 본 것<small>두 가지 이상 고르고, 해결안 칸에 그 내용을 함께 써요</small></span><div class="picks">${DL.CHECKS.map((c) => `<button class="pk ${ch.includes(c) ? "on" : ""}" data-act="chk" data-v="${esc(c)}" aria-pressed="${ch.includes(c)}">${esc(c)}</button>`).join("")}</div></div>
-      ${nextBtn(t, x, "s6", "해석 · 개념 · 해결안을 쓰고 따져 본 것을 두 가지 이상 고르면 6단계가 끝나요")}`;
+      ${nextBtn(t, x, "s6", "해석 · 사상가의 판단 · 해결안을 쓰고 따져 본 것을 두 가지 이상 고르면 6단계가 끝나요")}`;
   }
   if (k === "s7") {
     const f = DL.FORMS.find((v) => v[0] === s.form);
@@ -523,7 +534,7 @@ function panel(t, x, k) {
 
 function introView(t) {
   const G = GROUPS[t.g];
-  return `<div class="intro"><h3 class="h">탐구 소개</h3><dl><dt>핵심 질문</dt><dd>${esc(t.q)}</dd><dt>탐구 묶음</dt><dd>${esc(G.full)}</dd><dt>학습 목표</dt><dd>${esc(t.goal)}</dd><dt>수업 유형</dt><dd>${esc(DL.MODEL.type)} · ${esc(DL.MODEL.name)}</dd><dt>탐구 흐름</dt><dd>${STEPS.map((s, i) => `${i + 1}. ${s.name}(${s.min}분)`).join("<br>")}</dd><dt>AI의 역할</dt><dd>AI 모델은 그럴듯하지만 데이터로 반박할 수 있는 결론을 내놓아요. 학생은 직접 정제 · 계산한 수치로 그 결론을 평가하고, AI 검토 · 탐구 파트너에게 생각할 질문을 받아요.</dd><dt>관련 개념</dt><dd>${G.words.join(" · ")}</dd></dl></div>`;
+  return `<div class="intro"><h3 class="h">탐구 소개</h3><dl><dt>핵심 질문</dt><dd>${esc(t.q)}</dd><dt>탐구 묶음</dt><dd>${esc(G.full)}</dd><dt>학습 목표</dt><dd>${esc(t.goal)}</dd><dt>수업 유형</dt><dd>${esc(DL.MODEL.type)} · ${esc(DL.MODEL.name)}</dd><dt>탐구 흐름</dt><dd>${STEPS.map((s, i) => `${i + 1}. ${s.name}(${s.min}분)`).join("<br>")}</dd><dt>AI의 역할</dt><dd>AI 모델은 그럴듯하지만 데이터로 반박할 수 있는 결론을 내놓아요. 학생은 직접 정제 · 계산한 수치로 그 결론을 평가하고, AI 검토 · 탐구 파트너에게 생각할 질문을 받아요.</dd><dt>사상가</dt><dd><b>${esc(t.th.m)}</b> (맞서는 관점: ${esc(t.th.r)}) — ${esc(t.th.link)}<br>${esc(DL.THINKERS[t.th.m])}<br><span class="note">생각해 볼 질문: ${esc(t.th.ask)}</span></dd><dt>관련 개념</dt><dd>${G.words.join(" · ")}</dd></dl></div>`;
 }
 function dataView(t) {
   const P = t.photo;

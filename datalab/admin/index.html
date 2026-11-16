@@ -147,7 +147,7 @@ async function callAdminAI(path, body) {
 function evidence(m) {
   return topicsOf(m).map((t) => { const x = m.rec[t.id]; return { topic: `AI활용탐구 ${t.no} ${t.title}`, group: GROUPS[t.g].name, steps: `${progOf(t, x)}/8단계${x.sub ? " · 제출" : ""}`, claim: t.claim,
     report: Object.fromEntries(REPORT.map(([k, n]) => [n, String(repVal(t, x, k) || "").slice(0, 700)])),
-    ai: (x.ai || []).slice(-6).map((a) => a.k === "review" ? `[AI 검토] 수치 ${a.scores.data} · 원인 ${a.scores.other} · 개념 ${a.scores.concept}` : `[질문] ${a.q}`) }; });
+    ai: (x.ai || []).slice(-6).map((a) => a.k === "review" ? `[AI 검토] 수치 ${a.scores.data} · 원인 ${a.scores.other} · 윤리 ${a.scores.concept}` : `[질문] ${a.q}`) }; });
 }
 const promptOf = (m) => `아래는 고등학교 통합사회 ‘AI활용탐구’(데이터 분석 · 8단계 문제해결학습)에서 한 학생이 실제로 남긴 탐구 기록이다. 이 기록만 근거로 학교생활기록부 ‘세부능력 및 특기사항’ 문장을 써 줘.
 - 500자 안팎(공백 포함), 한 문단, ‘~함.’ ‘~임.’처럼 명사형으로 끝맺기
@@ -212,8 +212,8 @@ const PLAN_T = [
   ["데이터 수집 방법 및 도구 학습", (t) => [`‘${t.calc.label}’을 구하는 데 필요한 데이터 묻기`, "실제 출처(공공데이터포털 · KOSIS 등)와 분석 도구 안내"], (t) => [`필요한 열 고르기(${t.need.map((j) => t.cols[j]).join(", ")})`, "출처 확인 · 분석 도구 선택(엑셀 · 구글 시트 · Orange3 · 화면 계산)"], "—"],
   ["데이터 수집 및 정제", () => ["공공데이터에 흔한 오류(중복 · 누락 · 합계 줄) 설명", "정제 결과 확인 · 피드백"], () => ["중복 줄 · 빈칸 줄 · 합계 줄을 찾아 지우기", "지운 까닭 확인"], "—"],
   ["데이터 분석 및 시각화", (t) => [`‘${t.calc.formula}’ 계산 방법 안내`, "그래프와 기초 통계(평균 · 최댓값 · 최솟값)로 패턴을 읽도록 발문"], (t) => [`고른 ${t.pick}의 ${t.calc.label} 직접 계산`, "막대그래프 비교 · 기초 통계 확인", "패턴과 인사이트를 수치로 쓰기"], "—"],
-  ["AI 모델 적용 및 평가", (t) => ["AI 모델의 분석 결과 제시 · 평가 기준(수치 인용 · 다른 원인 · 개념 연결) 안내", "AI의 답을 그대로 믿지 않고 데이터로 검증하도록 안내"], (t) => [`AI의 결론 “${t.claim}”을 수치로 반박`, "AI 검토(3기준 피드백) 받고 고쳐 쓰기", "AI 탐구 파트너에게 질문하기"], "생성형 AI(Claude) 검토 · 탐구 파트너(답 대신 질문)"],
-  ["결과 해석 및 해결안 도출", (t) => ["숫자가 말하지 않는 것 토의", `${GROUPS[t.g].name}의 개념과 연결하도록 발문`, "해결안의 실현 가능성 · 한계 · 윤리 · 프라이버시 · 사회적 영향 검토 안내"], () => ["결과 해석 · 한계 쓰기", "개념 연결 쓰기", "해결안 쓰기 · 고려 요소 두 가지 이상 선택"], "—"],
+  ["AI 모델 적용 및 평가", (t) => ["AI 모델의 분석 결과 제시 · 평가 기준(수치 인용 · 다른 원인 · 윤리적 근거) 안내", "AI의 답을 그대로 믿지 않고 데이터로 검증하도록 안내"], (t) => [`AI의 결론 “${t.claim}”을 수치로 반박`, "AI 검토(3기준 피드백) 받고 고쳐 쓰기", "AI 탐구 파트너에게 질문하기"], "생성형 AI(Claude) 검토 · 탐구 파트너(답 대신 질문)"],
+  ["결과 해석 및 해결안 도출", (t) => ["숫자가 말하지 않는 것 토의", `사상가의 눈으로 판단하도록 발문: ${t.th.m}(맞서는 관점 ${t.th.r}) — ${t.th.ask}`, "해결안의 실현 가능성 · 한계 · 윤리 · 프라이버시 · 사회적 영향 검토 안내"], (t) => ["결과 해석 · 한계 쓰기", `${t.th.m}의 원리로 판단하기(도덕 원리 + 사실 판단 → 도덕 판단), ${t.th.r}의 관점과 비교`, "해결안 쓰기 · 고려 요소 두 가지 이상 선택"], "—"],
   ["문제 해결 (실행)", () => ["해결안을 실제로 전할 결과물 형식 안내"], () => ["정책 제안서 · 캠페인 문구 · 편지 · 기사 가운데 하나로 실행물 만들기(데이터 한 줄 포함)"], "—"],
   ["공유 및 성찰", () => ["우리 반 갤러리 공유 · 동료 해결안 읽기 안내", "AI 활용 성찰 발문: ‘AI의 결론에서 무엇이 틀렸고, 무엇으로 확인했나?’"], () => ["한 장 보고서 제출(자동 정리)", "갤러리에서 친구 해결안 읽기", "탐구 성찰 · AI 활용 성찰 쓰기"], "AI 활용 기록 자동 정리"]
 ];
@@ -225,10 +225,11 @@ function planHTML(t) {
     <tr><th>차시</th><td>1차시(50분) · 개인 탐구</td><th>도구</th><td>moontr.site/datalab · ${esc(DL.MODEL.tools)}</td></tr>
     <tr><th>학습 목표</th><td colspan="3">${esc(t.goal)}</td></tr>
     <tr><th>핵심 질문</th><td colspan="3">${esc(t.q)}</td></tr>
+    <tr><th>사상가</th><td colspan="3">${esc(t.th.m)} (맞서는 관점: ${esc(t.th.r)}) — ${esc(t.th.link)} · 생각해 볼 질문: ${esc(t.th.ask)}</td></tr>
     <tr><th>사용 데이터</th><td colspan="3">${t.src.map((s) => esc(s[0])).join(" · ")} (수업에서는 정리한 표를 제공하고, 더 해 보기에서 원자료를 다룸)</td></tr></table>
   <table><tr><th style="width:15%">단계</th><th style="width:6%">시간</th><th style="width:31%">교수 활동</th><th style="width:31%">학습 활동</th><th style="width:17%">AI 활용 · 유의점</th></tr>
     ${PLAN_T.map(([nm, tf, sf, ai], i) => `<tr><td><b>${i + 1}. ${esc(nm)}</b></td><td class="c">${STEPS[i].min}분</td><td><ul>${tf(t).map((v) => `<li>${esc(v)}</li>`).join("")}</ul></td><td><ul>${sf(t).map((v) => `<li>${esc(v)}</li>`).join("")}</ul></td><td>${esc(ai)}</td></tr>`).join("")}</table>
-  <table><tr><th style="width:15%">평가</th><td><ul><li>데이터 리터러시: 정제 · 계산이 정확하고, 그래프와 통계를 근거로 패턴을 설명하는가</li><li>AI 리터러시: AI의 결론을 수치로 검증하고, AI 활용 과정을 성찰하는가</li><li>개념 적용: ${esc(G.name)}의 개념을 사용해 결과를 해석하고 해결안을 제시하는가</li></ul></td></tr>
+  <table><tr><th style="width:15%">평가</th><td><ul><li>데이터 리터러시: 정제 · 계산이 정확하고, 그래프와 통계를 근거로 패턴을 설명하는가</li><li>AI 리터러시: AI의 결론을 수치로 검증하고, AI 활용 과정을 성찰하는가</li><li>윤리적 판단: 교과서 사상가(${esc(t.th.m)} · ${esc(t.th.r)})의 원리와 데이터로 확인한 사실을 이어 도덕 판단을 내리고, 맞서는 관점과 비교해 해결안을 정당화하는가</li></ul></td></tr>
     <tr><th>개별화</th><td>학생마다 살펴볼 대상과 나만의 탐구 질문을 고르고, 한 반 안에서도 20개 주제 가운데 하나를 선택해 서로 다른 데이터 · 결론 · 실행물을 만든다.</td></tr>
     <tr><th>기록 연계</th><td>단계 기록 · 한 장 보고서 · AI 활용 기록이 자동 저장되어 학생별 세부능력 및 특기사항의 근거로 쓰인다.</td></tr>
     <tr><th>유의점</th><td>개인 경험 · 타인 이름 등 개인정보를 쓰지 않게 한다. 화면의 숫자는 연습용 예시이므로 실제 통계는 출처에서 확인하도록 안내한다.</td></tr></table></div>`;
@@ -252,7 +253,7 @@ function reflView() {
   return `<div class="bar-h"><div><h1>수업 실천 성찰</h1><p>아이에답 ‘수업 실천 성찰하기’에 올릴 자료 · 학번 없이 통계와 보고서 예시만</p></div><div class="ctl">${banSel()}<button class="btn" data-act="printRefl">인쇄 · PDF로 저장</button></div></div>
   <div id="reflDoc"><div class="kpi"><div>참여 학생<b>${stats.학생}명</b></div><div>시작한 탐구<b>${stats.시작한탐구}개</b></div><div>제출한 보고서<b>${stats.제출}개</b></div><div>선택된 주제<b>${stats.주제수}개</b></div><div>AI 검토 · 질문<b>${stats.AI검토 + stats.AI질문}회</b></div></div>
   <div class="two" style="grid-template-columns:1fr 1fr"><div class="box"><h2>단계별 완료율</h2>${STEPS.map((st, i) => { const v = parseInt(Object.values(stats.단계완료율)[i]); return `<div class="hb"><span>${i + 1}. ${esc(st.name)}</span><i style="width:${v}%"></i><em>${v}%</em></div>`; }).join("")}</div>
-  <div class="box"><h2>AI 검토 뒤 고쳐 쓰기</h2><p style="font-size:14px">AI 검토를 두 번 이상 받은 탐구 ${firsts.length}개에서, 첫 검토보다 마지막 검토의 점수(수치 인용 · 다른 원인 · 개념 연결, 6점 만점)가 평균 <b>${gain >= 0 ? "+" : ""}${gain.toFixed(2)}점</b> 바뀌었어요.</p><p class="note" style="margin-top:8px">AI 서버 검토 ${reviews.length}회 · 기본 점검 포함 전체 ${stats.AI검토}회 · 탐구 파트너 질문 ${stats.AI질문}회</p></div></div>
+  <div class="box"><h2>AI 검토 뒤 고쳐 쓰기</h2><p style="font-size:14px">AI 검토를 두 번 이상 받은 탐구 ${firsts.length}개에서, 첫 검토보다 마지막 검토의 점수(수치 인용 · 다른 원인 · 윤리적 근거, 6점 만점)가 평균 <b>${gain >= 0 ? "+" : ""}${gain.toFixed(2)}점</b> 바뀌었어요.</p><p class="note" style="margin-top:8px">AI 서버 검토 ${reviews.length}회 · 기본 점검 포함 전체 ${stats.AI검토}회 · 탐구 파트너 질문 ${stats.AI질문}회</p></div></div>
   <div class="box"><h2>학생 보고서 예시 (이름 · 학번 없이)</h2>${samples.map((s) => `<div class="paper" style="padding:16px 18px"><div class="who">${esc(s.주제)}</div><section><h4>결과</h4><p>${esc(s.결과)}</p></section><section><h4>해결안</h4><p>${esc(s.해결안)}</p></section><section><h4>AI 활용 성찰</h4><p>${esc(s.AI성찰)}</p></section></div>`).join("") || `<p class="note">제출한 보고서가 생기면 여기에 세 개까지 보여요</p>`}</div>
   <div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">성찰문 초안</h2><button class="btn b sm" data-act="aiRefl" ${A.busy ? "disabled" : ""}>AI로 초안</button></div><textarea data-refl style="margin-top:10px" placeholder="위 통계와 예시를 바탕으로 AI가 초안을 써 줘요. 내 경험과 느낀 점으로 고쳐 써 주세요">${esc(draft)}</textarea></div></div>`;
 }
