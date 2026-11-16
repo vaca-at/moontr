@@ -171,6 +171,8 @@ async function signIn(sid, pin, isNew) {
   if (!/^[0-9]{4}$/.test(pin)) return loginMsg("비밀번호는 숫자 네 자리예요");
   if (!db) return loginMsg("서버에 연결하지 못했어요. 잠시 뒤에 다시 해 주세요");
   S.busy = true; render();
+  // 15초 안에 서버가 답하지 않으면 '확인 중…'에 멈춰 있지 않게 알려 줘요 (학교 와이파이가 막거나 느릴 때)
+  const slow = setTimeout(() => { if (S.busy) loginMsg("서버 연결이 늦어요. 인터넷(와이파이)을 확인하고 ‘들어가기’를 다시 눌러 주세요"); }, 15000);
   try {
     const key = await DL.keyOf(sid, pin), ref = db.collection("datalab_members").doc(key), snap = await ref.get();
     if (snap.exists) {
@@ -190,6 +192,7 @@ async function signIn(sid, pin, isNew) {
     LS.set("me", S.me); LS.set("rec", S.rec); LS.set("lastSid", sid);
     S.login = false; S.loginNew = null; S.busy = false; S.loginMsg = ""; toast(`${sid} 학생, 반가워요`); render();
   } catch (e) { console.error(e); S.busy = false; loginMsg("들어가지 못했어요 (" + (e.code || e.message) + ")"); }
+  finally { clearTimeout(slow); }
 }
 function loginMsg(m) { S.loginMsg = m; S.busy = false; render(); }
 function signOut() { if (!confirm("이 기기에서 나갈까요? 내 기록은 서버에 저장되어 있어요")) return; S.me = null; S.rec = {}; LS.del("me"); LS.del("rec"); render(); toast("나갔어요"); }
