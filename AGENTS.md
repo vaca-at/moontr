@@ -53,6 +53,7 @@
 - 지우거나 이름을 바꾸면 앱이 깨지는 것:
   - 단추 3개 `#appHud`(☰ `#hudMenu` · ☑👥 `#hudFr` · ◀ ▶ `#hudPick`), ☰ 한 창 `#shApp` · 할 일 창 `#shTodo` · 로그인 뒤 고르기 `#shStart`, 맨 위 로딩 화면 스크립트(`window.bootDone`)
   - 앱 로그인: `appCreds` · `appSignIn` (휴대폰 로그인 창 `Capacitor.Plugins.FirebaseAuthentication` → `signInWithCredential`). 앱 안에서는 팝업 로그인이 안 돼요
+  - ⚠️ 아이폰 카카오(oidc.kakao)는 열쇠 넘기기로 안 돼요 (2026-11-16 확인: moon-d528d 는 access token 을 받지 않고, id token 은 휴대폰 안 로그인에 한 번 쓰이면 끝). 먼저 플래너는 로그인 다리 `auth/server`(Cloudflare `moontr-auth`, 비밀값 `FB_SA` = 서비스 계정 키) → `signInWithCustomToken` 으로 바꿨어요 (`kakaoApp()`). 타이쿤도 같은 방식으로 바꿔야 해요
   - 홈 화면 위젯 연결: `Capacitor.Plugins.Tycoon` 의 `setData` · `setShots` · `getLaunch` (`widgetData()` 가 넘기는 글 모양 { days, todos, events, inT, outT } 를 바꾸면 위젯 Java 코드도 같이 바꿔야 해요)
   - 방문 수: 웹 = `visit.js?app=desk`, 앱 = `visit.js?app=deskapp` (관리자 화면 '📊 접속 현황 · 웹과 앱 따로')
 - 세로 그림(270×480)은 시안마다 `xxx(true)` 로 만들어 `makeStructs()` 끝의 `PORTS` 에 붙어 있어요. 가로 그림을 고치면 세로 그림도 `?port` 로 열어 같이 확인해 주세요. 🖥 무난한 PC 시안은 웹에서도 휴대폰을 세우면(700px 이하 세로) 세로 그림으로 보여요 (문쌤 요청, 레트로 게임 시안은 예전처럼 앱에서만).

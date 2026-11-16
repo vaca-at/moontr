@@ -1973,7 +1973,7 @@ setTimeout(() => { const t = D.timer; if (t && t.start && !t.asked && tsec() >= 
    - 이름 붙은 파이어베이스 앱 "first" (moontr.site 관리자 로그인과 섞이지 않게). 관리자 화면(#admin)만 기본 앱
    - 탈퇴: ⚙︎ 설정 › 계정 › 탈퇴 → 서버 기록 · 숫자 · 로그인 정보를 지우고 이 기기 기록도 지워요 */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithPopup, signInWithCredential, signInWithCustomToken, GoogleAuthProvider, OAuthProvider, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, getCountFromServer, collection, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const firebaseConfig = { apiKey:"AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain:"moon-d528d.firebaseapp.com", projectId:"moon-d528d", storageBucket:"moon-d528d.firebasestorage.app", messagingSenderId:"126636401536", appId:"1:126636401536:web:25b8a8296ec42b86f99765" };
 const ADMIN = location.hash === "#admin" || /[?&]admin\b/.test(location.search);
@@ -1995,19 +1995,7 @@ const FA = () => NATIVE ? window.Capacitor.Plugins.FirebaseAuthentication : null
 // 아이폰 앱: 휴대폰 로그인 창으로 받은 열쇠를 파이어베이스에 넘겨요 (교무실 타이쿤 · 아이아이노트와 같은 방식)
 async function appCreds(kind){
   const P = FA(); if (!P) throw new Error("앱을 최신 버전으로 업데이트해 주세요");
-  if (kind === "kakao"){
-    /* 2026-11-16 아이폰에서 '카카오 로그인을 하지 못했어요'가 떠서 고침:
-       아이폰 파이어베이스는 휴대폰 안에서 로그인을 끝내지 않으면(skipNativeAuth:true) 카카오 열쇠(idToken · accessToken)를 돌려주지 않을 때가 있어요
-       → 열쇠가 비어 있으면 한 번 더, 이번엔 휴대폰 안에서 로그인을 끝내고(skipNativeAuth:false) 그 열쇠를 받아 웹 로그인에 넘겨요 */
-    const ask = async (skip) => { const r = await P.signInWithOpenIdConnect({ providerId:KAKAO, skipNativeAuth:skip }), c = (r && r.credential) || {}, L = [];
-      if (c.idToken) L.push({ idToken:c.idToken, ...(c.nonce ? { rawNonce:c.nonce } : {}), ...(c.accessToken ? { accessToken:c.accessToken } : {}) });
-      if (c.accessToken) L.push({ accessToken:c.accessToken });
-      return { L, got:Object.keys(c).filter(k => c[k]).join(",") || "없음" }; };
-    let a = await ask(true);
-    if (!a.L.length && IOS){ const b = await ask(false); if (b.L.length) a = b; else a.got += " / " + b.got; }
-    if (!a.L.length) throw new Error(`카카오 로그인을 하지 못했어요. 다시 눌러 주세요 (받은 것: ${a.got})`);
-    return a.L.map(o => new OAuthProvider(KAKAO).credential(o));
-  }
+  if (kind === "kakao") return [];   // 카카오는 아래 kakaoApp() 으로 (열쇠를 넘기는 방식이 아니에요)
   if (kind === "apple"){
     const r = await P.signInWithApple({ skipNativeAuth:true }), c = r && r.credential;
     if (!c || !c.idToken) throw new Error("Apple 로그인을 하지 못했어요. 다시 눌러 주세요");
@@ -2016,6 +2004,23 @@ async function appCreds(kind){
   const r = await P.signInWithGoogle(), c = r && r.credential;
   if (!c || !c.idToken) throw new Error("구글 로그인을 하지 못했어요. 다시 눌러 주세요");
   return [GoogleAuthProvider.credential(c.idToken, c.accessToken || null)];
+}
+/* 🔑 아이폰 앱 카카오 로그인 (2026-11-16)
+   카카오(OpenID Connect) 열쇠는 휴대폰 안 로그인에 한 번 쓰이면 웹 화면으로 다시 넘길 수 없어요 (확인: access token 은 받지 않고, id token 은 한 번만)
+   → ① 휴대폰 안에서 카카오 로그인을 끝내고 ② 그 로그인 표를 로그인 다리(auth/server, Cloudflare)에 보내면
+     ③ 같은 계정(같은 uid)의 커스텀 토큰을 받아 웹 화면도 signInWithCustomToken 으로 들어가요. 웹에서 카카오로 가입한 계정과 같은 계정이에요 */
+const AUTH_BRIDGE = "https://moontr-auth.bellachord.workers.dev";
+async function kakaoApp(){
+  const P = FA(); if (!P) throw new Error("앱을 최신 버전으로 업데이트해 주세요");
+  await P.signInWithOpenIdConnect({ providerId:KAKAO, skipNativeAuth:false });
+  const t = await P.getIdToken({ forceRefresh:false }), idToken = t && t.token;
+  if (!idToken) throw new Error("카카오 로그인을 하지 못했어요. 다시 눌러 주세요 (로그인 표 없음)");
+  let j = {};
+  try { const r = await fetch(AUTH_BRIDGE + "/kakao", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ idToken }) }); j = await r.json().catch(() => ({})); }
+  catch (e){ throw new Error("카카오 로그인 서버에 연결하지 못했어요. 인터넷을 확인해 주세요"); }
+  if (!j.token) throw new Error("카카오 로그인을 하지 못했어요 (" + (j.error || "서버 응답 없음") + ")");
+  await signInWithCustomToken(auth, j.token);
+  try { await P.signOut(); } catch (e) {}   // 휴대폰 안 로그인은 다리 건너는 데만 쓰고 나와요
 }
 const INAPP = /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|\bLine\/|DaumApps|everytimeApp|BAND\/|; wv\)/i.test(navigator.userAgent);
 async function signIn(kind){
@@ -2026,7 +2031,8 @@ async function signIn(kind){
   }
   gate.querySelectorAll(".gb").forEach(b => b.disabled = true);
   try {
-    if (NATIVE){ let err; for (const c of await appCreds(kind)){ try { await signInWithCredential(auth, c); err = null; break; } catch (e){ err = e; } } if (err) throw err; }
+    if (NATIVE && kind === "kakao") await kakaoApp();
+    else if (NATIVE){ let err; for (const c of await appCreds(kind)){ try { await signInWithCredential(auth, c); err = null; break; } catch (e){ err = e; } } if (err) throw err; }
     else await signInWithPopup(auth, kind === "kakao" ? new OAuthProvider(KAKAO) : gProv());
   } catch (e){
     const m = String((e && (e.code || e.message)) || "");
