@@ -25,17 +25,20 @@
   };
   const OTHER = ["인구", "원인", "한계", "비교", "기간", "표본", "편향", "유동", "기준", "추세", "코로나", "차이", "상관", "인과", "선택", "조건", "비율", "전체", "다른"];
 
+  // 사진: 학교 주변 대치동 · 도곡동 · 강남구 실제 모습, 모두 저작권 없는 사진 (퍼블릭 도메인 · CC0, Wikimedia Commons)
   const PHOTO = {
-    night: { src: "img/night.jpg", cap: "서울 강남역 버스 정류장의 밤", by: "*Youngjin", lic: "CC BY-SA 4.0", url: "https://commons.wikimedia.org/wiki/File:Night_view_at_Gangnam_station_bus_stop_20251024.jpg" },
-    gangnam: { src: "img/gangnam.jpg", cap: "서울 강남대로", by: "Christophe95", lic: "CC BY-SA 4.0", url: "https://commons.wikimedia.org/wiki/File:Gangnam-daero.jpg" },
-    street: { src: "img/street.jpg", cap: "서울 역삼동 거리", by: "Christophe95", lic: "CC BY-SA 4.0", url: "https://commons.wikimedia.org/wiki/File:Street_in_Yeoksam-dong,_Gangnam-gu.jpg" },
-    apt: { src: "img/apt.jpg", cap: "서울 노원구 아파트 단지", by: "Ox1997cow", lic: "CC BY-SA 3.0", url: "https://commons.wikimedia.org/wiki/File:Wide_view_of_Nowon-gu_Apartment_buildings.jpg" },
-    mkt: { src: "img/mkt.jpg", cap: "서울 방산시장 입구", by: "UniCon", lic: "CC BY-SA 4.0", url: "https://commons.wikimedia.org/wiki/File:%EB%B0%A9%EC%82%B0%EC%8B%9C%EC%9E%A5_%EC%9E%85%EA%B5%AC_(2).jpg" }
+    police: { src: "img/police.jpg", cap: "서울수서경찰서 대치지구대", by: "Neoalpha", lic: "퍼블릭 도메인", url: "https://commons.wikimedia.org/wiki/File:Seoul_Suseo_Police_Station_Daechi_Police_Box.jpg" },
+    road: { src: "img/road.jpg", cap: "강남구 아파트 단지 옆 큰길", by: "Locomo314", lic: "퍼블릭 도메인", url: "https://commons.wikimedia.org/wiki/File:A_street_in_Gangnam_residential_area,_Seoul.jpg" },
+    apt: { src: "img/apt.jpg", cap: "대치동 아파트", by: "Gapo", lic: "퍼블릭 도메인", url: "https://commons.wikimedia.org/wiki/File:Apartment_Daechi-dong_Seoul_Korea_001.jpg" },
+    library: { src: "img/library.jpg", cap: "도곡정보문화도서관", by: "Seojoohyun", lic: "CC0", url: "https://commons.wikimedia.org/wiki/File:%EB%8F%84%EA%B3%A1%EC%A0%95%EB%B3%B4%EB%AC%B8%ED%99%94%EB%8F%84%EC%84%9C%EA%B4%80.jpg" },
+    park: { src: "img/park.jpg", cap: "대치유수지 체육공원", by: "H. Y. Shin", lic: "CC0", url: "https://commons.wikimedia.org/wiki/File:Sports_park_20190630_150525.jpg" },
+    bakery: { src: "img/bakery.jpg", cap: "강남구의 프랜차이즈 빵집", by: "Choikwangmo25", lic: "CC0", url: "https://commons.wikimedia.org/wiki/File:Gontran_Cherrier_store_in_gangnam-gu_P20250928_181911188_17BA5EEC-3164-4941-9BA8-FC61782A0308.jpg" },
+    shop: { src: "img/shop.jpg", cap: "강남구 골목의 작은 가게", by: "Choikwangmo25", lic: "CC0", url: "https://commons.wikimedia.org/wiki/File:I_still_hide_you_in_my_poetry_toy_store_P20250928_182826043_6A4A1663-4313-417D-AA5A-54B259D28DD0.jpg" }
   };
 
   const TOPICS = [
     /* ───────── 교정적 정의 ───────── */
-    { id: "j1", g: "j", name: "범죄 통계", img: "night",
+    { id: "j1", g: "j", name: "범죄 통계", img: "police",
       title: "AI가 말한 ‘가장 위험한 동네’, 믿어도 될까?",
       q: "범죄 건수가 가장 많은 지역은 정말 가장 위험한 지역일까?",
       lead: "범죄 건수와 인구 10만 명당 범죄율은 전혀 다른 순위를 보여 줍니다. AI의 결론을 데이터로 검증하고, 숫자를 잘못 읽은 판단이 누구에게 불공정한지 따져 봅니다.",
@@ -49,7 +52,7 @@
       src: [["경찰청 범죄 발생 지역별 통계", DG, "공공데이터포털에서 ‘경찰청 범죄 발생 지역별 통계’ 검색 → 내려받기"], ["시군구 주민등록 인구", KOSIS, "KOSIS → 주민등록인구현황 → 시군구별"]],
       more: ["엑셀: 건수 B열 · 인구 C열이면 D2 칸에 =B2/C2*100000 → 아래로 채우기 → D열 기준 내림차순 정렬", "내가 사는 시 · 도의 실제 통계로 순위를 다시 계산해 봐요"] },
 
-    { id: "j2", g: "j", name: "형벌과 비례", img: "gangnam",
+    { id: "j2", g: "j", name: "형벌과 비례", img: "police",
       title: "같은 죄에는 같은 벌? AI 판사라면 더 공정할까",
       q: "같은 죄를 지으면 모두 같은 벌을 받는 것이 정의로울까?",
       lead: "같은 죄명인데도 실형 · 집행유예 · 벌금으로 결과가 갈립니다. 판결을 가르는 이유가 정당한지, ‘똑같이’와 ‘잘못에 맞게’가 어떻게 다른지 따져 봅니다.",
@@ -63,7 +66,7 @@
       src: [["사법연감 형사 1심 판결 결과", "https://www.scourt.go.kr/", "대법원 누리집 → 사법연감"], ["양형기준", "https://sc.scourt.go.kr/", "대법원 양형위원회 → 양형기준"]],
       more: ["NotebookLM에 양형기준 PDF를 올려 ‘초범은 감경 요소인가?’를 묻고, 답 옆 출처 번호를 눌러 원문을 확인해 봐요"] },
 
-    { id: "j3", g: "j", name: "피해 회복", img: "street",
+    { id: "j3", g: "j", name: "피해 회복", img: "park",
       title: "처벌로 정의는 끝날까? 피해 회복의 사각지대",
       q: "가해자가 처벌받으면 피해자의 회복도 끝난 걸까?",
       lead: "교정적 정의에는 처벌뿐 아니라 피해를 되돌리는 배상과 회복이 있습니다. 동네마다 피해자가 실제로 도움을 받은 비율을 계산해 사각지대를 찾아봅니다.",
@@ -77,7 +80,7 @@
       src: [["범죄피해자 지원 기관 안내", "https://www.kcva.or.kr/", "한국범죄피해자지원중앙센터 · 스마일센터 기관 안내"], ["지역 범죄 통계", DG, "경찰청 범죄 발생 지역별 통계"]],
       more: ["구글 마이맵에 지원 기관 주소를 올리고 우리 동네에서 걸리는 시간을 재 봐요"] },
 
-    { id: "j4", g: "j", name: "학교 안의 정의", img: "night",
+    { id: "j4", g: "j", name: "학교 안의 정의", img: "library",
       title: "학교에서 잘못을 바로잡는 방법, 처벌이 최선일까",
       q: "벌을 받으면 깨진 관계도 회복될까?",
       lead: "학교폭력 조치에는 서면사과부터 퇴학까지 아홉 가지가 있습니다. 조치별 비율을 계산하고, 각 조치가 잘못을 벌하는 것인지 관계를 회복하는 것인지 따져 봅니다.",
@@ -91,7 +94,7 @@
       src: [["학교폭력 조치 현황", "https://www.schoolinfo.go.kr/", "학교알리미 공시 또는 교육청 보도자료 (지역 단위만, 우리 학교 숫자는 쓰지 않아요)"]],
       more: ["개인 경험이나 친구 이름은 적지 않아요. 상상과 데이터로만 이야기해요"] },
 
-    { id: "j5", g: "j", name: "촉법소년", img: "gangnam",
+    { id: "j5", g: "j", name: "촉법소년", img: "library",
       title: "촉법소년 연령, 낮추면 범죄가 줄어들까",
       q: "나이가 어린 사람의 잘못에도 어른과 같은 책임을 물어야 할까?",
       lead: "만 10~13세 촉법소년 사건은 해마다 늘고 있습니다. 숫자의 변화를 인구에 맞춰 다시 계산하고, ‘처벌하면 줄어든다’는 주장이 데이터로 뒷받침되는지 따져 봅니다.",
@@ -105,7 +108,7 @@
       src: [["범죄백서 · 소년범죄 통계", "https://www.ioj.go.kr/", "법무연수원 → 범죄백서"], ["연령별 인구", KOSIS, "KOSIS → 주민등록인구 → 연령별"]],
       more: ["다른 나라의 형사책임 연령과 소년 재범률을 찾아 비교해 봐요"] },
 
-    { id: "j6", g: "j", name: "벌금의 형평", img: "street",
+    { id: "j6", g: "j", name: "벌금의 형평", img: "road",
       title: "같은 100만 원, 같은 무게일까? 벌금의 형평",
       q: "같은 잘못에 같은 금액의 벌금을 매기는 것이 공정할까?",
       lead: "벌금 100만 원은 누군가에게는 한 달 생활비이고, 누군가에게는 일부일 뿐입니다. 소득에 따라 벌금의 무게를 계산하고, 소득 비례 벌금(일수벌금제)을 따져 봅니다.",
@@ -119,7 +122,7 @@
       src: [["가계동향조사 소득 5분위", KOSIS, "KOSIS → 가계동향조사 → 소득 5분위별"], ["벌금 미납 · 노역 관련 자료", "https://www.moj.go.kr/", "법무부 통계 · 보도자료"]],
       more: ["핀란드 · 독일의 일수벌금제를 조사해 우리나라에 맞는 방법을 설계해 봐요"] },
 
-    { id: "j7", g: "j", name: "교정과 재범", img: "night",
+    { id: "j7", g: "j", name: "교정과 재범", img: "police",
       title: "교도소는 사람을 바꿀 수 있을까",
       q: "교도소는 벌을 주는 곳일까, 다시 잘못하지 않게 돕는 곳일까?",
       lead: "출소한 사람 가운데 다시 수감되는 비율은 교정 프로그램 참여에 따라 달라집니다. 재복역률을 계산하고, 차이를 모두 프로그램 덕분이라고 할 수 있는지 검토합니다.",
@@ -133,7 +136,7 @@
       src: [["교정통계연보", "https://www.corrections.go.kr/", "법무부 교정본부 → 교정통계"]],
       more: ["노르웨이 교정 제도와 재범률을 조사해 비교해 봐요"] },
 
-    { id: "j8", g: "j", name: "처벌 강화의 효과", img: "gangnam",
+    { id: "j8", g: "j", name: "처벌 강화의 효과", img: "road",
       title: "처벌을 세게 하면 음주운전이 줄어들까",
       q: "처벌을 강하게 할수록 잘못은 계속 줄어들까?",
       lead: "2018년 말과 2019년, 음주운전 처벌을 강화한 이른바 ‘윤창호법’이 시행되었습니다. 해마다 사고 건수의 증감률을 계산하고, 법의 효과와 다른 원인을 구분해 봅니다.",
@@ -147,7 +150,7 @@
       src: [["교통사고분석시스템(TAAS)", "https://taas.koroad.or.kr/", "도로교통공단 TAAS → 음주운전 사고 통계"]],
       more: ["엑셀로 꺾은선 그래프를 그리고 법 시행 시점에 세로선을 넣어 봐요"] },
 
-    { id: "j9", g: "j", name: "기업의 잘못과 책임", img: "street",
+    { id: "j9", g: "j", name: "기업의 잘못과 책임", img: "road",
       title: "일하다 다친 사람, 책임은 누구에게",
       q: "기업의 잘못으로 사람이 다치면, 누가 어떤 책임을 져야 할까?",
       lead: "2022년부터 중대재해처벌법이 시행되었습니다. 사망자 수가 아니라 근로자 1만 명당 비율로 바꾸어 보고, 한 해의 숫자로 법의 효과를 판단해도 되는지 따져 봅니다.",
@@ -161,7 +164,7 @@
       src: [["산업재해 현황", "https://www.moel.go.kr/", "고용노동부 → 정책자료 → 산업재해 현황"]],
       more: ["업종별(건설 · 제조) 사망 만인율을 찾아 어디에 예방이 더 필요한지 비교해 봐요"] },
 
-    { id: "j10", g: "j", name: "AI 판사의 공정성", img: "night",
+    { id: "j10", g: "j", name: "AI 판사의 공정성", img: "police",
       title: "재범을 예측하는 AI, 누구에게나 공정할까",
       q: "AI가 사람의 위험을 판정한다면, 그 판정은 모두에게 공정할까?",
       lead: "법원에서 재범 위험을 예측하는 알고리즘이 쓰이기도 합니다. ‘위험 높음’으로 판정받았지만 실제로는 재범하지 않은 사람의 비율을 집단마다 계산해, 알고리즘의 공정성을 검증합니다.",
@@ -176,7 +179,7 @@
       more: ["‘위험 낮음’ 판정을 받았지만 재범한 비율도 함께 따져 보면 공정성의 기준이 왜 여러 개인지 알 수 있어요"] },
 
     /* ───────── 자본주의의 윤리적 쟁점 ───────── */
-    { id: "m1", g: "m", name: "젠트리피케이션", img: "street",
+    { id: "m1", g: "m", name: "젠트리피케이션", img: "shop",
       title: "뜨는 동네의 그늘, 시장의 자유인가 내몰림인가",
       q: "임대료가 크게 오르는 동네는 모두에게 좋은 동네일까?",
       lead: "어떤 거리는 몇 년 사이 임대료가 크게 오르고 오래된 가게가 사라집니다. 거리마다 임대료 상승률을 계산하고, 오래 장사한 상인이 어떻게 되었는지 함께 살펴봅니다.",
@@ -190,7 +193,7 @@
       src: [["상업용부동산 임대동향", "https://www.reb.or.kr/", "한국부동산원 → 통계 → 상업용부동산 임대동향"], ["상가(상권) 정보", DG, "소상공인시장진흥공단 상가(상권) 정보"]],
       more: ["10년 넘은 가게가 남은 비율도 계산해 임대료 상승률과 나란히 놓아 봐요"] },
 
-    { id: "m2", g: "m", name: "가맹점의 공정", img: "mkt",
+    { id: "m2", g: "m", name: "가맹점의 공정", img: "bakery",
       title: "프랜차이즈 가맹점이 문을 닫으면, 책임은 누구에게",
       q: "가맹점이 문을 닫는 것은 오직 점주의 책임일까?",
       lead: "프랜차이즈는 본사와 점주가 계약으로 맺어진 관계입니다. 브랜드마다 폐점률을 계산하고, 본사와 점주의 힘과 정보가 공정하게 나뉘어 있는지 따져 봅니다.",
@@ -218,7 +221,7 @@
       src: [["아파트 실거래가", "https://rt.molit.go.kr/", "국토교통부 실거래가 공개시스템"], ["청년 소득 통계", KOSIS, "KOSIS → 일자리행정통계 · 소득"]],
       more: ["내가 살고 싶은 도시의 실제 숫자로 다시 계산해 봐요"] },
 
-    { id: "m4", g: "m", name: "정부 개입의 정당성", img: "mkt",
+    { id: "m4", g: "m", name: "정부 개입의 정당성", img: "shop",
       title: "지역화폐는 골목상권을 살렸을까",
       q: "정부가 시장에 끼어드는 것은 언제 정당할까?",
       lead: "많은 지자체가 세금으로 지역화폐를 지원합니다. 도입한 도시와 도입하지 않은 도시의 골목 점포 증가율을 나란히 계산해, 효과를 얼마나 확신할 수 있는지 검토합니다.",
@@ -232,7 +235,7 @@
       src: [["상권정보시스템", "https://sg.sbiz.or.kr/", "소상공인 상권정보시스템 → 지역별 업소 수"], ["지역화폐 발행 자료", "https://www.mois.go.kr/", "행정안전부 · 시청 보도자료"]],
       more: ["국회입법조사처 · 지방행정연구원 보고서를 NotebookLM에 넣어 찬반 근거를 출처와 함께 정리해 봐요"] },
 
-    { id: "m5", g: "m", name: "플랫폼 노동", img: "gangnam",
+    { id: "m5", g: "m", name: "플랫폼 노동", img: "road",
       title: "자유로운 사장님? 배달 라이더의 노동",
       q: "원하는 시간에 일하는 플랫폼 노동자에게는 노동 보호가 필요 없을까?",
       lead: "배달 라이더는 원하는 시간에 일하지만, 기다리는 시간과 보험 · 연료비는 스스로 감당합니다. 대기 시간을 포함한 시간당 순수입을 계산해 최저시급과 비교합니다.",
@@ -246,7 +249,7 @@
       src: [["플랫폼 종사자 실태조사", "https://www.moel.go.kr/", "고용노동부 · 한국고용정보원 보고서"], ["최저임금", "https://www.minimumwage.go.kr/", "최저임금위원회"]],
       more: ["배달비 한 건이 플랫폼 · 가게 · 라이더에게 어떻게 나뉘는지 조사해 봐요"] },
 
-    { id: "m6", g: "m", name: "최저임금", img: "mkt",
+    { id: "m6", g: "m", name: "최저임금", img: "bakery",
       title: "최저임금, 일자리를 줄일까 삶을 지킬까",
       q: "최저임금이 오르면 정말 일자리가 줄어들까?",
       lead: "최저임금은 해마다 올랐지만 일자리의 변화는 해마다 달랐습니다. 숙박 · 음식점 취업자의 증감률을 계산하고, 최저임금 말고 다른 원인이 있었는지 살펴봅니다.",
@@ -274,7 +277,7 @@
       src: [["가계금융복지조사", KOSIS, "KOSIS → 가계금융복지조사 → 소득 5분위별 자산"]],
       more: ["로렌츠 곡선을 그려 보고, 지니계수가 무엇을 뜻하는지 알아봐요"] },
 
-    { id: "m8", g: "m", name: "기업의 사회적 책임", img: "street",
+    { id: "m8", g: "m", name: "기업의 사회적 책임", img: "park",
       title: "ESG 등급이 높으면 정말 친환경 기업일까",
       q: "‘친환경’이라고 말하는 기업은 정말 환경을 지키고 있을까?",
       lead: "기업은 ESG 등급과 친환경 광고로 책임을 보여 줍니다. 등급과 실제 온실가스 배출 변화를 나란히 놓고, 말과 실제가 같은지(그린워싱) 검증합니다.",
@@ -288,7 +291,7 @@
       src: [["온실가스 배출량 명세서", "https://ngms.gir.go.kr/", "온실가스종합정보센터 → 업체별 배출량 공개"], ["ESG 등급", "https://www.cgs.or.kr/", "한국ESG기준원 등급 공개"]],
       more: ["관심 있는 실제 기업의 지속가능경영보고서와 배출량 명세서를 비교해 봐요"] },
 
-    { id: "m9", g: "m", name: "공정무역", img: "mkt",
+    { id: "m9", g: "m", name: "공정무역", img: "bakery",
       title: "커피 한 잔 값, 누구에게 얼마나 갈까",
       q: "우리가 내는 커피값은 커피를 기른 사람에게 공정하게 돌아갈까?",
       lead: "4,500원짜리 커피 한 잔에는 농부부터 카페까지 많은 사람의 몫이 들어 있습니다. 각자의 몫을 비율로 계산하고, 세계 시장의 분배가 공정한지 따져 봅니다.",
@@ -302,7 +305,7 @@
       src: [["국제 커피 가격", "https://www.ico.org/", "국제커피기구(ICO) 가격 통계"], ["공정무역 자료", "https://www.fairtradekorea.org/", "한국공정무역협의회"]],
       more: ["초콜릿 · 바나나 등 다른 공정무역 상품의 몫도 조사해 비교해 봐요"] },
 
-    { id: "m10", g: "m", name: "관심 경제", img: "gangnam",
+    { id: "m10", g: "m", name: "관심 경제", img: "library",
       title: "무료 앱은 정말 공짜일까, 우리의 시간과 데이터",
       q: "돈을 내지 않는 앱에서 우리는 무엇을 내고 있을까?",
       lead: "무료 앱은 우리의 시간과 관심, 데이터를 광고로 바꿉니다. 앱 종류별로 하루에 보는 광고 수를 계산하고, 청소년의 시간과 데이터가 상품이 되는 것의 윤리를 따져 봅니다.",
