@@ -470,6 +470,7 @@
   .mode-tabs button + button{ border-left:1.5px solid var(--line); }
   .mode-tabs button.active{ background:var(--green); color:#fff; }
   .search-row{ display:flex; gap:8px; margin-bottom:16px; }
+  .home-search input{ flex:1; min-width:0; }
   .search-row input{
     flex:1; font-family:var(--font-ui); font-size:15px; padding:11px 14px; border:1.5px solid var(--line); border-radius:8px;
     background:var(--card); color:var(--ink);
@@ -2561,7 +2562,8 @@ function initStudent(){
   // ================= 메뉴 (홈 · 상위 5개 · 그 아래 세부 메뉴) =================
   const MENU = [
     { id:'g-home',   label:'🏠 홈', items:[
-      { panel:'p0', label:'홈' }
+      { panel:'p0', label:'홈' },
+      { panel:'p13', label:'키워드 검색', hidden:true }   // 🔍 홈 검색창 · 위쪽 검색 칸의 결과 (메뉴 칸은 안 보여요)
     ]},
     { id:'g-read',   label:'사상가별 공부하기', items:[
       { panel:'p15', label:'사상가별 원문 읽기' },
@@ -2574,7 +2576,6 @@ function initStudent(){
       { panel:'p2',  label:'교육청・평가원' },
       { panel:'p4',  label:'단원별 풀기',   mode:'unit' },
       { panel:'p4',  label:'사상가별 풀기', mode:'thinker' },
-      { panel:'p13', label:'키워드 검색' },
       { panel:'p12', label:'오늘의 10문제' }
     ]},
     { id:'g-ox',     label:'OX 맞추기', items:[
@@ -2603,10 +2604,11 @@ function initStudent(){
     document.getElementById('student-tabs').innerHTML =
       MENU.map(x=>`<button type="button" class="${x.id === g.id ? 'active' : ''}" data-group="${x.id}">${escapeHtml(x.label)}</button>`).join('');
     const sub = document.getElementById('student-subtabs');
-    sub.innerHTML = g.items.length > 1
-      ? g.items.map((it,i)=>`<button type="button" class="${i === menuItem ? 'active' : ''}" data-item="${i}">${escapeHtml(it.label)}</button>`).join('')
+    const shown = g.items.filter(it => !it.hidden).length;   // hidden 칸(홈 › 키워드 검색)은 메뉴에 안 보여요
+    sub.innerHTML = shown > 1
+      ? g.items.map((it,i)=> it.hidden ? '' : `<button type="button" class="${i === menuItem ? 'active' : ''}" data-item="${i}">${escapeHtml(it.label)}</button>`).join('')
       : '';
-    sub.style.display = g.items.length > 1 ? '' : 'none';
+    sub.style.display = shown > 1 ? '' : 'none';
     document.getElementById('student-tabs').querySelectorAll('[data-group]').forEach(b=> b.addEventListener('click', ()=>{
       menuGroup = b.dataset.group; menuItem = 0; openMenu();
     }));
@@ -4454,7 +4456,18 @@ function initStudent(){
   }
 
   // ----- 🏠 홈 (한 쪽에 모아 보기: 인사 · 바로가기 · 공부 잔디 · 그래프 · 꼭 알면 좋은 것) -----
+  // 🔍 홈 맨 위 검색창 (늘 보여요): 낱말을 넣고 찾기 → 키워드 검색 결과에서 바로 풀기
   function renderHome(){
+    renderHome0();
+    const el = document.getElementById('p0');
+    if(!el || el.querySelector('#home-search')) return;
+    el.insertAdjacentHTML('afterbegin', `<form class="search-row home-search" id="home-search" role="search">
+        <input type="search" placeholder="🔍 키워드로 기출문제 찾기 (예: 롤스, 무위자연)" aria-label="키워드로 기출문제 찾기" enterkeyhint="search">
+        <button type="submit">찾기</button></form>`);
+    const f = el.querySelector('#home-search'), inp = f.querySelector('input');
+    f.addEventListener('submit', e => { e.preventDefault(); const v = inp.value.trim(); if(!v){ inp.focus(); return; } search.query = v; inp.blur(); goTab('p13'); window.scrollTo(0, 0); });
+  }
+  function renderHome0(){
     const el = document.getElementById('p0');
     const d = new Date();
     const dday = document.getElementById('dday').textContent;
@@ -4667,6 +4680,7 @@ function initStudent(){
         <div class="left">
           ${st.index > 0 ? `<button class="prev-btn" id="${panelId}-prev" type="button">← 이전 문제</button>` : ''}
           <button class="skip-btn" id="${panelId}-skip" type="button">모르겠어요 (건너뛰기)</button>
+          <button class="skip-btn" id="${panelId}-reveal" type="button">답 보고 넘어가기</button>
           ${opts.masterable ? `<button class="master-btn" id="${panelId}-master" type="button">✓ 이제 그만 볼래요</button>` : ''}
         </div>
         <button class="next-btn" id="${panelId}-next" type="button" style="display:none;">다음 문제 →</button>
@@ -4796,6 +4810,14 @@ function initStudent(){
       renderQuizQuestion(panelId);
     });
 
+    // 👀 답 보고 넘어가기: 정답을 보여 주고 해설을 펼쳐요. 모르는 문제라 오답으로 남겨 오답노트에서 다시 봐요
+    document.getElementById(panelId+'-reveal').addEventListener('click', ()=>{
+      finishAnswer(false, -1, null, false);
+      document.getElementById(panelId+'-verdict').textContent = `정답은 ${NUM_MARK[correctIdx]}번이에요. 오답노트에 넣어 둘게요.`;
+      const tg = document.getElementById(panelId+'-expl-toggle'), body = document.getElementById(panelId+'-expl');
+      if(tg && body && body.hidden) tg.click();
+    });
+
     const masterBtn = document.getElementById(panelId+'-master');
     if(masterBtn){
       masterBtn.addEventListener('click', ()=>{
@@ -4841,6 +4863,7 @@ function initStudent(){
       if(isOk && streak >= 3) verdict += ` 🔥 ${streak}연속 정답!`;
       document.getElementById(panelId+'-verdict').textContent = verdict;
       document.getElementById(panelId+'-skip').style.display = 'none';
+      const rv = document.getElementById(panelId+'-reveal'); if(rv) rv.style.display = 'none';
       document.getElementById(panelId+'-next').style.display = 'inline-block';
     }
 
