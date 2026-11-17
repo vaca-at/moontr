@@ -212,13 +212,21 @@ function algoRule(id, s) {
   return c.name + (hp ? ` · ${s.p}${P.unit}` : "") + g.optc.filter((o) => s[o.id]).map((o) => ` · ${o.n ? `${o.text} ${s[o.id + "N"]}${o.after}` : o.text.split("→")[0].replace(/^만약 /, "").trim()}`).join("");
 }
 function algoView() {
-  const L = inBan(), rows = L.flatMap((m) => algoOf(m).map(([id, x]) => [m, id, x]));
-  const sub = rows.filter(([, , x]) => x.sub).length;
-  const byAlgo = ALGO.OPEN.map((id) => [id, rows.filter((r) => r[1] === id)]).filter(([, r]) => r.length).sort((a, b) => b[1].length - a[1].length).slice(0, 6);   // 학생이 많이 고른 알고리즘 6개까지
+  const L = inBan(), all = L.flatMap((m) => algoOf(m).map(([id, x]) => [m, id, x]));
+  const sub = all.filter(([, , x]) => x.sub).length;
+  /* ✅ 전체 단계 완료(= 1~6단계 + 마치며 성찰까지 쓰고 제출) 학생만 보기 (2026-11-17 문쌤 요청) */
+  const F = A.algoF || "all", rows = F === "done" ? all.filter(([, , x]) => x.sub) : F === "doing" ? all.filter(([, , x]) => !x.sub) : all;
+  const doneBy = {}; all.forEach(([m, , x]) => { if (x.sub) doneBy[m.sid] = (doneBy[m.sid] || 0) + 1; });
+  const doneSids = Object.keys(doneBy).sort(), notYet = [...new Set(all.map(([m]) => m.sid))].filter((s) => !doneBy[s]).sort();
+  const fbtn = (k, n) => `<button class="btn ${F === k ? "" : "w"} sm" data-act="algoF" data-v="${k}">${n}</button>`;
+  const byAlgo = ALGO.OPEN.map((id) => [id, all.filter((r) => r[1] === id)]).filter(([, r]) => r.length).sort((a, b) => b[1].length - a[1].length).slice(0, 6);   // 학생이 많이 고른 알고리즘 6개까지
   return `<div class="bar-h"><div><h1>알고리즘 실험실</h1><p>moontr.site/algolab · 학생이 고른 규칙 · 가치 검토 · 공정성 · 성찰 · 학번 순 · 세특 초안에도 함께 들어가요</p></div><div class="ctl">${banSel()}<a class="btn w" href="/algolab/" target="_blank" rel="noopener">학생 화면 ↗</a></div></div>
-  <div class="kpi"><div>시작한 알고리즘<b>${rows.length}개</b></div><div>제출<b>${sub}개</b></div>${byAlgo.map(([id, r]) => `<div>${esc(ALGO.NAMES[id][0])}<b>${r.length}명</b></div>`).join("")}</div>
-  <div class="box"><h2>학생별 진행</h2>${rows.length ? `<table class="tb"><thead><tr><th>학번</th><th>반</th><th>알고리즘</th><th>7단계</th><th>고른 규칙</th><th>상태</th><th>마지막 저장</th></tr></thead><tbody>
-  ${rows.map(([m, id, x]) => `<tr><td><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td><td class="l">${esc(ALGO.NAMES[id][1])}</td><td><span class="dots">${ALGO.STEPS.map((n, i) => `<i class="${(x.done || {})[i + 1] ? (i === 6 ? "sub" : "on") : ""}" title="${i + 1}. ${n}"></i>`).join("")}</span></td><td class="l" style="font-size:13px">${esc(algoRule(id, x.s))}${x.s.ordUsed ? `<br><span class="note">규칙 순서: 정답 보고 맞춤</span>` : x.s.ordMiss ? `<br><span class="note">규칙 순서 ${x.s.ordMiss}번 틀림</span>` : ""}</td><td>${x.sub ? `<span class="st d">제출</span>` : `<span class="st o">진행 중</span>`}</td><td>${fmtT(m.updatedAt)}</td></tr>`).join("")}</tbody></table>` : `<p class="note">이 반에서 알고리즘 실험실을 시작한 학생이 아직 없어요.</p>`}</div>
+  <div class="kpi"><div>전체 단계 완료 학생<b>${doneSids.length}명</b></div><div>시작한 알고리즘<b>${all.length}개</b></div><div>제출(완료)<b>${sub}개</b></div>${byAlgo.map(([id, r]) => `<div>${esc(ALGO.NAMES[id][0])}<b>${r.length}명</b></div>`).join("")}</div>
+  <div class="box"><h2>전체 단계 완료한 학생 <span class="note">1~6단계 + 마치며(성찰)까지 쓰고 제출 · 학번 순</span></h2>
+    <p style="font-size:14px;line-height:1.9">${doneSids.map((s) => `<b>${esc(s)}</b> <span class="note">${doneBy[s]}개</span>`).join(" · ") || `<span class="note">아직 없어요</span>`}</p>
+    ${notYet.length ? `<p class="note" style="margin-top:6px">시작했지만 아직 완료한 알고리즘이 없는 학생: ${notYet.map(esc).join(" · ")}</p>` : ""}</div>
+  <div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">학생별 진행</h2><div class="ctl">${fbtn("all", `전체 ${all.length}`)}${fbtn("done", `전체 단계 완료만 ${sub}`)}${fbtn("doing", `진행 중만 ${all.length - sub}`)}</div></div>${rows.length ? `<table class="tb" style="margin-top:10px"><thead><tr><th>학번</th><th>반</th><th>알고리즘</th><th>7단계</th><th>고른 규칙</th><th>상태</th><th>제출 · 저장 시각</th></tr></thead><tbody>
+  ${rows.map(([m, id, x]) => `<tr><td><b>${esc(m.sid)}</b></td><td>${esc(m.ban)}</td><td class="l">${esc(ALGO.NAMES[id][1])}</td><td><span class="dots">${ALGO.STEPS.map((n, i) => `<i class="${(x.done || {})[i + 1] ? (i === 6 ? "sub" : "on") : ""}" title="${i + 1}. ${n}"></i>`).join("")}</span></td><td class="l" style="font-size:13px">${esc(algoRule(id, x.s))}${x.s.ordUsed ? `<br><span class="note">규칙 순서: 정답 보고 맞춤</span>` : x.s.ordMiss ? `<br><span class="note">규칙 순서 ${x.s.ordMiss}번 틀림</span>` : ""}</td><td>${x.sub ? `<span class="st d">제출</span>` : `<span class="st o">진행 중</span>`}</td><td>${x.sub ? `제출 ${fmtT(x.sub)}` : `<span class="note">저장 ${fmtT(m.updatedAt)}</span>`}</td></tr>`).join("")}</tbody></table>` : `<p class="note">${all.length ? "이 조건에 맞는 학생이 없어요." : "이 반에서 알고리즘 실험실을 시작한 학생이 아직 없어요."}</p>`}</div>
   ${rows.filter(([, , x]) => filled(x.s.why) || filled(x.s.loser) || filled(x.s.ref)).map(([m, id, x]) => `<details class="box"><summary><b>${esc(m.sid)}</b> · ${esc(ALGO.NAMES[id][1])} ${x.sub ? `<span class="st d">제출</span>` : ""}</summary>
     <p class="note" style="margin:10px 0 4px">고른 규칙</p><p>${esc(algoRule(id, x.s))}</p>
     <p class="note" style="margin:10px 0 4px">5 · 가치 검토</p><p style="white-space:pre-wrap">${esc(x.s.why || "—")}</p>
@@ -374,6 +382,7 @@ document.addEventListener("click", async (e) => {
   if (a === "logout") { e.preventDefault(); return auth.signOut(); }
   if (a === "tab") { A.tab = v; A.msg = ""; history.replaceState(null, "", "#" + v); return render(); }
   if (a === "see" || a === "sel") { A.sel = v; A.tab = "rep"; render(); if (b.dataset.t) { const el = document.getElementById(`p_${v.slice(0, 8)}_${b.dataset.t}`); if (el) el.scrollIntoView({ block: "start" }); } return; }
+  if (a === "algoF") { A.algoF = v; return render(); }
   if (a === "bSk") { B.seteuk = b.checked; return render(); }
   if (a === "bMake") return makeAll(inBan().filter(active).filter((x) => fbState(x) !== "ok"));
   if (a === "bOne") return makeAll([m]);
