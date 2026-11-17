@@ -100,6 +100,12 @@ textarea:focus,input:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .modal h3{font-size:19px;margin-bottom:6px}.modal p{font-size:14px;color:var(--sub);margin-bottom:12px}
 .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.modal .err{color:var(--no);font-size:13px;min-height:20px;margin-top:6px}
 .modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+/* 🔑 맨 위 고정 로그인 칸 */
+.lgbar{border-top:1px solid var(--line);background:#F7F8FA}
+.top .lgbar .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 0;height:auto}
+.lgbar input{width:130px;height:38px;padding:0 10px}
+.lgbar .lgmsg{flex-basis:100%;font-size:12.5px;color:var(--sub);line-height:1.5}.lgbar .lgmsg.bad{color:var(--no);font-weight:600}
+@media (max-width:560px){.lgbar input{flex:1 1 0;min-width:0;width:auto}.lgbar .btn{flex:none;padding:0 12px}}
 /* 📱 휴대폰 (2026-11-17): 로그인 창이 420px 고정이라 '들어가기'가 화면 밖으로 → 화면 폭에 맞춰요 · 아이폰 입력칸 확대 막기(16px) */
 .modal{display:flex;align-items:center;justify-content:center}
 .modal .box{width:100%;max-width:420px}
@@ -114,7 +120,7 @@ textarea:focus,input:focus{outline:2px solid var(--acc);outline-offset:-1px}
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="logo" href="#/"><i>{ }</i>알고리즘 실험실</a><div class="me" id="me"></div></div></header>
+<header class="top"><div class="wrap"><a class="logo" href="#/"><i>{ }</i>알고리즘 실험실</a><div class="me" id="me"></div></div><div class="lgbar" id="lgbar" hidden></div></header>
 <main id="app"></main>
 <footer class="foot"><div class="wrap">
   <p>알고리즘 실험실 · 통합사회 윤리 × 알고리즘 · 표의 숫자는 수업 연습용 예시예요</p>
@@ -202,7 +208,7 @@ async function signIn(sid, pin, isNew) {
 }
 function loginMsg(m) { S.loginMsg = m; S.busy = false; render(); }
 function signOut() { if (!confirm("이 기기에서 나갈까요? 내 기록은 서버에 저장되어 있어요")) return; S.me = null; S.rec = {}; LS.del("me"); LS.del("rec"); render(); toast("나갔어요"); }
-const needLogin = () => { if (S.me) return false; S.login = true; S.loginMsg = "기록을 저장하려면 먼저 학번과 비밀번호로 들어와요 (데이터 실험실과 같은 계정)"; render(); return true; };
+const needLogin = () => { if (S.me) return false; S.loginMsg = "제출하려면 맨 위 칸에 학번과 비밀번호를 넣고 ‘들어가기’를 눌러요"; render(); focusLogin(); return true; };
 
 /* ---------- 도움 함수 ---------- */
 const critOf = (g, s) => g.crit.find((c) => c.id === s.crit);
@@ -239,7 +245,26 @@ async function ask(id, q) {
 
 /* ---------- 화면 ---------- */
 const route = () => { const h = location.hash.replace(/^#\/?/, ""); const [a, b] = h.split("/"); return { a: a || "", b: b || "" }; };
-function renderTop() { $("#me").innerHTML = S.me ? `<span><b>${esc(S.me.sid)}</b> 학생</span><button class="btn w sm" data-act="out">나가기</button>` : `<button class="btn sm" data-act="login">학번으로 들어가기</button>`; }
+/* 🔑 로그인 칸은 팝업 대신 맨 위(머리글 아래)에 고정 (2026-11-17 문쌤 요청 · 수업에서 팝업 로그인이 안 되던 일)
+   칸은 한 번만 그리고(입력한 숫자가 지워지지 않게) 안내 글 · 단추 상태만 바꿔요. 처음인 학번이면 같은 자리에서 '비밀번호 한 번 더' */
+function renderTop() {
+  $("#me").innerHTML = S.me ? `<span><b>${esc(S.me.sid)}</b> 학생</span><button class="btn w sm" data-act="out">나가기</button>` : "";
+  const bar = $("#lgbar"); if (!bar) return;
+  if (S.me) { bar.hidden = true; bar.innerHTML = ""; bar.dataset.mode = ""; return; }
+  bar.hidden = false;
+  const mode = S.loginNew ? "new" : "in";
+  if (bar.dataset.mode !== mode) {
+    bar.dataset.mode = mode;
+    bar.innerHTML = `<div class="wrap">${mode === "in"
+      ? `<input type="text" id="lgSid" inputmode="numeric" maxlength="5" placeholder="학번 5자리" aria-label="학번" autocomplete="off" value="${esc(LS.get("lastSid", ""))}"><input type="password" id="lgPin" inputmode="numeric" maxlength="4" placeholder="비밀번호 4자리" aria-label="비밀번호" autocomplete="off"><button type="button" class="btn lgbtn" data-act="doLogin">들어가기</button>`
+      : `<input type="password" id="lgPin2" inputmode="numeric" maxlength="4" placeholder="비밀번호 한 번 더" aria-label="비밀번호 한 번 더" autocomplete="off"><button type="button" class="btn lgbtn" data-act="doNew">이 비밀번호로 시작</button><button type="button" class="btn w" data-act="closeLogin">다시 쓰기</button>`}
+      <p class="lgmsg"></p></div>`;
+  }
+  const msg = S.loginMsg || (mode === "in" ? "데이터 실험실과 같은 계정이에요. 처음이면 지금 넣은 네 자리가 내 비밀번호가 돼요. 들어가지 않아도 활동은 할 수 있어요 (제출할 때만 필요)" : `${S.loginNew.sid} 학번으로 처음 들어와요. 비밀번호를 한 번 더 넣어 주세요`);
+  const m = bar.querySelector(".lgmsg"); m.textContent = msg; m.classList.toggle("bad", !!S.loginMsg && !/늦어요|중이에요/.test(S.loginMsg));
+  const b = bar.querySelector(".lgbtn"); b.disabled = S.busy; b.textContent = S.busy ? "확인 중…" : mode === "in" ? "들어가기" : "이 비밀번호로 시작";
+}
+const focusLogin = () => setTimeout(() => { const f = $("#lgPin2") || ($("#lgSid") && $("#lgSid").value ? $("#lgPin") : $("#lgSid")); if (f) { window.scrollTo({ top: 0, behavior: "smooth" }); f.focus(); } }, 0);
 
 function home() {
   const card = (t) => { const on = OPEN.includes(t.id), x = S.rec[KEY(t.id)], st = x && x.sub ? "제출 완료" : x ? `진행 중 ${Object.keys(x.done || {}).length}/7` : on ? "열기" : "준비 중", [fn, title] = NAMES[t.id];
@@ -322,11 +347,12 @@ function lab(id) {
   const asks = x.ai.filter((a) => a.k === "ask");
   const pair = `<section class="step"><h2>AI 코드 짝꿍 <small>답 대신 생각할 질문을 돌려줘요 · ${asks.length}/8회</small></h2>${asks.length ? `<div class="qa">${asks.map((a) => `<div><b>나</b> ${esc(a.q)}</div><div class="a"><b>${a.local ? "도움 질문" : "AI 짝꿍"}</b> ${esc(a.a)}</div>`).join("")}</div>` : ""}
     <div class="act"><input type="text" id="askIn" maxlength="300" placeholder="예: 테스트가 왜 실패했나요? 이 조건 카드는 누구에게 유리한가요?" style="flex:1;min-width:200px"><button class="btn w" data-act="ask" ${S.aiBusy ? "disabled" : ""}>${S.aiBusy ? "생각하는 중…" : "묻기"}</button></div></section>`;
-  const noLogin = S.me ? "" : `<div class="msg info" style="margin-bottom:12px">로그인하지 않아도 계속할 수 있어요. 지금 한 것은 <b>이 휴대폰에 저장</b>되고, 나중에 ‘학번으로 들어가기’가 되면 내 계정에 합쳐져요. 제출할 때만 로그인이 필요해요.</div>`;
+  const noLogin = S.me ? "" : `<div class="msg info" style="margin-bottom:12px">로그인하지 않아도 계속할 수 있어요. 지금 한 것은 <b>이 휴대폰에 저장</b>되고, 맨 위 칸으로 들어가면 내 계정에 합쳐져요. 제출할 때만 로그인이 필요해요.</div>`;
   return `<div class="wrap"><div class="lab">${rail}<div>${noLogin}${s1}${s2}${s3}${s4}${s5}${s6}${s7}${pair}</div></div></div>`;
 }
 
 function loginView() {
+  return "";   // 팝업 로그인은 쓰지 않아요 (맨 위 고정 칸 renderTop) — 아래는 예전 모양, 참고로 남겨 둠
   if (!S.login) return "";
   const nw = S.loginNew;
   return `<div class="modal" data-act="closeLogin"><div class="box" role="dialog" aria-modal="true" aria-labelledby="lgT"><h3 id="lgT">${nw ? "처음 오셨네요" : "학번으로 들어가기"}</h3>
@@ -342,7 +368,6 @@ function render() {
   $("#app").innerHTML = (id ? lab(id) : home()) + loginView();
   document.title = id ? `${ALG[id].title} · 알고리즘 실험실` : "알고리즘 실험실";
   if (keep && $("#" + keep)) { const el = $("#" + keep); el.focus(); try { el.setSelectionRange(sel, sel); } catch (e) {} }
-  if (S.login) setTimeout(() => { const f = $("#lgPin2") || ($("#lgSid") && $("#lgSid").value ? $("#lgPin") : $("#lgSid")); if (f && document.activeElement !== f) f.focus(); }, 0);
 }
 
 /* 단계가 끝났는지 다시 따져요 (앞 단계를 바꾸면 뒤 단계 완료가 풀릴 수 있어요) */
@@ -380,8 +405,8 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (!b || b.tagName === "INPUT" || b.tagName === "SELECT") return; if (b.classList.contains("modal") && e.target !== b) return; act(b.dataset.act, b.dataset.v); });
 
 function act(a, v) {
-  if (a === "login") { S.login = true; S.loginMsg = ""; S.loginNew = null; return render(); }
-  if (a === "closeLogin") { S.login = false; S.loginNew = null; return render(); }
+  if (a === "login") { S.loginMsg = ""; render(); return focusLogin(); }
+  if (a === "closeLogin") { S.loginNew = null; S.loginMsg = ""; render(); return focusLogin(); }
   if (a === "out") return signOut();
   if (a === "doLogin") return signIn($("#lgSid").value.trim(), $("#lgPin").value.trim(), false);
   if (a === "doNew") { if ($("#lgPin2").value.trim() !== S.loginNew.pin) return loginMsg("비밀번호가 서로 달라요. 다시 확인해 주세요"); return signIn(S.loginNew.sid, S.loginNew.pin, true); }
