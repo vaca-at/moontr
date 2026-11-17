@@ -484,4 +484,49 @@
     sha: async (s) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join(""),
     keyOf: (sid, pin) => window.DL.sha(`datalab|${sid}|${pin}`)
   };
+
+  /* ---------- 학교 와이파이에서도 되는 서버 읽기 · 쓰기 (2026-11-17) ----------
+     파이어베이스 기본 연결(계속 열려 있는 통로)은 학교망 · 보안 장비가 막거나 끊는 일이 있어요 → 수업 중 '확인 중…'에서 멈춤
+     그래서 로그인 · 저장은 보통 웹 요청(HTTPS 한 번 묻고 한 번 답 · Firestore REST)으로 먼저 하고, 그게 안 될 때만 기본 연결로 해 봐요
+     보안 규칙은 똑같이 적용돼요 (로그인 없는 요청 = 지금 학생 화면과 같음) */
+  const P = window.DL.FIREBASE_CONFIG, DOCS = `projects/${P.projectId}/databases/(default)/documents`, API = "https://firestore.googleapis.com/v1/";
+  const enc = (v) => v == null ? { nullValue: null } : typeof v === "boolean" ? { booleanValue: v } : typeof v === "number" ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v }) : typeof v === "string" ? { stringValue: v } : Array.isArray(v) ? { arrayValue: { values: v.map(enc) } } : { mapValue: { fields: Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).map(([k, x]) => [k, enc(x)])) } };
+  const dec = (v) => !v ? null : "nullValue" in v ? null : "booleanValue" in v ? v.booleanValue : "integerValue" in v ? +v.integerValue : "doubleValue" in v ? v.doubleValue : "stringValue" in v ? v.stringValue : "timestampValue" in v ? Date.parse(v.timestampValue) : "arrayValue" in v ? (v.arrayValue.values || []).map(dec) : "mapValue" in v ? Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, dec(x)])) : null;
+  const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(Object.assign(new Error("서버가 답하지 않아요"), { code: "timeout" })), ms))]);
+  async function rest(url, opt) {
+    const r = await within(fetch(API + url + (url.includes("?") ? "&" : "?") + "key=" + P.apiKey, { cache: "no-store", ...opt, headers: { "Content-Type": "application/json" } }), 12000);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error((j.error && j.error.message) || "서버 " + r.status); e.code = r.status === 404 ? "not-found" : r.status === 403 ? "permission-denied" : (j.error && j.error.status) || "http-" + r.status; throw e; }
+    return j;
+  }
+  const field = (k) => k.split(".").map((p) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(p) ? p : "`" + p.replace(/`/g, "\\`") + "`").join(".");
+  window.DL.fs = {
+    // 문서 하나 읽기 → { exists, data }
+    async get(db, path) {
+      try { const j = await rest(DOCS + "/" + path); return { exists: true, data: dec({ mapValue: { fields: j.fields || {} } }) }; }
+      catch (e) {
+        if (e.code === "not-found") return { exists: false, data: null };
+        if (e.code === "permission-denied" || !db) throw e;
+        const s = await within(db.doc(path).get(), 12000); return { exists: s.exists, data: s.exists ? s.data() : null };
+      }
+    },
+    // 새로 만들기 여러 개를 한꺼번에 (하나라도 이미 있으면 모두 취소) — [[경로, 내용], ...]
+    async create(db, list) {
+      try { await rest(DOCS + ":commit", { method: "POST", body: JSON.stringify({ writes: list.map(([p, d]) => ({ update: { name: DOCS + "/" + p, fields: enc(d).mapValue.fields }, currentDocument: { exists: false } })) }) }); }
+      catch (e) {
+        if (e.code === "permission-denied" || e.code === "FAILED_PRECONDITION" || e.code === "ALREADY_EXISTS" || !db) throw e;
+        const b = db.batch(); list.forEach(([p, d]) => b.set(db.doc(p), d)); await within(b.commit(), 12000);
+      }
+    },
+    // 있는 문서의 칸 몇 개만 고치기 — { "rec.j1": {...}, updatedAt: 123 }
+    async update(db, path, obj) {
+      const keys = Object.keys(obj), nest = {};
+      keys.forEach((k) => { const ps = k.split("."); let o = nest; ps.slice(0, -1).forEach((p) => { o = o[p] = o[p] || {}; }); o[ps[ps.length - 1]] = obj[k]; });
+      try { await rest(DOCS + "/" + path + "?" + keys.map((k) => "updateMask.fieldPaths=" + encodeURIComponent(field(k))).join("&") + "&currentDocument.exists=true", { method: "PATCH", body: JSON.stringify({ fields: enc(nest).mapValue.fields }) }); }
+      catch (e) {
+        if (e.code === "permission-denied" || e.code === "not-found" || !db) throw e;
+        await within(db.doc(path).update(obj), 12000);
+      }
+    }
+  };
 })();

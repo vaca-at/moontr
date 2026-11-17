@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="topics.js?v=11162230"></script>
+<script src="topics.js?v=11170900"></script>
 <style>
 /* ===== 연수 과정형 디자인 (2026-11-16 문쌤이 고른 2번 시안) =====
    흰 바탕 · 검은 글씨 · 파란 강조 하나 · 각진 단추 · 얇은 선 · 실제 사진. 그라데이션 · 이모지 · 둥근 알약은 쓰지 않아요 */
@@ -325,7 +325,9 @@ const { TOPICS, GROUPS, STEPS, REPORT, values, fmt, fmtCell, close, tableText } 
 const LS = { get(k, d) { try { return JSON.parse(localStorage.getItem("datalab:" + k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem("datalab:" + k, JSON.stringify(v)); } catch (e) {} }, del(k) { try { localStorage.removeItem("datalab:" + k); } catch (e) {} } };
 
 let db = null;
-try { firebase.initializeApp(DL.FIREBASE_CONFIG); db = firebase.firestore(); } catch (e) { console.error(e); }
+// 로그인 · 저장 · 다시 받기는 웹 요청(DL.fs)으로 먼저 해요 — 수업 중 학교 와이파이에서 기본 연결이 멈춰 로그인이 안 되던 문제 (2026-11-17)
+// 기본 연결(갤러리 · 반별 완료율)은 학교망에서 끊기지 않게 '긴 폴링' 방식으로
+try { firebase.initializeApp(DL.FIREBASE_CONFIG); db = firebase.firestore(); db.settings({ experimentalForceLongPolling: true }); } catch (e) { console.error(e); }
 
 const S = { me: LS.get("me", null), rec: LS.get("rec", {}), stop: LS.get("stop", {}), open: null, tab: "steps", login: false, loginMsg: "", busy: false, aiBusy: false };
 const myT = (id) => { const x = S.rec[id] = S.rec[id] || {}; x.s = x.s || {}; x.ai = x.ai || []; return x; };
@@ -372,10 +374,10 @@ let saveT = null, saving = false;
 function save(now) {
   const t = DL.topic(route().b); if (t && S.rec[t.id]) { const x = S.rec[t.id]; x.at = Date.now(); logStep(t, x); }
   LS.set("rec", S.rec);
-  if (!S.me || !db) return;
+  if (!S.me) return;
   clearTimeout(saveT); saving = true;
   saveT = setTimeout(async () => {
-    try { await db.collection("datalab_members").doc(S.me.key).update({ rec: S.rec, updatedAt: Date.now() }); saving = false; pushProg(); }
+    try { await DL.fs.update(db, "datalab_members/" + S.me.key, { rec: S.rec, updatedAt: Date.now() }); saving = false; pushProg(); }
     catch (e) { console.error(e); toast("저장하지 못했어요. 인터넷 연결을 확인해 주세요 (이 기기에는 남아 있어요)"); }
   }, now ? 0 : 1200);
 }
@@ -388,10 +390,10 @@ function pushProg() {
 }
 /* 서버의 내 기록 다시 받기: 열 때 · 화면으로 돌아올 때 (집에서 이어 쓴 것도 학교에서 그대로). 주제마다 더 나중에 고친 쪽을 남겨요 */
 function pull(after) {
-  if (!S.me || !db || saving) return Promise.resolve();
-  return db.collection("datalab_members").doc(S.me.key).get().then((snap) => {
+  if (!S.me || saving) return Promise.resolve();
+  return DL.fs.get(db, "datalab_members/" + S.me.key).then((snap) => {
     if (!snap.exists) { S.me = null; LS.del("me"); return render(); }
-    const d = snap.data(), srv = d.rec || {}, out = { ...srv }; let mine = false;
+    const d = snap.data, srv = d.rec || {}, out = { ...srv }; let mine = false;
     Object.entries(S.rec || {}).forEach(([k, v]) => { if (k === "last" || !v) return; const s = out[k]; if (!s || (v.at || 0) > (s.at || 0)) { out[k] = v; mine = true; } });
     if (S.rec.last && !srv.last) out.last = S.rec.last;
     S.rec = out; S.stop = d.stop || {}; LS.set("rec", S.rec); LS.set("stop", S.stop);
@@ -405,22 +407,19 @@ function pull(after) {
 async function signIn(sid, pin, isNew) {
   if (!/^[0-9]{5}$/.test(sid)) return loginMsg("학번은 숫자 다섯 자리예요 (예: 10305)");
   if (!/^[0-9]{4}$/.test(pin)) return loginMsg("비밀번호는 숫자 네 자리예요");
-  if (!db) return loginMsg("서버에 연결하지 못했어요. 잠시 뒤에 다시 해 주세요");
   S.busy = true; render();
   // 15초 안에 서버가 답하지 않으면 '확인 중…'에 멈춰 있지 않게 알려 줘요 (학교 와이파이가 막거나 느릴 때)
   const slow = setTimeout(() => { if (S.busy) loginMsg("서버 연결이 늦어요. 인터넷(와이파이)을 확인하고 ‘들어가기’를 다시 눌러 주세요"); }, 15000);
   try {
-    const key = await DL.keyOf(sid, pin), ref = db.collection("datalab_members").doc(key), snap = await ref.get();
+    const key = await DL.keyOf(sid, pin), path = "datalab_members/" + key, snap = await DL.fs.get(db, path);
     if (snap.exists) {
-      const d = snap.data(); S.me = { sid, key, ban: d.ban }; S.stop = d.stop || {}; S.rec = mergeRec(d.rec || {}, S.rec); if (Object.keys(S.rec).length > Object.keys(d.rec || {}).length) save(true);
+      const d = snap.data; S.me = { sid, key, ban: d.ban }; S.stop = d.stop || {}; S.rec = mergeRec(d.rec || {}, S.rec); if (Object.keys(S.rec).length > Object.keys(d.rec || {}).length) save(true);
     } else {
-      const idSnap = await db.collection("datalab_ids").doc(sid).get();
+      const idSnap = await DL.fs.get(db, "datalab_ids/" + sid);
       if (idSnap.exists) { S.busy = false; return loginMsg("비밀번호가 맞지 않아요. 비밀번호가 생각나지 않으면 선생님께 말씀해 주세요"); }
       if (!isNew) { S.busy = false; S.loginNew = { sid, pin }; return loginMsg(""); }
-      const b = db.batch(), now = Date.now(), ban = DL.banOf(sid);
-      b.set(db.collection("datalab_ids").doc(sid), { at: now });
-      b.set(ref, { sid, ban, rec: S.rec || {}, at: now, updatedAt: now });   // 들어오기 전에 써 둔 것도 함께
-      await b.commit();
+      const now = Date.now(), ban = DL.banOf(sid);
+      await DL.fs.create(db, [["datalab_ids/" + sid, { at: now }], [path, { sid, ban, rec: S.rec || {}, at: now, updatedAt: now }]]);   // 들어오기 전에 써 둔 것도 함께
       S.me = { sid, key, ban }; S.stop = {};
     }
     LS.set("me", S.me); LS.set("rec", S.rec); LS.set("stop", S.stop); pushProg();
@@ -486,13 +485,25 @@ const notesOf = (x) => ({ guess: x.s.guess || "", find: x.s.find || "", rebut: x
 
 /* ---------- 화면 ---------- */
 /* 📥 정제한 표를 엑셀용 CSV 로 (한글이 깨지지 않게 BOM, 맨 오른쪽에 계산할 빈 열) */
+const xlRows = (t) => [[...t.cols, `${t.calc.label}(직접 계산)`], ...t.rows.map((r) => [...r, ""])];
 function downloadCSV(t) {
   const q = (v) => { const x = String(v ?? ""); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
-  const lines = [[...t.cols, `${t.calc.label}(직접 계산)`], ...t.rows.map((r) => [...r, ""])].map((r) => r.map(q).join(","));
+  const lines = xlRows(t).map((r) => r.map(q).join(","));
+  try {
   const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `AI활용탐구${t.no}_${t.name.replace(/\s+/g, "")}.csv`;
-  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  toast("내려받았어요. 엑셀이나 구글 시트로 열어 보세요");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `AI활용탐구${t.no}_${t.name.replace(/[\s\\/:*?"<>|]+/g, "")}.csv`;
+  // 학교 컴퓨터는 내려받기 검사가 느려서 파일 주소를 1분 동안 남겨 둬요 (예전 1초 → 촉법소년 탐구에서 내려받기 실패 신고, 2026-11-17)
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+  toast("내려받았어요. 안 보이면 ‘표 복사하기’를 눌러 구글 시트에 붙여 넣어요");
+  } catch (e) { console.error(e); toast("이 컴퓨터에서는 내려받기가 막혀 있어요. ‘표 복사하기’를 눌러 구글 시트에 붙여 넣어요"); }
+}
+/* 📋 표 복사하기: 탭으로 나눈 글 → 구글 시트 · 엑셀의 A1 칸을 누르고 붙여넣기(Ctrl+V) 하면 칸마다 들어가요 */
+async function copyTable(t) {
+  const txt = xlRows(t).map((r) => r.map((v) => String(v ?? "").replace(/[\t\n]/g, " ")).join("\t")).join("\n");
+  let ok = false;
+  try { await navigator.clipboard.writeText(txt); ok = true; } catch (e) {}
+  if (!ok) { const ta = document.createElement("textarea"); ta.value = txt; ta.style.cssText = "position:fixed;top:0;left:0;opacity:0"; document.body.appendChild(ta); ta.select(); try { ok = document.execCommand("copy"); } catch (e) {} ta.remove(); }
+  toast(ok ? "표를 복사했어요. 구글 시트의 A1 칸을 누르고 Ctrl+V 로 붙여 넣어요" : "복사하지 못했어요. 표를 마우스로 끌어 골라 복사해 주세요");
 }
 function toast(m) { const d = document.createElement("div"); d.className = "toast"; d.textContent = m; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
 // 주소: #/t/j1 탐구 · #/t/j1/s3 그 탐구의 3단계 · #/t/j1/intro · data · report 탭 (단계마다 주소가 있어서 앞으로 · 뒤로 가기가 돼요)
@@ -629,8 +640,8 @@ function panel(t, x, k) {
       ${fld(t, x, "find", "패턴과 인사이트: 어떤 현상이 보이고, 왜 그럴까?", `예: ${t.rows[hi[0]][0]}이(가) ${fmt(hi[1], t.calc.dp)}${t.calc.unit}로 가장 크고, 내가 고른 ${t.rows[i][0]}은(는) 평균보다 …`, "숫자를 두 개 이상 넣어 써요")}` : "";
     const L = (j) => String.fromCharCode(65 + j), X = L(t.cols.length);
     const xl = `<div class="xl"><b>📥 엑셀로 계산하기</b><ol>
-      <li><button class="btn sm" data-act="csv">정제한 표 내려받기 (엑셀 · 구글 시트)</button></li>
-      <li>내려받은 파일을 엑셀(크롬북은 구글 시트)로 열어요</li>
+      <li><button class="btn sm" data-act="copyXl">표 복사하기 (구글 시트에 붙여넣기)</button> <button class="btn w sm" data-act="csv">엑셀 파일 내려받기</button></li>
+      <li>구글 시트(sheets.new)를 열고 A1 칸을 눌러 붙여 넣어요 (Ctrl+V). 내려받았으면 그 파일을 엑셀로 열어요</li>
       <li>칸 주소: ${t.cols.map((c, j) => `<code>${L(j)}열</code> ${esc(c)}`).join(" · ")} · <code>${X}열</code> ${esc(t.calc.label)}(비어 있음)</li>
       <li><code>${X}2</code> 칸에 식을 수식으로 써요. 식: <b>${esc(t.calc.formula)}</b> → 낱말 대신 칸 주소를 넣고 <code>=</code>로 시작해요 (예: ‘범죄 건수 ÷ 인구 × 100,000’에서 범죄 건수가 C열, 인구가 D열이면 <code>=C2/D2*100000</code>)</li>
       <li>${X}2 칸 오른쪽 아래 점을 끌어 모든 줄을 채우고, ${X}열을 큰 순서로 정렬해요</li>
@@ -786,6 +797,7 @@ function act(a, v, ev) {
   if (a === "tab") return go(t, v === "steps" ? "" : v);
   if (a === "open") { const onRow = ev && ev.target.closest(".row"); return go(t, S.open === v && onRow ? "" : v); }
   if (a === "csv") return downloadCSV(t);
+  if (a === "copyXl") return copyTable(t);
   if (a === "resume") { const x = peek(t.id), nx = STEPS.find((st) => !stepDone(t, x, st.k)); return go(t, (nx || STEPS[STEPS.length - 1]).k); }
   if (lockedBy(t)) return;
   if (needLogin()) return;
