@@ -520,6 +520,25 @@ body.bk{background:#000}
 .accpv .ap{color:var(--mode);border:1.5px dashed var(--mode);border-radius:10px;padding:3px 9px;font-size:12px}
 .grp .shead{min-height:30px;font-size:11.5px;color:var(--sub);justify-content:space-between;padding-right:84px}
 .selb{border:0;border-radius:10px;background:var(--mode-soft);color:var(--mode);font-weight:600;padding:6px 26px 6px 10px;font-size:15px;-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 13px) 55%,calc(100% - 8px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+/* ⚙︎ 설정 묶음 (2026-11-17, 설정이 너무 길어서): 누르면 펼쳐지는 네 칸 · 칸 안의 흰 상자는 바탕색(--bg)으로 구분 */
+.sec{background:var(--soft);border-radius:16px;padding:0 14px}
+.sec>summary{list-style:none;display:flex;align-items:center;gap:12px;padding:14px 0;cursor:pointer;-webkit-user-select:none;user-select:none}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary>i{font-style:normal;font-size:22px;flex:none}
+.sec>summary>span{flex:1;min-width:0}
+.sec>summary b{display:block;font-weight:400;font-size:16.5px}
+.sec>summary small{display:block;font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec>summary::after{content:"›";flex:none;font-size:24px;line-height:1;color:var(--sub);transition:transform .2s}
+.sec[open]>summary::after{transform:rotate(90deg)}
+.sec .sbody{display:flex;flex-direction:column;gap:16px;padding:2px 0 16px}
+.sec .grp,.sec .grp .srow{background:var(--bg)}
+/* ✅ 다 한 과목: 채운 동그라미 안에 체크 표시 (세부 계획 ✓ 와 같은 모양) */
+.done .dot::after{content:"";position:absolute;left:50%;top:44%;width:5px;height:10px;border:solid #fff;border-width:0 2.4px 2.4px 0;transform:translate(-50%,-50%) rotate(45deg)}
+/* 💖 1번 친구 응원 · 다 했을 때 축하: 친구와 글씨를 조금 작게 (2026-11-17, 너무 크다는 말에) */
+.moment.hug .mc .ch{width:120px;height:120px}
+.moment.big .mc .ch{width:140px;height:140px}
+.moment .mc p,.moment.hug .mc p,.moment.big .mc p{font-size:15px;max-width:240px;padding:9px 14px;border-radius:16px}
+.moment.big .mc p b{font-size:18px}
 /* 늘 흰 바탕인 작은 말풍선은 글씨도 늘 진하게 (검정 바탕 · 다크 모드에서 흰 글씨가 되면 안 보여요) */
 .popper p,.say2{color:#2B2B33}
 /* 배경 단추 미리 보기 */
@@ -1309,29 +1328,37 @@ function viewDeco(){
 function viewSettings(){
   const stepRow = (k, name, lv) => `<div class="row"><span><i class="mini l${lv}"></i>${name}</span><span class="step"><button type="button" data-act="th" data-v="${k}" data-d="-1" aria-label="${name} 줄이기">−</button><b>${D.th[k]}시간부터</b><button type="button" data-act="th" data-v="${k}" data-d="1" aria-label="${name} 늘리기">+</button></span></div>`;
   const auto = (() => { const s = D.weak; D.weak = ""; const w = weakSubj(); D.weak = s; return w; })();
+  /* 설정이 너무 길어서 (2026-11-17) 네 묶음으로 접어 둬요: 누르면 펼쳐지고, 펼친 상태는 S.secOpen 에 기억 (다른 단추를 눌러 다시 그려도 그대로)
+     묶음 이름 아래 작은 글씨 = 지금 설정값 요약이라 펼치지 않아도 보여요 */
+  const sec = (k, icon, title, sum) => `<details class="sec" data-sk="${k}" ${(S.secOpen || {})[k] ? "open" : ""}><summary><i>${icon}</i><span><b>${title}</b><small>${sum}</small></span></summary><div class="sbody">`;
+  const nx = nextExam(), nxd = nx ? dLeft(nx.d) : 0;
   return `${pageHd("설정", "settings")}
     <button type="button" class="capb" data-act="guide"><i>📖</i><span><b>사용 설명서</b><small>할 일 · 타이머 · 친구들 · 내 캐릭터 만들기 · 계정까지 한눈에</small></span></button>
-    <p class="note" style="margin:-4px 4px 0">글씨체 · 배경 · 색 · 친구들은 ☰ 꾸미기에서 바꿔요</p>
-    <p class="gh">잔소리 쌤 말투</p><div class="grp"><div class="row"><span>말투</span><span class="seg"><button type="button" data-act="mode" data-v="f" aria-pressed="${D.mode === "f"}">F쌤 · 다정하게</button><button type="button" data-act="mode" data-v="t" aria-pressed="${D.mode === "t"}">T쌤 · 사실대로</button></span></div></div>
-    <p class="note" style="margin:-8px 4px 0">오늘 화면 맨 위 말풍선과 친구들이 하는 말이에요. 다정하게 = 칭찬 · 응원 위주, 사실대로 = 숫자로 짧게</p>
+    <p class="note" style="margin:-4px 4px 0">글씨체 · 배경 · 색 · 친구들은 ☰ 꾸미기에서 바꿔요 · 아래 묶음을 누르면 펼쳐져요</p>
+    ${sec("subj", "📚", "과목 · 약한 과목", `${D.subj.length}과목 · 매일 넣기 ${D.subj.filter(s => s.daily).length}개 · 약한 과목 ${esc(D.weak || "자동" + (auto ? ` (${auto})` : ""))}`)}
     <p class="gh">과목 (오늘 할 일 · 타이머 · 성적에 함께 써요)</p>
     <div class="grp" data-drag="subj"><div class="row shead"><span>과목 이름</span><span>매일 넣기</span></div>${D.subj.map((s, i) => `<div class="row item srow" data-pid="${i}"><i class="mini" style="background:${s.c}"></i><input class="sin" data-sub="${i}" value="${esc(s.n)}" maxlength="12" aria-label="과목 ${i + 1} 이름"><label class="sw"><input type="checkbox" data-daily="${i}" ${s.daily ? "checked" : ""} aria-label="${esc(s.n)} 매일 할 일에 넣기"><span></span></label><button type="button" class="grip" aria-label="꾹 눌러 끌어 순서 바꾸기">${GRIP}</button><button type="button" class="link dim" data-act="subDel" data-v="${i}">빼기</button></div>`).join("")}
       <div class="row"><input id="subNew" placeholder="과목 더하기 (예: 물리학Ⅰ)" maxlength="12" style="border:0;background:none;flex:1;min-width:0;font-size:15px"><button type="button" class="link" data-act="subAdd">더하기</button></div></div>
     <p class="note" style="margin:-8px 4px 0">스위치를 켠 과목 = 매일 처음 열 때 오늘 할 일에 들어가요 · ⠿ 를 꾹 누른 채 끌면 순서가 바뀌어요</p>
     <button type="button" class="link" data-act="subReset" style="align-self:flex-start;margin:0 4px">↺ 기본 과목으로 되돌리기 (국어 · 수학 · 영어 · 사회 · 과학 · 독서)</button>
     <p class="gh">약한 과목 (오늘 할 일 맨 앞에 와요)</p><div class="grp"><div class="row"><span>약한 과목</span><select id="weakSel" class="selb" aria-label="약한 과목 고르기"><option value="">자동${auto ? ` (${auto})` : ""}</option>${D.subj.map(s => `<option ${D.weak === s.n ? "selected" : ""}>${esc(s.n)}</option>`).join("")}</select></div></div>
-    <p class="note" style="margin:-8px 4px 0">눌러서 골라요 · 자동 = 가장 최근 성적에서 등급이 가장 낮은 과목</p>
+    <p class="note" style="margin:-8px 4px 0">눌러서 골라요 · 자동 = 가장 최근 성적에서 등급이 가장 낮은 과목</p></div></details>
+    ${sec("day", "📅", "시험 · 하루 · 달력", `${nx ? `${esc(nx.n)} ${nxd ? "D-" + nxd : "D-day"}` : "시험 없음"} · 새 하루 ${+D.dayStart ? "새벽 " + D.dayStart + "시" : "자정"} · 달력 ${D.th.join(" · ")}시간`)}
     <p class="gh">시험 D-day (오늘 화면 위에 가장 가까운 시험이 보여요)</p><div class="grp">${[...D.exams].sort((a, b) => a.d < b.d ? -1 : 1).map(x => `<div class="row"><span>${esc(x.n)} <small class="sub">${x.d.slice(5).replace("-", "/")} · ${dLeft(x.d) >= 0 ? (dLeft(x.d) ? "D-" + dLeft(x.d) : "D-day") : "지남"}</small></span><button type="button" class="link dim" data-act="exDel" data-v="${x.id}">빼기</button></div>`).join("")}<div class="row"><input id="exName" placeholder="시험 이름 (예: 기말고사)" maxlength="12" style="border:0;background:none;flex:1;min-width:0;font-size:15px"><input id="exDate" type="date" aria-label="시험 날짜" style="border:0;background:none;font-size:14px;max-width:140px"><button type="button" class="link" data-act="exAdd">더하기</button></div></div>
     <p class="gh">하루가 바뀌는 시각 (밤늦게 공부하면 새벽으로)</p><div class="grp"><div class="row"><span>새 하루 시작</span><span class="seg">${[0, 2, 3, 4, 5].map(h => `<button type="button" data-act="dayStart" data-v="${h}" aria-pressed="${(+D.dayStart || 0) === h}">${h ? "새벽 " + h + "시" : "자정"}</button>`).join("")}</span></div></div>
     <p class="note" style="margin:-8px 4px 0">예: 새벽 4시로 하면 새벽 1시에 한 공부와 체크도 어제 하루에 들어가요</p>
-    <p class="gh">🔔 알림</p><div class="grp">
+    <p class="gh">달력 색칠 기준 (하루 순공 시간)</p><div class="grp">${stepRow(0, "조금 칠하기", 2)}${stepRow(1, "진하게 칠하기", 3)}${stepRow(2, "가장 진하게 칠하기", 4)}</div>
+    <p class="note" style="margin:-8px 4px 0">그날 순공 시간이 이만큼 넘으면 달력 날짜를 그 색으로 칠해요 · 시험 기간엔 높게, 방학엔 낮게 바꿔도 돼요</p></div></details>
+    ${sec("talk", "🔔", "쌤 말투 · 알림", `${D.mode === "t" ? "T쌤 · 사실대로" : "F쌤 · 다정하게"} · 알림 ${D.rem && D.rem.on ? "켬" : "끔"}`)}
+    <p class="gh">잔소리 쌤 말투</p><div class="grp"><div class="row"><span>말투</span><span class="seg"><button type="button" data-act="mode" data-v="f" aria-pressed="${D.mode === "f"}">F쌤 · 다정하게</button><button type="button" data-act="mode" data-v="t" aria-pressed="${D.mode === "t"}">T쌤 · 사실대로</button></span></div></div>
+    <p class="note" style="margin:-8px 4px 0">오늘 화면 맨 위 말풍선과 친구들이 하는 말이에요. 다정하게 = 칭찬 · 응원 위주, 사실대로 = 숫자로 짧게</p>
+    <p class="gh">알림</p><div class="grp">
       <div class="row"><span>알림 받기</span>${seg2("remOn", !!(D.rem && D.rem.on))}</div>
       ${D.rem && D.rem.on ? [["plan","☀️ 오늘 계획 세우기"],["check","✅ 할 일 체크했니?"],["diary","🌙 하루 마무리 일기"]].map(([f, n]) => `<div class="row"><span>${n}</span><span class="timein"><input type="time" data-rem="${f}" value="${esc(D.rem[f] || "")}" aria-label="${n} 시각"></span></div>`).join("") + `<div class="row"><span>📅 시험 전날 저녁 8시</span>${seg2("remExam", D.rem.exam !== false)}</div>` : ""}</div>
     <p class="note" style="margin:-8px 4px 0">${LN() ? "휴대폰 알림으로 와요 · 서버로 보내는 것 없이 이 휴대폰 안에서만 울려요" : NAT ? "휴대폰 알림은 다음 앱 업데이트부터 와요. 지금은 그 시각이 지나 앱을 열면 쌤이 알려 줘요" : "웹에서는 그 시각이 지나 앱을 열면 쌤이 알려 줘요 (휴대폰 알림은 아이폰 앱에서)"}</p>
     ${NAT ? `<p class="gh">⏱ 타이머를 아일랜드 · 잠금 화면에</p><div class="grp"><div class="row"><span>타이머</span><span class="seg">${[["on","늘 보이기"],["run","잴 때만"],["off","안 보이기"]].map(([v, n]) => `<button type="button" data-act="island" data-v="${v}" aria-pressed="${(D.island || "on") === v}">${n}</button>`).join("")}</span></div></div>
-    <p class="note" style="margin:-8px 4px 0">잴 때만 = 일시정지하면 내려가요 · 안 보이기여도 타이머와 순공 기록은 앱 안에서 그대로예요</p>` : ""}
-    <p class="gh">달력 색칠 기준 (하루 순공 시간)</p><div class="grp">${stepRow(0, "조금 칠하기", 2)}${stepRow(1, "진하게 칠하기", 3)}${stepRow(2, "가장 진하게 칠하기", 4)}</div>
-    <p class="note" style="margin:-8px 4px 0">그날 순공 시간이 이만큼 넘으면 달력 날짜를 그 색으로 칠해요 · 시험 기간엔 높게, 방학엔 낮게 바꿔도 돼요</p>
+    <p class="note" style="margin:-8px 4px 0">잴 때만 = 일시정지하면 내려가요 · 안 보이기여도 타이머와 순공 기록은 앱 안에서 그대로예요</p>` : ""}</div></details>
+    ${sec("acct", "💾", "백업 · 계정", `${esc(window.FB?.who() || "로그인 정보를 불러오는 중")} · 백업 · 로그아웃 · 탈퇴`)}
     <p class="gh">백업 (휴대폰을 바꿀 때)</p><div class="grp">
       <div class="row"><span>백업 파일로 내보내기</span><button type="button" class="link" data-act="bakOut">내보내기</button></div>
       <div class="row"><span>백업 파일 가져오기</span><label class="link" style="cursor:pointer">가져오기<input type="file" id="bakFile" accept=".json,application/json" hidden></label></div></div>
@@ -1340,7 +1367,7 @@ function viewSettings(){
       ${(window.FB?.kinds?.() || []).map(([k, n, on]) => `<div class="row"><span>${n}로 로그인</span>${on ? `<small class="syncok">✓ 연결됨</small>` : `<button type="button" class="link" data-act="linkLogin" data-v="${k}">연결하기</button>`}</div>`).join("")}
       <div class="row"><span>탈퇴 <small class="sub">(계정과 서버 기록 지우기)</small></span><button type="button" class="link dim" data-act="quit">탈퇴</button></div></div>
     <p class="note" style="margin:-8px 4px 0">연결해 두면 구글 · 카카오${NAT ? " · Apple" : ""} 어느 쪽으로 들어와도 같은 기록이에요. 다른 방법으로 따로 가입해 둔 기록이 있으면 연결할 때 하나로 합쳐요.</p>
-    <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기 <small class="sub">(계정은 남겨요)</small></span><button type="button" class="link dim" data-act="wipe">지우기</button></div></div>
+    <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기 <small class="sub">(계정은 남겨요)</small></span><button type="button" class="link dim" data-act="wipe">지우기</button></div></div></div></details>
     <details class="policy"><summary>먼저 플래너 · 이용약관 · 개인정보 처리방침</summary><div>
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
       <h4>개인정보 처리방침</h4>Apple · 구글 · 카카오로 로그인하면 그 서비스가 알려 주는 로그인 번호와 이메일, 내가 쓴 할 일 · 세부 계획 · 공부 시간 · 성적 · 시험 날짜 · 하루 마무리 일기 · 설정 · 내 캐릭터 그림을 <b>구글 Firebase 서버에 본인 계정으로만</b> 저장해요 (휴대폰을 바꾸거나 컴퓨터에서도 이어 쓰려고). 운영자는 학생 기록을 볼 수 없고 가입 · 사용 숫자만 봐요. 광고 · 다른 회사에 넘기는 데 쓰지 않아요. 사진첩 사진과 사진에서 읽은 글자는 이 휴대폰에만 있고 서버 · 백업에 올리지 않아요 (사진에서 고른 할 일만 기록에 들어가요). 아이폰 앱은 기록을 내 아이클라우드에도 백업해요. 알림은 휴대폰 안에서만 울려요. ⚙︎ 설정 › 계정 › 탈퇴를 누르면 모두 지워요. 자세히: moontr.site/first/privacy.html
@@ -1684,6 +1711,8 @@ $("scrim").onclick = () => closeTimer();
   });
 })();
 $("main").addEventListener("scroll", e => e.target.classList.toggle("scrolled", e.target.scrollTop > 40), { passive:true });
+// 설정 묶음(details.sec)을 펼치고 접은 상태를 기억해요 (화면을 다시 그려도 그대로)
+document.addEventListener("toggle", e => { const d = e.target; if (d && d.dataset && d.dataset.sk) (S.secOpen = S.secOpen || {})[d.dataset.sk] = d.open; }, true);
 /* ⏱ 타이머 닫기: ✕ · 바깥(어두운 곳) 누르기 · 바깥쪽으로 밀기 */
 function closeTimer(){ const sd = $("side"); sd.style.transform = sd.style.transition = ""; $("app").classList.remove("timer-open"); }
 (() => {
