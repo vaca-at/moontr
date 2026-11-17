@@ -9,7 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="../topics.js?v=11170900"></script>
+<script src="../topics.js?v=11171500"></script>
 <script src="../../algolab/algos.js?v=11161900"></script>
 <style>
 /* 선생님 화면: 학생 화면(연수 과정형)과 같은 문법 · 흰 바탕 · 남색 머리 띠 */
@@ -73,6 +73,10 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 .paper section{padding:10px 0;border-top:1px solid var(--line)}
 .paper section h4{font-size:13px;color:var(--acc);margin-bottom:2px}
 .paper section p{white-space:pre-wrap;font-size:14px}
+/* 일괄 출력: 피드백 · 세특 상자, 인쇄하면 학생마다 새 쪽 */
+.fbbox{border:1px solid var(--line2,#cfd4dc);padding:12px 14px;margin-top:12px;font-size:14px}.fbbox p{white-space:pre-wrap}
+.fbbox h4{font-size:13px;color:var(--acc);margin-bottom:4px}
+.fbbox.sk{background:#F7F8FA}
 .ailog{font-size:13px;color:#444}
 .ailog div{padding:6px 0;border-top:1px dashed var(--line)}
 .note{font-size:12.5px;color:var(--sub)}
@@ -97,6 +101,11 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
   #printArea{display:block!important}
   #printArea .btn{display:none!important}
   #printArea .plan,#printArea .paper{border:0;padding:0}
+  #printArea .bpage{break-after:page;page-break-after:always;margin:0}
+  #printArea .bpage:last-child{break-after:auto;page-break-after:auto}
+  #printArea .bpage section{break-inside:avoid;padding:4px 0}#printArea .fbbox{break-inside:avoid;padding:8px 12px;margin-top:8px}
+  #printArea .bpage h3{font-size:15px;margin-top:6px!important}#printArea .bpage .who{margin-bottom:4px;font-size:11px}
+  #printArea .bpage section h4,#printArea .fbbox h4{font-size:11px;margin-bottom:0}#printArea .bpage section p,#printArea .fbbox p{font-size:11.5px;line-height:1.5}
   @page{size:A4;margin:14mm}
 }
 @media (max-width:900px){.two{grid-template-columns:1fr}.kpi{grid-template-columns:repeat(2,1fr)}nav.tabs{overflow-x:auto}}
@@ -119,7 +128,7 @@ const isAdmin = (e) => DL.ADMIN_EMAILS.includes(String(e || "").toLowerCase());
 firebase.initializeApp(DL.FIREBASE_CONFIG);
 const db = firebase.firestore(), auth = firebase.auth();
 const A = { user: null, tab: location.hash.replace("#", "") || "prog", members: [], ban: "", sel: null, topic: TOPICS[0].id, out: {}, busy: false, msg: "" };
-const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["seteuk", "세특"], ["plan", "지도안"], ["refl", "수업 실천 성찰"], ["algo", "알고리즘 실험실"], ["users", "학생 관리"]];
+const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["batch", "일괄 출력"], ["seteuk", "세특"], ["plan", "지도안"], ["refl", "수업 실천 성찰"], ["algo", "알고리즘 실험실"], ["users", "학생 관리"]];
 const fmtT = (ms) => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const topicsOf = (m) => TOPICS.filter((t) => (m.rec || {})[t.id] && (m.rec[t.id].s && Object.keys(m.rec[t.id].s).length));
 const progOf = (t, x) => STEPS.filter((st) => stepDone(t, x, st.k)).length;
@@ -171,7 +180,7 @@ function render() {
   $("#who").innerHTML = A.user ? `${esc(A.user.email.replace(/@.*/, "@…"))} · <a href="#" data-act="logout" style="color:#fff">로그아웃</a>` : "";
   $("#tabs").innerHTML = A.user ? TABS.map(([k, n]) => `<button class="${A.tab === k ? "on" : ""}" data-act="tab" data-v="${k}">${n}</button>`).join("") : "";
   if (!A.user) { $("#app").innerHTML = `<div class="login"><h1>선생님 화면</h1><p>학생 탐구 기록 · 보고서 · 세특 · 지도안을 보는 화면이에요. 관리자 구글 계정으로 들어와요.</p><button class="gbtn" data-act="login"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>G 구글 계정으로 로그인</button>${A.msg ? `<p class="note" style="margin-top:14px;color:var(--warn)">${esc(A.msg)}</p>` : ""}</div>`; return; }
-  const v = { prog: progView, rep: repView, seteuk: seteukView, plan: planView, refl: reflView, algo: algoView, users: usersView }[A.tab] || progView;
+  const v = { prog: progView, rep: repView, batch: batchView, seteuk: seteukView, plan: planView, refl: reflView, algo: algoView, users: usersView }[A.tab] || progView;
   $("#app").innerHTML = (A.msg ? `<div class="msg">${esc(A.msg)}</div>` : "") + v();
 }
 const banSel = () => `<select data-act="ban" aria-label="반">${bans().map((b) => `<option ${b === A.ban ? "selected" : ""}>${esc(b)}</option>`).join("")}<option value="" ${!A.ban ? "selected" : ""}>모든 반</option></select>`;
@@ -236,6 +245,51 @@ function paper(t, m) {
     ${REPORT.map(([k, n]) => `<section><h4>${esc(n)}</h4><p>${esc(repVal(t, x, k) || "—")}</p></section>`).join("")}
     <section><h4>5단계 반박 · AI 활용 기록</h4><p>${esc((x.s || {}).rebut || "—")}</p><div class="ailog">${(x.ai || []).map((a) => a.k === "review" ? `<div>AI 검토 ${fmtT(a.at)} · 수치 ${a.scores.data} / 원인 ${a.scores.other} / 개념 ${a.scores.concept}${a.local ? " (기본 점검)" : ""} — ${esc(a.next)}</div>` : `<div>질문 ${fmtT(a.at)} · ${esc(a.q)} → ${esc(a.a)}</div>`).join("") || `<div>기록 없음</div>`}</div></section>
     <section><h4>활동 기록 (단계마다 날짜 · 시간 · 그때 쓴 내용)</h4><div class="ailog">${logHTML(x)}</div></section></div>`;
+}
+
+/* 🖨 일괄 출력 (2026-11-17): 반을 고르면 활동한 학생만 한 사람에 한 장씩
+   보고서(데이터 실험실 · 알고리즘 실험실) + AI 피드백(학생에게: 잘한 점 · 격려) + 예상 세특(선택)
+   AI 글은 학생 문서 fb { praise, cheer, seteuk, at } 에 저장해 두고, 학생이 그 뒤에 기록을 고쳤을 때만 다시 만들어요
+   세특은 선생님이 '세특' 탭에서 저장한 글(seteuk)이 있으면 그걸, 없으면 AI 예상 세특을 보여요 */
+// 알고리즘 실험실은 열어만 본 것(기준도 안 고르고 단계도 0)은 빼요
+const algoDid = (m) => algoOf(m).filter(([, x]) => Object.keys(x.done || {}).length || x.s.crit);
+const active = (m) => topicsOf(m).length || algoDid(m).length;
+const fbState = (m) => !m.fb ? "none" : (m.updatedAt || 0) > (m.fb.at || 0) + 1000 ? "old" : "ok";
+const B = { seteuk: true, run: false, done: 0, total: 0 };
+function batchPage(m) {
+  const T = topicsOf(m), G = algoDid(m), fb = m.fb || {};
+  const rows = (pairs) => pairs.filter(([, v]) => String(v || "").trim()).map(([n, v]) => `<section><h4>${esc(n)}</h4><p>${esc(v)}</p></section>`).join("");
+  const sk = m.seteuk || fb.seteuk || "";
+  return `<div class="paper bpage"><div class="who" style="display:flex;justify-content:space-between"><span><b>${esc(m.ban)}반 · ${esc(m.sid)}</b> · 통합사회 탐구 보고서</span><span>${new Date().toLocaleDateString("ko-KR")}</span></div>
+    ${T.map((t) => { const x = m.rec[t.id]; return `<h3 style="margin-top:10px">AI활용탐구 ${t.no} · ${esc(t.title)}</h3><div class="who">${esc(GROUPS[t.g].name)} · ${progOf(t, x)}/8단계${x.sub ? " · 제출" : ""}</div>${rows(REPORT.map(([k, n]) => [n, repVal(t, x, k)]))}`; }).join("")}
+    ${G.map(([id, x]) => `<h3 style="margin-top:10px">알고리즘 실험실 · ${esc(ALGO.NAMES[id][1])}</h3><div class="who">${Object.keys(x.done || {}).length}/7단계${x.sub ? " · 제출" : ""}</div>${rows([["고른 규칙", algoRule(id, x.s)], ["가치 검토", x.s.why], ["공정성: 손해 보는 사람과 고칠 점", x.s.loser], ["마치며", x.s.ref]])}`).join("")}
+    <div class="fbbox"><h4>선생님이 보내는 피드백</h4>${fb.praise ? `<p><b>잘한 점</b> ${esc(fb.praise)}</p><p style="margin-top:6px"><b>다음에는</b> ${esc(fb.cheer)}</p>` : `<p class="note">아직 AI 피드백을 만들지 않았어요 (위 ‘AI 피드백 · 세특 만들기’)</p>`}</div>
+    ${B.seteuk ? `<div class="fbbox sk"><h4>${m.seteuk ? "세특 (선생님이 저장한 글)" : "예상 세특 (AI 초안 · 선생님 확인 전)"}</h4>${sk ? `<p>${esc(sk)}</p><p class="note">${[...sk].length}자 · ${nbytes(sk)}바이트</p>` : `<p class="note">아직 없어요</p>`}</div>` : ""}</div>`;
+}
+function batchView() {
+  const L = inBan().filter(active), need = L.filter((m) => fbState(m) !== "ok");
+  const tag = (m) => { const s = fbState(m); return s === "none" ? `<span class="st w">AI 글 없음</span>` : s === "old" ? `<span class="st o">기록이 바뀜</span>` : `<span class="st d">만듦 ${fmtT(m.fb.at)}</span>`; };
+  return `<div class="bar-h"><div><h1>일괄 출력</h1><p>반을 고르면 활동한 학생만 한 사람에 한 장씩 · 보고서 + AI 피드백(칭찬 · 격려) + 예상 세특 · 인쇄하면 학번만 나와요</p></div>
+  <div class="ctl">${banSel()}<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSk" ${B.seteuk ? "checked" : ""}>세특 넣기</label>
+    <button class="btn b" data-act="bMake" ${B.run || !need.length ? "disabled" : ""}>${B.run ? `만드는 중 ${B.done}/${B.total}` : `AI 피드백 · 세특 만들기 (${need.length}명)`}</button>
+    <button class="btn" data-act="bPrint" ${L.length ? "" : "disabled"}>인쇄 · PDF로 저장 (${L.length}명)</button></div></div>
+  ${!A.ban ? `<div class="msg">반을 하나 고르면 그 반만 출력해요 (지금은 모든 반 ${L.length}명)</div>` : ""}
+  <div class="box"><table class="tb"><thead><tr><th>학번</th><th>탐구</th><th>AI 글</th><th></th></tr></thead><tbody>${L.map((m) => `<tr><td><b>${esc(m.sid)}</b></td><td class="l" style="font-size:13px">${[...topicsOf(m).map((t) => `${t.no}. ${esc(t.name)}`), ...algoDid(m).map(([id]) => "알고리즘 " + esc(ALGO.NAMES[id][0]))].join(" · ")}</td><td>${tag(m)}</td><td><button class="btn w sm" data-act="bOne" data-v="${m.key}" ${B.run ? "disabled" : ""}>${m.fb ? "다시 만들기" : "만들기"}</button></td></tr>`).join("") || `<tr><td colspan="4" class="note">이 반에는 아직 활동한 학생이 없어요</td></tr>`}</tbody></table>
+  <p class="note" style="margin-top:8px">AI는 학번 · 이름 없이 탐구 기록만 읽어요. 세특 탭에서 저장한 세특이 있으면 그 글이 들어가요. 학생에게 나눠 줄 때는 ‘세특 넣기’를 꺼요.</p></div>
+  <div id="batchDoc">${L.map(batchPage).join("")}</div>`;
+}
+async function makeFb(m) {
+  const j = await callAdminAI("/report", { evidence: evidence(m) });
+  const fb = { praise: j.praise, cheer: j.cheer, seteuk: j.seteuk, at: Date.now() };
+  await db.collection("datalab_members").doc(m.key).update({ fb });   // updatedAt 은 그대로 (학생이 고친 때와 구별)
+  m.fb = fb;
+}
+async function makeAll(list) {
+  B.run = true; B.done = 0; B.total = list.length; A.msg = ""; render();
+  const fails = [], q = list.slice();
+  const worker = async () => { while (q.length) { const m = q.shift(); try { await makeFb(m); } catch (e) { fails.push(m.sid + " (" + e.message + ")"); } B.done++; render(); } };
+  await Promise.all([worker(), worker(), worker()]);   // 세 명씩 함께 (반 하나 약 1~2분)
+  B.run = false; A.msg = fails.length ? `만들지 못한 학생: ${fails.join(", ")} — 다시 눌러 주세요` : `${list.length}명의 피드백 · 예상 세특을 만들었어요`; render();
 }
 
 function seteukView() {
@@ -320,6 +374,10 @@ document.addEventListener("click", async (e) => {
   if (a === "logout") { e.preventDefault(); return auth.signOut(); }
   if (a === "tab") { A.tab = v; A.msg = ""; history.replaceState(null, "", "#" + v); return render(); }
   if (a === "see" || a === "sel") { A.sel = v; A.tab = "rep"; render(); if (b.dataset.t) { const el = document.getElementById(`p_${v.slice(0, 8)}_${b.dataset.t}`); if (el) el.scrollIntoView({ block: "start" }); } return; }
+  if (a === "bSk") { B.seteuk = b.checked; return render(); }
+  if (a === "bMake") return makeAll(inBan().filter(active).filter((x) => fbState(x) !== "ok"));
+  if (a === "bOne") return makeAll([m]);
+  if (a === "bPrint") { $("#printArea").innerHTML = $("#batchDoc").innerHTML; return window.print(); }
   if (a === "printRep") { $("#printArea").innerHTML = paper(DL.topic(b.dataset.t), m); return window.print(); }
   if (a === "printPlan") { $("#printArea").innerHTML = planHTML(DL.topic(A.topic)); return window.print(); }
   if (a === "printRefl") { $("#printArea").innerHTML = $("#reflDoc").outerHTML; return window.print(); }

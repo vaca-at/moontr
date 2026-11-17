@@ -171,6 +171,8 @@
       cap: "재범 예측 AI의 판정과 실제 결과 (가상 데이터)", pick: "집단",
       cols: ["집단", "AI가 ‘재범 위험 높음’ 판정(명)", "그중 2년 안에 재범하지 않음(명)"],
       rows: [["가 집단", 600, 252], ["나 집단", 400, 96], ["다 집단", 500, 175], ["라 집단", 300, 63]],
+      // 집단마다 어떤 사람들인지 (2026-11-17: 고르라는데 설명이 없다는 수업 의견) — AI는 '과거 체포 기록'을 배웠고, 체포 기록은 순찰이 많은 곳 · 형편이 어려운 사람에게 더 쌓여요
+      who: { "가 집단": "경찰 순찰이 많은 동네에 사는 사람들 (작은 잘못도 자주 단속돼 체포 기록이 많이 쌓인 곳)", "나 집단": "경찰 순찰이 적은 동네에 사는 사람들", "다 집단": "일정한 직업 · 집이 없는 사람들 (주소가 자주 바뀌고 소득이 불안정)", "라 집단": "직장과 함께 사는 가족이 있는 사람들" },
       calc: { label: "잘못 판정된 비율", unit: "%", dp: 1, formula: "재범하지 않은 사람 ÷ ‘위험 높음’ 판정 × 100", f: (r) => r[2] / r[1] * 100 },
       claim: "AI는 감정이나 편견이 없으니 사람 판사보다 공정합니다. 재범 예측 AI의 판정대로 보석과 형량을 정해야 합니다.",
       look: ["‘위험 높음’ 판정을 받았지만 재범하지 않은 사람의 비율이 집단마다 같나요?", "잘못 판정된 사람은 어떤 불이익을 받게 될까요?", "AI가 과거 데이터를 배웠다면 그 데이터에 어떤 치우침이 있을 수 있을까요?"],
@@ -417,7 +419,7 @@
   // 빼기 기호는 어떤 모양이든(− – — ﹣ －) '-' 로 받아요 (ESG 배출 변화처럼 답이 음수인 주제, 2026-11-17)
   const close = (input, v, dp) => { const x = Number(String(input).replace(/[−–—﹣－]/g, "-").replace(/[^0-9.\-]/g, "")); if (!Number.isFinite(x) || v == null) return false; const tol = Math.max(Math.abs(v) * 0.01, dp ? 0.6 * Math.pow(10, -dp) * 10 : 1); return Math.abs(x - v) <= tol; };
   // 표를 글로 (AI 에게 보낼 때)
-  const tableText = (t) => [t.cols.join(" | "), ...t.rows.map((r) => r.map(fmtCell).join(" | "))].join("\n") + `\n※ ${t.calc.label}(${t.calc.formula}): ` + values(t).map((v, i) => `${t.rows[i][0]} ${fmt(v, t.calc.dp)}${t.calc.unit}`).join(", ");
+  const tableText = (t) => [t.cols.join(" | "), ...t.rows.map((r) => r.map(fmtCell).join(" | "))].join("\n") + (t.who ? "\n" + t.rows.map((r) => t.who[r[0]] ? `※ ${r[0]}: ${t.who[r[0]]}` : "").filter(Boolean).join("\n") : "") + `\n※ ${t.calc.label}(${t.calc.formula}): ` + values(t).map((v, i) => `${t.rows[i][0]} ${fmt(v, t.calc.dp)}${t.calc.unit}`).join(", ");
 
   /* 아이에답(AIEDAP) 수업 유형 '데이터 분석' · 수업 모형 8단계를 그대로 따라요 (2026-11-16)
      50분 한 판: 5 + 4 + 6 + 10 + 8 + 7 + 5 + 5 = 50분 */
