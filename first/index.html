@@ -400,7 +400,10 @@ main.scrolled .prog::before{opacity:1}
 .gd{border-radius:14px;background:var(--soft);padding:10px 14px}.gd summary{cursor:pointer;font-size:16px;padding:2px 0}.gd ul{margin:8px 0 2px;padding-left:18px;display:grid;gap:6px;font-size:14px;line-height:1.5}
 .capstep{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink);background:var(--mode-soft);border-radius:12px;padding:9px 12px}.capstep b{color:var(--mode)}
 .cap-view canvas{cursor:pointer}
-.hd.stick{position:sticky;top:0;z-index:8;margin:calc(-18px - env(safe-area-inset-top,0px)) -20px 0;padding:calc(18px + env(safe-area-inset-top,0px)) 20px 10px;background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+/* 꾸미기 · 설정 머리: main 위 여백을 없애고(main.pg) 머리가 그 여백을 대신 가져요.
+   예전엔 음수 margin 으로 여백을 상쇄했는데, 스크롤이 내려가면 sticky 가 main 여백만큼 아래에 붙어서 머리가 확 내려갔어요 (2026-11-17 고침) */
+main.pg{padding-top:0}
+.hd.stick{position:sticky;top:0;z-index:8;margin:0 -20px;padding:calc(18px + env(safe-area-inset-top,0px)) 20px 10px;background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 @media (min-width:768px){.hd.stick{margin-left:-28px;margin-right:-28px;padding-left:28px;padding-right:28px}}
 .lib .it .one{position:absolute;left:-4px;top:-4px;z-index:2;min-width:20px;height:20px;border-radius:10px;background:var(--mode);color:#fff;font:700 12px/20px var(--sys,system-ui);text-align:center;font-style:normal;box-shadow:0 2px 6px rgba(0,0,0,.18)}
 .ones{display:flex;gap:10px;flex-wrap:wrap}
@@ -490,7 +493,8 @@ button,a,label,input,select,textarea{touch-action:manipulation}
 /* ⚫ 검정 바탕 (2026-11-17, 남학생 요청): 아이폰이 밝은 화면이어도 늘 검정.
    위쪽 다크 모드 규칙들을 .bg-k 안에만 똑같이 씌운 거예요. 다크 모드 규칙을 고치면 여기도 같이 고쳐 주세요.
    (흰 바탕 + 다크 모드 = 짙은 회색 #16151A, 검정 바탕 = 더 까만 #0A0A0C) */
-.app.bg-k{color-scheme:dark;--bg:#0A0A0C;--ink:#F2F2F4;--sub:#9A9AA2;--hair:rgba(255,255,255,.12);--soft:#1E1E22;--soft2:#2A2A30;--mode-soft:color-mix(in srgb,var(--mode) 24%,#16161A)!important;background:#0A0A0C}
+.app.bg-k{color-scheme:dark;--bg:#0A0A0C;--ink:#F2F2F4;--sub:#9A9AA2;--hair:rgba(255,255,255,.12);--soft:#1E1E22;--soft2:#2A2A30;--mode-soft:color-mix(in srgb,var(--mode) 34%,#24242A)!important;background:#0A0A0C;color:var(--ink)}   /* color: 글자색은 body 에서 정해져서 여기서 한 번 더 (안 하면 말풍선 · 글씨가 검정으로 남아요) */
+.bg-k .say{color:#fff}
 body.bk{background:#000}
 .bg-k .cards .item,.bg-k .add,.bg-k .week,.bg-k .slot,.bg-k .lib .it>button:first-child,.bg-k .ied input,.bg-k .ied textarea,.bg-k .step button,.bg-k .seg button[aria-pressed="true"]{background:#18181C!important;border-color:#2C2C32!important;color:var(--ink)}
 .bg-k .add{color:var(--mode)!important}
@@ -507,6 +511,8 @@ body.bk{background:#000}
 .bg-k .hd.stick{background:rgba(10,10,12,.82)}
 .bg-k .habit{background:#18181C;border-color:#2C2C32}.bg-k .hb.fut i{background:#26262B}.bg-k .hb:not(.top):not(.fut) i{background:color-mix(in srgb,var(--mode) 55%,#0A0A0C)}
 .bg-k .diary textarea,.bg-k .moods button,.bg-k .timein input[type=time]{background:#222226}.bg-k .dent{background:#18181C}
+/* 늘 흰 바탕인 작은 말풍선은 글씨도 늘 진하게 (검정 바탕 · 다크 모드에서 흰 글씨가 되면 안 보여요) */
+.popper p,.say2{color:#2B2B33}
 /* 배경 단추 미리 보기 */
 .bgp-k{background:#0A0A0C;border-color:rgba(255,255,255,.12)!important}.bgp-k i{background:#1E1E22!important;border-color:#34343A!important}
 </style>
@@ -1606,6 +1612,8 @@ function render(){
   app.classList.toggle("no-edge", !!S.editing || S.tab === "settings" || S.tab === "deco");   // 고치는 중 · 설정 · 꾸미기에서는 타이머 단추가 저장 · 더하기 단추를 가려서 숨겨요
   app.style.setProperty("--font", (FONTS.find(f => f[0] === D.font) || FONTS[0])[2]);
   app.style.setProperty("--mode", c[0]); app.style.setProperty("--mode-soft", c[1]);
+  const M = $("main"); M.classList.toggle("pg", S.tab === "deco" || S.tab === "settings");
+  if (S.lastTab !== S.tab){ S.lastTab = S.tab; M.scrollTop = 0; }   // 다른 화면으로 가면 맨 위부터 (꾸미기 아래에서 ⚙︎ 눌러도 설정이 맨 위에서 열려요)
   $("main").innerHTML = S.tab === "deco" ? viewDeco() : S.tab === "settings" ? viewSettings() : S.tab === "cal" ? viewCal() : S.tab === "grades" ? viewGrades() : S.tab === "pics" ? viewPics() : viewToday();
   $("tabs").innerHTML = TABS.map(([k, n, ic]) => `<button type="button" data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ic}</svg>${n}</button>`).join("");
   $("side").innerHTML = viewSide(); tick(); crewSync(); picHydrate();
