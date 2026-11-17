@@ -1918,7 +1918,7 @@ const DRAW = {
       <ul><li><b>TO DO</b> 오른쪽 아래 칸. 날짜마다 따로, ‹ › 로 다른 날도 적어요.</li><li><b>메모</b> 날짜와 상관없는 쪽지. <b>📌 고정</b>한 메모(최대 3개)가 게임 화면에 떠요. 찾기 · ◀ ▶ 순서 · [지우기]하면 휴지통.</li><li><b>즐겨찾기</b> 자주 가는 사이트. 레트로 PC · 미니멀 위젯 화면에도 아이콘으로 떠요.</li></ul>
 
       <h3>⚙️ 설정</h3>
-      <ul><li><b>계정 · 내 정보</b> 로그인 계정, 나와 학교(닉네임 · 담임 반 · 교무실 층 · 내 수업 장소 · 출퇴근 — 음악 · 미술 · 가사 · 정보처럼 늘 특별실에서 가르치면 '내 수업 장소'를 고르고 시간표 칸엔 반만 적어요), 학교 위치(진짜 날씨), 학교 일정 · D-day, 내 캐릭터(남 10 · 여 10)</li><li><b>기록</b> 시간표 · TO DO · 메모 · 즐겨찾기를 지난 것까지 모아 보고, 고치고, 되돌리고, 지워요.</li></ul>
+      <ul><li><b>계정 · 내 정보</b> 로그인 계정, 나와 학교(닉네임 · 담임 반 · 교무실 층 · 층마다 학년(2 · 3 · 4층에 몇 학년이 있는지, 학교마다 달라요) · 내 수업 장소 · 출퇴근 — 음악 · 미술 · 가사 · 정보처럼 늘 특별실에서 가르치면 '내 수업 장소'를 고르고 시간표 칸엔 반만 적어요), 학교 위치(진짜 날씨), 학교 일정 · D-day, 내 캐릭터(남 10 · 여 10)</li><li><b>기록</b> 시간표 · TO DO · 메모 · 즐겨찾기를 지난 것까지 모아 보고, 고치고, 되돌리고, 지워요.</li></ul>
 
       <h3>🖥 바탕화면으로 만들기</h3>
       <p>컴퓨터를 켜면 교무실 타이쿤이 <b>바탕화면 배경으로 계속 움직이게</b> 할 수 있어요. 주소는 <b>https://moontr.site/tycoon/</b> 하나예요. 끝에 <b>#4</b>처럼 화면 번호를 붙이면 그 화면으로 열려요.</p>
@@ -2062,6 +2062,9 @@ const gradeOf = id => isClass(id) ? +id.split("-")[0] : 0;
 const NAME = id => id === "office" ? "교무실" : id === "home" ? "집" : id === "lunch" ? "급식실" : id === "etc" ? "특별실 · 다른 곳" : HR && id === HR ? `${id} 우리 반` : id;
 const SHORT = id => HR && id === HR ? "★" + id : id;
 const clsCmp = (a, b) => (gradeOf(a) - gradeOf(b)) || (+a.split("-")[1] - +b.split("-")[1]);
+// 층마다 학년 설정 [2층, 3층, 4층] → 학년 수 안의 숫자만, 같은 학년이 두 층에 있으면 뒤의 것은 자동(0)으로
+let FLOORS_SET = [0, 0, 0];
+const floorsNorm = (a, ngr) => { const seen = new Set(); return [0, 1, 2].map(i => { const g = Array.isArray(a) ? +a[i] || 0 : 0; if (g < 1 || g > ngr || seen.has(g)) return 0; seen.add(g); return g; }); };
 // 선생님 설정을 화면 그리기용으로 바꿔요 (로그인 · 저장할 때마다 불러요)
 let EMPTY = false;   // 로그인했지만 아직 시간표를 저장하지 않았어요 (오른쪽 TODAY · 그림 위 카드에 '등록된 시간표가 없어요')
 function applyConfig(cfg){
@@ -2071,6 +2074,7 @@ function applyConfig(cfg){
   if (NCLS_BY.length) NCLS = Math.max(...NCLS_BY);
   HR = isClass(cfg.hr) ? cfg.hr : "";
   OFFICE_F = [2, 3, 4].includes(+cfg.officeF) ? +cfg.officeF : 2;
+  FLOORS_SET = floorsNorm(cfg.floors, NGR);   // 2026-11-17 층마다 학년 (2 · 3 · 4층, 0 = 자동). 학교마다 1 · 2 · 3학년 순이 아닐 수 있어요
   MYROOM = String(cfg.myRoom || "").trim().slice(0, 12); if (isClass(MYROOM)) MYROOM = ""; if (MYROOM === "체육관") MYROOM = "운동장";   // 예전 목록의 '체육관' = 지금 '운동장'
   IN_T = cfg.inT || "08:10"; OUT_T = cfg.outT || "16:10";   // 출퇴근을 비워 두면 08:10 · 16:10
   let n = 0;
@@ -2095,6 +2099,12 @@ function applyConfig(cfg){
   [...Object.values(TT).flatMap(o => Object.values(o)).filter(isClass), ...(HR ? [HR, HR, HR] : [])].forEach(id => { const gr = gradeOf(id); if (gr >= 1 && gr <= NGR) use[gr] = (use[gr] || 0) + 1; });
   const pickF = k => { const g0 = Object.keys(use).map(Number).sort((a, b) => use[b] - use[a] || a - b).slice(0, k); for (let gr = 1; gr <= NGR && g0.length < k; gr++) if (!g0.includes(gr)) g0.push(gr); return g0.sort((a, b) => a - b); };
   FLOORS = pickF(3); FLOORS2 = pickF(2);
+  if (FLOORS_SET.some(Boolean)){   // 선생님이 층마다 학년을 정했으면 그대로, 안 정한 층은 남은 학년 가운데 많이 가는 학년으로
+    const used = new Set(FLOORS_SET.filter(Boolean)), rest = Object.keys(use).map(Number).filter(g => !used.has(g)).sort((a, b) => use[b] - use[a] || a - b);
+    for (let gr = 1; gr <= NGR; gr++) if (!used.has(gr) && !rest.includes(gr)) rest.push(gr);
+    const fill = rest.slice(0, FLOORS_SET.filter(g => !g).length).sort((a, b) => a - b);
+    FLOORS = FLOORS_SET.map(g => g || fill.shift() || 0);
+  }
   if (typeof rebuild === "function") rebuild();
 }
 // 하루의 처음 · 끝: 첫 종 · 마지막 종 · 출근 · 퇴근
@@ -2900,7 +2910,7 @@ const tower = port => (() => {
     P = keep;
   }
   return { name:"건물 단면 타워", layout:"bottom", place, route, draw, mapId, speed:port ? 60 : 46, port,
-    desc:"<b>학교 건물을 앞에서 잘라 본 모습</b>이에요. 내가 많이 가는 학년이 2 · 3 · 4층에, 시간표에 적은 특별실은 1층에 놓여요. 층마다 네온 테두리 색이 다르고, 가운데 교무실은 하늘색이에요. 계단으로 오르내리고, 가운데 탑 시계가 지금 시각이에요. 쉬는 시간에는 학생들이 복도를 오가요. (방 자리는 반 수에 맞춘 짐작이에요)" };
+    desc:"<b>학교 건물을 앞에서 잘라 본 모습</b>이에요. 내가 많이 가는 학년이 2 · 3 · 4층에(⚙︎ 나와 학교 › '층마다 학년'에서 학교에 맞게 바꿀 수 있어요), 시간표에 적은 특별실은 1층에 놓여요. 층마다 네온 테두리 색이 다르고, 가운데 교무실은 하늘색이에요. 계단으로 오르내리고, 가운데 탑 시계가 지금 시각이에요. 쉬는 시간에는 학생들이 복도를 오가요. (방 자리는 반 수에 맞춘 짐작이에요)" };
 })();
 const S1 = tower(false);
 
@@ -7617,7 +7627,7 @@ function openBoard(){
     if (!s.exists()){ gone(); return; }
     document.querySelector(".boardmsg")?.remove();
     const b = s.data();
-    window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {}, kids:b.kids });
+    window.DESK.applyConfig({ name:b.name || "", level:"high", week:b.week || {}, hr:b.hr || "", grades:b.grades || 3, classes:b.classes || 10, classesBy:b.classesBy || null, officeF:b.officeF || 2, floors:b.floors || null, myRoom:b.myRoom || "", inT:b.inT || "", outT:b.outT || "", bell:b.bell || [], hrWeek:b.hrWeek || {}, kids:b.kids });
     window.DESK.setDayTT(b.dayTT || {}, b.dayKind || {}); window.DESK.setHrDayTT(b.hrDayTT || {}); window.DESK.setAvatar(b.avatar || 0); window.DESK.setTodos([]); window.DESK.setFriends([]); setMode("class");   // 나 + 우리 반
     if (b.loc){ BOARD_LOC = b.loc; loadWeather(true); }   // 창밖 날씨만 (시 · 군)
     dispatchEvent(new Event("resize"));   // 게임 화면을 칠판 크기에 맞춰요
@@ -8574,6 +8584,7 @@ function renderEdit(){
       <label class="f"><span>학년 수</span><select id="eGr">${[1,2,3,4,5,6].map(v => `<option ${v === +ed.grades ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       ${clsField("e", ed.grades, ed.classes, ed.classesBy)}
       <label class="f"><span>교무실 위치 (건물 단면 시안)</span><select id="eOff">${[2, 3, 4].map(v => `<option value="${v}" ${v === (+ed.officeF || 2) ? "selected" : ""}>${v}층</option>`).join("")}</select></label>
+      ${floorField("e", ed.grades, ed.floors)}
       ${roomSel("eRoom", ed.myRoom || "")}
       <label class="f"><span>출근 시각 (선택 · 비우면 08:10)</span><input type="time" id="eIn" value="${esc(ed.inT)}"></label>
       <label class="f"><span>퇴근 시각 (선택 · 비우면 16:10)</span><input type="time" id="eOut" value="${esc(ed.outT)}"></label>
@@ -8649,6 +8660,9 @@ function renderEdit(){
 const hrNorm = v => { v = String(v || "").replace(/\s+/g, ""); if (!v) return ""; const m = v.match(/^(\d)학년(\d{1,2})반?$/) || v.match(/^(\d)[-–—.·](\d{1,2})$/) || v.match(/^(\d)(\d{2})$/); return m ? `${+m[1]}-${+m[2]}` : v; };
 // 학년마다 다른 반 수: [1학년, 2학년, …] (학년 수만큼 맞추고, 빈 칸은 '한 학년 반 수'로). 끄면 null
 const byOf = (by, grades, cl) => Array.isArray(by) && by.length ? Array.from({ length:clamp(+grades || 3, 1, 6) }, (_, i) => clamp(+by[i] || +cl || 10, 1, 15)) : null;
+// 층마다 학년 칸 (2026-11-17, 건물 단면 시안): 2 · 3 · 4층에 몇 학년이 있는지. '자동' = 많이 가는 학년으로 채워요
+const floorField = (p, ngr, fl) => { const n = clamp(+ngr || 3, 1, 6), F = floorsNorm(fl, n); return `<label class="f"><span>층마다 학년 (건물 단면 시안)</span><span class="row" style="gap:4px;flex-wrap:nowrap">${[2, 3, 4].map((f, i) => `<select id="${p}Fl${f}" data-flp="${p}" aria-label="${f}층 학년" style="flex:1;min-width:0">${[0, ...Array.from({ length:n }, (_, k) => k + 1)].map(g => `<option value="${g}" ${g === F[i] ? "selected" : ""}>${f}층 ${g ? g + "학년" : "자동"}</option>`).join("")}</select>`).join("")}</span></label>`; };
+const readFloors = (p, ngr) => floorsNorm([2, 3, 4].map(f => +($(p + "Fl" + f) || {}).value || 0), clamp(+ngr || 3, 1, 6));
 const readBy = (p, grades, cl) => { if (!$(p + "ClBy")?.checked) return null; const v = [...document.querySelectorAll(`[data-clg="${p}"]`)].map(s => +s.value); return byOf(v.length ? v : [cl], grades, cl); };
 // '한 학년 반 수' 칸 + [학년마다 다르게] (켜면 아래에 학년별 고르기)
 const clsField = (p, grades, cl, by) => { const o = v => Array.from({ length:15 }, (_, i) => i + 1).map(x => `<option ${x === +v ? "selected" : ""}>${x}</option>`).join("");
@@ -8661,7 +8675,7 @@ const clsField = (p, grades, cl, by) => { const o = v => Array.from({ length:15 
 function readEdit(){
   // 화면에 있는 칸만 읽어요 (나와 학교는 처음에만, 종 시간 · 시간표는 '내 시간표' 탭에만 있어요)
   if ($("eName")){
-    ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = hrNorm($("eHr").value); ed.officeF = +$("eOff").value || 2; ed.myRoom = $("eRoom").value;
+    ed.tag = $("eTagIn").value.trim().toUpperCase().replace(/\s+/g, ""); ed.name = $("eName").value.trim(); ed.hr = hrNorm($("eHr").value); ed.officeF = +$("eOff").value || 2; ed.floors = readFloors("e", $("eGr").value); ed.myRoom = $("eRoom").value;
     ed.grades = +$("eGr").value; ed.classes = +$("eCl").value; ed.inT = $("eIn").value; ed.outT = $("eOut").value;
     ed.classesBy = readBy("e", ed.grades, ed.classes); if (ed.classesBy) ed.classes = Math.max(...ed.classesBy);
   }
@@ -8788,7 +8802,7 @@ async function saveEdit(){
   readEdit();
   const notes = fixEdit();
   ed.bell.sort((a, b) => mm(a.s) - mm(b.s));
-  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), hrShort:!!ed.hrShort, kids:cleanKids(ed.kids), officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:[], events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
+  const out = { name:ed.name.slice(0, 12), level:ed.level || "high", grades:+ed.grades, classes:+ed.classes, classesBy:byOf(ed.classesBy, ed.grades, ed.classes), hr:ed.hr, hrWeek:cleanHrWeek(ed.hrWeek), hrShort:!!ed.hrShort, kids:cleanKids(ed.kids), officeF:[2, 3, 4].includes(+ed.officeF) ? +ed.officeF : 2, floors:floorsNorm(ed.floors, +ed.grades || 3), myRoom:MYROOMS.includes(ed.myRoom) ? ed.myRoom : "", dayTT:cleanDayTT(ed.dayTT), dayKind:cleanDayKind(ed.dayKind, ed.dayTT), friends:[], events:(ed.events || []).filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:ed.dday && ed.dday.d && ed.dday.t ? { d:ed.dday.d, t:String(ed.dday.t).slice(0, 20) } : null, inT:ed.inT, outT:ed.outT, bell:ed.bell, week:ed.week, auto:ed.auto, look:window.DESK.look(), avatar:(cfg && cfg.avatar) || 0, at:Date.now() };
   ["loc", "school", "board", "hrDayTT"].forEach(k => { if (cfg && cfg[k]) out[k] = cfg[k]; });   // 설정에서 정한 학교 · 위치 · 📺 전자칠판 링크는 그대로
   let tag = finalTag(ed.tag, out.name); if (!/^[A-Z][A-Z0-9]{1,11}$/.test(tag)) tag = "TEACHER";
   if (demo){ window.DESK.applyConfig(out); window.DESK.setDayTT(out.dayTT, out.dayKind); window.DESK.setFriends(out.friends); renderSched(out); $("whoName").textContent = `${out.name}의 하루 (체험)`; setBrand(tag); hide("shEdit"); return; }
@@ -9342,7 +9356,7 @@ let sEv = null, sDd = null, sF = null, sTagDraft = null;
 function schoolForm(){
   if (!cfg) return `<div class="sec">나와 학교</div><p class="note">먼저 🕘 시간표 창에서 처음 설정을 저장하면 여기서 고칠 수 있어요.</p>`;
   if (!sEv){ sEv = (cfg.events || []).map(e => ({ ...e })); sDd = cfg.dday ? { ...cfg.dday } : { d:"", t:"" }; sF = null; }
-  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, classesBy:cfg.classesBy || null, officeF:cfg.officeF || 2, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", loc:cfg.loc || null, school:cfg.school || null };
+  if (!sF) sF = { name:cfg.name || "", hr:cfg.hr || "", grades:cfg.grades, classes:cfg.classes, classesBy:cfg.classesBy || null, officeF:cfg.officeF || 2, floors:cfg.floors || null, myRoom:cfg.myRoom || "", inT:cfg.inT || "", outT:cfg.outT || "", loc:cfg.loc || null, school:cfg.school || null };
   const c = sF;
   return `<div class="sec">나와 학교</div>
     <div class="f2">
@@ -9354,6 +9368,7 @@ function schoolForm(){
       <label class="f"><span>학년 수</span><select id="sGr">${[1,2,3,4,5,6].map(v => `<option ${v === +c.grades ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       ${clsField("s", c.grades, c.classes, c.classesBy)}
       <label class="f"><span>교무실 위치 (건물 단면 시안)</span><select id="sOff">${[2, 3, 4].map(v => `<option value="${v}" ${v === (+c.officeF || 2) ? "selected" : ""}>${v}층</option>`).join("")}</select></label>
+      ${floorField("s", c.grades, c.floors)}
       ${roomSel("sRoom", c.myRoom || "")}
       <label class="f"><span>출근 시각 (비우면 08:10)</span><input type="time" id="sIn" value="${esc(c.inT || "")}"></label>
       <label class="f"><span>퇴근 시각 (비우면 16:10)</span><input type="time" id="sOut" value="${esc(c.outT || "")}"></label>
@@ -9388,7 +9403,7 @@ async function saveSchool(){
   const bad = !name ? "닉네임을 적어 주세요" : tagIn && !/^[A-Z][A-Z0-9]{1,11}$/.test(tagIn) ? "영문 이름은 영어 대문자로 시작, 영어 · 숫자 2~12자예요" : hr && !isClass(hr) ? "담임 반은 학년-반 으로 적어 주세요 (예: 1-1)" : "";
   if (bad){ sSay(bad); return false; }
   const by = readBy("s", $("sGr").value, $("sCl").value);
-  const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:by ? Math.max(...by) : +$("sCl").value, classesBy:by, officeF:+$("sOff").value || 2, myRoom:MYROOMS.includes($("sRoom").value) ? $("sRoom").value : "", inT:$("sIn").value, outT:$("sOut").value,
+  const out = { ...cfg, name:name.slice(0, 12), hr, grades:+$("sGr").value, classes:by ? Math.max(...by) : +$("sCl").value, classesBy:by, officeF:+$("sOff").value || 2, floors:readFloors("s", $("sGr").value), myRoom:MYROOMS.includes($("sRoom").value) ? $("sRoom").value : "", inT:$("sIn").value, outT:$("sOut").value,
     loc:sF.loc || null, school:sF.school || null, events:sEv.filter(e => e.d && e.t).slice(0, 60).map(e => ({ d:e.d, t:String(e.t).slice(0, 30) })), dday:sDd.d && sDd.t ? { d:sDd.d, t:String(sDd.t).slice(0, 20) } : null, at:Date.now() };
   const tag = finalTag(tagIn, out.name);
   if (demo){ cfg = out; useConfig(); loadWeather(true); sDirty = false; sSay("체험 중이라 이 화면에서만 바뀌어요"); return true; }
@@ -9441,8 +9456,10 @@ $("setBody").addEventListener("input", e => {
   if (t.id === "sDdD") sDd.d = t.value; if (t.id === "sDdT") sDd.t = t.value;
   const key = { sName:"name", sHr:"hr", sGr:"grades", sCl:"classes", sOff:"officeF", sIn:"inT", sOut:"outT" }[t.id];
   if (key && sF) sF[key] = t.value; if (t.id === "sTag") sTagDraft = t.value; if (t.id === "sSchQ") schQ = t.value;
+  if (t.dataset.flp === "s" && sF) sF.floors = readFloors("s", $("sGr").value);   // 층마다 학년 (다시 그려도 고른 대로)
 });
 $("setBody").addEventListener("change", e => { const key = { sGr:"grades", sCl:"classes", sOff:"officeF", sRoom:"myRoom" }[e.target.id]; if (key && sF) sF[key] = e.target.value;
+  if (sF && e.target.id === "sGr"){ sF.floors = floorsNorm(sF.floors, +sF.grades || 3); if (!sF.classesBy) renderSet(); }   // 학년 수가 바뀌면 층마다 학년 칸도 다시
   // 학년마다 다르게: 켜고 끄거나 학년 수 · 학년별 반 수를 바꾸면 칸을 다시 그려요
   if (sF && (e.target.id === "sClBy" || e.target.dataset.clg === "s" || (e.target.id === "sGr" && sF.classesBy))){ sF.classesBy = readBy("s", sF.grades, sF.classes); if (sF.classesBy) sF.classes = Math.max(...sF.classesBy); renderSet(); }
   if (e.target.id === "sLoc" && sF){ const [n, la, lo] = e.target.value.split("|"); sF.loc = n ? { name:n, lat:+la, lon:+lo } : null; $("sLocMsg").textContent = n ? `${n} · [저장]을 눌러 주세요` : "아직 안 골랐어요"; } });
