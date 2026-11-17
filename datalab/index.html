@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="topics.js?v=11171300"></script>
+<script src="topics.js?v=11171340"></script>
 <style>
 /* ===== 연수 과정형 디자인 (2026-11-16 문쌤이 고른 2번 시안) =====
    흰 바탕 · 검은 글씨 · 파란 강조 하나 · 각진 단추 · 얇은 선 · 실제 사진. 그라데이션 · 이모지 · 둥근 알약은 쓰지 않아요 */
@@ -353,14 +353,14 @@ const peek = (id) => S.rec[id] || { s: {}, ai: [] };
 const stepDone = DL.stepDone, repVal = DL.repVal;   // 단계 완료 기준 · 보고서 칸은 topics.js 에서 (선생님 화면과 같게)
 const NS = STEPS.length;
 const prog = (t, x = peek(t.id)) => STEPS.filter((st) => stepDone(t, x, st.k)).length;
-const status = (t) => { const x = peek(t.id); if (x.sub) return ["d", "제출 완료"]; if (S.stop[t.id]) return ["w", "선생님이 멈춤"]; const n = prog(t, x); return n || filled((x.s || {}).guess) ? ["o", `진행 중 ${n}/${NS}`] : ["w", "시작 전"]; };
+const status = (t) => { const x = peek(t.id); if (x.sub) return ["d", "제출 완료"]; const n = prog(t, x); return n || filled((x.s || {}).guess) ? ["o", `진행 중 ${n}/${NS}`] : ["w", "시작 전"]; };
 
-/* ---------- 주제 하나씩 (2026-11-16) ----------
-   1단계를 마친 탐구가 있으면, 그 보고서를 제출해야 새 주제를 시작할 수 있어요 (제출한 뒤에는 두 개, 세 개 … 더 할 수 있어요)
-   중간에 바꾸고 싶으면 선생님께: 선생님 화면에서 '주제 바꾸기 허락'을 누르면 stop[주제] 가 생겨 그 탐구는 멈춤이 돼요 */
+/* ---------- 주제 고르기 ----------
+   2026-11-17 문쌤 요청: 주제는 선생님 허락 없이 자유롭게 바꿔요 (예전: 1단계를 마친 탐구를 제출해야 새 주제를 시작)
+   하던 탐구는 그대로 남아 있어 언제든 돌아와 이어 할 수 있어요. 선생님 화면의 '주제 바꾸기 허락'(stop)은 이제 필요 없지만 남겨 둬요 */
 const isActive = (o) => { const x = S.rec[o.id]; return !!x && !x.sub && !S.stop[o.id] && prog(o, x) >= 1; };
 const curOther = (t) => TOPICS.find((o) => o.id !== t.id && isActive(o));
-const lockedBy = (t) => (S.rec[t.id] ? null : curOther(t));
+const lockedBy = () => null;
 
 /* ---------- 활동 기록 (2026-11-16): 단계마다 날짜 · 시간과 그때 쓴 내용 ----------
    x.log = [{ k:단계, from:시작, at:마지막, d:그 단계 마침(1/0), c:내용 요약 }] · 같은 단계를 10분 안에 이어 쓰면 한 줄로 모아요 */
@@ -647,7 +647,8 @@ function panel(t, x, k) {
   if (k === "s4") {
     const i = s.pick, has = i != null && t.rows[i];
     const calc = !has ? `<div class="msg info">1단계에서 살펴볼 ${esc(t.pick)}을(를) 먼저 골라 주세요.</div>` : `<div class="calc"><span class="lab">${esc(t.rows[i][0])}의 ${esc(t.calc.label)}을(를) 직접 계산해요</span><p class="f">식: <b>${esc(t.calc.formula)}</b>${t.calc.dp ? ` · 소수 ${t.calc.dp}째 자리까지` : ""}</p>
-      <div class="in"><input inputmode="decimal" id="calcIn" value="${esc(s.calc || "")}" placeholder="계산한 값" aria-label="계산한 값"><span class="u">${esc(t.calc.unit)}</span><button class="btn" data-act="check">확인</button></div>
+      <div class="in"><button type="button" class="btn w" data-act="neg" title="빼기(−) 붙이기 · 떼기" aria-label="빼기 기호 붙이기">±</button><input inputmode="decimal" id="calcIn" value="${esc(s.calc || "")}" placeholder="계산한 값" aria-label="계산한 값"><span class="u">${esc(t.calc.unit)}</span><button class="btn" data-act="check">확인</button></div>
+      ${values(t).some((v) => v < 0) ? `<p class="note" style="margin-top:6px">줄어든 값은 0보다 작아요. 뺀 결과가 마이너스이면 <b>±</b> 단추로 앞에 − 를 붙여요 (예: −120)</p>` : ""}
       ${x.calcOk ? `<div class="msg ok">맞았어요. ${esc(t.rows[i][0])}의 ${esc(t.calc.label)}은(는) <b>${fmt(V[i], t.calc.dp)}${esc(t.calc.unit)}</b>예요.</div>` : s.calcTry ? `<div class="msg no">다시 계산해 볼까요? 식의 순서와 단위(만 · 천)를 확인해요.</div>` : ""}</div>`;
     const ok = V.map((v, j) => [j, v]).filter(([, v]) => v != null), order = [...ok].sort((a, b) => b[1] - a[1]), mx = Math.max(...order.map(([, v]) => Math.abs(v))) || 1;
     const avg = ok.reduce((a, [, v]) => a + v, 0) / ok.length, hi = order[0], lo = order[order.length - 1];
@@ -820,6 +821,7 @@ function act(a, v, ev) {
   const x = myT(t.id); S.rec.last = t.id;
   if (a === "frame") { if (String(x.s[v] || "").trim().length >= 2) return toast("칸을 비우면 틀을 넣을 수 있어요. 지금 쓴 글을 이어서 고쳐도 좋아요"); x.s[v] = frameOf(t, x, v); save(); render(); const el = $("#f_" + v); if (el) { el.focus(); const p = el.value.indexOf("___"); if (p >= 0) el.setSelectionRange(p, p + 3); } return; }
   if (a === "pick") { const i = +v; if (x.s.pick !== i) { x.s.pick = i; x.calcOk = false; x.s.calc = ""; x.s.calcTry = 0; } save(); return render(); }
+  if (a === "neg") { const el = $("#calcIn"), w = el.value.trim(); el.value = /^[-−]/.test(w) ? w.replace(/^[-−]\s*/, "") : "-" + w; el.focus(); return; }   // 휴대폰 숫자 자판에 빼기가 없어서
   if (a === "check") {
     const i = x.s.pick, val = $("#calcIn").value; x.s.calc = val;
     if (close(val, values(t)[i], t.calc.dp)) { x.calcOk = true; toast("맞았어요. 아래 그래프에서 모든 값을 비교해 봐요"); } else { x.calcOk = false; x.s.calcTry = (x.s.calcTry || 0) + 1; }
@@ -833,7 +835,7 @@ function act(a, v, ev) {
   if (a === "tool") { x.s.tool = v; save(); return render(); }
   // 3단계: 정제 (지울 줄 고르기 → 확인)
   if (a === "rm") { const j = +v, L = x.s.rm || []; x.s.rm = L.includes(j) ? L.filter((y) => y !== j) : [...L, j]; x.cleanOk = false; save(); return render(); }
-  if (a === "cleanCheck") { const D = DL.dirty(t), bad = D.map((o, j) => o.bad ? j : -1).filter((j) => j >= 0).sort(), L = (x.s.rm || []).slice().sort((p, q) => p - q); x.cleanOk = L.length === bad.length && L.every((y, i) => y === bad[i]); if (!x.cleanOk) x.s.cleanTry = (x.s.cleanTry || 0) + 1; else toast("정제 완료! 이제 깨끗한 표로 분석해요"); save(true); return render(); }
+  if (a === "cleanCheck") { x.cleanOk = DL.cleanMatch(t, x.s); if (!x.cleanOk) x.s.cleanTry = (x.s.cleanTry || 0) + 1; else toast("정제 완료! 이제 깨끗한 표로 분석해요"); save(true); return render(); }
   // 6단계: 따져 본 것 · 7단계: 실행물 형식 · 8단계: 갤러리 공유
   if (a === "chk") { const L = x.s.checks || []; x.s.checks = L.includes(v) ? L.filter((y) => y !== v) : [...L, v]; save(); return render(); }
   if (a === "form") { x.s.form = v; save(); return render(); }

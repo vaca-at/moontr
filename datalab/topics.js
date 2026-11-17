@@ -414,7 +414,8 @@
   const fmt = (v, dp = 0) => v == null ? "—" : Number(v).toLocaleString("ko-KR", { minimumFractionDigits: dp, maximumFractionDigits: dp });
   const fmtCell = (v) => typeof v === "number" ? v.toLocaleString("ko-KR") : v;
   // 학생이 쓴 답이 맞는지: 소수 자리에 맞춰 반올림한 값과 비교 (조금의 계산 오차는 괜찮아요)
-  const close = (input, v, dp) => { const x = Number(String(input).replace(/[^0-9.\-]/g, "")); if (!Number.isFinite(x) || v == null) return false; const tol = Math.max(Math.abs(v) * 0.01, dp ? 0.6 * Math.pow(10, -dp) * 10 : 1); return Math.abs(x - v) <= tol; };
+  // 빼기 기호는 어떤 모양이든(− – — ﹣ －) '-' 로 받아요 (ESG 배출 변화처럼 답이 음수인 주제, 2026-11-17)
+  const close = (input, v, dp) => { const x = Number(String(input).replace(/[−–—﹣－]/g, "-").replace(/[^0-9.\-]/g, "")); if (!Number.isFinite(x) || v == null) return false; const tol = Math.max(Math.abs(v) * 0.01, dp ? 0.6 * Math.pow(10, -dp) * 10 : 1); return Math.abs(x - v) <= tol; };
   // 표를 글로 (AI 에게 보낼 때)
   const tableText = (t) => [t.cols.join(" | "), ...t.rows.map((r) => r.map(fmtCell).join(" | "))].join("\n") + `\n※ ${t.calc.label}(${t.calc.formula}): ` + values(t).map((v, i) => `${t.rows[i][0]} ${fmt(v, t.calc.dp)}${t.calc.unit}`).join(", ");
 
@@ -449,6 +450,8 @@
     out.push({ r: t.cols.map((c, j) => j === 0 ? "합계" : typeof t.rows[0][j] === "number" ? Math.round(sum(t.rows, j) * 100) / 100 : "—"), bad: "sum" });
     return out;
   };
+  // 정제 확인: 지운 줄 번호가 지워야 할 줄과 똑같은지 (숫자 순으로 비교 — 2026-11-17 고침: 예전엔 글자 순이라 10번 넘는 줄이 있는 주제(학교폭력 등)는 맞게 지워도 틀렸다고 나왔어요)
+  const cleanMatch = (t, s) => { const bad = dirty(t).map((o, j) => o.bad ? j : -1).filter((j) => j >= 0), L = ((s && s.rm) || []).slice().sort((p, q) => p - q); return L.length === bad.length && L.every((y, i) => y === bad[i]); };
   const BAD = { dup: "같은 줄이 두 번 들어갔어요 (중복)", miss: "필요한 값이 비어 있어요 (누락)", sum: "합계 줄은 자료가 아니라 계산 결과라 함께 두면 비교가 틀어져요 (잘못 들어간 줄)" };
 
   // 단계마다 '끝났다'고 보는 기준 · 한 장 보고서 칸 값 (학생 화면 · 선생님 화면이 함께 써요)
@@ -457,7 +460,7 @@
     const s = (x && x.s) || {};
     if (k === "s1") return s.pick != null && filled(s.guess);
     if (k === "s2") return !!x.needOk && !!s.tool;
-    if (k === "s3") return !!x.cleanOk;
+    if (k === "s3") return !!x.cleanOk || cleanMatch(t, s);   // 예전 확인 버그(줄 번호를 글자 순으로 비교)로 못 받은 학생도 완료로
     if (k === "s4") return !!x.calcOk && filled(s.find);
     if (k === "s5") return filled(s.rebut) && (x.ai || []).some((a) => a.k === "review");
     if (k === "s6") return filled(s.interp) && filled(s.concept) && filled(s.plan) && (s.checks || []).length >= 2;
@@ -471,7 +474,7 @@
     return { result: s.find, limit: s.interp, concept: s.concept ? `[${t.th.m}의 관점] ${s.concept}${filled(s.rival) ? `\n[${t.th.r}의 관점] ${s.rival}` : ""}` : "", plan: s.plan ? `${s.plan}${(s.checks || []).length ? `\n(고려한 것: ${s.checks.join(" · ")})` : ""}` : "", product: s.product ? `[${(FORMS.find((f) => f[0] === s.form) || ["", ""])[1]}] ${s.product}` : "", reflect: s.reflect, ai: s.aiRef }[k] || "";
   };
 
-  window.DL = { THINKERS, GROUPS, TOPICS, PHOTO, STEPS, REPORT, OTHER, MODEL, CHECKS, TOOLS, FORMS, BAD, dirty, values, fmt, fmtCell, close, tableText, filled, stepDone, repVal, myq, THINK_TAB, QUOTES,
+  window.DL = { THINKERS, GROUPS, TOPICS, PHOTO, STEPS, REPORT, OTHER, MODEL, CHECKS, TOOLS, FORMS, BAD, dirty, cleanMatch, values, fmt, fmtCell, close, tableText, filled, stepDone, repVal, myq, THINK_TAB, QUOTES,
     topic: (id) => TOPICS.find((t) => t.id === id),
     byGroup: (g) => TOPICS.filter((t) => t.g === g),
     APP: "datalab",
