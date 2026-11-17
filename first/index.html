@@ -208,7 +208,7 @@ main.scrolled .prog::before{opacity:1}
 .cap-view{display:flex;gap:16px;justify-content:center;align-items:center}
 .capsrc{display:grid;grid-template-columns:1fr 1fr;gap:8px}.capsrc .pill{text-align:center;color:var(--ink);font-size:15px;padding:12px 8px}
 .capcrop{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:14px;touch-action:none;cursor:crosshair;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
-.cap-view canvas{width:130px;height:130px;border-radius:16px;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
+.cap-view canvas{width:170px;height:170px;border-radius:16px;background:repeating-conic-gradient(#EEE 0 25%,#fff 0 50%) 0 0/16px 16px}
 .sheet input[type=range]{padding:0;background:none}
 /* 🌙 어두운 화면 (아이폰 설정이 다크 모드일 때) */
 @media (prefers-color-scheme:dark){
@@ -358,7 +358,7 @@ main.scrolled .prog::before{opacity:1}
 /* 🐰 화면 여기저기 친구들 */
 .crew{position:absolute;inset:0;pointer-events:none;z-index:7;overflow:hidden}
 .app.timer-open .crew{opacity:0;transition:opacity .2s}
-.mate{position:absolute;width:56px;height:56px;transform:translate(-50%,-50%);transition:left 6s linear,top 6s linear;filter:drop-shadow(0 3px 4px rgba(0,0,0,.14))}
+.mate{position:absolute;width:calc(56px * var(--ms,1));height:calc(56px * var(--ms,1));transform:translate(-50%,-50%);transition:left 6s linear,top 6s linear;filter:drop-shadow(0 3px 4px rgba(0,0,0,.14))}
 .mate .fl{position:absolute;inset:0;display:block}.mate.lft .fl{transform:scaleX(-1)}
 .mate.incard .fl{transform:scale(.78)}.mate.incard.lft .fl{transform:scale(-.78,.78)}
 .mate .ch{transform-origin:50% 92%}
@@ -392,6 +392,21 @@ main.scrolled .prog::before{opacity:1}
 @media (prefers-color-scheme:dark){.sndbox .chips button{background:#2A2830}}
 /* 🎉 특별한 순간 */
 .moment.big{background:rgba(0,0,0,.28)}
+/* 💖 1번 친구 응원 · 위 단추 · 꾸미기 1번 친구 (2026-11-17) */
+.moment.hug .mc .ch{width:190px;height:190px;animation:bigHop .7s cubic-bezier(.3,1.6,.5,1) .15s 2 both}
+.moment.hug .mc p{font-size:19px;max-width:290px}
+.tops .ic.on{background:var(--mode);color:#fff}
+.gd{border-radius:14px;background:var(--soft);padding:10px 14px}.gd summary{cursor:pointer;font-size:16px;padding:2px 0}.gd ul{margin:8px 0 2px;padding-left:18px;display:grid;gap:6px;font-size:14px;line-height:1.5}
+.capstep{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink);background:var(--mode-soft);border-radius:12px;padding:9px 12px}.capstep b{color:var(--mode)}
+.cap-view canvas{cursor:pointer}
+.hd.stick{position:sticky;top:0;z-index:8;margin:calc(-18px - env(safe-area-inset-top,0px)) -20px 0;padding:calc(18px + env(safe-area-inset-top,0px)) 20px 10px;background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+@media (min-width:768px){.hd.stick{margin-left:-28px;margin-right:-28px;padding-left:28px;padding-right:28px}}
+.lib .it .one{position:absolute;left:-4px;top:-4px;z-index:2;min-width:20px;height:20px;border-radius:10px;background:var(--mode);color:#fff;font:700 12px/20px var(--sys,system-ui);text-align:center;font-style:normal;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.ones{display:flex;gap:10px;flex-wrap:wrap}
+.ones button{position:relative;width:58px;height:58px;padding:5px;border-radius:16px;border:2.5px solid transparent;background:var(--soft);cursor:pointer}
+.ones button[aria-pressed="true"]{border-color:var(--mode);background:var(--mode-soft)}
+.ones button b{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);background:var(--mode);color:#fff;font-size:11px;font-weight:700;padding:1px 7px;border-radius:9px;white-space:nowrap}
+@media (prefers-color-scheme:dark){.hd.stick{background:rgba(22,21,26,.82)}}
 .moment.big .mc .ch{width:210px;height:210px;animation:bigHop .7s cubic-bezier(.3,1.6,.5,1) .2s 3 both}
 .moment.big .mc p{font-size:19px;max-width:290px}.moment.big .mc p b{display:block;font-weight:400;color:var(--mode);font-size:23px;margin-bottom:2px}
 @keyframes bigHop{50%{transform:translateY(-26px) scale(1.06,.95)}}
@@ -654,16 +669,22 @@ function charProcess(base, tol){
   const im=g.getImageData(0,0,W,H), d=im.data, px=(x,y)=>(y*W+x)*4;
   const near=(a,b,t)=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2])<=t;
   if(tol>0){
-    // 바탕색: 네 테두리 줄에서 가장 많이 나온 색 (비슷한 색은 묶어서 셈, 이미 투명하면 그대로)
+    // 바탕색: 네 테두리 줄에서 많이 나온 색들 (2026-11-17: 짱구 · 맹구 캡처처럼 바탕이 여러 색 · 그러데이션이어도)
+    // 테두리 점의 1.5% 넘게 나온 색을 최대 16개까지 바탕색으로 봐요 (그러데이션이면 테두리에 여러 색이 조금씩 나와요 · 비슷한 색은 묶어서 셈, 이미 투명하면 그대로)
     const cnt=new Map(), edge=[]; for(let x=0;x<W;x+=2){ edge.push(px(x,0),px(x,H-1)); } for(let y=0;y<H;y+=2){ edge.push(px(0,y),px(W-1,y)); }
     for(const i of edge){ const key=d[i+3]<128?"t":(d[i]>>4)+","+(d[i+1]>>4)+","+(d[i+2]>>4); const c=cnt.get(key)||{n:0,i}; c.n++; cnt.set(key,c); }
-    const top=[...cnt.values()].sort((a,b)=>b.n-a.n)[0], bg=[d[top.i],d[top.i+1],d[top.i+2],d[top.i+3]];
-    if(bg[3]>200){
+    const tops=[...cnt.entries()].filter(([k])=>k!=="t").map(([,c])=>c).sort((a,b)=>b.n-a.n);
+    const bgs=tops.filter((c,j)=>j===0 || c.n>=edge.length*0.015).slice(0,16).map(c=>[d[c.i],d[c.i+1],d[c.i+2]]);
+    if(bgs.length){
+      // 테두리에서부터 퍼져요: 바탕색과 비슷하면 지우고, 바로 옆 점과 아주 비슷하면(그러데이션) 조금 더 멀리까지 따라가요. 캐릭터 테두리 선에서 멈춰요
+      const g=Math.max(10,tol*0.28), far=tol*2.2, nearAny=(c,t)=>bgs.some(b=>near(c,b,t));
       const seen=new Uint8Array(W*H), st=[];
-      for(let x=0;x<W;x++){ st.push(x, x+(H-1)*W); } for(let y=0;y<H;y++){ st.push(y*W, y*W+W-1); }
-      while(st.length){ const p=st.pop(); if(seen[p]) continue; seen[p]=1; const i=p*4;
-        if(d[i+3]<20 || near([d[i],d[i+1],d[i+2]],bg,tol)){ d[i+3]=0; const x=p%W, y=(p/W)|0;
-          if(x>0) st.push(p-1); if(x<W-1) st.push(p+1); if(y>0) st.push(p-W); if(y<H-1) st.push(p+W); } }
+      for(let x=0;x<W;x++){ st.push(x,-1, x+(H-1)*W,-1); } for(let y=0;y<H;y++){ st.push(y*W,-1, y*W+W-1,-1); }
+      while(st.length){ const q=st.pop(), p=st.pop(); if(seen[p]) continue; const i=p*4, c=[d[i],d[i+1],d[i+2]];
+        const ok=d[i+3]<20 || nearAny(c,tol) || (q>=0 && near(c,[d[q*4],d[q*4+1],d[q*4+2]],g) && nearAny(c,far));
+        if(!ok) continue; seen[p]=1; const x=p%W, y=(p/W)|0;
+        if(x>0) st.push(p-1,p); if(x<W-1) st.push(p+1,p); if(y>0) st.push(p-W,p); if(y<H-1) st.push(p+W,p); }
+      for(let p=0;p<W*H;p++) if(seen[p]) d[p*4+3]=0;
     }
   }
   // 남은 덩어리 중 가장 큰 것(= 캐릭터)과 그만큼 큰 덩어리만 남기고, 캡처 화면의 글씨 · 작은 부스러기는 지워요
@@ -1211,16 +1232,22 @@ function viewPics(){
 
 /* ===================== 꾸미기 · 설정 ===================== */
 /* 위쪽 단추 두 개: ☰ = 꾸미기 (캐릭터 · 배경 · 색 · 글꼴 · 타이머 자리), ⚙︎ = 설정 (말투 · 과목 · 시험 · 기록) */
-const topBtns = () => `<span class="tops"><button type="button" class="ic" data-act="deco" aria-label="꾸미기 메뉴"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button><button type="button" class="ic" data-act="settings" aria-label="설정">⚙︎</button></span>`;
+/* 위 단추 두 개 (꾸미기 ☰ · 설정 ⚙︎): 꾸미기 · 설정 화면에서도 늘 보여요 (2026-11-17, 지금 화면 단추는 색칠) · pageHd = 꾸미기 · 설정 머리 (내려도 위에 붙어 있어요) */
+const pageHd = (title, cur) => `<div class="hd stick"><div><button type="button" class="backb" data-act="back">‹ 뒤로</button><h1 class="big">${title}</h1></div>${topBtns(cur)}</div>`;
+const topBtns = (cur) => `<span class="tops"><button type="button" class="ic${cur === "deco" ? " on" : ""}" data-act="deco" aria-label="꾸미기 메뉴" ${cur === "deco" ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button><button type="button" class="ic${cur === "settings" ? " on" : ""}" data-act="settings" aria-label="설정" ${cur === "settings" ? 'aria-current="page"' : ""}>⚙︎</button></span>`;
 const seg2 = (act, on) => `<span class="seg"><button type="button" data-act="${act}" data-v="1" aria-pressed="${on}">켜기</button><button type="button" data-act="${act}" data-v="0" aria-pressed="${!on}">끄기</button></span>`;
 function viewDeco(){
-  return `<div class="hd"><div><button type="button" class="backb" data-act="back">‹ 뒤로</button><h1 class="big">꾸미기</h1></div><button type="button" class="ic" data-act="back" aria-label="닫기">✕</button></div>
+  return `${pageHd("꾸미기", "deco")}
     <p class="note" style="margin:-6px 4px 0">좋아하는 캐릭터와 화면으로 나만의 플래너를 만들어요</p>
     <p class="gh">화면에 나올 친구들 (여러 명 골라도 돼요 · ${D.crew.length}명)</p><div class="grp pad">
-      <div class="lib">${CHARS.map(([id, n]) => `<div class="it"><button type="button" data-act="crewT" data-v="${id}" aria-pressed="${D.crew.includes(id)}" aria-label="${n}"><span class="ch">${CHAR_SVG[id]}</span></button></div>`).join("")}${D.mine.map((m, i) => `<div class="it"><button type="button" data-act="crewT" data-v="m:${m.id}" aria-pressed="${D.crew.includes("m:" + m.id)}" aria-label="내 그림 ${i + 1}"><span class="ch"><img src="${m.url}" alt=""></span></button><button type="button" class="x" data-act="mineDel" data-v="${m.id}" aria-label="내 그림 ${i + 1} 지우기">✕</button></div>`).join("")}</div>
+      <div class="lib">${CHARS.map(([id, n]) => `<div class="it">${D.crew[0] === id ? '<i class="one">1</i>' : ""}<button type="button" data-act="crewT" data-v="${id}" aria-pressed="${D.crew.includes(id)}" aria-label="${n}"><span class="ch">${CHAR_SVG[id]}</span></button></div>`).join("")}${D.mine.map((m, i) => `<div class="it">${D.crew[0] === "m:" + m.id ? '<i class="one">1</i>' : ""}<button type="button" data-act="crewT" data-v="m:${m.id}" aria-pressed="${D.crew.includes("m:" + m.id)}" aria-label="내 그림 ${i + 1}"><span class="ch"><img src="${m.url}" alt=""></span></button><button type="button" class="x" data-act="mineDel" data-v="${m.id}" aria-label="내 그림 ${i + 1} 지우기">✕</button></div>`).join("")}</div>
       <button type="button" class="capb" data-act="cap"><i>🖼</i><span><b>사진이나 그림으로 내 캐릭터 만들기 (${D.mine.length}/${MINE_MAX})</b><small>그림을 넣으면 바탕을 지우고 맞춰요. 무료 · 내 계정에 저장돼요.</small></span></button>
-      <p class="note">고른 친구들이 화면 여기저기에 나와요 · 친구를 꾹 누른 채 끌면 원하는 곳에 옮길 수 있어요</p></div>
-    <p class="gh">친구들 움직임</p><div class="grp">
+      <p class="note">고른 친구들이 화면 여기저기에 나와요 · <b>1번 친구를 톡 누르면 가운데로 와서 좋은 말을 해 줘요</b> · 다른 친구는 톡 누르면 옆으로 비켜요 · 꾹 누른 채 끌면 원하는 곳에 옮겨요</p></div>
+    <p class="gh">💖 1번 친구 (톡 누르면 응원해 줘요)</p><div class="grp pad">
+      <div class="ones">${D.crew.filter(id => !id.startsWith("m:") || D.mine.some(m => "m:" + m.id === id)).map((id, i) => `<button type="button" data-act="firstSet" data-v="${id}" aria-pressed="${i === 0}" aria-label="${i === 0 ? "지금 1번 친구" : "1번으로 정하기"}"><span class="ch">${charArt(id)}</span>${i === 0 ? "<b>1번</b>" : ""}</button>`).join("")}</div>
+      <p class="note">좋아하는 친구를 눌러 1번으로 정해요. 1번 친구는 화면에서 톡 누르면 가운데로 와서 좋은 말을 해 주고, 홈 화면 위젯에도 나와요.</p></div>
+    <p class="gh">친구들 크기 · 움직임</p><div class="grp">
+      <div class="row"><span>크기</span><span class="seg">${CSIZE.map(([k, n]) => `<button type="button" data-act="csizeSet" data-v="${k}" aria-pressed="${(D.csize || "auto") === k}">${n}</button>`).join("")}</span></div>
       <div class="row"><span>움직임</span><span class="seg">${[["still","가만히"],["breath","숨만 쉬기"],["roam","돌아다니기"]].map(([k, n]) => `<button type="button" data-act="moveSet" data-v="${k}" aria-pressed="${D.move === k}">${n}</button>`).join("")}</span></div>
       <div class="row"><span>가끔 말 걸기</span>${seg2("popSet", D.pop !== false)}</div>
       <div class="row"><span>상황 따라 반응하기</span>${seg2("reactSet", D.react !== false)}</div>
@@ -1229,12 +1256,14 @@ function viewDeco(){
     <p class="gh">배경 · 색</p><div class="grp pad">
       <div class="bgs">${BGS.map(([k, n]) => `<button type="button" data-act="bgSet" data-v="${k}" aria-pressed="${D.bg === k}"><span class="bgp bgp-${k}"><i></i><i></i></span><b>${n}</b></button>`).join("")}</div>
       <div class="cols">${COLORS.map((c, i) => `<button type="button" data-act="accSet" data-v="${i}" style="--c:${c[0]}" aria-pressed="${D.acc === i}" aria-label="색 ${i + 1}"></button>`).join("")}</div></div>
-    <p class="gh">타이머 단추 자리</p><div class="grp"><div class="row"><span>타이머가 나오는 쪽</span><span class="seg"><button type="button" data-act="tside" data-v="l" aria-pressed="${D.tside === "l"}">왼쪽</button><button type="button" data-act="tside" data-v="r" aria-pressed="${D.tside !== "l"}">오른쪽</button></span></div></div>`;
+    <p class="gh">타이머 단추 자리</p><div class="grp"><div class="row"><span>타이머가 나오는 쪽</span><span class="seg"><button type="button" data-act="tside" data-v="l" aria-pressed="${D.tside === "l"}">왼쪽</button><button type="button" data-act="tside" data-v="r" aria-pressed="${D.tside !== "l"}">오른쪽</button></span></div></div>
+    <button type="button" class="capb" data-act="guide"><i>📖</i><span><b>사용 설명서</b><small>친구들 · 1번 친구 응원 · 내 캐릭터 만들기 쓰는 법</small></span></button>`;
 }
 function viewSettings(){
   const stepRow = (k, name, lv) => `<div class="row"><span><i class="mini l${lv}"></i>${name}</span><span class="step"><button type="button" data-act="th" data-v="${k}" data-d="-1" aria-label="${name} 줄이기">−</button><b>${D.th[k]}시간</b><button type="button" data-act="th" data-v="${k}" data-d="1" aria-label="${name} 늘리기">+</button></span></div>`;
   const auto = (() => { const s = D.weak; D.weak = ""; const w = weakSubj(); D.weak = s; return w; })();
-  return `<div class="hd"><div><button type="button" class="backb" data-act="back">‹ 뒤로</button><h1 class="big">설정</h1></div><button type="button" class="ic" data-act="back" aria-label="닫기">✕</button></div>
+  return `${pageHd("설정", "settings")}
+    <button type="button" class="capb" data-act="guide"><i>📖</i><span><b>사용 설명서</b><small>할 일 · 타이머 · 친구들 · 내 캐릭터 만들기 · 계정까지 한눈에</small></span></button>
     <p class="gh">글씨체</p><div class="grp pad"><div class="fonts f2">${FONTS.map(([k, n, css]) => `<button type="button" data-act="fontSet" data-v="${k}" aria-pressed="${(D.font || "unz") === k}" style="font-family:${css},var(--sys)"><b>${n}</b><small>오늘도 먼저, 작게 시작해요</small></button>`).join("")}</div></div>
     <p class="note" style="margin:-8px 4px 0">손글씨체 = 귀여운 온글잎 언즈체 · 고딕체 = 아이폰처럼 또렷하고 읽기 쉬운 글꼴</p>
     <p class="gh">잔소리 쌤</p><div class="grp"><div class="row"><span>말투</span><span class="seg"><button type="button" data-act="mode" data-v="f" aria-pressed="${D.mode === "f"}">F쌤 · 다정하게</button><button type="button" data-act="mode" data-v="t" aria-pressed="${D.mode === "t"}">T쌤 · 사실대로</button></span></div></div>
@@ -1417,6 +1446,19 @@ function sheetGrade(g){
     ${D.subj.map(s => `<div class="gpick"><span><i class="mini" style="background:${s.c}"></i>${esc(s.n)}</span><div class="chips">${[...Array(MX)].map((_, i) => i + 1).map(v => `<button type="button" data-act="gv" data-s="${esc(s.n)}" data-v="${v}" aria-pressed="${cur[s.n] === v}">${v}</button>`).join("")}</div></div>`).join("")}
     <div class="btns">${g ? `<button type="button" class="pill light" data-act="gDel" data-v="${g.id}">지우기</button>` : `<button type="button" class="pill light" data-act="sheetClose">닫기</button>`}<button type="button" class="pill" data-act="gSave" data-v="${g ? g.id : ""}">${g ? "고치기" : "넣기"}</button></div>`;
 }
+/* 📖 사용 설명서 (2026-11-17): ⚙︎ 설정 맨 위 · 꾸미기 맨 아래에서 열어요. 기능을 더하면 여기도 함께 고쳐요 */
+function sheetGuide(){
+  const sec = (t, L) => `<details class="gd"><summary>${t}</summary><ul>${L.map(x => `<li>${x}</li>`).join("")}</ul></details>`;
+  return `<h2>📖 먼저 플래너 사용 설명서</h2><p class="note">궁금한 곳을 눌러 펼쳐 보세요.</p>
+    ${sec("✅ 오늘 할 일", ["약한 과목이 맨 앞에 와요. 과목을 누르면 세부 계획(예: 문제집 20~25쪽)을 적어요.", "한 줄씩 체크하고, 못 한 건 내일로 넘겨요.", "⠿ 를 꾹 누른 채 끌면 순서가 바뀌어요.", "반복 할 일 · 이번 주 목표도 넣을 수 있어요."])}
+    ${sec("⏱ 순공 타이머", ["옆의 타이머 단추로 열어요. 시작 · 일시정지 · 끝내기.", "끄는 걸 잊었으면 3시간 뒤에 물어봐요. 그날 순공은 '✏️ 고치기'로 직접 고칠 수 있어요.", "빗소리 · 백색소음 · 파도 소리를 켤 수 있어요. 아이폰은 잠금 화면 · 아일랜드에도 나와요 (⚙︎ 설정에서 끌 수 있어요)."])}
+    ${sec("📅 달력 · 📔 하루 마무리 일기", ["날짜를 누르면 그날 한 일 · 순공 · 일기가 보여요.", "오늘 화면 맨 아래에서 기분 · 일기 · 나에게 응원 · 더 고칠 점을 써요. 더 고칠 점은 내일 할 일로 보낼 수 있어요.", "달력의 '몰아보기'로 지난 일기를 모아 봐요."])}
+    ${sec("📷 사진 · 📈 성적", ["공지 · 가정통신문 사진을 넣으면 할 일과 시험 날짜를 찾아 줘요 (글자는 기기 안에서 읽어요).", "성적을 넣으면 가장 약한 과목을 저절로 골라요."])}
+    ${sec("🐰 친구들 (꾸미기 ☰)", ["<b>1번 친구를 톡 누르면 가운데로 와서 좋은 말을 해 줘요.</b> 1번 친구는 꾸미기 › 💖 1번 친구에서 바꿔요.", "다른 친구는 톡 누르면 글씨를 가리지 않게 옆으로 비켜요.", "친구를 꾹 누른 채 끌면 원하는 곳에 옮겨요.", "꾸미기 › 크기에서 친구들 크기를 고를 수 있어요 (자동 = 패드에서는 크게).", "할 일을 다 하면 축하하고, 오래 쉬면 꾸벅꾸벅 졸고, 시험 사흘 전부터 머리띠를 해요."])}
+    ${sec("🖼 내 캐릭터 만들기", ["꾸미기 › '사진이나 그림으로 내 캐릭터 만들기'에서 사진을 찍거나 고르거나 붙여 넣어요.", "<b>① 남길 부분</b>: 저절로 네모를 맞춰 줘요. 모서리 ●를 끌면 크기, 네모 안을 끌면 자리, 바깥을 끌면 새로 그려요.", "<b>② 바탕 지우기</b>: 아래 미리 보기에서 남은 바탕을 톡 누르면 지워져요. 잘못 지우면 '되돌리기'. '바탕 지우기' 막대로 얼마나 지울지도 정해요.", "만든 캐릭터는 10개까지, 내 계정에 저장돼요."])}
+    ${sec("⚙︎ 설정 · 계정", ["말투(F쌤 다정하게 · T쌤 사실대로), 과목, 시험 D-day, 하루가 바뀌는 시각, 알림을 정해요.", "계정 › 구글 · 카카오 · Apple을 연결해 두면 어느 쪽으로 들어와도 같은 기록이에요.", "백업 파일로 내보내 · 가져오기도 할 수 있어요."])}
+    <div class="btns"><button type="button" class="pill" data-act="sheetClose">닫기</button></div>`;
+}
 function openSheet(html){ $("sheetBox").innerHTML = `<div class="sheet-bg" data-act="sheetClose"></div><div class="sheet" role="dialog" aria-modal="true">${html}</div>`; }
 function closeSheet(){ $("sheetBox").innerHTML = ""; S.sheet = null; S.newG = null; }
 /* 🖼 내 캐릭터 만들기: 사진 · 그림을 넣으면 바탕을 지우고 정사각형으로 맞춰요 (2026-11-15 다시 넣음 — 11/14에 실수로 빠졌어요) */
@@ -1425,18 +1467,48 @@ function sheetCap(){
     <div class="capsrc"><label class="pill light">📷 사진 찍기<input type="file" id="capCam" accept="image/*" capture="environment" hidden></label><label class="pill light">🖼 사진에서 고르기<input type="file" id="capFile" accept="image/*" hidden></label></div>
     <div class="cap-paste" id="capPaste" contenteditable="true" role="textbox" aria-label="그림 붙여 넣는 칸">또는 그림을 여기에 붙여 넣어요<br><small>휴대폰: 이 칸을 길게 눌러 '붙여넣기' · 컴퓨터: ⌘+V (Ctrl+V)</small></div>
     <div id="capCropBox" hidden>
-      <p class="note">✨ 캐릭터를 저절로 찾아 맞췄어요. 다르면 <b>손가락으로 캐릭터를 쓱 감싸 그려</b> 주세요 (다시 그리면 바뀌어요)</p>
-      <canvas id="capCrop" class="capcrop" aria-label="손가락으로 감싸 그려 남길 부분 고르기"></canvas>
+      <p class="capstep"><b>① 남길 부분 고르기</b> ✨ 캐릭터를 저절로 찾아 네모를 맞췄어요.<br>· <b>모서리 ●</b>를 끌면 크기가 바뀌어요 · <b>네모 안</b>을 끌면 자리만 옮겨져요 · 네모 <b>바깥</b>을 끌면 새로 그려요</p>
+      <canvas id="capCrop" class="capcrop" aria-label="남길 부분 네모: 모서리를 끌어 크기, 안쪽을 끌어 자리 옮기기"></canvas>
       <div class="btns" style="justify-content:flex-start;gap:8px"><button type="button" class="pill light sm" data-act="cropAuto">✨ 저절로 맞추기</button><button type="button" class="pill light sm" data-act="cropAll">↺ 사진 전체</button></div>
     </div>
-    <div class="cap-view" id="capView" hidden><canvas id="capOut" width="200" height="200"></canvas></div>
+    <p class="capstep" id="capStep2" hidden><b>② 바탕 지우기</b> 아래 그림에 <b>남은 바탕을 톡 누르면</b> 그 색 덩어리가 지워져요. 잘못 지우면 '되돌리기'</p>
+    <div class="cap-view" id="capView" hidden><canvas id="capOut" width="200" height="200" aria-label="완성 미리 보기: 남은 바탕을 톡 눌러 지우기"></canvas>
+      <div style="display:grid;gap:6px"><button type="button" class="pill light sm" data-act="capUndo">↩ 되돌리기</button><button type="button" class="pill light sm" data-act="capClear">↺ 처음대로</button></div></div>
     <div id="capCtl" hidden style="display:grid;gap:8px">
       <label>바탕 지우기 <small>(0이면 안 지워요)</small><input type="range" id="capTol" min="0" max="180" step="5" value="60"></label>
       <label>크기<input type="range" id="capZoom" min="0.5" max="2.5" step="0.05" value="1"></label></div>
     <div class="btns"><button type="button" class="pill light" data-act="sheetClose">닫기</button><button type="button" class="pill" data-act="capOk">넣기</button></div>`;
 }
-const CAPS = { base:null, res:null, tol:60, zoom:1, orig:null, r:null };
-function capDraw(){ if (!CAPS.base) return; CAPS.res = CAPS.res || charProcess(CAPS.base, CAPS.tol); charCompose(CAPS.res, CAPS.zoom, 0, 0, 200, $("capOut")); $("capView").hidden = false; $("capCtl").hidden = false; }
+const CAPS = { base:null, res:null, tol:60, zoom:1, orig:null, r:null, taps:[], map:null };
+/* 🪄 톡 눌러 지우기 (2026-11-17): 누른 점에서 비슷한 색으로 이어진 덩어리를 지워요 (바로 옆 점과 비슷하면 그러데이션도 따라가요). 캐릭터 테두리 선에서 멈춰요 */
+function wandErase(r, x0, y0, tol){
+  const cv = r.cv, W = cv.width, H = cv.height; x0 = Math.round(x0); y0 = Math.round(y0); if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H) return;
+  const g = cv.getContext("2d", { willReadFrequently:true }), im = g.getImageData(0, 0, W, H), d = im.data, p0 = y0 * W + x0;
+  if (d[p0 * 4 + 3] < 20) return;
+  const s = [d[p0 * 4], d[p0 * 4 + 1], d[p0 * 4 + 2]], dist = (i, c) => Math.abs(d[i] - c[0]) + Math.abs(d[i + 1] - c[1]) + Math.abs(d[i + 2] - c[2]);
+  const t = Math.max(30, tol), gg = Math.max(10, t * 0.28), seen = new Uint8Array(W * H), st = [p0, -1];
+  while (st.length){ const q = st.pop(), p = st.pop(); if (seen[p]) continue; const i = p * 4; if (d[i + 3] < 20) continue;
+    if (!(dist(i, s) <= t || (q >= 0 && dist(i, [d[q * 4], d[q * 4 + 1], d[q * 4 + 2]]) <= gg && dist(i, s) <= t * 2.2))) continue;
+    seen[p] = 1; const x = p % W, y = (p / W) | 0;
+    if (x > 0) st.push(p - 1, p); if (x < W - 1) st.push(p + 1, p); if (y > 0) st.push(p - W, p); if (y < H - 1) st.push(p + W, p); }
+  for (let p = 0; p < W * H; p++) if (seen[p]) d[p * 4 + 3] = 0;
+  g.putImageData(im, 0, 0);
+  let x1 = W, y1 = H, x2 = -1, y2 = -1;   // 남은 그림 둘레로 다시 맞춰요
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 40){ if (x < x1) x1 = x; if (x > x2) x2 = x; if (y < y1) y1 = y; if (y > y2) y2 = y; }
+  if (x2 >= 0) r.box = [x1, y1, x2, y2];
+}
+function capDraw(){
+  if (!CAPS.base) return;
+  if (!CAPS.res){ CAPS.res = charProcess(CAPS.base, CAPS.tol); CAPS.taps.forEach(p => wandErase(CAPS.res, p.x, p.y, CAPS.tol)); }
+  const [x0, y0, x1, y1] = CAPS.res.box, side = Math.max(x1 - x0 + 1, y1 - y0 + 1) * 1.08 / CAPS.zoom;
+  CAPS.map = { cx:(x0 + x1 + 1) / 2, cy:(y0 + y1 + 1) / 2, side };   // 미리 보기에서 누른 곳 → 그림 자리
+  charCompose(CAPS.res, CAPS.zoom, 0, 0, 200, $("capOut")); $("capView").hidden = false; $("capCtl").hidden = false; $("capStep2").hidden = false;
+}
+document.addEventListener("click", e => {
+  const cv = e.target.closest?.("#capOut"); if (!cv || !CAPS.res || !CAPS.map) return;
+  const b = cv.getBoundingClientRect(), m = CAPS.map, x = m.cx - m.side / 2 + (e.clientX - b.left) / b.width * m.side, y = m.cy - m.side / 2 + (e.clientY - b.top) / b.height * m.side;
+  CAPS.taps.push({ x, y }); wandErase(CAPS.res, x, y, CAPS.tol); capDraw(); haptic("tap");
+});
 /* ✂️ 가장자리 자르기 (2026-11-15): 원래 사진 위에 네모를 그려 남길 부분만 → 그 부분으로 바탕 지우기 · 크기 맞추기 */
 function cropShow(){
   const cv = $("capCrop"), o = CAPS.orig, r = CAPS.r; if (!cv || !o || !r) return;
@@ -1445,6 +1517,10 @@ function cropShow(){
   g.fillStyle = "rgba(0,0,0,.5)"; g.beginPath(); g.rect(0, 0, W, H); g.rect(r.x, r.y, r.w, r.h); g.fill("evenodd");
   g.strokeStyle = "#fff"; g.lineWidth = lw; g.setLineDash([lw * 4, lw * 3]); g.strokeRect(r.x, r.y, r.w, r.h); g.setLineDash([]);
   g.strokeStyle = "#FF5C84"; g.lineWidth = lw * 1.4; g.strokeRect(r.x - lw, r.y - lw, r.w + lw * 2, r.h + lw * 2);
+  // 잡는 손잡이: 네 모서리는 큰 동그라미, 네 변 가운데는 작은 동그라미
+  const b = cv.getBoundingClientRect(), k = b.width ? W / b.width : 1, R = 11 * k;
+  [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, R, 0, 7); g.fillStyle = "#fff"; g.fill(); g.lineWidth = 3.5 * k; g.strokeStyle = "#FF5C84"; g.stroke(); });
+  [[r.x + r.w / 2, r.y], [r.x + r.w / 2, r.y + r.h], [r.x, r.y + r.h / 2], [r.x + r.w, r.y + r.h / 2]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, R * .6, 0, 7); g.fillStyle = "#fff"; g.fill(); g.lineWidth = 2.5 * k; g.strokeStyle = "#FF5C84"; g.stroke(); });
 }
 /* ✨ 저절로 맞추기: 바탕을 지워 보고 남은 덩어리(캐릭터) 둘레에 조금 여유를 둔 네모 */
 function cropAuto(){
@@ -1458,18 +1534,34 @@ function cropApply(){
   const o = CAPS.orig, r = CAPS.r; if (!o || !r) return;
   const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(r.w)); c.height = Math.max(1, Math.round(r.h));
   c.getContext("2d").drawImage(o, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
-  CAPS.base = c; CAPS.res = null; capDraw();
+  CAPS.base = c; CAPS.res = null; CAPS.taps = []; capDraw();
 }
+/* ✂️ 남길 부분 네모 (2026-11-17 다시 고침: 모서리를 잡으려다 자꾸 새로 그려지던 것)
+   모서리 · 변 가까이(손가락 크기만큼 넉넉히) = 그 쪽 크기 바꾸기 · 네모 안 = 자리 옮기기 · 네모 바깥 = 새로 그리기 */
 document.addEventListener("pointerdown", e => {
   const cv = e.target.closest?.("#capCrop"); if (!cv || !CAPS.r) return;
   e.preventDefault(); cv.setPointerCapture?.(e.pointerId);
-  const b = cv.getBoundingClientRect(), k = cv.width / b.width, at = ev => ({ x:Math.max(0, Math.min(cv.width, (ev.clientX - b.left) * k)), y:Math.max(0, Math.min(cv.height, (ev.clientY - b.top) * k)) });
-  const p0 = at(e); let drew = false;   // (2026-11-16) 쉽게: 어디서 끌든 새 네모를 그려요
+  const b = cv.getBoundingClientRect(), k = cv.width / b.width, W = cv.width, H = cv.height, at = ev => ({ x:Math.max(0, Math.min(W, (ev.clientX - b.left) * k)), y:Math.max(0, Math.min(H, (ev.clientY - b.top) * k)) });
+  const p0 = at(e), r0 = { ...CAPS.r }, T = 26 * k, MIN = 24 * k;   // T = 손가락으로 잡는 넉넉한 거리 (화면 26px)
+  const nearX = Math.abs(p0.x - r0.x) < T ? "l" : Math.abs(p0.x - (r0.x + r0.w)) < T ? "r" : "", nearY = Math.abs(p0.y - r0.y) < T ? "t" : Math.abs(p0.y - (r0.y + r0.h)) < T ? "b" : "";
+  const inX = p0.x > r0.x - T && p0.x < r0.x + r0.w + T, inY = p0.y > r0.y - T && p0.y < r0.y + r0.h + T;
+  const mode = nearX && nearY ? nearY + nearX : nearX && inY ? nearX : nearY && inX ? nearY : (p0.x > r0.x && p0.x < r0.x + r0.w && p0.y > r0.y && p0.y < r0.y + r0.h) ? "move" : "new";
+  cv.style.cursor = mode === "move" ? "grabbing" : mode === "new" ? "crosshair" : "nwse-resize";
+  let changed = false;
   const mv = ev => {
-    const p = at(ev); if (Math.abs(p.x - p0.x) < 8 && Math.abs(p.y - p0.y) < 8) return; drew = true;
-    CAPS.r = { x:Math.min(p0.x, p.x), y:Math.min(p0.y, p.y), w:Math.max(12, Math.abs(p.x - p0.x)), h:Math.max(12, Math.abs(p.y - p0.y)) }; cropShow();
+    const p = at(ev), dx = p.x - p0.x, dy = p.y - p0.y; if (!changed && Math.abs(dx) < 4 * k && Math.abs(dy) < 4 * k) return; changed = true;
+    let { x, y, w, h } = r0;
+    if (mode === "move"){ x = Math.max(0, Math.min(W - w, r0.x + dx)); y = Math.max(0, Math.min(H - h, r0.y + dy)); }
+    else if (mode === "new"){ x = Math.min(p0.x, p.x); y = Math.min(p0.y, p.y); w = Math.max(MIN, Math.abs(dx)); h = Math.max(MIN, Math.abs(dy)); }
+    else {
+      if (mode.includes("l")){ const nx = Math.max(0, Math.min(r0.x + r0.w - MIN, r0.x + dx)); w = r0.x + r0.w - nx; x = nx; }
+      if (mode.includes("r")) w = Math.max(MIN, Math.min(W - r0.x, r0.w + dx));
+      if (mode.includes("t")){ const ny = Math.max(0, Math.min(r0.y + r0.h - MIN, r0.y + dy)); h = r0.y + r0.h - ny; y = ny; }
+      if (mode.includes("b")) h = Math.max(MIN, Math.min(H - r0.y, r0.h + dy));
+    }
+    CAPS.r = { x, y, w, h }; cropShow();
   };
-  const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); if (drew) cropApply(); };
+  const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); cv.style.cursor = ""; if (changed) cropApply(); };
   addEventListener("pointermove", mv); addEventListener("pointerup", up); addEventListener("pointercancel", up);
 });
 async function capLoad(blob){
@@ -1610,6 +1702,9 @@ document.addEventListener("click", e => {
     case "moveSet": D.move = v; save(); break;
     case "popSet": D.pop = v === "1"; save(); if (D.pop) setTimeout(() => mateSay(D.mode === "t" ? "가끔 한마디씩 할게." : "가끔 말 걸게!"), 200); break;
     case "reactSet": D.react = v === "1"; save(); if (D.react) setTimeout(() => moment(D.mode === "t" ? "중요한 순간엔 여기 가운데로 나올게." : "중요한 순간엔 가운데로 나와서 알려 줄게!"), 200); break;
+    case "csizeSet": D.csize = v; save(); setTimeout(() => mateSay(D.mode === "t" ? "이 크기로 있을게." : "이 크기 어때?"), 200); break;
+    case "firstSet": { const i = D.crew.indexOf(v); if (i > 0){ D.crew.splice(i, 1); D.crew.unshift(v); save(); render(); setTimeout(() => cheerMe(v), 150); } return; }
+    case "guide": S.sheet = { t:"guide" }; openSheet(sheetGuide()); return;
     case "spotReset": D.spots = {}; save(); Object.values(CREW.els).forEach(el => crewPlace(el, crewRnd())); toast("친구들을 다시 흩어 놓았어요"); return;
     case "tside": D.tside = v; save(); break;
     case "crewT": { const i = D.crew.indexOf(v);
@@ -1620,7 +1715,9 @@ document.addEventListener("click", e => {
       D.mine.splice(i, 1); D.crew = D.crew.filter(c => c !== "m:" + v); if (!D.crew.length) D.crew = ["rabbit"]; save(); render();
       undoToast("내 그림을 지웠어요", () => { D.mine.splice(i, 0, m); if (had) D.crew.push("m:" + v); }); return; }
     case "cap": if (D.mine.length >= MINE_MAX){ toast(`내 그림은 ${MINE_MAX}개까지예요. ✕로 하나 지우고 넣어요`); return; }
-      S.sheet = { t:"cap" }; CAPS.base = CAPS.res = CAPS.orig = CAPS.r = null; CAPS.tol = 60; CAPS.zoom = 1; openSheet(sheetCap()); return;
+      S.sheet = { t:"cap" }; CAPS.base = CAPS.res = CAPS.orig = CAPS.r = CAPS.map = null; CAPS.taps = []; CAPS.tol = 60; CAPS.zoom = 1; openSheet(sheetCap()); return;
+    case "capUndo": if (CAPS.taps.length){ CAPS.taps.pop(); CAPS.res = null; capDraw(); } else toast("되돌릴 게 없어요"); return;
+    case "capClear": CAPS.taps = []; CAPS.res = null; capDraw(); return;
     case "cropAuto": cropAuto(); return;
     case "cropAll": if (CAPS.orig){ CAPS.r = { x:0, y:0, w:CAPS.orig.width, h:CAPS.orig.height }; cropShow(); cropApply(); } return;
     case "capOk": { if (!CAPS.base){ toast("그림을 먼저 넣어 주세요"); return; }
@@ -1778,6 +1875,9 @@ document.addEventListener("click", e => {
    - 상황 따라(D.react): 다 하면 가운데로 나와 축하(moment) · 3분 넘게 가만히 있으면 졸기 · 시험 사흘 전부터 머리띠
    - 가끔 말 걸기(D.pop): 2~4분마다 한 친구가 한마디 */
 const CREW = { els:{}, idle:Date.now(), sleep:false, drag:null, eat:0 };
+/* 친구들 크기 (2026-11-17, 패드에서 작다는 말에): 자동 = 휴대폰 보통 · 패드처럼 넓은 화면은 크게 */
+const CSIZE = [["auto", "자동"], ["s", "작게"], ["m", "보통"], ["l", "크게"], ["xl", "아주 크게"]];
+const csScale = () => { const k = D.csize || "auto"; return k === "s" ? .8 : k === "l" ? 1.3 : k === "xl" ? 1.65 : k === "m" ? 1 : (innerWidth >= 700 ? 1.3 : 1); };
 const crewRnd = () => { const r = Math.random(); return { x:r < .4 ? .07 + Math.random() * .15 : r < .8 ? .78 + Math.random() * .15 : .25 + Math.random() * .5, y:.24 + Math.random() * .64 }; };   // 글씨를 덜 가리게 대부분 양쪽 가장자리에
 function crewPlace(el, p){ el._p = p; el.style.left = (p.x * 100) + "%"; el.style.top = (p.y * 100) + "%"; el.classList.toggle("rt", p.x > .6); }
 function crewSync(){
@@ -1790,6 +1890,21 @@ function crewSync(){
     box.appendChild(el); CREW.els[id] = el; crewPlace(el, D.spots[id] || crewRnd()); });
   const x = nextExam();
   box.className = `crew mv-${D.move}${D.react !== false && x && dLeft(x.d) <= 3 ? " exam" : ""}${CREW.sleep ? " sleep" : ""}`;
+  box.style.setProperty("--ms", csScale());
+}
+/* 💖 1번 친구 응원 (2026-11-17): 1번 친구를 톡 누르면 가운데로 크게 와서 좋은 말 한마디 (3.6초, 누르면 닫혀요) */
+const GOOD_F = ["넌 생각보다 훨씬 잘하고 있어 💖", "오늘 여기까지 온 것만으로도 대단해!", "조금씩 해도 괜찮아. 멈추지만 않으면 돼 🐢", "네가 노력하는 거 내가 다 알아!", "실수해도 괜찮아, 다시 하면 되니까", "힘들면 잠깐 쉬어도 돼. 넌 충분히 애썼어 🌷", "어제의 너보다 오늘의 네가 더 멋져!", "너라서 할 수 있어. 진짜로!", "작은 한 걸음이 큰 변화를 만들어 ✨", "포기하지 않는 너, 정말 최고야 👍", "지금 이 순간에도 넌 자라고 있어 🌱", "오늘의 너를 칭찬해 줘. 수고했어!", "넌 혼자가 아니야. 내가 옆에 있을게 🤗", "천천히 가도 결국 도착해", "웃는 얼굴이 제일 예뻐 😊", "할 수 있다고 믿는 순간 반은 한 거야!", "너의 꿈을 응원해 🌈", "오늘 하루도 잘 버텼어. 고마워!"];
+const GOOD_T = ["지금 하는 만큼 실력이 쌓이고 있어.", "완벽하지 않아도 돼. 꾸준함이 이겨.", "오늘 한 일은 사라지지 않아.", "작게 나눠서 하나씩 하면 돼.", "쉬는 것도 계획의 일부야.", "어제보다 한 걸음이면 충분해.", "넌 생각보다 잘하고 있어.", "실수는 다음에 덜 틀리게 해 줘.", "지금 집중하는 10분이 쌓여.", "결과보다 과정이 너를 만들어."];
+function cheerMe(id){
+  document.querySelector(".moment")?.remove();
+  const k = today(), done = (plansOf(k) || []).filter(p => p.done).length, st = streakTo(k), x = nextExam();
+  const extra = D.mode === "t" ? [done && `오늘 할 일 ${done}개 끝냈어.`, st >= 2 && `${st}일째 이어서 공부 중이야.`, x && dLeft(x.d) > 0 && `${x.n}까지 ${dLeft(x.d)}일, 하나씩 하면 돼.`]
+    : [done && `오늘 벌써 ${done}개나 해냈어! 👏`, st >= 2 && `${st}일 연속 공부 중! 대단해 🔥`, x && dLeft(x.d) > 0 && `${x.n}까지 ${dLeft(x.d)}일! 넌 할 수 있어 💪`];
+  const L = [...(D.mode === "t" ? GOOD_T : GOOD_F), ...extra.filter(Boolean), ...extra.filter(Boolean)];
+  let t = L[Math.floor(Math.random() * L.length)]; if (t === CREW.lastGood) t = L[(L.indexOf(t) + 1) % L.length]; CREW.lastGood = t;
+  const el = document.createElement("div"); el.className = "moment hug";
+  el.innerHTML = `<div class="mc"><span class="mcw"><span class="ch">${charArt(id)}</span></span><p>${esc(t)}</p></div>`;
+  el.onclick = () => el.remove(); $("app").appendChild(el); haptic("ok"); setTimeout(() => el.remove(), 3600);
 }
 function mateSay(text, id){
   if (!text || $("app").classList.contains("timer-open")) return;
@@ -1850,7 +1965,8 @@ document.addEventListener("pointerdown", e => {
     const r = $("app").getBoundingClientRect(); crewPlace(hit, { x:Math.max(.04, Math.min(.96, (ev.clientX - r.left) / r.width)), y:Math.max(.06, Math.min(.94, (ev.clientY - r.top) / r.height)) });
   };
   const up = ev => { clearTimeout(t); off();
-    if (!CREW.drag){ if (ev && ev.type === "pointerup" && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 10){   // 톡 = 가리지 않게 가까운 옆으로 비키기
+    if (!CREW.drag){ if (ev && ev.type === "pointerup" && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 10){   // 톡 = 1번 친구는 가운데로 와서 응원, 다른 친구는 가리지 않게 옆으로 비키기
+        if (hit.dataset.id === D.crew[0]){ CREW.eat = Date.now(); cheerMe(hit.dataset.id); return; }
         const p = hit._p || crewRnd(), np = { x:p.x < .5 ? .05 : .95, y:p.y }; hit.style.transitionDuration = "0.5s"; crewPlace(hit, np); D.spots[hit.dataset.id] = np; save(); CREW.eat = Date.now(); haptic("tap"); } return; } D.spots[hit.dataset.id] = hit._p; save(); hit.classList.remove("held"); CREW.drag = null; CREW.eat = Date.now(); mateSay(D.mode === "t" ? "여기 있을게." : "여기 좋다!", hit.dataset.id); };
   const off = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); };
   addEventListener("pointermove", mv); addEventListener("pointerup", up); addEventListener("pointercancel", up);
