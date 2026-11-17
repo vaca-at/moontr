@@ -578,6 +578,42 @@ service cloud.firestore {
       allow delete: if isTeacher() || id.matches('^[0-9a-f]{24}_[jm][0-9]{1,2}$');
     }
 
+    // ===== 2027 AI 연수 · 디지털 도구로 확장하는 도덕·윤리 수업 (/2027ai, 2026-11-17) =====
+    // 연수생은 닉네임 + 숫자 네 자리로 들어와요. 네 자리는 저장하지 않고 sha256("2027ai|닉네임|네자리") 문서 이름으로만 써요.
+    // ai2027_members/{해시}: 활동 기록(rec). 문서 이름을 아는 사람만 하나 열어요. 목록은 강사만
+    match /ai2027_members/{key} {
+      allow get: if true;
+      allow list: if isTeacher();
+      allow create: if key.matches('^[0-9a-f]{64}$')
+        && request.resource.data.keys().hasOnly(['nick', 'rec', 'at', 'updatedAt'])
+        && request.resource.data.nick is string && request.resource.data.nick.size() >= 1 && request.resource.data.nick.size() <= 12
+        && request.resource.data.rec is map
+        && request.resource.data.at is int && request.resource.data.updatedAt is int;
+      allow update: if isTeacher()
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rec', 'updatedAt'])
+            && request.resource.data.rec is map && request.resource.data.updatedAt is int);
+      allow delete: if isTeacher();
+    }
+    // ai2027_board: 갤러리. 웹앱(kind app, 문서 이름 a_해시 앞 20자 → 한 사람 한 장) · 관찰 한 줄(kind note). 이름 없이, 누구나 보기, 지우기는 강사만
+    match /ai2027_board/{id} {
+      allow read: if true;
+      allow create, update: if request.resource.data.kind == 'app'
+        && id.matches('^a_[0-9a-f]{20}$')
+        && request.resource.data.keys().hasOnly(['kind', 'title', 'url', 'mvp', 'at'])
+        && request.resource.data.title is string && request.resource.data.title.size() >= 1 && request.resource.data.title.size() <= 60
+        && request.resource.data.url is string && request.resource.data.url.size() <= 300
+        && (request.resource.data.url == '' || request.resource.data.url.matches('^https://[^ ]+$'))
+        && request.resource.data.mvp is string && request.resource.data.mvp.size() <= 400
+        && request.resource.data.at is int;
+      allow create: if request.resource.data.kind == 'note'
+        && request.resource.data.keys().hasOnly(['kind', 'app', 'text', 'at'])
+        && request.resource.data.app is string && request.resource.data.app.matches('^a_[0-9a-f]{20}$')
+        && exists(/databases/$(database)/documents/ai2027_board/$(request.resource.data.app))
+        && request.resource.data.text is string && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 200
+        && request.resource.data.at is int;
+      allow delete: if isTeacher();
+    }
+
     match /{document=**} { allow read, write: if false; }
   }
 }
