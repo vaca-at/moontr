@@ -340,8 +340,15 @@ body.editing .del{display:inline-block}
 .ios-app .ia-line{margin:0 0 12px;font-size:.88rem;opacity:.85;line-height:1.5}
 .panel.ios-app{grid-column:span 4}
 @media (max-width:1100px){ .panel.ios-app{grid-column:1 / -1} }
+/* 2026-11-17 안드로이드 앱이 아직이면 Play 배지를 흐리게 + '심사 중 · 준비 중' 꼬리표 (세 칸 높이 맞추기) */
+.store-b.play-wait span{line-height:0;filter:grayscale(1);opacity:.4}
+.store-b.play-wait b{font-size:.85rem;padding:6px 14px;border-radius:999px;border:1px dashed rgba(127,127,127,.55);opacity:.85}
+.ios-app .ia-wait{margin:-6px 0 12px;font-size:.8rem;opacity:.75;line-height:1.5}
+/* 아이아이노트 앱 이용 현황 세 칸도 위 앱 카드 세 칸과 같은 너비 */
+#homeIi .panel.mv-card{grid-column:span 4}
+@media (max-width:1100px){ #homeIi .panel.mv-card{grid-column:1 / -1} }
 .ios-app .ia-sec{display:flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:700;opacity:.75;margin-top:.2rem}.ios-app .ia-sec span{margin-left:auto;font-weight:400;opacity:.8}
-.ios-app .ia-badges{display:flex;flex-wrap:wrap;gap:0 14px}
+.ios-app .ia-badges{display:flex;flex-direction:column;align-items:flex-start}   /* 세 앱 모두 App Store 한 줄 · Google Play 한 줄 */
 .ios-app .ia-url{display:block;width:100%;text-align:left;font:12px ui-monospace,Consolas,monospace;padding:7px 10px;border-radius:8px;border:1px dashed rgba(127,127,127,.45);background:transparent;color:inherit;cursor:copy;word-break:break-all;margin-bottom:10px}
 </style>
 </head>
@@ -384,7 +391,7 @@ body.editing .del{display:inline-block}
     <div class="insights" id="homeInsights"></div>
     <h2 class="sec-h">📈 방문 흐름 <small>그래프에 마우스를 올리면 숫자가 보여요</small></h2>
     <div class="panels" id="homeCharts"></div>
-    <h2 class="sec-h">🍎 우리 아이폰 앱 3개 <small>앱스토어 다운로드(아침 9시 반에 모아요) · 앱 안 이용 · 배지를 누르면 스토어, [링크 복사]로 알리기</small></h2>
+    <h2 class="sec-h">📱 우리 앱 3개 <small>앱스토어 다운로드(아침 9시 반에 모아요) · 앱 안 이용 · 구글 플레이(안드로이드) 상황 · 배지를 누르면 스토어, [링크 복사]로 알리기</small></h2>
     <div class="panels" id="homeApps"></div>
     <h2 class="sec-h">📱 아이아이노트 앱 이용 현황 <small>플레이스토어 · 앱스토어 · 앱 안 이용 · 매일 아침 9시 반에 모아요</small></h2>
     <div class="panels" id="homeIi"></div>
@@ -468,8 +475,8 @@ const ADMIN_GROUPS = [
     { name:'시장 데이터 실험실 (예전 기록)', admin:'/market/old.html#admin', student:'/market/old.html', login:'sg' }
   ]},
   { title:'바이브코딩 수업', icon:'code', items:[
-    { name:'바이브코딩 진로탐구(이론편)', admin:'/vibeadmin/', student:'/stuvibe/', login:'sg' },
-    { name:'바이브코딩 진로탐구(실습편)', admin:'/vibeadmin/', student:'/vibelab/', login:'sg' }
+    { name:'바이브코딩 진로탐구(이론편)', admin:'/vibeadmin/?tab=theory', student:'/stuvibe/', login:'sg' },
+    { name:'바이브코딩 진로탐구(실습편)', admin:'/vibeadmin/?tab=lab', student:'/vibelab/', login:'sg' }
   ]},
   { title:'행사 · 연수', icon:'flag', items:[
     { name:'또래상담부 DRS', admin:'/drs/?page=admin', student:'/drs/', login:'fb' },
@@ -694,8 +701,10 @@ const IOS_APPS = [
   { name:'아이아이노트', icon:'iinote-app-icon.png', date:'2026-11-08', genre:'라이프스타일', id:'6831842667', play:II_PLAY,
     line:'온 가족이 함께 쓰고 서로 읽어 주는 일기장', web:'https://iinote.co.kr', admin:II_ADMIN },
   { name:'교무실 타이쿤', icon:'app-tycoon.jpg', date:'2026-11-15', genre:'교육', id:'6834141029',
+    playWait:{ tag:'심사 중', note:'비공개 테스트를 마치고 프로덕션(정식 출시) 심사를 기다리고 있어요. 보통 7일 안에 결과가 와요.' },
     line:'선생님의 하루를 게임처럼 보여 주는 시간표', web:'https://moontr.site/tycoon/', admin:'/tycoon/?admin' },
   { name:'먼저 플래너', icon:'/first/icon-512.png', date:'2026-11-15', genre:'교육', id:'6835064683',
+    playWait:{ tag:'준비 중', note:'안드로이드 앱을 만드는 중이에요 (비공개 테스트 전).' },
     line:'약한 과목을 먼저, 작게 계획하고 실천하는 공부 플래너', web:'https://moontr.site/first/', admin:'/first/?admin' }
 ];
 const iosUrl = a => `https://apps.apple.com/kr/app/id${a.id}`;
@@ -723,8 +732,9 @@ function renderIosApps(){
     <div class="ia-sec">📱 앱 안 이용</div>
     ${inApp(a)}
     <p class="ia-line">${esc(a.line)}</p>
-    <div class="ia-badges">${storeBadge(iosUrl(a), 'badge-appstore.svg', 'App Store에서 다운로드')}${a.play ? storeBadge(a.play, 'badge-play.png', 'Google Play에서 다운로드') : ''}</div>
-    <div class="lnk"><a class="btn" href="${esc(a.web)}" target="_blank" rel="noopener">웹으로 열기 ↗</a><a class="btn" href="${esc(a.admin)}" target="_blank" rel="noopener">관리자 ↗</a><a class="btn" href="https://appstoreconnect.apple.com/apps/${a.id}/distribution" target="_blank" rel="noopener">App Store Connect ↗</a></div>
+    <div class="ia-badges">${storeBadge(iosUrl(a), 'badge-appstore.svg', 'App Store에서 다운로드')}${a.play ? storeBadge(a.play, 'badge-play.png', 'Google Play에서 다운로드') : `<div class="store-b play-wait"><span><img src="badge-play.png" alt="Google Play"></span><b>${esc(a.playWait?.tag || '준비 중')}</b></div>`}</div>
+    ${!a.play && a.playWait?.note ? `<p class="ia-wait">🤖 ${esc(a.playWait.note)}</p>` : ''}
+    <div class="lnk"><a class="btn" href="${esc(a.web)}" target="_blank" rel="noopener">웹으로 열기 ↗</a><a class="btn" href="${esc(a.admin)}" target="_blank" rel="noopener">관리자 ↗</a><a class="btn" href="https://appstoreconnect.apple.com/apps/${a.id}/distribution" target="_blank" rel="noopener">App Store Connect ↗</a><a class="btn" href="https://play.google.com/console/" target="_blank" rel="noopener">Play Console ↗</a></div>
   </div>`; }).join('');
 }
 function renderIiStats(){
@@ -948,8 +958,9 @@ const STATS = {
   '/check04/#teacher':  { col:'attendance', day:x => toDay(x.date), unit:'출석' },
   '/0911/#admin':       { col:'talkSessions', day:x => toDay(x.startedAt), unit:'방문', seed:'0911' },
   '/vibe/?admin':       { col:'progress', vibe:true, unit:'방문 기기', seed:'vibe' },
-  '/stuvibe/#admin':    { site:'stuvibe', unit:'방문' },
-  '/vibelab/#admin':    { site:'vibelab', unit:'방문' },
+  /* 바이브코딩 진로탐구: 두 줄이 같은 관리 화면(/vibeadmin)이라 ?tab= 으로 나눠야 숫자가 이어져요 (2026-11-17 전엔 이 키가 줄과 안 맞아 방문 수가 허브에 안 나왔어요) */
+  '/vibeadmin/?tab=theory': { site:'stuvibe', unit:'방문' },
+  '/vibeadmin/?tab=lab':    { site:'vibelab', unit:'방문' },
   '/datalab/admin/':    { site:'datalab', unit:'방문' },
   '/algolab/admin/':    { site:'algolab', unit:'방문' },
   '/crime/old.html#admin':  { site:'crime', unit:'방문' },
