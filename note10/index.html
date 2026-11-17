@@ -497,7 +497,7 @@ function login() {
 function logout() {
   if (!window.firebase || !firebase.apps.length) return;
   firebase.auth().signOut().then(() => {
-    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; CE = { events: [], due: '' }; SM = { weeks: {} }; PH = []; phLoaded = false; V.sid = null;
+    localStorage.removeItem('mn_data'); D = { students: [], events: [] }; SC = {}; RC = {}; CL = { name: '', members: [] }; CE = { events: [], due: '' }; SM = { weeks: {} }; FAQ = null; PH = []; phLoaded = false; V.sid = null;
     closeModal(); toast('🔑 로그아웃했어요');
   });
 }
@@ -531,6 +531,7 @@ async function connectCloud() {
       if (d.id === 'club') CL = Object.assign({ name: '', members: [] }, d.data());
       if (d.id === 'classev') CE = Object.assign({ events: [], due: '' }, d.data());
       if (d.id === 'summary') SM = Object.assign({ weeks: {} }, d.data());
+      if (d.id === 'faq') FAQ = Object.assign({ list: [] }, d.data());   // ❓ 자주 묻는 질문
     });
     fixCounselDates(); fixNickDigits();
     setSync('cloud');
@@ -711,17 +712,18 @@ function nbytes(t) { let b = 0; for (const ch of String(t || '')) { if (ch === '
    화면마다 주소가 달라져요: #/calendar · #/class/stats · #/student/grades · #/manage/roster …
    주소를 즐겨찾기 · 복사해 두면 그 화면으로 바로 열리고, 브라우저 뒤로 가기로 앞 화면에 돌아가요.
    🔒 어느 학생인지는 주소에 넣지 않아요 (학생 기록 주소를 열면 늘 맨 위 친구부터) */
-const RT_TAB = { cal: 'calendar', note: 'student', class: 'class' };
-const RT_CLASS = { cs: 'counsel', stat: 'stats', ev: 'events', score: 'scores', att: 'attendance', rec: 'records', bulk: 'bulk' };
+const RT_TAB = { cal: 'calendar', note: 'student', class: 'class', faq: 'faq' };
+const RT_CLASS = { cs: 'counsel', stat: 'stats', ev: 'events', score: 'scores', cut: 'grade-cuts', att: 'attendance', rec: 'records', bulk: 'bulk' };
 const RT_SEC = { 1: 'overview', 2: 'counsel', 3: 'grades', 4: 'activities', 5: 'episodes', 6: 'wall', 7: 'record', 8: 'events', 9: 'prep', 10: 'competency', 11: 'story', 12: 'books', 13: 'check', 14: 'memo' };
 const RT_DASH = { roster: 'roster', cal: 'calendar-import', ev: 'events', photo: 'photos', score: 'score-files', school: 'school-scores', rec: 'records' };
-const RT_TITLE = { cal: '달력', note: '개인 상담 기록', class: '담임 학급 관리' };
+const RT_TITLE = { cal: '달력', note: '개인 상담 기록', class: '담임 학급 관리', faq: '자주 묻는 질문' };
 const rtKey = (o, v) => Object.keys(o).find(k => o[k] === v);
 let RT = { dash: false, pendingDash: null, quiet: false };
 function routeHash() {
   if (RT.dash) return `#/manage/${RT_DASH[DASH.tab] || 'roster'}`;
   if (V.tab === 'class') return `#/class/${RT_CLASS[V.csub || 'cs']}`;
   if (V.tab === 'note') return `#/student/${RT_SEC[V.sec] || 'overview'}`;
+  if (V.tab === 'faq') return '#/faq';
   return '#/calendar';
 }
 // 지금 화면 → 주소 (로그인 전에는 건드리지 않아요: 관리자 허브의 #admin 주소 그대로)
@@ -729,7 +731,7 @@ function syncRoute() {
   if (syncState !== 'cloud') return;
   const h = routeHash();
   if (location.hash !== h) history[RT.quiet || !location.hash.startsWith('#/') ? 'replaceState' : 'pushState'](null, '', h);
-  const tl = RT.dash ? '관리' : V.tab === 'class' ? (CLASS_TABS.find(x => x[0] === (V.csub || 'cs')) || [, ''])[1].replace(/^\S+\s/, '') : V.tab === 'note' ? (SECS.find(s => s[0] === V.sec) || [, '개인 상담 기록'])[1] : '달력';
+  const tl = RT.dash ? '관리' : V.tab === 'class' ? (CLASS_TABS.find(x => x[0] === (V.csub || 'cs')) || [, ''])[1].replace(/^\S+\s/, '') : V.tab === 'note' ? (SECS.find(s => s[0] === V.sec) || [, '개인 상담 기록'])[1] : V.tab === 'faq' ? '자주 묻는 질문' : '달력';
   document.title = `${tl} · 우리반 생기부노트`;
 }
 // 주소 → 화면 (처음 열 때 · 뒤로/앞으로 가기)
@@ -761,7 +763,7 @@ applyRoute(location.hash);
 function render() {
   document.body.dataset.theme = S.theme; document.body.dataset.font = S.font; document.body.dataset.big = S.big;
   $('#classTag').textContent = S.className || '우리반';
-  const tabs = [['cal', '📅 달력'], ['note', '💬 개인 상담 기록'], ['class', '🔒 담임 학급 관리']];   // 담임 학급 관리는 다른 친구 자료가 모여 있어 맨 뒤로
+  const tabs = [['cal', '📅 달력'], ['note', '💬 개인 상담 기록'], ['class', '🔒 담임 학급 관리'], ['faq', '❓ 자주 묻는 질문']];   // 담임 학급 관리는 다른 친구 자료가 모여 있어 맨 뒤로
   $('#nav').innerHTML = tabs.map(([k, t]) => `<button class="pill ${V.tab === k ? 'on' : ''}" onclick="go('${k}')">${t}</button>`).join('');
   charts.forEach(c => c.destroy()); charts = [];
   const app = $('#app');
@@ -770,6 +772,7 @@ function render() {
   if (syncState !== 'cloud') app.innerHTML = viewGate();
   else if (V.tab === 'cal') app.innerHTML = viewCalendar() + viewGallery();
   else if (V.tab === 'class') app.innerHTML = viewClass();
+  else if (V.tab === 'faq') app.innerHTML = viewFaq();
   else { app.innerHTML = viewNote(); if (V.sec === 3 && cur()) drawCharts(cur()); }
   const side = $('.side'); if (side) side.scrollTop = sideTop;
   window.scrollTo(0, winY);
@@ -944,11 +947,11 @@ function quickCounsel() {
 
 /* ===== 2. 우리반 — 상담 현황 · 성적 · 출결 · 생기부 진행 ===== */
 function lastCounsel(st) { return st.counsels.map(c => c.date).sort().pop() || ''; }
-const CLASS_TABS = [['cs', '💬 상담 현황'], ['stat', '🏆 우리반 통계'], ['ev', '🗓️ 공통 행사'], ['score', '📊 성적'], ['att', '📋 출결'], ['rec', '✍️ 생기부 진행'], ['bulk', '🤖 AI 총평 · 출력 일괄']];
+const CLASS_TABS = [['cs', '💬 상담 현황'], ['stat', '🏆 우리반 통계'], ['ev', '🗓️ 공통 행사'], ['score', '📊 성적'], ['cut', '🎯 등급컷'], ['att', '📋 출결'], ['rec', '✍️ 생기부 진행'], ['bulk', '🤖 AI 총평 · 출력 일괄']];
 function viewClass() {
   const t = V.csub || 'cs';
   return `<div class="row" style="margin-bottom:14px">${CLASS_TABS.map(([k, l]) => `<button class="pill ${t === k ? 'on' : ''}" style="font-size:18px;padding:7px 18px" onclick="V.csub='${k}';render()">${l}</button>`).join('')}</div>
-  ${t === 'ev' ? viewClassEv() : t === 'score' ? viewClassScore() : t === 'att' ? viewClassAtt() : t === 'rec' ? viewClassRec() : t === 'stat' ? viewClassStat() : t === 'bulk' ? viewClassBulk() : viewClassCs()}`;
+  ${t === 'ev' ? viewClassEv() : t === 'score' ? viewClassScore() : t === 'cut' ? viewClassCut() : t === 'att' ? viewClassAtt() : t === 'rec' ? viewClassRec() : t === 'stat' ? viewClassStat() : t === 'bulk' ? viewClassBulk() : viewClassCs()}`;
 }
 
 /* 🏆 우리반 통계 — 올린 성적 · 나이스 자료 · 상담 기록으로 앱이 바로 세요 (AI 안 써요)
@@ -1159,6 +1162,126 @@ function viewClassScore() {
       ${nos.map(n => `<tr><td>${whoCell(n.no, 3)}</td>${subj.map(s => gradeCell(rows[n.no][s], max)).join('')}<td style="text-align:center"><b>${n.a ? n.a.toFixed(2) : '-'}</b></td></tr>`).join('')}</table>
     </div></div>
   </div>`;
+}
+
+/* 🎯 등급컷 (2026-11-17) — 전교생 성적표(원점수)로 과목마다 1 · 2 · 3등급 컷 = 그 등급 안에 드는 가장 낮은 원점수
+   5등급제 누적비율 10 · 34 · 66 · 90 · 100%, 동점자는 중간석차 (schoolRanks 와 같은 계산)
+   성적표에 학교가 낸 석차등급 값이 들어 있으면 그 등급을 그대로 써요. 학번 · 이름 없이 숫자만 보여요 */
+const cutDocs = () => scoreDocs().map(d => SC[scoreKey(d.year, d.exam)] || d).filter(d => examOf(d).kind === 'school' && isWhole(d) && rawCols(d).length);
+function gradeCuts(d) {
+  const off = useCalc(d) ? [] : gradeCols(d, 5);
+  return schoolRanks(d).map(c => {
+    const oc = off.find(o => o.subj === c.subj);
+    const L = d.rows.map(r => {
+      const v = parseFloat(r.v[c.i]); if (isNaN(v)) return null;
+      const g = oc ? +r.v[oc.i] : c.by.get(r.sid)?.g;
+      return g >= 1 && g <= 5 ? { v, g, mine: isMine(r.sid) } : null;
+    }).filter(Boolean);
+    const cut = [1, 2, 3].map(g => { const vs = L.filter(x => x.g <= g).map(x => x.v); return vs.length ? Math.min(...vs) : null; });
+    const cnt = [1, 2, 3].map(g => L.filter(x => x.g === g).length), mine = [1, 2, 3].map(g => L.filter(x => x.mine && x.g === g).length);
+    const avg = L.length ? L.reduce((s, x) => s + x.v, 0) / L.length : null, top = L.length ? Math.max(...L.map(x => x.v)) : null;
+    return { subj: c.subj, N: L.length, cut, cnt, mine, avg, top, official: !!oc };
+  }).filter(x => x.N);
+}
+const cutNum = v => v == null ? '-' : (Number.isInteger(v) ? v : v.toFixed(1)) + '점';
+function cutText(d, R) {
+  return [`📊 ${d.year}년 ${examOf(d).label}고사 과목별 등급컷 (5등급제 · 원점수)`,
+    ...R.map(x => `· ${x.subj}: 1등급 ${cutNum(x.cut[0])} / 2등급 ${cutNum(x.cut[1])} / 3등급 ${cutNum(x.cut[2])} (응시 ${x.N}명)`),
+    `※ 지필 원점수만으로 낸 참고용 등급컷이에요. 수행평가까지 합친 학기말 등급과 다를 수 있어요. 동점자는 중간석차로 계산했어요.`].join('\n');
+}
+function copyCuts() {
+  const d = cutDocs().find(x => x.year + '_' + x.exam === V.cutKey) || CUT_LAST; if (!d) return;
+  navigator.clipboard.writeText(cutText(d, gradeCuts(d))).then(() => toast('📋 등급컷 안내 글을 복사했어요 (학생 · 학부모 공지에 붙여 넣으세요)')).catch(() => toast('복사하지 못했어요'));
+}
+let CUT_LAST = null;
+function viewClassCut() {
+  const docs = cutDocs();
+  if (!docs.length) return emptyGo('등급컷은 <b>전교생 성적표(과목별 원점수)</b>가 있어야 계산할 수 있어요.<br>관리 &gt; 성적 파일의 \'2학기 중간\' 칸에 전교생 성적표를 올려 주세요 🎯', 'score');
+  const key = x => x.year + '_' + x.exam;
+  const d = docs.find(x => key(x) === V.cutKey) || docs.slice().reverse().find(x => x.exam === 's2m') || docs[docs.length - 1];
+  CUT_LAST = d; V.cutKey = key(d);
+  const R = gradeCuts(d), N = Math.max(0, ...R.map(x => x.N)), anyOff = R.some(x => x.official);
+  const cutTd = (v, g) => `<td style="text-align:center;font-weight:700;background:rgba(238,143,173,${[.5, .3, .15][g]})">${cutNum(v)}</td>`;
+  return `<div class="row" style="margin-bottom:12px">${docs.map(x => `<button class="pill ${key(x) === key(d) ? 'on' : ''}" style="font-size:14px;padding:4px 12px" onclick="V.cutKey='${key(x)}';render()">${x.year} ${esc(examOf(x).label)}</button>`).join('')}</div>
+  <div class="box"><div class="hd pink"><span class="n">🎯</span>${d.year}년 ${esc(examOf(d).label)} 과목별 1 · 2 · 3등급 컷 <span class="sp"><button class="btn ghost sm" onclick="copyCuts()">📋 학생 · 학부모 안내 글 복사</button></span></div><div class="bd" style="overflow:auto">
+    ${R.length ? `<table class="dtable"><tr><th>과목</th><th style="text-align:center">1등급 컷</th><th style="text-align:center">2등급 컷</th><th style="text-align:center">3등급 컷</th><th style="text-align:center">응시</th><th style="text-align:center">최고점</th><th style="text-align:center">평균</th><th style="text-align:center">1 · 2 · 3등급 인원</th><th style="text-align:center">우리반 1 · 2 · 3등급</th></tr>
+      ${R.map(x => `<tr><td><b>${esc(x.subj)}</b>${x.official ? ' <span class="mini">(성적표 등급)</span>' : ''}</td>${x.cut.map(cutTd).join('')}<td style="text-align:center">${x.N}명</td><td style="text-align:center">${cutNum(x.top)}</td><td style="text-align:center">${x.avg.toFixed(1)}</td><td style="text-align:center" class="mini">${x.cnt.join(' · ')}명</td><td style="text-align:center">${x.mine.join(' · ')}명</td></tr>`).join('')}</table>`
+      : '<div class="empty">이 성적표에서 원점수 칸을 찾지 못했어요</div>'}
+    <p class="mini" style="margin-top:10px;line-height:1.7">컷 = 그 등급 안에 든 가장 낮은 원점수 (이 점수 이상이면 그 등급 이상). 5등급제 누적비율 1등급 ~10% · 2등급 ~34% · 3등급 ~66% (전교 ${N}명 기준), 동점자는 중간석차.<br>
+    ${anyOff ? '\'성적표 등급\' 과목은 학교가 낸 석차등급을 그대로 썼어요. ' : ''}중간고사 원점수만으로 낸 <b>참고용</b>이라 수행평가까지 합친 학기말 등급과 다를 수 있어요. 안내 글에는 학번 · 이름이 들어가지 않아요.</p>
+  </div></div>`;
+}
+
+/* ❓ 자주 묻는 질문 (2026-11-17) — 학생 · 학부모가 자주 묻는 것을 모아 두고 바로 답을 찾아 복사해요
+   클라우드 maumnote/main/meta/faq { list:[{ id, cat, who, q, a, n(물어본 횟수), at }] } · 처음에는 예시 질문(우리 학교 기준으로 고쳐 쓰기) */
+const FAQ_CATS = ['출결', '성적 · 평가', '생기부', '학사 · 행사', '진로 · 선택과목', '생활'];
+const FAQ_WHO = ['둘 다', '학생', '학부모'];
+const FAQ_SEED = [
+  ['출결', '둘 다', '아파서 결석했어요. 어떤 서류를 내야 하나요?', '질병 결석은 등교한 날부터 ⟨○일⟩ 안에 결석계와 증빙(진료확인서 · 처방전 · 약 봉투, 또는 ⟨○일⟩ 이내면 학부모 의견서)을 담임에게 내요. 서류가 없으면 미인정 결석이 될 수 있어요.'],
+  ['출결', '둘 다', '지각 · 조퇴 · 결과도 서류가 필요한가요?', '병원 진료 때문이면 진료확인서 등 증빙을 함께 내면 질병 지각 · 조퇴 · 결과로 처리돼요. 미리 담임에게 알리고, 조퇴는 담임 확인 뒤 출발해요.'],
+  ['출결', '학부모', '교외체험학습(가족여행 등)은 어떻게 신청하나요?', '출발 ⟨○일⟩ 전까지 신청서를 내고 허락을 받은 뒤 다녀와서 ⟨○일⟩ 안에 보고서를 내요. 한 해 쓸 수 있는 날은 ⟨○일⟩이고, 시험 기간에는 신청할 수 없어요.'],
+  ['출결', '학부모', '집안 경조사로 빠지면 출석으로 인정되나요?', '학교생활기록 작성 지침의 경조사 일수 안에서 출석으로 인정돼요. 관계(부모 · 조부모 · 형제 등)마다 날수가 달라서 ⟨학교 안내⟩를 보고 알려 드려요. 증빙(청첩장 · 부고 등)이 필요해요.'],
+  ['성적 · 평가', '둘 다', '등급은 어떻게 나오나요?', '고등학교 내신은 5등급 상대평가예요. 누적 1등급 상위 10% · 2등급 34% · 3등급 66% · 4등급 90% · 5등급 100%, 동점자는 중간석차로 정하고 성취도(A~E)도 함께 적혀요. 지필과 수행평가를 합친 학기말 성적으로 등급이 확정돼요.'],
+  ['성적 · 평가', '둘 다', '중간고사 등급컷은 몇 점이었나요?', '담임 학급 관리 > 🎯 등급컷에서 과목별 1 · 2 · 3등급 컷을 확인해 안내해요. 지필만으로 낸 참고용이라 학기말 등급과 다를 수 있어요.'],
+  ['성적 · 평가', '학생', '시험 날 아파서 못 보면 어떻게 되나요?', '인정 사유(질병 · 경조사 등)로 증빙을 내면 학교 학업성적관리규정에 따라 인정점(⟨다른 시험 성적의 ○%⟩)을 받아요. 미인정이면 ⟨최저점⟩ 처리돼요. 꼭 그날 담임에게 연락해 주세요.'],
+  ['성적 · 평가', '학생', '수행평가를 결석으로 못 했어요.', '인정 결석이면 ⟨다른 날 응시 · 대체 과제 · 기본 점수⟩ 등 교과마다 정한 방법으로 처리해요. 그 과목 선생님께 바로 여쭤봐요.'],
+  ['성적 · 평가', '둘 다', '채점이 잘못된 것 같아요.', '성적 확인(이의 신청) 기간 ⟨○일⟩ 안에 교과 선생님께 답안지를 확인하고 이의를 신청해요. 기간이 지나면 고치기 어려워요.'],
+  ['생기부', '둘 다', '생기부에는 어떤 활동이 적히나요?', '학교 교육과정 안의 활동(교과 세특 · 자율 · 자치 · 동아리 · 진로 · 행동특성)이 적혀요. 학원 · 교외 대회 수상 · 외부 자격증 · 논문 같은 학교 밖 활동은 적을 수 없어요.'],
+  ['생기부', '학생', '세특은 누가 어떻게 써 주나요?', '교과 세특은 그 과목 선생님이 수업 속 활동과 결과물을 보고 써요. 수업 시간 발표 · 보고서 · 질문이 기록의 바탕이 돼요.'],
+  ['생기부', '학부모', '생기부 내용을 고칠 수 있나요?', '그 학년 안에는 담당 선생님 확인 뒤 고칠 수 있고, 지난 학년 기록은 객관적 증빙이 있을 때만 정정 절차를 거쳐요.'],
+  ['학사 · 행사', '둘 다', '학교 일정은 어디서 보나요?', '학교 홈페이지 학사일정과 우리 반 공지(⟨공지 주소⟩)에 올려요. 시험 · 방학 · 행사 날짜는 바뀔 수 있으니 공지를 확인해 주세요.'],
+  ['진로 · 선택과목', '둘 다', '2학년 선택과목은 언제 어떻게 정하나요?', '⟨○월⟩ 수강 신청 안내 후 정해요. 희망 진로 · 대학 권장 과목 · 내 흥미를 함께 보고, 고민되면 담임 · 진로 상담을 신청해요.'],
+  ['진로 · 선택과목', '학부모', '진로 · 진학 상담은 어떻게 받나요?', '담임에게 시간을 정해 연락 주시면 대면 · 전화 상담을 잡아 드려요. 진로진학상담 선생님 상담도 신청할 수 있어요.'],
+  ['생활', '학부모', '담임 선생님께는 언제 연락하면 되나요?', '⟨평일 근무 시간 ○시~○시⟩에 ⟨학교 전화 · 메시지 앱⟩으로 연락 주세요. 급한 일(결석 · 사고)은 아침 등교 전에 알려 주세요.'],
+  ['생활', '학생', '휴대폰은 언제 쓸 수 있나요?', '⟨학교 규정: 조회 때 걷고 종례 때 돌려줌 등⟩. 수업에 필요할 때는 선생님 안내에 따라 써요.'],
+];
+let FAQ = null, FQ = { q: '', cat: '전체', who: '전체', sort: 'n', edit: null, open: {} };
+const faqList = () => FAQ ? FAQ.list : FAQ_SEED.map(([cat, who, q, a], i) => ({ id: 'seed' + i, cat, who, q, a, n: 0, at: '', seed: true }));
+function saveFaq() {
+  FAQ = FAQ || { list: faqList().map(x => ({ ...x, seed: false })) };
+  if (db) roomRef().collection('meta').doc('faq').set(clone(FAQ)).catch(e => toast('☁️ 저장 실패: ' + e.message));
+}
+const faqHi = t => esc(t).replace(/⟨([^⟩]*)⟩/g, '<mark style="background:#fff1b8;border-radius:4px;padding:0 3px" title="우리 학교 기준으로 고쳐 주세요">⟨$1⟩</mark>');
+function faqBump(id, k) { saveFaq(); const x = FAQ.list.find(y => y.id === id); if (!x) return; x.n = Math.max(0, (x.n || 0) + k); x.at = today(); saveFaq(); render(); }
+function faqCopy(id) { const x = faqList().find(y => y.id === id); if (!x) return; navigator.clipboard.writeText(`Q. ${x.q}\nA. ${x.a}`).then(() => toast(/⟨/.test(x.a) ? '📋 복사했어요 · ⟨ ⟩ 칸을 우리 학교 기준으로 채웠는지 확인해 주세요' : '📋 질문과 답을 복사했어요')).catch(() => toast('복사하지 못했어요')); }
+function faqDel(id) { if (!confirm('이 질문을 지울까요?')) return; saveFaq(); FAQ.list = FAQ.list.filter(x => x.id !== id); saveFaq(); render(); }
+function faqSave() {
+  const q = $('#fqQ').value.trim(), a = $('#fqA').value.trim(); if (!q) return toast('질문을 적어 주세요');
+  if (!piiOk(q + '\n' + a)) return;
+  saveFaq();
+  const id = FQ.edit && FQ.edit !== 'new' ? FQ.edit : null, o = { cat: $('#fqC').value, who: $('#fqW').value, q, a, at: today() };
+  const x = id && FAQ.list.find(y => y.id === id);
+  if (x) Object.assign(x, o); else FAQ.list.unshift({ id: uid(), n: 1, ...o });
+  FQ.edit = null; saveFaq(); render(); toast('❓ 저장했어요');
+}
+function faqForm(x) {
+  return `<div class="box" style="margin-bottom:12px"><div class="hd green"><span class="n">✏️</span>${x ? '질문 고치기' : '새 질문 넣기'}</div><div class="bd">
+    <div class="row" style="gap:8px;margin-bottom:8px"><select id="fqC">${FAQ_CATS.map(c => `<option ${x?.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select><select id="fqW">${FAQ_WHO.map(c => `<option ${(x?.who || '둘 다') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    <input type="text" id="fqQ" placeholder="질문 (예: 체험학습 신청서는 언제까지 내나요?)" value="${esc(x?.q || '')}" style="width:100%;margin-bottom:8px">
+    <textarea id="fqA" rows="4" placeholder="답 (학생 · 학부모에게 그대로 보낼 수 있게). 학교마다 다른 숫자는 ⟨○일⟩처럼 적어 두면 노랗게 보여요" style="width:100%">${esc(x?.a || '')}</textarea>
+    <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm" onclick="faqSave()">저장</button><button class="btn ghost sm" onclick="FQ.edit=null;render()">닫기</button><span class="mini">학생 이름 · 연락처는 적지 말아 주세요</span></div></div></div>`;
+}
+function viewFaq() {
+  const L = faqList(), kw = FQ.q.trim();
+  const show = L.filter(x => (FQ.cat === '전체' || x.cat === FQ.cat) && (FQ.who === '전체' || x.who === FQ.who || x.who === '둘 다') && (!kw || (x.q + ' ' + x.a).includes(kw)));
+  if (FQ.sort === 'n') show.sort((a, b) => (b.n || 0) - (a.n || 0) || FAQ_CATS.indexOf(a.cat) - FAQ_CATS.indexOf(b.cat));
+  else show.sort((a, b) => FAQ_CATS.indexOf(a.cat) - FAQ_CATS.indexOf(b.cat));
+  const pills = (arr, k) => ['전체', ...arr].map(c => `<button class="pill ${FQ[k] === c ? 'on' : ''}" style="font-size:14px;padding:4px 12px" onclick="FQ['${k}']='${c}';render()">${c}${k === 'cat' && c !== '전체' ? ` <span class="mini">${L.filter(x => x.cat === c).length}</span>` : ''}</button>`).join('');
+  const top = L.filter(x => x.n).sort((a, b) => b.n - a.n).slice(0, 3);
+  const ex = FQ.edit && FQ.edit !== 'new' ? L.find(x => x.id === FQ.edit) : null;
+  return `${!FAQ ? `<div class="empty" style="margin-bottom:12px;text-align:left">💡 처음이라 <b>예시 질문 ${FAQ_SEED.length}개</b>를 넣어 두었어요. 노란 <mark style="background:#fff1b8">⟨ ⟩</mark> 칸은 학교마다 달라서 우리 학교 규정에 맞게 ✏️ 고쳐 주세요. 고치거나 '🙋 +1'을 누르면 그때 저장돼요.</div>` : ''}
+  ${top.length ? `<div class="mini" style="margin-bottom:10px">🔥 요즘 가장 많이 묻는 질문: ${top.map(x => `<b>${esc(x.q)}</b> (${x.n}번)`).join(' · ')}</div>` : ''}
+  <div class="row" style="gap:8px;margin-bottom:10px;flex-wrap:wrap"><input type="text" placeholder="🔎 질문 · 답에서 찾기 (예: 체험학습, 등급)" value="${esc(FQ.q)}" oninput="FQ.q=this.value;clearTimeout(FQ.t);FQ.t=setTimeout(()=>{render();const i=document.getElementById('fqSearch');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)" id="fqSearch" style="flex:1;min-width:220px">
+    <button class="btn sm" onclick="FQ.edit='new';render()">＋ 새 질문</button>
+    <button class="pill ${FQ.sort === 'n' ? 'on' : ''}" style="font-size:14px;padding:4px 12px" onclick="FQ.sort='n';render()">많이 물은 순</button><button class="pill ${FQ.sort === 'cat' ? 'on' : ''}" style="font-size:14px;padding:4px 12px" onclick="FQ.sort='cat';render()">분류 순</button></div>
+  <div class="row" style="gap:6px;margin-bottom:6px;flex-wrap:wrap">${pills(FAQ_CATS, 'cat')}</div>
+  <div class="row" style="gap:6px;margin-bottom:12px;flex-wrap:wrap"><span class="mini">누가 묻나요</span>${pills(FAQ_WHO.slice(1), 'who')}</div>
+  ${FQ.edit ? faqForm(ex) : ''}
+  ${show.length ? show.map(x => `<details class="box" style="margin-bottom:8px" ${FQ.open[x.id] || kw ? 'open' : ''} ontoggle="FQ.open['${x.id}']=this.open">
+    <summary style="padding:11px 14px;cursor:pointer;list-style:none;display:flex;gap:8px;align-items:center"><span class="pill" style="font-size:12px;padding:2px 9px;cursor:default">${esc(x.cat)}</span><b style="flex:1">${esc(x.q)}</b><span class="mini">${esc(x.who)}${x.n ? ` · 🙋 ${x.n}번` : ''}</span></summary>
+    <div class="bd" style="padding:0 14px 12px"><div style="white-space:pre-wrap;line-height:1.7;background:var(--soft,#fff8f5);border-radius:8px;padding:10px 12px">${faqHi(x.a) || '<span class="mini">아직 답이 없어요</span>'}</div>
+      <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" onclick="faqCopy('${x.id}')">📋 질문과 답 복사</button><button class="btn ghost sm" onclick="faqBump('${x.id}',1)" title="오늘 또 물어봤어요">🙋 +1 물어봤어요</button>${x.n ? `<button class="btn ghost sm" onclick="faqBump('${x.id}',-1)">−1</button>` : ''}<button class="btn ghost sm" onclick="FQ.edit='${x.id}';render();window.scrollTo(0,0)">✏️ 고치기</button><button class="btn ghost sm" onclick="faqDel('${x.id}')">지우기</button>${x.at ? `<span class="mini" style="margin-left:auto">마지막 ${x.at}</span>` : ''}</div></div></details>`).join('')
+    : '<div class="empty">찾는 질문이 없어요. ＋ 새 질문으로 넣어 두면 다음부터 바로 찾을 수 있어요</div>'}`;
 }
 
 /* 📋 출결: 결석 · 지각 · 조퇴 · 결과 합계, 많은 친구부터 */
