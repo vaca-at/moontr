@@ -322,13 +322,14 @@ function lab(id) {
   const asks = x.ai.filter((a) => a.k === "ask");
   const pair = `<section class="step"><h2>AI 코드 짝꿍 <small>답 대신 생각할 질문을 돌려줘요 · ${asks.length}/8회</small></h2>${asks.length ? `<div class="qa">${asks.map((a) => `<div><b>나</b> ${esc(a.q)}</div><div class="a"><b>${a.local ? "도움 질문" : "AI 짝꿍"}</b> ${esc(a.a)}</div>`).join("")}</div>` : ""}
     <div class="act"><input type="text" id="askIn" maxlength="300" placeholder="예: 테스트가 왜 실패했나요? 이 조건 카드는 누구에게 유리한가요?" style="flex:1;min-width:200px"><button class="btn w" data-act="ask" ${S.aiBusy ? "disabled" : ""}>${S.aiBusy ? "생각하는 중…" : "묻기"}</button></div></section>`;
-  return `<div class="wrap"><div class="lab">${rail}<div>${s1}${s2}${s3}${s4}${s5}${s6}${s7}${pair}</div></div></div>`;
+  const noLogin = S.me ? "" : `<div class="msg info" style="margin-bottom:12px">로그인하지 않아도 계속할 수 있어요. 지금 한 것은 <b>이 휴대폰에 저장</b>되고, 나중에 ‘학번으로 들어가기’가 되면 내 계정에 합쳐져요. 제출할 때만 로그인이 필요해요.</div>`;
+  return `<div class="wrap"><div class="lab">${rail}<div>${noLogin}${s1}${s2}${s3}${s4}${s5}${s6}${s7}${pair}</div></div></div>`;
 }
 
 function loginView() {
   if (!S.login) return "";
   const nw = S.loginNew;
-  return `<div class="modal" data-act="closeLogin"><div class="box" role="dialog" aria-modal="true" aria-labelledby="lgT" onclick="event.stopPropagation()"><h3 id="lgT">${nw ? "처음 오셨네요" : "학번으로 들어가기"}</h3>
+  return `<div class="modal" data-act="closeLogin"><div class="box" role="dialog" aria-modal="true" aria-labelledby="lgT"><h3 id="lgT">${nw ? "처음 오셨네요" : "학번으로 들어가기"}</h3>
     <p>${nw ? `<b>${esc(nw.sid)}</b> 학번으로 처음 들어와요. 이 비밀번호로 시작할까요?` : "데이터 실험실과 같은 계정이에요. 학번 다섯 자리와 비밀번호 네 자리를 넣어요. 처음이면 지금 정한 네 자리가 내 비밀번호가 돼요."}</p>
     ${nw ? `<div class="fld"><label for="lgPin2">비밀번호 한 번 더</label><input type="password" id="lgPin2" inputmode="numeric" maxlength="4" autocomplete="off"></div>` : `<div class="row2"><div class="fld"><label for="lgSid">학번</label><input type="text" id="lgSid" inputmode="numeric" maxlength="5" placeholder="예: 10305" autocomplete="off" value="${esc(LS.get("lastSid", ""))}"></div><div class="fld"><label for="lgPin">비밀번호</label><input type="password" id="lgPin" inputmode="numeric" maxlength="4" placeholder="숫자 4자리" autocomplete="off"></div></div>`}
     <div class="err">${esc(S.loginMsg)}</div><div class="acts"><button class="btn w" data-act="closeLogin">닫기</button><button class="btn" data-act="${nw ? "doNew" : "doLogin"}" ${S.busy ? "disabled" : ""}>${S.busy ? "확인 중…" : nw ? "이 비밀번호로 시작" : "들어가기"}</button></div></div></div>`;
@@ -364,7 +365,7 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("change", (e) => {
   const el = e.target, id = route().b; if (!OPEN.includes(id)) return;
-  if (el.dataset.act === "opt") { if (needLogin()) return; my(id).s[el.dataset.v] = el.checked; judge(id); save(false, id); render(); }
+  if (el.dataset.act === "opt") { my(id).s[el.dataset.v] = el.checked; judge(id); save(false, id); render(); }
   if (el.dataset.act === "optN") { const s = my(id).s, k = el.dataset.v; s[k + "N"] = +el.value; if (k === "min") s.minN = +el.value; judge(id); save(false, id); render(); }
 });
 document.addEventListener("keydown", (e) => {
@@ -374,7 +375,9 @@ document.addEventListener("keydown", (e) => {
   if (e.target.id === "calcN") { e.preventDefault(); act("calc"); }
   if (["lgSid", "lgPin", "lgPin2"].includes(e.target.id)) { e.preventDefault(); act(S.loginNew ? "doNew" : "doLogin"); }
 });
-document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (!b || b.tagName === "INPUT" || b.tagName === "SELECT") return; act(b.dataset.act, b.dataset.v); });
+// 2026-11-17 고침: 로그인 창 안을 누르면 이벤트를 막아(stopPropagation) '들어가기' 단추가 안 눌리고 엔터로만 들어가졌어요 (수업에서 대부분 못 들어온 까닭)
+// → 창 바깥(어두운 곳)을 눌렀을 때만 닫고, 창 안 단추는 그대로 눌려요 (데이터 실험실과 같게)
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (!b || b.tagName === "INPUT" || b.tagName === "SELECT") return; if (b.classList.contains("modal") && e.target !== b) return; act(b.dataset.act, b.dataset.v); });
 
 function act(a, v) {
   if (a === "login") { S.login = true; S.loginMsg = ""; S.loginNew = null; return render(); }
@@ -385,7 +388,8 @@ function act(a, v) {
   const id = route().b; if (!OPEN.includes(id)) return;
   if (a === "go") { const el = $("#s" + v); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   if (a === "ask") return ask(id, $("#askIn") && $("#askIn").value);
-  if (needLogin()) return;
+  // 2026-11-17 수업: 로그인이 막혀도 활동은 이어 가요 (이 기기에 저장 → 나중에 들어오면 내 계정에 합쳐져요). 제출만 로그인이 필요해요
+  if (a === "submit" && needLogin()) return;
   const g = ALG[id], x = my(id), s = x.s;
   if (a === "outp") s.out = +v;
   if (a === "crit") s.crit = v;
