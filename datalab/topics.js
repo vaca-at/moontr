@@ -481,9 +481,29 @@
     // AI 서버 (datalab/server, Cloudflare). 올리기 전에는 저절로 '기본 점검'으로 대신해요
     AI_URL: "https://moontr-datalab-ai.bellachord.workers.dev",
     banOf: (sid) => `${sid[0]}-${+sid.slice(1, 3)}`,
-    sha: async (s) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join(""),
+    // 학번 · 비밀번호 → 알아보기 어려운 번호. 휴대폰 앱 안 브라우저 등 crypto.subtle 이 없으면 아래 직접 계산으로 (결과는 같아요)
+    sha: async (s) => { try { if (window.crypto && crypto.subtle) return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join(""); } catch (e) {} return sha256js(s); },
     keyOf: (sid, pin) => window.DL.sha(`datalab|${sid}|${pin}`)
   };
+
+  function sha256js(str) {
+    const b = unescape(encodeURIComponent(str)), K = [], H = [], r = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let c = 2, n = 0; n < 64; c++) { let p = true; for (let d = 2; d * d <= c; d++) if (c % d === 0) { p = false; break; } if (p) { if (n < 8) H[n] = (Math.pow(c, 1 / 2) * 4294967296) | 0; K[n++] = (Math.pow(c, 1 / 3) * 4294967296) | 0; } }
+    const w = [], L = b.length * 8; let m = b + "\x80"; while (m.length % 64 !== 56) m += "\x00";
+    for (let i = 0; i < m.length; i++) w[i >> 2] |= m.charCodeAt(i) << ((3 - i) % 4) * 8;
+    w[w.length] = (L / 4294967296) | 0; w[w.length] = L | 0;
+    for (let j = 0; j < w.length; j += 16) {
+      const W = w.slice(j, j + 16); let [a, bb, c, d, e, f, g, h] = H;
+      for (let i = 0; i < 64; i++) {
+        if (i >= 16) { const x = W[i - 15], y = W[i - 2]; W[i] = (W[i - 16] + (r(x, 7) ^ r(x, 18) ^ (x >>> 3)) + W[i - 7] + (r(y, 17) ^ r(y, 19) ^ (y >>> 10))) | 0; }
+        const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + (W[i] | 0)) | 0, t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & bb) ^ (a & c) ^ (bb & c))) | 0;
+        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = bb; bb = a; a = (t1 + t2) | 0;
+      }
+      [a, bb, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) | 0; });
+    }
+    return H.map((v) => (v >>> 0).toString(16).padStart(8, "0")).join("");
+  }
+  window.DL.sha256js = sha256js;
 
   /* ---------- 학교 와이파이에서도 되는 서버 읽기 · 쓰기 (2026-11-17) ----------
      파이어베이스 기본 연결(계속 열려 있는 통로)은 학교망 · 보안 장비가 막거나 끊는 일이 있어요 → 수업 중 '확인 중…'에서 멈춤
@@ -493,40 +513,63 @@
   const enc = (v) => v == null ? { nullValue: null } : typeof v === "boolean" ? { booleanValue: v } : typeof v === "number" ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v }) : typeof v === "string" ? { stringValue: v } : Array.isArray(v) ? { arrayValue: { values: v.map(enc) } } : { mapValue: { fields: Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).map(([k, x]) => [k, enc(x)])) } };
   const dec = (v) => !v ? null : "nullValue" in v ? null : "booleanValue" in v ? v.booleanValue : "integerValue" in v ? +v.integerValue : "doubleValue" in v ? v.doubleValue : "stringValue" in v ? v.stringValue : "timestampValue" in v ? Date.parse(v.timestampValue) : "arrayValue" in v ? (v.arrayValue.values || []).map(dec) : "mapValue" in v ? Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, dec(x)])) : null;
   const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(Object.assign(new Error("서버가 답하지 않아요"), { code: "timeout" })), ms))]);
-  async function rest(url, opt) {
-    const r = await within(fetch(API + url + (url.includes("?") ? "&" : "?") + "key=" + P.apiKey, { cache: "no-store", ...opt, headers: { "Content-Type": "application/json" } }), 12000);
+  /* 길 세 가지 (2026-11-17 수업에서 대부분 못 들어온 일 → 길을 늘림)
+     ① 구글 서버에 바로 (안 되면 한 번 더)  ② 우리 서버(Cloudflare, datalab/server 의 /fs)를 거쳐서  ③ 파이어베이스 기본 연결
+     서버가 '없음 · 이미 있음 · 막힘'처럼 진짜로 답한 것은 그대로 받아들이고, 닿지 못했을 때만 다음 길로 가요 */
+  const answer = async (r) => {
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { const e = new Error((j.error && j.error.message) || "서버 " + r.status); e.code = r.status === 404 ? "not-found" : r.status === 403 ? "permission-denied" : (j.error && j.error.status) || "http-" + r.status; throw e; }
-    return j;
-  }
+    if (r.ok) return j;
+    const e = new Error((j.error && j.error.message) || "서버 " + r.status); e.http = true;
+    e.code = r.status === 404 ? "not-found" : r.status === 403 ? "permission-denied" : (j.error && j.error.status) || "http-" + r.status; throw e;
+  };
   const field = (k) => k.split(".").map((p) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(p) ? p : "`" + p.replace(/`/g, "\\`") + "`").join(".");
+  function direct(q) {
+    let url, init = { method: "GET" };
+    if (q.op === "get") url = DOCS + "/" + q.path;
+    else if (q.op === "update") { url = DOCS + "/" + q.path + "?" + q.mask.map((k) => "updateMask.fieldPaths=" + encodeURIComponent(k)).join("&") + "&currentDocument.exists=true"; init = { method: "PATCH", body: JSON.stringify({ fields: q.fields }) }; }
+    else { url = DOCS + ":commit"; init = { method: "POST", body: JSON.stringify({ writes: q.writes.map((w) => ({ update: { name: DOCS + "/" + w.path, fields: w.fields }, currentDocument: { exists: false } })) }) }; }
+    return within(fetch(API + url + (url.includes("?") ? "&" : "?") + "key=" + P.apiKey, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }), 8000).then(answer);
+  }
+  const proxy = (q) => within(fetch(window.DL.AI_URL + "/fs", { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(q) }), 12000).then(answer);
+  let best = 0;   // 한 번 된 길을 다음에도 먼저 써요
+  async function send(q) {
+    const routes = [["바로", direct], ["바로", direct], ["우회", proxy]], order = best === 2 ? [routes[2], routes[0], routes[1]] : routes, tried = [];
+    for (const [name, fn] of order) {
+      try { const j = await fn(q); best = fn === proxy ? 2 : 0; return j; }
+      catch (e) { if (e.http) throw e; tried.push(name + ":" + (e.code || e.name || "x")); }
+    }
+    const e = new Error("서버에 닿지 않아요"); e.code = "net"; e.tried = tried.join(" "); throw e;
+  }
   window.DL.fs = {
     // 문서 하나 읽기 → { exists, data }
     async get(db, path) {
-      try { const j = await rest(DOCS + "/" + path); return { exists: true, data: dec({ mapValue: { fields: j.fields || {} } }) }; }
+      try { const j = await send({ op: "get", path }); return { exists: true, data: dec({ mapValue: { fields: j.fields || {} } }) }; }
       catch (e) {
         if (e.code === "not-found") return { exists: false, data: null };
-        if (e.code === "permission-denied" || !db) throw e;
-        const s = await within(db.doc(path).get(), 12000); return { exists: s.exists, data: s.exists ? s.data() : null };
+        if (e.http || !db) throw e;
+        try { const s = await within(db.doc(path).get(), 10000); return { exists: s.exists, data: s.exists ? s.data() : null }; } catch (e2) { e.tried += " 기본:" + (e2.code || "x"); throw e; }
       }
     },
     // 새로 만들기 여러 개를 한꺼번에 (하나라도 이미 있으면 모두 취소) — [[경로, 내용], ...]
     async create(db, list) {
-      try { await rest(DOCS + ":commit", { method: "POST", body: JSON.stringify({ writes: list.map(([p, d]) => ({ update: { name: DOCS + "/" + p, fields: enc(d).mapValue.fields }, currentDocument: { exists: false } })) }) }); }
+      try { await send({ op: "create", writes: list.map(([path, d]) => ({ path, fields: enc(d).mapValue.fields })) }); }
       catch (e) {
-        if (e.code === "permission-denied" || e.code === "FAILED_PRECONDITION" || e.code === "ALREADY_EXISTS" || !db) throw e;
-        const b = db.batch(); list.forEach(([p, d]) => b.set(db.doc(p), d)); await within(b.commit(), 12000);
+        if (e.http || !db) throw e;
+        try { const b = db.batch(); list.forEach(([p, d]) => b.set(db.doc(p), d)); await within(b.commit(), 10000); } catch (e2) { e.tried += " 기본:" + (e2.code || "x"); throw e; }
       }
     },
     // 있는 문서의 칸 몇 개만 고치기 — { "rec.j1": {...}, updatedAt: 123 }
     async update(db, path, obj) {
       const keys = Object.keys(obj), nest = {};
       keys.forEach((k) => { const ps = k.split("."); let o = nest; ps.slice(0, -1).forEach((p) => { o = o[p] = o[p] || {}; }); o[ps[ps.length - 1]] = obj[k]; });
-      try { await rest(DOCS + "/" + path + "?" + keys.map((k) => "updateMask.fieldPaths=" + encodeURIComponent(field(k))).join("&") + "&currentDocument.exists=true", { method: "PATCH", body: JSON.stringify({ fields: enc(nest).mapValue.fields }) }); }
+      try { await send({ op: "update", path, mask: keys.map(field), fields: enc(nest).mapValue.fields }); }
       catch (e) {
-        if (e.code === "permission-denied" || e.code === "not-found" || !db) throw e;
-        await within(db.doc(path).update(obj), 12000);
+        if (e.http || !db) throw e;
+        try { await within(db.doc(path).update(obj), 10000); } catch (e2) { e.tried += " 기본:" + (e2.code || "x"); throw e; }
       }
     }
   };
+  // 로그인 실패 글: 학생이 할 일 + 선생님이 알려 줄 짧은 까닭
+  window.DL.loginErr = (e) => e && e.code === "net" ? `학교 인터넷에서 서버에 닿지 않아요. 잠시 뒤 다시 누르거나, 와이파이를 끄고 휴대폰 데이터로 해 주세요 (${e.tried})`
+    : `들어가지 못했어요 (${(e && (e.code || e.message)) || "?"})`;
 })();

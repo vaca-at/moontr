@@ -2,6 +2,7 @@
 //  학생: POST /review  반박 글을 세 기준(수치 인용 · 다른 원인 · 윤리적 근거)으로 검토
 //        POST /partner 탐구 파트너: 답 대신 생각할 질문 하나
 //  선생님(관리자 구글 로그인 표 확인): POST /seteuk 세특 초안 · POST /reflect 수업 실천 성찰문 초안
+//        POST /report 일괄 출력용 학생 한 명: 잘한 점 · 격려(학생에게) · 예상 세특 (2026-11-17)
 //  학생은 학번을 보내지 않아요. 하루 사용 횟수만 알아보기 어려운 번호(who)로 세요 (Durable Object 'Quota')
 //  비밀값: ANTHROPIC_API_KEY  (npx wrangler@4 secret put ANTHROPIC_API_KEY)
 import Anthropic from '@anthropic-ai/sdk';
@@ -51,12 +52,22 @@ const Review = z.object({
   next: z.string(),
 });
 
+// 일괄 출력: 학생에게 주는 칭찬 · 격려 + 선생님이 볼 예상 세특
+const Report = z.object({
+  praise: z.string(),
+  cheer: z.string(),
+  seteuk: z.string(),
+});
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { headers: { ...cors(req), 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '86400' } });
     if (req.method !== 'POST') return json(req, { ok: true, service: 'moontr-datalab-ai' });
     const body = await req.json().catch(() => ({}));
+    // ── 학생 로그인 · 저장 우회로 (2026-11-17): 학교망이 firestore.googleapis.com 을 막을 때 이 서버가 대신 전해 줘요
+    //    로그인 없는 요청 그대로 전하므로 보안 규칙이 똑같이 적용돼요. 학번 문서 · 계정 문서만, 읽기 · 칸 고치기 · 새로 만들기만
+    if (url.pathname === '/fs') return fsProxy(req, body);
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
     try {
       // ── 학생 ──
@@ -87,6 +98,24 @@ export default {
         const reply = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
         return json(req, { reply: reply.slice(0, 800) });
       }
+      // ── 선생님: 일괄 출력용 학생 한 명 (잘한 점 · 격려 · 예상 세특) ──
+      if (url.pathname === '/report') {
+        const who = await verifyFirebase(String(req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, ''));
+        if (!who || !ADMIN_EMAILS.includes(who.email)) return json(req, { error: 'unauthorized' }, 401);
+        const res = await client.messages.parse({
+          model: MODEL, max_tokens: 8000, output_config: { effort: 'medium', format: zodOutputFormat(Report) },
+          system: [{ type: 'text', text: BASE, cache_control: { type: 'ephemeral' } }],
+          messages: [{ role: 'user', content: `아래는 한 학생이 '데이터 실험실'(AI활용탐구) · '알고리즘 실험실'에서 실제로 남긴 탐구 기록이야. 선생님이 반 전체 보고서를 출력해 학생에게 나눠 주려고 해. 이 기록만 근거로 세 가지를 써 줘.
+- praise: 학생에게 하는 칭찬 2~3문장. 존댓말(~했어요). 기록에 있는 구체적인 장면(직접 계산한 숫자, AI 결론을 반박한 근거, 사상가 연결, 해결안, 고른 규칙 등)을 짚어서. 꾸밈말(대단해요, 훌륭해요 같은 말만 있는 칭찬) 대신 무엇을 잘했는지를 말해.
+- cheer: 다음 탐구를 위한 격려 1~2문장. 아직 못 한 단계나 더 키울 점 하나를 부드럽게, 할 수 있다는 응원과 함께. 꾸짖는 말투 금지.
+- seteuk: 학교생활기록부 '세부능력 및 특기사항' 예상 문장. 400~500자(공백 포함), 한 문단, '~함.' '~임.' 명사형 끝맺음, 주어 생략, 이름 · 학번 없이. 기록에 있는 활동만(없는 활동 · 수상 · 대회 · 사교육 · 부모 직업 금지), 뛰어난 · 탁월한 같은 꾸밈말 금지. 기록이 적으면 있는 만큼만 짧게 써.
+[탐구 기록]
+${JSON.stringify(body.evidence || []).slice(0, 12000)}` }],
+        });
+        if (res.stop_reason === 'refusal' || !res.parsed_output) return json(req, { error: 'AI가 이 학생 글을 쓰지 못했어요' }, 502);
+        const p = res.parsed_output;
+        return json(req, { praise: p.praise.slice(0, 600), cheer: p.cheer.slice(0, 400), seteuk: p.seteuk.slice(0, 900) });
+      }
       // ── 선생님 ──
       if (url.pathname === '/seteuk' || url.pathname === '/reflect') {
         const who = await verifyFirebase(String(req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, ''));
@@ -116,6 +145,26 @@ ${JSON.stringify(body).slice(0, 12000)}`;
     return json(req, { error: 'not found' }, 404);
   },
 };
+
+// ───────── Firestore 우회로 (/fs) ─────────
+// 웹 화면의 공개 API 키(datalab/topics.js 와 같음)로 Firestore REST 에 그대로 전해요
+const FS_KEY = 'AIzaSyDEZIz_7wQcWQWO6v_1C5vhoYzAryqo59k';
+const FS_DOCS = 'projects/sonagi-1cc00/databases/(default)/documents';
+async function fsProxy(req, b) {
+  const docOk = (p) => /^(datalab_members\/[0-9a-f]{64}|datalab_ids\/[0-9]{5})$/.test(String(p || ''));
+  let target, init;
+  if (b.op === 'get' && docOk(b.path)) { target = `${FS_DOCS}/${b.path}`; init = { method: 'GET' }; }
+  else if (b.op === 'update' && docOk(b.path) && /^datalab_members\//.test(b.path) && Array.isArray(b.mask) && b.mask.length <= 40 && b.mask.every((k) => /^[A-Za-z0-9_.`]{1,80}$/.test(k))) {
+    target = `${FS_DOCS}/${b.path}?${b.mask.map((k) => 'updateMask.fieldPaths=' + encodeURIComponent(k)).join('&')}&currentDocument.exists=true`;
+    init = { method: 'PATCH', body: JSON.stringify({ fields: b.fields || {} }) };
+  } else if (b.op === 'create' && Array.isArray(b.writes) && b.writes.length <= 2 && b.writes.every((w) => docOk(w.path))) {
+    target = `${FS_DOCS}:commit`;
+    init = { method: 'POST', body: JSON.stringify({ writes: b.writes.map((w) => ({ update: { name: `${FS_DOCS}/${w.path}`, fields: w.fields || {} }, currentDocument: { exists: false } })) }) };
+  } else return json(req, { error: { status: 'INVALID_ARGUMENT', message: 'bad request' } }, 400);
+  const r = await fetch(`https://firestore.googleapis.com/v1/${target}${target.includes('?') ? '&' : '?'}key=${FS_KEY}`, { ...init, headers: { 'Content-Type': 'application/json' } });
+  const text = await r.text();
+  return new Response(text, { status: r.status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors(req) } });
+}
 
 // ───────── 하루 사용 횟수 (Durable Object 하나) ─────────
 export class Quota extends DurableObject {

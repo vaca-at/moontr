@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="topics.js?v=11170900"></script>
+<script src="topics.js?v=11171300"></script>
 <style>
 /* ===== 연수 과정형 디자인 (2026-11-16 문쌤이 고른 2번 시안) =====
    흰 바탕 · 검은 글씨 · 파란 강조 하나 · 각진 단추 · 얇은 선 · 실제 사진. 그라데이션 · 이모지 · 둥근 알약은 쓰지 않아요 */
@@ -343,7 +343,7 @@ const LS = { get(k, d) { try { return JSON.parse(localStorage.getItem("datalab:"
 let db = null;
 // 로그인 · 저장 · 다시 받기는 웹 요청(DL.fs)으로 먼저 해요 — 수업 중 학교 와이파이에서 기본 연결이 멈춰 로그인이 안 되던 문제 (2026-11-17)
 // 기본 연결(갤러리 · 반별 완료율)은 학교망에서 끊기지 않게 '긴 폴링' 방식으로
-try { firebase.initializeApp(DL.FIREBASE_CONFIG); db = firebase.firestore(); db.settings({ experimentalForceLongPolling: true, merge: true }); } catch (e) { console.error(e); }
+try { firebase.initializeApp(DL.FIREBASE_CONFIG); db = firebase.firestore(); db.settings({ experimentalForceLongPolling: true, experimentalAutoDetectLongPolling: false, merge: true }); } catch (e) { console.error(e); }
 
 const S = { me: LS.get("me", null), rec: LS.get("rec", {}), stop: LS.get("stop", {}), open: null, tab: "steps", login: false, loginMsg: "", busy: false, aiBusy: false };
 const myT = (id) => { const x = S.rec[id] = S.rec[id] || {}; x.s = x.s || {}; x.ai = x.ai || []; return x; };
@@ -425,7 +425,7 @@ async function signIn(sid, pin, isNew) {
   if (!/^[0-9]{4}$/.test(pin)) return loginMsg("비밀번호는 숫자 네 자리예요");
   S.busy = true; render();
   // 15초 안에 서버가 답하지 않으면 '확인 중…'에 멈춰 있지 않게 알려 줘요 (학교 와이파이가 막거나 느릴 때)
-  const slow = setTimeout(() => { if (S.busy) loginMsg("서버 연결이 늦어요. 인터넷(와이파이)을 확인하고 ‘들어가기’를 다시 눌러 주세요"); }, 15000);
+  const slow = setTimeout(() => { if (S.busy) { S.loginMsg = "연결이 늦어요. 다른 길로 다시 해 보는 중이에요… (최대 30초)"; render(); } }, 9000);   // 단추는 그대로 막아 둬요 (두 번 눌러 겹치지 않게)
   try {
     const key = await DL.keyOf(sid, pin), path = "datalab_members/" + key, snap = await DL.fs.get(db, path);
     if (snap.exists) {
@@ -441,7 +441,7 @@ async function signIn(sid, pin, isNew) {
     LS.set("me", S.me); LS.set("rec", S.rec); LS.set("stop", S.stop); pushProg();
     S.login = false; S.loginNew = null; S.busy = false; S.loginMsg = "";
     toast(`${sid} 학생, 반가워요`); render();
-  } catch (e) { console.error(e); S.busy = false; loginMsg("들어가지 못했어요 (" + (e.code || e.message) + ")"); }
+  } catch (e) { console.error(e); S.busy = false; loginMsg(DL.loginErr(e)); }
   finally { clearTimeout(slow); }
 }
 // 이 기기에 같은 학번으로 남아 있던 기록이 서버보다 새로우면 그것도 합쳐요
