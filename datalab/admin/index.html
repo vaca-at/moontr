@@ -77,6 +77,14 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 .fbbox{border:1px solid var(--line2,#cfd4dc);padding:12px 14px;margin-top:12px;font-size:14px}.fbbox p{white-space:pre-wrap}
 .fbbox h4{font-size:13px;color:var(--acc);margin-bottom:4px}
 .fbbox.sk{background:#F7F8FA}
+/* 📊 반 · 학년 통계 (일괄 출력 한 장 안) */
+.fbbox.stat h4 .note{font-weight:400;font-size:11.5px;margin-left:6px}
+.stt{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px;font-variant-numeric:tabular-nums}
+.stt th,.stt td{border-top:1px solid var(--line);padding:5px 6px;text-align:center}
+.stt th{font-weight:600;color:var(--sub);font-size:12px;border-top:0}
+.stt .l{text-align:left}
+.top2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;font-size:13px}
+.top2 ol{padding-left:18px;margin-top:2px}.top2 .me{color:var(--acc)}
 .ailog{font-size:13px;color:#444}
 .ailog div{padding:6px 0;border-top:1px dashed var(--line)}
 .note{font-size:12.5px;color:var(--sub)}
@@ -106,6 +114,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
   #printArea .bpage section{break-inside:avoid;padding:4px 0}#printArea .fbbox{break-inside:avoid;padding:8px 12px;margin-top:8px}
   #printArea .bpage h3{font-size:15px;margin-top:6px!important}#printArea .bpage .who{margin-bottom:4px;font-size:11px}
   #printArea .bpage section h4,#printArea .fbbox h4{font-size:11px;margin-bottom:0}#printArea .bpage section p,#printArea .fbbox p{font-size:11.5px;line-height:1.5}
+  #printArea .stt,#printArea .top2{font-size:11px}#printArea .stt th,#printArea .stt td{padding:3px 5px}
   @page{size:A4;margin:14mm}
 }
 @media (max-width:900px){.two{grid-template-columns:1fr}.kpi{grid-template-columns:repeat(2,1fr)}nav.tabs{overflow-x:auto}}
@@ -132,9 +141,15 @@ const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["batch", 
 const fmtT = (ms) => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const topicsOf = (m) => TOPICS.filter((t) => (m.rec || {})[t.id] && (m.rec[t.id].s && Object.keys(m.rec[t.id].s).length));
 const progOf = (t, x) => STEPS.filter((st) => stepDone(t, x, st.k)).length;
-// 상태: 제출 · 멈춤 · 8단계 성찰 중(1~7단계 가운데 다섯 이상 마쳤거나 성찰을 쓰기 시작) · 진행 중
+// 상태: 제출 · 멈춤 · 8단계 성찰 중(1~7단계를 다 마쳤거나 성찰을 쓰기 시작) · N단계 진행 중
+// 2026-11-17 고침: 예전엔 '1~7단계 중 다섯 이상'이면 8단계로 봐서, 5단계를 쓰는 학생도 '8단계 성찰 중'으로 보였어요.
+// 지금 단계 = 학생 화면이 남긴 활동 기록(x.log)의 마지막 단계, 기록이 없으면 아직 안 끝난 첫 단계
 const stageOf = (m, t) => { const x = m.rec[t.id] || {}, s = x.s || {}; if (x.sub) return ["d", "제출"]; if ((m.stop || {})[t.id]) return ["w", "멈춤"];
-  const n7 = STEPS.slice(0, 7).filter((st) => stepDone(t, x, st.k)).length; return n7 >= 5 || String(s.reflect || s.aiRef || "").trim() ? ["r", "8단계 성찰 중"] : ["o", "진행 중"]; };
+  const all7 = STEPS.slice(0, 7).every((st) => stepDone(t, x, st.k));
+  if (all7 || filled(s.reflect) || filled(s.aiRef)) return ["r", "8단계 성찰 중"];
+  const last = (x.log || [])[(x.log || []).length - 1]; let i = last ? STEPS.findIndex((st) => st.k === last.k) : -1;
+  if (i < 0 || i >= 7) i = Math.max(0, STEPS.findIndex((st) => !stepDone(t, x, st.k)));
+  return ["o", `${i + 1}단계 진행 중`]; };
 const stageTag = (m, t) => { const [c, n] = stageOf(m, t); return `<span class="st ${c}">${n}</span>`; };
 const bans = () => [...new Set(A.members.map((m) => m.ban))].sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
 const inBan = () => A.members.filter((m) => !A.ban || m.ban === A.ban).sort((a, b) => a.sid.localeCompare(b.sid));
@@ -263,7 +278,32 @@ function paper(t, m) {
 const algoDid = (m) => algoOf(m).filter(([, x]) => Object.keys(x.done || {}).length || x.s.crit);
 const active = (m) => topicsOf(m).length || algoDid(m).length;
 const fbState = (m) => !m.fb ? "none" : (m.updatedAt || 0) > (m.fb.at || 0) + 1000 ? "old" : "ok";
-const B = { seteuk: true, run: false, done: 0, total: 0 };
+const B = { seteuk: true, stat: true, run: false, done: 0, total: 0 };
+/* 📊 우리 반 · 학년 통계 (2026-11-17 문쌤 요청): 한 장마다 '나 · 우리 반 · 학년'을 숫자로 비교해요 (학번 · 이름은 안 나와요)
+   우리 반 = 같은 반(m.ban), 학년 = 학번 첫 자리가 같은 학생. 활동한 학생(탐구나 알고리즘을 시작한 학생)만 셉니다 */
+let STC = {};   // 반 · 학년 통계를 한 번만 계산해 두는 곳 (일괄 출력 화면을 그릴 때마다 비워요)
+const grpStat = (key, L) => STC[key] || (STC[key] = (() => {
+  const act = L.filter(active), all = act.flatMap((m) => topicsOf(m).map((t) => [t, m.rec[t.id]])), tc = {}, ac = {};
+  all.forEach(([t]) => { tc[t.id] = (tc[t.id] || 0) + 1; });
+  act.forEach((m) => algoDid(m).forEach(([id]) => { ac[id] = (ac[id] || 0) + 1; }));
+  return { n: act.length, tc, ac, top: Object.entries(tc).sort((a, b) => b[1] - a[1]).slice(0, 5),
+    prog: all.length ? all.reduce((s, [t, x]) => s + progOf(t, x), 0) / all.length : 0, sub: all.length ? Math.round(all.filter(([, x]) => x.sub).length / all.length * 100) : 0 };
+})());
+function statBox(m) {
+  const g = String(m.sid || "")[0] || "", C = grpStat("b:" + m.ban, A.members.filter((v) => v.ban === m.ban)), G = grpStat("g:" + g, A.members.filter((v) => String(v.sid || "")[0] === g));
+  const T = topicsOf(m), AL = algoDid(m);
+  const pick = (S, cnt, id) => { const n = cnt[id] || 0, rank = 1 + Object.values(cnt).filter((v) => v > n).length; return `${n}명 · ${S.n ? Math.round(n / S.n * 100) : 0}% · ${rank}위`; };
+  const myProg = T.length ? T.reduce((s, t) => s + progOf(t, m.rec[t.id]), 0) / T.length : 0, mySub = T.filter((t) => m.rec[t.id].sub).length;
+  const top = (S) => `<ol>${S.top.map(([id, n]) => { const t = DL.topic(id); return `<li>${T.some((u) => u.id === id) ? `<b class="me">${esc(t.name)} (나)</b>` : esc(t.name)} · ${n}명</li>`; }).join("") || "<li>아직 없어요</li>"}</ol>`;
+  return `<div class="fbbox stat"><h4>📊 우리 반 · 학년 통계 <span class="note">${esc(m.ban)}반 활동 ${C.n}명 · ${esc(g)}학년 활동 ${G.n}명 · 학번 · 이름 없이 숫자만</span></h4>
+    <table class="stt"><thead><tr><th class="l"></th><th>나</th><th>우리 반</th><th>학년</th></tr></thead><tbody>
+      ${T.map((t) => `<tr><td class="l">내가 고른 주제 · ${t.no}. ${esc(t.name)}</td><td>✓</td><td>${pick(C, C.tc, t.id)}</td><td>${pick(G, G.tc, t.id)}</td></tr>`).join("")}
+      ${AL.map(([id]) => `<tr><td class="l">내가 고른 알고리즘 · ${esc(ALGO.NAMES[id][0])}</td><td>✓</td><td>${pick(C, C.ac, id)}</td><td>${pick(G, G.ac, id)}</td></tr>`).join("")}
+      ${T.length ? `<tr><td class="l">8단계 진도 (탐구 하나 평균)</td><td><b>${myProg.toFixed(1)}</b> / 8</td><td>평균 ${C.prog.toFixed(1)}</td><td>평균 ${G.prog.toFixed(1)}</td></tr>
+      <tr><td class="l">보고서 제출</td><td>${mySub}/${T.length}개</td><td>${C.sub}% 제출</td><td>${G.sub}% 제출</td></tr>` : ""}
+    </tbody></table>
+    <div class="top2"><div><b>우리 반이 많이 고른 주제</b>${top(C)}</div><div><b>${esc(g)}학년이 많이 고른 주제</b>${top(G)}</div></div></div>`;
+}
 function batchPage(m) {
   const T = topicsOf(m), G = algoDid(m), fb = m.fb || {};
   const rows = (pairs) => pairs.filter(([, v]) => String(v || "").trim()).map(([n, v]) => `<section><h4>${esc(n)}</h4><p>${esc(v)}</p></section>`).join("");
@@ -271,14 +311,16 @@ function batchPage(m) {
   return `<div class="paper bpage"><div class="who" style="display:flex;justify-content:space-between"><span><b>${esc(m.ban)}반 · ${esc(m.sid)}</b> · 통합사회 탐구 보고서</span><span>${new Date().toLocaleDateString("ko-KR")}</span></div>
     ${T.map((t) => { const x = m.rec[t.id]; return `<h3 style="margin-top:10px">AI활용탐구 ${t.no} · ${esc(t.title)}</h3><div class="who">${esc(GROUPS[t.g].name)} · ${progOf(t, x)}/8단계${x.sub ? " · 제출" : ""}</div>${rows(REPORT.map(([k, n]) => [n, repVal(t, x, k)]))}`; }).join("")}
     ${G.map(([id, x]) => `<h3 style="margin-top:10px">알고리즘 실험실 · ${esc(ALGO.NAMES[id][1])}</h3><div class="who">${Object.keys(x.done || {}).length}/7단계${x.sub ? " · 제출" : ""}</div>${rows([["고른 규칙", algoRule(id, x.s)], ["가치 검토", x.s.why], ["공정성: 손해 보는 사람과 고칠 점", x.s.loser], ["마치며", x.s.ref]])}`).join("")}
+    ${B.stat ? statBox(m) : ""}
     <div class="fbbox"><h4>선생님이 보내는 피드백</h4>${fb.praise ? `<p><b>잘한 점</b> ${esc(fb.praise)}</p><p style="margin-top:6px"><b>다음에는</b> ${esc(fb.cheer)}</p>` : `<p class="note">아직 AI 피드백을 만들지 않았어요 (위 ‘AI 피드백 · 세특 만들기’)</p>`}</div>
     ${B.seteuk ? `<div class="fbbox sk"><h4>${m.seteuk ? "세특 (선생님이 저장한 글)" : "예상 세특 (AI 초안 · 선생님 확인 전)"}</h4>${sk ? `<p>${esc(sk)}</p><p class="note">${[...sk].length}자 · ${nbytes(sk)}바이트</p>` : `<p class="note">아직 없어요</p>`}</div>` : ""}</div>`;
 }
 function batchView() {
+  STC = {};   // 통계는 지금 기록으로 새로 세요
   const L = inBan().filter(active), need = L.filter((m) => fbState(m) !== "ok");
   const tag = (m) => { const s = fbState(m); return s === "none" ? `<span class="st w">AI 글 없음</span>` : s === "old" ? `<span class="st o">기록이 바뀜</span>` : `<span class="st d">만듦 ${fmtT(m.fb.at)}</span>`; };
   return `<div class="bar-h"><div><h1>일괄 출력</h1><p>반을 고르면 활동한 학생만 한 사람에 한 장씩 · 보고서 + AI 피드백(칭찬 · 격려) + 예상 세특 · 인쇄하면 학번만 나와요</p></div>
-  <div class="ctl">${banSel()}<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSk" ${B.seteuk ? "checked" : ""}>세특 넣기</label>
+  <div class="ctl">${banSel()}<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSk" ${B.seteuk ? "checked" : ""}>세특 넣기</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSt" ${B.stat ? "checked" : ""}>반 · 학년 통계 넣기</label>
     <button class="btn b" data-act="bMake" ${B.run || !need.length ? "disabled" : ""}>${B.run ? `만드는 중 ${B.done}/${B.total}` : `AI 피드백 · 세특 만들기 (${need.length}명)`}</button>
     <button class="btn" data-act="bPrint" ${L.length ? "" : "disabled"}>인쇄 · PDF로 저장 (${L.length}명)</button></div></div>
   ${!A.ban ? `<div class="msg">반을 하나 고르면 그 반만 출력해요 (지금은 모든 반 ${L.length}명)</div>` : ""}
@@ -384,6 +426,7 @@ document.addEventListener("click", async (e) => {
   if (a === "see" || a === "sel") { A.sel = v; A.tab = "rep"; render(); if (b.dataset.t) { const el = document.getElementById(`p_${v.slice(0, 8)}_${b.dataset.t}`); if (el) el.scrollIntoView({ block: "start" }); } return; }
   if (a === "algoF") { A.algoF = v; return render(); }
   if (a === "bSk") { B.seteuk = b.checked; return render(); }
+  if (a === "bSt") { B.stat = b.checked; return render(); }
   if (a === "bMake") return makeAll(inBan().filter(active).filter((x) => fbState(x) !== "ok"));
   if (a === "bOne") return makeAll([m]);
   if (a === "bPrint") { $("#printArea").innerHTML = $("#batchDoc").innerHTML; return window.print(); }
