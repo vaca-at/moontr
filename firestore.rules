@@ -398,9 +398,10 @@ service cloud.firestore {
     match /site_devices/{id} {
       allow read, delete: if isTeacher();
       allow create, update: if id.matches('^[a-z0-9_-]+__[a-z0-9]{12,24}$')
-        && request.resource.data.keys().hasOnly(['app', 'kind', 'last', 'n', 'days'])
+        && request.resource.data.keys().hasOnly(['app', 'kind', 'last', 'n', 'days', 'os'])
         && request.resource.data.app is string && id.matches('^' + request.resource.data.app + '__.*')
         && request.resource.data.kind in ['phone', 'tablet', 'pc']
+        && request.resource.data.get('os', 'other') in ['ios', 'android', 'win', 'mac', 'other']
         && request.resource.data.last is int
         && request.resource.data.n is int
         && request.resource.data.days is map && request.resource.data.days.size() <= 400;
@@ -933,6 +934,14 @@ service cloud.firestore {
         && d.look.get('v', '') is string && d.look.get('v', '').size() <= 12
         && d.look.get('dark', false) is bool);
     }
+    // 📊 관리자 현황판용 (2026-11-17): from = 처음 들어온 곳(threads · kakao 같은 짧은 이름), plat = 쓴 곳(web · ios · android),
+    //   days = 들어온 날짜 표시(날짜 → true), use = 써 본 기능 표시(기능 이름 → true). 시간표 · 할 일 같은 내용은 없어요
+    function deskStats(d) {
+      return (!('from' in d) || (d.from is string && d.from.matches('^[a-z0-9_-]{1,24}$')))
+        && (!('plat' in d) || (d.plat is list && d.plat.size() <= 3 && d.plat.toSet().hasOnly(['web', 'ios', 'android'])))
+        && (!('days' in d) || (d.days is map && d.days.size() <= 1500))
+        && (!('use' in d) || (d.use is map && d.use.size() <= 30));
+    }
     match /desk_users/{deskId} {
       allow read: if (request.auth != null && request.auth.uid in resource.data.uids) || isTeacher();
       // realName = 실명 (관리자만 봐요), tag = 성으로 만든 영문 이름 (KIMTR 처럼, 영어 대문자 · 숫자 2~12자)
@@ -943,9 +952,9 @@ service cloud.firestore {
         && deskPerson(request.resource.data);
       // 로그인을 더할 때(addUid)는 그 로그인이 먼저 desk_links 에 '이 책상'이라고 적어 둔 경우만. 빼는 건 안 돼요
       allow update: if request.auth != null && request.auth.uid in resource.data.uids
-        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds', 'look'])
+        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds', 'look', 'from', 'plat', 'days', 'use'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 20
-        && deskPerson(request.resource.data) && deskLook(request.resource.data)
+        && deskPerson(request.resource.data) && deskLook(request.resource.data) && deskStats(request.resource.data)
         && request.resource.data.uids.toSet().hasAll(resource.data.uids)
         && (request.resource.data.uids.size() == resource.data.uids.size()
           || (request.resource.data.uids.toSet().difference(resource.data.uids.toSet()).hasOnly([request.resource.data.addUid])
@@ -972,6 +981,23 @@ service cloud.firestore {
           && request.resource.data.url is string && request.resource.data.url.size() <= 500 && request.resource.data.url.matches('^https?://.+')
           && request.resource.data.get('icon', '') is string && request.resource.data.get('icon', '').size() <= 8;
       }
+    }
+    // 📊 교무실 타이쿤 어디서 왔나요 desk_src/{2026-11-17}: 그날 들어온 곳별 숫자 (threads 3 · kakao 1 …). 로그인 없이 한 칸씩 1만 올려요, 읽기는 관리자만
+    function srcKeys() { return ['threads', 'insta', 'kakao', 'band', 'naver', 'blog', 'google', 'youtube', 'fb', 'x', 'padlet', 'direct', 'etc']; }
+    function srcStep(k) { return request.resource.data.get(k, 0) == resource.data.get(k, 0) || request.resource.data.get(k, 0) == resource.data.get(k, 0) + 1; }
+    match /desk_src/{day} {
+      allow read: if isTeacher();
+      allow create: if day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(srcKeys()) && request.resource.data.keys().size() == 1
+        && request.resource.data[request.resource.data.keys()[0]] == 1;
+      allow update: if request.resource.data.keys().hasOnly(srcKeys())
+        && request.resource.data.diff(resource.data).affectedKeys().size() == 1
+        && srcStep('threads') && srcStep('insta') && srcStep('kakao') && srcStep('band') && srcStep('naver') && srcStep('blog') && srcStep('google')
+        && srcStep('youtube') && srcStep('fb') && srcStep('x') && srcStep('padlet') && srcStep('direct') && srcStep('etc');
+    }
+    // 📊 교무실 타이쿤 관리자 메모 desk_admin/{notes · me}: 날짜 메모, 빼고 셀 내 기기 · 내 계정 (관리자만)
+    match /desk_admin/{id} {
+      allow read, write: if isTeacher();
     }
     // desk_links/{로그인}: '이 로그인은 이 책상' 표시 — 그 로그인 본인만 읽고 써요
     match /desk_links/{uid} {
