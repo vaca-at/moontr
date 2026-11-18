@@ -1247,6 +1247,7 @@ function lobbyView() {
   return `<div class="mD">
     <div class="intake">
       <div class="intake-l"><label class="drop" for="fileInput"><span class="doc"></span><b>캡쳐나 공문 PDF를 여기에 넣기</b><small>눌러서 고르기 · 화면 어디든 끌어다 놓기 · Ctrl+V 붙여넣기<br>공문 본문(.odt) · PDF · 엑셀 · 사진 · 한글(.hwp · .hwpx)을 한꺼번에 넣으면 공문번호별로 묶어 읽어요 · 폴더째 끌어다 놓아도 돼요</small></label>
+      <button type="button" class="btn paste-btn" data-act="pasteClip">📋 붙여넣기 <small>캡쳐한 그림을 바로 넣기</small></button>
       <label class="btn folder-btn" for="folderInput">📁 폴더 고르기 <small>문서대장 목록에 있고 아직 안 넣은 공문만</small></label>
       <ol class="folder-how">
         <li><b>다운로드</b> 폴더를 그대로 골라도 돼요 (업무관리시스템에서 받은 공문 파일이 있는 곳)</li>
@@ -2237,6 +2238,7 @@ document.addEventListener('click', async (e) => {
         break;
       case 'login': await login(); break;
       case 'logout': await signOut(auth); break;
+      case 'pasteClip': pasteButton(); break;
       case 'confirm':
         await updateDoc(doc(db, dbPath(`cards/${id}`)), { status: 'done', unsure: [], confirmedAt: serverTimestamp() });
         toast(`${roomName(cardById(id)?.room)}에 보관했어요`);
@@ -2409,8 +2411,21 @@ document.addEventListener('keydown', (e) => {
   e.target.value = '';
   saveDesk({ todos: [...(S.desk?.todos || []), { t, done: false }] });
 });
+// 📋 붙여넣기: 맥 캡쳐(⌃⇧⌘4)처럼 클립보드에 그림만 있는 경우 files 가 비어 있고 items 에만 있어요 (사파리 · 맥 앱 창) → 둘 다 봐요
+const okFile = (f) => f && (f.type.startsWith('image/') || isPdf(f) || isSheet(f) || isDoc(f));
+const named = (f, i = 0) => (f.name && f.name !== 'image.png' ? f : new File([f], `붙여넣기-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}${i ? '-' + i : ''}.${(f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`, { type: f.type }));
+async function pasteButton() {   // [📋 붙여넣기] 단추: 클립보드의 그림을 읽어 바로 넣어요 (브라우저가 '붙여넣기'를 한 번 물어볼 수 있어요)
+  if (!S.teacher) return;
+  try {
+    const items = await navigator.clipboard.read(), files = [];
+    for (const it of items) { const t = it.types.find((x) => x.startsWith('image/') || x === 'application/pdf'); if (t) files.push(named(new File([await it.getType(t)], '', { type: t }), files.length)); }
+    if (!files.length) return toast('클립보드에 그림이 없어요. 화면을 캡쳐(⌃⇧⌘4)한 뒤 눌러 주세요.');
+    upload(files);
+  } catch (e) { toast('클립보드를 읽지 못했어요. 접수처 화면을 누른 뒤 ⌘V 로 붙여 넣어 주세요.'); }
+}
 document.addEventListener('paste', (e) => {
-  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/') || isPdf(f) || isSheet(f) || isDoc(f));
+  let files = [...(e.clipboardData?.files || [])].filter(okFile);
+  if (!files.length) files = [...(e.clipboardData?.items || [])].filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(okFile).map(named);
   if (!S.teacher || !files.length) return;
   e.preventDefault();
   upload(files);
