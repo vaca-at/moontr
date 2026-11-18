@@ -888,10 +888,17 @@ function upcoming() {
 }
 // 사장실 탭: 사장실(일정) · 웹앱 현황(moontr.site 모든 웹앱 방문 + 브리핑) · 연수 대장(문서등록대장처럼 한 줄에 연수 하나)
 const BOSS_TABS = [['home', '사장실'], ['web', '웹앱 현황'], ['ledger', '연수 대장'], ['reg', '문서대장']];
+// 📎 사장실에서 바로 자료 넣기: 접수처로 옮기지 않고 사진 · PDF 고르기 · 📋 붙여넣기 · 끌어다 놓기 · ⌘V (읽는 중 · 확인 대기 숫자만 보여 줘요)
+function bossIntake() {
+  if (!S.teacher) return '';
+  const reading = S.uploading.size + S.captures.filter((c) => c.status === 'reading').length, review = S.cards.filter((c) => c.status === 'review').length;
+  return `<div class="boss-intake"><label class="btn primary" for="fileInput">📎 사진 · PDF 넣기</label><button type="button" class="btn" data-act="pasteClip">📋 붙여넣기</button>
+    <small>${reading ? `<b>AI 가 ${reading}장 읽는 중…</b>` : '여기에 끌어다 놓거나 ⌘V 로도 넣어요. 방은 그대로예요'}${review ? ` · <a href="#lobby">확인 기다리는 카드 ${review}장</a>` : ''}</small></div>`;
+}
 function bossRoom() {
   const tab = S.bossTab || 'home';
   const tabs = `<div class="row boss-tabs" role="tablist">${BOSS_TABS.map(([k, l]) => `<button class="chipbtn ${k === tab ? 'on' : ''}" role="tab" aria-selected="${k === tab}" data-act="bosstab" data-v="${k}">${l}</button>`).join('')}</div>`;
-  return tabs + (tab === 'web' ? webView() : tab === 'ledger' ? ledgerView() : tab === 'reg' ? registryView() : bossView(false));
+  return bossIntake() + tabs + (tab === 'web' ? webView() : tab === 'ledger' ? ledgerView() : tab === 'reg' ? registryView() : bossView(false));
 }
 
 // --- 문서대장: 업무관리시스템 문서등록대장 캡쳐를 AI 가 줄마다 옮긴 표 (ailab_meta/registry) ---
@@ -2120,7 +2127,7 @@ async function uploadSet(all, label = '') {
   const memo = [S.pending.memo, checked?.note].filter(Boolean).join('\n');
   S.pending = { link: '', memo: '' };
   if (S.q) { S.q = ''; $('#search').value = ''; }
-  if (route() !== 'lobby') location.hash = 'lobby';
+  if (route() !== 'lobby' && route() !== 'boss') location.hash = 'lobby';   // 사장실에서 넣으면 방을 옮기지 않아요 (2026-11-19)
   // PDF · 엑셀 · 문서가 있으면 사진까지 한 묶음 (엑셀 · 문서 내용은 메모에 글자로 붙어 같이 가요)
   if (checked) {
     const pdfN = checked.files.filter(isPdf).length;
