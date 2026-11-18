@@ -940,7 +940,10 @@ service cloud.firestore {
       return (!('from' in d) || (d.from is string && d.from.matches('^[a-z0-9_-]{1,24}$')))
         && (!('plat' in d) || (d.plat is list && d.plat.size() <= 3 && d.plat.toSet().hasOnly(['web', 'ios', 'android'])))
         && (!('days' in d) || (d.days is map && d.days.size() <= 1500))
-        && (!('use' in d) || (d.use is map && d.use.size() <= 30));
+        && (!('use' in d) || (d.use is map && d.use.size() <= 30))
+        // 학교급 (2026-11-19): 초 · 중 · 고 · 시간표 없음 가운데 하나, lvSet = 직접 골랐는지
+        && (!('lv' in d) || d.lv in ['high', 'mid', 'elem', 'none'])
+        && (!('lvSet' in d) || d.lvSet is bool);
     }
     match /desk_users/{deskId} {
       allow read: if (request.auth != null && request.auth.uid in resource.data.uids) || isTeacher();
@@ -952,7 +955,7 @@ service cloud.firestore {
         && deskPerson(request.resource.data);
       // 로그인을 더할 때(addUid)는 그 로그인이 먼저 desk_links 에 '이 책상'이라고 적어 둔 경우만. 빼는 건 안 돼요
       allow update: if request.auth != null && request.auth.uid in resource.data.uids
-        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds', 'look', 'from', 'plat', 'days', 'use'])
+        && request.resource.data.keys().hasOnly(['uids', 'addUid', 'name', 'realName', 'tag', 'createdAt', 'lastAt', 'lastDay', 'kinds', 'look', 'from', 'plat', 'days', 'use', 'lv', 'lvSet'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 20
         && deskPerson(request.resource.data) && deskLook(request.resource.data) && deskStats(request.resource.data)
         && request.resource.data.uids.toSet().hasAll(resource.data.uids)
