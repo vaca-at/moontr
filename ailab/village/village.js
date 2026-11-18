@@ -17,18 +17,17 @@ const rnd = (() => { let s = 7; return () => ((s = (s * 1664525 + 1013904223) >>
 // ───────── 건물 (방 11채 + 사장님 집) ─────────
 // 동네마다 배치가 달라요: 아래 '동네 배치' 의 layoutPattaya · layoutMaldives · layoutKyoto 가 자리를 정해요.
 // [방 이름, 너비, 깊이]
-const ORDER = [['security', 5, 4.5], ['moral', 5.5, 4.5], ['others', 5.5, 4.5], ['links', 6, 5], ['train', 6, 5], ['lobby', 7, 5], ['archive', 5.5, 4.5], ['aiedu', 6, 5], ['task', 6, 5], ['plans', 6, 5], ['store2', 5, 4]];
+const ORDER = [['security', 5, 4.5], ['moral', 5.5, 4.5], ['others', 5.5, 4.5], ['links', 6, 5], ['train', 6, 5], ['lobby', 7, 5], ['archive', 5.5, 4.5], ['aiedu', 6, 5], ['task', 6, 5], ['plans', 6, 5], ['jeong1', 5, 4]];
 const SIZE = Object.fromEntries(ORDER.map(([k, w, d]) => [k, [w, d]]));
 const V = (x, z, y = 0) => new THREE.Vector3(x, y, z);
 // L = 지금 동네 배치. spots(건물 자리, rot = 문이 보는 쪽) · plaza(광장) · fc(푸드코트) · net(직원이 다니는 길) · H(x,z)(땅 높이)
 let L = null, SPOTS = [], LOBBY = null;
-function spot(key, x, z, rot, o = {}) { const [w, d] = SIZE[key] || [8, 6]; return { key, x, z, rot, w, d, lot: key === 'store2', boss: key === 'boss', ...o }; }
+function spot(key, x, z, rot, o = {}) { const [w, d] = SIZE[key] || [8, 6]; return { key, x, z, rot, w, d, lot: false, boss: key === 'boss', ...o }; }
 const gy = (x, z) => (L ? L.H(x, z) : 0);
-const NAME = (k) => (k === 'boss' ? '사장님 집' : k === 'store2' ? '빈 터' : ROOMS[k]?.name || k);
+const NAME = (k) => (k === 'boss' ? '사장님 집' : ROOMS[k]?.name || k);
 const JOB = (k) => ROOMS[k]?.role || '';
 const DESC = {
   boss: '사장님 집이에요. 계기판 · 브리핑 · 일정은 연구소의 사장실에서 열려요.',
-  store2: '아직 비어 있는 터예요. 새 방이 생기면 여기에 건물이 올라가요.',
 };
 
 // ───────── 테마 ─────────
@@ -50,9 +49,11 @@ const THEMES = {
 // ───────── 3D 기본 ─────────
 const canvas = $('#stage');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+// 노트북이 버벅이지 않게 (2026-11-18): 화면 촘촘함 1.5배까지 · 가벼운 그림자 · 그림자는 3장에 한 번만 다시 계산
+renderer.setPixelRatio(Math.min(1.5, devicePixelRatio || 1));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false; let shF = 0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(48, 1, 0.5, 600);
@@ -576,7 +577,7 @@ const loopOf = (pts) => pts.map(([x, z]) => V(x, z));
 // ── 파타야 1안: 비치로드 일자 거리 ──
 // 북쪽(-z)부터: 워킹 스트리트 푸드코트 · 접수처(거울 연못 정자) · 건물 한 줄 · 해변 큰길 · 잔디밭 광장 · 모래사장 · 바다, 사장님 집은 바다로 난 부두 끝
 function layoutPattaya() {
-  const xs = [-52, -42, -32, -22, -12, 12, 22, 32, 42, 52], keys = ['security', 'moral', 'others', 'links', 'train', 'archive', 'aiedu', 'task', 'plans', 'store2'];
+  const xs = [-52, -42, -32, -22, -12, 12, 22, 32, 42, 52], keys = ['security', 'moral', 'others', 'links', 'train', 'archive', 'aiedu', 'task', 'plans', 'jeong1'];
   const spots = keys.map((k, i) => spot(k, xs[i], 9, 0));
   spots.push(spot('lobby', 0, -4, 0, { w: 12, d: 9, tagY: 9.6 }));
   spots.push(spot('boss', 36, 42, Math.PI, { w: 8, d: 6, tagY: 9.6 }));
@@ -628,7 +629,7 @@ function layoutMaldives() {
   const onIsland = (x, z) => ((x - IC.x) / IRX) ** 2 + ((z - IC.z) / IRZ) ** 2;
   const arms = [[J, V(-34, 24)], [J, V(34, 24)]];
   const spots = [spot('lobby', 0, -32, 0, { w: 10, d: 7, tagY: 8.6 })];
-  const keysL = ['train', 'links', 'moral', 'others', 'security'], keysR = ['archive', 'aiedu', 'task', 'plans', 'store2'];
+  const keysL = ['train', 'links', 'moral', 'others', 'security'], keysR = ['archive', 'aiedu', 'task', 'plans', 'jeong1'];
   [[arms[0], keysL, 1], [arms[1], keysR, -1]].forEach(([[a, b], ks, sg]) => {
     const dir = b.clone().sub(a), Ln = dir.length(); dir.normalize(); const nrm = V(-dir.z, dir.x);
     ks.forEach((k, i) => { const t = 0.2 + i * 0.19, side = (i % 2 ? -1 : 1) * sg, p = a.clone().addScaledVector(dir, Ln * t).addScaledVector(nrm, side * 6.8);
@@ -679,7 +680,7 @@ function layoutKyoto() {
   const raw = (x, z) => base(z) - 7 * Math.exp(-((x + 14) ** 2) / 70 - ((z + 15) ** 2) / 22) - (z > 37 && z < 41 ? 0.9 : 0);
   // 건물 자리: 지그재그 굽이 사이 넓은 곳에, 문은 가장 가까운 길 쪽으로
   const nearWay = (x, z) => { let best = null; for (let i = 0; i < WAY.length - 1; i++) { const a = WAY[i], ab = WAY[i + 1].clone().sub(a), t = THREE.MathUtils.clamp(((x - a.x) * ab.x + (z - a.z) * ab.z) / ab.lengthSq(), 0, 1), q = a.clone().addScaledVector(ab, t), d = Math.hypot(q.x - x, q.z - z); if (!best || d < best.d) best = { d, q }; } return best.q; };
-  const put = [['security', 9, 22], ['moral', -14, 30.5], ['others', -28, 16], ['links', 0, 21.5], ['train', 16, 18.5], ['aiedu', -8, 9.5], ['archive', 8, -2], ['plans', -1, -2.5], ['task', -21, -9], ['store2', 16, -18]];
+  const put = [['security', 9, 22], ['moral', -14, 30.5], ['others', -28, 16], ['links', 0, 21.5], ['train', 16, 18.5], ['aiedu', -8, 9.5], ['archive', 8, -2], ['plans', -1, -2.5], ['task', -21, -9], ['jeong1', 16, -18]];
   const spots = put.map(([k, x, z]) => { const q = nearWay(x, z); return spot(k, x, z, Math.atan2(q.x - x, q.z - z)); });
   spots.push(spot('lobby', 0, 34, 0, { w: 7.5, d: 4.5, tagY: 10.8, plateY: 0 }));
   spots.push(spot('boss', -14, -31, 0, { w: 12, d: 7, tagY: 11.5 }));
@@ -730,7 +731,7 @@ function distSeg(x, z, a, b) { const ab = b.clone().sub(a), t = THREE.MathUtils.
 const LAYOUTS = { andaz: layoutPattaya, maldives: layoutMaldives, kyoto: layoutKyoto };
 
 // ───────── 사람들 ─────────
-const STAFF_KEYS = ORDER.map(([k]) => k).filter((k) => k !== 'store2');
+const STAFF_KEYS = ORDER.map(([k]) => k);
 const npcs = [];
 let me = null;
 const plazaPt = () => { const a = rnd() * Math.PI * 2, r = L.plaza.r * (0.5 + rnd() * 0.45); return V(L.plaza.x + Math.sin(a) * r, L.plaza.z + Math.cos(a) * r); };
@@ -1050,6 +1051,7 @@ if (admin || DEMO) { await sleep(500); arrive(); } else { document.body.classLis
 // ───────── 매 프레임 ─────────
 const clock = new THREE.Clock(), tmp = new THREE.Vector3();
 function tick() {
+  if (document.hidden) { clock.getDelta(); requestAnimationFrame(tick); return; }   // 다른 탭이면 쉬어요
   const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
   const g = me.g, before = g.position.clone(), free = me.here && !arriving;   // 로그인 전 · 등장하는 동안은 사장님이 움직이지 않아요
   // 방향키
@@ -1118,6 +1120,7 @@ function tick() {
   for (const v of VENDORS) animate(v.g, dt, false, 'cook');
   chatter(dt);
   controls.update();
+  renderer.shadowMap.needsUpdate = (shF++ % 3 === 0);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }

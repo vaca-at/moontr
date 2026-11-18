@@ -262,6 +262,7 @@ const DECO = {
   others: ['b', 'b', 'b', 'easel'], plans: ['w', 'w', 'shelf'], task: ['wb', 'w'], lobby: ['mailbox', 'w', 'crates'], archive: ['crates6', 'b', 'crates'],
   security: ['wb', 'w', 'w'],
   aiedu: ['wb', 'w', 'w', 'shelf'],
+  jeong1: ['wb', 'easel', 'shelf'],
 };
 const deco = (k) => (DECO[k] || ['w', 'shelf']).map((p) => PROP[p]).join('');
 
@@ -511,7 +512,7 @@ function roomContent(k) {
   const head = r.task ? taskPanel() : k === 'links' ? linkForm() : '';
   const list = cardsIn(k);
   if (!list.length) return head + emptyRoom(k);
-  const view = { link: linksView, lesson: lessonsView, plan: plansView, split: splitView }[r.view] || eventsView;
+  const view = { link: linksView, lesson: lessonsView, plan: plansView, split: splitView, prep: prepView }[r.view] || eventsView;
   return head + view(list, k);
 }
 
@@ -641,6 +642,20 @@ function seriesFold(list) {
     g.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     return { ...g[0], _older: g.slice(1) };
   });
+}
+// prep: 1정 연수 준비방 — 위 '연수 강의 설계' · 아래 'AI 도구 정리' 두 칸으로 나눠 보여 줘요
+//  AI 가 적은 '구분' 칸을 먼저 보고, 없으면 제목 · 내용 낱말로 나눠요 (도구 · 앱 · 사이트 · GPT · 제미나이 …)
+const PREP = [['design', '연수 강의 설계'], ['tools', 'AI 도구 정리']];
+function prepOf(c) {
+  const g = (c.fields || []).find((f) => f.label === '구분')?.value || '';
+  if (/도구/.test(g)) return 'tools';
+  if (/설계|강의|차시/.test(g)) return 'design';
+  const t = [c.title, c.kind, c.summary, ...(c.fields || []).map((f) => f.value)].join(' ');
+  return /도구|툴|앱 |사이트|사용법|플랫폼|GPT|Gemini|제미나이|Claude|클로드|패들렛|캔바|Canva|뤼튼|Perplexity|노트북LM|NotebookLM|코파일럿|Copilot/i.test(t) && !/강의안|차시|강의 흐름|연수 설계|강의 설계/.test(t) ? 'tools' : 'design';
+}
+function prepView(list) {
+  return PREP.map(([k, name]) => { const part = list.filter((c) => prepOf(c) === k);
+    return `<section class="prep"><h3 class="prep-h">${esc(name)} <small>${part.length}장</small></h3>${part.length ? eventsView(part) : `<p class="empty">아직 ${esc(name)} 자료가 없어요.</p>`}</section>`; }).join('');
 }
 function eventsView(list) {
   const { live, past } = sortCards(seriesFold(list));
@@ -1253,7 +1268,8 @@ function lobbyView() {
     ${progressList(reading, moving)}
     ${errors.length ? `<div class="errs">${errors.map((c) => `<div class="err">${thumb(c.storagePath, 'qthumb')}<div><b>읽지 못한 자료 · ${esc(c.name || '')}</b><small>${esc(c.error || '')}</small></div><button data-act="reread" data-cap="${c.id}">다시 읽기</button><button data-act="delcap" data-cap="${c.id}">지우기</button></div>`).join('')}</div>` : ''}
     <div class="q-h"><span class="pip"></span>확인을 기다리는 카드 ${review.length}장 · 노란 칸만 보면 돼요
-      ${(() => { const n = review.filter((c) => !isUnsorted(c)).length; return n ? `<button class="btn primary allok" data-act="confirmAll">✓ ${n}장 한 번에 방으로 보내기</button>` : ''; })()}</div>
+      ${(() => { const n = review.filter((c) => !isUnsorted(c)).length; return n ? `<button class="btn primary allok" data-act="confirmAll">✓ ${n}장 한 번에 방으로 보내기</button>` : ''; })()}
+      ${review.length ? `<button class="btn allok" data-act="allToJeong1">📚 ${review.length}장 모두 1정 연수 준비방으로</button>` : ''}</div>
     ${review.some(isUnsorted) ? '<p class="q-note">방이 안 정해진 카드는 한 번에 보내기에서 빠져요. [고치기]에서 방을 골라 주세요.</p>' : ''}
     ${review.length ? `<div class="qcards">${review.map(reviewCard).join('')}</div>` : '<p class="empty">지금은 확인할 카드가 없어요.</p>'}
   </div>`;
@@ -2224,6 +2240,17 @@ document.addEventListener('click', async (e) => {
         await updateDoc(doc(db, dbPath(`cards/${id}`)), { status: 'done', unsure: [], confirmedAt: serverTimestamp() });
         toast(`${roomName(cardById(id)?.room)}에 보관했어요`);
         break;
+      case 'allToJeong1': {   // 접수처에 쌓인 확인 전 카드를 모두 1정 연수 준비방으로 (2026-11-18 문쌤: 다 내 AI 연수 자료)
+        const list = S.cards.filter((c) => c.status === 'review');
+        if (!list.length || !confirm(`확인 전 카드 ${list.length}장을 모두 '1정 연수 준비방'으로 보낼까요?`)) break;
+        for (let i = 0; i < list.length; i += 400) {
+          const batch = writeBatch(db);
+          list.slice(i, i + 400).forEach((c) => batch.update(doc(db, dbPath(`cards/${c.id}`)), { room: 'jeong1', status: 'done', unsure: [], confirmedAt: serverTimestamp() }));
+          await batch.commit();
+        }
+        toast(`${list.length}장을 1정 연수 준비방으로 보냈어요`);
+        break;
+      }
       case 'confirmAll': {
         const batch = writeBatch(db);
         const list = S.cards.filter((c) => c.status === 'review' && !isUnsorted(c));

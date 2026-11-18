@@ -14,6 +14,7 @@
 //  - 📌 급하게 할 일: ailab_meta/desk.pinned (연구소 방 화면이 계산해 둔 그대로)
 //  - ☀️ 아침 브리핑: ailab_meta/briefing (오늘 날짜일 때만 · 한 줄 요약 · 오늘 · 앞으로 2주)
 //  - 📡 공문 레이더: ailab_meta/registry.rows 에서 '신청해 볼 것'(★ 2개 이상) · '제출할 것' 최근 것 (레이더와 같은 낱말 규칙)
+//  - 💳 콘솔 크레딧: ailab_meta/desk(creditLeft · creditAsOf · creditExpires · creditPaid) - ailab_meta/usage.days
 //  - 🧑‍💼 사장님 · 친구 모습: ailab_meta/building (me · friend · gender · look) → 맥 바탕화면 캐릭터도 웹과 똑같이
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
@@ -33,6 +34,12 @@ const stars = (t) => Math.min(3, LIKE.reduce((s, [re, n]) => s + (re.test(t) ? n
 const byDate = (a, b) => String(b.d).localeCompare(String(a.d));
 
 const S = { pinned: [], brief: null, radar: { apply: [], submit: [] }, look: null };
+// 💳 콘솔 크레딧: 사장실 계기판과 같은 계산 (콘솔에서 본 남은 값 - 그 날부터 연구소 AI 가 쓴 값)
+let D = {}, U = {};
+function credit() {
+  const days = U.days || {}, since = (from) => Object.entries(days).filter(([k]) => k >= from).reduce((n, [, v]) => n + v, 0);
+  S.credit = { left: D.creditLeft != null && D.creditAsOf ? D.creditLeft - since(D.creditAsOf) : null, exp: D.creditExpires || '', paid: D.creditPaid ?? null };
+}
 let timer = null;
 const send = () => { clearTimeout(timer); timer = setTimeout(() => post({ t: 'feed', login: true, ...S, at: Date.now() }), 300); };
 let unsubs = [];
@@ -41,7 +48,8 @@ onAuthStateChanged(auth, (u) => {
   if (u && !isAdmin(u.email)) { signOut(auth).catch(() => {}); return post({ t: 'feed', login: false }); }   // 관리자가 아닌 계정은 바로 로그아웃
   if (!u) return post({ t: 'feed', login: false });
   const fail = (e) => post({ t: 'log', m: '읽기 실패 ' + (e.code || e.message) });
-  unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'desk'), (s) => { S.pinned = ((s.exists() && s.data().pinned) || []).slice(0, 12).map((x) => ({ k: x.k, t: String(x.t || '').slice(0, 60), d: x.d || '', room: x.room || '', url: x.url || '' })); send(); }, fail));
+  unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'desk'), (s) => { const d = s.exists() ? s.data() : {}; S.pinned = (d.pinned || []).slice(0, 12).map((x) => ({ k: x.k, t: String(x.t || '').slice(0, 60), d: x.d || '', room: x.room || '', url: x.url || '' })); D = d; credit(); send(); }, fail));
+  unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'usage'), (s) => { U = s.exists() ? s.data() : {}; credit(); send(); }, fail));
   unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'briefing'), (s) => {
     const b = s.exists() ? s.data() : null;
     S.brief = b && b.date === today() ? { date: b.date, headline: String(b.headline || '').slice(0, 120), today: (b.today || []).slice(0, 4).map((x) => String(x).slice(0, 90)), soon: (b.soon || []).slice(0, 4).map((x) => ({ date: x.date, title: String(x.title || '').slice(0, 60) })) } : null;

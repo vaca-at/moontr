@@ -5,11 +5,12 @@
 //   CH.gender : 사장님이 여자('f')인지 남자('m')인지 알려 주는 함수 (부르는 쪽이 자기 설정을 이어 줘요)
 //   makeChar(def) : 설계도로 3D 캐릭터 만들기 → { root, lift, head, armL, armR, legL, legR, groups }
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { makeBoss } from './boss3d.js';   // 사장님 8번(여자)은 맥 앱과 같은 둥근 3D 모형
 
 export const CH = { look: 0, gender: () => 'f' };
 // 처음 설정: 방마다 직원 번호(assign) · 사장님 8번 베이지 재킷(여자) · 친구 11번 클로드 · 느낌 0 각진 복셀
 // 고른 설정은 브라우저 'ailab3d' 와 Firebase ailab_meta/building 에 저장돼요 (방 화면 메뉴에서 바꿔요)
-export const CHAR_DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3, aiedu: 11 }, me: 8, friend: 11, gender: 'f', look: 0 };
+export const CHAR_DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3, aiedu: 11, jeong1: 2 }, me: 8, friend: 11, gender: 'f', look: 0 };
 
 // ---------- 색 ----------
 const P = {
@@ -221,7 +222,7 @@ function beigeBoss() {
     { y: -7.4, w: 6.6, h: 6.4, d: 6, c: SK, front: [...(female ? [[0, 0, 6.6, 1, HR], [0, 1, 2.4, .9, HR], [4.9, 1, 1.7, .5, HR]] : [[0, 0, 6.6, .9, HR], [0, .9, 1.4, .5, HR]]), ...face] },
     ...hair,
   ]);
-  return { ...PERSON, parts };
+  return { ...PERSON, parts, crew: female };   // crew = 맥 앱 모형으로 바꿔 그려요 (parts 는 키 재기용)
 }
 const ME = [
   { id: 1, name: '도덕 선생님', hold: 'L', note: '초록 가디건에 교사 명찰, 하트 그려진 도덕 교과서', def: () => meDef({
@@ -488,7 +489,24 @@ function buildParts(parts, into, origin, named, groups) {
     }
   }
 }
+// 맥 앱 사장님 모형: 예전 블록 사장님과 키가 같게 줄여서, 같은 이름(root · lift · head · armL · armR · legL · legR)으로 돌려줘요
+let crewScale = 0;
+function makeCrewBoss(def) {
+  if (!crewScale) {
+    const old = new THREE.Group(); buildParts(def.parts, old, [0, def.foot, 0], {}, []);
+    const hOld = new THREE.Box3().setFromObject(old).getSize(new THREE.Vector3()).y;
+    const probe = makeBoss({ work: 1, pj: 1 }); probe.setOutfit('work');
+    const hNew = new THREE.Box3().setFromObject(probe.root).getSize(new THREE.Vector3()).y;
+    crewScale = hOld / hNew;
+  }
+  const b = makeBoss({ work: 1, pj: 1 }); b.setOutfit('work');
+  const root = new THREE.Group(), lift = new THREE.Group(); root.add(lift);
+  b.root.scale.setScalar(crewScale); lift.add(b.root);
+  b.root.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  return { root, lift, groups: [], head: b.head, armL: b.armL, armR: b.armR, legL: b.legL, legR: b.legR, sway: false, crew: b };
+}
 function makeChar(def) {
+  if (def.crew) return makeCrewBoss(def);
   const root = new THREE.Group();
   const lift = new THREE.Group();
   const named = {}, groups = [];

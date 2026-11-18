@@ -64,10 +64,15 @@ export const ROOMS = {
     fields: ['공문 제목', '보낸 곳', '해야 할 일', '대상', '기한', '관련 시스템·프로그램'],
   },
 
+  jeong1: {
+    name: '1정 연수 준비방', role: '강의 준비 담당', ai: true, view: 'prep',
+    desc: '내가 강사로 하는 1급 정교사(1정) 자격연수 · AI 연수 강의 준비 자료. 연수 강의 설계(차시 구성 · 강의 흐름 · 실습 · 슬라이드 · 강의안)와 AI 도구 정리(연수에서 소개할 AI 도구 · 사이트 · 사용법). 다른 강사의 AI 연수 자료 · 내가 들은 AI 연수 화면도 강의 준비용이면 여기로',
+    fields: ['구분', '연수·강의명', '차시·주제', '일시', '대상', '핵심 내용', 'AI 도구', '링크'],
+  },
+
   lobby: { name: '접수처', role: '접수', system: true },
   archive: { name: '원본 보관실', role: '창고지기', system: true },
 
-  store2: { name: '창고 2', ...STORE },
   store3: { name: '창고 3', ...STORE },
 };
 
@@ -77,5 +82,5 @@ export const FLOORS = [
   { floor: 'PH', name: '펜트하우스', rooms: ['boss'], penthouse: true },
   { floor: '2F', name: '연수 층', rooms: ['train', 'links', 'task', 'aiedu'] }, // 창고 4 → AI 교육 연구실 (2026-10-29)
   { floor: '1F', name: '수업 층', rooms: ['lobby', 'moral', 'others', 'plans'] },
-  { floor: 'B1', name: '보관 · 보안 층', rooms: ['archive', 'security', 'store2', 'store3'] }, // 창고 1 → 정보 보안실 (2026-10-29)
+  { floor: 'B1', name: '보관 · 보안 층', rooms: ['archive', 'security', 'jeong1', 'store3'] }, // 창고 1 → 정보 보안실 (2026-10-29) · 창고 2 → 1정 연수 준비방 (2026-11-18)
 ];

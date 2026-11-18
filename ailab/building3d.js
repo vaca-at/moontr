@@ -20,6 +20,7 @@ const JOBS = {
   security: '정보 보안 공문에서 학교가 해야 할 일과 기한만 뽑아 챙겨요.',
   lobby: '들어온 캡쳐를 받아 AI에게 읽히고, 어느 방으로 보낼지 정해요.',
   archive: '넣은 캡쳐 원본을 고치지 않고 그대로 보관해요.',
+  jeong1: '1정 연수 강의 설계와 연수에서 소개할 AI 도구를 나눠 정리해요.',
 };
 // n · hot = 이름표 옆 숫자 (앱이 setBadges 로 실제 자료 수를 넣어요)
 const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, { ...r, job: JOBS[k] || r.desc || '', n: 0, hot: false }]));
@@ -63,9 +64,11 @@ try {
   stage.insertAdjacentHTML('beforeend', '<p class="fail">이 브라우저에서는 3D 화면을 열 수 없어요. 다른 브라우저로 열어 주세요.</p>');
   throw new Error('WebGL 없음');
 }
-renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+// 노트북이 버벅이지 않게 (2026-11-18): 화면 촘촘함 1.5배까지 · 가벼운 그림자 · 그림자는 3장에 한 번만 다시 계산
+renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false; let shF = 0;
 stage.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -75,7 +78,7 @@ const sun = new THREE.DirectionalLight('#fff4e2', 2.3);
 sun.position.set(-14, 29, 26);
 sun.target.position.set(0, 6, 0);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024);
 Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 28, bottom: -22, near: 1, far: 120 }); // 방 4개짜리 넓고 낮은 건물이 다 들어가게
 sun.shadow.bias = -.0004;
 sun.shadow.normalBias = .03;
@@ -1013,8 +1016,8 @@ function libHover(l) {
 // ---------- 방마다 분류 가구 (2026-10-30 시안): 가구 한 칸 = 분류. 칸을 누르면 그 방 직원이 가서 꺼내 와 책상에 펼쳐요 ----------
 // 자료는 앱이 setRoomData({ cards, caps }) 로 넣어요. 칸 이름 · 수가 바뀌면 건물을 다시 그려요
 let ROOM_DATA = { cards: [], caps: [] };
-const TOOL_FURN = { train: 'cabinet', links: 'catalog', task: 'kanban', aiedu: 'rack', moral: 'board', plans: 'binder', security: 'safe', lobby: 'mailbox', archive: 'boxes' };
-const TOOL_COLOR = { train: '#c99a5c', links: '#8e6640', task: '#e3b23a', aiedu: '#2f9c8f', moral: '#2f8a5f', plans: '#6e5ea0', security: '#e0693f', lobby: '#e0693f', archive: '#8e6640' };
+const TOOL_FURN = { train: 'cabinet', links: 'catalog', task: 'kanban', aiedu: 'rack', moral: 'board', plans: 'binder', security: 'safe', lobby: 'mailbox', archive: 'boxes', jeong1: 'board' };
+const TOOL_COLOR = { train: '#c99a5c', links: '#8e6640', task: '#e3b23a', aiedu: '#2f9c8f', moral: '#2f8a5f', plans: '#6e5ea0', security: '#e0693f', lobby: '#e0693f', jeong1: '#3d6fd6', archive: '#8e6640' };
 const seoulDay = (d = new Date()) => new Date(d.getTime() + 9 * 36e5).toISOString().slice(0, 10);
 const addDay = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 // 방마다 칸 나누기: [[칸 이름, 카드 목록], …] (빈 칸도 이름은 보여요)
@@ -1052,13 +1055,18 @@ function toolUnits(k) {
       const debate = take(mine, /토론|논증|토의|문답/), proj = take(mine, /프로젝트|탐구/, debate), ai = take(mine, /AI|인공지능|디지털|에듀테크|웹앱/, [...debate, ...proj]);
       return [['토론 · 논증', debate], ['프로젝트 · 탐구', proj], ['AI · 디지털 도구', ai], ['그 밖', restOf(mine, [...debate, ...proj, ...ai])]];
     }
+    case 'jeong1': {   // app.js prepOf 와 같은 낱말 규칙
+      const tools = mine.filter((c) => { const g = (c.fields || []).find((f) => f.label === '구분')?.value || ''; if (/도구/.test(g)) return true; if (/설계|강의|차시/.test(g)) return false;
+        const t = `${c.kind} ${c.title} ${c.subject}`; return /도구|툴|앱 |사이트|사용법|플랫폼|GPT|Gemini|제미나이|Claude|클로드|패들렛|캔바|Canva|뤼튼|Perplexity|노트북LM|NotebookLM|코파일럿|Copilot/i.test(t) && !/강의안|차시|강의 흐름|연수 설계|강의 설계/.test(t); });
+      return [['연수 강의 설계', restOf(mine, tools)], ['AI 도구 정리', tools]];
+    }
     case 'security': {
       const soon = mine.filter((c) => c.date && c.date >= today && c.date <= addDay(today, 3)), month = mine.filter((c) => c.date > addDay(today, 3));
       return [['기한 3일 안', soon], ['앞으로 할 일', month], ['지난 · 참고', restOf(mine, [...soon, ...month])]];
     }
     case 'lobby': {
       const r = (...ks) => all.filter((c) => ks.includes(c.room) && c.status !== 'review');
-      return [['확인 전', all.filter((c) => c.status === 'review')], ['연수', r('train', 'task', 'links')], ['수업 공개', r('moral', 'others', 'plans')], ['AI 교육', r('aiedu')], ['보안', r('security')]];
+      return [['확인 전', all.filter((c) => c.status === 'review')], ['연수', r('train', 'task', 'links')], ['수업 공개', r('moral', 'others', 'plans')], ['AI 교육', r('aiedu')], ['1정 연수', r('jeong1')], ['보안', r('security')]];
     }
     case 'archive': {
       const months = {};
@@ -2166,7 +2174,7 @@ let t = 0, tour = 0;
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), .05);
-  if (!visible) return; // 숨어 있는 동안은 그리지 않아요
+  if (!visible || document.hidden || document.getElementById('furn')?.open) return; // 숨어 있거나 가구 창이 덮고 있으면 그리지 않아요
   t += dt;
   for (const c of people) if (c.role !== 'player') animate(c, t);
   stepWalk(dt, t);
@@ -2188,6 +2196,7 @@ function loop() {
   const ext = extOn();
   if (ext !== OUT.on) { OUT.on = ext; world.visible = !ext; outside.visible = ext; hoverRoom(null); }
   placeCamera();
+  renderer.shadowMap.needsUpdate = (shF++ % 3 === 0);
   renderer.render(scene, camera);
   placeLabels();
 }
