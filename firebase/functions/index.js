@@ -92,6 +92,7 @@ ${AI_ROOMS.map(([k, r]) => `- ${k} (${r.name}): ${r.desc}\n  세부 항목: ${r.
   from · to 는 등록일자(기간) 검색 칸의 시작 · 끝 날짜 YYYY-MM-DD, total 은 '총 ○○건'의 숫자, page 는 지금 보이는 쪽 번호(숫자만). 보이지 않는 칸은 "".
 - Anthropic 콘솔(Claude Console)의 결제 · 크레딧(Billing, Credit balance) 화면이면 credit 을 채워요.
   left 는 남은 크레딧 금액(달러, 숫자만 문자열로 예: "63.42"), expires 는 크레딧 만료일 YYYY-MM-DD (없으면 ""), seen 은 화면에 보이는 기준 날짜 (없으면 "").
+  프로모션 크레딧이 여러 줄이면 이미 끝났거나(Expired) 다 쓴 줄은 빼고, 아직 쓰는 중인 프로모션의 만료일을 expires 에 적어요. 그런 줄이 여럿이면 가장 늦게 끝나는 날짜.
 - 해당하지 않으면 registry 는 빈 목록, search 와 credit 의 칸은 모두 "".`;
 
 const str = { type: 'string' };
@@ -265,7 +266,7 @@ async function processCapture(capId) {
     if (credit) {
       batch.set(db.doc('ailab_meta/desk'), {
         creditLeft: left, creditAsOf: isDate(read.credit.seen) ? read.credit.seen : seoulToday(),
-        ...(isDate(read.credit.expires) ? { creditExpires: read.credit.expires } : {}), creditFrom: '캡쳐', updatedAt: FieldValue.serverTimestamp(),
+        ...(isDate(read.credit.expires) && read.credit.expires >= seoulToday() ? { creditExpires: read.credit.expires } : {}), creditFrom: '캡쳐', updatedAt: FieldValue.serverTimestamp(),   // 이미 지난 만료일(끝난 프로모션)은 적지 않아요
       }, { merge: true });
     }
     const note = rows.length ? `문서대장 ${rows.length}줄을 사장실 [문서대장] 탭에 넣었어요` : credit ? `콘솔 남은 크레딧 $${left}를 사장님 계기판에 적었어요` : cards.length ? '' : '읽을 자료를 찾지 못했어요';
