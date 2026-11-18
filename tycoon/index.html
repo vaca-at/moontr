@@ -2176,6 +2176,7 @@ function stateAt(d){
   for (const [p, a, b] of BELL){
     const s = mm(a), e = mm(b);
     if (m >= s && m < e){
+      if ((p === "조회" || p === "종례") && window.SN_LBL?.[p]) return { place:"office", act:window.SN_LBL[p][1], s, e, m, slot:p, p };
       if (p === "조회" || p === "종례") return HR ? { place:HR, act:`우리 반 ${p}`, s, e, m, slot:p, p } : { place:"office", act:p === "조회" ? "아침 조회 시간 · 교무실" : "종례 시간 · 하루 정리", s, e, m, slot:p, p };
       if (p === "점심") return { place:"office", act:"점심시간", s, e, m, slot:"점심", p, lunch:true };
       const r = (TT[day] || {})[p];
@@ -2710,7 +2711,7 @@ function drawKids(S, st){
     if (w.leave) return;
     // 이름표: 나눠 가면 과목(없으면 교실), 반 전체면 '우리 반'
     // 반 전체면 지금 수업: '수학 시간' (가는 중이면 '→ 수학') · 쉬는 시간 · 점심 시간 · 조회 · 종례 · 하교
-    const subj = w.g && w.g.s, now1 = subj ? (w.walking ? `→ ${subj}` : `${subj} 시간`) : st.lunch ? "점심 시간" : st.brk ? "쉬는 시간" : st.none ? "수업 없음" : st.p === "조회" || st.p === "종례" ? `${st.p} 중` : st.p && /\d/.test(st.p) ? `${st.p}교시` : st.slot || HR || "우리 반";
+    const subj = w.g && w.g.s, now1 = subj ? (w.walking ? `→ ${subj}` : `${subj} 시간`) : st.lunch ? "점심 시간" : st.brk ? "쉬는 시간" : st.none ? "수업 없음" : window.SN_LBL?.[st.p] ? window.SN_LBL[st.p][1] : st.p === "조회" || st.p === "종례" ? `${st.p} 중` : st.p && /\d/.test(st.p) ? `${st.p}교시` : st.slot || HR || "우리 반";
     const tag = many ? (w.g.s || NAME(w.g.r)) : `🧒 ${now1}`, tw = Math.max(16, tag.length*4.6 + 6), ty = Math.round(w.pos.y - 13*s - 8);
     g.globalAlpha = .82; rect(Math.round(w.pos.x - tw/2), ty, Math.round(tw), 7, many ? "#2E6BD8" : "#D8435A"); g.globalAlpha = 1;
     txt(tag, Math.round(w.pos.x), ty + 3.5, 4.5, "#FFFFFF", "center");
@@ -6480,7 +6481,7 @@ const messenger = port => (() => {
     const E = dayEdge(), out = [], n = t.rows.filter(r => r.r && r.r !== "lunch" && /\d/.test(r.p)).length;
     if (st.m >= E.i) out.push([hhmm(E.i), `좋은 아침이에요, ${sirName()}! 오늘 수업 ${n}개예요 ☀`, false]);
     t.rows.forEach(r => { if (st.m < mm(r.a)) return;
-      const txt0 = r.p === "조회" || r.p === "종례" ? `${r.p} 시간이에요${HR ? ` · ${HR} 우리 반` : ""}` : r.r === "lunch" ? "점심시간이에요 🍚 맛있게 드세요" : r.r ? `${r.p}교시 ${NAME(r.r)} 수업 시작! 📚` : `${r.p}교시는 공강이에요 ☕`;
+      const txt0 = window.SN_LBL?.[r.p] ? `${window.SN_LBL[r.p][1]} 시간이에요` : r.p === "조회" || r.p === "종례" ? `${r.p} 시간이에요${HR ? ` · ${HR} 우리 반` : ""}` : r.r === "lunch" ? "점심시간이에요 🍚 맛있게 드세요" : r.r ? `${r.p}교시 ${NAME(r.r)} 수업 시작! 📚` : `${r.p}교시는 공강이에요 ☕`;
       out.push([r.a, txt0, false]); });
     TODOS.filter(x => x.d).slice(0, 2).forEach(x => out.push(["", `✓ ${x.t} 끝!`, true]));
     if (st.m >= E.o) out.push([hhmm(E.o), "오늘도 수고했어요 🌙 내일 봐요", false]);
@@ -6981,8 +6982,9 @@ function panel(d, st){
   if (EMPTY){ $("nNext").innerHTML = "🕘 시간표에서 <b>내 시간표</b>를 넣어 주세요"; $("tt").innerHTML = `<span class="ttempty">📭 아직 등록된 시간표가 없어요<br><small>위 🕘 시간표에서 넣으면 여기에 오늘 시간표가 보여요</small></span>`; return; }
   $("tt").innerHTML = day === 0 || day === 6 ? `<span class="p">WEEKEND</span><span>주말이에요</span><span></span>` : BELL.filter(([p]) => !(cls && (p === "조회" || p === "종례"))).map(([p, a, b]) => {   // 🧒 우리 반 TODAY 엔 조회 · 종례 줄 없이
     const cur = m >= mm(a) && m < mm(b) ? "cur" : "", r = slotRoom(day, p);
-    const what = r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH((KIND[p] ? KIND[p] + " · " : "") + (cls && /\d/.test(p) ? classLabel(day, p) : NAME(r)))}</span>` : `<span class="free">${/\d/.test(p) ? (cls ? "수업 없음" : "공강") : "교무실"}</span>`;
-    return `<span class="p ${cur}">${/\d/.test(p) ? p + "교시" : p}</span><span class="${cur}">${what}</span><span class="t">${a}</span>`;
+    const SNL = window.SN_LBL?.[p];   // 수능날: 조회 → 입실 · 1교시 감독관 입실, 종례 → 퇴근
+    const what = SNL ? `<span class="chip">${escH(SNL[1])}</span>` : r === "lunch" ? `<span class="free">점심</span>` : r ? `<span class="chip ${r === HR ? "hr" : ""}">${escH((KIND[p] ? KIND[p] + " · " : "") + (cls && /\d/.test(p) ? classLabel(day, p) : NAME(r)))}</span>` : `<span class="free">${/\d/.test(p) ? (cls ? "수업 없음" : "공강") : "교무실"}</span>`;
+    return `<span class="p ${cur}">${/\d/.test(p) ? p + "교시" : SNL ? SNL[0] : p}</span><span class="${cur}">${what}</span><span class="t">${a}</span>`;
   }).join("");
 }
 
@@ -7983,7 +7985,8 @@ const SN_BELL = [{ k:"조회", s:"08:10", e:"08:35" }, ...SUNEUNG.tt.map(([p, n,
 const SN_DAY = Object.fromEntries(SUNEUNG.tt.filter(r => r[0] !== "점심").map((r, i) => [i + 1, `수능 ${r[1].replace(/ /g, "")}`]));
 const snLv = c => (c && ["high", "mid", "elem"].includes(c.level) ? c.level : "high");
 function snCfg(c){
-  if (!c || dkey(new Date()) !== SUNEUNG.day || snLv(c) === "elem") return c;
+  if (!c || dkey(new Date()) !== SUNEUNG.day || snLv(c) === "elem"){ delete window.SN_LBL; return c; }
+  window.SN_LBL = { "조회":["입실", "1교시 감독관 입실"], "종례":["퇴근", "퇴근"] };   // 화면에 보이는 이름만 (위쪽 일반 스크립트가 읽어요)
   const wd = new Date().getDay();
   return { ...c, bell:SN_BELL, inT:"07:40", outT:"18:20", week:{ ...(c.week || {}), [wd]:SN_DAY }, hrWeek:{ ...(c.hrWeek || {}), [wd]:SN_DAY } };
 }
