@@ -2168,7 +2168,7 @@ function applyConfig(cfg){
   MY_BASE = {}; for (const w in TT) MY_BASE[w] = { ...TT[w] };
   BASE_TT = MODE === "class" ? CLASS_BASE : MY_BASE; patchedKey = "";   // 하루만 바꾸기 전 원래 시간표
   const clsRooms = Object.values(CLASS_G).flatMap(o => Object.values(o).flat().map(g => g.r)).filter(r => r && r !== "home" && r !== HR);   // 아이들이 가는 특별실도 지도에
-  ROOMS = [...new Set([...Object.values(TT).flatMap(o => Object.values(o)), ...clsRooms])];
+  ROOMS = [...new Set([...Object.values(TT).flatMap(o => Object.values(o)), ...clsRooms])].filter(r => !/^수능 /.test(r));   // 수능날 시험 칸은 교실이 아니라 지도에 그리지 않아요
   if (MYROOM && !ROOMS.includes(MYROOM)) ROOMS.push(MYROOM);   // 내 수업 장소(음악실 …)도 지도에 있어야 가요
   TAUGHT = new Set(ROOMS); if (HR) TAUGHT.add(HR);
   SPECIAL = ROOMS.filter(id => !isClass(id));
@@ -2214,13 +2214,15 @@ function stateAt(d){
       if (p === "조회" || p === "종례") return HR ? { place:HR, act:`우리 반 ${p}`, s, e, m, slot:p, p } : { place:"office", act:p === "조회" ? "아침 조회 시간 · 교무실" : "종례 시간 · 하루 정리", s, e, m, slot:p, p };
       if (p === "점심") return { place:"office", act:"점심시간", s, e, m, slot:"점심", p, lunch:true };
       const r = (TT[day] || {})[p];
+      // 📝 수능날 시험 시간: 감독 조합 · 시험실은 학교마다 달라 모르고, 휴대폰도 내야 해서 적을 수 없어요 → 감독 · 본부 선생님 모두 교무실(본부)에서
+      if (r && /^수능 /.test(r)) return { place:"office", act:`${p}교시 ${r.slice(3)} · 시험 감독 · 본부`, s, e, m, slot:`${p}교시 ${r.slice(3)}`, p };
       return r ? { place:classRoom(r), act:`${p}교시 ${classRoom(r) !== r ? r + " " : ""}${KIND[p] || "수업"} 중`, s, e, m, slot:KIND[p] ? `${p}교시 ${KIND[p]}` : `${p}교시`, p } : { place:"office", act:`${p}교시 공강 · 업무`, s, e, m, slot:`${p}교시 공강`, p };
     }
   }
   if (m < E.f) return { place:"office", act:"출근 · 하루 준비", s:E.i, e:E.f, m, slot:"출근" };
   if (m >= E.l) return { place:"office", act:"업무 정리 · 퇴근 준비", s:E.l, e:Math.max(E.l + 1, E.o), m, slot:"정리" };
   const nx = BELL.find(([, a]) => mm(a) > m), pv = [...BELL].reverse().find(([, , b]) => mm(b) <= m);
-  const r = nx && slotRoom(day, nx[0]), go = r && r !== "lunch" && r !== "office", be = nx ? mm(nx[1]) : m + 1, bs = pv ? mm(pv[2]) : m;
+  const r = nx && slotRoom(day, nx[0]), go = r && r !== "lunch" && r !== "office" && !/^수능 /.test(r) && !window.SN_LBL?.[nx[0]], be = nx ? mm(nx[1]) : m + 1, bs = pv ? mm(pv[2]) : m;
   // 쉬는 시간: 먼저 교무실로 돌아왔다가, 종 치기 4분 전에 다음 교실로 가요
   if (go && m >= be - 4) return { place:classRoom(r), act:`${/\d/.test(nx[0]) ? nx[0] + "교시" : nx[0]} ${classRoom(r) !== r ? `${r} · ${MYROOM}` : r + (isClass(r) ? " 교실" : "")}로 가요`, s:be - 4, e:be, m, slot:"쉬는 시간", brk:true, go:true };
   return { place:"office", act:go ? `쉬는 시간 · 다음 ${/\d/.test(nx[0]) ? nx[0] + "교시" : nx[0]} ${r}` : "쉬는 시간 · 교무실", s:bs, e:go ? be - 4 : be, m, slot:"쉬는 시간", brk:true };
