@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>AI 연구소 맥 앱 소식</title>
+<style>body { font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif; padding: 24px; color: #333; }</style>
+</head>
+<body>
+<p id="msg">맥 앱 'AI 연구소 책상'이 연구소 소식을 받아 가는 페이지예요. 브라우저에서 열 일은 없어요.</p>
+<script type="module">
+// AI 연구소 맥 앱(~/Documents/ailab-desk)이 보이지 않게 열어 두는 페이지 (2026-11-18)
+// moontr.site 관리자 로그인(연구소 · 관리자 허브와 같은 로그인)이 있으면 바뀔 때마다 맥 앱에 건네요.
+//  - 📌 급하게 할 일: ailab_meta/desk.pinned (연구소 방 화면이 계산해 둔 그대로)
+//  - ☀️ 아침 브리핑: ailab_meta/briefing (오늘 날짜일 때만 · 한 줄 요약 · 오늘 · 앞으로 2주)
+//  - 📡 공문 레이더: ailab_meta/registry.rows 에서 '신청해 볼 것'(★ 2개 이상) · '제출할 것' 최근 것 (레이더와 같은 낱말 규칙)
+//  - 🧑‍💼 사장님 · 친구 모습: ailab_meta/building (me · friend · gender · look) → 맥 바탕화면 캐릭터도 웹과 똑같이
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { firebaseConfig } from '../firebase-config.js';
+const app = initializeApp(firebaseConfig);   // 이름 없는 기본 앱 = moontr.site 관리자 로그인과 같아요
+const auth = getAuth(app), db = getFirestore(app);
+const ADMIN_EMAILS = ['anstjsdud@sen.go.kr', 'bellachord@gmail.com'];
+const isAdmin = (e) => ADMIN_EMAILS.includes(String(e || '').toLowerCase());
+const post = (o) => { try { webkit.messageHandlers.lab.postMessage(o); } catch { document.getElementById('msg').textContent = JSON.stringify(o).slice(0, 400); } };
+const pad = (n) => String(n).padStart(2, '0'), today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+
+// 레이더와 같은 낱말 규칙 (ailab/radar/index.html 의 actOf · LIKE)
+const actOf = (t) => /결과|보고|제출|정산|조사|회신|점검|실적|명단|설문|협조/.test(t) ? '제출' : /모집|공모|신청|참가|선발|대회|경진|해커톤|공고|추천|희망|연수/.test(t) ? '신청' : '참고';
+const LIKE = [[/윤리|도덕|인권|철학/, 2], [/생성형|바이브|프롬프트|ChatGPT|GPT/i, 2], [/AI|인공지능|코딩|SW|에듀테크/i, 1], [/연수|연구회|선도교사|지원단|강사|공모/, 1]];
+const stars = (t) => Math.min(3, LIKE.reduce((s, [re, n]) => s + (re.test(t) ? n : 0), 0));
+const byDate = (a, b) => String(b.d).localeCompare(String(a.d));
+
+const S = { pinned: [], brief: null, radar: { apply: [], submit: [] }, look: null };
+let timer = null;
+const send = () => { clearTimeout(timer); timer = setTimeout(() => post({ t: 'feed', login: true, ...S, at: Date.now() }), 300); };
+let unsubs = [];
+onAuthStateChanged(auth, (u) => {
+  unsubs.forEach((f) => f()); unsubs = [];
+  if (u && !isAdmin(u.email)) { signOut(auth).catch(() => {}); return post({ t: 'feed', login: false }); }   // 관리자가 아닌 계정은 바로 로그아웃
+  if (!u) return post({ t: 'feed', login: false });
+  const fail = (e) => post({ t: 'log', m: '읽기 실패 ' + (e.code || e.message) });
+  unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'desk'), (s) => { S.pinned = ((s.exists() && s.data().pinned) || []).slice(0, 12).map((x) => ({ k: x.k, t: String(x.t || '').slice(0, 60), d: x.d || '', room: x.room || '', url: x.url || '' })); send(); }, fail));
+  unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'briefing'), (s) => {
+    const b = s.exists() ? s.data() : null;
+    S.brief = b && b.date === today() ? { date: b.date, headline: String(b.headline || '').slice(0, 120), today: (b.today || []).slice(0, 4).map((x) => String(x).slice(0, 90)), soon: (b.soon || []).slice(0, 4).map((x) => ({ date: x.date, title: String(x.title || '').slice(0, 60) })) } : null;
+    send();
+  }, fail));
+  unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'registry'), (s) => {
+    const rows = Object.values((s.exists() && s.data().rows) || {}).filter((r) => r && r.title).map((r) => ({ k: `${r.no || ''}|${r.title}`, t: String(r.title).slice(0, 70), d: r.date || '', a: actOf(String(r.title)), st: stars(String(r.title)) }));
+    S.radar = { apply: rows.filter((x) => x.a === '신청' && x.st >= 2).sort(byDate).slice(0, 5), submit: rows.filter((x) => x.a === '제출').sort(byDate).slice(0, 5) };
+    send();
+  }, fail));
+  unsubs.push(onSnapshot(doc(db, 'ailab_meta', 'building'), (s) => { const b = s.exists() ? s.data() : {}; S.look = { me: b.me ?? 8, friend: b.friend ?? 11, gender: b.gender || 'f', look: b.look ?? 0 }; send(); }, fail));
+});
+window.checkNow = send;   // 맥 앱 메뉴 '지금 다시 받기'
+</script>
+</body>
+</html>
