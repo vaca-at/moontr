@@ -1082,7 +1082,8 @@ function deskCard() {
     <div class="desk-grid">
       <div class="dk money"><h4>콘솔 · AI 비용</h4>
         <p class="big">${left != null ? `약 <b>${usd(left)}</b> 남음` : '<b>남은 값</b>을 적어 주세요'}${dExp != null ? ` <span class="${dExp <= 7 ? 'warn' : ''}">· 만료 D-${Math.max(0, dExp)}</span>` : ''}</p>
-        ${d.creditPaid != null ? `<p>그 밖에 구매 크레딧 <b>${usd(d.creditPaid)}</b> <small>(만료 없음 · 프로모션을 다 쓰거나 만료되면 이걸 써요. 자동 충전이 꺼져 있으면 이것까지 다 쓰면 AI가 멈춰요)</small></p>` : ''}
+        ${d.creditPaid != null ? `<p>그 밖에 구매 크레딧 <b>${usd(d.creditPaid)}</b> <small>(${isDate(d.creditPaidExpires) ? `${esc(d.creditPaidExpires)}부터 차례로 만료` : '만료일은 콘솔 결제 내역에서 확인'} · 프로모션을 다 쓰거나 만료되면 이걸 써요. 자동 충전이 꺼져 있으면 이것까지 다 쓰면 AI가 멈춰요)</small></p>` : ''}
+        ${(d.creditGrants || []).length ? `<details><summary>크레딧 받은 내역 ${d.creditGrants.length}건</summary><ul class="grants">${d.creditGrants.map((g) => `<li>${esc(g.at)} · ${esc(g.what)} · ${esc(g.amount)} · ${esc(g.expires ? `${g.expires} 만료` : '')}${g.done ? ' (만료됨)' : ''}</li>`).join('')}</ul></details>` : ''}
         <p>연구소 AI가 쓴 값 · 오늘 ${usd(days[today])} · 7일 ${usd(week)} · 이번 달 ${usd(month)} · 전체 ${usd(u.total)} <small>(${u.calls || 0}번 불렀어요 · 토큰으로 어림)</small></p>
         <details><summary>콘솔에서 본 값 적기</summary>
           <div class="dk-form"><label>남은 크레딧 ($)<input id="deskLeft" type="number" step="0.01" inputmode="decimal" value="${d.creditLeft ?? ''}"></label>
@@ -2414,6 +2415,28 @@ document.addEventListener('paste', (e) => {
   e.preventDefault();
   upload(files);
 });
+// 🪟 윈도우 앱(win/ · AI 연구소 비서)이 고른 폴더의 새 파일을 넘겨주면, 접수처에 넣은 것처럼 똑같이 처리해요 (2026-11-18)
+// 개인정보 가리기 · 공문 묶기 · 한글 · 엑셀 읽기 · 중복 확인 모두 upload() 그대로. 같은 주소(moontr.site)의 창끼리만 주고받아요
+let winTook = 0;
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || !e.source) return;
+  if (e.data?.type === 'ailab-ping') { e.source.postMessage({ type: 'ailab-ready' }, location.origin); return; }
+  if (e.data?.type !== 'ailab-upload' || !Array.isArray(e.data.files)) return;
+  const files = e.data.files.filter((f) => f instanceof File), from = e.source;
+  const go = (tries = 0) => {
+    if (!S.teacher) { if (tries < 60) setTimeout(() => go(tries + 1), 1000); else toast('관리자로 로그인해야 윈도우 앱 자료를 넣을 수 있어요'); return; }
+    if (Date.now() - winTook < 3000) return;   // 같은 묶음을 두 번 받지 않게
+    winTook = Date.now();
+    if (route() !== 'lobby') location.hash = 'lobby';
+    toast(`윈도우 앱에서 새 자료 ${files.length}개가 왔어요`);
+    from.postMessage({ type: 'ailab-upload-ok', n: files.length }, location.origin);
+    // 공문번호가 있는 파일은 함께(본문 + 첨부 묶기), 번호가 없는 파일은 하나씩 따로 (서로 다른 자료가 한 공문으로 묶이지 않게)
+    const withNo = files.filter((f) => docNo(f.name)), lone = files.filter((f) => !docNo(f.name));
+    (async () => { if (withNo.length) await upload(withNo); for (const f of lone) await upload([f]); })().catch((err) => toast(`넣지 못한 자료가 있어요 (${err.message})`));
+  };
+  go();
+});
+if (window.opener) { try { window.opener.postMessage({ type: 'ailab-ready' }, location.origin); } catch {} }
 
 start().catch((e) => {
   $('#view').innerHTML = `<p class="empty">Firebase 설정을 읽지 못했어요: ${esc(e.message)}</p>`;
