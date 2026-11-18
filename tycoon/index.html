@@ -7977,6 +7977,20 @@ function suneungTick(){
   sp.textContent = now ? `지금 ${now[0]} ${now[1]} · 끝까지 ${mm(now[3]) - m}분 · 감독 선생님 힘내세요!` : next ? `${next[0]} ${next[1]} ${next[2]} 시작 · 수험생 모두 힘내세요! 🍬 🍡` : "모든 시험이 끝났어요. 수험생 · 감독 선생님 정말 수고하셨어요! 🎉";
   el.querySelector(".sn-tt").innerHTML = SUNEUNG.tt.map(r => `<div class="${now === r ? "on" : m >= mm(r[3]) ? "done" : ""}"><b>${r[0]}</b><span>${r[1]}</span><em>${r[2]} ~ ${r[3]}</em></div>`).join("");
 }
+// 🗓 수능날 시간표 통일 (2026-11-19 문쌤): 중 · 고 선생님은 오늘 하루 종 시간 · 교시를 수능 시간표로 (저장된 시간표는 그대로, 화면에서만 바꿔요)
+//   교시 칸에는 시험 과목이 들어가요. 하루만 바꾸기(오늘)는 이날만 쉬어요. 자정이 지나면 원래 시간표로
+const SN_BELL = [{ k:"조회", s:"08:10", e:"08:35" }, ...SUNEUNG.tt.map(([p, n, s0, e0]) => ({ k:p === "점심" ? "점심" : "수업", s:s0, e:e0 })), { k:"종례", s:"17:50", e:"18:10" }];
+const SN_DAY = Object.fromEntries(SUNEUNG.tt.filter(r => r[0] !== "점심").map((r, i) => [i + 1, `수능 ${r[1].replace(/ /g, "")}`]));
+const snLv = c => (c && ["high", "mid", "elem"].includes(c.level) ? c.level : "high");
+function snCfg(c){
+  if (!c || dkey(new Date()) !== SUNEUNG.day || snLv(c) === "elem") return c;
+  const wd = new Date().getDay();
+  return { ...c, bell:SN_BELL, inT:"07:40", outT:"18:20", week:{ ...(c.week || {}), [wd]:SN_DAY }, hrWeek:{ ...(c.hrWeek || {}), [wd]:SN_DAY } };
+}
+{ const D = window.DESK, ap = D.applyConfig, st = D.setDayTT, sh = D.setHrDayTT;
+  D.applyConfig = c => ap(snCfg(c));
+  const noToday = m => { if (!m || dkey(new Date()) !== SUNEUNG.day || (cfg?.level || "high") === "elem") return m; const o = { ...m }; delete o[SUNEUNG.day]; return o; };
+  D.setDayTT = (m, k) => st(noToday(m), noToday(k)); if (sh) D.setHrDayTT = m => sh(noToday(m)); }
 window.snTodo = () => (suneungOn() ? `📝 오늘 ${SUNEUNG.name}! 수험생 · 감독 선생님 힘내세요` : "");   // 위젯(위쪽 일반 스크립트의 widgetData)이 읽어요
 setTimeout(suneungShow, 1500);   // 로그인 전 · 체험 화면에도 (학교급을 모르면 중 · 고로 봐요)
 function useConfig(){
