@@ -91,8 +91,12 @@ ${AI_ROOMS.map(([k, r]) => `- ${k} (${r.name}): ${r.desc}\n  세부 항목: ${r.
   그리고 화면 위쪽 검색 조건을 search 에 옮겨요: title 은 제목 검색 칸에 적힌 낱말, sender 는 발신 · 생산 부서(기관) · 수신/발신 검색 칸에 적힌 것 (예: 창의미래교육과),
   from · to 는 등록일자(기간) 검색 칸의 시작 · 끝 날짜 YYYY-MM-DD, total 은 '총 ○○건'의 숫자, page 는 지금 보이는 쪽 번호(숫자만). 보이지 않는 칸은 "".
 - Anthropic 콘솔(Claude Console)의 결제 · 크레딧(Billing, Credit balance) 화면이면 credit 을 채워요.
-  left 는 남은 크레딧 금액(달러, 숫자만 문자열로 예: "63.42"), expires 는 크레딧 만료일 YYYY-MM-DD (없으면 ""), seen 은 화면에 보이는 기준 날짜 (없으면 "").
-  프로모션 크레딧이 여러 줄이면 이미 끝났거나(Expired) 다 쓴 줄은 빼고, 아직 쓰는 중인 프로모션의 만료일을 expires 에 적어요. 그런 줄이 여럿이면 가장 늦게 끝나는 날짜.
+  크레딧은 두 가지를 꼭 따로 적어요 (섞지 않아요):
+  · left = 아직 쓰는 중인 '프로모션(Promotional) 크레딧'의 남은 금액 합 (달러, 숫자만 문자열 예: "63.42"). 이미 끝났거나(Expired) 다 쓴 프로모션은 빼요. 쓰는 중인 프로모션이 하나도 없으면 "0".
+  · expires = 그 프로모션의 만료일 YYYY-MM-DD (여럿이면 가장 늦게 끝나는 날짜, 없으면 "")
+  · paid = 직접 산 '구매(Purchased) 크레딧'의 남은 금액 (달러, 숫자만 문자열, 화면에 없으면 ""). 구매 크레딧을 left 에 넣지 않아요.
+  · total = 화면 맨 위 전체 남은 잔액(Credit balance · Remaining balance)이 보이면 그 숫자 (없으면 "")
+  · seen = 화면에 보이는 기준 날짜 (없으면 "")
 - 해당하지 않으면 registry 는 빈 목록, search 와 credit 의 칸은 모두 "".`;
 
 const str = { type: 'string' };
@@ -107,7 +111,7 @@ const SCHEMA = {
       type: 'array',
       items: { type: 'object', additionalProperties: false, required: ['no', 'title', 'dept', 'date', 'kind'], properties: { no: str, title: str, dept: str, date: str, kind: str } },
     },
-    credit: { type: 'object', additionalProperties: false, required: ['left', 'expires', 'seen'], properties: { left: str, expires: str, seen: str } },
+    credit: { type: 'object', additionalProperties: false, required: ['left', 'expires', 'seen', 'paid', 'total'], properties: { left: str, expires: str, seen: str, paid: str, total: str } },
     cards: {
       type: 'array',
       items: {
@@ -261,15 +265,21 @@ async function processCapture(capId) {
       batch.set(db.doc('ailab_meta/registry'), { rows: map, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
     // 콘솔 결제 화면: 남은 크레딧을 사장님 계기판에
-    const left = parseFloat(String(read.credit.left || '').replace(/[^0-9.]/g, ''));
+    // 프로모션(left)과 구매(paid)는 따로 적어요 (2026-11-19: 구매 크레딧 $4.84 를 남은 프로모션으로 잘못 적은 적이 있어요)
+    const num = (v) => parseFloat(String(v || '').replace(/[^0-9.]/g, ''));
+    let left = num(read.credit.left);
+    const paid = num(read.credit.paid), total = num(read.credit.total);
+    // 프로모션 칸이 비었는데 전체 잔액과 구매 크레딧이 보이면 그 차이가 프로모션이에요
+    if (!Number.isFinite(left) && Number.isFinite(total) && Number.isFinite(paid)) left = Math.max(0, +(total - paid).toFixed(2));
     const credit = Number.isFinite(left);
     if (credit) {
       batch.set(db.doc('ailab_meta/desk'), {
+        ...(Number.isFinite(paid) ? { creditPaid: paid } : {}),
         creditLeft: left, creditAsOf: isDate(read.credit.seen) ? read.credit.seen : seoulToday(),
         ...(isDate(read.credit.expires) && read.credit.expires >= seoulToday() ? { creditExpires: read.credit.expires } : {}), creditFrom: '캡쳐', updatedAt: FieldValue.serverTimestamp(),   // 이미 지난 만료일(끝난 프로모션)은 적지 않아요
       }, { merge: true });
     }
-    const note = rows.length ? `문서대장 ${rows.length}줄을 사장실 [문서대장] 탭에 넣었어요` : credit ? `콘솔 남은 크레딧 $${left}를 사장님 계기판에 적었어요` : cards.length ? '' : '읽을 자료를 찾지 못했어요';
+    const note = rows.length ? `문서대장 ${rows.length}줄을 사장실 [문서대장] 탭에 넣었어요` : credit ? `콘솔 프로모션 크레딧 $${left}${Number.isFinite(paid) ? ` · 구매 크레딧 $${paid}` : ''}를 사장님 계기판에 적었어요` : cards.length ? '' : '읽을 자료를 찾지 못했어요';
     batch.set(capRef, {
       status: 'done', cardCount: cards.length, readAt: FieldValue.serverTimestamp(), error: FieldValue.delete(),
       note: note || FieldValue.delete(), ...(rows.length ? { registryRows: rows.length, regSearch: cleanSearch(read.search) } : {}), ...(credit ? { credit: left } : {}),
