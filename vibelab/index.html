@@ -3834,7 +3834,7 @@ const LPR_CSS = `@font-face{font-family:'OngleipUnz';src:url('https://cdn.jsdeli
 @page{size:A4;margin:12mm 13mm}
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#4B3A3A;font-size:10pt;line-height:1.65;background:#fff}
-.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}
+.page{page-break-after:always;break-after:page}.page:last-of-type{page-break-after:auto;break-after:auto}
 .ban{display:flex;align-items:center;gap:4mm;background:linear-gradient(120deg,#E6F0FB,#FFF7F2 60%,#E7F6ED);border:1px solid #DCE6F2;border-radius:5mm;padding:4mm 5mm;margin:0 0 4mm}
 .ban .em{font-size:22pt;line-height:1}
 .ban h1{margin:0;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:22pt;line-height:1.1;color:#4B3A3A}
@@ -3882,7 +3882,12 @@ table.list tr:nth-child(even) td{background:#FFFCFA}
 .sp .story .card{margin:0;padding:4mm 5mm;font-size:var(--fs);line-height:1.7;border-left-width:2.6mm;background:color-mix(in srgb,var(--c) 6%,#fff);display:flex;flex-direction:column}
 .sp .story .card h3{font-size:calc(var(--fs) * 1.45);margin:0 0 2mm;padding-bottom:1.5mm;border-bottom:1px dashed color-mix(in srgb,var(--c) 45%,#fff)}
 .sp .story .card:only-child,.sp .story .card:last-child:nth-child(odd){grid-column:1/-1}
-.sp .foot{margin-top:4mm}`;
+.sp .foot{margin-top:4mm}
+.fp{height:270mm;overflow:hidden;display:flex;flex-direction:column;--ffs:10.5pt}
+.fp > *{flex:none}.fp .foot{margin-top:auto}
+.fp .fb{font-size:var(--ffs);line-height:1.65}.fp .ban{padding:3mm 4.5mm;margin-bottom:3mm}.fp .ban h1{font-size:19pt}.fp .chips{margin-bottom:2.5mm}.fp .sec{margin:2.5mm 0 1.5mm;font-size:12.5pt}.fp .box{padding:2.5mm 3.5mm;margin-bottom:1mm}.fp table.kv{margin-bottom:1.5mm}.fp table.kv th,.fp table.kv td{padding:1.2mm 2.2mm}.fp table.kv{font-size:calc(var(--ffs) - 1pt)}
+.qr{float:right;width:15mm;height:15mm;margin:-.5mm 0 0 3mm}.qr svg{width:100%;height:100%;display:block}
+.qr-note{color:#9B8782;font-size:7.5pt}`;
 const LPR_COL = ["blue", "green", "pink", "mus", "pur"], LPR_HEX = { pink: "#E27399", blue: "#5E97C9", green: "#5DAE7C", mus: "#C18E2C", pur: "#8D6BCF" };
 const laiChips = r => [[r.plan, "📝 이론편 계획서", "green"], [r.app, "📱 웹앱 올림", "blue"], [r.app && r.app.url, "🌐 깃허브 주소", "blue"], [r.hs.length && histFinal(r.hs), "🏁 최종 제출", "green"],
   [r.last && histInfo(r.last).s, "💾 저장 기능", "pur"], [laiFixN(r), "🔧 점검 뒤 고침", "mus"], [r.recv.length, `💬 받은 댓글 ${r.recv.length}`, "pink"], [r.gave.length, `✏️ 쓴 댓글 ${r.gave.length}`, "mus"], [r.walls.length, `🧱 담벼락 ${r.walls.length}`, "pur"]]
@@ -3941,23 +3946,28 @@ function printLabAi(kind, only) {
       <div class="foot"><span>AI가 ${b}반 전체 활동 기록을 읽고 정리한 글이에요 (학생 이름 · 번호 없이)</span><span>moontr.site/vibelab · 1쪽</span></div></div>` : "";
     const list = laiRecs.filter(r => (!only || r.nick === only) && ((inT && T[r.nick]) || (inAi && A[r.nick])));
     if (!list.length) { toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
-    body = list.map(r => `${story(r)}<div class="page">
+    // 2쪽(개인 피드백)도 A4 한 장에 맞춰요: 넘치면 글씨를 저절로 줄여요 (넘쳐서 3쪽이 생기면 양면 인쇄 때 다음 학생부터 앞뒤가 어긋나요)
+    body = list.map(r => `${story(r)}<div class="page fp">
       <div class="ban"><span class="em">🌱</span><div><h1>나의 바이브코딩 실습 피드백</h1><p>${course}</p></div><span class="tag">${b}반</span></div>
       <table class="kv"><tr><th>반</th><td>${b}반</td><th>${real && r.real ? "학번 · 이름" : "닉네임"}</th><td>${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + ` <span style="color:#9B8782">(${esc(r.nick)})</span>` : esc(r.nick)}</td><th>날짜</th><td>${date}</td></tr></table>
       <div class="chips">${laiChips(r)}</div>
       ${r.app || r.plan ? `<div class="sec s-green">📱 내가 만든 웹앱</div>
-      <table class="kv">${r.plan ? `<tr><th>이론편 계획</th><td><b>${esc(r.plan.appName || "")}</b>${laiPlanText(r.plan) ? `<br>${nl(laiCut(laiPlanText(r.plan), 300))}` : ""}</td></tr>` : ""}
-        ${r.app ? `<tr><th>오늘 만든 웹앱</th><td><b>${esc(r.app.appName)}</b>${r.app.intro ? `<br>${nl(laiCut(r.app.intro, 260))}` : ""}</td></tr>` : ""}
-        ${r.app && r.app.url ? `<tr><th>주소</th><td>${esc(r.app.url)}</td></tr>` : ""}
+      <table class="kv">${r.plan ? `<tr><th>이론편 계획</th><td><b>${esc(r.plan.appName || "")}</b>${laiPlanText(r.plan) ? `<br>${nl(laiCut(laiPlanText(r.plan), 90))}` : ""}</td></tr>` : ""}
+        ${r.app ? `<tr><th>오늘 만든 웹앱</th><td><b>${esc(r.app.appName)}</b>${r.app.intro ? `<br>${nl(laiCut(r.app.intro, 110))}` : ""}</td></tr>` : ""}
+        ${r.app && r.app.url ? `<tr><th>주소</th><td><span class="qr" data-u="${esc(safeUrl(r.app.url))}"></span>${esc(r.app.url)}<br><span class="qr-note">📷 휴대폰 카메라로 QR을 찍으면 내 웹앱이 열려요</span></td></tr>` : ""}
         ${r.hs.length > 1 ? `<tr><th>처음 → 마지막</th><td>${esc(histDiff(r.hs[0], r.last))}</td></tr>` : ""}
-        ${laiFixN(r) ? `<tr><th>점검 뒤 고친 것</th><td>${nl(laiCut([r.fix.selfFix, r.fix.aiFix].filter(Boolean).join("\n"), 300))}</td></tr>` : ""}</table>` : ""}
+        ${laiFixN(r) ? `<tr><th>점검 뒤 고친 것</th><td>${[["자기 점검 뒤", r.fix.selfFix], ["AI 점검 뒤", r.fix.aiFix]].filter(([, v]) => v).map(([k, v]) => `<b>${k}</b> ${esc(laiCut(v, 160))}`).join("<br>")}</td></tr>` : ""}</table>` : ""}
       ${inT && T[r.nick] ? `<div class="sec s-pink">🧑‍🏫 선생님 피드백</div><div class="box b-pink"><div class="fb">${esc(T[r.nick])}</div><p class="sign">진로탐구수업 담당 교사</p></div>` : ""}
       ${inAi && A[r.nick] ? `<div class="sec s-pur">🤖 AI 피드백<small>참고용</small></div><div class="box b-pur"><p class="note">※ AI(인공지능)가 이 수업에서 남긴 활동 기록(웹앱 · 점검 · 친구 댓글 · 담벼락)을 읽고 쓴 글이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
-      ${r.walls.length ? `<div class="sec s-mus">🧱 내가 담벼락에 붙인 생각</div><div class="box b-mus"><div class="fb">${r.walls.map(w => `${esc(w.kind)} · ${esc(laiCut(w.text, 200))}`).join("\n")}</div></div>` : r.rf && r.rf.final ? `<div class="sec s-mus">✍️ 내가 쓴 성찰</div><div class="box b-mus"><div class="fb">${esc(laiCut(r.rf.final, 520))}</div></div>` : ""}
+      ${r.walls.length ? `<div class="sec s-mus">🧱 내가 담벼락에 붙인 생각</div><div class="box b-mus"><div class="fb">${r.walls.map(w => `${esc(w.kind)} · ${esc(laiCut(w.text, 140))}`).join("\n")}</div></div>` : r.rf && r.rf.final ? `<div class="sec s-mus">✍️ 내가 쓴 성찰</div><div class="box b-mus"><div class="fb">${esc(laiCut(r.rf.final, 520))}</div></div>` : ""}
       ${foot}</div>`).join("");
   }
   const w = window.open("", "_blank"); if (!w) { toast("새 창이 막혔어요. 팝업을 허용해 주세요"); return; }
-  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${kind === "sum" ? `실습편 ${b}반 수업 총평` : `실습편 ${b}반 개인 피드백`}</title><link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"><style>${LPR_CSS}</style></head><body>${body}<script>document.fonts.ready.then(()=>{document.querySelectorAll(".sp").forEach(p=>{const over=()=>[...p.querySelectorAll(".card")].some(c=>c.scrollHeight>c.clientHeight+1);let f=12.5;p.style.setProperty("--fs",f+"pt");while(over()&&f>7){f-=.25;p.style.setProperty("--fs",f+"pt");}});setTimeout(()=>print(),400);})<\/script></body></html>`);
+  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${kind === "sum" ? `실습편 ${b}반 수업 총평` : `실습편 ${b}반 개인 피드백`}</title><link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"><style>${LPR_CSS}</style><script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script></head><body>${body}<script>
+document.querySelectorAll(".qr[data-u]").forEach(e=>{try{const q=qrcode(0,"M");q.addData(e.dataset.u);q.make();e.innerHTML=q.createSvgTag({cellSize:2,margin:0,scalable:true});}catch(x){e.remove();}});
+document.fonts.ready.then(()=>{document.querySelectorAll(".sp").forEach(p=>{const over=()=>[...p.querySelectorAll(".card")].some(c=>c.scrollHeight>c.clientHeight+1);let f=12.5;p.style.setProperty("--fs",f+"pt");while(over()&&f>7){f-=.25;p.style.setProperty("--fs",f+"pt");}});
+document.querySelectorAll(".fp").forEach(p=>{const over=()=>p.scrollHeight>p.clientHeight+1;let f=10.5;p.style.setProperty("--ffs",f+"pt");while(over()&&f>8){f-=.25;p.style.setProperty("--ffs",f+"pt");}if(over()){p.style.height="auto";p.style.overflow="visible";}});
+setTimeout(()=>print(),400);})<\/script></body></html>`);
   w.document.close();
 }
 
