@@ -386,6 +386,11 @@ function logStep(t, x) {
 }
 
 /* ---------- 저장 (쓰는 동안 1.2초마다 모아서) ---------- */
+/* 🔒 알고리즘 실험실 기록(rec["a_…"])은 건드리지 않아요 (2026-11-20 고침)
+   예전에는 rec 를 통째로 다시 썼어요. 데이터 실험실 창을 열어 둔 채 알고리즘 실험실을 하면,
+   데이터 실험실 창이 저장할 때 그 뒤에 한 알고리즘 기록을 예전 것으로 되돌릴 수 있었어요.
+   이제 데이터 실험실 주제(과 last)만 칸마다 따로 고쳐요 */
+const recPatch = () => { const o = { updatedAt: Date.now() }; Object.keys(S.rec || {}).forEach((k) => { if (!k.startsWith("a_") && S.rec[k] != null) o["rec." + k] = S.rec[k]; }); return o; };
 let saveT = null, saving = false;
 function save(now) {
   const t = DL.topic(route().b); if (t && S.rec[t.id]) { const x = S.rec[t.id]; x.at = Date.now(); logStep(t, x); }
@@ -393,7 +398,7 @@ function save(now) {
   if (!S.me) return;
   clearTimeout(saveT); saving = true;
   saveT = setTimeout(async () => {
-    try { await DL.fs.update(db, "datalab_members/" + S.me.key, { rec: S.rec, updatedAt: Date.now() }); saving = false; pushProg(); }
+    try { await DL.fs.update(db, "datalab_members/" + S.me.key, recPatch()); saving = false; pushProg(); }
     catch (e) { console.error(e); toast("저장하지 못했어요. 인터넷 연결을 확인해 주세요 (이 기기에는 남아 있어요)"); }
   }, now ? 0 : 1200);
 }
@@ -877,7 +882,7 @@ window.addEventListener("hashchange", fromRoute);
 fromRoute();
 /* 💾 임시 저장: 쓰는 글은 한 글자마다 이 기기에 바로 남아요(LS rec). 창이 닫히거나 뒤로 가기를 눌러도
    다시 열면 그대로이고, 서버에 못 보낸 것은 다시 열 때 pull 이 더 나중에 쓴 쪽으로 합쳐 서버에 올려요 */
-function flush() { if (!saving || !S.me || !db) return; clearTimeout(saveT); db.collection("datalab_members").doc(S.me.key).update({ rec: S.rec, updatedAt: Date.now() }).then(() => { saving = false; }).catch(() => {}); }
+function flush() { if (!saving || !S.me || !db) return; clearTimeout(saveT); db.collection("datalab_members").doc(S.me.key).update(recPatch()).then(() => { saving = false; }).catch(() => {}); }
 window.addEventListener("pagehide", flush);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); else pull(); });
 // 서버의 내 기록을 다시 받아 와요 (집 · 다른 기기에서 쓴 것, 선생님이 주제 바꾸기를 허락한 것)
