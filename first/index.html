@@ -65,6 +65,9 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .tabs button{border:0;background:none;color:var(--sub);font-size:11px;font-weight:500;display:grid;justify-items:center;gap:3px;cursor:pointer;padding:2px 0}
 .tabs svg{width:24px;height:24px}
 .tabs button[aria-current="page"]{color:var(--mode);font-weight:600}
+.tabs button{position:relative}
+.newb{display:inline-block;background:#FF3B30;color:#fff;font:700 8.5px/1 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;letter-spacing:.3px;padding:2.5px 4px 2px;border-radius:6px;margin-left:4px;vertical-align:2px}
+.tabs .newb{position:absolute;top:0;left:50%;margin-left:6px}
 /* ⏱ 오른쪽에서 밀려 나오는 타이머 */
 .edge svg{display:block}
 .edge{touch-action:none;position:absolute;right:0;top:44%;width:36px;height:100px;border:0;border-radius:18px 0 0 18px;background:var(--mode);color:#fff;font-size:19px;padding:0;display:grid;place-items:center;cursor:pointer;z-index:4;box-shadow:-2px 2px 8px rgba(0,0,0,.12)}
@@ -651,6 +654,14 @@ const isSchool = s => s === SCHOOL;
 if (!D.schoolV){ const i = D.subj.findIndex(s => s.n === SCHOOL), s = i >= 0 ? D.subj.splice(i, 1)[0] : { n:SCHOOL, c:"#5E5CE6", daily:true }; D.subj.unshift(s); D.schoolV = 1; try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} }
 if (!Array.isArray(D.memos)) D.memos = [];
 if (!D.events || typeof D.events !== "object") D.events = {};
+/* 🆕 NEW 표시 (2026-11-20): 새 기능 옆에 작은 NEW, 한 번 눌러 보면 사라져요 (D.newSeen 은 내 계정에 저장 · 폰 · 컴퓨터 한 번만)
+   - 오늘 처음 쓰는 학생(그전 기록이 없음)에게는 안 보여요 · 12월 20일이 지나면 모두 사라져요
+   - 다음에 새 기능을 넣으면 NEWS 에 한 줄 (이름: 시작한 날) */
+const NEWS = { memo:"2026-11-20", ev:"2026-11-20", school:"2026-11-20" }, NEW_END = "2026-12-20";
+if (!D.newSeen){ const old = Object.keys(D.plans || {}).some(k => k < "2026-11-20") || Object.keys(D.log || {}).some(k => k < "2026-11-20"); D.newSeen = old ? {} : Object.fromEntries(Object.keys(NEWS).map(k => [k, 1])); }
+const isNew = k => !!NEWS[k] && !D.newSeen[k] && today() <= NEW_END;
+const newB = k => isNew(k) ? '<b class="newb">NEW</b>' : "";
+function seeNew(k){ if (!isNew(k)) return; D.newSeen[k] = 1; save(); }
 const save = () => { D.at = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} if (typeof nativeSync === "function") nativeSync(); window.FB?.push(); };   // D.at = 마지막으로 고친 때 (서버 기록과 비교)
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -936,7 +947,7 @@ function schoolCard(p, k){
   const o = S.open[p.id], ev = k === today() ? evLines(k) : "", empty = !p.det.length;
   return `<div class="item school ${p.done && !empty ? "done" : ""}" data-pid="${p.id}"><div class="row" data-act="toggle" data-v="${p.id}">
     ${empty ? `<span class="dot sch" aria-hidden="true">🏫</span>` : `<button type="button" class="dot" data-act="check" data-v="${p.id}" data-k="${k}" aria-label="학교 할 일 모두 했어요" aria-pressed="${!!p.done}"></button>`}
-    <div class="nm" data-act="toggle" data-v="${p.id}"><span>${empty ? "" : "🏫 "}학교</span>${p.det.length ? `<small>${unitsOf(p).filter(u => u.d).length}/${p.det.length}</small>` : `<small class="hint">준비물 · 제출 · 수행평가 준비</small>`}</div>
+    <div class="nm" data-act="toggle" data-v="${p.id}"><span>${empty ? "" : "🏫 "}학교${newB("school")}</span>${p.det.length ? `<small>${unitsOf(p).filter(u => u.d).length}/${p.det.length}</small>` : `<small class="hint">준비물 · 제출 · 수행평가 준비</small>`}</div>
     <button type="button" class="grip" aria-label="꾹 눌러 위아래로 끌어 순서 바꾸기">${GRIP}</button></div>
     ${ev ? `<ul class="evs">${ev}</ul>` : ""}
     ${p.det.length ? `<ul class="dl">${unitsOf(p).map((u, j) => `<li class="${u.d ? "ok" : ""}"><button type="button" class="dd" data-act="dchk" data-v="${p.id}" data-i="${j}" data-k="${k}" aria-label="${esc(u.t)} 했어요" aria-pressed="${u.d}"></button><span data-act="dchk" data-v="${p.id}" data-i="${j}" data-k="${k}">${esc(u.t)}</span></li>`).join("")}</ul>` : ""}
@@ -1104,7 +1115,7 @@ function dayPanel(k){
     ${dayEvents(k)}
     ${dayTasks(k)}
     ${hasDiary(k) ? `<div class="dent">${e.mood ? `<div class="dh2"><span>🌙 하루 마무리 ${e.mood}</span></div>` : ""}${e.log ? `<p><b>오늘</b>${esc(e.log)}</p>` : ""}${e.cheer ? `<p><b>나에게</b>${esc(e.cheer)}</p>` : ""}${e.fix ? `<p><b>더 고칠 점</b>${esc(e.fix)}</p>` : ""}</div>` : ""}
-    <div class="dpb"><button type="button" class="link" data-act="addDay" data-k="${k}">＋ 할 일 넣기</button><button type="button" class="link" data-act="evAdd" data-k="${k}">＋ 일정 · 수행평가</button>${left && k <= tk ? `<button type="button" class="link dim" data-act="carry" data-k="${k}">↪ 다 못 한 ${left}개 ${k < tk ? "오늘" : "내일"}로</button>` : ""}</div></div>`;
+    <div class="dpb"><button type="button" class="link" data-act="addDay" data-k="${k}">＋ 할 일 넣기</button><button type="button" class="link" data-act="evAdd" data-k="${k}">＋ 일정 · 수행평가${newB("ev")}</button>${left && k <= tk ? `<button type="button" class="link dim" data-act="carry" data-k="${k}">↪ 다 못 한 ${left}개 ${k < tk ? "오늘" : "내일"}로</button>` : ""}</div></div>`;
 }
 /* 📅 일정 · 수행평가 (2026-11-20): D.events[날짜] = [{ id, t, kind }] · 시험은 D.exams (D-day · 시험 전날 알림 그대로) */
 const EVK = { perf:["📝", "수행평가"], plan:["📌", "일정"], exam:["📅", "시험"] };
@@ -1777,7 +1788,7 @@ function render(){
   const M = $("main"); M.classList.toggle("pg", S.tab === "deco" || S.tab === "settings");
   if (S.lastTab !== S.tab){ S.lastTab = S.tab; M.scrollTop = 0; }   // 다른 화면으로 가면 맨 위부터 (꾸미기 아래에서 ⚙︎ 눌러도 설정이 맨 위에서 열려요)
   $("main").innerHTML = S.tab === "deco" ? viewDeco() : S.tab === "settings" ? viewSettings() : S.tab === "cal" ? viewCal() : S.tab === "grades" ? viewGrades() : S.tab === "pics" ? viewPics() : S.tab === "memo" ? viewMemo() : viewToday();
-  $("tabs").innerHTML = TABS.map(([k, n, ic]) => `<button type="button" data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ic}</svg>${n}</button>`).join("");
+  $("tabs").innerHTML = TABS.map(([k, n, ic]) => `<button type="button" data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ic}</svg>${n}${k === "memo" ? newB("memo") : k === "cal" ? newB("ev") : ""}</button>`).join("");
   $("side").innerHTML = viewSide(); tick(); crewSync(); picHydrate();
 }
 let toastT = 0;
@@ -1878,11 +1889,11 @@ document.addEventListener("click", e => {
   const a = b.dataset.act, v = b.dataset.v, k = b.dataset.k || today();
   const pick = (box, attr) => document.querySelectorAll(`#${box} [data-act="${attr}"]`).forEach(x => x.setAttribute("aria-pressed", x === b));
   switch (a){
-    case "tab": S.tab = v; S.editing = ""; break;
+    case "tab": S.tab = v; S.editing = ""; if (v === "memo") seeNew("memo"); break;
     case "settings": S.tab = "settings"; S.editing = ""; break;
     case "deco": S.tab = "deco"; S.editing = ""; break;
     case "back": S.tab = "today"; break;
-    case "toggle": { const p = plansOf(k).find(x => x.id === v);
+    case "toggle": { const p = plansOf(k).find(x => x.id === v); if (p && isSchool(p.s)) seeNew("school");
       if (p && !p.det.length && !S.open[v]){ S.editing = v; S.draft = null; render(); setTimeout(() => focusDet(), 30); return; }   // 세부 계획이 없으면 바로 쓰는 칸으로
       S.open[v] = !S.open[v]; break; }
     case "check": case "dchk": { const p = plansOf(k).find(x => x.id === v); if (!p) return;
@@ -1930,6 +1941,10 @@ document.addEventListener("click", e => {
       const was = p && p.fresh, old = p && p.s;
       if (p){ syncDone(p); const oldD = {}; p.det.forEach((t, i) => oldD[t] = (p.dd || [])[i]); p.s = n; p.det = $("eDet").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0, 8); p.dd = p.det.map(t => !!oldD[t]); if (p.det.length) p.done = p.dd.every(Boolean); delete p.fresh; }
       S.editing = ""; S.draft = null; save();
+      // 🏫 카드 이름을 학교로 바꾸면 묻지 않고 학교 칸으로 옮겨요 (원래 과목은 그대로 · 그날 학교 칸이 이미 있으면 한 칸으로 합쳐요)
+      if (p && isSchool(n) && !isSchool(old || "")){ const L = plansOf(k), other = L.find(x => x !== p && isSchool(x.s));
+        if (other){ syncDone(other); syncDone(p); other.det = [...other.det, ...p.det]; other.dd = [...(other.dd || []), ...(p.dd || [])]; if (other.det.length) other.done = other.dd.every(Boolean); L.splice(L.indexOf(p), 1); }
+        schoolFirst(L); save(); toast(old ? `학교 칸으로 옮겼어요 (${old} 과목은 그대로예요)` : "학교 칸에 넣었어요"); break; }
       // 과목 이름을 바꿨으면: 오늘만 / 앞으로 계속 고르기
       if (!was && old && old !== n && D.subj.some(s => s.n === old) && !D.subj.some(s => s.n === n)){ render(); S.sheet = { t:"ren", old, n };
         openSheet(`<h2>'${esc(old)}' → '${esc(n)}'</h2><p class="note">과목 이름을 바꿨어요. 앞으로도 이 이름으로 쓸까요?</p><div class="btns"><button type="button" class="pill light" data-act="renOnce">오늘만</button><button type="button" class="pill" data-act="renAll">앞으로 계속</button></div>`); return; }
@@ -2004,7 +2019,7 @@ document.addEventListener("click", e => {
     case "mColor": { const m = D.memos.find(x => x.id === v); if (m){ m.c = ((m.c || 0) + 1) % MEMO_C.length; save(); } break; }
     case "mDel": { const i = D.memos.findIndex(x => x.id === v); if (i < 0) return; const [x] = D.memos.splice(i, 1); save(); render(); undoToast("메모를 지웠어요", () => D.memos.splice(i, 0, x)); return; }
     /* 📅 일정 · 수행평가 */
-    case "evAdd": S.sheet = { t:"ev", k }; openSheet(sheetEv(k)); setTimeout(() => $("evT")?.focus(), 50); return;
+    case "evAdd": seeNew("ev"); S.sheet = { t:"ev", k }; openSheet(sheetEv(k)); setTimeout(() => $("evT")?.focus(), 50); return;
     case "evK": { const t = $("evT")?.value || "", d = $("evD")?.value || k; S.evKind = v; openSheet(sheetEv(S.sheet?.k || k)); $("evT").value = t; $("evD").value = d; $("evT").focus(); return; }
     case "evSave": { const t = $("evT").value.trim(), d = $("evD").value, kind = S.evKind || "perf"; if (!t || !d){ toast("무엇인지와 날짜를 넣어 주세요"); $("evT").focus(); return; }
       if (kind === "exam"){ D.exams.push({ id:uid(), n:t.slice(0, 16), d }); }
