@@ -2230,7 +2230,8 @@ function stateAt(d){
   if (go && m >= be - 4) return { place:classRoom(r), act:`${/\d/.test(nx[0]) ? nx[0] + "교시" : nx[0]} ${classRoom(r) !== r ? `${r} · ${MYROOM}` : r + (isClass(r) ? " 교실" : "")}로 가요`, s:be - 4, e:be, m, slot:"쉬는 시간", brk:true, go:true };
   return { place:"office", act:go ? `쉬는 시간 · 다음 ${/\d/.test(nx[0]) ? nx[0] + "교시" : nx[0]} ${r}` : "쉬는 시간 · 교무실", s:bs, e:go ? be - 4 : be, m, slot:"쉬는 시간", brk:true };
 }
-const slotRoom = (day, p) => p === "조회" || p === "종례" ? HR : p === "점심" ? "lunch" : (TT[day] || {})[p] || "";
+// 조회 · 종례는 평일에만 우리 반 (주말엔 비워서 '오늘' 쪽지 · 일정에 안 나오게, 2026-11-21). 주말에 하루만 바꾼 수업이 있으면 그날은 그대로
+const slotRoom = (day, p) => p === "조회" || p === "종례" ? ((day >= 1 && day <= 5) || Object.keys(TT[day] || {}).length ? HR : "") : p === "점심" ? "lunch" : (TT[day] || {})[p] || "";
 
 /* ===================== 보기 모드: 👤 내 시간표 · 🧒 우리 반 · 👥 친한 선생님 ===================== */
 let MODE = "me"; try { const m0 = localStorage.getItem("desk-mode"); if (["me", "class"].includes(m0)) MODE = m0; } catch (e) {}
@@ -6803,12 +6804,12 @@ const m3 = {
 };
 
 /* ── 25. 캠핑장: 산속 캠프 마당. 수업 = 반마다 놀이 하나(연날리기 · 프리스비 · 줄넘기 · 배드민턴 · 장작 패기 · 기타), 쉬는 시간 · 공강 = 모닥불 의자,
-      점심 = 모닥불 곁에서 책, 특별실 = 해먹 쪽 나무 그늘, 집 = 텐트 앞 ── */
+      점심 = 모닥불 곁에서 책, 특별실 = 해먹 쪽 나무 그늘, 집(퇴근 · 주말) = 모닥불 건너편 의자에서 마시멜로 굽기 ── */
 const CAMP_PLAY = [["kite", "연날리기"], ["frisbee", "프리스비"], ["jumprope", "줄넘기"], ["badminton", "배드민턴"], ["chop", "장작 패기"], ["guitar", "기타"]];
 const metaCamp3 = port => meta3d(port, { id:"camp", name:"캠핑장", col:"#FFB86B", slots:CAMP_PLAY.length, bg:["#9cc6e8", "#4a6a3a"], loading:"캠핑장으로 가는 중…",
   who:"전 연령 · 3D 캠프",
-  desc:"<b>우리 메타버스 '캠핑장'의 산속 캠프 마당</b>을 그대로 옮겨 왔어요. 반마다 놀이가 하나씩(연날리기 · 프리스비 · 줄넘기 · 배드민턴 · 장작 패기 · 기타) 있어서, 수업 시간이면 그 놀이를 해요. 연날리기 땐 연이 하늘 높이 떠요. 쉬는 시간 · 공강엔 모닥불 의자, 점심엔 모닥불 곁에서 책, 퇴근하면 텐트 앞으로. 해 · 노을 · 밤이 실제 시각을 따라가고, 밤엔 모닥불이 켜져요.",
-  slotName:k => CAMP_PLAY[k][1], tagName:{ office:"모닥불 교무실", lunch:"모닥불 점심", sp:"나무 그늘 특별실", home:"텐트 집" },
+  desc:"<b>우리 메타버스 '캠핑장'의 산속 캠프 마당</b>을 그대로 옮겨 왔어요. 반마다 놀이가 하나씩(연날리기 · 프리스비 · 줄넘기 · 배드민턴 · 장작 패기 · 기타) 있어서, 수업 시간이면 그 놀이를 해요. 연날리기 땐 연이 하늘 높이 떠요. 쉬는 시간 · 공강엔 모닥불 의자, 점심엔 모닥불 곁에서 책, 퇴근하거나 주말이면 모닥불 앞 의자에 앉아 마시멜로를 구우며 쉬어요. 해 · 노을 · 밤이 실제 시각을 따라가고, 밤엔 모닥불이 켜져요.",
+  slotName:k => CAMP_PLAY[k][1], tagName:{ office:"모닥불 교무실", lunch:"모닥불 점심", sp:"나무 그늘 특별실", home:"모닥불 쉼터" },
   load:() => Promise.all([import("three"), import("./meta/camp/camp.js"), import("./meta/camp/data.js"), import("./meta/camp/avatar.js"), import("./meta/camp/daytime.js"), import("three/addons/environments/RoomEnvironment.js")]),
   build:([THREE, camp, data, av, day, envm]) => {
     const r = m3.renderer(THREE), s = new THREE.Scene(), cam = new THREE.PerspectiveCamera(50, 1, .1, 3000);
@@ -6824,10 +6825,11 @@ const metaCamp3 = port => meta3d(port, { id:"camp", name:"캠핑장", col:"#FFB8
     const lineG = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), line = new THREE.Line(lineG, new THREE.LineBasicMaterial({ color:"#f4f0e8" }));
     s.add(kite, line);
     const W0 = { r, t0:performance.now()/1000, last:performance.now()/1000, here:null, camX:0, camZ:0, lit:-1, ang:0 }, hp = new THREE.Vector3(), handP = new THREE.Vector3();
-    const goalOf = key => key[0] === "c" ? PLAY_AT[+key.slice(1)] : key === "office" ? { x:seats[0].pos.x, z:seats[0].pos.z, seat:seats[0] } : key === "lunch" ? { x:seats[3].pos.x, z:seats[3].pos.z, seat:seats[3] } : key === "sp" ? { x:-9, z:-2, rot:Math.PI/2 } : { x:0, z:-7.2, rot:0 };
+    const goalOf = key => key[0] === "c" ? PLAY_AT[+key.slice(1)] : key === "office" ? { x:seats[0].pos.x, z:seats[0].pos.z, seat:seats[0] } : key === "lunch" ? { x:seats[3].pos.x, z:seats[3].pos.z, seat:seats[3] } : key === "sp" ? { x:-9, z:-2, rot:Math.PI/2 } : { x:seats[4].pos.x, z:seats[4].pos.z, seat:seats[4] };   // 집(퇴근 · 주말) = 모닥불 건너편 의자 (2026-11-21: 텐트 앞은 천막에 가려 안 보였어요)
     W0.frame = (st, key, w2, h2) => {
       const now = performance.now()/1000, dt = Math.min(.05, now - W0.last), t = now - W0.t0; W0.last = now;
-      const dl = day.daylight(); if (Math.abs(dl - W0.lit) > .02){ W0.lit = dl; s.environmentIntensity = .45*day.applyDaylight(w, dl, day.glow()); w.campfire?.userData.setLit?.(dl < .5); }
+      const dl = day.daylight(); if (Math.abs(dl - W0.lit) > .02){ W0.lit = dl; s.environmentIntensity = .45*day.applyDaylight(w, dl, day.glow()); }
+      const fireOn = W0.lit < .5 || key === "home"; if (W0.fire !== fireOn){ W0.fire = fireOn; w.campfire?.userData.setLit?.(fireOn); }   // 밤 · 집에서 쉴 땐(마시멜로) 모닥불이 켜져요
       w.update?.(t);
       const free = freeOn(W0), G = free ? { x:W0.man.x, z:W0.man.z } : goalOf(key), gk = free ? "free" + W0.man.at : key;
       if (W0.here === null){ me.group.position.set(G.x, 0, G.z); W0.here = key; W0.camX = G.x; W0.camZ = G.z; }
@@ -6840,7 +6842,7 @@ const metaCamp3 = port => meta3d(port, { id:"camp", name:"캠핑장", col:"#FFB8
         // 연날리기는 정해진 자리 둘레를 천천히 달려요 (연이 높이 떠요)
         if (playK === "kite" && Math.hypot(p.x - G.x, p.z - G.z) < 6){ W0.ang += dt*.35; const tx = G.x + Math.cos(W0.ang)*3.2, tz = G.z + Math.sin(W0.ang)*2; m3.walk(me, tx, tz, dt, 1.6); if (me.action !== "kite") me.play("kite"); }
         else { const arrived = m3.walk(me, G.x, G.z, dt, 2.8); walking = !arrived;
-          if (arrived){ if (G.seat){ me.group.position.set(G.seat.pos.x, G.seat.y ?? .12, G.seat.pos.z); me.group.rotation.y = G.seat.rot ?? Math.PI; me.seated = true; me.speed = 0; if (key === "lunch") me.play("read"); }
+          if (arrived){ if (G.seat){ me.group.position.set(G.seat.pos.x, G.seat.y ?? .12, G.seat.pos.z); me.group.rotation.y = G.seat.rot ?? Math.PI; me.seated = true; me.speed = 0; if (key === "lunch") me.play("read"); else if (key === "home") me.play("roast"); }
             else { faceCam(me.group, cam, Math.min(1, dt*4)); if (playK && me.action !== playK) me.play(playK); } } }
       }
       me.update(dt, ACT);
@@ -6855,7 +6857,7 @@ const metaCamp3 = port => meta3d(port, { id:"camp", name:"캠핑장", col:"#FFB8
       m3.fit(r, cam, w2, h2, 58, 44); r.render(s, cam);
       const proj = (x, y, z) => { hp.set(x, y, z).project(cam); return hp.z < 1 && hp.x > -1.15 && hp.x < 1.15 && hp.y < 1.1 ? [(hp.x + 1)/2*w2, (1 - hp.y)/2*h2] : null; };
       const tags = []; PLAY_AT.forEach((q, k) => { const v = proj(q.x, 2.3, q.z); if (v) tags.push({ k, x:v[0], y:v[1] }); });
-      [["office", 0, 3], ["sp", -9, -2], ["home", 0, -11]].forEach(([k, x, z]) => { const v = proj(x, k === "home" ? 3.2 : 2.4, z); if (v) tags.push({ k, x:v[0], y:v[1] }); });
+      [["office", 0, 3], ["sp", -9, -2], ["home", 0, -11]].forEach(([k, x, z]) => { if (k === (key === "home" ? "office" : "home")) return; if (k === "home") { x = seats[4].pos.x; z = seats[4].pos.z; } /* 집일 땐 모닥불 이름표를 '모닥불 쉼터' 하나로 */ const v = proj(x, 2.4, z); if (v) tags.push({ k, x:v[0], y:v[1] }); });
       return { tags, walking, free };
     };
     W0.tap = (nx, ny) => { const m = groundTap(THREE, cam, nx, ny, [-16, 16, -12, 14]); if (!m) return false; W0.man = m; return true; };
