@@ -110,6 +110,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);overfl
 .todo label{flex:1;display:flex;gap:7px;align-items:center;cursor:pointer;min-width:0;word-break:break-all}
 .todo input[type=checkbox]{appearance:none;width:15px;height:15px;border:2px solid currentColor;flex:none;margin:0;cursor:pointer;border-radius:var(--box-r)}
 .todo input[type=checkbox]:checked{background:var(--ok);border-color:var(--ok)}
+.tdcarry{display:block;margin:6px 0 0 auto;font-size:12.5px;opacity:.85;padding:3px 6px}
+.tdcarry[hidden]{display:none}
 .todo li.done label{color:var(--muted);text-decoration:line-through}
 .todo .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;min-width:30px;min-height:30px}
 .todo .x:hover{color:var(--hi)}
@@ -1726,6 +1728,7 @@ const DRAW = {
       <div class="card box" id="todoCard">
         <h3><span class="g">TO DO</span><span class="w">할 일</span> <em><button type="button" class="ibtn" id="dPrev" aria-label="전날">‹</button><span id="dDay">오늘</span><button type="button" class="ibtn" id="dNext" aria-label="다음 날">›</button></em></h3>
         <ul class="todo" id="todo"></ul>
+        <button type="button" class="ibtn tdcarry" id="tdCarry" hidden></button>
         <form class="addrow" id="todoAdd"><input id="todoIn" maxlength="60" placeholder="할 일 적고 Enter" aria-label="할 일 더하기" autocomplete="off"><button type="submit" class="btn">더하기</button></form>
         <details class="memo" id="memoBox"><summary>🗒 이날 메모</summary><textarea id="memo" maxlength="3000" placeholder="자유롭게 적어 두세요 (학생 이름 · 연락처 같은 개인정보는 적지 말아 주세요)"></textarea></details>
         <span class="saved" id="saved"></span>
@@ -8126,7 +8129,40 @@ function renderTodo(){
   if (document.activeElement !== $("memo")) $("memo").value = dayData.memo || "";
   if (dayData.memo && !$("memoBox").open) $("memoBox").open = true;
   if (dayKey === todayKey) window.DESK.setTodos(dayData.todos);   // 게임 화면에는 오늘 할 일만
+  const left = dayData.todos.filter(t => !t.d).length;
+  $("tdCarry").hidden = !left;
+  $("tdCarry").textContent = `↪ 다 못 한 ${left}개 ${dayKey < todayKey ? "오늘" : "내일"}로 넘기기`;
 }
+/* ↪ 다 못 한 할 일 넘기기 (2026-11-20, 먼저 플래너와 같은 방식)
+   오늘 · 앞날에서 누르면 그다음 날로, 지난날에서 누르면 오늘로. 체크한 줄은 그날에 남고, 넘긴 줄은 그날 맨 위에 붙어요.
+   같은 글이 이미 있으면 한 번만. 5초 안에 [되돌리기] 를 누르면 처음대로 */
+let carryUndo = null;
+$("tdCarry").addEventListener("click", async () => {
+  const from = dayKey, to = from < todayKey ? todayKey : shiftKey(from, 1), left = dayData.todos.filter(t => !t.d);
+  if (!left.length) return;
+  if (demo || !deskId){ $("saved").textContent = "체험 중이라 넘길 수 없어요 (로그인하면 돼요)"; return; }
+  $("tdCarry").disabled = true; $("saved").textContent = "넘기는 중…";
+  try {
+    const ref = doc(db, "desk_users", deskId, "days", to), s = await getDoc(ref);
+    const tg = s.exists() ? { todos:s.data().todos || [], memo:s.data().memo || "" } : { todos:[], memo:"" };
+    const have = new Set(tg.todos.map(x => x.t)), add = left.filter(x => !have.has(x.t)).map(x => ({ t:x.t, d:false }));
+    if (tg.todos.length + add.length > 50){ $("saved").textContent = "넘길 날의 할 일이 50개를 넘어요. 몇 개 지우고 다시 눌러 주세요"; return; }
+    const bFrom = dayData.todos.map(x => ({ ...x })), bTo = tg.todos.map(x => ({ ...x }));
+    await setDoc(ref, { todos:[...add, ...tg.todos], memo:tg.memo, at:Date.now() });
+    if (to === todayKey) window.DESK.setTodos([...add, ...tg.todos]);
+    dayData.todos = dayData.todos.filter(t => t.d); renderTodo(); saveDay();
+    const word = to === todayKey ? "오늘" : "내일";
+    $("saved").innerHTML = `${left.length}개를 ${word}로 넘겼어요 <button type="button" class="ibtn" id="tdUndo">되돌리기</button>`;
+    clearTimeout(carryUndo); carryUndo = setTimeout(() => { if ($("tdUndo")) $("saved").textContent = ""; }, 5000);
+    $("tdUndo").onclick = async () => {
+      clearTimeout(carryUndo); $("saved").textContent = "되돌리는 중…";
+      try { await setDoc(ref, { todos:bTo, memo:tg.memo, at:Date.now() }); if (to === todayKey) window.DESK.setTodos(bTo);
+        if (dayKey === from){ dayData.todos = bFrom; renderTodo(); } saveDay(); $("saved").textContent = "되돌렸어요"; }
+      catch (e){ $("saved").textContent = "되돌리지 못했어요 · 인터넷을 확인해 주세요"; }
+    };
+  } catch (e){ $("saved").textContent = "넘기지 못했어요 · 인터넷을 확인해 주세요"; }
+  finally { $("tdCarry").disabled = false; }
+});
 function saveDay(){
   clearTimeout(dayTimer);
   if (demo){ $("saved").textContent = "체험 중이라 저장되지 않아요"; return; }
