@@ -125,6 +125,13 @@ main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) ma
 .memos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .memo{border-radius:14px;padding:10px 12px 6px;color:#2E2A33;box-shadow:0 2px 0 rgba(0,0,0,.06);display:flex;flex-direction:column;min-height:96px}
 .memo.pin{box-shadow:0 0 0 2px var(--mode)}.memo.ed{grid-column:1 / -1}
+.memo:not(.ed){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:box-shadow .15s}
+.memo.lift{position:relative;z-index:30;box-shadow:0 14px 30px rgba(0,0,0,.22);transition:none}.memo.drop{outline:2.5px dashed var(--mode);outline-offset:2px}
+.mhint{margin:-4px 2px 8px;font-size:12px}
+.ptr{position:fixed;left:50%;top:env(safe-area-inset-top,0px);z-index:60;display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;background:rgba(46,42,51,.88);color:#fff;font:600 14px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;opacity:0;transform:translate(-50%,-60px);transition:opacity .15s,background .15s;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.ptr.on{opacity:1}.ptr.go{background:var(--mode)}
+.ptr i{font-style:normal;font-size:18px;display:inline-block;line-height:1}
+.ptr.spin i{animation:ptrSpin .8s linear infinite}@keyframes ptrSpin{to{transform:rotate(360deg)}}
 .memo p{margin:0;white-space:pre-wrap;word-break:break-word;font-size:14.5px;line-height:1.45;flex:1;cursor:text;display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden}
 .memo .mb{display:flex;align-items:center;gap:2px;margin-top:6px}.memo .mb small{color:#6E6873;font-size:11px}.memo .mb .sp{flex:1}
 .memo .ib.sm{width:28px;height:28px;font-size:14px;background:rgba(255,255,255,.55);border:0}.memo .ib[aria-pressed="true"]{background:#fff}
@@ -662,7 +669,7 @@ if (!D.newSeen){ const old = Object.keys(D.plans || {}).some(k => k < "2026-11-2
 const isNew = k => !!NEWS[k] && !D.newSeen[k] && today() <= NEW_END;
 const newB = k => isNew(k) ? '<b class="newb">NEW</b>' : "";
 function seeNew(k){ if (!isNew(k)) return; D.newSeen[k] = 1; save(); }
-const save = () => { D.at = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} if (typeof nativeSync === "function") nativeSync(); window.FB?.push(); };   // D.at = 마지막으로 고친 때 (서버 기록과 비교)
+const save = () => { D.at = Math.max(Date.now(), (D.at || 0) + 1); try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} if (typeof nativeSync === "function") nativeSync(); window.FB?.push(); };   // D.at = 마지막으로 고친 때 (서버 기록과 비교)
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const pad = n => String(n).padStart(2, "0");
@@ -953,6 +960,12 @@ function schoolCard(p, k){
     ${p.det.length ? `<ul class="dl">${unitsOf(p).map((u, j) => `<li class="${u.d ? "ok" : ""}"><button type="button" class="dd" data-act="dchk" data-v="${p.id}" data-i="${j}" data-k="${k}" aria-label="${esc(u.t)} 했어요" aria-pressed="${u.d}"></button><span data-act="dchk" data-v="${p.id}" data-i="${j}" data-k="${k}">${esc(u.t)}</span></li>`).join("")}</ul>` : ""}
     ${o && !empty ? `<div class="det-act"><button type="button" class="ib" data-act="edit" data-v="${p.id}" aria-label="고치기"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button><button type="button" class="ib del" data-act="del" data-v="${p.id}" aria-label="지우기"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg></button></div>` : ""}</div>`;
 }
+/* 오늘 화면 아래 사용 안내: 처음 쓰기 시작한 날 하루만 보여요 (✕로 닫으면 바로 안 보임) */
+function howtoShow(){
+  if (D.howtoOff) return false;
+  if (D.howtoDay == null){ D.howtoDay = Object.keys(D.plans).some(k => k < today()) ? "old" : today(); try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} }
+  return D.howtoDay === today();
+}
 function viewToday(){
   seedToday();
   const k = today(), d = new Date(), w = weakSubj(), L = schoolFirst(sorted(plansOf(k))), pg = progHtml(), left = pg.all - pg.n;
@@ -960,7 +973,7 @@ function viewToday(){
     <div class="prog"><span>할 일 ${pg.n}/${pg.all}</span><span class="tr"><i id="pgBar" style="width:${pg.pct}%"></i></span><span id="pgTxt">${pg.txt}</span></div>
     ${todaySay()}
     ${L.length ? `<div class="list cards" data-drag="plans" data-day="${k}">${L.map((p, i) => planCard(p, i, k, w)).join("")}</div>
-      ${D.howtoOff ? "" : `<div class="howto"><p class="note">과목을 누르면 세부 계획 쓰기 · ✏️ 고치기 · 🗑 지우기<br>세부 계획을 한 줄씩 더하면 할 일이 늘어요 (쪽수 · 문제 수)<br>⠿ 를 꾹 눌러 끌면 순서가 바뀌어요 · 친구는 톡 누르면 도망가고, 끌면 옮겨져요</p><button type="button" class="hx" data-act="howtoOff" aria-label="안내 닫기">✕</button></div>`}` : `<div class="empty">아직 오늘 공부할 과목이 없어요</div>`}
+      ${!howtoShow() ? "" : `<div class="howto"><p class="note">과목을 누르면 세부 계획 쓰기 · ✏️ 고치기 · 🗑 지우기<br>세부 계획을 한 줄씩 더하면 할 일이 늘어요 (쪽수 · 문제 수)<br>⠿ 를 꾹 눌러 끌면 순서가 바뀌어요 · 친구는 톡 누르면 도망가고, 끌면 옮겨져요</p><button type="button" class="hx" data-act="howtoOff" aria-label="안내 닫기">✕</button></div>`}` : `<div class="empty">아직 오늘 공부할 과목이 없어요</div>`}
     <button type="button" class="add" data-act="addPlan">＋ 과목 추가</button>
     ${left && pg.all ? `<button type="button" class="link carry" data-act="carry" data-k="${k}">↪ 다 못 한 ${left}개 내일로 넘기기</button>` : ""}
     ${diaryTime(k) ? diaryCard(k) : ""}`;
@@ -1202,13 +1215,14 @@ function sheetReps(){
 const MEMO_C = ["#FFF3B0", "#FFD9E2", "#D7ECFF", "#DDF4E4", "#EDE3FF", "#FFE4CC"];
 function viewMemo(){
   const q = (S.mq || "").trim(), all = D.memos;
-  const L = all.filter(m => !q || m.t.includes(q)).sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0));
+  const L = all.filter(m => !q || m.t.includes(q)).sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || all.indexOf(a) - all.indexOf(b));   // 고정 먼저, 그다음 꾹 눌러 옮긴 순서
   return `<div class="hd"><div><div class="sub">${all.length ? `메모 ${all.length}개${all.some(m => m.pin) ? ` · 📌 ${all.filter(m => m.pin).length}` : ""}` : "생각나는 걸 바로 적어 두세요"}</div><h1 class="big">메모</h1></div>${topBtns()}</div>
     <div class="mnew"><textarea id="mNew" maxlength="2000" placeholder="예: 다음 주 체육복 챙기기 · 영어 단어 외울 방법 · 사고 싶은 문제집"></textarea><button type="button" class="pill" data-act="mAdd">저장</button></div>
     ${all.length > 5 ? `<input id="mQ" class="mq" placeholder="🔎 메모 찾기" value="${esc(S.mq || "")}" aria-label="메모 찾기">` : ""}
+    ${all.length > 1 && !q ? `<p class="note mhint">메모를 꾹 누르면 들려요. 원하는 자리로 끌어 놓으면 순서가 바뀌어요</p>` : ""}
     <div class="memos">${L.map(m => S.mEdit === m.id
       ? `<div class="memo ed" style="background:${MEMO_C[m.c || 0]}"><textarea id="mEd" maxlength="2000">${esc(m.t)}</textarea><div class="mb"><button type="button" class="link dim" data-act="mCancel">그만두기</button><button type="button" class="pill" data-act="mSave" data-v="${m.id}">저장</button></div></div>`
-      : `<div class="memo ${m.pin ? "pin" : ""}" style="background:${MEMO_C[m.c || 0]}"><p data-act="mEdit" data-v="${m.id}">${esc(m.t)}</p><div class="mb"><small>${m.pin ? "📌 " : ""}${mdShort(m.at)}</small><span class="sp"></span><button type="button" class="ib sm" data-act="mPin" data-v="${m.id}" aria-label="${m.pin ? "고정 풀기" : "맨 위에 고정"}" aria-pressed="${!!m.pin}">📌</button><button type="button" class="ib sm" data-act="mColor" data-v="${m.id}" aria-label="색 바꾸기">🎨</button><button type="button" class="ib sm" data-act="mEdit" data-v="${m.id}" aria-label="고치기">✏️</button><button type="button" class="ib sm del" data-act="mDel" data-v="${m.id}" aria-label="지우기">🗑</button></div></div>`).join("")}</div>
+      : `<div class="memo ${m.pin ? "pin" : ""}" data-mid="${m.id}" style="background:${MEMO_C[m.c || 0]}"><p data-act="mEdit" data-v="${m.id}">${esc(m.t)}</p><div class="mb"><small>${m.pin ? "📌 " : ""}${mdShort(m.at)}</small><span class="sp"></span><button type="button" class="ib sm" data-act="mPin" data-v="${m.id}" aria-label="${m.pin ? "고정 풀기" : "맨 위에 고정"}" aria-pressed="${!!m.pin}">📌</button><button type="button" class="ib sm" data-act="mColor" data-v="${m.id}" aria-label="색 바꾸기">🎨</button><button type="button" class="ib sm" data-act="mEdit" data-v="${m.id}" aria-label="고치기">✏️</button><button type="button" class="ib sm del" data-act="mDel" data-v="${m.id}" aria-label="지우기">🗑</button></div></div>`).join("")}</div>
     ${all.length ? (L.length ? "" : `<p class="note">'${esc(q)}'가 들어간 메모가 없어요</p>`) : `<div class="empty">아직 메모가 없어요. 위 칸에 쓰고 저장을 눌러요</div>`}`;
 }
 const mdShort = ms => { if (!ms) return ""; const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -1775,7 +1789,7 @@ async function capLoad(blob){
 }
 
 /* ===================== 그리기 · 누르기 ===================== */
-const TABS = [["today","오늘",'<path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],["cal","달력",'<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],["pics","사진",'<rect x="3" y="6" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6l1.5-2.5h5L16 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/>'],["grades","성적",'<path d="M4 18l5-6 4 3 7-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'],["memo","메모",'<path d="M6 3h9l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 11h7M9 15h7M9 7h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>']];
+const TABS = [["today","오늘",'<path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],["cal","달력",'<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],["memo","메모",'<path d="M6 3h9l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 11h7M9 15h7M9 7h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],["grades","성적",'<path d="M4 18l5-6 4 3 7-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'],["pics","사진",'<rect x="3" y="6" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6l1.5-2.5h5L16 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/>']];   // 아래 메뉴 순서 (2026-11-20: 오늘 · 달력 · 메모 · 성적 · 사진)
 function render(){
   document.body.classList.toggle("t", D.mode === "t");
   const app = $("app"), c = COLORS[D.acc] || COLORS[0]; app.className = app.className.replace(/\bbg-\w\b/g, "").trim() + " bg-" + D.bg;
@@ -1838,6 +1852,56 @@ $("scrim").onclick = () => closeTimer();
       render(); };
     addEventListener("pointermove", move, { passive:false }); addEventListener("pointerup", up); addEventListener("pointercancel", up);
   });
+})();
+/* 📝 메모 순서 바꾸기 (2026-11-20): 메모를 꾹 누르면(0.4초) 들리고, 손가락을 따라 끌어 놓은 자리로 옮겨요 (두 줄 칸이라 위아래 · 옆 모두) */
+(() => {
+  let st = null, timer = 0, sx = 0, sy = 0, eat = 0;
+  const end = () => { clearTimeout(timer); timer = 0; removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); };
+  const move = ev => {
+    if (!st){ if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 10) end(); return; }
+    ev.preventDefault(); st.el.style.transform = `translate(${ev.clientX - sx}px,${ev.clientY - sy}px) scale(1.04)`;
+    let best = st.from, bd = 1e9; st.rects.forEach((r, i) => { const d = Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2)); if (d < bd){ bd = d; best = i; } });
+    st.to = best; st.cards.forEach((c, i) => c.classList.toggle("drop", i === best && i !== st.from));
+  };
+  const up = () => { end(); if (!st) return; const { from, to, ids, cards } = st; st = null; eat = Date.now();
+    cards.forEach(c => { c.classList.remove("drop", "lift"); c.style.transform = ""; });
+    if (to !== from){ const id = ids[from], order = ids.filter(x => x !== id); order.splice(to, 0, id);
+      D.memos = [...order.map(i => D.memos.find(m => m.id === i)).filter(Boolean), ...D.memos.filter(m => !order.includes(m.id))]; save(); haptic("ok"); }
+    render(); };
+  document.addEventListener("pointerdown", e => {
+    const el0 = e.target.closest(".memos .memo[data-mid]"); if (!el0 || e.target.closest("button") || (S.mq || "").trim()) return;
+    const mid = el0.dataset.mid; sx = e.clientX; sy = e.clientY;
+    // 누르는 사이에 화면이 다시 그려질 수 있어서(타이머 · 다른 기기 맞추기) 들 때 그 메모를 번호로 다시 찾아요
+    timer = setTimeout(() => { const cards = [...document.querySelectorAll(".memos .memo[data-mid]")], el = cards.find(c => c.dataset.mid === mid); if (!el){ end(); return; }
+      st = { el, cards, rects:cards.map(c => c.getBoundingClientRect()), ids:cards.map(c => c.dataset.mid), from:cards.indexOf(el), to:cards.indexOf(el) }; el.classList.add("lift"); haptic("tap"); }, 400);
+    addEventListener("pointermove", move, { passive:false }); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+  });
+  document.addEventListener("touchmove", e => { if (st) e.preventDefault(); }, { passive:false });   // 들고 있는 동안에는 화면이 안 움직이게
+  document.addEventListener("click", e => { if (Date.now() - eat < 400 && e.target.closest(".memos")){ e.stopPropagation(); e.preventDefault(); } }, true);   // 놓을 때 고치기 창이 열리지 않게
+  document.addEventListener("contextmenu", e => { if (e.target.closest(".memos .memo")) e.preventDefault(); });
+})();
+/* ↓ 당겨서 새로고침 (2026-11-20): 맨 위에서 아래로 끌어내렸다 놓으면 이 기기 기록을 서버에 올리고 다시 불러와요 (다른 기기에서 바꾼 것도 받아요)
+   창 · 타이머가 열려 있거나 끌어 옮기는 중(할 일 ⠿ · 메모 · 친구)에는 안 해요 */
+(() => {
+  const ptr = document.createElement("div"); ptr.className = "ptr"; ptr.setAttribute("aria-hidden", "true"); ptr.innerHTML = `<i>⟳</i><span>당겨서 새로고침</span>`; document.body.appendChild(ptr);
+  const GO = 95, M = $("main"); let py = null, px = 0, pd = 0;
+  const reset = () => { ptr.classList.remove("on", "go"); ptr.style.transform = ""; };
+  M.addEventListener("touchstart", e => { const t = e.touches[0];
+    py = e.touches.length === 1 && M.scrollTop <= 0 && !S.sheet && !S.editing && !$("app").classList.contains("timer-open") && !e.target.closest(".grip, .memo, .mate, textarea, input") ? t.clientY : null; px = t.clientX; pd = 0; }, { passive:true });
+  M.addEventListener("touchmove", e => {
+    if (py === null) return; const t = e.touches[0], dy = t.clientY - py, dx = Math.abs(t.clientX - px);
+    if (dy < 8 || dx > dy || M.scrollTop > 0 || document.querySelector(".dragging, .memo.lift")){ pd = 0; reset(); return; }
+    pd = dy; ptr.classList.add("on"); ptr.classList.toggle("go", pd >= GO);
+    ptr.style.transform = `translate(-50%, ${Math.min(pd * .55, 70) - 50}px)`; ptr.querySelector("i").style.transform = `rotate(${pd * 2}deg)`;
+    ptr.querySelector("span").textContent = pd >= GO ? "놓으면 새로고침" : "당겨서 새로고침";
+  }, { passive:true });
+  M.addEventListener("touchend", () => {
+    if (py === null) return; py = null;
+    if (pd >= GO){ ptr.querySelector("span").textContent = "새로고침 중…"; ptr.classList.add("spin"); haptic("tap");
+      Promise.race([window.FB?.sync ? window.FB.sync() : Promise.resolve(), new Promise(ok => setTimeout(ok, 2500))]).finally(() => location.reload()); }
+    else reset();
+    pd = 0;
+  }, { passive:true });
 })();
 $("main").addEventListener("scroll", e => e.target.classList.toggle("scrolled", e.target.scrollTop > 40), { passive:true });
 // 설정 묶음(details.sec)을 펼치고 접은 상태를 기억해요 (화면을 다시 그려도 그대로)
@@ -2426,7 +2490,7 @@ setTimeout(() => { const t = D.timer; if (t && t.start && !t.asked && tsec() >= 
    - 탈퇴: ⚙︎ 설정 › 계정 › 탈퇴 → 서버 기록 · 숫자 · 로그인 정보를 지우고 이 기기 기록도 지워요 */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithPopup, signInWithCredential, signInWithCustomToken, linkWithPopup, linkWithCredential, GoogleAuthProvider, OAuthProvider, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, getCountFromServer, collection, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, getCountFromServer, collection, query, where, Timestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const firebaseConfig = { apiKey:"AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain:"moon-d528d.firebaseapp.com", projectId:"moon-d528d", storageBucket:"moon-d528d.firebasestorage.app", messagingSenderId:"126636401536", appId:"1:126636401536:web:25b8a8296ec42b86f99765" };
 const ADMIN = location.hash === "#admin" || /[?&]admin\b/.test(location.search);
 const ADMIN_EMAILS = ["anstjsdud@sen.go.kr", "bellachord@gmail.com"];   // 보안 규칙 isTeacher() 와 같게
@@ -2506,15 +2570,40 @@ const userRef = () => doc(db, "first_users", user.uid), statRef = () => doc(db, 
    ① 다시 열기 표시는 서버 기록마다(저장 시각) 따로 ② 서버 기록을 못 불러왔으면 절대 올리지 않아요(ready) ③ 이 기기에 서버보다 많은 기록이 있으면 물어보고 합쳐요 */
 const PULLED = "first-pulled";
 let ready = false;
+/* 🔄 여러 기기 맞추기 (2026-11-20): 폰 · 아이패드를 같은 계정으로 함께 켜 두면, 오래 켜 둔 기기가 예전 기록(캐릭터 설정 등)을 통째로 올려
+   방금 다른 기기에서 바꾼 것을 덮었어요. 이제는
+   ① 서버 기록을 실시간으로 지켜보다가(onSnapshot) 다른 기기가 더 최근에 바꾸면 이 화면에 바로 불러와요
+   ② 서버에 이 기기보다 최근 기록이 있으면 올리지 않아요 (srvAt = 서버 기록의 저장 시각) */
+let srvAt = 0, liveOff = null, liveWait = null, liveT = 0;
+const busyNow = () => !!(S.editing || S.sheet || S.mEdit || S.dEdit || document.querySelector(".dragging, .memo.lift") || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || ""));
+function liveApply(s){
+  if (!s || !s.d || (s.at || 0) <= (D.at || 0)) return;
+  if (busyNow()){ liveWait = s; clearTimeout(liveT); liveT = setTimeout(() => liveApply(liveWait), 2000); return; }   // 쓰는 중이면 끝날 때까지 기다려요
+  let v; try { v = JSON.parse(s.d); } catch (e) { return; }
+  const myTimer = D.timer && D.timer.start ? D.timer : null, txt = Object.fromEntries((D.pics || []).filter(p => p.txt).map(p => [p.id, p.txt]));
+  D = { ...D, ...v }; D.at = s.at;
+  if (myTimer) D.timer = myTimer;   // 이 기기에서 재고 있는 타이머는 그대로
+  (D.pics || []).forEach(p => { if (txt[p.id] && !p.txt) p.txt = txt[p.id]; });   // 사진에서 읽은 글자는 이 기기에만 있어요
+  liveWait = null;
+  try { localStorage.setItem(KEY, JSON.stringify(D)); sessionStorage.setItem(PULLED, String(s.at)); } catch (e) {}
+  window.render?.(); window.crewSync?.(); window.toast?.("다른 기기에서 바꾼 내용을 불러왔어요");
+}
+function live(){
+  if (liveOff || !user) return;
+  liveOff = onSnapshot(userRef(), snap => {
+    if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+    const s = snap.data(); srvAt = Math.max(srvAt, s.at || 0); liveApply(s);
+  }, () => { liveOff = null; });
+}
 async function pull(){
   let snap; try { snap = await getDoc(userRef()); } catch (e) { return; }   // 인터넷이 막혀도 이 기기 기록으로 계속 써요 (서버엔 다시 확인한 뒤에 올려요)
   known = snap.exists();
   if (known){
-    const s = snap.data();
+    const s = snap.data(); srvAt = Math.max(srvAt, s.at || 0);
     if (s.d && (s.at || 0) > (D.at || 0)){   // 서버가 더 최근
       let srv = null; try { srv = JSON.parse(s.d); } catch (e) {}
       if (srv && D.at && typeof dataSize === "function" && dataSize(D) > dataSize(srv)){
-        if (confirm(`이 기기에 서버보다 더 많은 기록이 있어요.\n· 이 기기: ${dataSummary(D)}\n· 서버: ${dataSummary(srv)}\n\n확인 = 두 기록을 합쳐서 지켜요\n취소 = 서버 기록으로 바꿔요`)){ ready = true; mergeData(srv, true); push(true); return; }
+        if (confirm(`이 기기에 서버보다 더 많은 기록이 있어요.\n· 이 기기: ${dataSummary(D)}\n· 서버: ${dataSummary(srv)}\n\n확인 = 두 기록을 합쳐서 지켜요\n취소 = 서버 기록으로 바꿔요`)){ ready = true; mergeData(srv, true); push(true); live(); return; }
       }
       try { localStorage.setItem(KEY, s.d); } catch (e) {}
       const tag = String(s.at || 0);
@@ -2522,7 +2611,7 @@ async function pull(){
       return;   // 서버 기록을 이 화면에 못 불러왔으면 올리지 않아요 (빈 기록으로 덮지 않게)
     }
   }
-  ready = true; push(true);
+  ready = true; push(true); live();
 }
 function push(now){ if (!user || !ready) return; clearTimeout(pushT); pushT = setTimeout(doPush, now ? 0 : 3000); }
 /* ☁️ 서버 저장 상태 (2026-11-16): 마지막으로 잘 올린 때 · 실패했는지 → ⚙︎ 설정 › 계정에 보여요. 처음 실패하면 한 번 알려 줘요 */
@@ -2531,13 +2620,14 @@ let syncOk = (() => { try { return +localStorage.getItem(SYNC) || 0; } catch (e)
 const bytes = s => new Blob([s]).size;   // 서버 한 칸 한도는 글자 수가 아니라 바이트 (한글 한 글자 = 3바이트)
 async function doPush(){
   if (!user || !ready) return false;
+  if (srvAt > (D.at || 0)) return false;   // 다른 기기가 더 최근에 저장했어요 → 덮지 않고 실시간으로 받아요 (live)
   const O = typeof outData === "function" ? outData() : D;   // 사진에서 읽은 글자는 빼고 올려요
   let d = JSON.stringify(O); if (bytes(d) > 950000) d = JSON.stringify({ ...O, mine:[] });   // 너무 크면 내 캐릭터 그림은 빼고 (서버 한 칸 1MB)
   if (bytes(d) > 1000000){ syncErr = "기록이 너무 커서 서버에 다 못 올렸어요. 오래된 사진첩 기록을 정리해 주세요"; return false; }
   try {
     await setDoc(userRef(), { d, at:D.at || Date.now(), v:1 });
     await setDoc(statRef(), { lastDay:dkey(new Date()), plat:IOS ? "ios" : NATIVE ? "app" : "web", kinds:(user.providerData || []).map(p => p.providerId).slice(0, 4), ...(known ? {} : { created:serverTimestamp() }) }, { merge:true });
-    known = true; syncOk = Date.now(); syncErr = ""; try { localStorage.setItem(SYNC, String(syncOk)); } catch (e) {}
+    known = true; srvAt = Math.max(srvAt, D.at || 0); syncOk = Date.now(); syncErr = ""; try { localStorage.setItem(SYNC, String(syncOk)); } catch (e) {}
     return true;
   } catch (e) {
     syncErr = /network|unavailable|offline/i.test(String(e && (e.code || e.message))) ? "인터넷이 끊겨 서버에 못 올렸어요 · 이 기기에는 저장돼 있어요" : "서버에 못 올렸어요 · 이 기기에는 저장돼 있어요";
@@ -2551,7 +2641,7 @@ function syncText(){
   const m = Math.round((Date.now() - syncOk) / 60000);
   return `☁️ 서버에 저장됨 · ${m < 1 ? "방금" : m < 60 ? m + "분 전" : m < 1440 ? Math.round(m / 60) + "시간 전" : Math.round(m / 1440) + "일 전"}`;
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") push(true); else if (user && !ready) pull(); });   // 처음에 서버 확인을 못 했으면 돌아올 때 다시
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") push(true); else if (user && !ready) pull(); else if (user && ready){ if (!liveOff) live(); getDoc(userRef()).then(s => { if (s.exists()){ srvAt = Math.max(srvAt, s.data().at || 0); liveApply(s.data()); } }).catch(() => {}); } });   // 돌아오면 서버를 한 번 더 확인 (잠들었던 동안 바뀐 것)   // 처음에 서버 확인을 못 했으면 돌아올 때 다시
 
 /* ---------- 계정 (⚙︎ 설정 › 계정) ---------- */
 function who(){
@@ -2635,7 +2725,7 @@ async function mergeWith(kind, name, cred){
     T(od ? `하나로 합쳤어요. 이제 ${name}로 들어와도 같은 기록이에요` : `${name} 연결했어요. 이제 어느 쪽으로 들어와도 같은 기록이에요`);
   } finally { try { await signOut(S2.auth); } catch (e) {} }
 }
-window.FB = { push:() => push(false), who, out, quit, syncText, syncBad:() => !!syncErr, kinds, link };
+window.FB = { push:() => push(false), sync:() => doPush(), who, out, quit, syncText, syncBad:() => !!syncErr, kinds, link };
 
 /* ---------- 로그인 상태 ---------- */
 if (!ADMIN) onAuthStateChanged(auth, async u => {
