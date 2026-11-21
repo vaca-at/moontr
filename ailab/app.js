@@ -134,7 +134,7 @@ function saveBuilding(state) {
 // 로그인하지 않아도 건물(첫 화면)은 보이고, 자료는 관리자(규칙의 isTeacher) 계정으로 들어와야 보여요.
 function updateAuthUI() {
   document.body.classList.toggle('guest', isGuest());
-  $('#authBtn').textContent = S.user ? '나가기' : 'G 구글 계정으로 로그인';
+  $('#authBtn').innerHTML = S.user ? '나가기' : '<img src="https://moontr.site/google-g.svg" alt="" width="18" height="18" style="vertical-align:-5px;margin-right:8px;background:#fff;border-radius:5px;padding:2px">구글 계정으로 로그인';   // 공식 G 그림 (2026-11-22)
   $('#authBtn').dataset.act = S.user ? 'logout' : 'login';
 }
 
@@ -206,7 +206,7 @@ function render() {
     if ($('#furn')?.open) $('#furn').close();
     $('#view').innerHTML = `<div class="gate"><span class="bot" aria-hidden="true"></span><h2>${esc(APP_NAME)}</h2>
       ${S.user ? '<p>관리자 계정인지 확인하고 있어요…</p>' : `<p>관리자만 들어올 수 있어요.<br>관리자 구글 계정으로 로그인해 주세요.</p>
-      <button class="btn primary" data-act="login">G 구글 계정으로 로그인</button>`}</div>`;
+      <button class="btn primary" data-act="login"><img src="https://moontr.site/google-g.svg" alt="" width="18" height="18" style="vertical-align:-5px;margin-right:8px;background:#fff;border-radius:5px;padding:2px">구글 계정으로 로그인</button>`}</div>`;
     return;
   }
   const admin = !S.q && r === 'admin';
