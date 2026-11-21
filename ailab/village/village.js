@@ -17,7 +17,7 @@ const rnd = (() => { let s = 7; return () => ((s = (s * 1664525 + 1013904223) >>
 // ───────── 건물 (방 11채 + 사장님 집) ─────────
 // 동네마다 배치가 달라요: 아래 '동네 배치' 의 layoutPattaya · layoutMaldives · layoutKyoto 가 자리를 정해요.
 // [방 이름, 너비, 깊이]
-const ORDER = [['security', 5, 4.5], ['moral', 5.5, 4.5], ['others', 5.5, 4.5], ['links', 6, 5], ['train', 6, 5], ['lobby', 7, 5], ['archive', 5.5, 4.5], ['aiedu', 6, 5], ['task', 6, 5], ['plans', 6, 5], ['jeong1', 5, 4]];
+const ORDER = [['security', 5, 4.5], ['moral', 5.5, 4.5], ['others', 5.5, 4.5], ['links', 6, 5], ['train', 6, 5], ['lobby', 7, 5], ['archive', 5.5, 4.5], ['aiedu', 6, 5], ['task', 6, 5], ['plans', 6, 5], ['jeong1', 5, 4], ['master', 6, 5]];
 const SIZE = Object.fromEntries(ORDER.map(([k, w, d]) => [k, [w, d]]));
 const V = (x, z, y = 0) => new THREE.Vector3(x, y, z);
 // L = 지금 동네 배치. spots(건물 자리, rot = 문이 보는 쪽) · plaza(광장) · fc(푸드코트) · net(직원이 다니는 길) · H(x,z)(땅 높이)
@@ -473,6 +473,7 @@ const WORK = {
   aiedu: { morning: ['아침 AI 소식 정리했어요'], am: ['새 AI 도구 써 보는 중'], pm: ['AI 수업 아이디어 메모 중'], evening: ['오늘 배운 AI 도구 정리'], any: ['새 AI 소식 모으는 중이에요'] },
   security: { morning: ['아침 문단속 확인 끝!'], am: ['수상한 메일 없나 보는 중'], pm: ['비밀번호 바꿀 때 됐어요'], evening: ['퇴근 전 잠금 확인할게요'], night: ['밤에도 지키고 있어요'], any: ['보안 점검 이상 없어요'] },
   lobby: { morning: ['접수처 문 열었어요!'], am: ['새 자료 오면 바로 나눌게요'], pm: ['들어온 서류 분류 중이에요'], evening: ['오늘 접수 마감했어요'], any: ['자료 넣으실 거 있으세요?'] },
+  master: { morning: ['오늘 연수 패들렛 열어 둘게요'], am: ['강의 자료 링크 꽂는 중이에요'], pm: ['우수 사례 자료 정리했어요'], evening: ['오늘 연수 자료 정리 끝!'], any: ['마스터교원 연수 자료 모으는 중'] },
   archive: { morning: ['보관함 열쇠 챙겼어요'], evening: ['보관실 잠그고 갈게요'], any: ['원본은 안전하게 보관 중이에요'] },
   secretary: { morning: ['사장님, 브리핑 준비됐어요'], am: ['오늘 일정 정리해 둘게요'], lunch: ['점심은 푸드코트 어떠세요?'], pm: ['오후 일정 알려 드릴게요'], evening: ['오늘 일정 다 끝났어요'], night: ['내일 일정도 챙겨 둘게요'], any: ['사장님 찾으시는 분 있어요'] },
   friend: { lunch: ['푸드코트 가 볼까?'], any: ['오늘 날씨 좋다~', '연구소 마을 산책 최고', '광장 분수 시원하다'] },
@@ -577,12 +578,12 @@ const loopOf = (pts) => pts.map(([x, z]) => V(x, z));
 // ── 파타야 1안: 비치로드 일자 거리 ──
 // 북쪽(-z)부터: 워킹 스트리트 푸드코트 · 접수처(거울 연못 정자) · 건물 한 줄 · 해변 큰길 · 잔디밭 광장 · 모래사장 · 바다, 사장님 집은 바다로 난 부두 끝
 function layoutPattaya() {
-  const xs = [-52, -42, -32, -22, -12, 12, 22, 32, 42, 52], keys = ['security', 'moral', 'others', 'links', 'train', 'archive', 'aiedu', 'task', 'plans', 'jeong1'];
+  const xs = [-52, -42, -32, -22, -12, 12, 22, 32, 42, 52, 62], keys = ['security', 'moral', 'others', 'links', 'train', 'archive', 'aiedu', 'task', 'plans', 'jeong1', 'master'];
   const spots = keys.map((k, i) => spot(k, xs[i], 9, 0));
   spots.push(spot('lobby', 0, -4, 0, { w: 12, d: 9, tagY: 9.6 }));
   spots.push(spot('boss', 36, 42, Math.PI, { w: 8, d: 6, tagY: 9.6 }));
   const ROAD = 16, plaza = { x: 0, z: 21.5, r: 5, benchR: 3.7 };
-  const lines = [loopOf([[-58, ROAD], [58, ROAD]]), loopOf([[-17, ROAD], [-17, -13], [17, -13], [17, ROAD]]), loopOf([[0, ROAD], [0, 3]]), loopOf([[-44, 28], [44, 28]]), loopOf([[-8, ROAD], [-8, 28]]), loopOf([[8, ROAD], [8, 28]]), loopOf([[36, 28], [36, 37]])];
+  const lines = [loopOf([[-58, ROAD], [66, ROAD]]), loopOf([[-17, ROAD], [-17, -13], [17, -13], [17, ROAD]]), loopOf([[0, ROAD], [0, 3]]), loopOf([[-44, 28], [44, 28]]), loopOf([[-8, ROAD], [-8, 28]]), loopOf([[8, ROAD], [8, 28]]), loopOf([[36, 28], [36, 37]])];
   return {
     spots, plaza, H: () => 0,
     fc: { x: 0, z: -21, ry: 0, name: '워킹 스트리트 야시장' },
@@ -596,7 +597,7 @@ function layoutPattaya() {
       box(world, 160, 0.6, 92, T.ground, 0, -0.3, -20).castShadow = false;   // 잔디 (z -66 ~ 26)
       box(world, 160, 0.5, 8, T.sand, 0, -0.27, 29).castShadow = false;      // 모래사장
       const shallow = box(world, 160, 0.1, 10, M(T.waterNear, { roughness: 0.2 }), 0, -0.32, 38); shallow.castShadow = false;
-      ribbon(loopOf([[-62, ROAD], [62, ROAD]]), 3.6, 0xe9e2d2, 0.02);   // 해변 큰길
+      ribbon(loopOf([[-62, ROAD], [70, ROAD]]), 3.6, 0xe9e2d2, 0.02);   // 해변 큰길
       ribbon(loopOf([[-17, ROAD], [-17, -13]]), 2.2, 0xe2d8c6, 0.02); ribbon(loopOf([[17, ROAD], [17, -13]]), 2.2, 0xe2d8c6, 0.02);
       ribbon(loopOf([[-24, -13], [24, -13]]), 3.2, 0xd8c9ae, 0.02);   // 워킹 스트리트
       for (const s of spots) if (!s.boss && s.key !== 'lobby') ribbon([V(s.x, s.z + s.d / 2 + 1), V(s.x, ROAD - 1.6)], 1.8, 0xe2d8c6, 0.03);
@@ -612,7 +613,7 @@ function layoutPattaya() {
       for (let x = -60; x <= 60; x += 6) for (const z of [ROAD - 2.3, ROAD + 2.3]) if (Math.abs(x) > 3) mushLamp(x + (z > ROAD ? 3 : 0), z);   // 큰길 버섯등
       for (let x = -58; x <= 58; x += 5) if (Math.abs(x - 36) > 3) palm(x + rnd() * 1.5, 25.6 + rnd() * 1.4, 0.85 + rnd() * 0.3);
       for (let x = -40; x <= 40; x += 6) { if (Math.abs(x - 36) < 4 || Math.abs(x) < 3) continue; lounger(x - 0.6, 30.2, Math.PI); lounger(x + 0.6, 30.2, Math.PI); umbrella(x, 31.6); }
-      for (const [x, z, k] of [[-27, 22, 1], [-45, 21.5, 0.9], [24, 22, 0.95], [48, 21.5, 1], [-60, 3, 1.1], [62, 4, 1], [-28, -8, 1.2], [28, -6, 1.15], [-46, -10, 1], [46, -12, 1.1], [-10, -32, 1.2], [14, -34, 1.1], [-36, -30, 1], [38, -30, 1]]) rainTree(x, z, k);
+      for (const [x, z, k] of [[-27, 22, 1], [-45, 21.5, 0.9], [24, 22, 0.95], [48, 21.5, 1], [-60, 3, 1.1], [70, 4, 1], [-28, -8, 1.2], [28, -6, 1.15], [-46, -10, 1], [46, -12, 1.1], [-10, -32, 1.2], [14, -34, 1.1], [-36, -30, 1], [38, -30, 1]]) rainTree(x, z, k);
       for (let i = 0; i < 40; i++) { const x = (rnd() - 0.5) * 140, z = -60 + rnd() * 42; if (freeAt(x, z, 3)) (rnd() < 0.6 ? rainTree(x, z, 0.8 + rnd() * 0.3) : palm(x, z, 0.8)); }
       // 야시장 꼬마전구 줄
       for (let i = 0; i < 18; i++) { const x = -22 + i * 2.6; box(world, 0.16, 0.16, 0.16, glowMat(0xfff0b0, 2.2, { emissive: 0xffd070 }), x, 4.2 - Math.sin((i % 6) / 5 * Math.PI) * 0.5, -13); }
@@ -629,10 +630,11 @@ function layoutMaldives() {
   const onIsland = (x, z) => ((x - IC.x) / IRX) ** 2 + ((z - IC.z) / IRZ) ** 2;
   const arms = [[J, V(-34, 24)], [J, V(34, 24)]];
   const spots = [spot('lobby', 0, -32, 0, { w: 10, d: 7, tagY: 8.6 })];
-  const keysL = ['train', 'links', 'moral', 'others', 'security'], keysR = ['archive', 'aiedu', 'task', 'plans', 'jeong1'];
+  const keysL = ['train', 'links', 'moral', 'others', 'security', 'master'], keysR = ['archive', 'aiedu', 'task', 'plans', 'jeong1'];
   [[arms[0], keysL, 1], [arms[1], keysR, -1]].forEach(([[a, b], ks, sg]) => {
     const dir = b.clone().sub(a), Ln = dir.length(); dir.normalize(); const nrm = V(-dir.z, dir.x);
-    ks.forEach((k, i) => { const t = 0.2 + i * 0.19, side = (i % 2 ? -1 : 1) * sg, p = a.clone().addScaledVector(dir, Ln * t).addScaledVector(nrm, side * 6.8);
+    const t0 = ks.length > 5 ? 0.17 : 0.2, dt = ks.length > 5 ? 0.155 : 0.19;   // 빌라가 6채인 부두는 조금 촘촘하게
+    ks.forEach((k, i) => { const t = t0 + i * dt, side = (i % 2 ? -1 : 1) * sg, p = a.clone().addScaledVector(dir, Ln * t).addScaledVector(nrm, side * 6.8);
       spots.push(spot(k, +p.x.toFixed(1), +p.z.toFixed(1), Math.atan2(-nrm.x * side, -nrm.z * side), { w: 6.4, d: 5 })); });
   });
   spots.push(spot('boss', 0, 31, Math.PI, { w: 9, d: 6.5, tagY: 9.4 }));
@@ -680,7 +682,7 @@ function layoutKyoto() {
   const raw = (x, z) => base(z) - 7 * Math.exp(-((x + 14) ** 2) / 70 - ((z + 15) ** 2) / 22) - (z > 37 && z < 41 ? 0.9 : 0);
   // 건물 자리: 지그재그 굽이 사이 넓은 곳에, 문은 가장 가까운 길 쪽으로
   const nearWay = (x, z) => { let best = null; for (let i = 0; i < WAY.length - 1; i++) { const a = WAY[i], ab = WAY[i + 1].clone().sub(a), t = THREE.MathUtils.clamp(((x - a.x) * ab.x + (z - a.z) * ab.z) / ab.lengthSq(), 0, 1), q = a.clone().addScaledVector(ab, t), d = Math.hypot(q.x - x, q.z - z); if (!best || d < best.d) best = { d, q }; } return best.q; };
-  const put = [['security', 9, 22], ['moral', -14, 30.5], ['others', -28, 16], ['links', 0, 21.5], ['train', 16, 18.5], ['aiedu', -8, 9.5], ['archive', 8, -2], ['plans', -1, -2.5], ['task', -21, -9], ['jeong1', 16, -18]];
+  const put = [['security', 9, 22], ['moral', -14, 30.5], ['others', -28, 16], ['links', 0, 21.5], ['train', 16, 18.5], ['aiedu', -8, 9.5], ['archive', 8, -2], ['plans', -1, -2.5], ['task', -21, -9], ['jeong1', 16, -18], ['master', 28, 23]];
   const spots = put.map(([k, x, z]) => { const q = nearWay(x, z); return spot(k, x, z, Math.atan2(q.x - x, q.z - z)); });
   spots.push(spot('lobby', 0, 34, 0, { w: 7.5, d: 4.5, tagY: 10.8, plateY: 0 }));
   spots.push(spot('boss', -14, -31, 0, { w: 12, d: 7, tagY: 11.5 }));

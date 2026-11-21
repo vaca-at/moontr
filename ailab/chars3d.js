@@ -10,7 +10,7 @@ import { makeBoss } from './boss3d.js';   // 사장님 8번(여자)은 맥 앱�
 export const CH = { look: 0, gender: () => 'f' };
 // 처음 설정: 방마다 직원 번호(assign) · 사장님 8번 베이지 재킷(여자) · 친구 11번 클로드 · 느낌 0 각진 복셀
 // 고른 설정은 브라우저 'ailab3d' 와 Firebase ailab_meta/building 에 저장돼요 (방 화면 메뉴에서 바꿔요)
-export const CHAR_DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3, aiedu: 11, jeong1: 2 }, me: 8, friend: 11, gender: 'f', look: 0 };
+export const CHAR_DEFAULT = { assign: { train: 3, links: 3, moral: 1, others: 1, plans: 4, task: 4, lobby: 2, archive: 5, security: 3, aiedu: 11, jeong1: 2, master: 3 }, me: 8, friend: 11, gender: 'f', look: 0 };
 
 // ---------- 색 ----------
 const P = {

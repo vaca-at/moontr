@@ -73,7 +73,11 @@ export const ROOMS = {
   lobby: { name: '접수처', role: '접수', system: true },
   archive: { name: '원본 보관실', role: '창고지기', system: true },
 
-  store3: { name: '창고 3', ...STORE },
+  master: {
+    name: '마스터교원 연수실', role: '연수 도우미', ai: true, view: 'link',
+    desc: '마스터교원 연수(2026-11-21~ 신규연수부터)에서 받은 패들렛 · 강의 자료 · 링크 · 과제 · 우수 사례 자료. 마스터교원 연수 화면 캡쳐도 여기로',
+    fields: ['사이트 이름', '어느 연수에서', '중요 안내', '마감일'],
+  },
 };
 
 // 위층부터 아래층 순서. 한 층에 방 4개 (왼쪽 → 오른쪽)
@@ -82,5 +86,5 @@ export const FLOORS = [
   { floor: 'PH', name: '펜트하우스', rooms: ['boss'], penthouse: true },
   { floor: '2F', name: '연수 층', rooms: ['train', 'links', 'task', 'aiedu'] }, // 창고 4 → AI 교육 연구실 (2026-10-29)
   { floor: '1F', name: '수업 층', rooms: ['lobby', 'moral', 'others', 'plans'] },
-  { floor: 'B1', name: '보관 · 보안 층', rooms: ['archive', 'security', 'jeong1', 'store3'] }, // 창고 1 → 정보 보안실 (2026-10-29) · 창고 2 → 1정 연수 준비방 (2026-11-18)
+  { floor: 'B1', name: '보관 · 보안 층', rooms: ['archive', 'security', 'jeong1', 'master'] }, // 창고 1 → 정보 보안실 (2026-10-29) · 창고 2 → 1정 연수 준비방 (2026-11-18) · 창고 3 → 마스터교원 연수실 (2026-11-21)
 ];

@@ -21,6 +21,7 @@ const JOBS = {
   lobby: '들어온 캡쳐를 받아 AI에게 읽히고, 어느 방으로 보낼지 정해요.',
   archive: '넣은 캡쳐 원본을 고치지 않고 그대로 보관해요.',
   jeong1: '1정 연수 강의 설계와 연수에서 소개할 AI 도구를 나눠 정리해요.',
+  master: '마스터교원 연수에서 받은 패들렛 · 자료 링크를 연수별로 꽂아 둬요.',
 };
 // n · hot = 이름표 옆 숫자 (앱이 setBadges 로 실제 자료 수를 넣어요)
 const ROOMS = Object.fromEntries(Object.entries(APP_ROOMS).map(([k, r]) => [k, { ...r, job: JOBS[k] || r.desc || '', n: 0, hot: false }]));
@@ -1016,8 +1017,8 @@ function libHover(l) {
 // ---------- 방마다 분류 가구 (2026-10-30 시안): 가구 한 칸 = 분류. 칸을 누르면 그 방 직원이 가서 꺼내 와 책상에 펼쳐요 ----------
 // 자료는 앱이 setRoomData({ cards, caps }) 로 넣어요. 칸 이름 · 수가 바뀌면 건물을 다시 그려요
 let ROOM_DATA = { cards: [], caps: [] };
-const TOOL_FURN = { train: 'cabinet', links: 'catalog', task: 'kanban', aiedu: 'rack', moral: 'board', plans: 'binder', security: 'safe', lobby: 'mailbox', archive: 'boxes', jeong1: 'board' };
-const TOOL_COLOR = { train: '#c99a5c', links: '#8e6640', task: '#e3b23a', aiedu: '#2f9c8f', moral: '#2f8a5f', plans: '#6e5ea0', security: '#e0693f', lobby: '#e0693f', jeong1: '#3d6fd6', archive: '#8e6640' };
+const TOOL_FURN = { train: 'cabinet', links: 'catalog', task: 'kanban', aiedu: 'rack', moral: 'board', plans: 'binder', security: 'safe', lobby: 'mailbox', archive: 'boxes', jeong1: 'board', master: 'catalog' };
+const TOOL_COLOR = { train: '#c99a5c', links: '#8e6640', task: '#e3b23a', aiedu: '#2f9c8f', moral: '#2f8a5f', plans: '#6e5ea0', security: '#e0693f', lobby: '#e0693f', jeong1: '#3d6fd6', master: '#d4508a', archive: '#8e6640' };
 const seoulDay = (d = new Date()) => new Date(d.getTime() + 9 * 36e5).toISOString().slice(0, 10);
 const addDay = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 // 방마다 칸 나누기: [[칸 이름, 카드 목록], …] (빈 칸도 이름은 보여요)
@@ -1032,7 +1033,7 @@ function toolUnits(k) {
       const apply = take(mine, /신청/, [...done, ...go]);
       return [['이수 완료', done], ['대상자 · 진행', go], ['신청함', apply], ['안내만', restOf(mine, [...done, ...go, ...apply])]];
     }
-    case 'links': {
+    case 'links': case 'master': {
       const cats = {};
       mine.forEach((c) => { (cats[c.category || '그 밖'] ||= []).push(c); });
       const list = Object.entries(cats).sort((a, b) => b[1].length - a[1].length);
@@ -1066,7 +1067,7 @@ function toolUnits(k) {
     }
     case 'lobby': {
       const r = (...ks) => all.filter((c) => ks.includes(c.room) && c.status !== 'review');
-      return [['확인 전', all.filter((c) => c.status === 'review')], ['연수', r('train', 'task', 'links')], ['수업 공개', r('moral', 'others', 'plans')], ['AI 교육', r('aiedu')], ['1정 연수', r('jeong1')], ['보안', r('security')]];
+      return [['확인 전', all.filter((c) => c.status === 'review')], ['연수', r('train', 'task', 'links')], ['수업 공개', r('moral', 'others', 'plans')], ['AI 교육', r('aiedu')], ['1정 연수', r('jeong1')], ['마스터교원', r('master')], ['보안', r('security')]];
     }
     case 'archive': {
       const months = {};

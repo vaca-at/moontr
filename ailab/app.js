@@ -263,6 +263,7 @@ const DECO = {
   security: ['wb', 'w', 'w'],
   aiedu: ['wb', 'w', 'w', 'shelf'],
   jeong1: ['wb', 'easel', 'shelf'],
+  master: ['shelf', 'w', 'shelf'],
 };
 const deco = (k) => (DECO[k] || ['w', 'shelf']).map((p) => PROP[p]).join('');
 
@@ -468,7 +469,7 @@ function furnitureList(k) {
   if (k === 'lobby') return [['tray', '창구 · 자료 넣기', 'tray', () => lobbyView()]];
   if (k === 'archive') return [['box', '캐비닛 · 원본', 'box', () => archiveView()]];
   const r = ROOMS[k], list = () => cardsIn(k), body = () => { const l = list(); if (!l.length) return emptyRoom(k); return ({ link: linksView, lesson: lessonsView, plan: plansView, split: splitView }[r.view] || eventsView)(l, k); };
-  if (k === 'links') return [['shelf', '책장 · 링크', 'book', body], ['add', '새 링크 꽂기', 'plus', () => linkForm()]];
+  if (r.view === 'link') return [['shelf', '책장 · 링크', 'book', body], ['add', '새 링크 꽂기', 'plus', () => linkForm()]];
   if (r.task) return [['wb', '화이트보드 · 진행', 'board', () => taskPanel()], ['bench', '작업대 · 과제', 'desk', body]];
   const name = { event: ['게시판', 'pin'], lesson: ['액자 · 공개수업', 'frame'], plan: ['서랍장 · 지도안', 'drawer'], split: ['금고 · 할 일', 'safe'] }[r.view] || ['게시판', 'pin'];
   return [['main', name[0], name[1], body], ['cal', '달력 · 날짜순', 'cal', () => { const l = list().filter((c) => c.date).sort((a, b) => (a.date > b.date ? 1 : -1)); return l.length ? eventsView(l, k) : '<p class="empty">날짜가 있는 자료가 들어오면 여기에 날짜순으로 모여요.</p>'; }]];
@@ -509,7 +510,7 @@ function roomContent(k) {
   if (k === 'lobby') return lobbyView();
   if (k === 'archive') return archiveView();
   const r = ROOMS[k];
-  const head = r.task ? taskPanel() : k === 'links' ? linkForm() : '';
+  const head = r.task ? taskPanel() : r.view === 'link' ? linkForm() : '';
   const list = cardsIn(k);
   if (!list.length) return head + emptyRoom(k);
   const view = { link: linksView, lesson: lessonsView, plan: plansView, split: splitView, prep: prepView }[r.view] || eventsView;
@@ -736,8 +737,9 @@ async function addLinks() {
   const links = parseLinks(box?.value || '');
   if (!links.length) { toast('주소가 있는 줄을 찾지 못했어요. "분류, 제목, 주소" 순서로 적어 주세요'); return; }
   const batch = writeBatch(db);
+  const room = ROOMS[route()]?.view === 'link' ? route() : 'links';   // 링크 서재 · 마스터교원 연수실처럼 링크 모양 방이면 그 방에
   links.forEach((l) => batch.set(doc(collection(db, dbPath('cards'))), {
-    room: 'links', kind: '링크', title: l.title, url: l.url, category: l.category, summary: '', date: '', end_date: '', time: '', place: '', subject: '',
+    room, kind: '링크', title: l.title, url: l.url, category: l.category, summary: '', date: '', end_date: '', time: '', place: '', subject: '',
     moral_link: '', keywords: [], fields: [], periods: [], unsure: [], status: 'done', taskRef: false, captureId: '', storagePath: '', manual: true, createdAt: serverTimestamp(),
   }));
   await batch.commit();
@@ -1408,7 +1410,7 @@ function openCard(id) {
       <h2>${c.status === 'review' ? '카드 확인하기' : '카드 고치기'}</h2>
       ${side ? '' : viewer(files)}
       <label>보낼 방<select name="room">${roomOptions(c.room)}</select></label>
-      ${c.room === 'links' ? `<label>분류<input name="category" value="${esc(c.category || '')}"></label>` : ''}
+      ${ROOMS[c.room]?.view === 'link' ? `<label>분류<input name="category" value="${esc(c.category || '')}"></label>` : ''}
       <label>제목<input name="title" value="${esc(c.title)}"></label>
       <div class="two"><label>날짜<input type="date" name="date" value="${esc(c.date)}"></label><label>끝나는 날<input type="date" name="end_date" value="${esc(c.end_date)}"></label></div>
       <div class="two"><label>시간·교시<input name="time" value="${esc(c.time)}"></label><label>장소<input name="place" value="${esc(c.place)}"></label></div>

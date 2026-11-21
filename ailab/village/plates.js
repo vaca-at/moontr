@@ -12,7 +12,9 @@ export const PLATES = {
   plans:    { name: '지도안 연구실',   en: 'LESSON PLANS', bg: '#b4523a', ink: '#ffffff', pic: 'drawer' },
   security: { name: '정보 보안실',     en: 'SECURITY',     bg: '#3a3f45', ink: '#ffd166', pic: 'lock' },
   archive:  { name: '원본 보관실',     en: 'ARCHIVE',      bg: '#8a6a46', ink: '#ffffff', pic: 'box' },
-  store2:   { name: '빈 터',          en: 'COMING SOON',  bg: '#c9c2b0', ink: '#3a3530', pic: 'plus' },
+  jeong1:   { name: '1정 연수 준비방', en: 'LECTURE PREP', bg: '#3d6fd6', ink: '#ffffff', pic: 'pin' },
+  master:   { name: '마스터교원 연수실', en: 'MASTER TEACHER', bg: '#d4508a', ink: '#ffffff', pic: 'medal' },
+  store2:   { name: '빈 터',         en: 'COMING SOON',  bg: '#c9c2b0', ink: '#3a3530', pic: 'plus' },
 };
 
 // 그림: 가운데 큰 원 안에 굵은 선 그림 (S = 한 변 길이)
@@ -31,6 +33,7 @@ function pic(g, kind, x, y, s, col) {
     case 'drawer': P('M22 16 H78 V84 H22 Z M22 39 H78 M22 61 H78'); P('M44 28 H56 M44 50 H56 M44 72 H56'); break;
     case 'lock': P('M28 46 H72 V82 H28 Z'); P('M36 46 V34 a14 14 0 0 1 28 0 V46'); F('M50 58 a5 5 0 1 1 0.1 0'); P('M50 62 V70'); break;
     case 'box': P('M16 34 L50 18 L84 34 V68 L50 84 L16 68 Z'); P('M16 34 L50 50 L84 34 M50 50 V84'); break;
+    case 'medal': P('M36 16 L46 44 M64 16 L54 44'); P('M50 46 a20 20 0 1 1 -0.1 0'); F('M50 54 L54 62 L63 63 L56 69 L58 78 L50 73 L42 78 L44 69 L37 63 L46 62 Z'); break;
     case 'plus': g.setLineDash([8, 8]); P('M20 20 H80 V80 H20 Z'); g.setLineDash([]); P('M50 34 V66 M34 50 H66'); break;
   }
   g.restore();
