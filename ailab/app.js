@@ -825,6 +825,8 @@ async function syncPadlets(force) {
   } finally { padBusy = false; fillPadMsg(); }
 }
 function fillPadMsg() { document.querySelectorAll('.padmsg').forEach((el) => { el.textContent = S.padMsg || ''; }); }
+// 마스터교원 연수실을 열어 둔 동안: 1분마다 살펴서 3분이 지났으면 새 글을 가져와요 (다른 탭에 가 있어도)
+setInterval(() => { if (route() === 'master' || S.furn?.room === 'master') syncPadlets(); }, 60e3);
 // 방 맨 위 띠: 가져온 패들렛 · [지금 가져오기]. 띠가 그려질 때 3분이 지났으면 저절로 가져와요
 function padBar() {
   setTimeout(() => syncPadlets(), 0);
