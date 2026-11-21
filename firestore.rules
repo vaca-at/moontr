@@ -1036,11 +1036,15 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['d', 'at', 'v'])
         && request.resource.data.d is string && request.resource.data.d.size() < 1000000;
     }
+    // (2026-11-21) 관리자 대시보드용 숫자 더함: days = 쓴 날짜 { "2026-11-21": true } · use = 기능별 누른 횟수 · hrs = 앱을 연 시각(0~23시) 횟수. 글 · 이름은 없어요
     match /first_stat/{uid} {
       allow read: if (request.auth != null && request.auth.uid == uid) || isTeacher();
       allow delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['created', 'lastDay', 'plat', 'kinds']);
+        && request.resource.data.keys().hasOnly(['created', 'lastDay', 'plat', 'kinds', 'days', 'use', 'hrs'])
+        && (!('days' in request.resource.data) || (request.resource.data.days is map && request.resource.data.days.size() <= 1000))
+        && (!('use' in request.resource.data) || (request.resource.data.use is map && request.resource.data.use.size() <= 60))
+        && (!('hrs' in request.resource.data) || (request.resource.data.hrs is map && request.resource.data.hrs.size() <= 24));
     }
     // 👥 이메일로 친구 맺기 · 1:1 채팅은 2026-11-15에 없앴어요 (desk_req · desk_dm 은 이제 아무도 못 읽고 못 써요)
     // 예전에 만들어 둔 desk_email(로그인 이메일을 바꾼 값) 문서는 본인이 지우기만 할 수 있어요 (앱이 로그인할 때 지워요)

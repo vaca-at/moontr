@@ -1510,7 +1510,7 @@ function viewSettings(){
     <p class="gh">기록</p><div class="grp"><div class="row"><span>모든 기록 지우기 <small class="sub">(계정은 남겨요)</small></span><button type="button" class="link dim" data-act="wipe">지우기</button></div></div></div></details>
     <details class="policy"><summary>먼저 플래너 · 이용약관 · 개인정보 처리방침</summary><div>
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
-      <h4>개인정보 처리방침</h4>Apple · 구글 · 카카오로 로그인하면 그 서비스가 알려 주는 로그인 번호와 이메일, 내가 쓴 할 일 · 세부 계획 · 공부 시간 · 성적 · 시험 날짜 · 일정 · 수행평가 · 메모 · 하루 마무리 일기 · 설정 · 내 캐릭터 그림을 <b>구글 Firebase 서버에 본인 계정으로만</b> 저장해요 (휴대폰을 바꾸거나 컴퓨터에서도 이어 쓰려고). 운영자는 학생 기록을 볼 수 없고 가입 · 사용 숫자만 봐요. 광고 · 다른 회사에 넘기는 데 쓰지 않아요. 사진첩 사진과 사진에서 읽은 글자는 이 휴대폰에만 있고 서버 · 백업에 올리지 않아요 (사진에서 고른 할 일만 기록에 들어가요). 아이폰 앱은 기록을 내 아이클라우드에도 백업해요. 알림은 휴대폰 안에서만 울려요. ⚙︎ 설정 › 계정 › 탈퇴를 누르면 모두 지워요. 자세히: moontr.site/first/privacy.html
+      <h4>개인정보 처리방침</h4>Apple · 구글 · 카카오로 로그인하면 그 서비스가 알려 주는 로그인 번호와 이메일, 내가 쓴 할 일 · 세부 계획 · 공부 시간 · 성적 · 시험 날짜 · 일정 · 수행평가 · 메모 · 하루 마무리 일기 · 설정 · 내 캐릭터 그림을 <b>구글 Firebase 서버에 본인 계정으로만</b> 저장해요 (휴대폰을 바꾸거나 컴퓨터에서도 이어 쓰려고). 운영자는 학생 기록을 볼 수 없고 가입 · 사용 숫자(쓴 날짜, 앱을 연 시각, 기능별로 누른 횟수)만 봐요. 광고 · 다른 회사에 넘기는 데 쓰지 않아요. 사진첩 사진과 사진에서 읽은 글자는 이 휴대폰에만 있고 서버 · 백업에 올리지 않아요 (사진에서 고른 할 일만 기록에 들어가요). 아이폰 앱은 기록을 내 아이클라우드에도 백업해요. 알림은 휴대폰 안에서만 울려요. ⚙︎ 설정 › 계정 › 탈퇴를 누르면 모두 지워요. 자세히: moontr.site/first/privacy.html
       <h4>공부 소리</h4>타이머의 🎧 소리(빗소리 · 백색소음 · 파도)는 앱이 직접 만드는 소리예요.
       <h4>문의</h4>운영자 메일 anstjsdud@sen.go.kr (제목에 '먼저 플래너'). 개인정보 · 계정 삭제 요청도 이 메일로 받아요.
     </div></details>`;
@@ -1949,9 +1949,22 @@ document.addEventListener("input", e => {
   if (e.target.id === "sndVol"){ D.vol = +e.target.value; if (PLAY.gain) PLAY.gain.gain.value = SVOL[PLAY.k] * D.vol; clearTimeout(volT); volT = setTimeout(save, 400); }
 });
 document.addEventListener("paste", e => { if (S.sheet?.t !== "cap") return; const it = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith("image/")); if (it){ e.preventDefault(); capLoad(it.getAsFile()); } });
+/* 📊 사용 숫자 (2026-11-21): 어떤 기능을 몇 번 눌렀는지 · 몇 시에 앱을 열었는지만 세요 (쓴 글 · 이름은 세지 않아요)
+   이 기기에 모아 두었다가 서버에 기록을 올릴 때 first_stat 에 더해요 (관리자 화면 #admin 의 '자주 쓰는 기능 · 시간대') */
+const USE_KEY = "first-use", ADMINP = location.hash === "#admin" || /[?&]admin\b/.test(location.search);
+const USE_OF = { addPlan:"plan", addSave:"plan", pSave:"plan", eSave:"plan", check:"check", dchk:"check", carry:"carry", tGo:"timer", tResume:"timer", sndPlay:"sound", secSave:"secfix",
+  evSave:"ev", exAdd:"exam", mAdd:"memo", gSave:"grade", gPhoto:"gphoto", candSave:"pics", dMood:"diary", dDone:"diary", deco:"deco", capOk:"mine", reps:"reps", goalAdd:"goal", remOn:"rem", guide:"guide", bakOut:"backup" };
+function useBump(part, k){
+  if (!k || ADMINP) return;
+  try { const u = JSON.parse(localStorage.getItem(USE_KEY) || "{}"); (u[part] ||= {})[k] = (u[part][k] || 0) + 1; localStorage.setItem(USE_KEY, JSON.stringify(u)); } catch (e) {}
+}
+let useOpenAt = 0;
+function useOpened(){ if (Date.now() - useOpenAt < 30 * 60e3) return; useOpenAt = Date.now(); useBump("hrs", String(new Date().getHours())); }   // 30분 안에 다시 열면 한 번으로
+useOpened(); document.addEventListener("visibilitychange", () => { if (!document.hidden) useOpened(); });
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-act]"); if (!b || b.disabled) return;
   const a = b.dataset.act, v = b.dataset.v, k = b.dataset.k || today();
+  useBump("use", a === "tab" ? "t_" + v : USE_OF[a]);   // 📊 기능 숫자
   const pick = (box, attr) => document.querySelectorAll(`#${box} [data-act="${attr}"]`).forEach(x => x.setAttribute("aria-pressed", x === b));
   switch (a){
     case "tab": S.tab = v; S.editing = ""; if (v === "memo") seeNew("memo"); break;
@@ -2491,7 +2504,7 @@ setTimeout(() => { const t = D.timer; if (t && t.start && !t.asked && tsec() >= 
    - 탈퇴: ⚙︎ 설정 › 계정 › 탈퇴 → 서버 기록 · 숫자 · 로그인 정보를 지우고 이 기기 기록도 지워요 */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithPopup, signInWithCredential, signInWithCustomToken, linkWithPopup, linkWithCredential, GoogleAuthProvider, OAuthProvider, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, getCountFromServer, collection, query, where, Timestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp, getCountFromServer, collection, query, where, Timestamp, onSnapshot, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const firebaseConfig = { apiKey:"AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o", authDomain:"moon-d528d.firebaseapp.com", projectId:"moon-d528d", storageBucket:"moon-d528d.firebasestorage.app", messagingSenderId:"126636401536", appId:"1:126636401536:web:25b8a8296ec42b86f99765" };
 const ADMIN = location.hash === "#admin" || /[?&]admin\b/.test(location.search);
 const ADMIN_EMAILS = ["anstjsdud@sen.go.kr", "bellachord@gmail.com"];   // 보안 규칙 isTeacher() 와 같게
@@ -2627,7 +2640,7 @@ async function doPush(){
   if (bytes(d) > 1000000){ syncErr = "기록이 너무 커서 서버에 다 못 올렸어요. 오래된 사진첩 기록을 정리해 주세요"; return false; }
   try {
     await setDoc(userRef(), { d, at:D.at || Date.now(), v:1 });
-    await setDoc(statRef(), { lastDay:dkey(new Date()), plat:IOS ? "ios" : NATIVE ? "app" : "web", kinds:(user.providerData || []).map(p => p.providerId).slice(0, 4), ...(known ? {} : { created:serverTimestamp() }) }, { merge:true });
+    await pushStat();
     known = true; srvAt = Math.max(srvAt, D.at || 0); syncOk = Date.now(); syncErr = ""; try { localStorage.setItem(SYNC, String(syncOk)); } catch (e) {}
     return true;
   } catch (e) {
@@ -2635,6 +2648,21 @@ async function doPush(){
     if (!syncWarned){ syncWarned = true; window.toast?.(syncErr); }
     return false;
   }
+}
+/* 📊 사용 숫자 올리기: 가입 · 마지막 쓴 날 · 기기 + (2026-11-21) 쓴 날짜 · 기능별 누른 횟수 · 연 시각을 더해요
+   보안 규칙을 아직 게시하지 않아 새 칸이 막히면 예전 칸만 올리고, 모아 둔 숫자는 이 기기에 남겨 다음에 다시 보내요 */
+async function pushStat(){
+  const base = { lastDay:dkey(new Date()), plat:IOS ? "ios" : NATIVE ? "app" : "web", kinds:(user.providerData || []).map(p => p.providerId).slice(0, 4), ...(known ? {} : { created:serverTimestamp() }) };
+  let raw = "{}"; try { raw = localStorage.getItem("first-use") || "{}"; } catch (e) {}
+  let u = {}; try { u = JSON.parse(raw) || {}; } catch (e) {}
+  const inc = o => Object.fromEntries(Object.entries(o || {}).filter(([k, n]) => /^[a-z0-9_]{1,16}$/.test(k) && n > 0).slice(0, 40).map(([k, n]) => [k, increment(Math.min(n, 500))]));
+  const extra = { days:{ [dkey(new Date())]:true } }, use = inc(u.use), hrs = inc(u.hrs);
+  if (Object.keys(use).length) extra.use = use;
+  if (Object.keys(hrs).length) extra.hrs = hrs;
+  try { await setDoc(statRef(), { ...base, ...extra }, { merge:true }); }
+  catch (e) { await setDoc(statRef(), base, { merge:true }); return; }
+  // 보낸 만큼만 빼요 (보내는 사이에 새로 센 숫자는 남겨요)
+  try { const now = JSON.parse(localStorage.getItem("first-use") || "{}"); ["use", "hrs"].forEach(p => Object.keys(u[p] || {}).forEach(k => { if (now[p]?.[k] != null){ now[p][k] -= u[p][k]; if (now[p][k] <= 0) delete now[p][k]; } })); localStorage.setItem("first-use", JSON.stringify(now)); } catch (e) {}
 }
 function syncText(){
   if (syncErr) return "⚠️ " + syncErr;
@@ -2749,14 +2777,92 @@ if (ADMIN){
       el("admIn").onclick = async () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt:"select_account" }); try { await signInWithPopup(auth, p); } catch (e) { el("admErr").textContent = "로그인하지 못했어요"; } };
       return;
     }
-    const C = collection(db, "first_stat"), t0 = new Date(); t0.setHours(0, 0, 0, 0);
-    const ago = n => { const d = new Date(); d.setDate(d.getDate() - n); return dkey(d); };
-    const [all, today, week, d1, ios] = await Promise.all([cnt(C), cnt(query(C, where("created", ">=", Timestamp.fromDate(t0)))), cnt(query(C, where("lastDay", ">=", ago(6)))), cnt(query(C, where("lastDay", "==", dkey(new Date())))), cnt(query(C, where("plat", "==", "ios")))]);
-    const tile = (n, t) => `<div style="background:#fff;border-radius:16px;padding:14px 10px;box-shadow:0 2px 8px rgba(0,0,0,.06)"><b style="display:block;font-size:30px;color:#FF5C84;font-weight:400;font-variant-numeric:tabular-nums">${n}</b><span style="font:13px var(--sys);color:#6B5E66">${t}</span></div>`;
-    B.innerHTML = `<h1>먼저 플래너 · 관리자</h1><p>가입 · 사용 숫자만 보여요 (학생 기록은 볼 수 없어요)</p>
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:100%;margin-top:12px">${tile(all, "전체 가입")}${tile(today, "오늘 가입")}${tile(d1, "오늘 쓴 사람")}${tile(week, "7일 안에 쓴 사람")}${tile(ios, "아이폰 · 아이패드 앱")}${tile(all === "—" ? "—" : all - ios, "웹 · 기타")}</div>
-      <p class="gnote">설치 수는 App Store Connect › 먼저 플래너 › 앱 분석에서 봐요</p>`;
+    // 📊 대시보드 (2026-11-21): 사용 숫자(first_stat)만 모두 읽어 이 화면에서 셈해요. 학생 기록(first_users)은 읽지 않아요
+    B.innerHTML = `<h1>먼저 플래너 · 관리자</h1><p>숫자를 모으는 중…</p>`;
+    let rows = [];
+    try { rows = (await getDocs(collection(db, "first_stat"))).docs.map(x => x.data()); }
+    catch (e) { B.innerHTML = `<h1>먼저 플래너 · 관리자</h1><p>숫자를 불러오지 못했어요 (${String(e.code || e.message).replace(/</g, "&lt;")})</p>`; return; }
+    box.className = "adm"; box.innerHTML = admDash(rows);
+    box.querySelector("[data-adm=re]")?.addEventListener("click", () => location.reload());
   });
+
+  // 기능 이름 (앱의 단추 이름 → 화면에 보일 이름). 새 기능을 세면 여기에도 한 줄
+  const ADM_USE = [["plan", "할 일 넣기"], ["check", "할 일 체크"], ["carry", "내일로 넘기기"], ["timer", "타이머 시작"], ["sound", "공부 소리"], ["secfix", "순공 고치기"],
+    ["ev", "일정 · 수행평가"], ["exam", "시험 D-day"], ["memo", "메모 쓰기"], ["grade", "성적 넣기"], ["gphoto", "성적표 사진"], ["pics", "사진에서 할 일"],
+    ["diary", "하루 마무리 일기"], ["deco", "꾸미기"], ["mine", "내 캐릭터 만들기"], ["reps", "반복 할 일"], ["goal", "주간 목표"], ["rem", "알림 켜기"], ["guide", "사용 설명서"], ["backup", "백업 파일"]];
+  const ADM_TAB = [["t_today", "오늘"], ["t_cal", "달력"], ["t_memo", "메모"], ["t_grades", "성적"], ["t_pics", "사진"]];
+  const WD = ["일", "월", "화", "수", "목", "금", "토"];
+  function admDash(R){
+    const T = dkey(new Date()), ago = n => { const d = new Date(); d.setDate(d.getDate() - n); return dkey(d); };
+    const cday = r => r.created?.toDate ? dkey(r.created.toDate()) : "";
+    const act = r => { const s = new Set(Object.keys(r.days || {})); if (r.lastDay) s.add(r.lastDay); return s; };   // 쓴 날짜 (예전 학생은 마지막 쓴 날만)
+    const A = R.map(r => ({ r, c:cday(r), a:act(r) })), N = R.length;
+    const pct = (n, of) => of ? Math.round(n / of * 100) : 0;
+    const since = (n, f) => A.filter(x => x.r.lastDay && x.r.lastDay >= ago(n) && (!f || f(x))).length;
+    const tracked = A.filter(x => x.r.days || x.r.use || x.r.hrs).length;
+    // 처음 숫자 칸
+    const old7 = A.filter(x => x.c && x.c <= ago(7)), back = old7.filter(x => x.r.lastDay > x.c).length, week1 = old7.filter(x => x.r.lastDay >= addDays(x.c, 7)).length;
+    const avgDays = tracked ? (A.filter(x => x.r.days).reduce((s, x) => s + Object.keys(x.r.days).length, 0) / A.filter(x => x.r.days).length).toFixed(1) : "—";
+    const tiles = [[N, "전체 가입"], [since(0), "오늘 쓴 학생"], [since(6), "7일 안에 쓴 학생"], [since(29), "30일 안에 쓴 학생"],
+      [A.filter(x => x.c === T).length, "오늘 가입"], [A.filter(x => x.c >= ago(6)).length, "7일 안에 가입"], [pct(back, old7.length) + "%", "다시 온 학생", "가입한 날 말고 다른 날에도 쓴 비율 (가입 7일 넘은 학생)"], [pct(week1, old7.length) + "%", "1주 뒤에도 쓰는 학생", "가입하고 7일 뒤에도 쓴 비율"]];
+    // 날마다 쓴 학생 · 가입 (30일)
+    const D30 = Array.from({ length:30 }, (_, i) => ago(29 - i));
+    const dau = D30.map(d => A.filter(x => x.a.has(d)).length), join = D30.map(d => A.filter(x => x.c === d).length);
+    // 시간대 · 요일 · 기능
+    const H = Array.from({ length:24 }, (_, h) => R.reduce((s, r) => s + (+(r.hrs || {})[h] || 0), 0));
+    const W = WD.map(() => 0); A.forEach(x => x.a.forEach(d => { if (d >= ago(55)) W[new Date(d + "T12:00").getDay()]++; }));
+    const feat = L => L.map(([k, n]) => ({ k, n, users:R.filter(r => (r.use || {})[k] > 0).length, times:R.reduce((s, r) => s + (+(r.use || {})[k] || 0), 0) })).sort((a, b) => b.users - a.users || b.times - a.times);
+    const F = feat(ADM_USE), TB = feat(ADM_TAB), usedN = R.filter(r => r.use).length;
+    // 기기 · 로그인 · 쓴 날 수
+    const plat = [["ios", "아이폰 · 아이패드 앱"], ["app", "안드로이드 앱"], ["web", "웹"]].map(([k, n]) => [n, R.filter(r => (r.plat || "web") === k).length]);
+    const kind = [["google.com", "구글"], ["oidc.kakao", "카카오"], ["apple.com", "Apple"]].map(([k, n]) => [n, R.filter(r => (r.kinds || []).some(p => String(p).startsWith(k))).length]);
+    const nd = A.filter(x => x.r.days).map(x => Object.keys(x.r.days).length);
+    const bins = [["1일", n => n === 1], ["2~3일", n => n >= 2 && n <= 3], ["4~7일", n => n >= 4 && n <= 7], ["8~14일", n => n >= 8 && n <= 14], ["15일 넘게", n => n >= 15]].map(([t, f]) => [t, nd.filter(f).length]);
+
+    // 그리기
+    const peak = L => Math.max(1, ...L);
+    const cols = (L, labels, every, hi) => { const m = peak(L); return `<div class="ac">${L.map((v, i) => `<div class="acol ${hi === i ? "hi" : ""}" title="${labels[i]} · ${v}"><i style="height:${Math.round(v / m * 100)}%"></i><span>${i % every === 0 ? labels[i] : ""}</span></div>`).join("")}</div>`; };
+    const bars = (L, of, unit) => `<div class="ab">${L.map(([t, v, sub]) => `<div class="arow"><span class="an">${t}</span><span class="abar"><i style="width:${pct(v, of)}%"></i></span><span class="av">${v}${unit} <small>${sub || pct(v, of) + "%"}</small></span></div>`).join("")}</div>`;
+    const hPeak = H.indexOf(Math.max(...H)), wPeak = W.indexOf(Math.max(...W));
+    const card = (t, sub, body, wide) => `<section class="acard ${wide ? "wide" : ""}"><h2>${t}</h2>${sub ? `<p class="asub">${sub}</p>` : ""}${body}</section>`;
+    return `<style>
+      .adm{position:fixed;inset:0;overflow:auto;background:#F6F4F7;z-index:50;font-family:var(--sys,-apple-system,'Malgun Gothic',sans-serif);color:#2E2A33}
+      .adm .aw{max-width:1120px;margin:0 auto;padding:28px 20px 60px}
+      .adm header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+      .adm h1{font-size:26px;margin:0}.adm header p{margin:4px 0 0;color:#6B5E66;font-size:14px}
+      .adm header button{border:1px solid #D9D2DB;background:#fff;border-radius:10px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
+      .adm .at{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+      .adm .tile{background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+      .adm .tile b{display:block;font-size:28px;color:#FF5C84;font-variant-numeric:tabular-nums}.adm .tile span{font-size:13px;color:#6B5E66}.adm .tile small{display:block;font-size:11px;color:#9A8F9C;margin-top:4px}
+      .adm .ag{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+      .adm .acard{background:#fff;border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.05);min-width:0}.adm .acard.wide{grid-column:1/-1}
+      .adm h2{font-size:16px;margin:0}.adm .asub{font-size:13px;color:#6B5E66;margin:4px 0 12px}.adm .asub b{color:#FF5C84}
+      .adm .ac{display:flex;align-items:flex-end;gap:3px;height:150px;padding-top:6px}
+      .adm .acol{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-width:0}
+      .adm .acol i{display:block;width:100%;background:#FFC2D1;border-radius:4px 4px 0 0;min-height:2px}.adm .acol.hi i{background:#FF5C84}
+      .adm .acol span{font-size:10px;color:#9A8F9C;height:14px;margin-top:4px;white-space:nowrap}
+      .adm .ac.small{height:70px}
+      .adm .arow{display:grid;grid-template-columns:120px 1fr 160px;align-items:center;gap:10px;padding:5px 0;font-size:14px}
+      .adm .abar{height:12px;background:#F3EEF2;border-radius:6px;overflow:hidden}.adm .abar i{display:block;height:100%;background:#FF7A9A;border-radius:6px}
+      .adm .av{text-align:right;font-variant-numeric:tabular-nums}.adm .av small{color:#9A8F9C}
+      .adm .anote{font-size:12px;color:#9A8F9C;margin-top:14px}
+      @media (max-width:760px){.adm .at{grid-template-columns:repeat(2,1fr)}.adm .ag{grid-template-columns:1fr}.adm .arow{grid-template-columns:96px 1fr 92px}}
+    </style><div class="aw">
+      <header><div><h1>먼저 플래너 · 관리자</h1><p>가입 · 사용 숫자만 보여요. 학생이 쓴 할 일 · 메모 · 일기는 볼 수 없어요</p></div><button type="button" data-adm="re">↻ 새로 셈하기</button></header>
+      <div class="at">${tiles.map(([n, t, s]) => `<div class="tile"><b>${n}</b><span>${t}</span>${s ? `<small>${s}</small>` : ""}</div>`).join("")}</div>
+      <div class="ag">
+        ${card("날마다 쓴 학생 · 최근 30일", `오늘 <b>${dau.at(-1)}명</b> · 30일 동안 하루 평균 ${(dau.reduce((a, b) => a + b, 0) / 30).toFixed(1)}명`, cols(dau, D30.map(d => +d.slice(8) + "일"), 5, 29) + `<p class="asub" style="margin-top:14px">날마다 새로 가입 · 30일 동안 ${join.reduce((a, b) => a + b, 0)}명</p>` + cols(join, D30.map(d => +d.slice(8) + "일"), 5).replace('class="ac"', 'class="ac small"'), true)}
+        ${card("자주 들어오는 시간대", H.some(v => v) ? `가장 많이 여는 때 <b>${hPeak}시</b> · 30분 안에 다시 열면 한 번으로 세요` : "아직 모인 숫자가 없어요", cols(H, H.map((_, h) => h + "시"), 3, hPeak))}
+        ${card("요일별로 쓴 학생 · 최근 8주", W.some(v => v) ? `가장 많이 쓰는 요일 <b>${WD[wPeak]}요일</b>` : "", cols(W, WD, 1, wPeak))}
+        ${card("자주 쓰는 기능", `숫자를 보낸 학생 ${usedN}명 가운데 한 번이라도 쓴 학생 · 누른 횟수`, bars(F.map(f => [ADM_USE.find(x => x[0] === f.k)[1], f.users, `${pct(f.users, usedN)}% · ${f.times}번`]), usedN, "명"), true)}
+        ${card("자주 여는 화면", "아래 메뉴를 누른 학생 수 · 횟수", bars(TB.map(f => [ADM_TAB.find(x => x[0] === f.k)[1], f.users, `${pct(f.users, usedN)}% · ${f.times}번`]), usedN, "명"))}
+        ${card("쓴 날 수", `날짜를 센 학생 ${nd.length}명 · 평균 ${avgDays}일`, bars(bins, nd.length, "명"))}
+        ${card("기기", "마지막으로 쓴 기기 기준", bars(plat, N, "명"))}
+        ${card("로그인 종류", "계정을 여러 개 이으면 겹쳐 세요", bars(kind, N, "명"))}
+      </div>
+      <p class="anote">기능 · 시간대 · 쓴 날짜 숫자는 2026년 11월 21일부터 모여요 (지금까지 ${tracked}명). 앱 설치 수는 App Store Connect · Play Console 의 통계에서 봐요.</p>
+    </div>`;
+  }
 }
 </script>
 <script>/* 방문 수: 웹에서만 세요 (아이폰 앱은 '데이터 수집 안 함'이라 안 세요, 2026-11-15) */
