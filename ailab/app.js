@@ -469,7 +469,7 @@ function furnitureList(k) {
   if (k === 'lobby') return [['tray', '창구 · 자료 넣기', 'tray', () => lobbyView()]];
   if (k === 'archive') return [['box', '캐비닛 · 원본', 'box', () => archiveView()]];
   const r = ROOMS[k], list = () => cardsIn(k), body = () => { const l = list(); if (!l.length) return emptyRoom(k); return ({ link: linksView, lesson: lessonsView, plan: plansView, split: splitView }[r.view] || eventsView)(l, k); };
-  if (r.view === 'link') return [['shelf', '책장 · 링크', 'book', body], ['add', '새 링크 꽂기', 'plus', () => linkForm()]];
+  if (r.view === 'link') return [...(k === 'master' ? [['pad', '패들렛 · 새 글', 'board', () => padBar() + body()]] : []), ['shelf', '책장 · 링크', 'book', body], ['add', '새 링크 꽂기', 'plus', () => linkForm()]];
   if (r.task) return [['wb', '화이트보드 · 진행', 'board', () => taskPanel()], ['bench', '작업대 · 과제', 'desk', body]];
   const name = { event: ['게시판', 'pin'], lesson: ['액자 · 공개수업', 'frame'], plan: ['서랍장 · 지도안', 'drawer'], split: ['금고 · 할 일', 'safe'] }[r.view] || ['게시판', 'pin'];
   return [['main', name[0], name[1], body], ['cal', '달력 · 날짜순', 'cal', () => { const l = list().filter((c) => c.date).sort((a, b) => (a.date > b.date ? 1 : -1)); return l.length ? eventsView(l, k) : '<p class="empty">날짜가 있는 자료가 들어오면 여기에 날짜순으로 모여요.</p>'; }]];
@@ -510,7 +510,7 @@ function roomContent(k) {
   if (k === 'lobby') return lobbyView();
   if (k === 'archive') return archiveView();
   const r = ROOMS[k];
-  const head = r.task ? taskPanel() : r.view === 'link' ? linkForm() : '';
+  const head = r.task ? taskPanel() : r.view === 'link' ? (k === 'master' ? padBar() : '') + linkForm() : '';
   const list = cardsIn(k);
   if (!list.length) return head + emptyRoom(k);
   const view = { link: linksView, lesson: lessonsView, plan: plansView, split: splitView, prep: prepView }[r.view] || eventsView;
@@ -712,7 +712,10 @@ function linkCard(c) {
 const linkCat = (c) => c.category || field(c, '어느 연수에서') || '기타';
 function linksView(list) {
   const groups = Object.entries(groupBy(list, linkCat)).sort((a, b) => (a[0] === '기타') - (b[0] === '기타') || a[0].localeCompare(b[0], 'ko'));
-  return groups.map(([cat, items]) => `<section class="lgrp"><h3>${esc(cat)} <small>(${items.length})</small></h3><div class="tiles">${items.map(linkCard).join('')}</div></section>`).join('');
+  return groups.map(([cat, items]) => {
+    const pads = items.filter((c) => c.padlet && c.posts?.length).sort((a, b) => (a.secSort || 0) - (b.secSort || 0)), rest = items.filter((c) => !pads.includes(c));   // 패들렛 칸 = 펼치는 목록 (마스터교원 연수실)
+    return `<section class="lgrp"><h3>${esc(cat)} <small>(${pads.length ? `${pads.length}칸 · 글 ${pads.reduce((n, c) => n + c.posts.length, 0)}개` : items.length})</small></h3>${rest.length ? `<div class="tiles">${rest.map(linkCard).join('')}</div>` : ''}${pads.length ? `<div class="padsecs">${pads.map(padSec).join('')}</div>` : ''}</section>`;
+  }).join('');
 }
 // 링크 서재 맨 위: 링크를 직접 붙여 넣기 (한 줄에 하나, 분류 · 제목 · 주소. 엑셀에서 세 칸을 복사해 붙여도 돼요)
 const linkForm = () => `<details class="linkadd" ${S.cards.some((c) => c.room === 'links') ? '' : 'open'}>
@@ -746,6 +749,92 @@ async function addLinks() {
   box.value = '';
   toast(`링크 ${links.length}개를 넣었어요`);
 }
+
+// 📋 마스터교원 연수실: 연수 패들렛을 칸(섹션)마다 카드 한 장으로 가져와요 (2026-11-21)
+// 패들렛 글 읽기(api)는 누구나 읽을 수 있게 열려 있어요(CORS *). 주소 → 벽 번호는 브라우저에서 못 찾아서, 새 패들렛은 여기에 한 줄 더해요
+// (번호 찾기: 패들렛 주소 화면 소스의 "wallId", hash = api/9/walls/{wallId} 의 hashid)
+const PADLETS = [
+  { key: 'm0', name: '패들렛 0 · 연수 전체 안내', wall: '273904259', hash: 'board_DVXNv9O94D8bAaQ6', url: 'https://padlet.com/aiedapresearch/aiedap-11-21-11-22-s025crv3pu44irfneywb' },
+  { key: 'm1', name: '패들렛 1 · 모듈 1 (전체 · 모둠)', wall: '274229499', hash: 'board_m41pvaezjRx4vxVO', url: 'https://padlet.com/aiedapresearch/1-aiedap-_-_11-21-11-22-s025jc0y1r5dias5qv3f' },
+  { key: 'm2', name: '패들렛 2 · 모듈 2 (사회과)', wall: '271672027', hash: 'board_ZxRwAKkbgxwrA9GY', url: 'https://padlet.com/luckya9/2026-aiedap-_11-21-22-s0248o6zqba69q9jjtgn' },
+];
+const PAD_CSS = `<style>
+.padbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,#d4508a 10%,var(--card,#fff));border:1px solid color-mix(in srgb,#d4508a 30%,transparent)}
+.padbar b{font-size:14px}.padbar small{color:var(--muted,#777);flex:1;min-width:180px}
+.padsecs{display:grid;gap:6px;margin-top:6px}
+.padsec{border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card,#fff);padding:0 12px}
+.padsec summary{cursor:pointer;padding:9px 0;display:flex;gap:8px;align-items:baseline}
+.padsec summary small{color:var(--muted,#777)}
+.padsec ol{margin:0 0 10px;padding-left:20px;display:grid;gap:8px}
+.padsec li a,.padsec li b{font-weight:600}
+.padsec li p{margin:2px 0 0;font-size:13px;white-space:pre-line;color:var(--ink,#333);opacity:.85}
+.padsec li em{font-style:normal;font-size:11px;color:var(--muted,#888);margin-left:6px}
+</style>`;
+let padBusy = false;
+const padJSON = async (u) => { const r = await fetch(u, { headers: { Accept: 'application/json' } }); if (!r.ok) throw new Error(`패들렛 ${r.status}`); return r.json(); };
+// 글 본문(HTML) → 줄바꿈을 살린 글자만
+function padText(h) {
+  const d = document.createElement('div');
+  d.innerHTML = String(h || '').replace(/<\/(p|li|h\d|div)>|<br\s*\/?>/gi, '\n');
+  return d.textContent.replace(/\n{2,}/g, '\n').trim();
+}
+const kst = (iso) => { const d = new Date(new Date(iso).getTime() + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+async function syncPadlets(force) {
+  if (padBusy || isGuest()) return;
+  if (!force && Date.now() - (S.padAt || 0) < 3 * 60e3) return;   // 방을 열 때마다 · 3분에 한 번까지
+  padBusy = true; S.padAt = Date.now(); S.padMsg = '패들렛 새 글을 가져오는 중…'; fillPadMsg();
+  try {
+    const batch = writeBatch(db);
+    let changed = 0, total = 0;
+    for (const p of PADLETS) {
+      const secs = (await padJSON(`https://padlet.com/api/5/wall_sections?wall_id=${p.wall}`)).data.map((s) => s.attributes);
+      const posts = new Map();
+      let cur = '';
+      for (let i = 0; i < 40; i++) {
+        const j = await padJSON(`https://padlet.com/api/10/wishes?wallHashid=${p.hash}${cur ? `&pageStart=${encodeURIComponent(cur)}` : ''}`);
+        const before = posts.size;
+        (j.data || []).forEach((d) => posts.set(d.attributes.id, d.attributes));
+        if (!j.data?.length || posts.size === before || !j.meta?.next) break;
+        cur = j.meta.next;
+      }
+      total += posts.size;
+      for (const s of secs) {
+        const list = [...posts.values()].filter((w) => w.wall_section_id === s.id && w.published !== false).sort((a, b) => (a.created_at > b.created_at ? 1 : -1));
+        if (!list.length) continue;
+        const sig = `${list.length}|${list.map((w) => w.updated_at).sort().pop()}`;
+        const id = `pad_${p.key}_${s.id}`, old = cardById(id);
+        if (old && old.sig === sig && old.title === s.title) continue;
+        const items = list.map((w) => {
+          const t = padText(w.body), att = w.attachment || '', file = /padletusercontent|padlet\.pics/.test(att);
+          return { id: w.id, h: (w.headline || w.subject || t.split('\n')[0] || '').slice(0, 80), t: t.slice(0, 600), u: att && !file ? att : w.permalink || '', f: file, at: kst(w.created_at) };
+        });
+        batch.set(doc(db, dbPath(`cards/${id}`)), {
+          room: 'master', kind: '패들렛', title: s.title || '(이름 없는 칸)', url: p.url, category: p.name, padlet: p.key, secSort: s.sort_index || 0,
+          summary: items.map((x) => x.h).filter(Boolean).join(' · ').slice(0, 300), posts: items, sig,
+          date: '', end_date: '', time: '', place: '', subject: '', moral_link: '', keywords: [], fields: [], periods: [], unsure: [],
+          status: 'done', taskRef: false, captureId: '', storagePath: '', manual: true, syncedAt: serverTimestamp(),
+          ...(old ? {} : { createdAt: serverTimestamp() }),
+        }, { merge: true });
+        changed++;
+      }
+    }
+    if (changed) await batch.commit();
+    S.padMsg = `${changed ? `${changed}칸을 새로 가져왔어요` : '새 글이 없어요'} · 글 ${total}개 · ${kst(new Date().toISOString())} 확인`;
+  } catch (e) {
+    S.padMsg = `패들렛을 읽지 못했어요 (${e.message}) · 잠시 뒤 다시 눌러 주세요`;
+  } finally { padBusy = false; fillPadMsg(); }
+}
+function fillPadMsg() { document.querySelectorAll('.padmsg').forEach((el) => { el.textContent = S.padMsg || ''; }); }
+// 방 맨 위 띠: 가져온 패들렛 · [지금 가져오기]. 띠가 그려질 때 3분이 지났으면 저절로 가져와요
+function padBar() {
+  setTimeout(() => syncPadlets(), 0);
+  return `${PAD_CSS}<div class="padbar"><b>📋 연수 패들렛 ${PADLETS.length}개</b><small class="padmsg">${esc(S.padMsg || '방을 열면 새 글을 저절로 가져와요')}</small>
+    <button class="btn primary" data-act="padSync" type="button">지금 가져오기</button></div>`;
+}
+const padSec = (c) => `<details class="padsec"><summary><b>${esc(c.title)}</b><small>${c.posts.length}개</small></summary><ol>${c.posts.map((x) => {
+  const u = safeUrl(x.u);
+  return `<li>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(x.h || '(제목 없음)')}</a>` : `<b>${esc(x.h || '(제목 없음)')}</b>`}${x.f ? ' 📎' : ''}<em>${esc(x.at || '')}</em>${x.t && x.t !== x.h ? `<p>${esc(x.t)}</p>` : ''}</li>`;
+}).join('')}</ol></details>`;
 
 // lesson: 수업 공개
 // 수업 시간은 한 가지로: 시각(15:00~16:00)이 있으면 시각만, 없으면 교시(7교시)만. 학교마다 교시 시각이 달라서 시각이 더 정확해요
@@ -2310,6 +2399,7 @@ document.addEventListener('click', async (e) => {
       case 'staffpick': openStaffPick(route()); break;
       case 'pickcard': S.pick[route()] = id; render(); break;
       case 'addLinks': await addLinks(); break;
+      case 'padSync': await syncPadlets(true); break;
       case 'reload': location.reload(); break;
       // 강력 새로고침: 화면 파일을 브라우저 저장본 말고 새로 받아 둔 뒤 다시 열어요 (방금 올린 새 화면이 바로 보이게)
       case 'hardReload': {
