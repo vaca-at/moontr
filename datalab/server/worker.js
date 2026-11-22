@@ -3,6 +3,7 @@
 //        POST /partner 탐구 파트너: 답 대신 생각할 질문 하나
 //  선생님(관리자 구글 로그인 표 확인): POST /seteuk 세특 초안 · POST /reflect 수업 실천 성찰문 초안
 //        POST /report 일괄 출력용 학생 한 명: 잘한 점 · 격려(학생에게) · 예상 세특 (2026-11-17)
+//        POST /blog   ✍️ 블로그 글쓰기 (moontr.site/blog, 관리자만): 연수 후기 · 개발 일기 글 쓰기 · 고치기 (2026-11-22)
 //  학생은 학번을 보내지 않아요. 하루 사용 횟수만 알아보기 어려운 번호(who)로 세요 (Durable Object 'Quota')
 //  비밀값: ANTHROPIC_API_KEY  (npx wrangler@4 secret put ANTHROPIC_API_KEY)
 import Anthropic from '@anthropic-ai/sdk';
@@ -58,6 +59,35 @@ const Report = z.object({
   cheer: z.string(),
   seteuk: z.string(),
 });
+
+// ✍️ 블로그 글쓰기 (moontr.site/blog, 2026-11-22): 관리자 한 사람용. 연수 후기 · 개발 일기(앱 홍보)
+// 본문 = 네이버 블로그 단락(블록) 순서 그대로: quote 인용구(부제목) · text 본문(가운데 정렬, 줄바꿈 그대로) · photo 사진 자리(v = 사진 번호) ·
+//        sticker 스티커 자리 · link 링크 카드(v = 주소) · table 표(v = 줄바꿈으로 칸) · line 구분선 · summary ━━━ 요약 상자
+const BlogPost = z.object({
+  titles: z.array(z.string()),   // 제목 후보 3개
+  blocks: z.array(z.object({ t: z.enum(['quote', 'text', 'photo', 'sticker', 'link', 'table', 'line', 'summary']), v: z.string() })),
+  tags: z.array(z.string()),     // 해시태그 (# 없이)
+  insta: z.string(),             // 인스타 캡션
+  threads: z.string(),           // 스레드 짧은 글
+  checks: z.array(z.string()),   // 올리기 전 확인할 것 (개인정보 · 사실 확인)
+});
+// 문선생 블로그(blog.naver.com/moontools) 글 7편을 읽고 뽑은 형식 (2026-11-22). 바꾸려면 blog/README.md 의 '형식' 도 함께
+const BLOG_BASE = `너는 '문선생'(고등학교 윤리 · 통합사회 교사, 바이브코딩으로 교육용 웹앱 · 앱을 만드는 선생님)의 네이버 블로그 글을 대신 써 주는 도우미야.
+선생님이 준 재료(메모 · 사진 · 커밋 기록)만 근거로, 선생님이 직접 쓴 것처럼 아래 형식 그대로 써.
+
+[선생님 블로그 형식]
+1. 제목: 검색이 잘 되는 긴 제목. 예) "교사 시간표 관리 앱 추천! 내 하루가 게임처럼 움직이는 데스크탑 '교무실 타이쿤(TEACHER TYCOON)' AI 시간표 자동 입력 무료 기능", "아이아이노트 첫 앱 출시 기록 : 우리 가족 일기장이 플레이스토어에 올라갔어요", "교사 바이브코딩 입문 매뉴얼 1편 : 웹앱 만들기 시작편". 앱 이름은 '한글(영문)'으로.
+2. 첫머리: sticker 블록 → text 블록 "안녕하세요, 문선생입니다 :)" 또는 "안녕하세요! 문선생입니다!" 다음 줄부터 2~4줄로 무엇을 소개하는지. 앱 소개 글은 summary 블록(요약 상자: 한 줄 소개 2~3줄, '웹: 주소', '앱: 출시 상태')을 첫머리 바로 아래에 넣어.
+3. 부제목: quote 블록(블로그 인용구)으로, 짧게, 질문하거나 말 거는 투. 예) "○○은 어떤 앱인가요?", "이 앱을 만든 이유", "이런 마음으로 만들었어요", "시작하는 방법", "주요 기능", "이 앱의 특징", "시간 순으로 정리한 개발 일정", "숫자로 본 개발 일지", "만들면서 기억에 남는 일들", "앞으로 이렇게 하고 싶어요", "스크린샷 후기 공유".
+4. 본문 text 블록: 블로그에서 가운데 정렬로 보이니까 한 줄에 한 구절(15~28자)씩 짧게 줄을 바꿔(\\n). 생각이 바뀌면 빈 줄 하나. 목록은 ① ② ③ 또는 ■ 소항목, 그 아래 '- ' 또는 '· ' 줄. 날짜별 일정 · 항목 목록은 table 블록(줄마다 한 칸).
+5. 말투: 다정한 존댓말 '~해요', '~했어요!', '~인데요!', '~더라고요!' 느낌표를 자연스럽게. 이모지는 글 전체에 1~3개(💡 🎂 📓 😃 정도). 자신은 '저' 또는 '문선생', 읽는 사람은 '선생님들'.
+6. 사진: photo 블록(v = 사진 번호 '1' '2'…)을 그 사진과 맞는 부제목 바로 아래나 설명 문단 옆에. 받은 사진은 모두 한 번씩 써.
+7. 끝: 써 보라는 권유("지금 바로 써 보세요 → 주소" 같은) → 앱 주소가 있으면 link 블록 → 댓글로 의견 부탁 → 짧은 인사("긴 글 읽어주셔서 감사합니당", "오늘도 힘내세요!" 같은) → sticker 블록. 해시태그는 tags 로만 (본문에 쓰지 마).
+
+[지켜야 할 것]
+- 재료에 없는 사실(숫자, 날짜, 사람 이름, 기관, 수상, 성과)을 지어내지 마. 모르면 [ ] 괄호로 비워 둬.
+- 학생 이름 · 학교 안 개인정보는 쓰지 마. 연수 강사 이름은 재료에 있어도 '강사님'으로.
+- 광고처럼 들뜨지 말고, 선생님이 직접 겪은 이야기처럼 솔직하게. 검색 낱말은 제목과 첫머리에 자연스럽게.`;
 
 export default {
   async fetch(req, env) {
@@ -116,6 +146,71 @@ ${JSON.stringify(body.evidence || []).slice(0, 12000)}` }],
         if (res.stop_reason === 'refusal' || !res.parsed_output) return json(req, { error: 'AI가 이 학생 글을 쓰지 못했어요' }, 502);
         const p = res.parsed_output;
         return json(req, { praise: p.praise.slice(0, 600), cheer: p.cheer.slice(0, 400), seteuk: p.seteuk.slice(0, 900) });
+      }
+      // ── ✍️ 블로그 글쓰기 (관리자만): op 'write' = 재료로 새 글 · 'revise' = 지금 글을 부탁대로 고치기 ──
+      if (url.pathname === '/blog') {
+        const who = await verifyFirebase(String(req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, ''));
+        if (!who || !ADMIN_EMAILS.includes(who.email)) return json(req, { error: 'unauthorized' }, 401);
+        const f = body.fields || {}, F = (k, n = 1500) => clean(f[k], n);
+        const tone = body.tone === 'plain' ? "담백한 반말 일기체('~했다', '~이다')" : "다정한 존댓말('~했어요', '~이에요')";
+        const len = { short: '본문 공백 포함 700~1,000자', mid: '본문 공백 포함 1,300~1,800자', long: '본문 공백 포함 2,300~3,000자' }[body.length] || '본문 공백 포함 1,300~1,800자';
+        const photos = (Array.isArray(body.photos) ? body.photos : []).slice(0, 8).filter((p) => /^image\/(jpeg|png|webp)$/.test(p.type) && typeof p.data === 'string' && p.data.length < 2_000_000);
+        const content = [];
+        photos.forEach((p, i) => { content.push({ type: 'text', text: `[사진 ${i + 1}]${clean(p.note, 200) ? ' 선생님 설명: ' + clean(p.note, 200) : ''}` }); content.push({ type: 'image', source: { type: 'base64', media_type: p.type, data: p.data } }); });
+        const out = `답 형식: titles 에 제목 후보 3개(선생님 제목처럼 길게), blocks 에 본문 블록을 위에서 아래 순서대로, tags 에 해시태그 8~12개(# 없이 낱말만, 붙여 쓰기 예: 교사앱), insta 에 인스타 캡션(5~8줄, 해시태그 없이), threads 에 스레드 글(300자 안, 첫 줄이 눈에 띄게), checks 에 올리기 전에 선생님이 확인할 것(사진 속 학생 얼굴 · 이름표, [ ]로 비운 곳, 확인이 필요한 사실) 1~5개.`;
+        let ask;
+        if (body.op === 'revise') {
+          const d = body.draft || {};
+          ask = `아래는 지금 블로그 글이야. 선생님 부탁대로만 고치고, 부탁하지 않은 부분은 그대로 둬. 고친 결과 전체를 같은 형식으로 돌려줘.
+[선생님 부탁] ${clean(body.ask, 500)}
+[지금 글]
+${JSON.stringify({ titles: d.titles, blocks: (Array.isArray(d.blocks) ? d.blocks : []).slice(0, 80), tags: d.tags, insta: clean(d.insta, 1500), threads: clean(d.threads, 800) }).slice(0, 16000)}
+${out}`;
+        } else if (body.kind === 'devlog' || body.kind === 'promo') {
+          const commits = (Array.isArray(body.commits) ? body.commits : []).slice(0, 40).map((c) => '- ' + clean(c, 400)).join('\n');
+          ask = (body.kind === 'promo'
+            ? `'앱 소개(홍보)' 블로그 글을 써 줘. 문체: ${tone}. 길이: ${len}.
+선생님 예전 앱 소개 글 짜임: 제목("○○ 추천! … '앱(영문)' … 무료 기능") → 스티커 → 인사 · 소개 2~4줄 → summary 요약 상자 → 사진 → 부제목 "○○은 어떤 앱인가요?" → "이 앱을 만든 이유" → "시작하는 방법"(① ② ③) → "주요 기능"(■ 항목과 '- ' 줄) → "이 앱의 특징"(① ② ③ ④, 개인정보 이야기가 재료에 있으면 넣기) → 출시 소식이 있으면 표 → "지금 바로 써 보세요 → 주소" → link → 스티커.`
+            : `'개발 일기(출시 · 제작 기록)' 블로그 글을 써 줘. 문체: ${tone}. 길이: ${len}.
+선생님 예전 개발 기록 글 짜임: 제목("○○ 첫 앱 출시 기록 : 부제" 또는 "내가 만든 ○○ 제작 후기") → 스티커 → 인사 · 무엇을 만들었는지 2~4줄 → 주소 또는 link → 부제목 "○○는 어떤 앱인가요?" → "시간 순으로 정리한 개발 일정"(table: '날짜  한 일' 줄들, 커밋 기록에서 날짜별로 묶기) → "숫자로 본 개발 일지"(재료에 숫자가 있을 때만: 큰 숫자 한 줄 + '· 설명' 한 줄씩) → "만들면서 기억에 남는 일들"(1. 2. 3.) → "앞으로 이렇게 하고 싶어요"('· ' 줄) → 댓글 부탁 · 인사 → 스티커.`) + `
+커밋 기록은 개발 용어 그대로 옮기지 말고, 쓰는 사람이 느낄 변화로 쉽게 풀어 써. 앱 주소는 본문에 한 번 그대로 넣어.
+[앱 이름] ${F('app', 100)}
+[앱 주소] ${F('url', 300)}
+[이 앱은] ${F('about', 800)}
+[오늘 만든 것 · 고친 것] ${F('did')}
+[어려웠던 점] ${F('hard')}
+[쓰는 사람 반응] ${F('react')}
+[다음 계획] ${F('next', 800)}
+[더 하고 싶은 말] ${F('extra')}
+[최근 커밋 기록]
+${commits || '(없음)'}
+${clean(body.sample, 3000) ? `[선생님이 예전에 쓴 글 — 말투만 참고하고 내용은 가져오지 마]\n${clean(body.sample, 3000)}` : ''}
+${photos.length ? `사진(스크린샷) ${photos.length}장이 위에 있어. 본문에 [사진 n] 자리를 알맞게 넣어.` : '사진은 없어.'}
+${out}`;
+        } else {
+          ask = `'연수 다녀온 후기' 블로그 글을 써 줘. 문체: ${tone}. 길이: ${len}.
+선생님 블로그 형식 그대로: 제목("○○ 연수 후기 : 부제" 처럼) → 스티커 → "안녕하세요, 문선생입니다 :)" 인사와 어떤 연수였는지 2~4줄(언제 · 어디 · 무엇) → 사진 → 부제목 "어떤 연수였나요?" → "인상 깊었던 장면" → "이런 걸 배웠어요"(① ② ③) → "제 수업에 이렇게 적용해 볼게요"(■ 또는 '· ') → 사진이 많으면 "연수 사진 공유" → 함께 들으면 좋을 선생님들께 한마디 · 인사 → 스티커. 재료에 없는 부제목은 빼.
+[연수 이름] ${F('name', 200)}
+[날짜] ${F('date', 100)}
+[장소 · 주관] ${F('place', 200)}
+[인상 깊었던 것] ${F('moment')}
+[배운 점] ${F('learn')}
+[내 수업에 적용해 볼 점] ${F('apply')}
+[연수 자료에서 옮긴 내용] ${F('material', 6000)}
+[더 하고 싶은 말] ${F('extra')}
+${clean(body.sample, 3000) ? `[선생님이 예전에 쓴 글 — 말투만 참고하고 내용은 가져오지 마]\n${clean(body.sample, 3000)}` : ''}
+${photos.length ? `사진 ${photos.length}장이 위에 있어. 사진 속 장면을 보고 본문에 [사진 n] 자리를 알맞게 넣어. 사진에 학생 얼굴이나 이름이 보이면 checks 에 적어.` : '사진은 없어.'}
+${out}`;
+        }
+        content.push({ type: 'text', text: ask });
+        const res = await client.messages.parse({
+          model: MODEL, max_tokens: 12000, output_config: { effort: 'medium', format: zodOutputFormat(BlogPost) },
+          system: [{ type: 'text', text: BLOG_BASE, cache_control: { type: 'ephemeral' } }],
+          messages: [{ role: 'user', content }],
+        });
+        if (res.stop_reason === 'refusal' || !res.parsed_output) return json(req, { error: 'AI가 글을 쓰지 못했어요' }, 502);
+        const p = res.parsed_output;
+        return json(req, { titles: p.titles.slice(0, 5).map((t) => t.slice(0, 120)), blocks: p.blocks.slice(0, 80).map((b) => ({ t: b.t, v: String(b.v || '').slice(0, 3000) })), tags: p.tags.slice(0, 15).map((t) => t.replace(/^#/, '').slice(0, 30)), insta: p.insta.slice(0, 2200), threads: p.threads.slice(0, 600), checks: p.checks.slice(0, 6).map((t) => t.slice(0, 200)) });
       }
       // ── 선생님 ──
       if (url.pathname === '/seteuk' || url.pathname === '/reflect') {
@@ -179,8 +274,9 @@ export class Quota extends DurableObject {
   }
 }
 
-// ───────── 관리자 구글(Firebase, 소나기 프로젝트) 로그인 검사 ─────────
-const FIREBASE_PROJECT = 'sonagi-1cc00';
+// ───────── 관리자 구글 로그인 검사 ─────────
+// 소나기 프로젝트(데이터 실험실 선생님 화면) + moontr.site 프로젝트(블로그 글쓰기 · 관리자 허브, 2026-11-22)
+const FIREBASE_PROJECTS = ['sonagi-1cc00', 'moon-d528d'];
 const ADMIN_EMAILS = ['bellachord@gmail.com', 'anstjsdud@sen.go.kr'];
 let googleKeys = { at: 0, keys: [] };
 async function firebaseKeys() {
@@ -199,7 +295,7 @@ async function verifyFirebase(token) {
     const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
     const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sgn), new TextEncoder().encode(`${h}.${p}`));
     const now = Date.now() / 1000;
-    if (!ok || pay.aud !== FIREBASE_PROJECT || pay.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT}`) return null;
+    if (!ok || !FIREBASE_PROJECTS.includes(pay.aud) || pay.iss !== `https://securetoken.google.com/${pay.aud}`) return null;
     if (!(pay.exp > now) || !(pay.iat <= now + 60) || !pay.sub || !pay.email || pay.email_verified !== true) return null;
     return { email: String(pay.email).toLowerCase() };
   } catch { return null; }
