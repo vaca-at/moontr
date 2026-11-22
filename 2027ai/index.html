@@ -3,603 +3,708 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>디지털 도구로 확장하는 도덕·윤리 수업 · 3시간 연수</title>
-<meta name="description" content="도덕·윤리 선생님 3시간 연수: 생성형 AI로 수업용 웹앱을 만들고, GitHub · Firebase로 배포와 학생 기록을 다루고, AI 윤리 · 개인정보 기준으로 점검해요.">
+<title>디지털 도구로 확장하는 도덕·윤리 수업</title>
+<meta name="description" content="도덕·윤리 선생님 3시간 연수: 생성형 AI로 수업용 웹앱을 만들어 깃허브로 올리고, 기록 저장과 개인정보까지 점검해요.">
 <meta property="og:title" content="디지털 도구로 확장하는 도덕·윤리 수업">
-<meta property="og:description" content="교사 개발자 연수 · 4단원 15활동 · 만들고, 올리고, 점검하기">
+<meta property="og:description" content="소개 · 사례 → 깃허브 실습 → 기록 저장과 점검 → 개인정보">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
-/* ===== 디자인: 데이터 실험실과 같은 '연수 과정형' =====
-   흰 바탕 · 검은 글씨 · 파란 강조 하나 · 각진 단추 · 얇은 선. 그라데이션 · 이모지 · 둥근 알약은 쓰지 않아요 (문쌤: "AI스러운 디자인 싫음") */
-:root{--ink:#1A1A1A;--sub:#6E6E73;--line:#E5E5E8;--line2:#C9C9CF;--bg:#F7F7F8;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--done:#0E8A5F;--warn:#B54708;--w:1180px}
+/* ===== 디자인: 발표 화면 (2026-11-22)
+   회색 바탕 위에 16:9 흰 슬라이드 한 장. 검은 글씨 · 파란 강조 하나 · 각진 단추 · 얇은 선.
+   그라데이션 · 이모지 · 둥근 알약 단추는 쓰지 않아요 (문쌤: "AI스러운 디자인 싫음") */
+:root{--ink:#1A1A1A;--sub:#6B6C72;--line:#E3E4E8;--line2:#C8C9CF;--bg:#ECEEF1;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--ok:#0E8A5F;--ok-s:#E7F5EE;--warn:#B54708;--warn-s:#FDF1E7}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#fff;color:var(--ink);font:400 15px/1.6 Pretendard,-apple-system,"Malgun Gothic",sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
-a{color:inherit;text-decoration:none}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.6 Pretendard,-apple-system,"Malgun Gothic",sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;overflow:hidden}
+a{color:var(--acc)}
 button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
 button{cursor:pointer}
-.wrap{width:var(--w);max-width:calc(100% - 40px);margin:0 auto}
-.top{border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:20}
-.top .wrap{height:64px;display:flex;align-items:center;gap:30px}
-.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:800;letter-spacing:-.035em;white-space:nowrap}
-.logo i{width:28px;height:28px;border:2px solid var(--ink);display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:800;letter-spacing:0}
-.gnb{display:flex;gap:24px;font-size:15px;font-weight:500;color:#444}
-.gnb a{padding:20px 0;border-bottom:2px solid transparent;white-space:nowrap}
-.gnb a.on{color:var(--ink);font-weight:700;border-bottom-color:var(--ink)}
-.me{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:14px;color:#444;white-space:nowrap}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 16px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-size:14px;font-weight:600;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 18px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-size:15px;font-weight:600;white-space:nowrap;text-decoration:none}
 .btn:hover{background:#333}
 .btn.w{background:#fff;color:var(--ink);border-color:var(--line2)}.btn.w:hover{border-color:var(--ink)}
-.btn.b{background:var(--acc);border-color:var(--acc)}
-.btn.lg{height:48px;padding:0 26px;font-size:15px}
-.btn.sm{height:32px;padding:0 12px;font-size:13px}
-.btn:disabled{opacity:.45;cursor:not-allowed}
-.link{color:var(--acc);text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;font-size:inherit}
-/* 첫 화면 */
-.hero{display:grid;grid-template-columns:1fr 400px;gap:48px;align-items:start;padding:44px 0 40px;border-bottom:1px solid var(--line)}
-.hero .k{font-size:13.5px;font-weight:600;color:var(--acc)}
-.hero h1{font-size:34px;line-height:1.32;letter-spacing:-.045em;margin:8px 0 12px}
-.hero p{color:#444;font-size:16px}
-.syl{margin-top:18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;font-size:14.5px}
-.syl b{display:block;font-size:12.5px;color:var(--sub);font-weight:600;margin-bottom:2px}
-.flow{display:grid;grid-template-columns:repeat(4,1fr);margin-top:20px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.flow a{padding:14px 12px 14px 16px;border-left:1px solid var(--line);font-size:13px;color:var(--sub);display:block}
-.flow a:first-child{border-left:0;padding-left:0}
-.flow a:hover b{text-decoration:underline}
-.flow b{display:block;color:var(--ink);font-size:15px;margin-top:2px;line-height:1.4}
-.box{border:1px solid var(--line);padding:22px 22px 20px;background:#fff}
-.box h3{font-size:17px;margin-bottom:6px}
-.box p{font-size:13.5px;color:var(--sub);margin-bottom:14px}
-.fld{margin-bottom:14px}
-.fld label,.lab{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
-.fld label small,.lab small{font-weight:400;color:var(--sub);margin-left:6px}
-textarea,input[type=text],input[type=url],input[inputmode],select{width:100%;border:1px solid var(--line2);background:#fff;padding:10px 12px;font-size:14.5px;border-radius:0;outline:none}
-textarea{min-height:84px;resize:vertical;line-height:1.65}
-textarea:focus,input:focus,select:focus{border-color:var(--ink)}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-/* 단원 화면 */
-.crumb{margin:20px auto 0;font-size:13px;color:var(--sub)}
-.crumb i{font-style:normal;margin:0 6px;color:#BBB}
-.uhead{display:grid;grid-template-columns:1fr 340px;gap:40px;padding:14px 0 26px;border-bottom:1px solid var(--line)}
-.uhead .cat{font-size:13.5px;font-weight:600;color:var(--acc)}
-.uhead h1{font-size:28px;line-height:1.36;letter-spacing:-.04em;margin:6px 0 8px}
-.uhead .lead{color:#444;font-size:15.5px}
-.goals{margin-top:14px;padding-left:18px;font-size:14px;color:#333}
-.goals li{margin:2px 0}
-.prog{display:flex;align-items:center;gap:14px;margin-top:10px}
-.bar{flex:1;height:8px;background:#EDEDF0}.bar i{display:block;height:100%;background:var(--acc);transition:width .3s}
-.prog small{font-size:13.5px;color:var(--sub);white-space:nowrap}.prog small b{color:var(--ink)}
-.side{border:1px solid var(--line);padding:18px 20px;font-size:14px;align-self:start}
-.side h4{font-size:13px;color:var(--sub);font-weight:600;margin-bottom:8px}
-.side ol{list-style:none}.side li{margin:3px 0}
-.side li.d{color:var(--done)}
-.cur{border:1px solid var(--line);margin:24px 0 70px}
-.row{display:grid;grid-template-columns:64px 1fr 74px 92px;align-items:center;padding:15px 20px;border-top:1px solid var(--line);font-size:15px;width:100%;background:#fff;border-left:0;border-right:0;border-bottom:0;text-align:left}
-.cur>.row:first-child{border-top:0}
-.row:hover{background:#FAFAFB}
-.row .n{font-size:13px;color:var(--sub);font-weight:600}
-.row small{display:block;font-size:13px;color:var(--sub)}
-.row .t{font-size:13.5px;color:var(--sub);text-align:right;padding-right:16px}
-.row.open{background:var(--acc-s)}
-.st{font-size:12px;font-weight:600;padding:3px 8px;border:1px solid;white-space:nowrap;justify-self:end}
-.st.d{color:var(--done);border-color:#B7E0D1;background:#F1FAF6}
-.st.o{color:var(--acc);border-color:var(--acc-l);background:var(--acc-s)}
-.st.w{color:#999;border-color:var(--line)}
-.panel{padding:22px 26px 26px;border-top:1px solid var(--acc-l);background:#fff}
-.ask{padding:13px 16px;background:var(--bg);border-left:3px solid var(--ink);font-size:15px;line-height:1.7;margin-bottom:16px}
-.ask small{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:2px}
-.note{font-size:13.5px;color:var(--sub);margin:-6px 0 14px}
-.pv{white-space:pre-wrap;background:#FBFBFC;border:1px solid var(--line);padding:14px 16px;font:13.5px/1.7 ui-monospace,Consolas,"Malgun Gothic",monospace;margin:6px 0 10px;max-height:340px;overflow:auto}
-.picks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.pk{min-height:36px;padding:6px 14px;border:1px solid var(--line2);background:#fff;font-size:14px;text-align:left}
+.btn.b{background:var(--acc);border-color:var(--acc)}.btn.b:hover{background:#00489A}
+.btn.sm{height:32px;padding:0 12px;font-size:13.5px}
+.btn.lg{height:52px;padding:0 28px;font-size:17px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+/* 위 · 아래 띠 */
+.bar{position:fixed;left:0;right:0;display:flex;align-items:center;gap:14px;padding:0 24px;z-index:5}
+.bar.top{top:0;height:64px;padding-right:76px}   /* 오른쪽 끝은 새로고침 단추(refresh.js) 자리 */
+.bar.bot{bottom:0;height:72px;padding-left:120px}   /* 왼쪽 아래는 방문 수(visit.js) 자리 */
+.hello{border:1.5px solid var(--acc);background:#fff;color:var(--acc);padding:7px 16px;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+.hello b{font-weight:800}
+.utag{margin-left:auto;border:1px solid var(--line2);background:#fff;padding:7px 14px;font-size:14.5px;font-weight:700;white-space:nowrap}
+.utag span{color:var(--sub);font-weight:500}
+.ico{width:40px;height:40px;border:1px solid var(--line2);background:#fff;display:grid;place-items:center;font-size:15px;font-weight:700}
+.ico:hover{border-color:var(--ink)}
+.pg{font-size:16px;font-weight:700;color:var(--acc);min-width:80px}
+.prog{width:160px;height:4px;background:#D7D9DE}.prog i{display:block;height:100%;background:var(--acc)}
+.tm{margin:0 auto;display:flex;align-items:center;gap:12px}
+.tm .clock{font:800 30px/1 Pretendard;color:var(--acc);font-variant-numeric:tabular-nums}
+.tm .clock.over{color:var(--warn)}
+.tm .lab{font-size:14px;color:#444}
+.nav{display:flex;gap:10px}
+.nav .btn{height:46px;min-width:104px;font-size:16px}
+/* 슬라이드 무대 */
+#view{position:fixed;top:64px;bottom:72px;left:0;right:0;display:grid;place-items:center}
+#frame{position:relative}
+#stage{position:absolute;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;background:#fff;border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.sl{position:absolute;inset:0;padding:46px 64px 40px;overflow:auto;display:flex;flex-direction:column}
+.kick{font-size:14.5px;font-weight:700;color:var(--acc);margin-bottom:6px}
+.sl h2{font-size:34px;line-height:1.3;letter-spacing:-.04em;font-weight:800}
+.sl .lead{font-size:18px;color:#444;margin-top:8px;max-width:1040px}
+.body{margin-top:24px;flex:1;min-height:0}
+.cols{display:grid;gap:18px}
+.c2{grid-template-columns:1fr 1fr}.c3{grid-template-columns:repeat(3,1fr)}.c4{grid-template-columns:repeat(4,1fr)}
+.card{border:1px solid var(--line);padding:18px 20px;background:#fff}
+.card h4{font-size:17px;font-weight:800;margin-bottom:6px;letter-spacing:-.02em}
+.card p,.card li{font-size:15.5px;color:#333}
+.card .n{font:800 13px/1 Pretendard;color:var(--acc);margin-bottom:8px;display:block}
+.card.k{background:var(--acc-s);border-color:var(--acc-l)}
+.card.g{background:#F7F7F8}
+ul.l{padding-left:20px}ul.l li{margin:3px 0}
+ol.s{list-style:none;counter-reset:s}ol.s li{counter-increment:s;position:relative;padding:7px 0 7px 38px;border-bottom:1px solid var(--line);font-size:16px}
+ol.s li:before{content:counter(s);position:absolute;left:0;top:8px;width:24px;height:24px;background:var(--ink);color:#fff;font:700 13px/24px Pretendard;text-align:center}
+ol.s li:last-child{border-bottom:0}
+.key{border-left:4px solid var(--acc);background:var(--acc-s);padding:12px 18px;font-size:16.5px;font-weight:600;margin-top:16px}
+table.t{width:100%;border-collapse:collapse;font-size:15px}
+table.t th{background:#F4F5F7;font-weight:700;text-align:left;padding:9px 12px;border:1px solid var(--line)}
+table.t td{padding:9px 12px;border:1px solid var(--line);vertical-align:top}
+.badge{display:inline-flex;border:1.5px solid var(--ink);font-size:14px;font-weight:700;margin-bottom:10px;align-self:flex-start}
+.badge span{padding:4px 12px;border-right:1.5px solid var(--ink)}
+.badge span:last-child{border-right:0}
+.badge .f{background:var(--ink);color:#fff}
+.badge .in{color:var(--acc)}
+/* 입력 */
+.fld{display:block;margin-bottom:12px}
+.fld>span{display:block;font-size:14.5px;font-weight:700;margin-bottom:4px}
+.fld textarea,.fld input,.fld select{width:100%;border:1px solid var(--line2);background:#fff;padding:9px 12px;font-size:15.5px;line-height:1.5;resize:vertical}
+.fld textarea:focus,.fld input:focus,.fld select:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:var(--acc)}
+.picks{display:flex;flex-wrap:wrap;gap:8px}
+.pk{border:1px solid var(--line2);background:#fff;padding:8px 14px;font-size:15px;font-weight:600;text-align:left}
 .pk:hover{border-color:var(--ink)}
-.pk.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
-.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
-.msg{margin-top:12px;padding:11px 14px;font-size:14px;border:1px solid}
-.msg.ok{color:#0B5E41;border-color:#B7E0D1;background:#F1FAF6}
-.msg.no{color:#7A2E0E;border-color:#F4C7A9;background:#FEF6EE}
-.msg.info{color:#1F3B63;border-color:var(--acc-l);background:var(--acc-s)}
-table.tb{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0 12px}
-.tb th{border-top:2px solid var(--ink);background:var(--bg);padding:9px 8px;font-weight:600;border-bottom:1px solid var(--line);font-size:13.5px;text-align:left}
-.tb td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-.chk{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px;cursor:pointer}
-.chk input{margin-top:5px;width:16px;height:16px;accent-color:var(--ink)}
-.order{display:grid;gap:6px;margin-bottom:10px}
-.order button{display:flex;gap:10px;align-items:center;min-height:42px;padding:6px 12px;border:1px solid var(--line2);background:#fff;text-align:left;font-size:14.5px}
-.order button b{width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--line2);font-size:12px;flex:none}
-.order button.on{border-color:var(--ink)}.order button.on b{background:var(--ink);color:#fff;border-color:var(--ink)}
-.apps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
-.apps a{border:1px solid var(--line);padding:12px 14px;font-size:14px;display:block}
-.apps a:hover{border-color:var(--ink)}
-.apps a b{display:block;font-size:14.5px}.apps a small{color:var(--sub);font-size:12.5px}
-.seg{display:grid;grid-template-columns:repeat(3,auto);gap:4px;justify-content:start}
-.seg button{height:30px;padding:0 10px;border:1px solid var(--line2);background:#fff;font-size:13px}
-.seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.f12{border:1px dashed var(--line2);padding:16px;margin:8px 0 12px;background:#FBFBFC}
-.f12 .fake{display:flex;gap:8px;margin-top:8px}
-/* 갤러리 */
-.gal{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:20px 0 70px}
-.gcard{border:1px solid var(--line);padding:16px 18px;display:flex;flex-direction:column;gap:8px}
-.gcard h3{font-size:16px;letter-spacing:-.03em}
-.gcard .mvp{font-size:14px;color:#333;border-left:3px solid var(--acc);padding-left:10px}
-.gcard .notes{font-size:13px;color:var(--sub);border-top:1px solid var(--line);padding-top:8px}
-.gcard .notes p{margin:4px 0}
-/* 관리자 */
-.adm{margin:24px 0 70px}
-.adm table{width:100%;border-collapse:collapse;font-size:13.5px}
-.adm th,.adm td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:center}
-.adm th{background:var(--bg);border-top:2px solid var(--ink);font-weight:600}
-.adm td:first-child,.adm th:first-child{text-align:left}
-.adm .dot{display:inline-block;width:10px;height:10px;border:1px solid var(--line2)}
-.adm .dot.d{background:var(--done);border-color:var(--done)}
-.adm tr.sel td{background:var(--acc-s)}
-.recv{border:1px solid var(--line);padding:16px 18px;margin-top:16px;font-size:14px}
-.recv h4{margin:12px 0 4px;font-size:14px}
-.recv pre{white-space:pre-wrap;font:13px/1.6 Pretendard,sans-serif;color:#333;background:var(--bg);padding:8px 10px}
-.foot{border-top:1px solid var(--line);padding:22px 0 40px;font-size:12.5px;color:var(--sub)}
-.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;font-size:14px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
-.toast.on{opacity:1}
-.admin-btn{position:fixed;right:10px;bottom:10px;font-size:11px;color:#BBB;opacity:.5}
-.admin-btn:hover{opacity:1;color:var(--sub)}
-@media (max-width:900px){
-  .top .wrap{gap:14px}.gnb{display:none}
-  .hero,.uhead{grid-template-columns:1fr;gap:20px}
-  .flow{grid-template-columns:1fr 1fr}.flow a:nth-child(3){border-left:0;padding-left:0}.flow a:nth-child(n+3){border-top:1px solid var(--line)}
-  .row{grid-template-columns:48px 1fr 84px;padding:13px 14px}.row .t{display:none}
-  .panel{padding:18px 14px 20px}
-  .two,.three,.apps,.gal{grid-template-columns:1fr}
-  .hero h1{font-size:27px}
+.pk.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.pk small{display:block;font-weight:400;font-size:13px;color:var(--sub)}
+.pk.on small{color:#ddd}
+.tri{display:flex;gap:4px}
+.tri .pk{padding:4px 10px;font-size:13.5px}
+.tri .pk.on.ok{background:var(--ok);border-color:var(--ok)}
+.tri .pk.on.half{background:#8A6D1F;border-color:#8A6D1F}
+.tri .pk.on.no{background:var(--warn);border-color:var(--warn)}
+label.ck{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:15.5px;cursor:pointer}
+label.ck input{width:18px;height:18px;margin-top:3px;accent-color:var(--acc);flex:none}
+.pr{border:1px solid var(--line2);background:#F7F7F8;position:relative;margin-top:6px}
+.pr pre{white-space:pre-wrap;word-break:keep-all;font:500 14.5px/1.6 Pretendard;padding:14px 16px 14px 16px;max-height:330px;overflow:auto}
+.pr .btn{position:absolute;right:8px;top:8px}
+.pr .hd{font-size:13px;font-weight:700;color:var(--sub);padding:8px 16px 0}
+.team{border:1.5px dashed var(--line2);padding:14px 16px;margin-top:8px}
+.team h5{font-size:14.5px;font-weight:800;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.team h5 em{font-style:normal;font-weight:600;color:var(--acc)}
+.team .nt{font-size:15px;padding:4px 0;border-bottom:1px solid var(--line)}
+.team .nt:last-child{border-bottom:0}
+.team .nt b{color:var(--sub);font-weight:600;margin-right:6px}
+.muted{color:var(--sub);font-size:14px}
+.ok-t{color:var(--ok);font-weight:700}.warn-t{color:var(--warn);font-weight:700}
+.mock{border:1px solid var(--line2);background:#fff;font-size:14px}
+.mock .mh{background:#F4F5F7;border-bottom:1px solid var(--line2);padding:6px 10px;font-weight:700;font-size:13px;color:#444}
+.mock .mb{padding:10px 12px}
+.add{color:#116329;background:#E6FFEC}.del{color:#82071E;background:#FFEBE9}
+.code{font:500 14px/1.6 Consolas,"D2Coding",monospace}
+/* 단원 표지 */
+.unit{position:absolute;inset:0;display:grid;grid-template-columns:400px 1fr}
+.unit .lft{background:var(--ink);color:#fff;padding:56px 48px;display:flex;flex-direction:column}
+.unit .lft .no{font:800 130px/1 Pretendard;letter-spacing:-.05em}
+.unit .lft .nm{font-size:30px;font-weight:800;margin-top:14px;line-height:1.3}
+.unit .lft .mn{margin-top:auto;font-size:17px;color:#bbb}
+.unit .rgt{padding:56px 60px;overflow:auto}
+.unit h3{font-size:15px;color:var(--acc);font-weight:800;margin:0 0 8px}
+.unit .rgt ol.s{margin-bottom:26px}
+.unit .rgt ol.s li span{float:right;color:var(--sub);font-size:14px}
+/* 표지 */
+.cover{position:absolute;inset:0;padding:80px 90px;display:flex;flex-direction:column}
+.cover .k{font-size:17px;font-weight:700;color:var(--acc)}
+.cover h1{font-size:58px;line-height:1.22;letter-spacing:-.05em;margin:16px 0 18px}
+.cover .sub{font-size:21px;color:#444}
+.cover .flow4{margin-top:auto;display:grid;grid-template-columns:repeat(4,1fr);border-top:2px solid var(--ink)}
+.cover .flow4 div{padding:14px 16px 0 0;font-size:15px;color:#444}
+.cover .flow4 b{display:block;font-size:19px;color:var(--ink)}
+/* 로그인 · 강사 화면 (슬라이드 밖) */
+.page{position:fixed;inset:0;overflow:auto;background:var(--bg)}
+.login{max-width:560px;margin:7vh auto 40px;background:#fff;border:1px solid var(--line);padding:40px 44px}
+.login .k{font-size:14px;font-weight:700;color:var(--acc)}
+.login h1{font-size:28px;line-height:1.3;letter-spacing:-.04em;margin:6px 0 10px}
+.login p{color:#444;font-size:15px}
+.login .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.adm{max-width:1240px;margin:24px auto 60px;padding:0 20px}
+.adm h2{font-size:22px;margin:26px 0 10px}
+.adm table.t{background:#fff}
+.adm .tools{display:flex;gap:8px;flex-wrap:wrap}
+.cm{font-size:13.5px;border-bottom:1px solid var(--line);padding:4px 0}
+.cm time{color:var(--sub);margin-right:8px;font-variant-numeric:tabular-nums}
+/* 이용약관 */
+.policy-foot{max-width:560px;margin:0 auto 40px;font-size:13px;color:var(--sub)}
+.policy-foot summary{cursor:pointer;padding:8px 0}
+.policy-foot .pol{background:#fff;border:1px solid var(--line);padding:16px 20px;color:#333}
+.policy-foot h4{font-size:14px;margin:10px 0 4px}
+.policy-foot ul{padding-left:18px}
+.policy-foot table{border-collapse:collapse;width:100%;margin:6px 0}
+.policy-foot th,.policy-foot td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.admin-fab{position:fixed;right:14px;bottom:14px;font-size:12px;color:var(--sub);border:1px solid var(--line2);background:#fff;padding:5px 10px;text-decoration:none}
+dialog{border:1px solid var(--line2);padding:0;max-width:760px;width:calc(100% - 32px);max-height:80vh}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog .dh{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line);font-weight:800}
+dialog .db{padding:12px 20px 20px;overflow:auto;max-height:calc(80vh - 60px)}
+.toc h4{font-size:14px;color:var(--acc);margin:12px 0 4px}
+.toc button{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 8px;font-size:15px}
+.toc button:hover{background:#F4F5F7}
+.toc button.on{font-weight:800;background:var(--acc-s)}
+.toc button i{font-style:normal;color:var(--sub);display:inline-block;width:34px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;font-size:14.5px;opacity:0;pointer-events:none;transition:.2s;z-index:50}
+#toast.on{opacity:1}
+.hidden-pw{display:none}
+/* 휴대폰 세로: 슬라이드를 줄이지 않고 화면 폭에 맞춰 흘려 보여요 */
+@media (max-width:760px){
+  body{overflow:auto}
+  .bar,.bar.top,.bar.bot{padding:0 12px;gap:8px}
+  .hello{font-size:13px;padding:5px 10px;max-width:58vw}
+  .utag{display:none}
+  .prog,.tm .lab{display:none}
+  .tm .clock{font-size:22px}
+  .nav .btn{min-width:72px;height:42px}
+  #view{position:static;display:block;padding:72px 0 84px}
+  #frame{width:auto!important;height:auto!important}
+  #stage{position:relative;width:auto;height:auto;transform:none!important;margin:0 8px}
+  .sl{position:relative;padding:24px 18px}
+  .sl h2{font-size:24px}
+  .c2,.c3,.c4{grid-template-columns:1fr}
+  .unit,.cover{position:relative;grid-template-columns:1fr;padding:28px 20px}
+  .unit .lft{padding:24px}.unit .lft .no{font-size:64px}.unit .rgt{padding:24px}
+  .cover h1{font-size:34px}.cover .flow4{grid-template-columns:1fr 1fr;margin-top:30px}
 }
+@media print{.bar{display:none}}
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap">
-  <a class="logo" href="#home"><i>27</i>도덕·윤리 디지털 수업 연수</a>
-  <nav class="gnb" id="gnb"></nav>
-  <div class="me" id="me"></div>
-</div></header>
-<main id="main"></main>
-<footer class="foot"><div class="wrap">디지털 도구로 확장하는 도덕·윤리 수업 · 3시간 연수 (이론 1 · 실습 2) · 실습에는 학생 실명 · 사진 · 상담 내용을 넣지 않고 가상 데이터만 써요.</div></footer>
-<a class="admin-btn" href="#admin" title="강사 화면">강사</a>
-<div class="toast" id="toast"></div>
+<div id="app"></div>
+<div id="toast"></div>
+<dialog id="dlg"><div class="dh"><span id="dlgT"></span><button class="btn w sm" data-act="dclose">닫기</button></div><div class="db" id="dlgB"></div></dialog>
 
 <script>
-/* ===================== 2027 AI 연수 웹앱 (2026-11-17) =====================
-   - 연수 교안(Claude 문서 「디지털 도구로 확장하는 도덕·윤리 수업 — 연수 교안」)과 활동 번호가 같아요 (예: 활동 2-1)
-   - 연수생: 닉네임 + 숫자 네 자리로 들어와요. 네 자리는 저장하지 않고 sha256("2027ai|닉네임|네자리") 문서 이름으로만 써요
-   - 저장: 연수용 Firebase(sonagi-1cc00) ai2027_members/{해시}.rec  · 갤러리: ai2027_board
-     (규칙은 저장소의 firestore-sonagi.rules — 고치면 Firebase 콘솔(sonagi-1cc00)에 붙여 넣어 게시해야 해요)
-   - 강사 화면: 주소 끝에 #admin (구글 관리자 계정)
-   - 단원 · 활동 내용은 아래 UNITS 한 곳에서 고쳐요 */
+/* ===================== 디지털 도구로 확장하는 도덕·윤리 수업 · 발표식 웹앱 (2026-11-22) =====================
+   - 교안 = 이 웹앱. 슬라이드를 [이전] [다음]으로 넘기며 강의하고, 연수생은 같은 화면에서 입력해요.
+   - 줄기: 바이브코딩 매뉴얼(/vibe) · 소나기 연수(/sonagi) · 진로탐구 특강 이론편(/stuvibe) · 실습편(/vibelab)
+   - 연수생: 닉네임 + 모둠 번호 + 모둠 안 내 번호. 사회자 · 시간지기 · 도움지기 · 발표자는 단원마다 한 칸씩 돌아가요.
+   - 저장: 이 기기(localStorage 'ai2027-slides-v1') + 연수용 Firebase(sonagi-1cc00) ai2027_live/{무작위 32자}
+     서버에는 닉네임 · 모둠 · 지금 쪽 · 내 주소 · 동의 · 사회자 기록 · 판정 · 한 문장 약속만 보내요.
+   - 마지막 쪽에서 [완료하고 로그아웃]을 누르면 이 기기 기록과 서버 기록이 모두 지워져요.
+   - 강사 화면: 주소 끝 #admin (관리자 구글 계정). 연수생 진행 · 모둠 기록 · 깃허브 커밋 모아 보기
+   - 규칙은 저장소의 firestore-sonagi.rules (ai2027_live) — 고치면 Firebase 콘솔(sonagi-1cc00)에 붙여 넣어 게시해야 해요
+   - 슬라이드 내용은 아래 SLIDES 한 곳에서 고쳐요. 예전 웹앱(단원 · 활동 화면)은 old.html 에 있어요 */
 const FIREBASE_CONFIG = { apiKey: "AIzaSyDEZIz_7wQcWQWO6v_1C5vhoYzAryqo59k", authDomain: "sonagi-1cc00.firebaseapp.com", projectId: "sonagi-1cc00", storageBucket: "sonagi-1cc00.firebasestorage.app", messagingSenderId: "760377216121", appId: "1:760377216121:web:81b25b9af707412d2218a8" };
 const ADMIN_EMAILS = ["bellachord@gmail.com", "anstjsdud@sen.go.kr"];
-const LS = "ai2027-v1";
+const LS = "ai2027-slides-v1";
+const COL = "ai2027_live";
+const FRESH = 12 * 3600 * 1000;   /* 12시간 안에 쓴 기록만 '오늘 연수'로 봐요 */
 
-/* ---------- 단원과 활동 ---------- */
-const UNITS = [
-  { u: 1, name: "교사 개발자로의 확장", sub: "연수에서 웹앱 · 메타버스 · 앱 개발까지", kind: "이론", min: 30,
-    lead: "만드는 일은 AI가 도울 수 있지만, 문제 · 사용자 · 정보 보호 · 학교 기준 네 가지는 교사가 정합니다.",
-    goals: ["교사 개발자가 현장 문제를 교사 전문성으로 푸는 사람임을 설명할 수 있다.", "앱 하나가 완성되는 개발 흐름을 순서대로 말할 수 있다.", "내 교실의 불편 한 가지를 수업 도구의 출발점으로 적을 수 있다."],
-    steps: [["11", "강사 이야기: 결과 화면부터 보기", 10], ["12", "앱 하나가 완성되는 흐름", 10], ["13", "내 교실의 불편 한 가지", 10]] },
-  { u: 2, name: "생성형 AI로 도덕·윤리 수업용 웹앱 만들기", sub: "PRD 한 장 · 프롬프트 · 3줄 수정 · 3중 점검", kind: "실습", min: 60,
-    lead: "애매하게 부탁하면 결과는 AI 마음대로입니다. 누가, 어떤 불편을, 무엇으로 줄이는지 한 장에 적고 시작합니다.",
-    goals: ["PRD 한 장으로 수업 웹앱의 목적 · 사용자 · 핵심 기능 · 넣지 않을 것을 정할 수 있다.", "생성형 AI로 첫 화면을 만들고, 증상 · 기대 · 범위 세 줄로 하나씩 고칠 수 있다.", "자기 · AI · 동료 점검으로 내 앱을 관찰하고 고칠 것을 고를 수 있다."],
-    steps: [["21", "PRD 한 장 쓰기", 15], ["22", "프롬프트로 첫 화면 만들기", 20], ["23", "세 줄로 하나씩 고치기", 10], ["24", "자기 · AI · 동료 점검", 15]] },
-  { u: 3, name: "GitHub · Firebase로 제작 · 배포와 학생 기록 관리", sub: "내 주소로 올리기 · 기록 저장 규칙 · 세특 초안", kind: "실습", min: 60,
-    lead: "학생 기록을 저장하는 순간 개인정보 책임이 생깁니다. 올리는 법과 함께 '누가 읽고 · 쓰고 · 지우는가'를 먼저 정합니다.",
-    goals: ["저장 · Commit · Push의 차이를 설명하고 내 웹앱을 내 주소로 올릴 수 있다.", "학생 기록 앱의 권한을 말로 먼저 정하고 규칙으로 바꿀 수 있다.", "학생 기록을 AI 초안 → 교사 최종 검토 순서로 세특에 연결할 수 있다."],
-    steps: [["31", "Git과 GitHub, 꼭 필요한 만큼", 10], ["32", "내 웹앱을 내 주소로", 15], ["33", "규칙을 말로 먼저 쓰기", 20], ["34", "학생 기록에서 세특 초안까지", 15]] },
-  { u: 4, name: "AI 윤리 · 개인정보 보호와 학습지원 소프트웨어 점검", sub: "윤리원칙 · 심의 판정 · F12 · 배포 전 판정", kind: "이론", min: 30,
-    lead: "작동하는 앱과 학교에서 써도 되는 앱은 다릅니다. 만든 것을 윤리적으로 점검하는 일은 도덕 교사가 가장 잘할 수 있습니다.",
-    goals: ["인공지능 윤리원칙의 3대 가치 · 7대 원칙을 내 앱 점검 기준으로 바꿀 수 있다.", "내 수업 앱이 학습지원 소프트웨어 심의 대상인지 판단할 수 있다.", "배포 전 체크리스트로 내 앱을 통과 · 보완 · 중단 중 하나로 판정할 수 있다."],
-    steps: [["41", "인공지능 윤리원칙으로 내 앱 보기", 8], ["42", "내 앱은 심의 대상인가", 8], ["43", "F12 체험: 숨긴 것은 보인다", 5], ["44", "배포 전 판정과 한 문장 약속", 9]] }
-];
-const STEP_IDS = UNITS.flatMap((u) => u.steps.map((s) => s[0]));
+let db = null, auth = null;
+try { firebase.initializeApp(FIREBASE_CONFIG); db = firebase.firestore(); db.settings({ experimentalAutoDetectLongPolling: true, merge: true }); auth = firebase.auth(); } catch (e) { console.error(e); }
 
-/* 1-1 강사 앱 (moontr.site) */
-const MY_APPS = [
-  ["/datalab/", "데이터 실험실", "통합사회 · 윤리 탐구를 진짜 데이터로"],
-  ["/algolab/", "알고리즘 실험실", "규칙 카드로 알고리즘 속 가치 시험"],
-  ["/vibe/", "바이브코딩 매뉴얼", "선생님이 따라 하는 웹앱 만들기"],
-  ["/stuvibe/", "바이브코딩 이론편", "진로탐구수업 · 계획서 쓰기"],
-  ["/vibelab/", "바이브코딩 실습편", "만들고 올리고 함께 검증"],
-  ["/sonagi/", "소나기 연수 실습", "선생님 50분 실습 · 동료 검증"],
-  ["/first/", "먼저 플래너", "학생 공부 플래너 · 아이폰 앱"],
-  ["/ailab/village/", "AI 연구소 마을", "연수 자료를 정리하는 3D 메타버스"],
-  ["/tycoon/", "교무실 타이쿤", "시간표로 만드는 나만의 데스크탑"]
-];
-/* 1-2 개발 흐름 8단계 (해커톤 1일차 김형훈 가이드북) */
-const FLOW8 = ["문제 발견", "PRD", "화면", "처리 · 저장", "인증 · 권한", "외부 서비스(API)", "검토", "배포 · 기록 · 공유"];
-/* 2-2 도덕 수업 웹앱 틀 */
+const S = { me: null, cur: 0, rec: {}, admin: null, members: [], commits: {}, team: [], board: [] };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const R = (k) => S.rec[k] ?? "";
+function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2200); }
+function copyText(t) { (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast("복사했어요. AI 채팅 창에 붙여 넣으세요"), () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove(); toast("복사했어요"); }); }
+function rid() { const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map((x) => x.toString(16).padStart(2, "0")).join(""); }
+
+/* ---------- 모둠 역할: 단원마다 한 칸씩 돌아가요 (1단원 사회자 = 1번, 2단원 사회자 = 2번 …) ---------- */
+const ROLES = ["사회자", "시간지기", "도움지기", "발표자"];
+const roleOf = (seat, u) => (seat >= 1 && seat <= 4 ? ROLES[(seat - u + 4) % 4] : "함께하기");
+const isChair = (u) => S.me && S.me.seat === u;
+
+/* ---------- 화면 조각 ---------- */
+const LAB = {};   /* 입력 칸 이름 → 제목 (마지막 쪽 '내 기록'에 써요) */
+function inp(k, label, ph = "", rows = 2) { LAB[k] = label; return `<label class="fld"><span>${label}</span><textarea data-f="${k}" rows="${rows}" placeholder="${esc(ph)}">${esc(R(k))}</textarea></label>`; }
+function line(k, label, ph = "") { LAB[k] = label; return `<label class="fld"><span>${label}</span><input data-f="${k}" placeholder="${esc(ph)}" value="${esc(R(k))}"></label>`; }
+function pick(k, opts, label) { if (label) LAB[k] = label; return `<div class="picks">${opts.map(([v, t, s]) => `<button class="pk ${R(k) === v ? "on" : ""}" data-pick="${k}" data-v="${esc(v)}">${t}${s ? `<small>${s}</small>` : ""}</button>`).join("")}</div>`; }
+function tri(k) { const v = R(k); return `<div class="tri">${[["ok", "됨"], ["half", "화면만"], ["no", "안 됨"]].map(([x, t]) => `<button class="pk ${x} ${v === x ? "on" : ""}" data-pick="${k}" data-v="${x}">${t}</button>`).join("")}</div>`; }
+function ck(k, label) { return `<label class="ck"><input type="checkbox" data-c="${k}" ${S.rec[k] ? "checked" : ""}><span>${label}</span></label>`; }
+function P(text, head) { return `<div class="pr">${head ? `<div class="hd">${head}</div>` : ""}<pre>${esc(text)}</pre><button class="btn w sm" data-copy>복사</button></div>`; }
+function badge(form, min, input) { return `<div class="badge"><span class="f">${form}</span><span>${min}분</span>${input ? `<span class="in">입력 · ${input}</span>` : ""}</div>`; }
+function head(s) { return `<div class="kick">${s.kick || UNITS[s.u].name}</div><h2>${s.t}</h2>${s.lead ? `<p class="lead">${s.lead}</p>` : ""}`; }
+/* 사회자 기록 칸: 그 단원 사회자에게는 입력 칸, 다른 모둠원에게는 사회자가 쓴 글이 보여요 */
+function team(aid, u, items) {
+  const chair = S.me && S.me.seat >= 1 && S.me.seat <= 4 ? `${u}번` : "";
+  if (isChair(u)) return `<div class="team"><h5>사회자 기록 <em>이번 단원 사회자는 나예요</em></h5>${items.map(([n, label, ph]) => line(`t_${aid}_${n}`, label, ph || "")).join("")}<p class="muted">이름은 쓰지 않아요. '한 분은', '다른 분은'으로 써요.</p></div>`;
+  items.forEach(([n, label]) => (LAB[`t_${aid}_${n}`] = label));
+  return `<div class="team"><h5>우리 모둠 기록 <em>사회자 ${chair} 선생님이 적어요</em><button class="btn w sm" data-act="treload" style="margin-left:auto">새로 보기</button></h5><div data-team="${aid}" data-items="${esc(JSON.stringify(items.map((x) => [x[0], x[1]])))}"><p class="muted">불러오는 중…</p></div></div>`;
+}
+
+/* ---------- 단원 ---------- */
+const UNITS = {
+  0: { name: "시작" },
+  1: { name: "소개 · 사례", min: 30 },
+  2: { name: "깃허브 실습", min: 60 },
+  3: { name: "기록 저장과 점검", min: 60 },
+  4: { name: "개인정보", min: 30 },
+  5: { name: "마무리" }
+};
+
+/* ---------- 수업 웹앱 틀 (도덕 · 윤리) ---------- */
 const TPLS = [
   ["dilemma", "딜레마 토론판", "학생이 딜레마 사례를 읽고 찬성 · 반대와 근거를 쓰면, 반 전체의 입장 분포와 근거가 한 화면에 모여요."],
   ["line", "가치 수직선", "가치 질문에 0~10 사이 내 위치를 정하고 이유를 쓰면, 수직선에 모두의 위치가 점으로 보여요."],
-  ["cards", "윤리 원칙 카드 게임", "인공지능 윤리 7대 원칙 카드와 사례 카드를 짝 맞추며 원칙을 익혀요."],
+  ["cards", "윤리 원칙 짝 맞추기", "사상가 · 원칙 카드와 사례 카드를 짝 맞추며 개념을 익혀요."],
+  ["quiz", "OX 퀴즈", "개념 문제를 OX로 풀고, 틀린 문제는 해설을 다시 보여 줘요."],
   ["reflect", "수업 성찰 일기", "오늘 배운 가치 · 실천 다짐 · 남은 질문을 쓰고, 지난 기록을 모아 봐요."],
-  ["own", "직접 정하기", "PRD에 적은 내용 그대로 만들어요."]
+  ["own", "직접 정하기", "아래 칸에 쓴 내용대로 만들어요."]
 ];
-/* 2-4 점검 6각도 (해커톤 3일차 이승엽) */
-const ANGLES = [["normal", "정상 흐름", "핵심 기능이 처음부터 끝까지 되나"], ["bad", "잘못된 입력", "빈칸 · 이상한 형식을 넣으면?"], ["edge", "경계값", "0개 · 1개 · 아주 많을 때"], ["save", "상태 · 저장", "새로고침 · 다시 들어오면?"], ["priv", "권한 · 개인정보", "보이면 안 되는 것이 보이나"], ["fail", "실패 상황", "막히면 화면이 알려 주나"]];
-/* 3-1 Git 짝 맞추기 */
-const GIT = [["save", "저장", "내 컴퓨터 파일에 반영"], ["commit", "Commit", "이 시점의 상태를 기록 (봉투에 넣기)"], ["push", "Push", "기록을 GitHub로 보내기 (부치기)"], ["revert", "Revert", "취소했다는 새 기록을 남기기"]];
-/* 3-3 정책 여섯 질문 (해커톤 2일차 강현수) */
-const POLICY = [["read", "누가 읽을 수 있나요?"], ["write", "누가 쓸 수 있나요?"], ["del", "누가 지울 수 있나요?"], ["admin", "관리자(교사)는 무엇을 할 수 있나요?"], ["pi", "개인정보를 저장하나요? 저장한다면 무엇을, 언제까지?"], ["open", "공개 게시판인가요, 로그인 게시판인가요?"]];
-/* 4-1 인공지능 윤리원칙 (2026.8.21 관계부처 합동) 7대 원칙과 내 앱에 묻는 질문 */
-const PRIN = [["human", "인간중심성", "학생이 먼저 생각하고 결과를 고칠 수 있나? 교사가 멈출 수 있나?"], ["privacy", "프라이버시 보호", "이름 · 학번이 꼭 필요한가? 언제 지우나?"], ["fair", "공정성 · 포용성", "기기 · 장애 · 언어 때문에 못 쓰는 학생은 없나?"], ["resp", "책임성", "문제가 생기면 누가 알고 어떻게 바로잡나?"], ["safe", "안전성", "위기 표현이 나오면 교사에게 알리나?"], ["trust", "신뢰성", "AI가 틀릴 수 있음을 알리고 확인 과정을 두나?"], ["open", "투명성", "AI를 쓴다는 사실과 입력이 가는 곳이 보이나?"]];
-/* 4-2 심의 판정 질문 */
+function makePrompt() {
+  const t = TPLS.find((x) => x[0] === R("p_tpl")) || TPLS[0];
+  const f = (R("p_feat") || "").split(/\n+/).map((x) => x.trim()).filter(Boolean).slice(0, 3);
+  return `나는 고등학교 ${R("p_subj") || "[과목 · 단원]"} 교사야. 수업에서 쓸 「${t[1]}」 웹앱을 만들어 줘.
+
+- 누가 쓰나: ${R("p_who") || "[학생 / 교사]"}
+- 줄이고 싶은 불편: ${R("i_pain") || "[1단원에서 쓴 불편]"}
+- 하는 일: ${t[0] === "own" ? "[아래 기능대로]" : t[2]}
+- 꼭 필요한 기능
+  1. ${f[0] || "[기능 1]"}
+  2. ${f[1] || "[기능 2]"}
+  3. ${f[2] || "[기능 3]"}
+
+[조건]
+- index.html 파일 하나로, CSS와 JavaScript도 모두 이 파일 안에 넣어 줘.
+- 서버 · 로그인 · 데이터베이스는 쓰지 마. 저장이 필요하면 이 브라우저(localStorage)에만 저장해 줘.
+- 학생 이름 · 학번 · 연락처는 받지 마. 화면과 코드에 비밀번호를 넣지 마.
+- 휴대폰과 전자칠판에서도 보기 좋게, 글자는 크게, 학생이 읽기 쉬운 말로.
+- 너무 AI스럽지 않은 차분한 디자인으로.`;
+}
+const SELF6 = [["normal", "정상 흐름", "처음 온 사람이 설명 없이 끝까지 가나"], ["bad", "잘못된 입력", "빈칸 · 이상한 글을 넣으면?"], ["edge", "경계값", "0개 · 1개 · 아주 많을 때"], ["save", "새로고침", "다시 들어오면 그대로인가"], ["priv", "개인정보", "보이면 안 되는 것이 보이나"], ["phone", "휴대폰", "글자가 읽히고 단추가 눌리나"]];
+const CHECKS = [
+  ["동작", "처음 온 사람이 설명 없이 끝까지 간다"], ["동작", "빈칸 · 이상한 입력 · 아주 많은 입력에도 깨지지 않는다"], ["동작", "새로고침해도 저장이 남는다 (또는 남지 않는다고 알려 준다)"], ["동작", "휴대폰에서 글자가 읽히고 단추가 눌린다"],
+  ["안전", "받지 않아도 되는 정보(이름 · 연락처 · 목적 없는 자유 서술)를 받지 않는다"], ["안전", "화면 · 코드에 비밀번호 · API 키가 없다 (F12로 확인)"], ["안전", "로그인 없이, 또는 다른 학생으로 남의 기록이 열리지 않는다"], ["안전", "남의 글을 지우거나, 스스로 권한을 올리거나, 남의 이름으로 쓸 수 없다"],
+  ["AI · 수업", "AI가 틀릴 수 있음 · 입력하면 안 되는 정보 · 입력이 가는 곳을 한 화면에 안내한다"], ["AI · 수업", "학생이 AI를 쓰지 않고도 활동할 수 있고, 교사가 멈출 수 있다"], ["AI · 수업", "기록을 언제 지우는지 정했다"]
+];
+const POLICY6 = [["read", "누가 읽을 수 있나요?"], ["write", "누가 쓸 수 있나요?"], ["del", "누가 지울 수 있나요?"], ["admin", "교사는 무엇을 할 수 있나요?"], ["pi", "개인정보를 저장하나요? 무엇을, 언제까지?"], ["open", "공개 게시판인가요, 로그인 게시판인가요?"]];
 const JUDGE = [["reg", "정규 교육과정(교과 · 창체) 시간에 쓰나요?"], ["stu", "학생이 직접 접속해서 쓰나요?"], ["pi", "학생 정보(이름 · 번호 · 활동 기록 · 점수)를 서버에 저장하거나 로그인을 요구하나요?"], ["cont", "성취기준과 관련된 학습 콘텐츠를 담아 여러 학교에 보급하나요?"]];
-/* 4-4 배포 전 체크리스트 (해커톤 3일차 백인규 · 1일차 김형훈) */
-const CHECKS = ["받지 않아도 되는 정보(이름 · 연락처 · 목적 없는 자유 서술)를 받지 않는다", "화면 · 코드에 비밀번호 · API 키가 없다 (F12로 확인)", "로그인 없이, 또는 다른 학생으로 남의 기록이 열리지 않는다", "AI가 틀릴 수 있음 · 입력하면 안 되는 정보 · 입력이 가는 곳을 한 화면에 안내한다", "학생이 AI를 쓰지 않고도 활동할 수 있고, 교사가 중단할 수 있다", "기록을 언제 지우는지 정했다", "학습지원 소프트웨어 심의 대상인지 판단했다"];
-const STOPS = ["차별 · 낙인", "AI 단독 평가", "AI 사용 강제", "민감정보 외부 전송", "교사가 확인할 수 없는 구조"];
+const PRIN = [["인간중심성", "학생이 먼저 생각하고 AI 결과를 고칠 수 있나? 교사가 멈출 수 있나?"], ["프라이버시 보호", "이름 · 학번이 꼭 필요한가? 언제 지우나?"], ["공정성 · 포용성", "기기 · 장애 · 언어 때문에 못 쓰는 학생은 없나?"], ["책임성", "문제가 생기면 누가 알고 어떻게 바로잡나?"], ["안전성", "위기 표현이 나오면 교사에게 알리나?"], ["신뢰성", "AI가 틀릴 수 있음을 알리고 확인 과정을 두나?"], ["투명성", "AI를 쓴다는 사실과 입력이 가는 곳이 한 화면에 보이나?"]];
 
-/* ---------- 상태 ---------- */
-const S = { route: "home", open: null, me: null, rec: {}, board: [], admin: null, adminSel: null, members: [], saving: 0 };
-let db = null, auth = null;
-try { firebase.initializeApp(FIREBASE_CONFIG); db = firebase.firestore(); db.settings({ experimentalForceLongPolling: true, merge: true }); auth = firebase.auth(); } catch (e) { console.error(e); }
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const R = (id) => (S.rec[id] = S.rec[id] || {});
-const filled = (v) => typeof v === "string" && v.trim().length >= 2;
-function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2200); }
-async function sha(t) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join(""); }
-function copy(t) { (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast("복사했어요. AI 채팅 창에 붙여 넣으세요"), () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove(); toast("복사했어요"); }); }
+/* =====================================================================
+   슬라이드 — 순서를 바꾸거나 한 장을 더하려면 여기만 고쳐요.
+   { id, u: 단원, kick: 위 작은 글, t: 제목, lead, time: 타이머 분, tl: 타이머 이름, live: 입력이 바뀌면 다시 그리기, html() }
+   ===================================================================== */
+const SLIDES = [
+  /* ---------- 시작 ---------- */
+  { id: "cover", u: 0, html: () => `<div class="cover"><div class="k">고등학교 도덕 · 윤리 1급 정교사 자격연수 · 3시간</div><h1>디지털 도구로 확장하는<br>도덕 · 윤리 수업</h1><p class="sub">생성형 AI로 수업용 웹앱을 만들고, 깃허브로 내 주소를 만들고,<br>학생 기록과 개인정보까지 점검합니다.</p>
+    <div class="flow4"><div><b>1 소개 · 사례</b>30분 · 이론</div><div><b>2 깃허브 실습</b>60분 · 실습 1 · 2</div><div><b>3 기록 저장과 점검</b>60분 · 파이어베이스 · 체크리스트</div><div><b>4 개인정보</b>30분 · 심의 · 판정</div></div></div>` },
+  { id: "how", u: 0, t: "오늘 이렇게 진행합니다", lead: "슬라이드마다 활동 형태 · 시간 · 입력할 곳이 적혀 있습니다. 실습이 끝나면 입력할 시간을 따로 드립니다.", html: () => `<div class="cols c2">
+    <div><table class="t"><tr><th>역할</th><th>하는 일</th></tr>
+      <tr><td><b>사회자</b></td><td>모둠 활동 순서를 진행하고, 화면의 '사회자 기록' 칸에 두 줄을 적습니다.</td></tr>
+      <tr><td><b>시간지기</b></td><td>아래 타이머를 보고 끝나기 2분 전에 알립니다.</td></tr>
+      <tr><td><b>도움지기</b></td><td>실습에서 막힌 분을 먼저 돕고, 모둠이 못 풀면 강사를 부릅니다.</td></tr>
+      <tr><td><b>발표자</b></td><td>전체 나눔 때 모둠 기록을 1분 안에 말합니다.</td></tr></table>
+      <p class="muted" style="margin-top:8px">역할은 단원마다 한 칸씩 돌아갑니다. 1단원 사회자는 1번, 2단원은 2번, 3단원은 3번, 4단원은 4번입니다.</p></div>
+    <div><div class="card k"><h4>나의 역할</h4>${S.me ? [1, 2, 3, 4].map((u) => `<p>${u}단원 · ${UNITS[u].name} — <b>${roleOf(S.me.seat, u)}</b></p>`).join("") : ""}</div>
+      <div class="card" style="margin-top:14px"><h4>오늘의 약속</h4><ul class="l"><li>실습에는 가상 데이터만 씁니다. 학생 실명 · 사진 · 상담 내용은 넣지 않습니다.</li><li>API 키와 비밀번호는 화면과 코드에 적지 않습니다.</li><li>마지막 쪽에서 [완료하고 로그아웃]을 누르면 오늘 기록이 모두 지워집니다.</li></ul></div></div></div>` },
 
-/* ---------- 활동 완료 기준 (한 곳에서만 고쳐요) ---------- */
-const DONE = {
-  "11": (r) => (r.seen || []).length >= 2 && filled(r.guess),
-  "12": (r) => r.ok === true,
-  "13": (r) => filled(r.who) && filled(r.now) && filled(r.app),
-  "21": (r) => filled(r.name) && filled(r.user) && filled(r.pain) && filled(r.f1) && filled(r.check) && filled(r.no),
-  "22": (r) => !!r.tpl && (r.made === true || filled(r.url)),
-  "23": (r) => (r.fixes || []).some((f) => filled(f.sym) && filled(f.exp)),
-  "24": (r) => ANGLES.filter(([k]) => r.self && r.self[k]).length >= 4 && (r.risk || []).length === 2 && filled(r.peer),
-  "31": (r) => r.ok === true,
-  "32": (r) => /^https:\/\/\S+$/.test(r.url || ""),
-  "33": (r) => POLICY.filter(([k]) => filled((r.p || {})[k])).length >= 5,
-  "34": (r) => filled(r.before) && filled(r.after) && filled(r.final),
-  "41": (r) => (r.pick || []).length === 2 && filled(r.a0) && filled(r.a1),
-  "42": (r) => JUDGE.every(([k]) => (r.j || {})[k] !== undefined),
-  "43": (r) => r.found === true,
-  "44": (r) => (r.c || []).filter(Boolean).length >= 5 && !!r.verdict && filled(r.mvp)
-};
-const isDone = (id) => { try { return !!DONE[id](S.rec[id] || {}); } catch (e) { return false; } };
-const unitDone = (u) => u.steps.filter((s) => isDone(s[0])).length;
+  /* ---------- 1단원 소개 · 사례 (30분) ---------- */
+  { id: "u1", u: 1, unit: true, html: () => unitCover(1, "말로 부탁해서 만드는 수업 도구", ["바이브코딩이 무엇인지, 웹앱이 어떻게 생겼는지 설명할 수 있다.", "윤리 수업에서 만든 웹앱 사례를 보고 내 교실에 맞는 쓰임을 찾을 수 있다.", "내 교실의 불편 한 가지를 웹앱의 출발점으로 적을 수 있다."], [["바이브코딩이란 · 세 갈래 길", 8, "강의"], ["윤리 선생님이 만든 웹앱", 6, "강의"], ["5분 실습: 첫 웹앱", 6, "개별"], ["내 교실의 불편 한 가지", 10, "개별 · 모둠"]]) },
+  { id: "vibe", u: 1, t: "바이브코딩이란", lead: "코드를 몰라도, 만들고 싶은 것을 AI에게 말로 설명해서 웹앱을 만드는 방법입니다.", html: () => `<div class="cols c2">
+    <div><div class="card k"><h4>한 줄로</h4><p>"이런 앱이 필요해"라고 말하면 AI가 코드를 쓰고, 나는 화면을 보며 "여기를 이렇게 고쳐 줘"라고 다시 말합니다. 교사가 하는 일은 무엇을 만들지, 누가 쓸지, 무엇을 받지 않을지 정하는 것입니다.</p></div>
+      <h4 style="margin:18px 0 8px;font-size:16px">교실에서 바로 쓰는 예</h4>
+      <div class="cols c3">${["자리 배치표", "분반 출석부", "발표자 뽑기", "모둠 타이머", "링크 모음", "전자칠판 판서"].map((x) => `<div class="card g" style="padding:10px 14px;font-weight:700">${x}</div>`).join("")}</div></div>
+    <div><h4 style="font-size:16px;margin-bottom:8px">웹앱은 파일 하나입니다</h4>
+      <div class="cols c2"><div class="mock"><div class="mh">메모장으로 열면</div><div class="mb code">&lt;h1&gt;발표자 뽑기&lt;/h1&gt;<br>&lt;button&gt;뽑기&lt;/button&gt;<br>&lt;script&gt; … &lt;/script&gt;</div></div><div class="mock"><div class="mh">브라우저로 열면</div><div class="mb"><b style="font-size:18px">발표자 뽑기</b><br><span class="btn sm" style="margin-top:8px">뽑기</span></div></div></div>
+      <table class="t" style="margin-top:16px"><tr><th>식당에 비유하면</th><th>웹앱에서는</th></tr><tr><td>홀 · 메뉴판</td><td>사용자가 보고 만지는 화면</td></tr><tr><td>주방</td><td>뒤에서 규칙대로 처리하는 곳</td></tr><tr><td>식재료 창고</td><td>기록을 모아 두는 데이터베이스</td></tr></table>
+      <p class="muted" style="margin-top:8px">지금 이 화면도 index.html 파일 하나입니다. Ctrl+U를 누르면 코드가 보입니다.</p></div></div>` },
+  { id: "roads", u: 1, t: "웹앱을 만들어 쓰는 세 갈래 길", lead: "바이브코딩 매뉴얼(moontr.site/vibe)의 순서입니다. 오늘은 1번에서 시작해 3번까지 갑니다.", html: () => `<div class="cols c3">
+    <div class="card"><span class="n">1 · 오늘 실습</span><h4>AI 채팅 창에서 만들기</h4><p>제미나이 캔버스나 Claude에 부탁하면 오른쪽에 바로 앱이 보입니다. 공유 링크로 학생에게 보낼 수 있습니다.</p><p class="muted" style="margin-top:8px">좋은 점: 1분이면 됩니다<br>아쉬운 점: 주소가 길고, 기록이 남지 않습니다</p></div>
+    <div class="card g"><span class="n">2 · 소개만</span><h4>구글 시트와 연결하기</h4><p>앱스 스크립트로 학생 입력을 구글 시트에 모읍니다. 확장 프로그램 → Apps Script → 새 배포 → 웹 앱.</p><p class="muted" style="margin-top:8px">좋은 점: 익숙한 시트에 쌓입니다<br>아쉬운 점: 고칠 때마다 [새 버전]으로 다시 배포해야 합니다</p></div>
+    <div class="card"><span class="n">3 · 오늘 실습</span><h4>깃허브 · 파이어베이스로 내 주소</h4><p>깃허브에 파일을 올려 '아이디.github.io/앱이름' 주소를 만들고, 기록이 필요하면 파이어베이스를 붙입니다.</p><p class="muted" style="margin-top:8px">좋은 점: 짧은 내 주소, 고친 기록이 남습니다<br>아쉬운 점: 처음 한 번 가입이 필요합니다</p></div></div>
+    <div class="key">오늘의 흐름: 1단원에서 불편을 찾고 → 2단원에서 만들어 내 주소로 올리고 → 3단원에서 기록 저장을 보고 점검하고 → 4단원에서 학교에서 써도 되는지 판정합니다.</div>` },
+  { id: "cases", u: 1, t: "윤리 선생님이 만든 웹앱", lead: "결과 화면부터 보고, 각 앱이 어떤 불편에서 출발했는지 거꾸로 짐작해 봅니다. 코드는 거의 AI가 썼습니다.", html: () => `<div class="cols c3">
+    ${[["/datalab/", "데이터 실험실", "통합사회 · 윤리 탐구를 진짜 데이터로 하게 하고 싶었습니다"], ["/algolab/", "알고리즘 실험실", "코딩을 몰라도 알고리즘 속 가치를 시험하게 하고 싶었습니다"], ["/idea/", "윤리와 사상 기출 자습", "기출 문제를 혼자서도 풀고 해설을 보게 하고 싶었습니다"], ["/app/", "생활과 윤리 기출 자습", "학생이 약한 단원을 골라 연습하게 하고 싶었습니다"], ["/stuvibe/", "진로탐구 특강 이론편", "학생에게 바이브코딩을 따라 하기 쉽게 가르치고 싶었습니다"], ["/sonagi/", "소나기 연수 실습", "중학교 도덕 성취기준마다 바로 쓰는 웹앱 틀을 주고 싶었습니다"]].map(([u, n, d]) => `<a class="card" href="https://moontr.site${u}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="n">moontr.site${u}</span><h4>${n}</h4><p>${d}</p></a>`).join("")}</div>
+    <div class="key">"이 앱들의 코드는 거의 AI가 썼습니다. 제가 한 일은 무엇을 만들지, 누가 쓸지, 무엇을 받지 않을지 정한 것입니다."</div>` },
+  { id: "try5", u: 1, t: "5분 실습: 첫 웹앱 만들기", lead: "제미나이는 입력창 아래 [캔버스]를 켜고, Claude는 그대로 붙여 넣습니다. 하나를 골라 복사합니다.", time: 6, tl: "5분 실습", html: () => `${badge("개별", 6, "")}<div class="cols c2">
+    <div>${P("롤스의 정의론을 퀴즈 3문제로 푸는 웹앱을 만들어줘. 문제마다 해설을 보여 주고, 마지막에 점수를 알려 줘.", "윤리 수업용")}${P("4명이 사다리 게임을 할거야. 웹앱을 만들어줘.", "가볍게")}</div>
+    <div><div class="card"><h4>잘 말하는 법</h4><p>누가 · 무엇을 · 어떤 모습으로 · 꼭 필요한 기능 3개</p></div>
+      <div class="card" style="margin-top:12px"><h4>나오면 한 번만 고쳐 봅니다</h4>${P("시작 버튼을 화면 가운데에, 지금보다 두 배 크게 바꿔 줘.")}${P("너무 AI스럽지 않은 디자인으로 고쳐 줘.")}</div></div></div>` },
+  { id: "pain", u: 1, t: "내 교실의 불편 한 가지", lead: "여기에 쓴 불편이 2단원 프롬프트의 첫 줄이 됩니다. 길게 쓰지 않아도 됩니다.", time: 10, tl: "개별 5분 · 모둠 4분 · 입력 1분", html: () => `${badge("개별 5분 → 모둠 4분 → 사회자 1분", 10, "아래 칸")}<div class="cols c2">
+    <div>${inp("i_when", "언제, 누가 불편한가요?", "예) 토론 수업에서 말하는 학생만 말한다")}${inp("i_now", "지금은 어떻게 하고 있나요?", "예) 포스트잇을 모아 칠판에 붙인다")}${inp("i_pain", "웹앱이 대신할 일 한 가지", "예) 모두의 입장을 한 화면에 모아 보여 준다")}</div>
+    <div><div class="card g"><h4>모둠 나눔 (사회자 진행)</h4><ol class="s"><li>한 사람씩 30초 안에 말합니다.</li><li>듣는 사람은 "그 불편을 겪는 학생은 누구예요?" 한 가지만 묻습니다.</li><li>사회자가 아래 두 줄을 적습니다.</li></ol></div>
+      ${team("13", 1, [["a", "가장 많이 나온 불편"], ["b", "가장 의외였던 불편"]])}
+      <p class="muted" style="margin-top:10px">정리 질문: 이 불편을 푸는 앱에 학생 이름이 꼭 필요한가요? (4단원으로 이어집니다)</p></div></div>` },
+
+  /* ---------- 2단원 깃허브 실습 (60분) ---------- */
+  { id: "u2", u: 2, unit: true, html: () => unitCover(2, "만들어서 내 주소로, 고쳐서 기록으로", ["생성형 AI로 수업용 웹앱을 만들고 index.html 파일로 받을 수 있다.", "깃허브 저장소에 올리고 Pages로 내 주소를 만들 수 있다.", "고친 이유를 커밋 메시지로 남기고, 커밋 목록으로 과정을 설명할 수 있다."], [["실습 1 · 만들기 (프롬프트 · 캔버스)", 12, "개별"], ["실습 1 · 깃허브에 올려 내 주소로", 13, "개별"], ["입력 · 짝 휴대폰으로 열기", 5, "개별 · 짝"], ["실습 2 · 고치고 다시 올리기", 20, "짝 · 개별"], ["모둠 · 커밋 목록 나누기", 10, "모둠"]]) },
+  { id: "make", u: 2, kick: "깃허브 실습 1 · 만들기", t: "내 수업 웹앱 프롬프트", lead: "칸을 채우면 오른쪽 프롬프트가 바뀝니다. 복사해서 제미나이 캔버스나 Claude에 붙여 넣습니다.", time: 12, tl: "실습 1 · 만들기", live: true, html: () => `${badge("개별", 12, "왼쪽 칸")}<div class="cols c2" style="grid-template-columns:1fr 1.1fr">
+    <div><span class="fld"><span>수업 틀</span></span>${pick("p_tpl", TPLS.map(([v, t]) => [v, t]), "수업 틀")}<div style="height:12px"></div>
+      ${line("p_subj", "과목 · 단원", "예) 생활과 윤리 · 사회 정의")}${line("p_who", "누가 쓰나요?", "예) 고2 학생, 결과는 교사가 본다")}${inp("p_feat", "꼭 필요한 기능 3가지 (한 줄에 하나)", "사례 읽고 찬성 · 반대 고르기\n근거 한 줄 쓰기\n반 전체 분포 보기", 3)}</div>
+    <div>${P(makePrompt(), "AI에게 보낼 프롬프트")}<p class="muted" style="margin-top:8px">중학교 도덕 선생님은 소나기 연수(moontr.site/sonagi)에서 성취기준 22개 × 활동 6가지 틀로 바로 받을 수 있습니다.</p></div></div>` },
+  { id: "canvas", u: 2, kick: "깃허브 실습 1 · 만들기", t: "캔버스에서 만들고 파일로 받기", lead: "한 번에 끝내려 하지 않습니다. 대여섯 번 주고받는 것이 보통입니다.", html: () => `<div class="cols c3">
+    <div class="card"><span class="n">1</span><h4>붙여 넣고 보내기</h4><p>제미나이: 입력창 아래 [캔버스]를 켠 뒤 보냅니다. Claude: 그대로 보내면 오른쪽에 앱이 나옵니다.</p></div>
+    <div class="card"><span class="n">2</span><h4>한 가지씩 고치기</h4><p>"전체적으로 고쳐 줘" 대신 한 번에 하나만 부탁합니다. 화면을 캡처해 보여 주면 더 정확합니다.</p></div>
+    <div class="card"><span class="n">3</span><h4>파일로 받기</h4><p>제미나이: 캔버스 오른쪽 위 [공유 · 내보내기] → 다운로드. Claude: 아티팩트 오른쪽 위 메뉴 → Download. 파일 이름을 <b>index.html</b>로 바꿉니다.</p></div></div>
+    <div class="cols c2" style="margin-top:18px"><div class="card g"><h4>폴더 이름 규칙</h4><p>영어 소문자와 하이픈(-)만 씁니다. 예) dilemma-board, value-line. 이 이름이 주소 끝이 됩니다.</p></div>
+    <div class="card g"><h4>파일이 여러 개로 나왔다면</h4>${P("index.html 파일 하나로 다시 줘. CSS와 JavaScript도 모두 이 파일 안에 넣어 줘.")}<p class="muted" style="margin-top:6px">다운로드 단추가 없으면 코드를 메모장에 붙여 넣고 '모든 파일 · UTF-8'로 저장합니다.</p></div></div>` },
+  { id: "github", u: 2, kick: "깃허브 실습 1 · 올리기", t: "깃허브에 올려 내 주소 만들기", lead: "설치 없이 브라우저만으로 합니다. 아이디와 저장소 이름은 누구나 볼 수 있으니 실명 대신 영문 별명을 씁니다.", time: 13, tl: "실습 1 · 올리기", html: () => `${badge("개별", 13, "다음 쪽")}<div class="cols c3">
+    <div class="card"><span class="n">1 · 저장소 만들기</span><ol class="s"><li>github.com 오른쪽 위 [+] → New repository</li><li>이름: 폴더 이름 그대로 (예: dilemma-board)</li><li>Public → Create repository</li></ol></div>
+    <div class="card"><span class="n">2 · 파일 올리기</span><ol class="s"><li>[uploading an existing file] 누르기</li><li>index.html 끌어다 놓기</li><li>커밋 메시지 칸의 'Add files via upload'를 지우고 <b>"첫 화면: 딜레마 토론판"</b>처럼 쓰기</li><li>Commit changes</li></ol></div>
+    <div class="card"><span class="n">3 · 내 주소 켜기</span><ol class="s"><li>Settings → Pages</li><li>Branch: None → <b>main</b>, / (root) → Save</li><li>1~2분 뒤 새로고침하면 위쪽에 'Your site is live at …' 주소가 나옵니다</li></ol></div></div>
+    <div class="cols c2" style="margin-top:16px"><div class="mock"><div class="mh">Commit changes</div><div class="mb"><span class="del" style="text-decoration:line-through;padding:0 4px">Add files via upload</span> → <span class="add" style="padding:0 4px">첫 화면: 딜레마 토론판</span></div></div>
+    <div class="card g" style="padding:12px 16px"><b>도움지기</b> 막힌 분부터 돕고, 모둠이 못 풀면 손을 들어 강사를 부릅니다.</div></div>` },
+  { id: "mylink", u: 2, kick: "깃허브 실습 1 · 입력", t: "내 주소 올리기", lead: "휴대폰으로 열리는 주소 하나만 올립니다. 저장소는 이 웹앱이 주소에서 알아서 찾습니다.", time: 5, tl: "입력 3분 · 짝 확인 2분", html: () => `${badge("개별 3분 → 짝 2분", 5, "내 주소")}<div class="cols c2">
+    <div>${line("url", "내 웹앱 주소", "https://아이디.github.io/앱이름/")}
+      <div id="repoHint" class="muted" style="margin:-4px 0 12px">${repoHint(R("url"))}</div>
+      ${ck("ok", "내 커밋 기록을 강사 화면에 모아 AI로 요약하는 데 동의합니다. (체크하지 않으면 모으지 않습니다)")}
+      <p class="muted" style="margin-top:10px">끝까지 못 갔다면 제미나이 [공유] 링크를 올리고 실습 2를 함께 합니다.</p></div>
+    <div><div class="card k"><h4>짝 확인 (2분)</h4><p>짝의 주소를 내 휴대폰으로 열어 봅니다. 내 컴퓨터가 아닌 다른 기기에서도 열리는지 확인합니다.</p></div>
+      ${team("21", 2, [["a", "주소까지 간 사람 수"], ["b", "가장 많이 멈춘 단계"]])}</div></div>` },
+  { id: "history", u: 2, kick: "깃허브 실습 2 · 시연", t: "커밋 목록은 고친 과정의 기록입니다", lead: "저장소의 [Commits]를 누르면 언제, 무엇을 고쳤는지 차례로 보입니다. 학생 과제라면 초안 · 고친 기록 · 최종본에 해당합니다.", html: () => `<div class="cols c2">
+    <div class="mock"><div class="mh">dilemma-board · Commits</div><div class="mb">
+      ${[["14:42", "근거가 빈칸이면 제출되지 않게 함"], ["14:31", "이름 칸을 빼고 번호만 받게 바꿈 (개인정보)"], ["14:20", "처음 온 학생이 제출 단추를 못 찾아 입장 고르기 아래로 옮김"], ["14:05", "첫 화면: 딜레마 토론판"]].map(([d, m]) => `<div class="cm"><time>${d}</time>${m}</div>`).join("")}
+      <div style="margin-top:10px" class="code"><div class="del">- &lt;input placeholder="이름"&gt;</div><div class="add">+ &lt;input placeholder="번호"&gt;</div></div></div></div>
+    <div><table class="t"><tr><th>이렇게 쓰지 않아요</th><th>이렇게 써요</th></tr><tr><td>Add files via upload</td><td>처음 온 학생이 제출 단추를 못 찾아 입장 고르기 아래로 옮김</td></tr><tr><td>수정</td><td>이름 칸을 빼고 번호만 받게 바꿈 (개인정보)</td></tr><tr><td>최종</td><td>근거가 빈칸이면 제출되지 않게 함</td></tr></table>
+      <div class="key">빨간 줄은 뺀 것, 초록 줄은 더한 것입니다. 고친 이유가 메시지에 남아 있으면 나중에 나도, 강사도, AI도 과정을 읽을 수 있습니다.</div></div></div>` },
+  { id: "fix", u: 2, kick: "깃허브 실습 2 · 고치기", t: "짝의 관찰로 고치고 다시 올리기", lead: "판단이 아니라 관찰을 건넵니다. 무엇을 고칠지는 만든 사람이 정합니다.", time: 20, tl: "실습 2 · 고치고 다시 올리기", html: () => `${badge("짝 4분 → 개별 14분 → 입력 2분", 20, "아래 칸")}<div class="cols c2">
+    <div><ol class="s"><li><b>짝 점검 4분</b> 짝의 앱을 설명 없이 써 보고 관찰 한 줄을 남깁니다. "저는 여기서 ○을 기대했는데 ×가 나왔습니다."</li><li><b>고치기 10분</b> 받은 한 줄을 아래 틀에 넣어 AI에게 보냅니다.</li><li><b>다시 올리기 4분</b> 같은 저장소에 같은 이름 index.html을 다시 올리고, 커밋 메시지에 고친 이유를 씁니다.</li></ol>
+      ${P("[어디에서] \n[무엇을 했더니] \n[이렇게 됐는데] \n[이렇게 되길 원해] \n고치기 전에 어느 부분을 바꿀지 먼저 알려 줘. 그다음 고친 index.html 전체를 다시 줘.", "고칠 때 쓰는 틀 (소나기 연수)")}</div>
+    <div>${inp("f_peer", "짝에게 받은 관찰 한 줄", "예) 입장을 고른 뒤 다음에 할 일을 못 찾았어요")}${inp("f_fix", "고치기 전 → 후 한 줄", "예) 제출 단추가 맨 아래 → 입장 고르기 바로 아래")}${line("f_msg", "내 커밋 메시지", "예) 처음 온 학생이 제출 단추를 못 찾아 위치를 옮김")}</div></div>` },
+  { id: "share2", u: 2, kick: "깃허브 실습 2 · 모둠", t: "커밋 목록을 보며 1분씩", lead: "각자 내 저장소의 Commits 화면을 띄우고 무엇을, 왜 고쳤는지 1분 안에 말합니다.", time: 10, tl: "모둠 8분 · 입력 2분", html: () => `${badge("모둠 8분 → 사회자 2분", 10, "사회자 기록")}<div class="cols c2">
+    <div><div class="card g"><h4>사회자 진행</h4><ol class="s"><li>시계 방향으로 한 사람씩 1분.</li><li>듣는 사람은 고친 이유가 짝의 관찰에서 나왔는지 확인합니다.</li><li>사회자가 두 줄을 적습니다.</li></ol></div>
+      <div class="key">학생에게 바이브코딩을 시킬 때도 결과 화면보다 커밋 메시지에 남은 '고친 이유'를 평가할 수 있습니다.</div></div>
+    <div>${team("22", 2, [["a", "가장 많이 막힌 곳"], ["b", "가장 좋았던 고친 이유"]])}</div></div>` },
+
+  /* ---------- 3단원 기록 저장과 점검 (60분) ---------- */
+  { id: "u3", u: 3, unit: true, html: () => unitCover(3, "기록을 남기는 순간 생기는 책임", ["학생 기록을 남기는 두 길(이 기기 · 파이어베이스)의 차이를 설명할 수 있다.", "누가 읽고 · 쓰고 · 지우는지 말로 먼저 정하고 규칙으로 바꿀 수 있다.", "세 번 점검과 체크리스트로 내 앱과 짝의 앱을 점검할 수 있다."], [["기록을 남기는 두 길 · 파이어베이스 시연", 14, "강의 · 시연"], ["규칙을 말로 먼저", 10, "개별"], ["체험: 숨긴 것은 보인다", 5, "개별"], ["세 번 점검: 나 · AI", 12, "개별"], ["배포 전 체크리스트", 9, "개별"], ["모둠: 짝의 체크리스트 다시 보기", 10, "모둠"]]) },
+  { id: "save2", u: 3, t: "기록을 남기는 두 길", lead: "지금 만든 앱은 새로고침하면 입력이 사라지거나, 이 기기에만 남습니다. 반 전체의 기록을 모으려면 서버가 필요하고, 그 순간 개인정보 책임이 생깁니다.", html: () => `<div class="cols c2">
+    <div class="card"><span class="n">쉬운 길</span><h4>이 기기에만 저장 (localStorage)</h4><p>로그인도 서버도 필요 없습니다. 학생 한 명이 자기 기기에서 쓰는 성찰 일기, 연습 기록에 알맞습니다. 다른 사람은 볼 수 없습니다.</p>${P("입력한 내용을 이 브라우저(localStorage)에 저장해서 새로고침해도 남게 해 줘. 기록 지우기 단추도 만들어 줘. 서버와 로그인은 쓰지 마.")}</div>
+    <div class="card"><span class="n">모으는 길</span><h4>파이어베이스 (Firestore)</h4><p>반 전체의 입장 분포, 담벼락처럼 여러 사람의 기록을 한 곳에 모읍니다. 구조는 컬렉션(학급 담벼락) → 문서(메모 한 장) → 필드(글, 쓴 시각)입니다.</p><table class="t" style="margin-top:10px"><tr><th>모을 때 생기는 일</th></tr><tr><td>누가 읽고 쓰는지 규칙이 필요합니다</td></tr><tr><td>학습지원 소프트웨어 심의 대상이 될 수 있습니다 (4단원)</td></tr></table></div></div>` },
+  { id: "fbdemo", u: 3, kick: "강사 시연", t: "파이어베이스 연결 순서", lead: "연수생은 따라 하지 않고 화면으로 봅니다. 바이브코딩 매뉴얼 3단계의 순서 그대로입니다.", html: () => `<div class="cols c4">
+    <div class="card"><span class="n">1</span><h4>프로젝트 만들기</h4><p>console.firebase.google.com → 새 프로젝트 → 이름 → 애널리틱스 끄기</p></div>
+    <div class="card"><span class="n">2</span><h4>웹앱 등록</h4><p>&lt;/&gt; 웹 → 앱 등록 (호스팅 체크 안 함) → 톱니 → 프로젝트 설정 → '구성'의 firebaseConfig 복사</p></div>
+    <div class="card"><span class="n">3</span><h4>Firestore 만들기</h4><p>위치 서울(asia-northeast3), <b>프로덕션 모드</b>로 시작합니다. 테스트 모드는 30일 동안 누구나 읽고 씁니다.</p></div>
+    <div class="card"><span class="n">4</span><h4>규칙 게시</h4><p>AI가 준 규칙을 [규칙] 탭에 붙여 넣고 [게시]. 게시하지 않으면 저장이 막힙니다.</p></div></div>
+    <div class="cols c2" style="margin-top:16px"><div>${P("내 웹앱에 Firestore 저장을 붙여 줘.\n[내 firebaseConfig] 여기에 붙여 넣기\n[조건] compat CDN으로, 학생 이름 · 학번은 저장하지 마. 보안 규칙도 함께 주고, 고친 index.html 전체를 다시 줘.", "연결 프롬프트")}</div>
+    <div class="card g"><h4>시연에서 보여 줄 것</h4><ul class="l"><li>F12 콘솔에서 "내 역할을 teacher로" 요청을 보내면 규칙이 거부합니다. 막는 것은 단추 숨기기가 아니라 규칙입니다.</li><li>firebaseConfig는 공개돼도 되는 주소표입니다. 돈이 나가는 AI 키는 서버에만 둡니다.</li></ul></div></div>` },
+  { id: "rule", u: 3, t: "규칙을 말로 먼저", lead: "내 앱이 학생 기록을 저장한다고 가정하고 여섯 질문에 답합니다. 답을 AI에게 주면 규칙을 만들어 줍니다. 오늘은 읽어 보기만 합니다.", time: 10, tl: "개별 8분 · 입력 2분", live: true, html: () => `${badge("개별 8분 → 입력 2분", 10, "여섯 칸")}<div class="cols c2">
+    <div>${POLICY6.map(([k, q]) => line("r_" + k, q, "")).join("")}</div>
+    <div>${P(`아래 약속대로 Firestore 보안 규칙을 만들어 줘.\n${POLICY6.map(([k, q]) => `- ${q} ${R("r_" + k) || "[ ]"}`).join("\n")}\n'allow read, write: if true'는 쓰지 마.\n허용돼야 할 요청과 거부돼야 할 요청을 시험하는 방법도 알려 줘.`, "규칙 프롬프트")}</div></div>` },
+  { id: "f12", u: 3, t: "체험: 숨긴 것은 보입니다", lead: "이 슬라이드 어딘가에 '관리자 비밀번호'를 숨겨 두었습니다. F12 → Elements → Ctrl+F로 찾아 아래에 넣어 봅니다.", time: 5, tl: "F12 체험", live: true, html: () => `${badge("개별", 5, "찾은 비밀번호")}<span class="hidden-pw">관리자 비밀번호: moral-2027</span><div class="cols c2">
+    <div>${line("f12", "찾은 비밀번호", "")}${(R("f12") || "").trim() === "moral-2027" ? `<p class="ok-t">찾았습니다. 브라우저에 넣은 것은 누구나 볼 수 있습니다.</p>` : `<p class="muted">못 찾으면 Ctrl+F에 '비밀번호'를 넣어 보세요.</p>`}</div>
+    <div class="card"><h4>그래서 이렇게 합니다</h4><ul class="l"><li>"관리자 비밀번호를 1234로 해 줘" 같은 프롬프트는 쓰지 않습니다. 관리자 화면은 구글 로그인 + 보안 규칙으로 막습니다.</li><li>API 키가 드러났다면 ① 폐기 ② 다시 발급 ③ 서버 설정에 등록. 파일에서 지워도 커밋 기록에 남습니다.</li></ul></div></div>` },
+  { id: "check3", u: 3, t: "세 번 점검: 나 · AI", lead: "만드는 사람은 되는 길만 걷고, 쓰는 사람은 아무 길이나 걷습니다. 시크릿 창과 휴대폰으로 처음 보는 사람처럼 엽니다.", time: 12, tl: "나 6분 · AI 6분", html: () => `${badge("개별", 12, "됨 · 화면만 · 안 됨")}<div class="cols c2">
+    <div><h4 style="font-size:16px;margin-bottom:6px">1차 · 나</h4><table class="t">${SELF6.map(([k, n, d]) => `<tr><td><b>${n}</b><br><span class="muted">${d}</span></td><td style="width:210px">${tri("s_" + k)}</td></tr>`).join("")}</table></div>
+    <div><h4 style="font-size:16px;margin-bottom:6px">2차 · AI</h4>${P("내 웹앱 화면 캡처와 index.html을 첨부할게. 점검자 역할을 해 줘.\n정상 흐름 · 잘못된 입력 · 경계값 · 새로고침 · 개인정보 · 휴대폰 여섯 가지를 '됨' 또는 '고칠 곳'으로 한 줄씩 적고, 마지막에 가장 먼저 고칠 것 하나를 알려 줘. 코드는 아직 주지 마.", "AI 점검 프롬프트")}
+      ${P("너는 고등학교 2학년 학생이야. 장난치고 싶은 학생이라면 이 앱에 어떤 입력을 할 것 같아? 다섯 가지만.", "학생 역할로 점검")}
+      ${inp("c_ai", "AI가 가장 먼저 고치라고 한 것", "", 1)}</div></div>` },
+  { id: "checklist", u: 3, t: "배포 전 체크리스트", lead: "학생에게 보내기 전에 하나씩 확인합니다. 된 것만 체크하고, 안 된 것 중 가장 위험한 하나를 고릅니다.", time: 9, tl: "개별 7분 · 입력 2분", html: () => `${badge("개별 7분 → 입력 2분", 9, "체크 · 아래 칸")}<div class="cols c2" style="grid-template-columns:1.4fr 1fr">
+    <div>${["동작", "안전", "AI · 수업"].map((g) => `<h4 style="font-size:14px;color:var(--acc);margin:8px 0 2px">${g}</h4>${CHECKS.map((c, i) => (c[0] === g ? ck("ck_" + i, c[1]) : "")).join("")}`).join("")}</div>
+    <div><div class="card k"><h4>체크한 항목</h4><p style="font-size:28px;font-weight:800">${CHECKS.filter((c, i) => S.rec["ck_" + i]).length} / ${CHECKS.length}</p></div><div style="height:12px"></div>${inp("ck_risk", "안 된 것 중 가장 위험한 하나", "", 2)}</div></div>` },
+  { id: "peer3", u: 3, t: "모둠: 짝의 체크리스트 다시 보기", lead: "옆 사람의 앱을 같은 체크리스트로 3분 점검하고, 피드백은 세 칸으로만 남깁니다.", time: 10, tl: "짝 점검 3분 · 피드백 5분 · 사회자 2분", html: () => `${badge("짝 3분 → 모둠 5분 → 사회자 2분", 10, "세 칸")}<div class="cols c2">
+    <div>${inp("p_good", "강점: 안전하게 잘 만든 곳", "", 1)}${inp("p_q", "확인 질문: 학생 기록이 어디서 열릴 수 있나요?", "", 1)}${inp("p_idea", "개선 제안: 빼거나 바꾸면 좋을 것 하나", "", 1)}</div>
+    <div>${team("35", 3, [["a", "'안 됨'이 가장 많이 나온 항목"], ["b", "만든 사람과 점검한 사람의 판단이 갈린 항목"]])}</div></div>` },
+
+  /* ---------- 4단원 개인정보 (30분) ---------- */
+  { id: "u4", u: 4, unit: true, html: () => unitCover(4, "작동하는 앱과 학교에서 써도 되는 앱", ["내 앱이 받는 정보가 개인정보인지 판단할 수 있다.", "내 수업 앱이 학습지원 소프트웨어 심의 대상인지 판단할 수 있다.", "내 앱을 통과 · 보완 · 중단 중 하나로 판정하고 한 문장으로 약속할 수 있다."], [["이것만은 꼭: 개인정보", 6, "강의"], ["윤리원칙으로 내 앱 보기", 4, "강의"], ["심의 대상 판정", 7, "개별"], ["이용약관 · 처리방침 넣기", 3, "강의"], ["판정과 한 문장 약속", 6, "개별"], ["갤러리 · 마무리", 4, "모둠 · 전체"]]) },
+  { id: "pi", u: 4, t: "이것만은 꼭: 개인정보", lead: "학생 이름이 없어도 개인정보일 수 있습니다. 받지 않는 것이 가장 안전합니다.", html: () => `<div class="cols c3">
+    <div class="card"><span class="n">1</span><h4>받지 않습니다</h4><p>이름 · 학번 · 연락처 · 사진 · 목적 없는 자유 서술. 필요하면 번호나 닉네임으로 대신합니다.</p></div>
+    <div class="card"><span class="n">2</span><h4>합치면 알아봅니다</h4><p>닉네임 · 번호라도 반 · 모둠 · 시간과 합쳐 학생을 알아볼 수 있으면 개인정보입니다.</p></div>
+    <div class="card"><span class="n">3</span><h4>밖으로 나갑니다</h4><p>학생 글을 AI에 넣으면 외부 회사로 전송됩니다. 구글 시트 AI 함수에 이름 열을 넣으면 이름도 함께 나갑니다.</p></div></div>
+    <div class="cols c2" style="margin-top:16px"><div class="card g"><h4>이 연수 웹앱의 경우</h4><p>닉네임 · 모둠 번호만 받고, 마지막에 [완료하고 로그아웃]을 누르면 이 기기와 서버의 기록을 모두 지웁니다.</p></div>
+    <div class="card g"><h4>기록은 언제 지우나요?</h4><p>학기 말, 학년 말처럼 지우는 때를 미리 정하고 학생에게 알려 줍니다.</p></div></div>` },
+  { id: "prin", u: 4, t: "인공지능 윤리원칙으로 내 앱 보기", lead: "대한민국 인공지능 윤리원칙(관계부처 합동, 2026. 8. 21.)의 7대 원칙을 내 앱에 묻는 질문으로 바꿨습니다.", html: () => `<table class="t">${PRIN.map(([n, q]) => `<tr><td style="width:180px"><b>${n}</b></td><td>${q}</td></tr>`).join("")}</table>
+    <p class="muted" style="margin-top:10px">3대 가치: 인간의 존엄성 · 사회의 공공선 · 인류의 지속가능성. 원칙끼리 부딪히면 우선순위를 미리 정하지 않고 맥락에 맞는 균형점을 함께 찾습니다.</p>` },
+  { id: "judge", u: 4, t: "내 앱은 심의 대상인가요?", lead: "학생이 접속해 기록을 남기는 수업 앱은 교사가 만들었어도 초 · 중등교육법 제29조의2(2026. 3. 1. 시행)에 따라 수업 전에 학교운영위원회 심의를 받습니다.", time: 7, tl: "개별 판정", live: true, html: () => `${badge("개별", 7, "네 · 아니요")}<div class="cols c2">
+    <div><table class="t">${JUDGE.map(([k, q]) => `<tr><td>${q}</td><td style="width:150px">${pick("j_" + k, [["y", "네"], ["n", "아니요"]])}</td></tr>`).join("")}</table></div>
+    <div><div class="card k"><h4>판정</h4><p style="font-size:20px;font-weight:800">${judgeText()}</p></div>
+      <table class="t" style="margin-top:12px"><tr><th>경우</th><th>판정</th></tr><tr><td>학생이 로그인해 성찰 기록을 서버에 남김</td><td>심의 필수</td></tr><tr><td>로그인 없이 교사가 만든 콘텐츠만 보여 줌</td><td>제외될 수 있음</td></tr><tr><td>교사 혼자 쓰는 수업 준비 · 행정 도구</td><td>제외</td></tr><tr><td>방과후 · 자율동아리 등 정규 교육과정 밖</td><td>제외</td></tr></table>
+      <p class="muted" style="margin-top:8px">사후 심의는 되지 않고, 통과해도 해마다 다시 받습니다. 교사 개발자는 에듀집(edzip.kr)에 '기타-교사 등 개인 개발'로 등록합니다.</p></div></div>` },
+  { id: "footer", u: 4, t: "이용약관 · 개인정보 처리방침 넣기", lead: "학생이 쓰는 앱이라면 맨 아래에 무엇을 받고, 어디에 두고, 언제 지우는지 적습니다. AI가 모르는 것은 지어내지 말고 물어보게 합니다.", html: () => `<div class="cols c2">
+    <div>${P("이 웹앱 맨 아래에 이용약관과 개인정보 처리방침을 펼쳐 볼 수 있는 푸터를 넣어 줘.\n먼저 코드를 살펴 받는 정보 · 저장 위치 · 외부로 보내는 정보를 표로 정리해 줘.\n운영자 · 연락처 · 보관 기간처럼 코드에서 알 수 없는 것은 지어내지 말고 나에게 물어봐.", "푸터 프롬프트")}</div>
+    <div><table class="t"><tr><th>받는 정보</th><th>쓰임</th><th>보관</th></tr><tr><td>번호, 입장, 근거 한 줄</td><td>그날 수업 토론</td><td>학기 말에 교사가 지웁니다</td></tr></table><p class="muted" style="margin-top:8px">표 하나로 충분합니다. 이 연수 웹앱 아래쪽의 '이용약관 · 개인정보' 단추도 같은 모양입니다.</p></div></div>` },
+  { id: "verdict", u: 4, t: "판정과 한 문장 약속", lead: "3단원 체크리스트와 짝의 피드백을 옆에 두고 내 앱을 판정합니다. 한 문장은 갤러리에 올라갑니다.", time: 6, tl: "개별 4분 · 입력 2분", html: () => `${badge("개별 4분 → 입력 2분", 6, "판정 · 한 문장")}<div class="cols c2">
+    <div><span class="fld"><span>내 앱 판정</span></span>${pick("verdict", [["통과", "통과", "지금 학생에게 써도 됩니다"], ["보완", "보완", "고칠 것 하나를 고치고 씁니다"], ["중단", "중단", "학생 대상 배포를 멈춥니다"]], "내 앱 판정")}
+      <p class="muted" style="margin-top:10px">차별 · 낙인, AI 단독 평가, AI 사용 강제, 민감정보 외부 전송, 교사가 확인할 수 없는 구조 중 하나라도 있으면 '중단'입니다.</p>
+      ${R("verdict") === "보완" ? line("v_next", "다음 커밋 메시지로 남길 고칠 것", "") : ""}</div>
+    <div>${inp("mvp", "한 문장 약속", "제 앱은 (누구)의 (무엇)을 위해 (어디)까지만 합니다. (무엇)은 이 앱이 하지 않습니다.", 3)}</div></div>` },
+  { id: "gallery", u: 4, t: "갤러리", lead: "오늘 연수에 함께한 선생님들의 한 문장과 주소입니다. 사회자와 발표자는 모둠 대표 한 문장을 골라 30초 동안 읽습니다.", time: 4, tl: "모둠 2분 · 전체 2분", html: () => `${badge("모둠 2분 → 전체 2분", 4, "")}<div style="display:flex;justify-content:flex-end;margin:-40px 0 8px"><button class="btn w sm" data-act="greload">새로 보기</button></div><div id="gal" class="cols c3"><p class="muted">불러오는 중…</p></div>
+    ${team("44", 4, [["a", "모둠 대표 한 문장"], ["b", "다음에 반영할 피드백 하나"]])}` },
+
+  /* ---------- 마무리 ---------- */
+  { id: "end", u: 5, t: "마치며", lead: "교사 개발자의 네 가지 질문으로 닫습니다.", html: () => `<div class="cols c4">${["학생에게 도움이 되는가", "안전하게 만드는가", "공정하게 사용하는가", "설명하고 책임지는가"].map((x, i) => `<div class="card k"><span class="n">${i + 1}</span><h4 style="font-size:19px">${x}</h4></div>`).join("")}</div>
+    <h4 style="font-size:16px;margin:24px 0 8px">혼자 다시 해 볼 때</h4><table class="t"><tr><th>주소</th><th>쓰임</th></tr><tr><td>moontr.site/vibe</td><td>바이브코딩 매뉴얼 · 세 갈래 길을 처음부터 혼자</td></tr><tr><td>moontr.site/sonagi</td><td>중학교 도덕 성취기준 × 활동 틀로 바로 만들기</td></tr><tr><td>moontr.site/stuvibe · /vibelab</td><td>학생 진로탐구 수업으로 바이브코딩 가르치기 (이론편 · 실습편)</td></tr></table>` },
+  { id: "done", u: 5, t: "완료하고 로그아웃", lead: "아래 [완료하고 로그아웃]을 누르면 이 기기와 서버에 남은 오늘 기록이 모두 지워집니다. 필요하면 먼저 내려받습니다.", html: () => `<div class="cols c2" style="grid-template-columns:1.3fr 1fr">
+    <div class="card" style="max-height:440px;overflow:auto"><h4>내 기록</h4>${myRecordsHTML()}</div>
+    <div><button class="btn w lg" data-act="dl" style="width:100%">내 기록 내려받기 (.txt)</button><div style="height:12px"></div><button class="btn b lg" data-act="finish" style="width:100%">완료하고 로그아웃</button>
+      <p class="muted" style="margin-top:12px">로그아웃하면 이 기기의 기록, 서버의 닉네임 · 주소 · 사회자 기록 · 한 문장이 지워집니다. 깃허브 저장소는 선생님 계정에 그대로 남습니다.</p></div></div>` }
+];
+
+function unitCover(u, sub, goals, acts) {
+  const tot = acts.reduce((a, x) => a + x[1], 0);
+  return `<div class="unit"><div class="lft"><div class="no">${u}</div><div class="nm">${UNITS[u].name}</div><p style="margin-top:10px;color:#ccc;font-size:17px">${sub}</p><div class="mn">${UNITS[u].min}분${S.me && S.me.seat ? ` · 이번 단원 나의 역할: <b style="color:#fff">${roleOf(S.me.seat, u)}</b>` : ""}</div></div>
+    <div class="rgt"><h3>학습 목표</h3><ol class="s">${goals.map((g) => `<li>${g}</li>`).join("")}</ol><h3>활동 (${tot}분)</h3><ol class="s">${acts.map(([n, m, f]) => `<li>${n} <span>${f} · ${m}분</span></li>`).join("")}</ol></div></div>`;
+}
+function judgeText() {
+  const j = (k) => R("j_" + k);
+  if (JUDGE.some(([k]) => !j(k))) return "네 칸을 모두 골라 주세요";
+  if (j("reg") === "n" || j("stu") === "n") return "심의 대상이 아닙니다 (정규 수업 밖이거나 교사 혼자 쓰는 도구)";
+  if (j("pi") === "y" || j("cont") === "y") return "심의 대상입니다. 수업 전에 학교운영위원회 심의를 받습니다";
+  return "제외될 수 있습니다 (로그인 · 서버 저장 없이 콘텐츠만 보여 줌)";
+}
+/* 깃허브 주소에서 저장소 찾기: 아이디.github.io/앱이름 → github.com/아이디/앱이름 */
+function repoOf(url) {
+  const u = String(url || "").trim();
+  let m = u.match(/^https?:\/\/([a-z0-9-]+)\.github\.io(?:\/([^\/?#]+))?/i);
+  if (m) return { o: m[1], r: m[2] || `${m[1]}.github.io` };
+  m = u.match(/^https?:\/\/github\.com\/([^\/?#]+)\/([^\/?#]+)/i);
+  if (m) return { o: m[1], r: m[2].replace(/\.git$/, "") };
+  return null;
+}
+function repoHint(url) { if (!url) return ""; const r = repoOf(url); return r ? `저장소: github.com/${esc(r.o)}/${esc(r.r)}` : "깃허브 주소가 아니라 커밋 기록은 모으지 않습니다"; }
+function myRecordsHTML() {
+  const ks = Object.keys(LAB).filter((k) => String(R(k)).trim());
+  const extra = [];
+  if (R("url")) extra.push(["내 웹앱 주소", R("url")]);
+  const n = CHECKS.filter((c, i) => S.rec["ck_" + i]).length; if (n) extra.push(["배포 전 체크리스트", `${n} / ${CHECKS.length}`]);
+  const rows = [...extra, ...ks.filter((k) => k !== "url").map((k) => [LAB[k], R(k)])];
+  return rows.length ? rows.map(([a, b]) => `<div class="cm"><b>${esc(a)}</b><br>${esc(b)}</div>`).join("") : `<p class="muted">아직 쓴 기록이 없습니다.</p>`;
+}
 
 /* ---------- 저장 ---------- */
-function loadLocal() { try { const v = JSON.parse(localStorage.getItem(LS) || "null"); if (v && v.me) { S.me = v.me; S.rec = v.rec || {}; } } catch (e) {} }
-function saveLocal() { try { localStorage.setItem(LS, JSON.stringify({ me: S.me, rec: S.rec })); } catch (e) {} }
+function loadLocal() { try { const v = JSON.parse(localStorage.getItem(LS) || "null"); if (v && v.me) { S.me = v.me; S.rec = v.rec || {}; S.cur = Math.min(v.cur || 0, SLIDES.length - 1); } } catch (e) {} }
+function saveLocal() { try { localStorage.setItem(LS, JSON.stringify({ me: S.me, rec: S.rec, cur: S.cur })); } catch (e) {} }
 let saveT = 0;
+function serverDoc() {
+  const notes = {}; Object.keys(S.rec).filter((k) => /^t_\d+_[a-z]$/.test(k) && String(S.rec[k]).trim()).slice(0, 30).forEach((k) => (notes[k] = String(S.rec[k]).slice(0, 300)));
+  return { nick: S.me.nick, team: S.me.team, seat: S.me.seat, cur: S.cur, url: String(R("url")).slice(0, 300), ok: !!S.rec.ok, verdict: ["통과", "보완", "중단"].includes(R("verdict")) ? R("verdict") : "", mvp: String(R("mvp")).slice(0, 300), notes, updatedAt: Date.now() };
+}
 function save() {
   saveLocal(); clearTimeout(saveT);
+  if (!S.me || S.me.guest) return;
   saveT = setTimeout(async () => {
-    if (!db || !S.me) return;
-    try { await db.collection("ai2027_members").doc(S.me.key).update({ rec: S.rec, updatedAt: Date.now() }); }
-    catch (e) { console.warn(e); toast("서버에 저장하지 못했어요. 이 기기에는 남아 있어요"); }
+    if (!db) return;
+    try { await db.collection(COL).doc(S.me.id).set({ ...serverDoc(), at: S.me.at }); }
+    catch (e) { console.warn(e); }
   }, 1200);
 }
-async function signIn(nick, pin) {
-  nick = nick.trim(); if (!nick || nick.length > 12) { toast("닉네임은 1~12글자로 써 주세요"); return; }
-  if (!/^\d{4}$/.test(pin)) { toast("숫자 네 자리를 넣어 주세요"); return; }
-  const key = await sha("2027ai|" + nick + "|" + pin);
-  try {
-    const ref = db.collection("ai2027_members").doc(key), snap = await ref.get();
-    if (snap.exists) { S.rec = snap.data().rec || {}; toast("다시 오셨네요. 기록을 불러왔어요"); }
-    else {
-      if (!confirm(`'${nick}' 이름으로 처음 시작할까요?\n전에 들어온 적이 있다면 [취소]를 누르고 닉네임 · 숫자를 다시 확인해 주세요.`)) return;
-      S.rec = {}; await ref.set({ nick, rec: {}, at: Date.now(), updatedAt: Date.now() });
-    }
-    S.me = { nick, key }; saveLocal(); render();
-  } catch (e) { console.error(e); toast("들어가지 못했어요 (" + (e.code || e.message) + ")"); }
+async function signIn(nick, team, seat) {
+  nick = nick.trim();
+  if (!nick || nick.length > 12) return toast("닉네임은 1~12글자로 써 주세요");
+  if (!(team >= 1 && team <= 20)) return toast("모둠 번호를 골라 주세요");
+  if (!(seat >= 1 && seat <= 6)) return toast("모둠 안 내 번호를 골라 주세요");
+  S.me = { nick, team, seat, id: rid(), at: Date.now() }; S.rec = {}; S.cur = 0; save(); render();
 }
-function signOut() { if (!confirm("이 기기에서 나갈까요? 기록은 서버에 남아 있어요.")) return; S.me = null; S.rec = {}; saveLocal(); location.hash = "home"; render(); }
-async function loadBoard() { if (!db) return; try { const s = await db.collection("ai2027_board").orderBy("at", "desc").limit(200).get(); S.board = s.docs.map((d) => ({ id: d.id, ...d.data() })); } catch (e) { console.warn(e); } }
+function guest() { S.me = { nick: "발표", team: 0, seat: 0, guest: true }; S.rec = {}; S.cur = 0; saveLocal(); render(); }
+async function finish() {
+  if (!confirm("오늘 기록을 모두 지우고 로그아웃할까요?\n이 기기와 서버에 남은 기록이 지워지고, 되돌릴 수 없어요.")) return;
+  clearTimeout(saveT);
+  if (S.me && !S.me.guest && db) { try { await db.collection(COL).doc(S.me.id).delete(); } catch (e) { console.warn(e); } }
+  try { localStorage.removeItem(LS); } catch (e) {}
+  S.me = null; S.rec = {}; S.cur = 0; stopTimer(); toast("기록을 지우고 로그아웃했어요. 수고하셨습니다"); render();
+}
+function download() {
+  const t = Array.from(new DOMParser().parseFromString(myRecordsHTML(), "text/html").querySelectorAll(".cm")).map((d) => d.innerText.trim()).join("\n\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["디지털 도구로 확장하는 도덕·윤리 수업 · 내 기록\n\n" + t], { type: "text/plain;charset=utf-8" })); a.download = "연수_내기록.txt"; a.click();
+}
 
-/* ---------- 화면 ---------- */
-function route() { const h = (location.hash || "#home").slice(1); return h; }
-function renderTop() {
-  const r = route();
-  $("gnb").innerHTML = UNITS.map((u) => `<a href="#u${u.u}" class="${r === "u" + u.u ? "on" : ""}">${u.u}단원</a>`).join("") + `<a href="#gallery" class="${r === "gallery" ? "on" : ""}">갤러리</a>`;
-  $("me").innerHTML = S.me ? `<span>${esc(S.me.nick)} 선생님 · ${STEP_IDS.filter(isDone).length}/${STEP_IDS.length}</span><button class="btn w sm" data-act="out">나가기</button>` : `<a class="btn sm" href="#home">시작하기</a>`;
+/* ---------- 모둠 기록 · 갤러리 불러오기 ---------- */
+async function loadTeam() {
+  if (!db || !S.me || S.me.guest) return;
+  try { const s = await db.collection(COL).where("team", "==", S.me.team).get(); S.team = s.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => Date.now() - (d.updatedAt || 0) < FRESH); } catch (e) { console.warn(e); }
+  fillTeam();
 }
-function homeView() {
-  const tot = STEP_IDS.filter(isDone).length;
-  return `<div class="wrap"><section class="hero"><div>
-    <div class="k">도덕 · 윤리 교사 대상 · 3시간 대면 연수 (이론 1 · 실습 2)</div>
-    <h1>디지털 도구로 확장하는<br>도덕 · 윤리 수업</h1>
-    <p>생성형 AI로 수업용 웹앱을 직접 만들고, 내 주소로 올리고, 학생 기록을 다루는 법과 AI 윤리 · 개인정보 기준으로 점검하는 법까지 네 단원으로 익혀요. 설치는 하지 않아요.</p>
-    <div class="syl"><b>교수요목</b>· 생성형 AI로 도덕·윤리 수업용 웹앱 만들기 실습<br>· GitHub · Firebase를 활용한 수업 도구 제작, 배포와 학생 기록 관리</div>
-    <div class="flow">${UNITS.map((u) => `<a href="#u${u.u}">${u.u}단원 · ${u.kind} ${u.min}분<b>${esc(u.name)}</b>${S.me ? `${unitDone(u)}/${u.steps.length} 마침` : ""}</a>`).join("")}</div>
-  </div>
-  <div>${S.me ? `<div class="box"><h3>${esc(S.me.nick)} 선생님, 이어서 해요</h3><p>지금까지 ${tot}/${STEP_IDS.length}개 활동을 마쳤어요. 쓰는 내용은 저절로 저장돼요.</p>
-      <div class="prog"><div class="bar"><i style="width:${Math.round(tot / STEP_IDS.length * 100)}%"></i></div><small><b>${Math.round(tot / STEP_IDS.length * 100)}%</b></small></div>
-      <div class="acts" style="margin-top:14px"><a class="btn b" href="#u${(UNITS.find((u) => unitDone(u) < u.steps.length) || UNITS[0]).u}">이어서 하기</a><a class="btn w" href="#gallery">갤러리</a></div></div>`
-    : `<div class="box"><h3>연수 시작하기</h3><p>닉네임과 숫자 네 자리를 정하세요. 다른 기기에서도 같은 닉네임 · 숫자로 이어서 할 수 있어요. 실명은 쓰지 않아도 돼요.</p>
-      <div class="fld"><label for="nick">닉네임 <small>1~12글자</small></label><input type="text" id="nick" maxlength="12" placeholder="예: 윤리쌤"></div>
-      <div class="fld"><label for="pin">숫자 네 자리 <small>잊지 않게 적어 두세요</small></label><input id="pin" inputmode="numeric" maxlength="4" placeholder="예: 2027"></div>
-      <button class="btn b lg" style="width:100%" data-act="in">들어가기</button></div>`}
-  </div></section></div>`;
+function fillTeam() {
+  document.querySelectorAll("[data-team]").forEach((el) => {
+    const aid = el.dataset.team, items = JSON.parse(el.dataset.items || "[]");
+    const rows = [];
+    S.team.forEach((d) => items.forEach(([n, label]) => { const v = (d.notes || {})[`t_${aid}_${n}`]; if (v) rows.push(`<div class="nt"><b>${esc(label)}</b>${esc(v)}</div>`); }));
+    el.innerHTML = rows.length ? rows.join("") : `<p class="muted">아직 사회자 기록이 없어요. 사회자가 적으면 [새로 보기]를 눌러 주세요.</p>`;
+  });
 }
-function unitView(n) {
-  const u = UNITS.find((x) => x.u === n); if (!u) return homeView();
-  const d = unitDone(u);
-  return `<div class="wrap"><div class="crumb">연수 <i>/</i> ${u.u}단원 · ${u.kind} ${u.min}분</div>
-  <section class="uhead"><div><div class="cat">${u.u}단원 · ${esc(u.sub)}</div><h1>${esc(u.name)}</h1><p class="lead">${esc(u.lead)}</p>
-    <ol class="goals">${u.goals.map((g) => `<li>${esc(g)}</li>`).join("")}</ol>
-    <div class="prog"><div class="bar"><i style="width:${Math.round(d / u.steps.length * 100)}%"></i></div><small><b>${d}</b>/${u.steps.length} 마침</small></div></div>
-    <aside class="side"><h4>이 단원의 활동</h4><ol>${u.steps.map((s) => `<li class="${isDone(s[0]) ? "d" : ""}">${s[0][0]}-${s[0][1]} ${esc(s[1])} · ${s[2]}분</li>`).join("")}</ol>
-    ${!S.me ? `<div class="msg info">기록을 남기려면 <a class="link" href="#home">먼저 들어가 주세요</a>. 들어가지 않아도 내용은 볼 수 있어요.</div>` : ""}</aside></section>
-  <div class="cur">${u.steps.map((s) => { const id = s[0], on = S.open === id, dn = isDone(id); return `<button class="row ${on ? "open" : ""}" data-act="open" data-v="${id}"><span class="n">${id[0]}-${id[1]}</span><span><b>${esc(s[1])}</b></span><span class="t">${s[2]}분</span><span class="st ${dn ? "d" : on ? "o" : "w"}">${dn ? "마침" : on ? "하는 중" : "아직"}</span></button>${on ? `<div class="panel">${panel(id)}</div>` : ""}`; }).join("")}</div></div>`;
+async function loadGallery() {
+  const el = $("gal"); if (!el) return;
+  if (!db) { el.innerHTML = ""; return; }
+  try { const s = await db.collection(COL).get(); S.board = s.docs.map((d) => d.data()).filter((d) => d.mvp && Date.now() - (d.updatedAt || 0) < FRESH).sort((a, b) => (a.team - b.team) || (a.seat - b.seat)); } catch (e) { console.warn(e); }
+  el.innerHTML = S.board.length ? S.board.map((d) => `<div class="card"><span class="n">${d.team}모둠 · ${esc(d.nick)}${d.verdict ? " · " + esc(d.verdict) : ""}</span><p>${esc(d.mvp)}</p>${/^https:\/\//.test(d.url || "") ? `<p style="margin-top:6px"><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.url.replace(/^https:\/\//, ""))}</a></p>` : ""}</div>`).join("") : `<p class="muted">아직 올라온 한 문장이 없어요.</p>`;
 }
-const fld = (id, k, label, ph, ta, small) => { const v = esc(R(id)[k] || ""); return `<div class="fld"><label for="f${id}${k}">${label}${small ? ` <small>${small}</small>` : ""}</label>${ta ? `<textarea id="f${id}${k}" data-f="${id}.${k}" placeholder="${esc(ph)}">${v}</textarea>` : `<input type="text" id="f${id}${k}" data-f="${id}.${k}" placeholder="${esc(ph)}" value="${v}">`}</div>`; };
 
-/* 2-2 프롬프트: PRD 칸을 모아 만들어요 */
-function makePrompt() {
-  const p = R("21"), t = TPLS.find((x) => x[0] === R("22").tpl);
-  const L = ["도덕 수업에서 쓸 웹앱을 만들어 줘.", ""];
-  if (t && t[0] !== "own") L.push(`[웹앱 틀] ${t[1]} — ${t[2]}`, "");
-  L.push(`[앱 이름] ${p.name || "(PRD 2-1에서 쓰기)"}`, `[누가 쓰나] ${p.user || ""}`, `[줄이는 불편] ${p.pain || ""}`, "[핵心 기능]".replace("心", "심"));
-  [p.f1, p.f2, p.f3].filter(filled).forEach((f, i) => L.push(`${i + 1}) ${f}`));
-  if (filled(p.flow)) L.push(`[화면 흐름] ${p.flow}`);
-  L.push(`[다 됐는지 확인하는 방법] ${p.check || ""}`, `[넣지 않을 것] ${p.no || ""}`, "", "[만드는 조건]",
-    "- index.html 파일 하나로, 설치 없이 브라우저에서 바로 열리게 만들어 줘.",
-    "- 서버 · 로그인 · 데이터베이스는 쓰지 마. 저장이 필요하면 이 브라우저(localStorage)에만 저장해 줘.",
-    "- 학생 이름 · 학번 · 연락처는 받지 마.",
-    "- 휴대폰에서도 보기 좋게, 글자는 크게, 학생이 읽기 쉬운 말로.",
-    "- 바로 만들지 말고, 빠진 정보가 있으면 먼저 꼭 필요한 질문 3가지만 해 줘.");
-  return L.join("\n");
+/* ---------- 타이머 ---------- */
+const T = { end: 0, label: "", id: 0 };
+function startTimer(min, label) { T.end = Date.now() + min * 60000; T.label = label; clearInterval(T.id); T.id = setInterval(tick, 500); tick(); }
+function stopTimer() { clearInterval(T.id); T.end = 0; renderBottom(); }
+function tick() {
+  const el = $("clock"); if (!el) return;
+  const left = Math.round((T.end - Date.now()) / 1000), a = Math.abs(left);
+  el.textContent = (left < 0 ? "-" : "") + String(Math.floor(a / 60)).padStart(2, "0") + ":" + String(a % 60).padStart(2, "0");
+  el.classList.toggle("over", left <= 0);
 }
-function fixPrompt(f) {
-  return `[증상] ${f.sym || ""}\n[기대] ${f.exp || ""}\n[범위] ${f.scope || "이 부분만. 다른 화면과 기능은 그대로."}\n\n고치기 전에 어느 부분을 어떻게 바꿀지 먼저 알려 줘. 내가 좋다고 하면 그때 그 부분만 고치고, 무엇이 달라졌는지 알려 줘.`;
-}
-function checkPrompt() {
-  const p = R("21");
-  return `내가 만든 도덕 수업용 웹앱을 처음 쓰는 학생의 눈으로 점검하고 싶어.\n[앱 이름] ${p.name || ""}\n[누가 쓰나] ${p.user || ""}\n[핵심 기능] ${[p.f1, p.f2, p.f3].filter(filled).join(" / ")}\n\n아래 여섯 가지 각도에서 나에게 점검 질문을 5개만 해 줘: 정상 흐름, 잘못된 입력, 경계값(0개 · 1개 · 아주 많을 때), 새로고침 · 저장, 권한 · 개인정보, 실패 상황 안내.\n답은 내가 할게. 코드는 아직 고치지 마. 내가 답하지 못한 질문이 고칠 곳이야.`;
-}
-function rulePrompt() {
-  const p = R("33").p || {}, a = R("21");
-  return `${a.name ? `'${a.name}' ` : ""}앱의 Firestore 보안 규칙을 아래 약속대로 만들어 줘.\n${POLICY.map(([k, q]) => `- ${q} → ${p[k] || "(아직 정하지 않음)"}`).join("\n")}\n- 위에서 허용하지 않은 것은 모두 거부해 줘. 테스트 모드(누구나 읽기 · 쓰기)는 쓰지 마.\n\n고친 규칙과 함께, 허용돼야 할 요청과 거부돼야 할 요청(남의 글 지우기, 스스로 교사 되기, 남의 이름으로 쓰기)을 시험하는 방법을 알려 줘.`;
-}
-function sePrompt() {
-  const r = R("34");
-  return `너는 고등학교 ${r.subj || "[과목명: 예) 현대사회와 윤리]"} 교사야.\n아래 [활동 메모]만을 바탕으로 세부능력 및 특기사항 초안을 500자 안팎으로 써 줘.\n■ 성취기준: ${r.std || "[수업의 성취기준 붙여넣기]"}\n■ 작성 조건\n1. 문장 끝은 명사형(-함, -임, -음)으로, 관찰자의 시점에서 쓸 것.\n2. 토론 전 입장과 토론 후 성찰을 비교해, 자기 중심에서 타자 · 공동체를 고려하는 방향으로 관점이 넓어진 과정을 쓸 것.\n3. 더 나은 근거를 찾아 입장을 고친 모습이 있으면 구체적으로 쓸 것.\n4. 메모에 없는 내용은 지어내지 말 것. 교내 대회, 대학명, 외부 기관은 쓰지 말 것.\n[활동 메모]\n- 토론 전 입장: ${r.before || ""}\n- 근거: ${r.reason || ""}\n- 토론 후 성찰: ${r.after || ""}`;
-}
-function panel(id) {
-  const r = R(id);
-  switch (id) {
-    case "11": return `<div class="ask"><small>먼저 결과 화면부터</small>강사가 해커톤 연수 뒤에 만든 앱들이에요. 두 개 이상 열어 보고, 그 앱이 어떤 불편에서 출발했을지 거꾸로 추리해 보세요.</div>
-      <div class="apps">${MY_APPS.map(([u, n, d]) => `<a href="https://moontr.site${u}" target="_blank" rel="noopener" data-act="seen" data-v="${u}"><b>${esc(n)}${(r.seen || []).includes(u) ? " · 봤어요" : ""}</b><small>${esc(d)}</small></a>`).join("")}</div>
-      ${fld(id, "guess", "한 앱을 골라, 그 앱의 PRD(누가 · 어떤 불편 · 무엇으로)를 추리해 보세요", "예: 먼저 플래너 — 학생이 약한 과목을 미루는 불편을, 약한 과목을 맨 앞에 두는 플래너로 줄인다", true)}
-      <p class="note">강사 발문: "이 앱들의 코드는 거의 AI가 썼습니다. 제가 한 일은 무엇을 만들지, 누가 쓸지, 무엇을 받지 않을지 정한 것입니다."</p>`;
-    case "12": {
-      const ord = r.order || [];
-      return `<div class="ask"><small>개발 흐름 8단계</small>아래 단계를 일어나는 순서대로 하나씩 누르세요. 2~4단원이 이 흐름을 나눠 담고 있어요.</div>
-      <div class="order">${shuffle(FLOW8, 7).map((s) => { const i = ord.indexOf(s); return `<button class="${i >= 0 ? "on" : ""}" data-act="ord" data-v="${esc(s)}"><b>${i >= 0 ? i + 1 : ""}</b>${esc(s)}</button>`; }).join("")}</div>
-      <div class="acts"><button class="btn w sm" data-act="ordReset">다시 하기</button></div>
-      ${r.ok ? `<div class="msg ok">맞아요. 문제 발견 → PRD → 화면 → 처리 · 저장 → 인증 · 권한 → 외부 서비스 → 검토 → 배포 · 기록 · 공유. 요즘 개발은 코딩보다 계획과 수정 · 보완의 비중이 커요 (계획 3 · 코딩 4 · 디버깅 3).</div>` : ord.length === FLOW8.length ? `<div class="msg no">순서가 조금 달라요. [다시 하기]를 눌러 보세요. 힌트: 화면을 만들기 전에 PRD, 배포 전에 검토.</div>` : ""}`;
-    }
-    case "13": return `<div class="ask"><small>내 교실의 불편 한 가지</small>5분 고민하고 세 칸을 채우세요. 마지막에 짝에게 한 줄로 소개해요.</div>
-      ${fld(id, "who", "언제, 누가 불편한가요?", "예: 토론 수업에서 말하는 학생만 말한다", true)}
-      ${fld(id, "now", "지금은 어떻게 하고 있나요?", "예: 포스트잇을 모아 칠판에 붙인다", true)}
-      ${fld(id, "app", "앱이 대신할 일 한 가지", "예: 모두의 입장을 한 화면에 모아 보여 준다", true)}
-      <p class="note">정리 발문: "이 불편을 푸는 앱에 학생의 이름이 꼭 필요한가요?"</p>`;
-    case "21": return `<div class="ask"><small>PRD = 만들 것을 미리 적은 짧은 설계 메모</small>"발표자 뽑기 앱 만들어 줘"처럼 쓰면 범위 · 저장 방식 · 화면이 모호해 AI가 마음대로 만들어요. 1-3에 쓴 불편을 아래 칸으로 옮겨 보세요.</div>
-      ${S.rec["13"] && filled(S.rec["13"].who) ? `<p class="note">1-3에 쓴 불편: ${esc(S.rec["13"].who)}</p>` : ""}
-      <div class="two">${fld(id, "name", "앱 이름", "예: 우리 반 딜레마 토론판")}${fld(id, "user", "누가 쓰나", "예: 중학교 2학년 학생, 결과는 교사가 본다")}</div>
-      ${fld(id, "pain", "줄이는 불편", "예: 말하지 않는 학생의 생각이 수업에 남지 않는다", true)}
-      <div class="three">${fld(id, "f1", "핵심 기능 1", "사례 읽고 찬성 · 반대 고르기")}${fld(id, "f2", "핵심 기능 2", "근거 한 줄 쓰기")}${fld(id, "f3", "핵심 기능 3", "반 전체 분포 보기")}</div>
-      ${fld(id, "flow", "화면 흐름", "예: 사례 → 입장 고르기 → 근거 → 모두의 결과", false, "선택")}
-      ${fld(id, "check", "다 됐는지 확인하는 방법", "예: 5명이 입력하면 찬반 수와 근거 5개가 한 화면에 보인다", true)}
-      ${fld(id, "no", "넣지 않을 것", "예: 학생 이름 · 학번, 로그인, 점수 매기기", true, "교육적 · 안전상 이유로 뺀 기능과 받지 않을 정보")}`;
-    case "22": {
-      const t = r.tpl;
-      return `<div class="ask"><small>제미나이 Canvas 또는 Claude</small>틀을 고르면 PRD로 프롬프트를 만들어 드려요. 복사해서 AI에 붙여 넣고, AI의 질문 3가지에 답한 뒤 첫 화면을 받으세요.</div>
-      <div class="picks">${TPLS.map(([k, n]) => `<button class="pk ${t === k ? "on" : ""}" data-act="tpl" data-v="${k}">${esc(n)}</button>`).join("")}</div>
-      ${t ? `<p class="note">${esc(TPLS.find((x) => x[0] === t)[2])}</p><div class="pv">${esc(makePrompt())}</div>
-        <div class="acts"><button class="btn b" data-act="cp" data-v="prompt">프롬프트 복사</button><a class="btn w" href="https://gemini.google.com/" target="_blank" rel="noopener">제미나이 열기 (Canvas 켜기)</a><a class="btn w" href="https://claude.ai/" target="_blank" rel="noopener">Claude 열기</a></div>
-        <p class="note" style="margin-top:12px">설계안은 이미지보다 구조화된 글로 넣어야 수업 의도에 맞는 결과가 나와요 (KERIS 선도교사 연수 실험).</p>
-        ${fld(id, "url", "공유 링크 (있으면)", "제미나이 [공유] → 링크 복사, 또는 Claude 아티팩트 링크")}
-        <label class="chk"><input type="checkbox" data-c="22.made" ${r.made ? "checked" : ""}> 첫 화면이 나왔어요 (링크가 없어도 돼요)</label>` : ""}`;
-    }
-    case "23": {
-      const F = r.fixes && r.fixes.length ? r.fixes : [{}];
-      return `<div class="ask"><small>한 번에 하나만</small>"전체적으로 고쳐 줘"는 피해요. 증상 · 기대 · 범위 세 줄로 쓰면 AI가 그 부분만 고쳐요 (해커톤 3일차 이승엽).</div>
-      ${F.map((f, i) => `<div style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><div class="lab">고치기 ${i + 1}</div>
-        <div class="fld"><input type="text" data-fix="${i}.sym" placeholder="[증상] 예: 처음 들어온 학생이 제출 단추를 못 찾는다" value="${esc(f.sym || "")}"></div>
-        <div class="fld"><input type="text" data-fix="${i}.exp" placeholder="[기대] 예: 입장을 고르면 다음에 할 일이 바로 보여야 한다" value="${esc(f.exp || "")}"></div>
-        <div class="fld"><input type="text" data-fix="${i}.scope" placeholder="[범위] 예: 문구와 단추 위치만. 저장 방식과 다른 화면은 그대로" value="${esc(f.scope || "")}"></div>
-        ${filled(f.sym) && filled(f.exp) ? `<div class="pv">${esc(fixPrompt(f))}</div><div class="acts"><button class="btn w sm" data-act="cp" data-v="fix${i}">이 수정 프롬프트 복사</button></div>` : ""}</div>`).join("")}
-      ${F.length < 3 ? `<div class="acts" style="margin-top:10px"><button class="btn w sm" data-act="fixAdd">고치기 하나 더</button></div>` : ""}
-      <p class="note" style="margin-top:12px">고칠 때 규칙: 한 번에 하나만 · 고치기 전 상태 남기기 · 문제를 찾았던 방법으로 다시 확인.</p>`;
-    }
-    case "24": {
-      const sf = r.self || {}, risk = r.risk || [];
-      return `<div class="ask"><small>1차 자기 · 2차 AI · 3차 동료</small>만드는 사람은 되는 길만 걷고, 사용자는 아무 길이나 걸어요. 새 창에서 처음 보는 사람처럼 열어 보세요.</div>
-      <div class="lab">1차 자기 점검 <small>후하게 주지 않기 · 가장 위험한 두 각도를 고르세요</small></div>
-      <table class="tb"><tr><th>각도</th><th>무엇을 보나</th><th>결과</th><th>위험</th></tr>${ANGLES.map(([k, n, d]) => `<tr><td><b>${n}</b></td><td>${d}</td><td><div class="seg">${["됨", "화면만", "안 됨"].map((v) => `<button class="${sf[k] === v ? "on" : ""}" data-act="self" data-k="${k}" data-v="${v}">${v}</button>`).join("")}</div></td><td><input type="checkbox" data-act="risk" data-v="${k}" ${risk.includes(k) ? "checked" : ""} aria-label="${n} 위험"></td></tr>`).join("")}</table>
-      <div class="lab">2차 AI 점검</div><div class="pv">${esc(checkPrompt())}</div><div class="acts"><button class="btn w sm" data-act="cp" data-v="check">AI 점검 프롬프트 복사</button></div>
-      <div class="lab" style="margin-top:16px">3차 동료 점검 <small>짝의 앱을 설명 없이 써 보고 관찰 한 줄</small></div>
-      ${fld(id, "peer", "짝에게 받은 관찰 (받는 동안은 적기만)", "저는 여기서 ○을 기대했는데 실제로는 ×가 나왔습니다.", true)}
-      <p class="note">피드백은 판단이 아니라 관찰로: "디자인이 아쉬워요" 대신 "제출 단추를 못 찾아서 20초 헤맸습니다." 무엇을 고칠지는 만든 사람이 정해요.</p>`;
-    }
-    case "31": {
-      const g = r.g || {};
-      return `<div class="ask"><small>AI가 운전해도 계기판은 읽을 줄 알아야</small>네 낱말과 뜻을 짝 지어 보세요. 고백 편지에 빗대면 쉬워요.</div>
-      <table class="tb"><tr><th>낱말</th><th>뜻 고르기</th></tr>${GIT.map(([k, n]) => `<tr><td><b>${n}</b></td><td><select data-git="${k}"><option value="">고르세요</option>${shuffle(GIT, 3).map(([k2, , d]) => `<option value="${k2}" ${g[k] === k2 ? "selected" : ""}>${esc(d)}</option>`).join("")}</select></td></tr>`).join("")}</table>
-      ${r.ok ? `<div class="msg ok">모두 맞아요. Push 전에 세 가지를 확인해요: 학생 개인정보, 비밀 API 키, 비밀번호. 이미 공개한 키는 지워도 기록에 남으니 폐기하고 새로 발급해요.</div>` : Object.keys(g).length === GIT.length ? `<div class="msg no">한두 개가 바뀌었어요. 다시 골라 보세요.</div>` : ""}`;
-    }
-    case "32": return `<div class="ask"><small>브라우저만으로 GitHub Pages</small>2단원에서 만든 웹앱 코드를 index.html 파일로 저장한 뒤 따라 하세요.</div>
-      ${["github.com 로그인 → 오른쪽 위 [+] → New repository → 영문 소문자 이름(예: dilemma-board) → Public → Create", "[uploading an existing file] → index.html 끌어다 놓기 → Commit changes", "Settings → Pages → Branch를 main으로 → Save", "1~2분 뒤 위쪽에 나오는 주소를 휴대폰으로 열어 확인"].map((t, i) => `<label class="chk"><input type="checkbox" data-c="32.k${i}" ${r["k" + i] ? "checked" : ""}> ${i + 1}. ${esc(t)}</label>`).join("")}
-      <div class="fld" style="margin-top:14px"><label for="f32url">내 웹앱 주소 <small>https:// 로 시작 · 제미나이 공유 링크도 돼요</small></label><input type="url" id="f32url" data-f="32.url" placeholder="https://내아이디.github.io/dilemma-board/" value="${esc(r.url || "")}"></div>
-      ${/^https:\/\//.test(r.url || "") ? `<div class="acts"><a class="btn w sm" href="${esc(r.url)}" target="_blank" rel="noopener">열어 보기</a></div>` : ""}`;
-    case "33": {
-      const p = r.p || {};
-      return `<div class="ask"><small>규칙을 말로 먼저</small>학생 기록을 저장하는 순간 개인정보 책임이 생겨요. 내 앱이 기록을 저장한다고 가정하고 여섯 질문에 답하세요. 답이 곧 보안 규칙의 재료예요 (해커톤 2일차 강현수).</div>
-      ${POLICY.map(([k, q]) => `<div class="fld"><label>${esc(q)}</label><input type="text" data-pol="${k}" value="${esc(p[k] || "")}" placeholder="${{ read: "예: 같은 반 학생과 교사", write: "예: 로그인한 학생이 자기 글만", del: "예: 글쓴이와 교사만", admin: "예: 모든 글 보기 · 지우기, 역할 바꾸기", pi: "예: 이름 대신 번호만, 학기 끝나면 지움", open: "예: 로그인 게시판" }[k]}"></div>`).join("")}
-      <div class="pv">${esc(rulePrompt())}</div><div class="acts"><button class="btn w sm" data-act="cp" data-v="rule">규칙 프롬프트 복사</button></div>
-      <div class="msg info">강사 시연: 학생 화면에 단추가 없어도 F12 콘솔에서 "내 역할을 teacher로" 요청을 보낼 수 있어요. 규칙이 있으면 거부돼요. 막는 것은 단추 숨기기가 아니라 규칙이에요.</div>`;
-    }
-    case "34": return `<div class="ask"><small>AI 초안 → 교사 검토 → 기록</small>가상 학생의 활동 메모로 세특 초안을 만들어 보고, 교사의 언어로 고쳐 쓰세요. 이름 칸은 없어요.</div>
-      <div class="two">${fld(id, "subj", "과목명", "예: 현대사회와 윤리")}${fld(id, "std", "성취기준", "수업의 성취기준을 붙여 넣으세요")}</div>
-      ${fld(id, "before", "토론 전 입장 (가상)", "예: 난민 수용은 국민 안전을 먼저 생각해야 하므로 반대", true)}
-      ${fld(id, "reason", "근거 (가상)", "예: 문화 차이로 갈등이 생길 수 있다", true)}
-      ${fld(id, "after", "토론 후 성찰 (가상)", "예: 인간 존엄은 국적과 상관없다는 친구의 근거를 듣고, 단계적 수용으로 입장을 바꿈", true)}
-      ${filled(r.before) && filled(r.after) ? `<div class="pv">${esc(sePrompt())}</div><div class="acts"><button class="btn w sm" data-act="cp" data-v="se">세특 프롬프트 복사</button></div>` : ""}
-      ${fld(id, "ai", "AI가 쓴 초안 붙여 넣기", "", true, "선택")}
-      ${fld(id, "final", "교사가 고친 최종본", "AI가 잡지 못한 수업 태도 · 기여도를 교사의 언어로 더해 고쳐 쓰세요", true)}
-      <p class="note">구글 시트로 한 번에 만들 때: 시트를 남에게 넘기면 안에 든 API 키도 함께 넘어가고, 이름 열을 프롬프트에 넣으면 이름이 외부 AI로 나가요. 이름 대신 번호를 써요.</p>`;
-    case "41": {
-      const pk = r.pick || [];
-      return `<div class="ask"><small>대한민국 인공지능 윤리원칙 (2026.8.21)</small>3대 가치(인간의 존엄성 · 사회의 공공선 · 인류의 지속가능성)와 7대 원칙이에요. 원칙끼리 부딪히면 우선순위를 미리 정하지 않고 맥락에 맞는 균형점을 함께 논의해요. 내 앱에 가장 중요한 원칙 두 개를 고르고 질문에 답하세요.</div>
-      <div class="picks">${PRIN.map(([k, n]) => `<button class="pk ${pk.includes(k) ? "on" : ""}" data-act="prin" data-v="${k}">${n}</button>`).join("")}</div>
-      ${pk.map((k, i) => { const p = PRIN.find((x) => x[0] === k); return `<div class="fld"><label>${p[1]} · ${esc(p[2])}</label><textarea data-f="41.a${i}" placeholder="내 앱에서는…">${esc(r["a" + i] || "")}</textarea></div>`; }).join("")}`;
-    }
-    case "42": {
-      const j = r.j || {}, res = judge(j);
-      return `<div class="ask"><small>초 · 중등교육법 제29조의2 (2026.3.1. 시행)</small>교사가 만든 앱도 같은 기준이에요. 간단한 기준은 '서버에 저장하거나 로그인을 요구하는가'예요.</div>
-      ${JUDGE.map(([k, q]) => `<div class="fld"><div class="lab">${esc(q)}</div><div class="seg" style="grid-template-columns:repeat(2,auto)">${["예", "아니요"].map((v) => `<button class="${j[k] === (v === "예") ? "on" : ""}" data-act="jg" data-k="${k}" data-v="${v}">${v}</button>`).join("")}</div></div>`).join("")}
-      ${res ? `<div class="msg ${res[0]}">${res[1]}</div>` : ""}
-      <p class="note" style="margin-top:12px">사후 심의는 안 되고, 통과해도 해마다 다시 심의해요. 닉네임 · 번호라도 다른 정보와 합쳐 학생을 알아볼 수 있으면 개인정보예요. 교사 개발자는 서술형 증빙을 낼 수 있고, 에듀집(edzip.kr)에 '기타-교사 등 개인 개발'로 등록할 수 있어요.</p>`;
-    }
-    case "43": return `<div class="ask"><small>버튼 숨기기는 보안이 아니다</small>아래 연습 화면에는 '관리자 비밀값'이 숨어 있어요. 컴퓨터라면 F12(맥은 Cmd+Option+I) → Elements → Ctrl+F로 "연습용"을 찾아보세요. 찾은 값을 적으면 확인해 드려요.</div>
-      <div class="f12"><b>연습용 학급 게시판</b> <small style="color:var(--sub)">(화면에는 관리자 단추가 없어요)</small>
-        <span hidden data-note="개발자가 숨겨 둔 값이에요">연습용 관리자 비밀값: ETHICS-2027-DEMO</span>
-        <div class="fake"><input type="text" id="f43" placeholder="찾은 비밀값을 적어 보세요" value="${esc(r.tried || "")}"><button class="btn sm" data-act="f12">확인</button></div></div>
-      ${r.found ? `<div class="msg ok">찾았어요. 브라우저에 넣은 것은 누구나 볼 수 있어요. 비밀번호와 API 키는 화면 · 코드에 두지 않고, 보호는 서버 규칙이 해요. 노출된 키는 ① 폐기 ② 재발급 ③ 서버 설정에 등록.</div>` : `<p class="note">휴대폰이라면 짝의 컴퓨터로 함께 보세요. 이 값은 연습용이라 어디에도 쓰이지 않아요.</p>`}`;
-    case "44": {
-      const c = r.c || [];
-      return `<div class="ask"><small>통과 · 보완 · 중단</small>2단원에서 만든 내 앱을 점검하고 판정하세요. 다음 중 하나라도 있으면 학생 대상 배포를 멈춰요: ${STOPS.join(" · ")}.</div>
-      ${CHECKS.map((t, i) => `<label class="chk"><input type="checkbox" data-ck="${i}" ${c[i] ? "checked" : ""}> ${esc(t)}</label>`).join("")}
-      <div class="lab" style="margin-top:16px">판정</div><div class="picks">${["통과", "보완", "중단"].map((v) => `<button class="pk ${r.verdict === v ? "on" : ""}" data-act="verdict" data-v="${v}">${v}</button>`).join("")}</div>
-      ${fld(id, "mvp", "한 문장 약속 (MVP 문장)", "제 앱은 (누구)의 (무엇)을 위해 (어디)까지만 합니다. (무엇)은 이 앱이 하지 않습니다.", true)}
-      <div class="acts"><button class="btn b" data-act="post" ${!S.me ? "disabled" : ""}>갤러리에 내 앱 올리기</button><a class="btn w" href="#gallery">갤러리 보기</a></div>
-      <p class="note" style="margin-top:12px">교사 개발자 윤리 네 가지: 학생에게 도움이 되는가 · 안전하게 만드는가 · 공정하게 사용하는가 · 설명하고 책임지는가.</p>`;
-    }
-  }
-  return "";
-}
-function judge(j) {
-  if (JUDGE.some(([k]) => j[k] === undefined)) return null;
-  if (!j.reg) return ["ok", "정규 교육과정 밖(방과후 · 자율동아리 등)이라 심의 대상에서 제외될 수 있어요. 학교 담당자와 한 번 확인하세요."];
-  if (j.pi) return ["no", "심의 필수예요. 학생 정보를 저장하거나 로그인을 요구해요. 수업 전에 학교운영위원회 심의를 받고, 필수기준 5개 기준 9개 항목을 모두 충족해야 해요."];
-  if (j.cont) return ["no", "심의 대상일 수 있어요. 성취기준 관련 콘텐츠를 보급하는 경우예요. 학교 담당자와 확인하세요."];
-  if (!j.stu) return ["ok", "교사 혼자 쓰는 수업 준비 · 행정 도구라 제외될 수 있어요. 학생이 접속하거나 학생별 기록을 저장하게 되면 다시 판단해요."];
-  return ["info", "로그인 없이 교사가 만든 콘텐츠만 보여 주는 앱이라 제외될 수 있어요. 기능이 바뀌면 다시 판단하세요."];
-}
-/* 같은 순서로 섞기 (다시 그려도 순서가 바뀌지 않게) */
-function shuffle(a, seed) { const b = [...a]; let s = seed; for (let i = b.length - 1; i > 0; i--) { s = (s * 9301 + 49297) % 233280; const k = Math.floor(s / 233280 * (i + 1)); [b[i], b[k]] = [b[k], b[i]]; } return b; }
 
-function galleryView() {
-  const apps = S.board.filter((b) => b.kind === "app"), notes = S.board.filter((b) => b.kind === "note");
-  return `<div class="wrap"><div class="crumb">연수 <i>/</i> 갤러리</div>
-  <div class="uhead" style="grid-template-columns:1fr"><div><div class="cat">온라인 갤러리 워크</div><h1>우리가 만든 수업 웹앱</h1>
-  <p class="lead">설명 없이 직접 써 보고, 판단이 아니라 관찰을 남겨요: "저는 여기서 ○을 기대했는데 실제로는 ×가 나왔습니다." 이름은 보이지 않아요.</p></div></div>
-  ${apps.length ? `<div class="gal">${apps.map((a) => { const ns = notes.filter((n) => n.app === a.id); return `<div class="gcard"><h3>${esc(a.title)}</h3>
-    ${a.url ? `<a class="link" href="${esc(a.url)}" target="_blank" rel="noopener">웹앱 열기</a>` : `<small style="color:var(--sub)">링크 없음</small>`}
-    ${a.mvp ? `<p class="mvp">${esc(a.mvp)}</p>` : ""}
-    <div class="notes">${ns.map((n) => `<p>· ${esc(n.text)}</p>`).join("") || "<p>아직 관찰이 없어요</p>"}
-      ${S.me ? `<div class="fake" style="display:flex;gap:6px;margin-top:6px"><input type="text" data-note="${a.id}" maxlength="200" placeholder="○을 기대했는데 ×가 나왔습니다"><button class="btn sm" data-act="note" data-v="${a.id}">남기기</button></div>` : ""}</div></div>`; }).join("")}</div>`
-    : `<p style="margin:30px 0 70px;color:var(--sub)">아직 올라온 웹앱이 없어요. 활동 4-4에서 [갤러리에 내 앱 올리기]를 눌러 주세요.</p>`}</div>`;
+/* ---------- 그리기 ---------- */
+function render() {
+  const app = $("app");
+  if (location.hash === "#admin") { app.innerHTML = adminView(); return; }
+  if (!S.me) { app.innerHTML = loginView(); return; }
+  const s = SLIDES[S.cur], u = s.u;
+  app.innerHTML = `<div class="bar top"><div class="hello">반갑습니다. <b>${esc(S.me.nick)}</b> 선생님${S.me.guest ? " (발표 화면 · 저장 안 함)" : ` · ${S.me.team}모둠 ${S.me.seat}번`}</div>
+      <div class="utag">${u >= 1 && u <= 4 ? `${u}단원 · ${UNITS[u].name}${S.me.seat ? ` <span>· 나의 역할 ${roleOf(S.me.seat, u)}</span>` : ""}` : UNITS[u].name}</div>
+      <button class="ico" data-act="toc" title="목차">목차</button><button class="ico" data-act="fs" title="전체 화면">⛶</button></div>
+    <div id="view"><div id="frame"><div id="stage"><div class="sl ${s.unit || s.id === "cover" ? "nopad" : ""}" style="${s.unit || s.id === "cover" ? "padding:0" : ""}">${s.unit || s.id === "cover" ? s.html() : head(s) + `<div class="body">${s.html()}</div>`}</div></div></div></div>
+    <div class="bar bot" id="bot"></div>`;
+  renderBottom(); fit();
+  if (document.querySelector("[data-team]")) { fillTeam(); loadTeam(); }
+  if (s.id === "gallery") loadGallery();
+}
+function renderBottom() {
+  const el = $("bot"); if (!el) return;
+  const s = SLIDES[S.cur], n = SLIDES.length;
+  const tm = T.end ? `<span class="clock" id="clock"></span><span class="lab">${esc(T.label)}</span><button class="btn w sm" data-act="tstop">타이머 끄기</button>` : s.time ? `<button class="btn w sm" data-act="tstart">타이머 ${s.time}분 · ${esc(s.tl || "")}</button>` : "";
+  el.innerHTML = `<div class="pg">${S.cur + 1} / ${n}</div><div class="prog"><i style="width:${((S.cur + 1) / n) * 100}%"></i></div><div class="tm">${tm}</div>
+    <div class="nav"><button class="btn w" data-act="prev" ${S.cur === 0 ? "disabled" : ""}>이전</button><button class="btn b" data-act="next" ${S.cur === n - 1 ? "disabled" : ""}>다음</button></div>`;
+  if (T.end) tick();
+}
+function fit() {
+  const fr = $("frame"), st = $("stage"); if (!fr || !st) return;
+  if (innerWidth <= 760) { st.style.transform = ""; fr.style.width = fr.style.height = ""; return; }
+  const W = innerWidth - 32, H = innerHeight - 64 - 72 - 16, k = Math.min(W / 1280, H / 720);
+  st.style.transform = `scale(${k})`; fr.style.width = 1280 * k + "px"; fr.style.height = 720 * k + "px";
+}
+function go(i) { i = Math.max(0, Math.min(SLIDES.length - 1, i)); if (i === S.cur) return; S.cur = i; save(); render(); }
+function tocHTML() {
+  let h = "", last = -1;
+  SLIDES.forEach((s, i) => { if (s.u !== last) { last = s.u; h += `<h4>${s.u >= 1 && s.u <= 4 ? s.u + "단원 · " : ""}${UNITS[s.u].name}</h4>`; } h += `<button class="${i === S.cur ? "on" : ""}" data-act="jump" data-v="${i}"><i>${i + 1}</i>${s.unit ? "단원 표지" : s.id === "cover" ? "표지" : s.t}</button>`; });
+  return `<div class="toc">${h}</div><p style="margin-top:12px"><button class="btn w sm" data-act="policy">이용약관 · 개인정보 처리방침</button></p>${S.me && !S.me.guest ? `<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><button class="btn w sm" data-act="finish">완료하고 로그아웃</button></div>` : S.me ? `<div style="margin-top:14px"><button class="btn w sm" data-act="gout">발표 화면 나가기</button></div>` : ""}`;
+}
+function openDlg(t, h) { $("dlgT").textContent = t; $("dlgB").innerHTML = h; $("dlg").showModal(); }
+
+const POLICY_HTML = `<h4>이용약관</h4><ul><li>도덕 · 윤리 연수의 실습 기록을 위해서만 이용해 주세요.</li><li>학생 실명 · 사진 · 상담 내용, 다른 사람의 개인정보, 비방하는 말은 적지 않습니다.</li></ul>
+  <h4>개인정보 처리방침</h4><table><tr><th>받는 정보</th><th>쓰임</th><th>보관</th></tr><tr><td>닉네임, 모둠 번호 · 모둠 안 번호, 지금 보는 쪽, 내 웹앱 주소와 동의 여부, 사회자 기록, 판정, 한 문장 약속</td><td>연수 진행 확인 · 모둠 기록 나누기 · 갤러리</td><td>[완료하고 로그아웃]을 누르면 바로 지웁니다. 누르지 않은 기록은 연수가 끝난 뒤 강사가 지웁니다.</td></tr></table>
+  <ul><li>그 밖에 쓴 글(불편, 프롬프트 칸, 점검 결과 등)은 이 기기 브라우저에만 저장되고 서버로 보내지 않습니다.</li><li>동의한 분의 깃허브 공개 저장소 커밋 기록은 강사 화면에서만 모아 봅니다.</li><li>이름 · 전화번호 · 이메일은 받지 않습니다. 저장 위치: Google Firebase(연수용 프로젝트)</li><li>방문 수는 날짜별 숫자로만 셉니다.</li></ul>
+  <p>궁금한 점: anstjsdud@sen.go.kr</p><p class="muted">마지막 수정일 2026년 11월 22일 · 현재 운영 방식을 정리한 안내로, 법률 검토를 거친 문서가 아닙니다.</p>`;
+function loginView() {
+  return `<div class="page"><div class="login"><div class="k">고등학교 도덕 · 윤리 1급 정교사 자격연수</div><h1>디지털 도구로 확장하는<br>도덕 · 윤리 수업</h1><p>닉네임과 모둠 번호로 들어갑니다. 이름은 받지 않습니다. 마지막 쪽에서 [완료하고 로그아웃]을 누르면 오늘 기록이 모두 지워집니다.</p>
+    <div style="height:20px"></div><label class="fld"><span>닉네임 (1~12글자)</span><input id="lnick" maxlength="12" placeholder="예) 윤리쌤"></label>
+    <div class="row"><label class="fld"><span>모둠 번호</span><select id="lteam"><option value="">고르기</option>${Array.from({ length: 12 }, (_, i) => `<option>${i + 1}</option>`).join("")}</select></label>
+      <label class="fld"><span>모둠 안 내 번호</span><select id="lseat"><option value="">고르기</option>${[1, 2, 3, 4, 5, 6].map((i) => `<option>${i}</option>`).join("")}</select></label></div>
+    <p class="muted" style="margin:-2px 0 16px">모둠 안 번호는 모둠에서 1~4번을 정해 주세요. 단원 번호와 같은 번호가 그 단원의 사회자입니다.</p>
+    <button class="btn b lg" style="width:100%" data-act="login">시작하기</button>
+    <p style="margin-top:14px;text-align:center"><button class="btn w sm" data-act="guest">발표 화면으로 보기 (저장하지 않음)</button></p></div>
+    <footer class="policy-foot"><details><summary>디지털 도구로 확장하는 도덕 · 윤리 수업 · 이용약관 · <b>개인정보 처리방침</b></summary><div class="pol">${POLICY_HTML}</div></details></footer>
+    <a class="admin-fab" href="#admin">강사</a></div>`;
 }
 
 /* ---------- 강사 화면 (#admin) ---------- */
 function adminView() {
-  if (!auth) return `<div class="wrap"><p style="margin:40px 0">Firebase를 불러오지 못했어요.</p></div>`;
-  if (!S.admin) return `<div class="wrap" style="margin:40px auto 80px;max-width:440px"><div class="box"><h3>강사 화면</h3><p>관리자 구글 계정으로 들어가요.</p><button class="btn b lg" style="width:100%" data-act="alogin"><img src="https://moontr.site/google-g.svg" alt="" width="18" height="18" style="vertical-align:-5px;margin-right:8px;background:#fff;border-radius:5px;padding:2px">구글 계정으로 로그인</button></div></div>`;
-  const M = S.members, sel = M.find((m) => m.id === S.adminSel);
-  return `<div class="wrap adm"><div class="sec-h" style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px"><div><h2 style="font-size:22px">연수생 진행</h2><p style="color:var(--sub);font-size:14px">${M.length}명 · 칸을 누르면 그 연수생의 기록을 봐요 · 닉네임만 보여요</p></div>
-    <div class="acts"><button class="btn w sm" data-act="areload">새로 불러오기</button><button class="btn w sm" data-act="aout">나가기</button></div></div>
-  <div style="overflow-x:auto"><table><tr><th>닉네임</th>${STEP_IDS.map((s) => `<th>${s[0]}-${s[1]}</th>`).join("")}<th>마침</th></tr>
-  ${M.map((m) => { const d = STEP_IDS.filter((s) => { try { return DONE[s]((m.rec || {})[s] || {}); } catch (e) { return false; } }); return `<tr class="${m.id === S.adminSel ? "sel" : ""}" data-act="asel" data-v="${m.id}" style="cursor:pointer"><td>${esc(m.nick)}</td>${STEP_IDS.map((s) => `<td><span class="dot ${d.includes(s) ? "d" : ""}"></span></td>`).join("")}<td>${d.length}</td></tr>`; }).join("")}</table></div>
-  ${sel ? `<div class="recv"><b>${esc(sel.nick)}</b> 선생님의 기록${Object.entries(sel.rec || {}).map(([k, v]) => `<h4>활동 ${k[0]}-${k[1]}</h4><pre>${esc(JSON.stringify(v, null, 1).replace(/[{}"\[\],]/g, "").replace(/\n\s*\n/g, "\n").trim())}</pre>`).join("")}</div>` : ""}
-  <h2 style="font-size:20px;margin:30px 0 10px">갤러리 관리</h2>
-  <table><tr><th>종류</th><th>내용</th><th></th></tr>${S.board.map((b) => `<tr><td>${b.kind === "app" ? "웹앱" : "관찰"}</td><td style="text-align:left">${esc(b.kind === "app" ? b.title + " · " + (b.url || "") + " · " + (b.mvp || "") : b.text)}</td><td><button class="btn w sm" data-act="adel" data-v="${b.id}">지우기</button></td></tr>`).join("")}</table></div>`;
+  if (!auth) return `<div class="page"><div class="adm"><p>Firebase를 불러오지 못했어요.</p></div></div>`;
+  if (!S.admin) return `<div class="page"><div class="login"><div class="k">강사 화면</div><h1>연수생 진행 · 모둠 기록</h1><p>관리자 구글 계정으로 들어가요.</p><div style="height:18px"></div><button class="btn b lg" style="width:100%" data-act="alogin"><img src="https://moontr.site/google-g.svg" alt="" width="18" height="18" style="vertical-align:-5px;margin-right:8px;background:#fff;border-radius:5px;padding:2px">구글 계정으로 로그인</button><p style="margin-top:14px;text-align:center"><a href="#" data-act="toslides">슬라이드로 돌아가기</a></p></div></div>`;
+  const M = S.members, teams = [...new Set(M.map((m) => m.team))].sort((a, b) => a - b);
+  const aids = [["13", "1단원 · 내 교실의 불편", ["가장 많이 나온 불편", "가장 의외였던 불편"]], ["21", "2단원 · 내 주소", ["주소까지 간 사람 수", "가장 많이 멈춘 단계"]], ["22", "2단원 · 커밋 나누기", ["가장 많이 막힌 곳", "가장 좋았던 고친 이유"]], ["35", "3단원 · 짝의 체크리스트", ["'안 됨'이 가장 많은 항목", "판단이 갈린 항목"]], ["44", "4단원 · 갤러리", ["모둠 대표 한 문장", "다음에 반영할 피드백"]]];
+  return `<div class="page"><div class="adm"><div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2 style="margin:10px 0 2px">연수생 진행</h2><p class="muted">${M.length}명 · 12시간 안에 들어온 분만 보여요 · 닉네임만 받아요</p></div>
+    <div class="tools"><button class="btn w sm" data-act="areload">새로 불러오기</button><button class="btn w sm" data-act="acommits">깃허브 커밋 모아 보기</button><button class="btn w sm" data-act="toslides">슬라이드</button><button class="btn w sm" data-act="aclear">오늘 기록 모두 지우기</button><button class="btn w sm" data-act="aout">나가기</button></div></div>
+    <table class="t" style="margin-top:12px"><tr><th>모둠</th><th>닉네임</th><th>지금 쪽</th><th>내 주소</th><th>커밋 동의</th><th>판정</th><th>한 문장</th></tr>
+    ${M.map((m) => `<tr><td>${m.team}-${m.seat}</td><td>${esc(m.nick)}</td><td>${(m.cur || 0) + 1} / ${SLIDES.length}<br><span class="muted">${esc((SLIDES[m.cur || 0] || {}).t || "표지")}</span></td><td>${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.url.replace(/^https:\/\//, ""))}</a>` : ""}</td><td>${m.ok ? "동의" : ""}</td><td>${esc(m.verdict || "")}</td><td>${esc(m.mvp || "")}</td></tr>`).join("")}</table>
+    <h2>모둠 기록</h2><table class="t"><tr><th>활동</th>${teams.map((t) => `<th>${t}모둠</th>`).join("")}</tr>
+    ${aids.map(([aid, name, labs]) => `<tr><td><b>${name}</b></td>${teams.map((t) => `<td>${M.filter((m) => m.team === t).map((m) => ["a", "b"].map((n, i) => (m.notes || {})[`t_${aid}_${n}`] ? `<div class="cm"><span class="muted">${labs[i]}</span><br>${esc(m.notes[`t_${aid}_${n}`])}</div>` : "").join("")).join("")}</td>`).join("")}</tr>`).join("")}</table>
+    <h2>깃허브 커밋 (동의한 분만)</h2><div id="acm">${commitsHTML()}</div></div></div>`;
+}
+function commitsHTML() {
+  const M = S.members.filter((m) => m.ok && repoOf(m.url));
+  if (!M.length) return `<p class="muted">커밋 기록에 동의하고 깃허브 주소를 올린 분이 아직 없어요.</p>`;
+  return `<div class="cols c2">${M.map((m) => { const r = repoOf(m.url), c = S.commits[m.id]; return `<div class="card"><h4>${m.team}-${m.seat} ${esc(m.nick)} <span class="muted" style="font-weight:500">github.com/${esc(r.o)}/${esc(r.r)}</span></h4>
+    ${!c ? `<p class="muted">[깃허브 커밋 모아 보기]를 누르면 불러와요.</p>` : c.err ? `<p class="warn-t">${esc(c.err)}</p>` : c.list.map((x) => `<div class="cm"><time>${new Date(x.d).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time>${esc(x.m)}</div>`).join("") + `<button class="btn w sm" style="margin-top:8px" data-act="aiprompt" data-v="${m.id}">AI 요약 프롬프트 복사</button>`}</div>`; }).join("")}</div>`;
 }
 async function adminLoad() {
-  try { const s = await db.collection("ai2027_members").get(); S.members = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); await loadBoard(); }
+  try { const s = await db.collection(COL).get(); S.members = s.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => Date.now() - (d.updatedAt || 0) < FRESH).sort((a, b) => (a.team - b.team) || (a.seat - b.seat)); }
   catch (e) { toast("불러오지 못했어요 (" + (e.code || e.message) + ")"); }
   render();
 }
-
-function render() {
-  const r = route(); renderTop();
-  const M = $("main");
-  M.innerHTML = r === "admin" ? adminView() : r === "gallery" ? galleryView() : /^u[1-4]$/.test(r) ? unitView(+r[1]) : homeView();
+async function adminCommits() {
+  const M = S.members.filter((m) => m.ok && repoOf(m.url));
+  await Promise.all(M.map(async (m) => {
+    const r = repoOf(m.url);
+    try {
+      const res = await fetch(`https://api.github.com/repos/${encodeURIComponent(r.o)}/${encodeURIComponent(r.r)}/commits?per_page=30`);
+      if (!res.ok) throw new Error(res.status === 404 ? "저장소를 찾지 못했어요 (주소 · 공개 여부 확인)" : res.status === 403 ? "깃허브 조회 한도에 걸렸어요. 한 시간 뒤 다시 눌러 주세요" : "불러오지 못했어요 (" + res.status + ")");
+      const j = await res.json();
+      S.commits[m.id] = { list: j.map((x) => ({ m: (x.commit.message || "").split("\n")[0], d: x.commit.author && x.commit.author.date })).reverse() };
+    } catch (e) { S.commits[m.id] = { err: e.message }; }
+  }));
+  const el = $("acm"); if (el) el.innerHTML = commitsHTML();
+}
+function aiPrompt(id) {
+  const m = S.members.find((x) => x.id === id), c = S.commits[id]; if (!m || !c || !c.list) return;
+  copyText(`아래는 연수생 한 명이 수업용 웹앱을 만들며 남긴 깃허브 커밋 기록이야 (오래된 것부터).\n무엇을, 왜 고쳤는지 세 줄로 요약하고, 고친 이유가 사용자 관찰에서 나왔는지 한 줄로 평가해 줘.\n\n${c.list.map((x) => `- ${x.d} ${x.m}`).join("\n")}`);
 }
 
-/* ---------- 입력 ---------- */
-document.addEventListener("input", (e) => {
-  const t = e.target;
-  if (t.dataset.f) { const [id, k] = t.dataset.f.split("."); R(id)[k] = t.value; save(); refreshStatus(id); return; }
-  if (t.dataset.fix) { const [i, k] = t.dataset.fix.split("."); const r = R("23"); r.fixes = r.fixes && r.fixes.length ? r.fixes : [{}]; r.fixes[+i][k] = t.value; save(); refreshStatus("23"); return; }
-  if (t.dataset.pol) { const r = R("33"); r.p = r.p || {}; r.p[t.dataset.pol] = t.value; save(); refreshStatus("33"); return; }
-  if (t.id === "f43") { R("43").tried = t.value; save(); }
-});
-/* 글을 쓰는 동안은 화면을 다시 그리지 않고, 칸을 벗어날 때 미리보기 · 상태를 새로 그려요 */
-document.addEventListener("change", (e) => {
-  const t = e.target;
-  if (t.dataset.c) { const [id, k] = t.dataset.c.split("."); R(id)[k] = t.checked; save(); render(); return; }
-  if (t.dataset.ck !== undefined) { const r = R("44"); r.c = r.c || []; r.c[+t.dataset.ck] = t.checked; save(); render(); return; }
-  if (t.dataset.git) { const r = R("31"); r.g = r.g || {}; r.g[t.dataset.git] = t.value; r.ok = GIT.every(([k]) => r.g[k] === k); save(); render(); return; }
-  if (t.dataset.act === "risk") { const r = R("24"); let k = r.risk || []; k = t.checked ? [...k.filter((x) => x !== t.dataset.v), t.dataset.v].slice(-2) : k.filter((x) => x !== t.dataset.v); r.risk = k; save(); render(); return; }
-  if (t.dataset.f || t.dataset.fix || t.dataset.pol) render();
-});
-function refreshStatus(id) { const b = document.querySelector(`.row[data-v="${id}"] .st`); if (b) { const d = isDone(id); b.className = "st " + (d ? "d" : "o"); b.textContent = d ? "마침" : "하는 중"; } }
+/* ---------- 이벤트 ---------- */
 document.addEventListener("click", async (e) => {
+  const cp = e.target.closest("[data-copy]"); if (cp) { copyText(cp.previousElementSibling.textContent); return; }
+  const pk = e.target.closest("[data-pick]");
+  if (pk) { const k = pk.dataset.pick; S.rec[k] = S.rec[k] === pk.dataset.v && !/^j_|^s_/.test(k) ? "" : pk.dataset.v; save(); keepScroll(render); return; }
   const b = e.target.closest("[data-act]"); if (!b) return;
-  const a = b.dataset.act, v = b.dataset.v;
-  switch (a) {
-    case "in": signIn($("nick").value, $("pin").value); return;
-    case "out": signOut(); return;
-    case "open": S.open = S.open === v ? null : v; render(); if (S.open) document.querySelector(`.row[data-v="${v}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }); return;
-    case "seen": { const r = R("11"); r.seen = [...new Set([...(r.seen || []), v])]; save(); setTimeout(render, 300); return; }
-    case "ord": { const r = R("12"); r.order = r.order || []; if (!r.order.includes(v)) r.order.push(v); if (r.order.length === FLOW8.length) r.ok = r.order.every((x, i) => x === FLOW8[i]); save(); render(); return; }
-    case "ordReset": R("12").order = []; R("12").ok = false; save(); render(); return;
-    case "tpl": R("22").tpl = v; save(); render(); return;
-    case "cp": copy(v === "prompt" ? makePrompt() : v === "check" ? checkPrompt() : v === "rule" ? rulePrompt() : v === "se" ? sePrompt() : fixPrompt((R("23").fixes || [])[+v.slice(3)] || {})); return;
-    case "fixAdd": { const r = R("23"); r.fixes = r.fixes && r.fixes.length ? r.fixes : [{}]; if (r.fixes.length < 3) r.fixes.push({}); save(); render(); return; }
-    case "self": { const r = R("24"); r.self = r.self || {}; r.self[b.dataset.k] = v; save(); render(); return; }
-    case "prin": { const r = R("41"); let p = r.pick || []; p = p.includes(v) ? p.filter((x) => x !== v) : [...p, v].slice(-2); r.pick = p; save(); render(); return; }
-    case "jg": { const r = R("42"); r.j = r.j || {}; r.j[b.dataset.k] = v === "예"; save(); render(); return; }
-    case "f12": { const r = R("43"), t = ($("f43").value || "").trim().toUpperCase(); r.tried = t; r.found = t === "ETHICS-2027-DEMO"; save(); render(); if (!r.found) toast("아직 아니에요. Elements에서 '연습용'을 찾아보세요"); return; }
-    case "verdict": R("44").verdict = v; save(); render(); return;
-    case "post": return postApp();
-    case "note": return postNote(v);
-    case "alogin": { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" }); auth.signInWithPopup(p).catch((err) => toast("로그인하지 못했어요 (" + (err.code || err.message) + ")")); return; }
-    case "aout": auth.signOut(); return;
-    case "areload": adminLoad(); return;
-    case "asel": S.adminSel = S.adminSel === v ? null : v; render(); return;
-    case "adel": if (!confirm("이 글을 지울까요?")) return; try { await db.collection("ai2027_board").doc(v).delete(); S.board = S.board.filter((x) => x.id !== v); render(); } catch (err) { toast("지우지 못했어요"); } return;
+  const a = b.dataset.act;
+  if (a === "next") go(S.cur + 1);
+  else if (a === "prev") go(S.cur - 1);
+  else if (a === "login") signIn($("lnick").value, +$("lteam").value, +$("lseat").value);
+  else if (a === "guest") guest();
+  else if (a === "gout") { $("dlg").close(); S.me = null; saveLocal(); render(); }
+  else if (a === "toc") openDlg("목차", tocHTML());
+  else if (a === "jump") { $("dlg").close(); go(+b.dataset.v); }
+  else if (a === "dclose") $("dlg").close();
+  else if (a === "fs") { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+  else if (a === "tstart") { const s = SLIDES[S.cur]; startTimer(s.time, s.tl || ""); renderBottom(); }
+  else if (a === "tstop") stopTimer();
+  else if (a === "treload") loadTeam();
+  else if (a === "greload") loadGallery();
+  else if (a === "dl") download();
+  else if (a === "finish") { if ($("dlg").open) $("dlg").close(); finish(); }
+  else if (a === "policy") openDlg("이용약관 · 개인정보 처리방침", POLICY_HTML);
+  else if (a === "alogin") { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" }); auth.signInWithPopup(p).catch((er) => toast("로그인하지 못했어요 (" + (er.code || er.message) + ")")); }
+  else if (a === "aout") auth.signOut();
+  else if (a === "areload") adminLoad();
+  else if (a === "acommits") { toast("깃허브에서 불러오는 중…"); adminCommits(); }
+  else if (a === "aiprompt") aiPrompt(b.dataset.v);
+  else if (a === "toslides") { e.preventDefault(); history.replaceState(null, "", location.pathname); render(); }
+  else if (a === "aclear") {
+    if (!confirm(`지금 보이는 ${S.members.length}명의 기록을 모두 지울까요? 되돌릴 수 없어요.`)) return;
+    try { await Promise.all(S.members.map((m) => db.collection(COL).doc(m.id).delete())); toast("지웠어요"); } catch (er) { toast("지우지 못했어요 (" + (er.code || er.message) + ")"); }
+    adminLoad();
   }
 });
-async function postApp() {
-  if (!S.me) return;
-  const p = R("21"), title = (p.name || "").trim() || "이름 없는 웹앱", url = ((R("32").url || R("22").url || "").trim()), mvp = (R("44").mvp || "").trim();
-  if (url && !/^https:\/\/\S+$/.test(url)) { toast("주소는 https:// 로 시작해야 해요"); return; }
-  try { await db.collection("ai2027_board").doc("a_" + S.me.key.slice(0, 20)).set({ kind: "app", title: title.slice(0, 60), url: url.slice(0, 300), mvp: mvp.slice(0, 400), at: Date.now() }); toast("갤러리에 올렸어요"); await loadBoard(); }
-  catch (e) { toast("올리지 못했어요 (" + (e.code || e.message) + ")"); }
-}
-async function postNote(app) {
-  const inp = document.querySelector(`[data-note="${app}"]`), text = (inp.value || "").trim();
-  if (text.length < 4) { toast("관찰을 한 줄 써 주세요"); return; }
-  try { await db.collection("ai2027_board").add({ kind: "note", app, text: text.slice(0, 200), at: Date.now() }); toast("남겼어요"); await loadBoard(); render(); }
-  catch (e) { toast("남기지 못했어요 (" + (e.code || e.message) + ")"); }
-}
+/* 다시 그려도 슬라이드 안 스크롤 자리를 지켜요 */
+function keepScroll(fn) { const el = document.querySelector(".sl"), y = el ? el.scrollTop : 0; fn(); const n = document.querySelector(".sl"); if (n) n.scrollTop = y; }
+document.addEventListener("input", (e) => {
+  const f = e.target.dataset && e.target.dataset.f; if (!f) return;
+  S.rec[f] = e.target.value; save();
+  if (f === "url") { const h = $("repoHint"); if (h) h.innerHTML = repoHint(e.target.value); }
+});
+document.addEventListener("change", (e) => {
+  const c = e.target.dataset && e.target.dataset.c;
+  if (c) { S.rec[c] = e.target.checked; save(); if (SLIDES[S.cur].id === "checklist") keepScroll(render); return; }
+  if (e.target.dataset && e.target.dataset.f && SLIDES[S.cur] && SLIDES[S.cur].live) keepScroll(render);
+});
+document.addEventListener("keydown", (e) => {
+  if (!S.me || location.hash === "#admin" || $("dlg").open) return;
+  if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return;
+  if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); go(S.cur + 1); }
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(S.cur - 1); }
+});
+addEventListener("resize", fit);
+addEventListener("hashchange", () => { if (location.hash === "#admin" && S.admin) adminLoad(); else render(); });
 
 /* ---------- 시작 ---------- */
+SLIDES.forEach((s) => { try { s.html(); } catch (e) {} });   /* 입력 칸 이름표(LAB)를 미리 모아요 */
 loadLocal();
+if (location.search.includes("admin") && location.hash !== "#admin") location.hash = "admin";
 if (auth) auth.onAuthStateChanged((u) => {
-  if (u && !ADMIN_EMAILS.includes(u.email)) { auth.signOut(); toast("관리자 계정이 아니에요"); S.admin = null; render(); return; }   // 관리자가 아닌 구글 계정은 바로 나가요
-  S.admin = u || null; if (u && route() === "admin") adminLoad(); else render();
+  if (u && !ADMIN_EMAILS.includes(u.email)) { auth.signOut(); toast("관리자 계정이 아니에요"); S.admin = null; render(); return; }   /* 관리자가 아닌 구글 계정은 바로 나가요 */
+  S.admin = u || null; if (u && location.hash === "#admin") adminLoad(); else render();
 });
-window.addEventListener("hashchange", () => { S.open = null; if (route() === "gallery") loadBoard().then(render); if (route() === "admin" && S.admin) adminLoad(); render(); scrollTo(0, 0); });
-/* 다른 기기에서 쓴 기록 받기 */
-if (S.me && db) db.collection("ai2027_members").doc(S.me.key).get().then((s) => { if (s.exists) { const sv = s.data(); if ((sv.updatedAt || 0) > 0) { S.rec = sv.rec || S.rec; saveLocal(); render(); } } }).catch(() => {});
-loadBoard().then(() => { if (route() === "gallery") render(); });
 render();
 </script>
 <script type="module" src="/visit.js?app=2027ai"></script>
+<script src="/refresh.js" defer></script>
 </body>
 </html>

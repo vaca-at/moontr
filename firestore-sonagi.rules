@@ -613,6 +613,24 @@ service cloud.firestore {
         && request.resource.data.at is int;
       allow delete: if isTeacher();
     }
+    // ai2027_live/{무작위 32자}: 발표식 연수 웹앱(2026-11-22). 닉네임 · 모둠 · 지금 쪽 · 내 주소 · 동의 · 사회자 기록 · 판정 · 한 문장만.
+    // 모둠 기록 · 갤러리를 서로 보도록 누구나 읽어요. [완료하고 로그아웃]에서 자기 문서를 지워요 (강사는 '오늘 기록 모두 지우기')
+    match /ai2027_live/{id} {
+      allow read: if true;
+      allow create, update: if id.matches('^[0-9a-f]{32}$')
+        && request.resource.data.keys().hasOnly(['nick', 'team', 'seat', 'cur', 'url', 'ok', 'verdict', 'mvp', 'notes', 'at', 'updatedAt'])
+        && request.resource.data.nick is string && request.resource.data.nick.size() >= 1 && request.resource.data.nick.size() <= 12
+        && request.resource.data.team is int && request.resource.data.team >= 1 && request.resource.data.team <= 20
+        && request.resource.data.seat is int && request.resource.data.seat >= 1 && request.resource.data.seat <= 6
+        && request.resource.data.cur is int && request.resource.data.cur >= 0 && request.resource.data.cur < 200
+        && request.resource.data.url is string && request.resource.data.url.size() <= 300
+        && request.resource.data.ok is bool
+        && request.resource.data.verdict in ['', '통과', '보완', '중단']
+        && request.resource.data.mvp is string && request.resource.data.mvp.size() <= 300
+        && request.resource.data.notes is map && request.resource.data.notes.size() <= 30
+        && request.resource.data.updatedAt is int;
+      allow delete: if id.matches('^[0-9a-f]{32}$') || isTeacher();
+    }
 
     match /{document=**} { allow read, write: if false; }
   }
