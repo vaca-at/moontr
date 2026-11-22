@@ -15,8 +15,8 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../datalab/topics.js?v=11171500"></script>
-<script src="algos.js?v=11172300"></script>
+<script src="../datalab/topics.js?v=11221500"></script>
+<script src="algos.js?v=11221500"></script>
 <style>
 /* 알고리즘 실험실: 데이터 실험실과 같은 문법 (흰 바탕 · 검은 글씨 · 파란 강조 하나 · 각진 단추) */
 :root{--ink:#1A1A1A;--sub:#6E6E73;--line:#E5E5E8;--line2:#C9C9CF;--bg:#F7F7F8;--acc:#0057B8;--acc-s:#EAF2FC;--acc-l:#C9DCF3;--ok:#0E6B47;--ok-s:#E3F4EA;--no:#B42318;--no-s:#FDECEC;--warn:#9A4A00;--warn-s:#FFF4E5;--code:#0F1720;--w:1180px}
@@ -119,6 +119,18 @@ textarea:focus,input:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;font-size:14px;z-index:60}
 .foot{border-top:1px solid var(--line);padding:22px 0 40px;font-size:13px;color:var(--sub);margin-top:30px}
 .admbtn{position:fixed;right:12px;bottom:12px;z-index:9;font-size:11px;padding:6px 8px;border:1px solid var(--line2);background:rgba(255,255,255,.5);color:var(--sub);opacity:.35}.admbtn:hover{opacity:1}
+/* 📄 AI 없이 하는 활동지 (인쇄할 때만 보여요) */
+#printArea{display:none}
+@media print{body>*:not(#printArea){display:none!important}#printArea{display:block!important}}
+.ws{font-size:10.5pt;line-height:1.55;color:#000}
+.ws .wh{display:flex;justify-content:space-between;gap:12px;border-bottom:2px solid #000;padding-bottom:6px;font-size:10pt}
+.ws h2{font-size:16pt;margin:10px 0 2px}.ws .wn{font-size:9pt;color:#444;margin:2px 0 8px}
+.ws section{break-inside:avoid;margin-top:10px}.ws h3{font-size:11.5pt;border-left:4px solid #000;padding-left:8px;margin:0 0 4px}
+.ws p{margin:3px 0}.ws small{color:#444;font-weight:400}.ws .wq{font-weight:700;margin-top:6px}
+.ws .wl{height:24px;border-bottom:1px solid #999}
+.ws .wr{display:flex;gap:8px}.ws .wr span{flex:none;font-weight:700}
+.ws .wt{width:100%;border-collapse:collapse;margin:6px 0;font-size:9.5pt}.ws .wt th,.ws .wt td{border:1px solid #666;padding:4px 6px;text-align:left;height:24px}.ws .wt th{background:#eee}
+.ws .w2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0}.ws .w2 div{border:1px solid #999;padding:6px 8px;font-size:9.5pt}
 @media (max-width:980px){.hero{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.lab{grid-template-columns:1fr}.rail{position:static}.two,.thk{grid-template-columns:1fr}}
 @media (max-width:520px){.hero h1{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}.top .wrap{gap:12px}.logo{font-size:16px}}
 </style>
@@ -142,6 +154,7 @@ textarea:focus,input:focus{outline:2px solid var(--acc);outline-offset:-1px}
     <li>궁금한 점: anstjsdud@sen.go.kr · 마지막 수정일 2026년 11월 16일</li></ul></details>
 </div></footer>
 <a class="admbtn" href="admin/" title="선생님 화면">관리자</a>
+<div id="printArea"></div>
 
 <script>
 /* ===================== 알고리즘 실험실 (moontr.site/algolab, 2026-11-16) =====================
@@ -163,7 +176,7 @@ const S = { me: LS.get("me", null), rec: LS.get("rec", {}), login: false, loginM
 const KEY = (id) => "a_" + id;
 const optKeys = (g) => g.optc.map((o) => o.id);
 function my(id) {
-  const g = ALG[id], k = KEY(id); S.rec[k] = S.rec[k] || { s: {}, done: {}, ai: [] };
+  const g = ALG[id], k = KEY(id); S.rec[k] = S.rec[k] || { s: { v: 2 }, done: {}, ai: [] };   // v 2 = 2026-11-22 뒤에 시작한 기록 (1단계 '내 첫 판단'이 있어야 끝나요)
   const x = S.rec[k], s = x.s = x.s || {};
   if (s.p == null) s.p = s.w ?? (g.param ? g.param.def : 0);   // 예전 1번 기록(w)도 이어서
   g.optc.forEach((o) => { if (s[o.id] == null) s[o.id] = false; if (o.n && s[o.id + "N"] == null) s[o.id + "N"] = o.n[0]; });
@@ -290,7 +303,8 @@ function home() {
 function lab(id) {
   const t = DL.topic(id), g = ALG[id], x = my(id), s = x.s, so = sOf(s), rows = g.rows(), d = x.done, cur = STEPS.findIndex((_, i) => !d[i + 1]) + 1 || 7, no = String(t.no).padStart(2, "0");
   const rail = `<aside class="rail"><span class="fn" title="괄호 안 = 이 규칙(알고리즘)에 넣는 값">${no} · ${g.fn}(<i>${esc((NAMES[id] || [])[2] || "")}</i>)</span><h1>${esc(g.title)}</h1>${STEPS.map((n, i) => `<button type="button" class="${d[i + 1] ? "done" : ""} ${cur === i + 1 ? "now" : ""}" data-act="go" data-v="${i + 1}"><i>${d[i + 1] ? "✓" : i + 1}</i>${n}</button>`).join("")}
-    <div class="th">주 사상가 <b style="color:var(--ink)">${esc(t.th.m)}</b><br>맞서는 관점 <b style="color:var(--ink)">${esc(t.th.r)}</b><br><br>코드를 몰라도 돼요. 기준을 고르고 카드를 조립하면 코드가 저절로 생겨요.</div><a class="btn w sm" href="#/" style="margin-top:10px">← 다른 알고리즘</a></aside>`;
+    <div class="th">주 사상가 <b style="color:var(--ink)">${esc(t.th.m)}</b><br>맞서는 관점 <b style="color:var(--ink)">${esc(t.th.r)}</b><br><br>코드를 몰라도 돼요. 기준을 고르고 카드를 조립하면 코드가 저절로 생겨요.</div><a class="btn w sm" href="#/" style="margin-top:10px">← 다른 알고리즘</a>
+    <div class="th">AI · 기기를 쓰기 어려우면 같은 단계를 종이 활동지(순서도 · 손 계산)로 해요. 평가 기준도 같아요.</div><button type="button" class="btn w sm" data-act="sheet" style="margin-top:6px">활동지 인쇄</button></aside>`;
   const st = (n, title, sub, body) => `<section class="step ${cur === n ? "cur" : ""}" id="s${n}"><h2>${n} · ${title} <small>${sub}</small>${d[n] ? `<small style="color:var(--ok);margin-left:auto">✓ 완료</small>` : ""}</h2>${body}</section>`;
   const tbl = `<div class="tblw"><table class="tbl"><thead><tr>${g.cols.map(([n]) => `<th>${esc(n)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${g.cols.map(([, k]) => `<td>${typeof r[k] === "number" ? fmt(r[k]) : esc(r[k])}</td>`).join("")}</tr>`).join("")}</tbody></table></div><p class="note">수업 연습용 예시 데이터 (데이터 실험실 ${t.no}번 표 바탕)</p>`;
   // 1 문제 정의 (출력 보기는 고정 순서로 섞어 보여요)
@@ -299,7 +313,9 @@ function lab(id) {
     <p style="font-size:14px;font-weight:700">입력 (알고리즘이 받는 데이터)</p>${tbl}
     <p style="font-size:14px;font-weight:700;margin-top:6px">출력 (알고리즘이 내놓을 답)은 무엇이어야 할까요?</p>
     <div class="opts" style="margin-top:8px">${outOrder.map((i) => `<button type="button" class="opt ${s.out === i ? "on" : ""}" data-act="outp" data-v="${i}"><input type="radio" tabindex="-1" ${s.out === i ? "checked" : ""}><span style="color:var(--ink);font-size:14px">${esc(g.outs[i])}</span></button>`).join("")}</div>
-    ${s.out != null ? s.out === 0 ? `<div class="msg ok">맞아요. 입력은 위의 표, 출력은 “${esc(g.outs[0])}”이에요.</div>` : `<div class="msg no">${esc(g.outNo)}</div>` : ""}`);
+    ${s.out != null ? s.out === 0 ? `<div class="msg ok">맞아요. 입력은 위의 표, 출력은 “${esc(g.outs[0])}”이에요.</div>` : `<div class="msg no">${esc(g.outNo)}</div>` : ""}
+    <div class="fld"><label for="f_first">내 첫 판단 · AI 짝꿍에게 묻기 전에</label><textarea id="f_first" data-f="first" placeholder="이 문제는 무엇을 기준으로 정하는 게 공정할까요? 그렇게 하면 누가 이득을 보고 누가 손해를 볼까요? 지금 생각을 솔직하게 (7단계에서 다시 비교해요)">${esc(s.first || "")}</textarea></div>
+    ${s.v === 2 ? `<p class="note">출력을 맞게 고르고 첫 판단을 쓰면 1단계가 끝나요.</p>` : ""}`);
   // 2 기준
   const P = g.param;
   const s2 = st(2, "기준 고르기", "무엇을 기준으로 판단할까?", `<div class="opts">${g.crit.map((c) => `<button type="button" class="opt ${s.crit === c.id ? "on" : ""}" data-act="crit" data-v="${c.id}"><input type="radio" tabindex="-1" ${s.crit === c.id ? "checked" : ""}><span><b>${esc(c.name)}</b><span>${esc(c.sub)}</span></span></button>`).join("")}</div>
@@ -346,13 +362,40 @@ function lab(id) {
   const s7 = st(7, "계산기 · 성찰", "내 알고리즘을 계산기로 써 보고, 마치며 써요", d[4] ? `<div class="calc"><b style="font-size:14px">${esc(S.me ? S.me.sid : "나")}의 ${esc(g.title)}</b><p class="note">내 규칙: ${esc(critName(g, s))}</p>
       <div class="act" style="margin-top:8px"><label for="calcN" style="font-size:14px">${esc(g.calc.label)}</label><input id="calcN" type="number" min="${g.calc.min}" max="${g.calc.max}" value="${cv}" style="width:110px"><button class="btn sm" data-act="calc">계산</button></div>
       <p style="margin-top:8px;font-size:14px">${g.calc.show.call(g, rows, so, cv)}</p></div>
-    <div class="fld"><label for="f_ref">마치며 · 알고리즘은 중립적일까?</label><textarea id="f_ref" data-f="ref" placeholder="기준 카드 하나를 바꿨을 때 무엇이 달라졌나요? 알고리즘을 만드는 사람이 조심해야 할 것은?">${esc(s.ref || "")}</textarea></div>
+    <div class="ask" style="margin-top:12px"><small>1단계에 쓴 내 첫 판단 (AI 짝꿍에게 묻기 전)</small>${filled(s.first) ? esc(s.first) : "1단계에서 쓰지 않았어요. 처음에 어떻게 생각했는지 떠올려 아래에 함께 써 주세요."}</div>
+    <div class="fld"><label for="f_ref">마치며 · 첫 판단과 지금 판단을 비교하면? 알고리즘은 중립적일까?</label><textarea id="f_ref" data-f="ref" placeholder="처음 판단 → 기준을 바꿔 보고 공정성을 시험한 뒤의 내 판단 → 바뀌었거나 지킨 까닭. 알고리즘을 만드는 사람이 조심해야 할 것은?">${esc(s.ref || "")}</textarea></div>
     <div class="act"><span class="note">${x.sub ? `제출했어요 · ${new Date(x.sub).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} (고친 뒤 다시 제출할 수 있어요)` : "1~6단계를 마치고 ‘마치며’를 쓰면 제출할 수 있어요"}</span><button class="btn b" data-act="submit">${x.sub ? "다시 제출" : "제출하기"}</button></div>` : `<div class="msg info">4단계 테스트를 통과하면 열려요.</div>`);
   const asks = x.ai.filter((a) => a.k === "ask");
   const pair = `<section class="step"><h2>AI 코드 짝꿍 <small>답 대신 생각할 질문을 돌려줘요 · ${asks.length}/8회</small></h2>${asks.length ? `<div class="qa">${asks.map((a) => `<div><b>나</b> ${esc(a.q)}</div><div class="a"><b>${a.local ? "도움 질문" : "AI 짝꿍"}</b> ${esc(a.a)}</div>`).join("")}</div>` : ""}
     <div class="act"><input type="text" id="askIn" maxlength="300" placeholder="예: 테스트가 왜 실패했나요? 이 조건 카드는 누구에게 유리한가요?" style="flex:1;min-width:200px"><button class="btn w" data-act="ask" ${S.aiBusy ? "disabled" : ""}>${S.aiBusy ? "생각하는 중…" : "묻기"}</button></div></section>`;
   const noLogin = S.me ? "" : `<div class="msg info" style="margin-bottom:12px">로그인하지 않아도 계속할 수 있어요. 지금 한 것은 <b>이 휴대폰에 저장</b>되고, 맨 위 칸으로 들어가면 내 계정에 합쳐져요. 제출할 때만 로그인이 필요해요.</div>`;
   return `<div class="wrap"><div class="lab">${rail}<div>${noLogin}${s1}${s2}${s3}${s4}${s5}${s6}${s7}${pair}</div></div></div>`;
+}
+
+/* 📄 AI 없이 하는 활동지 (2026-11-22, AIEDAP 리포트 11 · AI를 쓰지 않는 학생도 같은 길)
+   화면의 7단계와 같은 순서: 규칙 카드는 처음 섞인 순서 그대로 → 순서 번호를 써 넣고, 결과는 손으로 계산해요 */
+function sheetHTML(id) {
+  const t = DL.topic(id), g = ALG[id], rows = g.rows(), L = (n) => `<div class="wl"></div>`.repeat(n);
+  const s0 = { crit: g.crit[0].id, p: g.param ? g.param.def : 0, ...Object.fromEntries(g.optc.map((o) => [o.id, false])), minN: (g.optc.find((o) => o.id === "min") || { n: [1] }).n[0] };
+  let tests = []; try { tests = g.tests(s0); } catch (e) {}
+  const plain = (h) => String(h).replace(/<[^>]+>/g, "");
+  const tbl = `<table class="wt"><thead><tr>${g.cols.map(([n]) => `<th>${esc(n)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${g.cols.map(([, k]) => `<td>${typeof r[k] === "number" ? fmt(r[k]) : esc(r[k])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  return `<div class="ws"><div class="wh"><b>알고리즘 실험실 · ${String(t.no).padStart(2, "0")} · ${esc(g.fn)}</b><span>학번 ________ 이름 ____________</span></div>
+    <h2>${esc(g.title)}</h2><p class="wn">AI 없이 하는 활동지 · 화면의 1~7단계와 같은 순서, 같은 평가 기준이에요.</p>
+    <section><h3>1 · 문제 정의</h3><p>${esc(plain(g.intro))}</p>${tbl}
+      <p class="wq">출력(알고리즘이 내놓을 답)은 무엇이어야 할까요? 하나에 ✓</p>${[1, 0, 2].map((i) => `<p>□ ${esc(g.outs[i])}</p>`).join("")}
+      <p class="wq">내 첫 판단 <small>무엇을 기준으로 정하는 게 공정할까? 누가 이득 · 손해를 볼까? (7단계에서 다시 비교해요)</small></p>${L(3)}</section>
+    <section><h3>2 · 기준 고르기</h3>${g.crit.map((c) => `<p>□ <b>${esc(c.name)}</b> <small>${esc(c.sub)}</small></p>`).join("")}${g.param ? `<p>${esc(g.param.label)} (${esc(g.param.left)} ~ ${esc(g.param.right)}): ________ ${esc(g.param.unit)}</p>` : ""}</section>
+    <section><h3>3 · 규칙 조립 (순서도)</h3><p>카드에 실행할 순서 번호를 써요. 필요한 조건 카드에는 ✓ 해요.</p>
+      ${g.start.map((ci) => `<p class="wr"><span>(&nbsp;&nbsp;&nbsp;)</span> [${esc(g.cards[ci].tag)}] ${esc(g.cards[ci].text)}</p>`).join("")}
+      ${g.optc.map((o) => `<p class="wr"><span>□</span> [조건] ${esc(o.text)}${o.n ? ` ( ${o.n.map(fmt).join(" / ")} ) ${esc(o.after)}` : ""}</p>`).join("")}</section>
+    <section><h3>4 · 손으로 실행 · 테스트</h3><table class="wt"><thead><tr><th>${esc(g.cols[0][0])}</th><th>내 기준으로 읽은 값</th><th>합계에서 차지하는 비율</th><th>결과(${esc(g.unit)})</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.이름)}</td><td></td><td></td><td></td></tr>`).join("")}<tr><td>합계</td><td></td><td></td><td></td></tr></tbody></table>
+      <p class="wq">테스트 · 내 규칙이 통과할까? (앞 ${g.need}개는 꼭 통과)</p>${tests.map((q, i) => `<p class="wr"><span>통과 □ 실패 □</span> ${esc(q.name)}${i >= g.need ? " (정답 없는 질문)" : ""}</p>`).join("")}</section>
+    <section><h3>5 · 가치 검토</h3><div class="w2">${[t.th.m, t.th.r].map((n, i) => `<div><b>${esc(n)}</b> <small>${i ? "맞서는 관점" : "주 사상가"}</small><p>${esc(DL.THINKERS[n])}</p></div>`).join("")}</div><p class="wq">내 규칙은 누구의 생각에 가까운가요? 왜?</p>${L(3)}</section>
+    <section><h3>6 · 공정성 시험</h3><p>다른 기준으로 바꿔 계산해 보고, 누가 얻고 누가 잃는지 비교해요.</p><table class="wt"><thead><tr><th>${esc(g.cols[0][0])}</th>${g.cmp.map(([n]) => `<th>${esc(n)}</th>`).join("")}<th>내 알고리즘</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.이름)}</td>${g.cmp.map(() => "<td></td>").join("")}<td></td></tr>`).join("")}</tbody></table>
+      <p class="wq">내 알고리즘 때문에 손해 보는 사람은 누구이고, 규칙을 어떻게 고칠까?</p>${L(3)}</section>
+    <section><h3>7 · 마치며: 첫 판단과 지금 판단 비교</h3><p class="wq">1단계의 첫 판단 → 지금 내 판단 → 바뀌었거나 지킨 까닭 · 알고리즘은 중립적일까?</p>${L(4)}</section>
+    <p class="wn">표의 숫자는 수업 연습용 예시예요 (데이터 실험실 ${t.no}번 표 바탕)</p></div>`;
 }
 
 function loginView() {
@@ -377,7 +420,7 @@ function render() {
 /* 단계가 끝났는지 다시 따져요 (앞 단계를 바꾸면 뒤 단계 완료가 풀릴 수 있어요) */
 function judge(id) {
   const g = ALG[id], x = my(id), s = x.s, d = {};
-  d[1] = s.out === 0;
+  d[1] = s.out === 0 && (s.v !== 2 || filled(s.first));   // 예전 기록은 첫 판단 없이도 그대로 (완료가 풀리지 않게)
   d[2] = d[1] && !!s.crit;
   d[3] = d[2] && !!s.ordTry && ok3(g, s);
   d[4] = d[3] && g.tests(sOf(s)).slice(0, g.need).every((q) => q.ok);
@@ -416,6 +459,9 @@ function act(a, v) {
   if (a === "doNew") { if ($("#lgPin2").value.trim() !== S.loginNew.pin) return loginMsg("비밀번호가 서로 달라요. 다시 확인해 주세요"); return signIn(S.loginNew.sid, S.loginNew.pin, true); }
   const id = route().b; if (!OPEN.includes(id)) return;
   if (a === "go") { const el = $("#s" + v); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  if (a === "sheet") { $("#printArea").innerHTML = sheetHTML(id); window.print(); return; }   // 로그인 없이도
+  // AI 짝꿍은 1단계 '내 첫 판단'을 쓴 뒤에 (2026-11-22, 리포트 03 · AI 전에 학생 최초 판단 기록)
+  if (a === "ask" && !filled(my(id).s.first)) { toast("AI 짝꿍에게 묻기 전에 1단계 ‘내 첫 판단’을 먼저 써 주세요"); const el = $("#f_first"); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus(); } return; }
   if (a === "ask") return ask(id, $("#askIn") && $("#askIn").value);
   // 2026-11-17 수업: 로그인이 막혀도 활동은 이어 가요 (이 기기에 저장 → 나중에 들어오면 내 계정에 합쳐져요). 제출만 로그인이 필요해요
   if (a === "submit" && needLogin()) return;

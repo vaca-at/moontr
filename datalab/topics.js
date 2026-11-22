@@ -425,14 +425,14 @@
      50분 한 판: 5 + 4 + 6 + 10 + 8 + 7 + 5 + 5 = 50분 */
   const MODEL = { type: "데이터 분석", name: "데이터 리터러시 향상을 위한 인공지능 융합 문제해결학습 수업 모형", tools: "엑셀 · 구글 시트 · Orange3 · 생성형 AI(Claude)" };
   const STEPS = [
-    { k: "s1", name: "학습 주제 및 문제 상황 이해", min: 5, sub: "핵심 질문 · 내 예상 · 살펴볼 대상 고르기" },
+    { k: "s1", name: "학습 주제 및 문제 상황 이해", min: 5, sub: "핵심 질문 · AI보다 먼저 내 판단 · 살펴볼 대상 고르기" },
     { k: "s2", name: "데이터 수집 방법 및 도구 학습", min: 4, sub: "필요한 데이터와 출처 · 분석 도구 고르기" },
     { k: "s3", name: "데이터 수집 및 정제", min: 6, sub: "중복 · 누락 · 잘못 들어간 줄을 찾아 지우기" },
     { k: "s4", name: "데이터 분석 및 시각화", min: 10, sub: "직접 계산 · 그래프 · 기초 통계로 패턴 찾기" },
     { k: "s5", name: "AI 모델 적용 및 평가", min: 8, sub: "AI의 분석 결과를 데이터로 검증하고 검토 받기" },
     { k: "s6", name: "결과 해석 및 해결안 도출", min: 7, sub: "숫자가 말하지 않는 것 · 사상가의 눈으로 판단하기 · 해결안과 고려 요소" },
     { k: "s7", name: "문제 해결 (실행)", min: 5, sub: "해결안을 정책 제안 · 캠페인 · 편지로 만들기" },
-    { k: "s8", name: "공유 및 성찰", min: 5, sub: "한 장 보고서 제출 · 우리 반 갤러리 · AI 활용 성찰" }
+    { k: "s8", name: "공유 및 성찰", min: 5, sub: "처음 내 판단과 비교 · 한 장 보고서 제출 · 우리 반 갤러리 · AI 활용 성찰" }
   ];
   // 해결안을 만들 때 따질 것 (아이에답 6단계: 실현 가능성과 한계, 윤리 · 프라이버시 · 사회적 영향)
   const CHECKS = ["실현 가능성", "한계", "윤리", "프라이버시", "사회적 영향"];
@@ -440,7 +440,7 @@
   const FORMS = [["policy", "정책 제안서", "제안 대상(예: 시의회) · 문제 · 데이터 근거 · 제안 · 예상 반론과 답"], ["campaign", "캠페인 문구", "제목 한 줄 + 데이터 한 줄 + 행동 제안 한 줄"], ["letter", "편지", "누구에게(예: 시장님, 가게 사장님) · 데이터로 본 사실 · 부탁하고 싶은 것"], ["news", "기사 제목과 첫 문단", "제목 · 첫 문단(누가 · 무엇을 · 데이터로 보면)"]];
   // 한 장 보고서 = 단계마다 쓴 칸을 모은 것
   const REPORT = [
-    ["q", "탐구 질문"], ["method", "데이터와 분석 방법"], ["result", "결과: 데이터가 보여 준 것"], ["limit", "해석과 한계: 숫자가 말하지 않는 것"],
+    ["q", "탐구 질문"], ["guess", "처음 내 판단 (AI · 데이터를 보기 전)"], ["method", "데이터와 분석 방법"], ["result", "결과: 데이터가 보여 준 것"], ["limit", "해석과 한계: 숫자가 말하지 않는 것"],
     ["concept", "윤리적 판단: 사상가의 눈으로"], ["plan", "해결안"], ["product", "실행물"], ["reflect", "탐구를 마치며"], ["ai", "AI 활용 성찰"]
   ];
   // 3단계 정제 연습: 원래 표에 ① 중복 줄 ② 값이 빠진 줄 ③ 합계 줄을 섞어 보여 줘요 (bad = 지워야 할 까닭)
@@ -473,7 +473,7 @@
     const s = (x && x.s) || {};
     if (k === "q") return s.myq || (s.guess ? t.q : "");
     if (k === "method") return x.calcOk ? `${t.cap}(${t.src.map((r) => r[0]).join(", ")})를 ${s.tool || "도구"}로 정리하고, 중복 · 누락 · 합계 줄을 지워 정제한 뒤, ${t.calc.label}을(를) ‘${t.calc.formula}’로 계산하여 ${t.pick}별로 비교함` : "";
-    return { result: s.find, limit: s.interp, concept: s.concept ? `[${t.th.m}의 관점] ${s.concept}${filled(s.rival) ? `\n[${t.th.r}의 관점] ${s.rival}` : ""}` : "", plan: s.plan ? `${s.plan}${(s.checks || []).length ? `\n(고려한 것: ${s.checks.join(" · ")})` : ""}` : "", product: s.product ? `[${(FORMS.find((f) => f[0] === s.form) || ["", ""])[1]}] ${s.product}` : "", reflect: s.reflect, ai: s.aiRef }[k] || "";
+    return { guess: s.guess, result: s.find, limit: s.interp, concept: s.concept ? `[${t.th.m}의 관점] ${s.concept}${filled(s.rival) ? `\n[${t.th.r}의 관점] ${s.rival}` : ""}` : "", plan: s.plan ? `${s.plan}${(s.checks || []).length ? `\n(고려한 것: ${s.checks.join(" · ")})` : ""}` : "", product: s.product ? `[${(FORMS.find((f) => f[0] === s.form) || ["", ""])[1]}] ${s.product}` : "", reflect: s.reflect, ai: s.aiRef }[k] || "";
   };
 
   window.DL = { THINKERS, GROUPS, TOPICS, PHOTO, STEPS, REPORT, OTHER, MODEL, CHECKS, TOOLS, FORMS, BAD, dirty, cleanMatch, values, fmt, fmtCell, close, tableText, filled, stepDone, repVal, myq, THINK_TAB, QUOTES,
