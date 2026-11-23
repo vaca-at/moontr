@@ -93,6 +93,11 @@ svg{width:16px;height:16px;flex:none}
 .alert-bar.calm .re{color:#1F6B4E;border-color:#1F6B4E}
 .alert-bar .ii-q{flex-basis:100%;font-size:.86rem}
 .alert-bar button.ii-q{flex-basis:auto;max-width:100%;text-align:left}
+/* 📝 해야 할 일 띠 (초록, 2026-11-23): 코드의 HUB_TODO 목록 · [고쳤어요]를 누르면 이 기기에서 숨겨요 */
+.todo-bar{display:flex;flex-direction:column;gap:.3rem;padding:.55rem clamp(16px,2.5vw,32px);background:#E3F4EA;color:#1B5E3F;font-size:.9rem;border-bottom:1px solid #BFE3CD}
+.todo-bar .tr{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.todo-bar a{color:#1B5E3F;font-weight:700}
+.todo-bar button{min-height:30px;padding:0 .75rem;border:1px solid #1B5E3F;border-radius:999px;background:#fff;color:#1B5E3F;font-weight:700;cursor:pointer}
 .alert-bar .re.x{margin-left:0;min-width:34px;padding:0;justify-content:center;font-size:1rem}
 .nbadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#D93025;color:#fff;font-size:.72rem;font-weight:800;line-height:1}
 @keyframes blink{50%{opacity:.35}}
@@ -405,6 +410,7 @@ body.editing .del{display:inline-block}
   </div>
   <nav class="tabs" id="tabs" aria-label="관리자 화면 고르기" hidden></nav>
   <div class="alert-bar" id="alertBar" role="alert" hidden></div>
+  <div class="todo-bar" id="todoBar" hidden></div>
 </header>
 <div class="menu" id="menu" role="menu" hidden></div>
 
@@ -875,7 +881,26 @@ function alertItems(){
   // 단추마다 '이걸 눌렀으면 본 걸로' 표시를 달아요
   return items.map(it => ({ ...it, html: it.key ? it.html.replace(/^<button /, `<button data-seen="${esc(it.key)}" data-seenv="${it.val}" `) : it.html }));
 }
+/* 📝 시간 날 때 할 일 (초록 띠). 다 하면 [고쳤어요] → 이 기기에서 숨겨요. 줄을 지우면 완전히 사라져요 */
+const SY_SHEET = 'https://docs.google.com/spreadsheets/d/1jtuL50ZK-86CkK5Vcx1Y4tyiMiht1e6p4DFQ4RjiFHk/edit?gid=205889844';
+const HUB_TODO = [
+  { id:'sy-2609-7', t:'생윤 문항 시트 2609-7 · 갑_사상가 \'루소\' → \'베카리아\' (제시문이 베카리아의 말)', url:SY_SHEET },
+  { id:'sy-2511-11', t:'생윤 문항 시트 2511-11 · 갑_제시문 끝 \'ㄷ.\' · 을_제시문 앞 \'을:\' 지우기 (갑 제시문이 보기 ㄴ과 같아서 원래 칸트 제시문으로)', url:SY_SHEET },
+  { id:'sy-2606-9', t:'생윤 문항 시트 2606-9 · 보기(ㄱ~ㄹ) 칸이 비어 있어요 (시험지 보고 넣기)', url:SY_SHEET },
+];
+let todoDone = {}; try { todoDone = JSON.parse(localStorage.getItem('hubTodoDone') || '{}'); } catch (e) {}
+function renderTodo(){
+  const bar = $('#todoBar'), left = HUB_TODO.filter(x => !todoDone[x.id]);
+  bar.hidden = !auth.currentUser || !left.length;
+  bar.innerHTML = `<b>📝 시간 날 때 고칠 것 ${left.length}개 <small style="font-weight:400">(다 고친 뒤 생윤 관리자 화면에서 시트를 다시 불러와 주세요)</small></b>` + left.map(x => `<div class="tr"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.t)} ↗</a><button type="button" data-todo="${esc(x.id)}">고쳤어요</button></div>`).join('');
+}
+$('#todoBar').addEventListener('click', e => {
+  const b = e.target.closest('[data-todo]'); if (!b) return;
+  todoDone[b.dataset.todo] = Date.now(); try { localStorage.setItem('hubTodoDone', JSON.stringify(todoDone)); } catch (e) {}
+  renderTodo(); fitFrame();
+});
 function renderAlert(){
+  renderTodo();
   if (!waits){ $('#alertBar').hidden = true; return; }
   const items = alertItems();
   const total = items.reduce((s, it) => s + it.n, 0);
