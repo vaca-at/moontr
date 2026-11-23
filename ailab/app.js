@@ -177,7 +177,7 @@ function subscribe() {
   unsubs.push(onSnapshot(doc(db, dbPath('meta/registry')), (s) => { S.registry = s.exists() ? s.data() : null; render(); }, denied));
   // 연수 대장 '내 기록' (신청 · 선정 · 미선정 · 이수 · 불참 · 신청 안 함): marks[연수 묶음 열쇠] = { st, at }
   unsubs.push(onSnapshot(doc(db, dbPath('meta/ledger')), (s) => { S.ledger = s.exists() ? s.data() : {}; render(); }, denied));
-  unsubs.push(onSnapshot(doc(db, dbPath('meta/desk')), (s) => { S.desk = s.exists() ? s.data() : {}; render(); }, denied));
+  unsubs.push(onSnapshot(doc(db, dbPath('meta/desk')), (s) => { S.desk = s.exists() ? s.data() : {}; render(); creditFromLink(); }, denied));
   // 점검원 아침 브리핑 (서버 morningBrief · briefNow 가 써요)
   unsubs.push(onSnapshot(doc(db, dbPath('meta/briefing')), (s) => { S.brief = s.exists() ? s.data() : null; render(); }, denied));
   unsubs.push(onSnapshot(doc(db, dbPath('meta/building')), (s) => {
@@ -1140,6 +1140,19 @@ function ledgerView() {
 // --- 사장님 계기판: 콘솔 크레딧 · 연구소 AI 가 쓴 값 · 급한 일 · 할 일 · 메모 (ailab_meta/desk, usage) ---
 // 남은 크레딧은 Anthropic 이 API 로 알려 주지 않아요 → 콘솔에서 본 남은 값과 날짜를 적어 두면, 그 뒤에 연구소가 쓴 값을 빼서 보여 줘요
 const usd = (n) => `$${(n || 0).toFixed(n >= 10 ? 1 : 2)}`;
+// 💳 콘솔 값을 주소로 한 번에 적기 (2026-11-23): /ailab/?credit=90.61&paid=4.84&exp=2026-12-18&asof=2026-11-23#boss
+//    로그인한 사장님 화면에서 열면 묻고 계기판에 적은 뒤, 주소에서 그 값을 지워요
+let creditLinkDone = false;
+function creditFromLink() {
+  if (creditLinkDone) return; creditLinkDone = true;
+  const q = new URLSearchParams(location.search), num = (k) => q.has(k) && q.get(k) !== '' && Number.isFinite(+q.get(k)) ? +q.get(k) : null;
+  const left = num('credit'), paid = num('paid'), exp = q.get('exp') || '', asof = q.get('asof') || todayStr();
+  if (left == null && paid == null) return;
+  const msg = [left != null ? `프로모션 크레딧 $${left}` : '', paid != null ? `구매 크레딧 $${paid}` : '', isDate(exp) ? `만료 ${exp}` : '', `본 날짜 ${asof}`].filter(Boolean).join(' · ');
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (!confirm(`콘솔에서 본 값을 계기판에 적을까요?\n${msg}`)) return;
+  saveDesk({ ...(left != null ? { creditLeft: left, creditAsOf: isDate(asof) ? asof : todayStr() } : {}), ...(paid != null ? { creditPaid: paid } : {}), ...(isDate(exp) ? { creditExpires: exp } : {}), creditFrom: '주소' }).then(() => toast(`계기판에 적었어요 · ${msg}`));
+}
 const saveDesk = (patch) => setDoc(doc(db, dbPath('meta/desk')), { ...patch, updatedAt: serverTimestamp() }, { merge: true }).catch((e) => toast(`저장하지 못했어요 (${e.code})`));
 // 🏠 아이아이노트 새 소식: 프로젝트가 달라서 함수(firebase/iinote-pulse)에 관리자 로그인 표를 보여 주고 받아요.
 // desk.pinned 에는 숫자만 남겨요 (문의 글은 저장하지 않아요). 새 가족은 3일 동안, 의견은 문의함에서 열 때까지
@@ -1205,7 +1218,8 @@ function deskCard() {
         <details><summary>콘솔에서 본 값 적기</summary>
           <div class="dk-form"><label>남은 크레딧 ($)<input id="deskLeft" type="number" step="0.01" inputmode="decimal" value="${d.creditLeft ?? ''}"></label>
           <label>본 날짜<input id="deskAsOf" type="date" value="${esc(d.creditAsOf || today)}"></label>
-          <label>만료일<input id="deskExp" type="date" value="${esc(d.creditExpires || '')}"></label></div>
+          <label>만료일<input id="deskExp" type="date" value="${esc(d.creditExpires || '')}"></label>
+          <label>구매 크레딧 ($)<input id="deskPaid" type="number" step="0.01" inputmode="decimal" value="${d.creditPaid ?? ''}"></label></div>
           <small>콘솔 Billing 화면의 남은 금액을 적어요. 교무실 타이쿤 · 아이아이노트도 같은 키를 쓰면 그쪽 사용은 여기 안 잡혀서, 가끔 콘솔 값으로 다시 맞춰 주세요. <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">콘솔 열기</a></small>
         </details>
       </div>
@@ -2459,6 +2473,7 @@ document.addEventListener('change', (e) => {
   } else if (t.id === 'deskLeft') saveDesk({ creditLeft: t.value === '' ? null : Number(t.value), creditAsOf: $('#deskAsOf')?.value || todayStr() });
   else if (t.id === 'deskAsOf') saveDesk({ creditAsOf: t.value });
   else if (t.id === 'deskExp') saveDesk({ creditExpires: t.value });
+  else if (t.id === 'deskPaid') saveDesk({ creditPaid: t.value === '' ? null : Number(t.value) });
   else if (t.id === 'deskMemo') saveDesk({ memo: t.value });
   else if (t.id === 'regQ') { S.regf = { ...S.regf, q: t.value.trim() }; t.blur(); render(); }
   else if (t.id === 'taskTitle') saveTask({ title: t.value.trim() });
