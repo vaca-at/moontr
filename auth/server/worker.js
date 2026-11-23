@@ -1,3 +1,5 @@
+import { maum, Quota } from "./maum.js";   // 🌿 마음한편 AI 한편이 (POST /maum)
+export { Quota };
 /* 🔑 moontr 로그인 다리 (moon-d528d · 먼저 플래너 · 교무실 타이쿤 아이폰 앱의 카카오 로그인)
    왜 필요해요? 아이폰 앱에서 카카오(OpenID Connect) 로그인은 휴대폰 안 파이어베이스에서만 끝나고,
    그 열쇠(id token)는 한 번 쓰면 다시 못 써서 웹 화면(파이어베이스 웹)으로 넘길 수 없어요.
@@ -57,7 +59,14 @@ export default {
   async fetch(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors(req) });
     const url = new URL(req.url);
-    if (req.method !== "POST" || !["/kakao", "/merge"].includes(url.pathname)) return json(req, { error: "없는 주소예요" }, 404);
+    if (req.method !== "POST" || !["/kakao", "/merge", "/maum"].includes(url.pathname)) return json(req, { error: "없는 주소예요" }, 404);
+    // 🌿 마음한편 AI: 로그인 표만 확인하고 maum.js 로 (서비스 계정 키는 쓰지 않아요)
+    if (url.pathname === "/maum") {
+      const body = await req.json().catch(() => ({}));
+      const a = await lookup(body.idToken);
+      if (a.err) return json(req, { error: a.err }, 401);
+      return maum(req, env, body, a.u, json);
+    }
     let sa; try { sa = JSON.parse(env.FB_SA || ""); } catch (e) { return json(req, { error: "서버 설정(FB_SA)이 없어요" }, 500); }
     const body = await req.json().catch(() => ({}));
 
