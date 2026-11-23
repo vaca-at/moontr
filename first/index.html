@@ -296,6 +296,11 @@ main.scrolled .prog::before{opacity:1}
 .howto .hx{position:absolute;top:-4px;right:0;width:32px;height:32px;border:0;border-radius:50%;background:var(--hair);color:var(--sub);font-size:14px;line-height:1;cursor:pointer}
 .cards .item.dragging{z-index:9;box-shadow:0 14px 30px rgba(0,0,0,.18)!important;transform:scale(1.02);transition:none}
 .cards .item.shift{transition:transform .18s ease}
+/* 📱 앱 아이콘 고르기 (아이폰 앱에서만, 2026-11-23) */
+.icos{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.icos button{border:0;background:none;padding:0;cursor:pointer;display:grid;justify-items:center;gap:4px;font:inherit;font-size:11.5px;color:var(--ink)}
+.icos img{width:58px;height:58px;border-radius:13px;box-shadow:0 1px 3px rgba(0,0,0,.18);outline:3px solid transparent;outline-offset:2px}
+.icos button[aria-pressed="true"] img{outline-color:var(--mode)}
 .fonts{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .fonts button{border:1.5px solid #E5E5EA;background:#fff;border-radius:12px;padding:10px 6px;font-size:15px;cursor:pointer;color:var(--ink)}
 .fonts button[aria-pressed="true"]{border-color:var(--mode);box-shadow:0 0 0 3px var(--mode-soft)}
@@ -1434,6 +1439,10 @@ function viewPics(){
 const pageHd = (title, cur) => `<div class="hd stick"><div><button type="button" class="backb" data-act="back">‹ 뒤로</button><h1 class="big">${title}</h1></div>${topBtns(cur)}</div>`;
 const topBtns = (cur) => `<span class="tops"><button type="button" class="ic${cur === "deco" ? " on" : ""}" data-act="deco" aria-label="꾸미기 메뉴" ${cur === "deco" ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button><button type="button" class="ic${cur === "settings" ? " on" : ""}" data-act="settings" aria-label="설정" ${cur === "settings" ? 'aria-current="page"' : ""}>⚙︎</button></span>`;
 const seg2 = (act, on) => `<span class="seg"><button type="button" data-act="${act}" data-v="1" aria-pressed="${on}">켜기</button><button type="button" data-act="${act}" data-v="0" aria-pressed="${!on}">끄기</button></span>`;
+/* 📱 앱 아이콘 (아이폰 앱에서만 보여요, 2026-11-23 학생 요청 '파란색 하고 싶어요')
+   [이름, 보이는 이름, 그림]. 이름("C9" …)은 아이폰 앱의 AppIcon-C9 와 같아야 해요 → 새로 넣으려면 앱도 새로 올려야 해요 */
+const ICONS = [["", "기본 분홍", "icon-180.png"], ["C9", "살구 먼저", "icons/c9.png"], ["C10", "먹색 먼저", "icons/c10.png"], ["D4", "남색 체크", "icons/d4.png"], ["D5", "민트 체크", "icons/d5.png"], ["D7", "보라 체크", "icons/d7.png"], ["E2", "하늘 플래너", "icons/e2.png"]];
+let ICO = null;   // 앱이 아이콘 바꾸기를 할 수 있으면 { cur:"C9" … } (예전 앱 · 웹이면 null 이라 칸이 안 보여요)
 function viewDeco(){
   return `${pageHd("꾸미기", "deco")}
     <p class="note" style="margin:-6px 4px 0">좋아하는 캐릭터와 화면으로 나만의 플래너를 만들어요</p>
@@ -1461,6 +1470,8 @@ function viewDeco(){
     <p class="gh">글씨체</p><div class="grp pad"><div class="fonts f2">${FONTS.map(([k, n, css]) => `<button type="button" data-act="fontSet" data-v="${k}" aria-pressed="${(D.font || "unz") === k}" style="font-family:${css},var(--sys)"><b>${n}</b><small>오늘도 먼저, 작게 시작해요</small></button>`).join("")}</div></div>
     <p class="note" style="margin:-8px 4px 0">손글씨체 = 귀여운 온글잎 언즈체 · 고딕체 = 아이폰처럼 또렷하고 읽기 쉬운 글꼴</p>
     <p class="gh">타이머 단추 자리</p><div class="grp"><div class="row"><span>타이머가 나오는 쪽</span><span class="seg"><button type="button" data-act="tside" data-v="l" aria-pressed="${D.tside === "l"}">왼쪽</button><button type="button" data-act="tside" data-v="r" aria-pressed="${D.tside !== "l"}">오른쪽</button></span></div></div>
+    ${ICO ? `<p class="gh">📱 앱 아이콘</p><div class="grp pad"><div class="icos">${ICONS.map(([k, n, src]) => `<button type="button" data-act="iconSet" data-v="${k}" aria-pressed="${ICO.cur === k}"><img src="${src}" alt=""><span>${n}</span></button>`).join("")}</div>
+      <p class="note">홈 화면에 보이는 앱 아이콘을 바꿔요. 바꾸면 아이폰이 '아이콘을 변경했습니다' 하고 한 번 알려 줘요.</p></div>` : ""}
     <button type="button" class="capb" data-act="guide"><i>📖</i><span><b>사용 설명서</b><small>친구들 · 1번 친구 응원 · 내 캐릭터 만들기 쓰는 법</small></span></button>`;
 }
 function viewSettings(){
@@ -1986,6 +1997,7 @@ document.addEventListener("click", e => {
     case "bgSet": D.bg = v; D.acc = (BGS.find(b => b[0] === v) || [])[3] ?? D.acc; save(); break;
     case "accSet": D.acc = +v; save(); break;
     case "fontSet": D.font = v; save(); break;
+    case "iconSet": if (ICO && ICO.cur !== v){ NAT.setIcon({ name:v }).then(() => { ICO.cur = v; haptic("ok"); render(); }).catch(() => toast("아이콘을 바꾸지 못했어요. 잠시 뒤에 다시 해 주세요")); } return;
     case "moveSet": D.move = v; save(); break;
     case "popSet": D.pop = v === "1"; save(); if (D.pop) setTimeout(() => mateSay(D.mode === "t" ? "가끔 한마디씩 할게." : "가끔 말 걸게!"), 200); break;
     case "reactSet": D.react = v === "1"; save(); if (D.react) setTimeout(() => moment(D.mode === "t" ? "중요한 순간엔 여기 가운데로 나올게." : "중요한 순간엔 가운데로 나와서 알려 줄게!"), 200); break;
@@ -2396,6 +2408,8 @@ function popOnce(){
    - shareFile({name, text}): 백업 파일을 공유 창으로 (파일에 저장 · 에어드롭) */
 const NAT = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins.First : null;
 function haptic(style){ try { NAT?.haptic({ style }); } catch (e) {} }
+/* 📱 앱 아이콘: 2026-11-23 앱부터 getIcon · setIcon 이 있어요 (예전 앱은 실패 → 칸을 안 보여 줘요) */
+if (NAT && window.Capacitor.getPlatform?.() === "ios") (async () => { try { const r = await NAT.getIcon(); if (r && r.ok){ ICO = { cur:r.name || "" }; if (S.tab === "deco") render(); } } catch (e) {} })();
 /* 🔔 알림 (2026-11-16) — 서버 없이 휴대폰 안에서만 울려요
    - 아이폰 앱에 @capacitor/local-notifications 를 넣고 새로 올리면 Capacitor.Plugins.LocalNotifications 가 생겨요
      (Mac › 앱 폴더에서: npm i @capacitor/local-notifications → npx cap sync ios → 새 빌드)
