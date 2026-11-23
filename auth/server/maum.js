@@ -1,6 +1,6 @@
 // 🌿 마음한편 AI '한편이' (2026-11-23) — moontr-auth 서버에 붙은 주소 POST /maum
 //  앱(아이폰 마음한편)이 로그인 표(Firebase ID 토큰)와 함께 보내요. 로그인 표가 진짜인지 worker.js 의 lookup 으로 확인해요.
-//  할 일(task): today 오늘의 문장 · review 이번 주 총평 · translate 마음 번역 · ask 물어보기 · talk 이야기 · ring 숨은 고리 찾기
+//  할 일(task): today 오늘의 문장 · review 이번 주 총평 · translate 마음 번역 · ask 물어보기 · talk 이야기 · ring 숨은 마음 도감 찾기
 //  ⚠️ 적은 글은 답을 만드는 데만 쓰고 이 서버에 저장하지 않아요. 기록(console.log)에도 글을 남기지 않아요.
 //  ⚠️ 위험한 말(죽고 싶다 · 자해 · 폭력)이 보이면 AI에 보내지 않고 { crisis: true } 로 바로 돌려줘요 → 앱이 도움 화면(109 · 1388 · 112)을 열어요.
 //  하루 횟수: 한 사람(uid)마다 LIMIT 만큼 (Durable Object 'Quota')
@@ -41,7 +41,7 @@ const Translate = z.object({ crisis: z.boolean(), feeling: z.string(), why: z.st
 const Reply = z.object({ crisis: z.boolean(), reply: z.string() });
 const Ring = z.object({ crisis: z.boolean(), no: z.number().int(), why: z.string(), report: z.array(z.string()) });
 
-// 앱 도감의 고리 (Rings.swift 의 RingDex.known 과 같은 번호)
+// 앱 숨은 마음 도감 (Rings.swift 의 RingDex.known 과 같은 번호)
 const RINGS = `1 가시 갑옷형: 약한 마음을 들킬까 봐 먼저 가시를 세워요 (여려 보이지 않으려고 세게 굴어요)
 2 깊은 몰입 피난형: 힘들면 좋아하는 일에 푹 빠져 충전해요
 3 현실 점검형: 사실부터 따지고, 고칠 점을 먼저 말해요
@@ -109,8 +109,8 @@ export async function maum(req, env, body, who, json) {
     }
     if (task === 'ring') {
       if (text.length < 6) return json(req, { error: '조금 더 적어 주세요' }, 400);
-      const p = await ask(Ring, `[도감의 고리]\n${RINGS}\n\n[누구 이야기] ${clean(body.who, 20) || '주변 사람'}\n[이야기]\n${text}\n\n이 이야기 속 사람에게 가장 가까운 고리 번호(no, 1~12)를 하나 골라. 딱 맞는 게 없으면 가장 가까운 것.\nwhy: 왜 그 고리인지 한 문장.\nreport: 6칸, 칸마다 1~2문장 — ① 그 사람은 왜 그럴까 ② 그때 나는 이렇게 반응하기 쉬워요 ③ 이렇게 대응해 보세요(쓸 말 하나 포함) ④ 기대와 다를 때 마음 편해지기 ⑤ 앞으로 이런 사람을 만나면 ⑥ 나에게 해 주는 한마디`, 1600);
-      if (!p) return json(req, { error: '고리를 찾지 못했어요' }, 502);
+      const p = await ask(Ring, `[숨은 마음 도감]\n${RINGS}\n\n[누구 이야기] ${clean(body.who, 20) || '주변 사람'}\n[이야기]\n${text}\n\n이 이야기 속 사람에게 가장 가까운 숨은 마음 번호(no, 1~12)를 하나 골라. 딱 맞는 게 없으면 가장 가까운 것.\nwhy: 왜 그 숨은 마음인지 한 문장. 답에는 '고리'라는 말을 쓰지 마.\nreport: 6칸, 칸마다 1~2문장 — ① 그 사람은 왜 그럴까 ② 그때 나는 이렇게 반응하기 쉬워요 ③ 이렇게 대응해 보세요(쓸 말 하나 포함) ④ 기대와 다를 때 마음 편해지기 ⑤ 앞으로 이런 사람을 만나면 ⑥ 나에게 해 주는 한마디`, 1600);
+      if (!p) return json(req, { error: '숨은 마음을 찾지 못했어요' }, 502);
       const no = Math.min(12, Math.max(1, p.no | 0));
       return json(req, { crisis: p.crisis, no, why: clean(p.why, 160), report: p.report.slice(0, 6).map((s) => clean(s, 200)) });
     }
