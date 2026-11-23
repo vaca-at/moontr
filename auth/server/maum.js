@@ -13,8 +13,10 @@ import { DurableObject } from 'cloudflare:workers';
 const MODEL = 'claude-opus-5-5';
 const LIMIT = { today: 12, review: 6, translate: 25, ask: 25, talk: 80, ring: 25 };
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, n);
-const RISK = ['죽고 싶', '죽고싶', '자살', '자해', '사라지고 싶', '사라지고싶', '살기 싫', '살기싫', '때려', '맞았', '학대', '손목'];
-const risky = (t) => RISK.some((w) => t.includes(w));
+// 위험한 말 (앱 Safety.swift 와 같게, 띄어쓰기를 빼고 찾아요)
+const RISK = ['죽고싶', '죽어버리', '죽을래', '죽고말', '죽는게나', '죽으면편', '자살', '자해', '사라지고싶', '없어지고싶', '살기싫', '살고싶지않',
+  '끝내고싶', '끝내버리', '그만살', '뛰어내리', '목매', '손목', '약을모아', '약먹고', '유서', '다포기하고싶', '태어나지말', '때려', '맞았', '폭력', '학대', '성폭'];
+const risky = (t) => { const x = String(t).replace(/\s+/g, ''); return RISK.some((w) => x.includes(w)); };
 
 const MODE = {
   all: '누구나 쓰는 모드예요. 상대의 나이를 짐작하지 말고 담백하게 말해요.',
@@ -59,16 +61,19 @@ const RINGS = `1 가시 갑옷형: 약한 마음을 들킬까 봐 먼저 가시�
 export async function maum(req, env, body, who, json) {
   const task = clean(body.task, 20);
   if (!LIMIT[task]) return json(req, { error: '없는 할 일이에요' }, 400);
-  if (!env.ANTHROPIC_API_KEY) return json(req, { error: 'AI 준비 중이에요', off: true }, 503);
+  // ⚠️ 위험한 말은 AI 키가 있든 없든 가장 먼저 살펴요 (2026-11-24: 키 확인보다 뒤에 있어 키가 없을 때 못 잡던 것 고침)
   const text = clean(body.text, 800);
   if (text && risky(text)) return json(req, { crisis: true });
+  if (!env.ANTHROPIC_API_KEY) return json(req, { error: 'AI 준비 중이에요', off: true }, 503);
   // 하루 횟수
   const q = env.QUOTA.get(env.QUOTA.idFromName('maum'));
   const ok = await q.fetch(`https://q/use?who=${encodeURIComponent(who.localId)}&k=${task}&max=${LIMIT[task]}`).then((r) => r.json());
   if (!ok.ok) return json(req, { error: '오늘 한편이와 이야기할 수 있는 횟수를 다 썼어요. 내일 또 만나요', limit: true }, 429);
 
   const mode = MODE[body.mode] || MODE.all;
-  const system = [{ type: 'text', text: BASE, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `[이 사람] ${mode}` }];
+  // 요즘 많이 힘든 사람(앱이 care 로 알려 줘요): 활동 권유보다 마음을 먼저 알아주고 도움을 부드럽게
+  const care = body.care === true ? '\n[요즘 상태] 최근 힘든 날이 많이 이어졌어요. 평소처럼 활동을 권하기보다 먼저 마음을 충분히 알아주고, 믿는 사람이나 전문 기관(109 · 1388 · 1577-0199)과 이야기해 보기를 부드럽게 권해. 재촉하거나 훈계하지 마.' : '';
+  const system = [{ type: 'text', text: BASE, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `[이 사람] ${mode}${care}` }];
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const ask = async (schema, content, max = 1500) => {
     const res = await client.messages.parse({ model: MODEL, max_tokens: max, output_config: { effort: 'low', format: zodOutputFormat(schema) }, system, messages: [{ role: 'user', content }] });
