@@ -1,4 +1,4 @@
-// 🌿 마음한편 AI '한편이' (2026-11-23) — moontr-auth 서버에 붙은 주소 POST /maum
+// 🌿 마음한편 AI 'AI 마음 티쳐' (2026-11-23) — moontr-auth 서버에 붙은 주소 POST /maum
 //  앱(아이폰 마음한편)이 로그인 표(Firebase ID 토큰)와 함께 보내요. 로그인 표가 진짜인지 worker.js 의 lookup 으로 확인해요.
 //  할 일(task): today 오늘의 문장 · review 이번 주 총평 · translate 마음 번역 · ask 물어보기 · talk 이야기 · ring 숨은 마음 도감 찾기
 //  ⚠️ 적은 글은 답을 만드는 데만 쓰고 이 서버에 저장하지 않아요. 기록(console.log)에도 글을 남기지 않아요.
@@ -27,7 +27,7 @@ const MODE = {
 };
 
 // 모든 요청이 함께 쓰는 지시문 (캐시해서 비용 · 시간을 줄여요)
-const BASE = `너는 아이폰 앱 '마음한편'의 마음 친구 '한편이'야. 마음한편은 하루의 마음을 한 편의 문장으로 남기고, 몸으로 하는 마음근력(발바닥 느끼기 · 얼굴 풀기 · 목 · 어깨 풀기 · 1분 숨 고르기 · 손 얹고 숨 쉬기 등)을 하는 앱이야.
+const BASE = `너는 아이폰 앱 '마음한편'의 'AI 마음 티쳐'야. 너는 자격을 가진 교사 · 상담사 · 의사가 아니라 마음 돌봄을 돕는 AI야. 이름을 말할 때는 'AI 마음 티쳐'라고 해. 마음한편은 하루의 마음을 한 편의 문장으로 남기고, 몸으로 하는 마음근력(발바닥 느끼기 · 얼굴 풀기 · 목 · 어깨 풀기 · 1분 숨 고르기 · 손 얹고 숨 쉬기 등)을 하는 앱이야.
 지켜야 할 것
 - 반드시 한국어, 쉬운 말, 다정한 존댓말(~해요). 짧게. 이모지는 쓰지 마.
 - 너는 상담사 · 의사가 아니야. 진단(우울증 · 불안장애 · ADHD 같은 병명)이나 약 이야기를 하지 마. 판단하거나 훈계하지 마.
@@ -68,7 +68,7 @@ export async function maum(req, env, body, who, json) {
   // 하루 횟수
   const q = env.QUOTA.get(env.QUOTA.idFromName('maum'));
   const ok = await q.fetch(`https://q/use?who=${encodeURIComponent(who.localId)}&k=${task}&max=${LIMIT[task]}`).then((r) => r.json());
-  if (!ok.ok) return json(req, { error: '오늘 한편이와 이야기할 수 있는 횟수를 다 썼어요. 내일 또 만나요', limit: true }, 429);
+  if (!ok.ok) return json(req, { error: '오늘 AI 마음 티쳐와 이야기할 수 있는 횟수를 다 썼어요. 내일 또 만나요', limit: true }, 429);
 
   const mode = MODE[body.mode] || MODE.all;
   // 요즘 많이 힘든 사람(앱이 care 로 알려 줘요): 활동 권유보다 마음을 먼저 알아주고 도움을 부드럽게
@@ -106,7 +106,7 @@ export async function maum(req, env, body, who, json) {
     }
     if (task === 'ask' || task === 'talk') {
       if (text.length < 2) return json(req, { error: '내용을 적어 주세요' }, 400);
-      const hist = (Array.isArray(body.history) ? body.history : []).slice(-6).map((h) => `${h.me ? '나' : '한편이'}: ${clean(h.t, 400)}`).join('\n');
+      const hist = (Array.isArray(body.history) ? body.history : []).slice(-6).map((h) => `${h.me ? '나' : 'AI 마음 티쳐'}: ${clean(h.t, 400)}`).join('\n');
       const p = await ask(Reply, task === 'ask'
         ? `[물음]\n${text}\n\n마음에 대한 물음에 4~6문장(300자 안)으로 답해 줘. 쉬운 말로, 왜 그런지 한두 문장 + 해 볼 것 두 가지(하나는 몸 활동).`
         : `${hist ? `[지금까지 이야기]\n${hist}\n\n` : ''}[나]\n${text}\n\n잘 들어 주는 친구처럼 2~4문장(200자 안)으로 답해. 먼저 마음을 알아주고, 필요하면 부드러운 질문 하나로 끝내. 해결책을 서두르지 마.`, 1200);
@@ -120,7 +120,7 @@ export async function maum(req, env, body, who, json) {
       return json(req, { crisis: p.crisis, no, why: clean(p.why, 160), report: p.report.slice(0, 6).map((s) => clean(s, 200)) });
     }
   } catch (e) {
-    if (e instanceof Anthropic.RateLimitError) return json(req, { error: '한편이가 바빠요. 잠시 뒤에 다시 해 주세요' }, 429);
+    if (e instanceof Anthropic.RateLimitError) return json(req, { error: 'AI 마음 티쳐가 바빠요. 잠시 뒤에 다시 해 주세요' }, 429);
     if (e instanceof Anthropic.APIError) { console.log('maum Claude 오류', e.status); return json(req, { error: 'AI 서버 오류' }, 502); }
     console.log('maum 오류', String(e && e.message).slice(0, 120));
     return json(req, { error: '잠시 뒤에 다시 해 주세요' }, 500);
