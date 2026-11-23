@@ -87,6 +87,8 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 .stt .l{text-align:left}
 .top2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;font-size:13px}
 .top2 ol{padding-left:18px;margin-top:2px}.top2 .me{color:var(--acc)}
+.top2 .cb{grid-template-columns:118px 1fr 70px}.top2 > div > b,.stp > b{display:block;margin-bottom:3px}
+.stp{margin-top:10px;font-size:11px}.stp .cb2{grid-template-columns:150px 1fr 104px}
 .ailog{font-size:13px;color:#444}
 .ailog div{padding:6px 0;border-top:1px dashed var(--line)}
 .note{font-size:12.5px;color:var(--sub)}
@@ -148,7 +150,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 .rbox > h3:first-of-type{margin-top:4px!important}
 .bt{font-size:13px!important;color:var(--ink)!important;margin-bottom:4px!important;letter-spacing:-.02em}
 .bt .note{font-weight:400;font-size:11px;margin-left:6px}
-#printArea .pg.fit{height:262mm;display:flex;flex-direction:column;overflow:hidden}
+#printArea .pg.fit{height:267mm;display:flex;flex-direction:column;overflow:hidden}
 #printArea .pg.fit .pgb{flex:1;display:flex;flex-direction:column;justify-content:space-evenly}
 #printArea .pg.fit .pgb > *{margin-top:0}
 .chg{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:11px}
@@ -197,6 +199,8 @@ const TABS = [["prog", "진행 현황"], ["rep", "학생 보고서"], ["batch", 
 const fmtT = (ms) => ms ? new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const topicsOf = (m) => TOPICS.filter((t) => (m.rec || {})[t.id] && (m.rec[t.id].s && Object.keys(m.rec[t.id].s).length));
 const progOf = (t, x) => STEPS.filter((st) => stepDone(t, x, st.k)).length;
+// 🖨 출력물 진도 (2026-11-23): 제출은 다섯 단계 이상이면 할 수 있어서, 제출한 탐구는 8단계를 모두 마친 것으로 보여 줘요
+const progP = (t, x) => x.sub ? STEPS.length : progOf(t, x), stepP = (t, x, k) => !!x.sub || stepDone(t, x, k);
 // 상태: 제출 · 멈춤 · 8단계 성찰 중(1~7단계를 다 마쳤거나 성찰을 쓰기 시작) · N단계 진행 중
 // 2026-11-17 고침: 예전엔 '1~7단계 중 다섯 이상'이면 8단계로 봐서, 5단계를 쓰는 학생도 '8단계 성찰 중'으로 보였어요.
 // 지금 단계 = 학생 화면이 남긴 활동 기록(x.log)의 마지막 단계, 기록이 없으면 아직 안 끝난 첫 단계
@@ -250,7 +254,7 @@ async function callAdminAI(path, body) {
 // 세특 재료: 학번 · 이름 없이 제출한 탐구만
 function evidence(m) {
   return [...topicsOf(m).map((t) => { const x = m.rec[t.id]; return { topic: `AI활용탐구 ${t.no} ${t.title}`, group: GROUPS[t.g].name, steps: `${progOf(t, x)}/8단계${x.sub ? " · 제출" : ""}`, claim: t.claim,
-    report: Object.fromEntries(REPORT.map(([k, n]) => [n, String(repVal(t, x, k) || "").slice(0, 700)])),
+    report: Object.fromEntries(REPORT.map(([k, n]) => [n, String(repVal(t, x, k) || "").slice(0, 700)])), share: x.sub ? (x.s.share !== false ? "우리 반 갤러리에 해결안과 실행물을 이름 없이 공유함" : "갤러리 공유는 하지 않음") : "아직 제출 전",
     ai: (x.ai || []).slice(-6).map((a) => a.k === "review" ? `[AI 검토] 수치 ${a.scores.data} · 원인 ${a.scores.other} · 윤리 ${a.scores.concept}` : `[질문] ${a.q}`) }; }),
     ...algoOf(m).map(([id, x]) => ({ topic: `알고리즘 실험실 · ${ALGO.NAMES[id][1]} (판단 규칙을 카드로 조립하는 알고리즘 설계 탐구)`, steps: `${Object.keys(x.done || {}).length}/7단계${x.sub ? " · 제출" : ""}`,
       report: { "고른 규칙": algoRule(id, x.s), "가치 검토": String(x.s.why || "").slice(0, 600), "공정성 시험: 손해 보는 사람과 고칠 점": String(x.s.loser || "").slice(0, 600), "마치며": String(x.s.ref || "").slice(0, 600) },
@@ -357,8 +361,9 @@ function paper(t, m) {
 // 알고리즘 실험실은 열어만 본 것(기준도 안 고르고 단계도 0)은 빼요
 const algoDid = (m) => algoOf(m).filter(([, x]) => Object.keys(x.done || {}).length || x.s.crit);
 const active = (m) => topicsOf(m).length || algoDid(m).length;
-const fbState = (m) => !m.fb ? "none" : (m.updatedAt || 0) > (m.fb.at || 0) + 1000 ? "old" : "ok";
-const B = { seteuk: true, stat: true, duplex: true, story: true, subOnly: false, run: false, done: 0, total: 0 };
+const FB_V = 2;   // 2026-11-23: 피드백 2배 길게 + 🪞 성찰 · 공유 코멘트 → 예전(1) 피드백은 다시 만들어요
+const fbState = (m) => !m.fb ? "none" : (m.fb.v || 1) < FB_V || (m.updatedAt || 0) > (m.fb.at || 0) + 1000 ? "old" : "ok";
+const B = { seteuk: true, stat: true, duplex: true, story: true, subOnly: true, run: false, done: 0, total: 0 };
 /* ✅ 제출한 학생만 (2026-11-20 문쌤 요청): 데이터 탐구나 알고리즘을 하나라도 '제출'한 학생만, 그 학생의 출력물에도 제출한 것만 넣어요 */
 const subT = (m) => topicsOf(m).filter((t) => !B.subOnly || m.rec[t.id].sub);
 const subG = (m) => algoDid(m).filter(([, x]) => !B.subOnly || x.sub);
@@ -372,14 +377,15 @@ const grpStat = (key, L) => STC[key] || (STC[key] = (() => {
   all.forEach(([t]) => { tc[t.id] = (tc[t.id] || 0) + 1; });
   act.forEach((m) => algoDid(m).forEach(([id]) => { ac[id] = (ac[id] || 0) + 1; }));
   return { n: act.length, tc, ac, top: Object.entries(tc).sort((a, b) => b[1] - a[1]).slice(0, 5),
-    prog: all.length ? all.reduce((s, [t, x]) => s + progOf(t, x), 0) / all.length : 0, sub: all.length ? Math.round(all.filter(([, x]) => x.sub).length / all.length * 100) : 0 };
+    prog: all.length ? all.reduce((s, [t, x]) => s + progP(t, x), 0) / all.length : 0, steps: STEPS.map((st) => all.length ? all.filter(([t, x]) => stepP(t, x, st.k)).length / all.length * 100 : 0), sub: all.length ? Math.round(all.filter(([, x]) => x.sub).length / all.length * 100) : 0 };
 })());
 function statBox(m) {
   const g = String(m.sid || "")[0] || "", C = grpStat("b:" + m.ban, A.members.filter((v) => v.ban === m.ban)), G = grpStat("g:" + g, A.members.filter((v) => String(v.sid || "")[0] === g));
   const T = topicsOf(m), AL = algoDid(m);
   const pick = (S, cnt, id) => { const n = cnt[id] || 0, rank = 1 + Object.values(cnt).filter((v) => v > n).length; return `${n}명 · ${S.n ? Math.round(n / S.n * 100) : 0}% · ${rank}위`; };
-  const myProg = T.length ? T.reduce((s, t) => s + progOf(t, m.rec[t.id]), 0) / T.length : 0, mySub = T.filter((t) => m.rec[t.id].sub).length;
-  const top = (S) => `<ol>${S.top.map(([id, n]) => { const t = DL.topic(id); return `<li>${T.some((u) => u.id === id) ? `<b class="me">${esc(t.name)} (나)</b>` : esc(t.name)} · ${n}명</li>`; }).join("") || "<li>아직 없어요</li>"}</ol>`;
+  const myProg = T.length ? T.reduce((s, t) => s + progP(t, m.rec[t.id]), 0) / T.length : 0, mySub = T.filter((t) => m.rec[t.id].sub).length;
+  const top = (S) => S.top.length ? S.top.map(([id, n], i) => { const t = DL.topic(id), me = T.some((u) => u.id === id); return `<div class="cb${me ? " me" : ""}"><span>${i + 1}. ${me ? "나 · " : ""}${esc(t.name)}</span><i><b style="width:${Math.max(2, n / S.top[0][1] * 100)}%"></b></i><em>${n}명 · ${S.n ? Math.round(n / S.n * 100) : 0}%</em></div>`; }).join("") : `<p class="note">아직 없어요</p>`;
+  const stepsC = T.length ? `<div class="stp"><b>📶 단계별 완료율 <span class="lg"><i></i>${esc(m.ban)}반<i class="c"></i>${esc(g)}학년</span></b>${STEPS.map((st, i) => `<div class="cb2"><span>${i + 1}. ${esc(st.name)}</span><i><b style="width:${C.steps[i]}%"></b><b style="width:${G.steps[i]}%"></b></i><em>반 ${Math.round(C.steps[i])}% · 학년 ${Math.round(G.steps[i])}%</em></div>`).join("")}</div>` : "";
   return `<div class="fbbox stat"><h4>📊 우리 반 · 학년 통계 <span class="note">${esc(m.ban)}반 활동 ${C.n}명 · ${esc(g)}학년 활동 ${G.n}명 · 학번 · 이름 없이 숫자만</span></h4>
     <table class="stt"><thead><tr><th class="l"></th><th>나</th><th>우리 반</th><th>학년</th></tr></thead><tbody>
       ${T.map((t) => `<tr><td class="l">내가 고른 주제 · ${t.no}. ${esc(t.name)}</td><td>✓</td><td>${pick(C, C.tc, t.id)}</td><td>${pick(G, G.tc, t.id)}</td></tr>`).join("")}
@@ -387,7 +393,7 @@ function statBox(m) {
       ${T.length ? `<tr><td class="l">8단계 진도 (탐구 하나 평균)</td><td><b>${myProg.toFixed(1)}</b> / 8</td><td>평균 ${C.prog.toFixed(1)}</td><td>평균 ${G.prog.toFixed(1)}</td></tr>
       <tr><td class="l">보고서 제출</td><td>${mySub}/${T.length}개</td><td>${C.sub}% 제출</td><td>${G.sub}% 제출</td></tr>` : ""}
     </tbody></table>
-    <div class="top2"><div><b>우리 반이 많이 고른 주제</b>${top(C)}</div><div><b>${esc(g)}학년이 많이 고른 주제</b>${top(G)}</div></div></div>`;
+    <div class="top2"><div><b>🗳 우리 반이 많이 고른 주제</b>${top(C)}</div><div><b>🗳 ${esc(g)}학년이 많이 고른 주제</b>${top(G)}</div></div>${stepsC}</div>`;
 }
 // 제출 시각 (2026-11-20 문쌤 요청): 제출했으면 그 시각, 아니면 '아직 제출 안 함 · 마지막 저장 시각'
 const subTxt = (x, m) => x.sub ? `제출 ${fmtT(x.sub)}` : `아직 제출 안 함 · 마지막 저장 ${fmtT(m.updatedAt)}`;
@@ -490,7 +496,13 @@ function printBatch() {
   const probe = document.createElement("div"); probe.style.height = "269mm"; pa.append(probe); const pageH = probe.getBoundingClientRect().height * 0.97; probe.remove();
   let blanks = 0;
   // 2 · 3쪽이 한 장에 들어가면 그 장 높이에 맞춰 상자를 위아래로 고르게 벌려요
-  pa.querySelectorAll(".pg").forEach((p) => { if (pagesOf(p, pageH) === 1) p.classList.add("fit"); });
+  // (실제 높이로 재요: 267mm(인쇄 칸 269mm) 안에 들어가면 그 높이로 고정 → 인쇄해도 꼭 한 장)
+  const probe2 = document.createElement("div"); probe2.style.height = "267mm"; pa.append(probe2); const fitH = probe2.getBoundingClientRect().height; probe2.remove();
+  pa.querySelectorAll(".pg").forEach((p) => {
+    // 조금(15% 안) 넘치면 글씨를 살짝 줄여 한 장에 맞춰요
+    for (let z = 1; p.getBoundingClientRect().height > fitH && p.getBoundingClientRect().height < fitH * 1.15 / z && z > .87; ) { z -= .01; p.querySelector(".pgb").style.zoom = z; }
+    if (p.getBoundingClientRect().height <= fitH) p.classList.add("fit"); else p.querySelector(".pgb").style.zoom = "";
+  });
   if (B.duplex) pa.querySelectorAll(".stu").forEach((s) => {
     const n = [...s.children].reduce((sum, p) => sum + (p.classList.contains("storyp") || p.classList.contains("fit") ? 1 : pagesOf(p, pageH)), 0);
     if (n % 2) { s.insertAdjacentHTML("beforeend", `<div class="paper bpage blankp"><p>양면 인쇄를 맞추려고 비워 둔 쪽이에요</p></div>`); blanks++; }
@@ -506,11 +518,11 @@ function batchPage(m) {
   const head = (k) => `<div class="who pgh"><span><b>${esc(m.ban)}반 · ${esc(m.sid)}</b> · ${k}</span><span>${day}</span></div>`;
   // 2쪽: ✏️ 내가 쓴 답 상자 + 📊 우리 반 · 학년 통계 상자
   const mine = `<div class="rbox"><h4 class="bt">✏️ 나의 탐구 기록 <span class="note">내가 직접 쓴 답이에요</span></h4>
-    ${T.map((t) => { const x = m.rec[t.id]; return `<h3 style="margin-top:10px">AI활용탐구 ${t.no} · ${esc(t.title)}</h3><div class="who">${esc(GROUPS[t.g].name)} · ${progOf(t, x)}/8단계 · ${subTxt(x, m)}</div>${rows(REPORT.map(([k, n]) => [n, repVal(t, x, k)]))}`; }).join("")}
-    ${G.map(([id, x]) => `<h3 style="margin-top:10px">알고리즘 실험실 · ${esc(ALGO.NAMES[id][1])}</h3><div class="who">${Object.keys(x.done || {}).length}/7단계 · ${subTxt(x, m)}</div>${rows([["고른 규칙", algoRule(id, x.s)], ["가치 검토", x.s.why], ["공정성: 손해 보는 사람과 고칠 점", x.s.loser], ["마치며", x.s.ref]])}`).join("")}</div>`;
+    ${T.map((t) => { const x = m.rec[t.id]; return `<h3 style="margin-top:10px">AI활용탐구 ${t.no} · ${esc(t.title)}</h3><div class="who">${esc(GROUPS[t.g].name)} · ${progP(t, x)}/8단계 · ${subTxt(x, m)}</div>${rows(REPORT.map(([k, n]) => [n, repVal(t, x, k)]))}`; }).join("")}
+    ${G.map(([id, x]) => `<h3 style="margin-top:10px">알고리즘 실험실 · ${esc(ALGO.NAMES[id][1])}</h3><div class="who">${x.sub ? 7 : Object.keys(x.done || {}).length}/7단계 · ${subTxt(x, m)}</div>${rows([["고른 규칙", algoRule(id, x.s)], ["가치 검토", x.s.why], ["공정성: 손해 보는 사람과 고칠 점", x.s.loser], ["마치며", x.s.ref]])}`).join("")}</div>`;
   const p2 = `<div class="paper bpage pg">${head("통합사회 탐구 보고서")}<div class="pgb">${mine}${B.stat ? statBox(m) : ""}</div></div>`;
   // 3쪽: 💬 AI 피드백 · 📝 세특 초안 · 📈 그래프 · 🧭 탐구 단계
-  const fbx = `<div class="fbbox"><h4 class="bt">💬 AI 피드백 · 잘한 점과 다음 걸음 <span class="note">AI가 학번 · 이름 없이 이 학생의 탐구 기록만 읽고 쓴 칭찬과 격려예요</span></h4>${fb.praise ? `<p><b>👍 잘한 점</b> ${esc(fb.praise)}</p><p style="margin-top:6px"><b>🌱 다음에는</b> ${esc(fb.cheer)}</p>` : `<p class="note">아직 AI 피드백을 만들지 않았어요 (위 ‘AI 피드백 · 세특 만들기’)</p>`}</div>`;
+  const fbx = `<div class="fbbox"><h4 class="bt">💬 AI 피드백 · 잘한 점과 다음 걸음 <span class="note">AI가 학번 · 이름 없이 이 학생의 탐구 기록만 읽고 쓴 칭찬과 격려예요</span></h4>${fb.praise ? `<p><b>👍 잘한 점</b> ${esc(fb.praise)}</p>${fb.reflect ? `<p style="margin-top:6px"><b>🪞 성찰과 공유에 대하여</b> ${esc(fb.reflect)}</p>` : ""}<p style="margin-top:6px"><b>🌱 다음에는</b> ${esc(fb.cheer)}</p>` : `<p class="note">아직 AI 피드백을 만들지 않았어요 (위 ‘AI 피드백 · 세특 만들기’)</p>`}</div>`;
   const skx = B.seteuk ? `<div class="fbbox sk"><h4 class="bt">📝 ${m.seteuk ? "세특 초안 · 선생님이 다듬은 글" : "AI 세특 초안 · 나의 탐구가 기록된다면"} <span class="note">${m.seteuk ? "생활기록부에 들어가기 전 초안이에요" : "AI가 학번 · 이름 없이 탐구 기록만 읽고 쓴 글이에요"}</span></h4>${sk ? `<p>${esc(sk)}</p><p class="note" style="margin-top:4px">읽어 보는 글이에요. 생활기록부에는 선생님이 수업 기록을 확인하고 직접 쓴 글이 들어가요.</p>` : `<p class="note">아직 없어요</p>`}</div>` : "";
   const p3 = `<div class="paper bpage pg">${head("피드백과 돌아보기")}<div class="pgb">${fbx}${skx}${chartBox(m)}${stepMap(m)}</div></div>`;
   return p2 + p3;
@@ -523,16 +535,14 @@ function chartBox(m) {
   const bar = (label, v, max, me, txt) => `<div class="cb${me ? " me" : ""}"><span>${esc(label)}</span><i><b style="width:${max ? Math.max(1, Math.min(100, v / max * 100)) : 0}%"></b></i><em>${txt}</em></div>`;
   const out = [];
   if (T.length) {
-    const my = T.reduce((s, t) => s + progOf(t, m.rec[t.id]), 0) / T.length;
-    out.push(`<div><h5>🚶 데이터 실험실 8단계 진도</h5>${bar("나", my, 8, 1, my.toFixed(1) + " / 8")}${bar(m.ban + "반 평균", C.prog, 8, 0, C.prog.toFixed(1))}${bar(g + "학년 평균", G.prog, 8, 0, G.prog.toFixed(1))}</div>`);
+    const my = T.reduce((s, t) => s + progP(t, m.rec[t.id]), 0) / T.length;
+    out.push(`<div${AL.length ? "" : ' class="w"'}><h5>🚶 데이터 실험실 8단계 진도</h5>${bar("나", my, 8, 1, my.toFixed(1) + " / 8")}${bar(m.ban + "반 평균", C.prog, 8, 0, C.prog.toFixed(1))}${bar(g + "학년 평균", G.prog, 8, 0, G.prog.toFixed(1))}</div>`);
   }
   if (AL.length) {
-    const doneN = (x) => Object.keys(x.done || {}).length, my = AL.reduce((s, [, x]) => s + doneN(x), 0) / AL.length;
+    const doneN = (x) => x.sub ? 7 : Object.keys(x.done || {}).length, my = AL.reduce((s, [, x]) => s + doneN(x), 0) / AL.length;
     const cl = CL.filter(active).flatMap((v) => algoDid(v)), cavg = cl.length ? cl.reduce((s, [, x]) => s + doneN(x), 0) / cl.length : 0;
     out.push(`<div><h5>🧩 알고리즘 실험실 7단계 진도</h5>${bar("나", my, 7, 1, my.toFixed(1) + " / 7")}${bar(m.ban + "반 평균", cavg, 7, 0, cavg.toFixed(1))}</div>`);
   }
-  const top = Object.entries(C.tc).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  if (top.length) out.push(`<div><h5>🗳 ${esc(m.ban)}반이 고른 주제</h5>${top.map(([id, n]) => { const t = DL.topic(id), me = T.some((u) => u.id === id); return bar((me ? "나 · " : "") + t.name, n, top[0][1], me, `${n}명 · ${C.n ? Math.round(n / C.n * 100) : 0}%`); }).join("")}</div>`);
   if (T.length) {
     const recs = CL.filter(active).flatMap((v) => topicsOf(v).map((t) => [t, v.rec[t.id]]));
     const items = REPORT.filter(([k]) => k !== "ai").map(([k, n]) => { const me = T.reduce((s, t) => s + nch(repVal(t, m.rec[t.id], k)), 0) / T.length, avg = recs.length ? recs.reduce((s, [t, x]) => s + nch(repVal(t, x, k)), 0) / recs.length : 0; return [n.split(":")[0].replace(/\s*\(.*\)/, ""), me, avg]; }).filter(([, a, b]) => a || b);
@@ -544,8 +554,8 @@ function chartBox(m) {
 /* 🧭 두 실험실의 탐구 단계 (2026-11-23): 데이터 실험실 8단계 · 알고리즘 실험실 7단계, 내가 마친 단계에 ✓ */
 function stepMap(m) {
   const T = topicsOf(m), AL = algoDid(m);
-  const d8 = STEPS.map((st, i) => `<li class="${T.some((t) => stepDone(t, m.rec[t.id], st.k)) ? "on" : ""}"><b>${i + 1}. ${esc(st.name)}</b></li>`).join("");
-  const d7 = ALGO.STEPS.map((n, i) => `<li class="${AL.some(([, x]) => (x.done || {})[i + 1]) ? "on" : ""}"><b>${i + 1}</b>${esc(n)}</li>`).join("");
+  const d8 = STEPS.map((st, i) => `<li class="${T.some((t) => stepP(t, m.rec[t.id], st.k)) ? "on" : ""}"><b>${i + 1}. ${esc(st.name)}</b></li>`).join("");
+  const d7 = ALGO.STEPS.map((n, i) => `<li class="${AL.some(([, x]) => x.sub || (x.done || {})[i + 1]) ? "on" : ""}"><b>${i + 1}</b>${esc(n)}</li>`).join("");
   return `<div class="fbbox smap"><h4 class="bt">🧭 두 실험실의 탐구 단계 <span class="note">내가 마친 단계에 ✓ 표시가 있어요</span></h4>
     <h5>📊 데이터 실험실 · 8단계 ${T.length ? "" : `<span class="lg">아직 안 해 봤어요 · moontr.site/datalab</span>`}</h5><ol class="d8${T.length ? "" : " off"}">${d8}</ol>
     <h5>🧩 알고리즘 실험실 · 7단계 ${AL.length ? "" : `<span class="lg">아직 안 해 봤어요 · 집에서도 해 볼 수 있어요 · moontr.site/algolab</span>`}</h5><ol class="d7${AL.length ? "" : " off"}">${d7}</ol></div>`;
@@ -555,7 +565,7 @@ function batchView() {
   const L = batchList(), need = L.filter((m) => fbState(m) !== "ok"), allN = inBan().filter(active).length;
   const tag = (m) => { const s = fbState(m); return s === "none" ? `<span class="st w">AI 글 없음</span>` : s === "old" ? `<span class="st o">기록이 바뀜</span>` : `<span class="st d">만듦 ${fmtT(m.fb.at)}</span>`; };
   return `<div class="bar-h"><div><h1>일괄 출력</h1><p>반을 고르면 활동한 학생만 한 사람에 한 장씩 · 보고서 + AI 피드백(칭찬 · 격려) + 예상 세특 · 인쇄하면 학번만 나와요</p></div>
-  <div class="ctl">${banSel()}<label class="note" style="display:flex;gap:6px;align-items:center;font-weight:700;color:var(--ink)" title="데이터 탐구나 알고리즘을 하나라도 제출한 학생만, 출력물에도 제출한 것만 넣어요"><input type="checkbox" data-act="bSub" ${B.subOnly ? "checked" : ""}>제출한 학생만 (${inBan().filter(active).filter(hasSub).length}/${allN}명)</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSk" ${B.seteuk ? "checked" : ""}>세특 넣기</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSt" ${B.stat ? "checked" : ""}>반 · 학년 통계 넣기</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSy" ${B.story ? "checked" : ""}>우리 반 탐구 이야기 (1쪽)</label><label class="note" style="display:flex;gap:6px;align-items:center" title="학생마다 쪽수를 짝수로 맞춰 양면으로 뽑아도 학생끼리 섞이지 않게 빈 쪽을 끼워요"><input type="checkbox" data-act="bDx" ${B.duplex ? "checked" : ""}>양면 맞춤</label>
+  <div class="ctl">${banSel()}<label class="note" style="display:flex;gap:6px;align-items:center;font-weight:700;color:var(--ink)" title="데이터 탐구나 알고리즘을 하나라도 제출한 학생만, 출력물에도 제출한 것만 넣어요"><input type="checkbox" data-act="bSub" ${B.subOnly ? "checked" : ""}>끝까지 제출한 학생만 (${inBan().filter(active).filter(hasSub).length}/${allN}명)</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSk" ${B.seteuk ? "checked" : ""}>세특 넣기</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSt" ${B.stat ? "checked" : ""}>반 · 학년 통계 넣기</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSy" ${B.story ? "checked" : ""}>우리 반 탐구 이야기 (1쪽)</label><label class="note" style="display:flex;gap:6px;align-items:center" title="학생마다 쪽수를 짝수로 맞춰 양면으로 뽑아도 학생끼리 섞이지 않게 빈 쪽을 끼워요"><input type="checkbox" data-act="bDx" ${B.duplex ? "checked" : ""}>양면 맞춤</label>
     <button class="btn b" data-act="bMake" ${B.run || !need.length ? "disabled" : ""}>${B.run ? `만드는 중 ${B.done}/${B.total}` : `AI 피드백 · 세특 만들기 (${need.length}명)`}</button>
     <button class="btn" data-act="bPrint" ${L.length ? "" : "disabled"}>인쇄 · PDF로 저장 (${L.length}명)</button></div></div>
   ${!A.ban ? `<div class="msg">반을 하나 고르면 그 반만 출력해요 (지금은 모든 반 ${L.length}명)</div>` : ""}
@@ -581,7 +591,7 @@ document.addEventListener("input", (e) => {
 });
 async function makeFb(m) {
   const j = await callAdminAI("/report", { evidence: evidence(m) });
-  const fb = { praise: j.praise, cheer: j.cheer, seteuk: j.seteuk, at: Date.now() };
+  const fb = { praise: j.praise, cheer: j.cheer, reflect: j.reflect || "", seteuk: j.seteuk, at: Date.now(), v: FB_V };
   await db.collection("datalab_members").doc(m.key).update({ fb });   // updatedAt 은 그대로 (학생이 고친 때와 구별)
   m.fb = fb;
 }

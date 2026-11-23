@@ -56,6 +56,7 @@ const Review = z.object({
 // 일괄 출력: 학생에게 주는 칭찬 · 격려 + 선생님이 볼 예상 세특
 const Report = z.object({
   praise: z.string(),
+  reflect: z.string(),
   cheer: z.string(),
   seteuk: z.string(),
 });
@@ -136,16 +137,17 @@ export default {
           model: MODEL, max_tokens: 8000, output_config: { effort: 'medium', format: zodOutputFormat(Report) },
           system: [{ type: 'text', text: BASE, cache_control: { type: 'ephemeral' } }],
           messages: [{ role: 'user', content: `아래는 한 학생이 '데이터 실험실'(AI활용탐구) · '알고리즘 실험실'에서 실제로 남긴 탐구 기록이야. 선생님이 반 전체 보고서를 출력해 학생에게 나눠 주려고 해. 이 기록만 근거로 세 가지를 써 줘.
-- praise: 학생에게 하는 칭찬 2~3문장. 존댓말(~했어요). 기록에 있는 구체적인 장면(직접 계산한 숫자, AI 결론을 반박한 근거, 사상가 연결, 해결안, 고른 규칙 등)을 짚어서. 꾸밈말(대단해요, 훌륭해요 같은 말만 있는 칭찬) 대신 무엇을 잘했는지를 말해.
-- cheer: 다음 탐구를 위한 격려 1~2문장. 아직 못 한 단계나 더 키울 점 하나를 부드럽게, 할 수 있다는 응원과 함께. 꾸짖는 말투 금지.
-- praise · cheer 는 '잘한 점:' '다음에는' 같은 머리말 없이 바로 내용으로 시작해 (화면에 머리말이 따로 붙어요). 학생 이름 · 학번은 쓰지 마.
+- praise: 학생에게 하는 칭찬 5~7문장. 존댓말(~했어요). 기록에 있는 구체적인 장면(직접 계산한 숫자, AI 결론을 반박한 근거, 사상가 연결, 해결안, 실행물, 고른 규칙 등)을 두세 가지 이상 짚어서, 그것이 왜 좋은 탐구인지까지 말해. 학생이 쓴 표현을 짧게 따옴표로 인용해도 좋아. 꾸밈말(대단해요, 훌륭해요 같은 말만 있는 칭찬) 대신 무엇을 잘했는지를 말해.
+- reflect: 학생이 '탐구를 마치며'(처음 판단과 지금 판단 비교) · 'AI 활용 성찰'을 썼거나 갤러리에 공유했으면, 그 성찰에 대한 선생님의 코멘트 4~6문장. 처음 판단에서 무엇이 바뀌었거나 지켜졌는지, 그 까닭이 데이터 · 사상가와 어떻게 이어지는지, AI를 확인하며 얻은 태도를 구체적으로 짚고 의미를 말해 줘. 공유했다면 친구들과 나눈 것도 짚어 줘. 두 칸 모두 비어 있고 공유도 안 했으면 빈 문자열("").
+- cheer: 다음 탐구를 위한 격려 3~4문장. 아직 못 한 단계나 더 키울 점 한두 가지를 어떻게 하면 되는지까지 부드럽게, 할 수 있다는 응원과 함께. 꾸짖는 말투 금지.
+- praise · reflect · cheer 는 '잘한 점:' '다음에는' 같은 머리말 없이 바로 내용으로 시작해 (화면에 머리말이 따로 붙어요). 학생 이름 · 학번은 쓰지 마.
 - seteuk: 학교생활기록부 '세부능력 및 특기사항' 초안 (학생에게도 'AI 세특 초안'으로 보여 줘요). 나이스 한도 1,500바이트보다 여유 있게 1,200~1,350바이트(한글은 한 글자 3바이트 · 띄어쓰기 1바이트, 대략 공백 포함 410~450자), 1,400바이트는 절대 넘기지 마. 한 문단, '~함.' '~임.' 명사형 끝맺음, 주어 생략, 이름 · 학번 없이. 기록에 있는 활동만(없는 활동 · 수상 · 대회 · 사교육 · 부모 직업 금지), 뛰어난 · 탁월한 같은 꾸밈말 금지. 기록이 적으면 있는 만큼만 짧게 써.
 [탐구 기록]
 ${JSON.stringify(body.evidence || []).slice(0, 12000)}` }],
         });
         if (res.stop_reason === 'refusal' || !res.parsed_output) return json(req, { error: 'AI가 이 학생 글을 쓰지 못했어요' }, 502);
         const p = res.parsed_output;
-        return json(req, { praise: p.praise.slice(0, 600), cheer: p.cheer.slice(0, 400), seteuk: p.seteuk.slice(0, 900) });
+        return json(req, { praise: p.praise.slice(0, 1400), reflect: p.reflect.slice(0, 1000), cheer: p.cheer.slice(0, 800), seteuk: p.seteuk.slice(0, 900) });
       }
       // ── ✍️ 블로그 글쓰기 (관리자만): op 'write' = 재료로 새 글 · 'revise' = 지금 글을 부탁대로 고치기 ──
       if (url.pathname === '/blog') {
