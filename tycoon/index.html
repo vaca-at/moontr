@@ -3895,6 +3895,24 @@ const deskWin = port => (() => {
     blob(cx, gy, C.map(([x, y, r]) => [x - r*.18, y - r*.22, r*.78]), cols[1]);
     blob(cx, gy, C.filter((_, i) => i % 2 === 0).map(([x, y, r]) => [x - r*.38, y - r*.42, r*.36]), cols[2]);
   }
+  // ❄ 겨울 창밖 도구: 잎 진 나무(꼬마전구 · 눈) · 눈사람 · 종이 눈꽃 스티커
+  function bareTree(cx, gy, s, o = {}){
+    poly([[cx - 2.2*s, gy], [cx + 2.2*s, gy], [cx + 1.3*s, gy - 15*s], [cx - 1.3*s, gy - 15*s]], "#5A3A22", LW*.9);
+    const br = [[0, -15, -7, -27], [0, -15, 7, -29], [-3.5, -21, -12, -31], [3.5, -22, 12, -34], [0, -15, 0, -40], [-7, -27, -9, -37], [7, -29, 9, -40], [-12, -31, -15, -36], [12, -34, 15, -38]];
+    br.forEach(([x1, y1, x2, y2], i) => path(() => { g.moveTo(cx + x1*s, gy + y1*s); g.lineTo(cx + x2*s, gy + y2*s); }, null, Math.max(.8, (1.7 - i*.12)*s), "#5A3A22"));
+    if (o.snow){ br.forEach(([, , x2, y2], i) => ell(cx + x2*s, gy + y2*s + .5, (i < 5 ? 2.6 : 1.8)*s, .9*s, "#FFFFFF", .4)); ell(cx, gy - 15*s, 2.4*s, .9*s, "#FFFFFF", .4); }
+    if (o.lights) br.forEach(([x1, y1, x2, y2], i) => [.35, .7].forEach((t, j) => { const on = Math.sin(T*3 + i*1.7 + j*2.1) > -.2; circ(cx + (x1 + (x2 - x1)*t)*s, gy + (y1 + (y2 - y1)*t)*s, .9*s, on ? ["#FFE27A", "#FF8A8A", "#9AE0FF", "#B8F59A"][(i + j) % 4] : "#6A5A4A", 0); }));
+  }
+  function snowman(x, y, s){
+    circ(x, y - 4*s, 5*s, "#FFFFFF", .8); circ(x, y - 11.5*s, 3.6*s, "#FFFFFF", .8);
+    rect(x - 1.6*s, y - 12.6*s, .9*s, .9*s, "#2A2A3A"); rect(x + .7*s, y - 12.6*s, .9*s, .9*s, "#2A2A3A");
+    poly([[x, y - 11.2*s], [x + 3*s, y - 10.7*s], [x, y - 10.2*s]], "#F28A2E", .4);
+    box(x - 3.8*s, y - 8.6*s, 7.6*s, 1.6*s, .6*s, "#E8573C", .5); rect(x + 1.8*s, y - 8*s, 1.4*s, 3*s, "#E8573C");
+    path(() => { g.moveTo(x - 4.5*s, y - 5.5*s); g.lineTo(x - 8*s, y - 8.5*s); g.moveTo(x + 4.5*s, y - 5.5*s); g.lineTo(x + 8*s, y - 8.8*s); }, null, .7*s, "#5A3A22");
+  }
+  function flakeSticker(x, y, r){ g.save(); g.translate(x, y); for (let k = 0; k < 6; k++){ g.rotate(Math.PI/3); path(() => { g.moveTo(0, 0); g.lineTo(0, -r); g.moveTo(0, -r*.55); g.lineTo(r*.28, -r*.8); g.moveTo(0, -r*.55); g.lineTo(-r*.28, -r*.8); }, null, .9, "#FFFFFF"); } g.restore(); }
+  // 계절: 눈 오는 날(진짜 날씨) = 함박눈 · 11월 15일 ~ 2월 = 초겨울(꼬마전구) · 그 밖 = 가을 은행나무
+  const winSeason = (d, wx) => wx === "snow" ? "snow" : (d.getMonth() === 10 && d.getDate() >= 15) || [11, 0, 1].includes(d.getMonth()) ? "winter" : "fall";
   // 운동장 학생 (작게)
   function kid(x, y, s, shirt, hair, run){ const lg = run ? Math.sin(T*9 + x)*1.1 : 0; rect(x - s, y - 4*s, 2*s, 2*s, "#F5CDA6"); rect(x - 1.2*s, y - 5*s, 2.4*s, 1.3*s, hair); rect(x - 1.2*s, y - 2*s, 2.4*s, 2.6*s, shirt); rect(x - s + lg, y + .6*s, .9*s, 1.6*s, "#2E3550"); rect(x + .2*s - lg, y + .6*s, .9*s, 1.6*s, "#2E3550"); }
 
@@ -3914,6 +3932,7 @@ const deskWin = port => (() => {
     g.save(); g.beginPath(); g.rect(X, Y, WW, WH); g.clip(); g.translate(X, Y);
     const sk = g.createLinearGradient(0, 0, 0, 92); ph.sky.forEach((c, i) => sk.addColorStop(i/(ph.sky.length - 1), c)); g.fillStyle = sk; g.fillRect(0, 0, WW, WH);
     const wx = WEATHER ? wxType(WEATHER.code) : null, wet = wx === "rain" || wx === "storm", grey = wet || wx === "cloud" || wx === "snow";
+    const SV = winSeason(d, wx), SNOW = SV === "snow", WIN = SV !== "fall";
     if (dark){ for (let k = 0; k < 36; k++){ const tw = Math.sin(T*2 + k) > 0; rect((k*7919) % WW, (k*131) % 50, tw ? 1.4 : 1, tw ? 1.4 : 1, "#FFFFFF"); } circ(206, 20, 9, "#FFF4C2", 0); circ(211, 16, 8, ph.sky[0], 0); }
     else if (ph.sun && !grey){ const f = Math.max(0, Math.min(1, (h - 7)/11)), sx = 20 + f*(WW - 40), sy = 56 - Math.sin(f*Math.PI)*40; circ(sx, sy, 11, ph.sun); }
     if (grey){ g.globalAlpha = .4; rect(0, 0, WW, 92, dark ? "#0A0C18" : "#8A94A8"); g.globalAlpha = 1; }
@@ -3926,37 +3945,50 @@ const deskWin = port => (() => {
       ft(String(101 + n), ax + aw/2, ay + 5, 3.6, dark ? "#8A90C0" : "#8A7A66", "center", "sans", "900");
       for (let yy = ay + 9; yy < 68; yy += 7) for (let xx = ax + 3; xx < ax + aw - 4; xx += 7){ const lit = dark && (xx*7 + yy*3 + n) % 5 < 3; box(xx, yy, 4.5, 4, .4, lit ? "#FFE27A" : dark ? "#33386A" : "#8FCBF0", .4); }
       for (let yy = ay + 12; yy < 68; yy += 7) rect(ax + 2, yy, aw - 4, .8, dark ? "#1A1E40" : "rgba(0,0,0,.12)");   // 베란다 줄
+      if (SNOW) box(ax - 2, ay - 4.5, aw + 4, 3, 1.5, "#FFFFFF", .6);   // 지붕에 쌓인 눈
     });
     // 학교 담장 · 운동장 · 트랙
-    rect(0, 74, WW, 48, dark ? "#2E4A34" : "#9CC45A"); path(() => { g.moveTo(0, 74); g.lineTo(WW, 74); });
+    const GRD = SNOW ? (dark ? "#C4CCE4" : "#F4F7FB") : WIN ? (dark ? "#3A4434" : "#BDB98A") : (dark ? "#2E4A34" : "#9CC45A");   // 운동장 (눈 · 마른 잔디 · 풀)
+    rect(0, 74, WW, 48, GRD); path(() => { g.moveTo(0, 74); g.lineTo(WW, 74); });
     for (let x = 2; x < WW; x += 8){ rect(x, 70, 1.2, 6, dark ? "#4A5070" : "#7A8494"); } rect(0, 70, WW, 1.2, dark ? "#4A5070" : "#7A8494");   // 철망 담장
-    box(8, 88, WW - 16, 28, 14, dark ? "#6A3A30" : "#D9824E", .9); box(20, 94, WW - 40, 16, 8, dark ? "#2E4A34" : "#7DB848", .7);
+    box(8, 88, WW - 16, 28, 14, SNOW ? (dark ? "#B8C0DA" : "#E6ECF4") : dark ? "#6A3A30" : WIN ? "#C98A5E" : "#D9824E", .9); box(20, 94, WW - 40, 16, 8, WIN ? GRD : dark ? "#2E4A34" : "#7DB848", .7);
+    if (SNOW) [[30, 92], [70, 112], [150, 90], [200, 111]].forEach(([x, y]) => ell(x, y, 9, 1.6, dark ? "#8A6A64" : "#E9A27A", 0));   // 눈 사이로 보이는 트랙
     path(() => { g.moveTo(26, 102); g.lineTo(WW - 26, 102); }, null, .8, dark ? "#8A9A8A" : "#FFFFFF");
     box(WW/2 - 9, 97, 18, 10, 1, null, .7, dark ? "#8A9A8A" : "#FFFFFF");   // 가운데 선
     [[8, 0], [WW - 14, 1]].forEach(([gx]) => { rect(gx, 90, 1.4, 12, "#F4F4F4"); rect(gx + 5, 90, 1.4, 12, "#F4F4F4"); rect(gx, 90, 6.4, 1.4, "#F4F4F4"); });   // 골대
     // 은행나무 한 줄 (담장 앞)
-    [[12, .82], [46, .9], [212, .86], [244, .8]].forEach(([tx, s], i) => ginkgo(tx, 86, s, dark ? GINKGO_N : GINKGO, Math.sin(T*1.1 + i)*.7));
-    for (let i = 0; i < 10; i++) ell(60 + i*14, 118 + (i % 2), 3, 1.2, GINKGO[i % 3], .4);   // 쌓인 은행잎
+    if (!WIN){ [[12, .82], [46, .9], [212, .86], [244, .8]].forEach(([tx, s], i) => ginkgo(tx, 86, s, dark ? GINKGO_N : GINKGO, Math.sin(T*1.1 + i)*.7));
+      for (let i = 0; i < 10; i++) ell(60 + i*14, 118 + (i % 2), 3, 1.2, GINKGO[i % 3], .4); }   // 쌓인 은행잎
+    else {   // 겨울: 잎 진 나무 (초겨울 = 꼬마전구, 눈 = 가지에 눈 · 밤엔 전구) + 눈사람
+      [[12, .82], [46, .9], [212, .86], [244, .8]].forEach(([tx, s]) => bareTree(tx, 86, s, { lights: !SNOW || dark, snow: SNOW }));
+      if (SNOW) snowman(128, 108, 1.2);
+    }
     // 쉬는 시간 · 점심: 운동장 학생들
     if (SCHOOL && (BREAK || LUNCH)) for (let k = 0; k < (LUNCH ? 5 : 8); k++){ const x = 40 + ((k*41 + T*14*(k % 2 ? 1 : -1)) % 170 + 170) % 170; kid(x, 104 + (k % 3)*3, 1.6, ["#2C3E66", "#E8573C", "#2C3E66", "#FFFFFF"][k % 4], "#2A1E1A", true); }
     // 떨어지는 은행잎 · 날씨
-    for (let k = 0; k < 12; k++){ const lx = (k*47 + T*12) % WW, ly = (k*31 + T*14) % WH; g.save(); g.translate(lx, ly); g.rotate(T*2 + k); poly([[0, -2.4], [2, 0], [0, 2.4], [-2, 0]], GINKGO[k % 3], .5); g.restore(); }
+    if (!WIN) for (let k = 0; k < 12; k++){ const lx = (k*47 + T*12) % WW, ly = (k*31 + T*14) % WH; g.save(); g.translate(lx, ly); g.rotate(T*2 + k); poly([[0, -2.4], [2, 0], [0, 2.4], [-2, 0]], GINKGO[k % 3], .5); g.restore(); }
+    if (SNOW){ for (let k = 0; k < 150; k++){ const r = 1.4 + (k % 4)*.6, x = ((k*53 + Math.sin(T*.8 + k)*8 + T*3) % WW + WW) % WW, y = (k*37 + T*22*(1 + (k % 3)*.4)) % (WH + 6) - 3; g.globalAlpha = .92; circ(x, y, r, "#FFFFFF", 0); } g.globalAlpha = 1; }   // 함박눈
     if (wet) for (let k = 0; k < 90; k++){ const x = (k*53 + T*30*(1 + k % 3)) % WW, y = (k*37 + T*150*(1 + k % 2)) % WH; g.globalAlpha = .6; rect(x, y, 1, 6, "#DDEBFF"); g.globalAlpha = 1; }
-    if (wx === "snow") for (let k = 0; k < 60; k++){ const x = (k*53 + Math.sin(T + k)*6 + T*4) % WW, y = (k*37 + T*18*(1 + k % 3)) % WH; rect(x, y, 2, 2, "#FFFFFF"); }
+    if (wx === "snow" && !SNOW) for (let k = 0; k < 60; k++){ const x = (k*53 + Math.sin(T + k)*6 + T*4) % WW, y = (k*37 + T*18*(1 + k % 3)) % WH; rect(x, y, 2, 2, "#FFFFFF"); }
     if (wx === "fog"){ g.globalAlpha = .4; rect(0, 0, WW, WH, "#E8ECF0"); g.globalAlpha = 1; }
     if (wx === "storm" && Math.sin(T*.9)*Math.sin(T*2.3) > .93){ g.globalAlpha = .5; rect(0, 0, WW, WH, "#FFFFFF"); g.globalAlpha = 1; }
     if (ph.tint){ g.globalAlpha = ph.tint[1]; rect(0, 0, WW, WH, ph.tint[0]); g.globalAlpha = 1; }
+    if (WIN){ [[0, 0], [WW, 0], [0, WH], [WW, WH], [WW/3, WH], [2*WW/3, WH]].forEach(([fx, fy]) => { const gr = g.createRadialGradient(fx, fy, 0, fx, fy, 34); gr.addColorStop(0, "rgba(255,255,255,.75)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(fx - 34, fy - 34, 68, 68); }); }   // 김 서린 유리
+    if (SV === "winter") [[30, 26], [118, 18], [160, 40], [232, 30]].forEach(([x, y], k) => flakeSticker(x, y, 5 + (k % 2)*1.5));   // 종이 눈꽃 스티커
     g.restore();
     // 창틀 · 창턱 · 커튼 · 커튼 봉
     [0, 1, 2, 3].forEach(i => box(X - 4 + i*WW/3, Y - 4, 7, WH + 8, 1, "#FFFFFF"));
     box(X - 4, Y - 4, WW + 8, 7, 1, "#FFFFFF"); box(X - 8, Y + WH + 2, WW + 16, 8, 1.5, "#FFFFFF");
     [X - 14, X + WW - 8].forEach(cx => { poly([[cx, Y - 8], [cx + 22, Y - 8], [cx + 18, Y + 60], [cx + 24, Y + 128], [cx - 2, Y + 128], [cx + 4, Y + 60]], "#E8573C"); for (let k = 1; k < 3; k++) path(() => { g.moveTo(cx + k*7, Y - 6); g.lineTo(cx + k*7 - 2, Y + 60); g.lineTo(cx + k*7 + 2, Y + 126); }, null, .8, "#B83C26"); });
     box(X - 18, Y - 12, WW + 36, 6, 3, "#9A5A30");
-    // 시간대 · 날씨 표
+    if (SV === "winter") for (let k = 0; k < 22; k++){ const x = X - 12 + k*(WW + 24)/21, y = Y - 6 + Math.sin(k*.9)*2.2, on = Math.sin(T*3 + k*1.3) > -.3; circ(x, y, 1.6, on ? ["#FFE27A", "#FF8A8A", "#9AE0FF", "#B8F59A"][k % 4] : "#8A7A6A", .5); }   // 커튼 봉 꼬마전구
+    if (SNOW) for (let k = 0; k < 9; k++) ell(X + 6 + k*30, Y + WH + 2, 16, 2.6, "#FFFFFF", .6);   // 창턱에 쌓인 눈
+    // 계절 · 시간대 · 날씨 표 (창 오른쪽 위 — 왼쪽 위는 '다음 시간' 알림 자리라 겹쳐요)
     const wxS = WEATHER ? ` · ${wx === "clear" && dark ? "🌙" : WXI[wx]} ${WEATHER.temp}° ${WXN[wx]}` : "";
-    g.font = `700 6.5px ${fontOf("sans")}`; const bw0 = g.measureText(`🍂 가을 · ${ph.name}${wxS}`).width + 14;
-    box(X + 8, Y + 6, bw0, 13, 6.5, "#FFFFFF", .9); ft(`🍂 가을 · ${ph.name}${wxS}`, X + 8 + bw0/2, Y + 13, 6.5, "#8A4A2A", "center", "sans", "700");
-    if (WEATHER && WEATHER.name){ g.font = `700 5.5px ${fontOf("sans")}`; const w2 = g.measureText(`📍 ${WEATHER.name}`).width + 10; box(X + 8, Y + 22, w2, 10, 5, "rgba(255,255,255,.9)", .7); ft(`📍 ${WEATHER.name}`, X + 13, Y + 27.3, 5.5, "#5A4A3A", "left", "sans", "700"); }
+    const SL = { fall:"🍂 가을", winter:"✨ 초겨울", snow:"☃ 함박눈" }[SV];
+    g.font = `700 6.5px ${fontOf("sans")}`; const bw0 = g.measureText(`${SL} · ${ph.name}${wxS}`).width + 14, bx0 = X + WW - 8 - bw0;
+    box(bx0, Y + 6, bw0, 13, 6.5, "#FFFFFF", .9); ft(`${SL} · ${ph.name}${wxS}`, bx0 + bw0/2, Y + 13, 6.5, "#8A4A2A", "center", "sans", "700");
+    if (WEATHER && WEATHER.name){ g.font = `700 5.5px ${fontOf("sans")}`; const w2 = g.measureText(`📍 ${WEATHER.name}`).width + 10; box(X + WW - 8 - w2, Y + 22, w2, 10, 5, "rgba(255,255,255,.9)", .7); ft(`📍 ${WEATHER.name}`, X + WW - 3 - w2, Y + 27.3, 5.5, "#5A4A3A", "left", "sans", "700"); }
     };
 
     // ===== 오른쪽 벽: 시계 · 책장(wallA) · 코르크판 · 달력(wallB) (밤 모드에서도 또렷하게 다시 그려요) =====
@@ -4191,7 +4223,7 @@ const deskWin = port => (() => {
     return false;
   }
   return { name:"교실 창가 책상", layout:"none", custom:true, draw, act, port, who:"20~40대 · 감성, 또렷한 그림",
-    desc:"<b>가을 교실 창가의 내 책상</b>이에요. 창밖은 우리 학교처럼 운동장 · 은행나무 · 아파트가 보이고, 오전 · 오후 · 노을 · 저녁 · 밤과 진짜 날씨(⚙️ 설정 > 학교 위치)에 따라 바뀌어요. 쉬는 시간엔 운동장에 학생들이 뛰어요. 교무실에 있으면 의자를 돌려 이쪽을 보며 커피 한 잔, 수업 가면 빈 의자. 컴퓨터는 도트 RPG 상태창이에요(하트 막대 = 남은 시간 · NEXT STAGE = 다음 수업 · QUEST = 할 일). 물건을 누르면: 모니터 = 시간표 · 포스트잇 = 고정 메모 · 코르크판 · 꽃 화분 = 할 일 · 달력 = 학교 일정 · 책장 = 즐겨찾기 · 턴테이블 = 빗소리 · 스탠드 = 밤 모드 · 어항 = 물 마시기" };
+    desc:"<b>교실 창가의 내 책상</b>이에요. 창밖은 우리 학교처럼 운동장 · 은행나무 · 아파트가 보이고(가을엔 노란 은행잎, 11월 중순~2월엔 꼬마전구 단 겨울나무, 눈 오는 날엔 함박눈과 눈사람), 오전 · 오후 · 노을 · 저녁 · 밤과 진짜 날씨(⚙️ 설정 > 학교 위치)에 따라 바뀌어요. 쉬는 시간엔 운동장에 학생들이 뛰어요. 교무실에 있으면 의자를 돌려 이쪽을 보며 커피 한 잔, 수업 가면 빈 의자. 컴퓨터는 도트 RPG 상태창이에요(하트 막대 = 남은 시간 · NEXT STAGE = 다음 수업 · QUEST = 할 일). 물건을 누르면: 모니터 = 시간표 · 포스트잇 = 고정 메모 · 코르크판 · 꽃 화분 = 할 일 · 달력 = 학교 일정 · 책장 = 즐겨찾기 · 턴테이블 = 빗소리 · 스탠드 = 밤 모드 · 어항 = 물 마시기" };
 })();
 const S15 = deskWin(false);
 NEWS.push(S15);
@@ -9292,6 +9324,7 @@ const TALK_BASE = {
   after:["퇴근! 오늘도 수고했어요", "집에서는 일 생각 금지예요", "푹 쉬고 내일 만나요 🌙"],
   weekend:["주말이에요, 푹 쉬어요", "이번 주도 정말 고생했어요", "월요일 일은 월요일에 생각해요"],
   dday:["{dday}까지 D-{dn}!", "{dday} 얼마 안 남았어요", "D-{dn}, 차근차근 준비해요"],
+  snow:["눈 와요! 출근길 미끄러웠죠? ❄", "창밖에 함박눈, 아이들 들떴겠어요", "눈 오는 날엔 따뜻한 차 한 잔 ☕"],
   rain:["비 와요, 우산 챙겼어요? ☔", "비 오는 날엔 교실이 조금 들떠요", "창밖에 비, 수업은 차분하게"],
   todo:["할 일 {todo}개 남았어요, 하나만 해 볼까요?", "체크리스트 {todo}개! 거의 다 왔어요", "남은 할 일 {todo}개, 할 수 있어요"]
 };
@@ -9353,7 +9386,7 @@ function talkShow(next){
   if (!talkOn()){ el.classList.add("off"); return; }
   const d = simNow(), st = stateAt(d); let key = talkSituation(st, d);
   // 가끔은 날씨 · D-day · 할 일 이야기 (그 상황일 때만)
-  const extra = [talkWet() && key !== "after" && "rain", DDAY && DDAY.n >= 0 && DDAY.n <= 7 && "dday", talkLeftTodo() && ["free", "brk", "after"].includes(key) && "todo"].filter(Boolean);
+  const extra = [talkWet() && key !== "after" && ((WEATHER.code >= 71 && WEATHER.code <= 77) || WEATHER.code === 85 || WEATHER.code === 86 ? "snow" : "rain"), DDAY && DDAY.n >= 0 && DDAY.n <= 7 && "dday", talkLeftTodo() && ["free", "brk", "after"].includes(key) && "todo"].filter(Boolean);
   if (extra.length && (next || Math.random() < .35)) key = extra[Math.floor(Math.random()*extra.length)];
   talkLast = talkLine(key, st, d);
   // 📱 앱: 위 띠에서 돌던 안내(남은 시간 · 다음 교실 · 날씨 · 일출 · 일몰 …)를 말풍선에서 번갈아
