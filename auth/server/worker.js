@@ -59,7 +59,31 @@ export default {
   async fetch(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors(req) });
     const url = new URL(req.url);
-    if (req.method !== "POST" || !["/kakao", "/merge", "/maum"].includes(url.pathname)) return json(req, { error: "없는 주소예요" }, 404);
+    if (req.method !== "POST" || !["/kakao", "/merge", "/maum", "/maum/stats"].includes(url.pathname)) return json(req, { error: "없는 주소예요" }, 404);
+    /* 📊 POST /maum/stats { idToken } — 마음한편 관리자 숫자 (moontr.site/maum/#admin). 관리자 구글 계정만.
+       AI 마음 티쳐 날마다 횟수 · 쓴 사람 수 · 위험한 말 횟수 + 다른 기기와 맞춘 계정 수(Firestore maum_users 아래 칸 수). 기록 내용은 읽지 않아요 */
+    if (url.pathname === "/maum/stats") {
+      const body = await req.json().catch(() => ({}));
+      const a = await lookup(body.idToken);
+      if (a.err) return json(req, { error: a.err }, 401);
+      const em = String(a.u.email || "").toLowerCase();
+      const isAdmin = em === "anstjsdud@sen.go.kr" || (em === "bellachord@gmail.com" && a.u.emailVerified);
+      if (!isAdmin) return json(req, { error: "관리자만 볼 수 있어요" }, 403);
+      const q = env.QUOTA.get(env.QUOTA.idFromName("maum"));
+      const s = await q.fetch("https://q/stats").then((r) => r.json());
+      let accounts = null;
+      try {
+        const sa = JSON.parse(env.FB_SA || "");
+        const tok = await adminToken(sa); let page = "", n = 0;
+        do {
+          const r = await fetch(`https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents/maum_users?pageSize=300&showMissing=true&mask.fieldPaths=__none__${page ? "&pageToken=" + encodeURIComponent(page) : ""}`, { headers: { Authorization: "Bearer " + tok } });
+          const j = await r.json(); if (!r.ok) throw new Error((j.error || {}).message || r.status);
+          n += (j.documents || []).length; page = j.nextPageToken || "";
+        } while (page);
+        accounts = n;
+      } catch (e) { console.log("maum stats accounts", String(e.message).slice(0, 80)); }
+      return json(req, { ...s, accounts });
+    }
     // 🌿 마음한편 AI: 로그인 표만 확인하고 maum.js 로 (서비스 계정 키는 쓰지 않아요)
     if (url.pathname === "/maum") {
       const body = await req.json().catch(() => ({}));

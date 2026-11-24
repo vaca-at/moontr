@@ -4,6 +4,7 @@
 //  ⚠️ 적은 글은 답을 만드는 데만 쓰고 이 서버에 저장하지 않아요. 기록(console.log)에도 글을 남기지 않아요.
 //  ⚠️ 위험한 말(죽고 싶다 · 자해 · 폭력)이 보이면 AI에 보내지 않고 { crisis: true } 로 바로 돌려줘요 → 앱이 도움 화면(109 · 1388 · 112)을 열어요.
 //  하루 횟수: 한 사람(uid)마다 LIMIT 만큼 (Durable Object 'Quota')
+//  📊 2026-11-25 관리자 숫자: 날마다 할 일별 횟수 · 쓴 사람 수 · 처음 쓴 사람 수 · 위험한 말이 보인 횟수만 세요 (글은 세지도 남기지도 않아요)
 //  비밀값: ANTHROPIC_API_KEY  (이 폴더에서 npx wrangler@4 secret put ANTHROPIC_API_KEY)
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod/v4';
@@ -63,10 +64,10 @@ export async function maum(req, env, body, who, json) {
   if (!LIMIT[task]) return json(req, { error: '없는 할 일이에요' }, 400);
   // ⚠️ 위험한 말은 AI 키가 있든 없든 가장 먼저 살펴요 (2026-11-24: 키 확인보다 뒤에 있어 키가 없을 때 못 잡던 것 고침)
   const text = clean(body.text, 800);
-  if (text && risky(text)) return json(req, { crisis: true });
+  const q = env.QUOTA.get(env.QUOTA.idFromName('maum'));
+  if (text && risky(text)) { await q.fetch('https://q/mark?k=crisis').catch(() => {}); return json(req, { crisis: true }); }
   if (!env.ANTHROPIC_API_KEY) return json(req, { error: 'AI 준비 중이에요', off: true }, 503);
   // 하루 횟수
-  const q = env.QUOTA.get(env.QUOTA.idFromName('maum'));
   const ok = await q.fetch(`https://q/use?who=${encodeURIComponent(who.localId)}&k=${task}&max=${LIMIT[task]}`).then((r) => r.json());
   if (!ok.ok) return json(req, { error: '오늘 AI 마음 티쳐와 이야기할 수 있는 횟수를 다 썼어요. 내일 또 만나요', limit: true }, 429);
 
@@ -128,14 +129,32 @@ export async function maum(req, env, body, who, json) {
   return json(req, { error: '없는 할 일이에요' }, 400);
 }
 
-/** 하루 횟수 세기 (한국 날짜 기준, 지난 날짜는 가끔 정리) */
+/** 하루 횟수 세기 (한국 날짜 기준) + 관리자 숫자
+ *  열쇠 모양: 'YYYY-MM-DD:할일:uid' = 오늘 그 사람 횟수 (지난 날짜는 가끔 정리)
+ *            'seen:YYYY-MM-DD:uid' = 오늘 쓴 사람 (지난 날짜는 정리) · 'u:uid' = 한 번이라도 쓴 사람
+ *            's:YYYY-MM-DD:이름' = 그날 숫자 (할일별 횟수 · users · new · crisis), 'total:users' = 지금까지 쓴 사람 — 이 둘은 지우지 않아요 */
 export class Quota extends DurableObject {
+  async add(key, by = 1) { const n = ((await this.ctx.storage.get(key)) || 0) + by; await this.ctx.storage.put(key, n); return n; }
   async fetch(req) {
-    const u = new URL(req.url), day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
-    const key = `${day}:${u.searchParams.get('k')}:${u.searchParams.get('who')}`, n = (await this.ctx.storage.get(key)) || 0, max = +u.searchParams.get('max') || 20;
+    const u = new URL(req.url), day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10), st = this.ctx.storage;
+    if (u.pathname === '/mark') { await this.add(`s:${day}:${u.searchParams.get('k')}`); return Response.json({ ok: true }); }
+    if (u.pathname === '/stats') {
+      const days = {}, all = await st.list({ prefix: 's:' });
+      for (const [k, v] of all) { const [, d, name] = k.split(':'); (days[d] = days[d] || {})[name] = v; }
+      return Response.json({ days, total: (await st.get('total:users')) || 0 });
+    }
+    const who = u.searchParams.get('who'), k = u.searchParams.get('k');
+    const key = `${day}:${k}:${who}`, n = (await st.get(key)) || 0, max = +u.searchParams.get('max') || 20;
     if (n >= max) return Response.json({ ok: false, n });
-    await this.ctx.storage.put(key, n + 1);
-    if (Math.random() < 0.02) { const all = await this.ctx.storage.list(); for (const k of all.keys()) if (!k.startsWith(day)) await this.ctx.storage.delete(k); }
+    await st.put(key, n + 1);
+    // 관리자 숫자 (uid 는 셀 때만 쓰고 밖으로 내보내지 않아요)
+    await this.add(`s:${day}:${k}`);
+    if (!(await st.get(`seen:${day}:${who}`))) { await st.put(`seen:${day}:${who}`, 1); await this.add(`s:${day}:users`); }
+    if (!(await st.get(`u:${who}`))) { await st.put(`u:${who}`, day); await this.add(`s:${day}:new`); await this.add('total:users'); }
+    if (Math.random() < 0.02) {   // 지난 날짜 하루 횟수 · 오늘 쓴 사람 표만 정리 (숫자 s: · u: · total: 은 그대로)
+      const old = [...(await st.list()).keys()];
+      for (const x of old) if ((/^\d{4}-\d\d-\d\d:/.test(x) && !x.startsWith(day)) || (x.startsWith('seen:') && !x.startsWith(`seen:${day}`))) await st.delete(x);
+    }
     return Response.json({ ok: true, n: n + 1 });
   }
 }

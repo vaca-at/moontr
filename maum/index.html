@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>마음한편</title>
+<meta name="description" content="하루의 마음을 한 편의 문장으로 — 현직 교사가 만든 마음 기록 앱 마음한편">
+<meta property="og:title" content="마음한편">
+<meta property="og:description" content="하루의 마음을 한 편의 문장으로 · 마음근력 활동 · AI 마음 티쳐">
+<meta property="og:image" content="https://moontr.site/maum/og.png">
+<link rel="icon" href="/admin/app-maum.jpg">
+<style>
+/* ============================================================
+   🌿 마음한편 웹 (moontr.site/maum) — 2026-11-25
+   · 지금: 앱 소개 + 앱스토어 단추 (웹에서 쓰는 마음한편은 시안을 보고 만들 거예요)
+   · #admin (또는 ?admin): 관리자 숫자 화면 — 관리자 구글 계정으로만
+     숫자는 moontr-auth 서버 POST /maum/stats 에서 받아요 (관리자인지는 서버가 확인하고, 아니면 바로 로그아웃):
+       AI 마음 티쳐 날마다 할 일별 횟수 · 쓴 사람 수 · 처음 쓴 사람 수 · 위험한 말이 보인 횟수,
+       다른 기기와 맞춘 계정 수(Firestore maum_users 아래 칸 수)
+     ⚠️ 마음 기록 · AI 와 나눈 글은 약속대로 관리자도 보지 않아요 (숫자만)
+   ============================================================ */
+:root{--bg:#F4F5F7;--card:#FFFFFF;--ink:#1F2328;--sub:#646B73;--line:#E3E6EA;--acc:#133955;--clay:#C9765E;--red:#C8553D;
+  --sans:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;word-break:keep-all}
+.wrap{max-width:960px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 90px max(16px,env(safe-area-inset-left))}
+button,.btn{font:600 15px var(--sans);border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn.main,button.main{background:var(--acc);border-color:var(--acc);color:#fff}
+h1{font-size:34px;margin:0}
+.sub{color:var(--sub)}
+.hero{display:grid;grid-template-columns:120px 1fr;gap:24px;align-items:center;background:var(--card);border-radius:24px;padding:28px;border:1px solid var(--line)}
+.hero img{width:120px;height:120px;border-radius:28px;box-shadow:0 6px 20px rgba(19,57,85,.2)}
+.hero p{margin:6px 0 16px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.feat{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px}
+.feat div{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}
+.feat b{display:block;font-size:16px}
+.feat span{color:var(--sub);font-size:14px}
+.soon{margin-top:16px;padding:14px 18px;border-radius:14px;background:#E9EEF4;color:var(--acc);font-size:14px}
+#adm{display:none}
+body.adm #intro{display:none}
+body.adm #adm{display:block}
+.top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.top h1{margin-right:auto;font-size:26px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:18px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
+.tile .k{font-size:13px;color:var(--sub)}
+.tile .v{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile .s{font-size:12px;color:var(--sub)}
+.tile.warn .v{color:var(--red)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:14px}
+.card h2{font-size:17px;margin:0 0 12px}
+.bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:6px;align-items:end;height:160px}
+.bar{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:4px}
+.bar i{display:block;width:100%;max-width:30px;border-radius:6px 6px 2px 2px;background:var(--acc);min-height:2px}
+.bar small{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums}
+.bar em{font-style:normal;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;color:var(--sub);font-weight:600}
+td.c{color:var(--red);font-weight:700}
+.msg{margin-top:12px;font-size:14px;color:var(--sub);white-space:pre-line}
+.msg.err{color:var(--red)}
+.login{max-width:420px;margin:12vh auto 0;background:var(--card);border-radius:20px;padding:30px;text-align:center;border:1px solid var(--line)}
+.login p{color:var(--sub);font-size:14px}
+.note{font-size:13px;color:var(--sub);margin-top:14px}
+.policy-foot{margin-top:40px;font-size:13px;color:var(--sub)}
+.policy-foot summary{cursor:pointer}
+.policy-foot div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:8px;line-height:1.7}
+@media (max-width:560px){.hero{grid-template-columns:1fr;text-align:center}.hero img{margin:0 auto}.row{justify-content:center}.bars{gap:3px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section id="intro">
+    <div class="hero">
+      <img src="/admin/app-maum.jpg" alt="마음한편 아이콘">
+      <div>
+        <h1>마음한편</h1>
+        <p class="sub">하루의 마음을 한 편의 문장으로. 현직 교사가 만든 마음 기록 앱이에요.</p>
+        <div class="row">
+          <a class="btn main" href="https://apps.apple.com/kr/app/id6838529122" target="_blank" rel="noopener">App Store 에서 받기</a>
+          <a class="btn" href="/maum/privacy.html">개인정보 처리방침</a>
+        </div>
+      </div>
+    </div>
+    <div class="feat">
+      <div><b>오늘의 마음</b><span>마음 날씨를 고르고, 좋았던 점이나 나를 위로하는 한 줄을 남겨요.</span></div>
+      <div><b>마음근력</b><span>내 3D 캐릭터를 따라 발바닥 느끼기 · 얼굴 풀기 · 1분 호흡을 해요.</span></div>
+      <div><b>나와 가족 알아 가기</b><span>기질 · 성격 · 마음 결 테스트를 나와 가족이 따로 해 보고 궁합을 봐요.</span></div>
+      <div><b>AI 마음 티쳐</b><span>내 마음과 그 사람의 마음을 쉬운 말로 풀어 주고, 숨은 마음 도감을 채워요.</span></div>
+    </div>
+    <p class="soon">웹에서도 쓰는 마음한편을 준비하고 있어요. 지금은 아이폰 · 아이패드 앱에서 써 주세요.</p>
+  </section>
+
+  <section id="adm"></section>
+
+  <details class="policy-foot">
+    <summary>이용약관 · 개인정보 처리방침</summary>
+    <div><b>개인정보 처리방침</b> — 이 페이지는 로그인 없이 볼 수 있고, 개인정보를 모으지 않아요. 방문 수만 날짜별 숫자로 세요. 앱의 개인정보 처리는 <a href="/maum/privacy.html">마음한편 개인정보 처리방침</a>을 따라요.<br>
+    <b>이용약관</b> — 앱 이용약관은 <a href="/maum/terms.html">마음한편 이용약관</a>을 봐 주세요. 표준화된 심리검사나 진단 · 상담 · 치료를 대신하지 않아요.</div>
+  </details>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o",
+  authDomain: "moon-d528d.firebaseapp.com",
+  projectId: "moon-d528d",
+  messagingSenderId: "126636401536",
+  appId: "1:126636401536:web:25b8a8296ec42b86f99765"
+};
+const STATS_URL = 'https://moontr-auth.bellachord.workers.dev/maum/stats';   // 관리자인지는 이 서버가 확인해요
+const TASKS = [['today', '오늘 문장'], ['review', '이번 주 총평'], ['translate', '마음 번역'], ['ask', '물어보기'], ['talk', '이야기'], ['ring', '도감 찾기']];
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ADMIN_MODE = /admin/.test(location.hash) || new URLSearchParams(location.search).has('admin');
+const IN_APP = /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NAVER\(inapp|DaumApps/i.test(navigator.userAgent);
+let msg = { t: '', err: false }, data = null, ready = false;
+
+const loadScript = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('도구를 불러오지 못했어요')); document.head.appendChild(s); });
+async function fbInit(){
+  for (const m of ['app', 'auth']) await loadScript(`https://www.gstatic.com/firebasejs/10.12.2/firebase-${m}-compat.js`);
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);   // 이름 없는 기본 앱: 허브에서 로그인했으면 바로 들어와요
+  try { await firebase.auth().getRedirectResult(); } catch (e) { if (e.code) setMsg('로그인하지 못했어요. (' + e.code + ')', true); }
+  firebase.auth().onAuthStateChanged(u => { ready = true; if (u) loadStats(); else render(); });
+}
+async function login(){
+  if (IN_APP) return setMsg('카카오톡 같은 앱 안에서는 구글 로그인이 막혀요.\n⋯ 메뉴에서 [Safari로 열기] · [다른 브라우저로 열기]를 누른 뒤 다시 해 주세요.', true);
+  const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+  try { await firebase.auth().signInWithPopup(p); }
+  catch (e) {
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return firebase.auth().signInWithRedirect(p);
+    setMsg('로그인하지 못했어요. (' + (e.code || e.message) + ')', true);
+  }
+}
+async function loadStats(){
+  setMsg('숫자를 불러오는 중…'); render();
+  try {
+    const idToken = await firebase.auth().currentUser.getIdToken();
+    const r = await fetch(STATS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }) });
+    const j = await r.json();
+    // 관리자가 아니면 바로 로그아웃 (moontr.site 공용 로그인에 남지 않게)
+    if (r.status === 403) { data = null; await firebase.auth().signOut(); return setMsg('관리자 구글 계정으로 골라 주세요.', true), render(); }
+    if (!r.ok) throw new Error(j.error || r.status);
+    data = j; setMsg('');
+  } catch (e) { setMsg('숫자를 불러오지 못했어요: ' + e.message, true); }
+  render();
+}
+function setMsg(t, err){ msg = { t, err: !!err }; const m = $('aMsg'); if (m) { m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); } }
+const kday = (off = 0) => new Date(Date.now() + 9 * 3600e3 - off * 864e5).toISOString().slice(0, 10);   // 한국 날짜
+function render(){
+  if (!ADMIN_MODE) return;
+  const W = $('adm');
+  const user = ready && window.firebase && firebase.apps.length ? firebase.auth().currentUser : null;
+  if (!user || !data) {
+    W.innerHTML = `<div class="login"><h2>🌿 마음한편 관리자</h2><p>숫자만 보는 화면이에요. 관리자 구글 계정으로 로그인해 주세요.</p>
+      ${user ? '' : '<button class="main" id="bLogin">G 관리자 구글 계정으로 로그인</button>'}<div class="msg${msg.err ? ' err' : ''}" id="aMsg">${esc(msg.t || (ready ? '' : '불러오는 중…'))}</div></div>`;
+    if ($('bLogin')) $('bLogin').onclick = login; return;
+  }
+  const D = data.days || {}, days = [...Array(14)].map((_, i) => kday(13 - i));
+  const sumTasks = d => TASKS.reduce((a, [k]) => a + ((D[d] || {})[k] || 0), 0);
+  const today = kday(), w7 = days.slice(-7);
+  const crisis7 = w7.reduce((a, d) => a + ((D[d] || {}).crisis || 0), 0);
+  const maxV = Math.max(1, ...days.map(sumTasks));
+  W.innerHTML = `<div class="top"><h1>🌿 마음한편 관리자</h1>
+      <button id="bRe">새로 불러오기</button><a class="btn" href="/maum/">소개 페이지</a><button id="bOut">로그아웃</button></div>
+    <div class="msg${msg.err ? ' err' : ''}" id="aMsg">${esc(msg.t)}</div>
+    <div class="tiles">
+      <div class="tile"><div class="k">다른 기기와 맞춘 계정</div><div class="v">${data.accounts != null ? data.accounts.toLocaleString() : '-'}</div><div class="s">로그인해서 기록을 맞춘 사람</div></div>
+      <div class="tile"><div class="k">AI 마음 티쳐 쓴 사람</div><div class="v">${(data.total || 0).toLocaleString()}</div><div class="s">11/25부터 센 지금까지</div></div>
+      <div class="tile"><div class="k">오늘 AI 쓴 사람</div><div class="v">${((D[today] || {}).users || 0).toLocaleString()}</div><div class="s">처음 쓴 사람 ${((D[today] || {}).new || 0)}명</div></div>
+      <div class="tile"><div class="k">오늘 AI 횟수</div><div class="v">${sumTasks(today).toLocaleString()}</div><div class="s">최근 7일 ${w7.reduce((a, d) => a + sumTasks(d), 0).toLocaleString()}번</div></div>
+      <div class="tile${crisis7 ? ' warn' : ''}"><div class="k">위험한 말이 보인 횟수</div><div class="v">${crisis7}</div><div class="s">최근 7일 · 앱이 도움 받을 곳을 보여 줬어요</div></div>
+    </div>
+    <div class="card"><h2>최근 14일 AI 마음 티쳐 횟수</h2>
+      <div class="bars">${days.map(d => { const v = sumTasks(d); return `<div class="bar" title="${d} · ${v}번"><em>${v || ''}</em><i style="height:${Math.round(v / maxV * 120)}px;${d === today ? 'background:var(--clay)' : ''}"></i><small>${+d.slice(8)}</small></div>`; }).join('')}</div></div>
+    <div class="card"><h2>날마다 자세히</h2><div class="tbl"><table>
+      <tr><th>날짜</th>${TASKS.map(([, n]) => `<th>${n}</th>`).join('')}<th>합</th><th>쓴 사람</th><th>처음</th><th>위험한 말</th></tr>
+      ${days.slice().reverse().map(d => { const o = D[d] || {}; return `<tr><td>${d.slice(5).replace('-', '.')}</td>${TASKS.map(([k]) => `<td>${o[k] || ''}</td>`).join('')}<td><b>${sumTasks(d) || ''}</b></td><td>${o.users || ''}</td><td>${o.new || ''}</td><td class="${o.crisis ? 'c' : ''}">${o.crisis || ''}</td></tr>`; }).join('')}
+    </table></div></div>
+    <div class="card"><h2>바로가기</h2><div class="row">
+      <a class="btn" href="https://appstoreconnect.apple.com/apps/6838529122/distribution" target="_blank" rel="noopener">App Store Connect ↗</a>
+      <a class="btn" href="https://apps.apple.com/kr/app/id6838529122" target="_blank" rel="noopener">앱스토어 페이지 ↗</a>
+      <a class="btn" href="https://console.firebase.google.com/project/moon-d528d/authentication/users" target="_blank" rel="noopener">Firebase 로그인 ↗</a>
+      <a class="btn" href="https://dash.cloudflare.com/" target="_blank" rel="noopener">AI 서버 (Cloudflare) ↗</a>
+      <a class="btn" href="/maum/privacy.html" target="_blank">개인정보 처리방침 ↗</a></div>
+      <p class="note">마음 기록 · AI 와 나눈 글은 약속대로 관리자도 보지 않아요. 여기에는 숫자만 모여요. 앱스토어 다운로드 수는 관리자 허브 홈의 스토어 앱 칸에서 봐요.</p></div>`;
+  $('bRe').onclick = loadStats; $('bOut').onclick = () => { data = null; firebase.auth().signOut(); };
+}
+if (ADMIN_MODE) { document.body.classList.add('adm'); render(); fbInit().catch(e => { setMsg(e.message, true); render(); }); }
+</script>
+<script src="/refresh.js" data-bg="#133955" data-fg="#FFFFFF" defer></script>
+<script type="module" src="/visit.js?app=maum"></script>
+</body>
+</html>
