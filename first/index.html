@@ -1483,6 +1483,7 @@ function viewSettings(){
   const nx = nextExam(), nxd = nx ? dLeft(nx.d) : 0;
   return `${pageHd("설정", "settings")}
     <button type="button" class="capb" data-act="guide"><i>📖</i><span><b>사용 설명서</b><small>할 일 · 타이머 · 친구들 · 내 캐릭터 만들기 · 계정까지 한눈에</small></span></button>
+    <button type="button" class="capb" data-act="help"><i>💬</i><span><b>문의하기${S.helpNew ? " · 답이 왔어요" : ""}</b><small>궁금한 점 · 불편한 점 · 바라는 점을 적으면 AI 가 먼저 답하고, 관리자도 읽고 답해요</small></span></button>
     <p class="note" style="margin:-4px 4px 0">글씨체 · 배경 · 색 · 친구들은 ☰ 꾸미기에서 바꿔요 · 아래 묶음을 누르면 펼쳐져요</p>
     ${sec("subj", "📚", "과목 · 약한 과목", `${D.subj.length}과목 · 매일 넣기 ${D.subj.filter(s => s.daily).length}개 · 약한 과목 ${esc(D.weak || "자동" + (auto ? ` (${auto})` : ""))}`)}
     <p class="gh">과목 (오늘 할 일 · 타이머 · 성적에 함께 써요)</p>
@@ -1523,7 +1524,7 @@ function viewSettings(){
       <h4>이용약관</h4>학생의 공부 계획과 기록을 돕는 무료 앱이에요. 쌤의 말은 정해진 규칙으로 나오는 응원이고, 진로 · 성적에 대한 전문 상담이 아니에요.
       <h4>개인정보 처리방침</h4>Apple · 구글 · 카카오로 로그인하면 그 서비스가 알려 주는 로그인 번호와 이메일, 내가 쓴 할 일 · 세부 계획 · 공부 시간 · 성적 · 시험 날짜 · 일정 · 수행평가 · 메모 · 하루 마무리 일기 · 설정 · 내 캐릭터 그림을 <b>구글 Firebase 서버에 본인 계정으로만</b> 저장해요 (휴대폰을 바꾸거나 컴퓨터에서도 이어 쓰려고). 운영자는 학생 기록을 볼 수 없고 가입 · 사용 숫자(쓴 날짜, 앱을 연 시각, 기능별로 누른 횟수)만 봐요. 광고 · 다른 회사에 넘기는 데 쓰지 않아요. 사진첩 사진과 사진에서 읽은 글자는 이 휴대폰에만 있고 서버 · 백업에 올리지 않아요 (사진에서 고른 할 일만 기록에 들어가요). 아이폰 앱은 기록을 내 아이클라우드에도 백업해요. 알림은 휴대폰 안에서만 울려요. ⚙︎ 설정 › 계정 › 탈퇴를 누르면 모두 지워요. 자세히: moontr.site/first/privacy.html
       <h4>공부 소리</h4>타이머의 🎧 소리(빗소리 · 백색소음 · 파도)는 앱이 직접 만드는 소리예요.
-      <h4>문의</h4>운영자 메일 anstjsdud@sen.go.kr (제목에 '먼저 플래너'). 개인정보 · 계정 삭제 요청도 이 메일로 받아요.
+      <h4>문의</h4>⚙︎ 설정 › 💬 문의하기에 적은 글은 답을 하려고 운영자의 서버(Cloudflare)에 남고, AI(Cloudflare Workers AI)가 먼저 답해요. 로그인 정보 · 기록은 함께 보내지 않고, 이 기기에 정한 번호로만 대화가 이어져요. 이름 · 학교 · 전화번호는 적지 말아 주세요. 운영자 메일 anstjsdud@sen.go.kr (제목에 '먼저 플래너'). 개인정보 · 계정 삭제 요청도 이 메일로 받아요.
     </div></details>`;
 }
 /* 과목 이름을 바꾸면: 오늘 · 앞으로의 할 일, 반복 할 일, 성적, 약한 과목도 같이 바꿔요 */
@@ -2005,6 +2006,7 @@ document.addEventListener("click", e => {
     case "csizeSet": D.csize = v; save(); setTimeout(() => mateSay(D.mode === "t" ? "이 크기로 있을게." : "이 크기 어때?"), 200); break;
     case "firstSet": { const i = D.crew.indexOf(v); if (i > 0){ D.crew.splice(i, 1); D.crew.unshift(v); save(); render(); setTimeout(() => cheerMe(v), 150); } return; }
     case "guide": S.sheet = { t:"guide" }; openSheet(sheetGuide()); return;
+    case "help": if (window.moontrHelp){ S.helpNew = 0; window.moontrHelp.open(); render(); } else toast("문의 창을 불러오는 중이에요. 잠시 뒤에 다시 눌러 주세요"); return;   /* 💬 문의하기 (2026-11-25, /help.js) */
     case "spotReset": D.spots = {}; save(); Object.values(CREW.els).forEach(el => { el._home = crewRnd(); if (!crewEdge()) crewPlace(el, el._home); }); toast(crewEdge() ? "오늘 화면에 가면 친구들이 새 자리에 있어요" : "친구들을 다시 흩어 놓았어요"); return;
     case "tside": D.tside = v; save(); break;
     case "crewT": { const i = D.crew.indexOf(v);
@@ -2880,6 +2882,9 @@ if (ADMIN){
   }
 }
 </script>
+<!-- 💬 문의하기 창 (웹 · 앱 모두, ⚙︎ 설정 › 💬 문의하기에서 열어요). 관리자 답이 와 있으면 설정 단추에 '답이 왔어요' -->
+<script src="/help.js" data-app="first" defer></script>
+<script>addEventListener("moontr-help-unread", e => { S.helpNew = e.detail; if (S.tab === "settings") render(); });</script>
 <script>/* 방문 수: 웹에서만 세요 (아이폰 앱은 '데이터 수집 안 함'이라 안 세요, 2026-11-15) */
 if (!window.Capacitor?.isNativePlatform?.()){ const v = document.createElement("script"); v.type = "module"; v.src = "/visit.js?app=first&hide=1"; document.body.appendChild(v); }</script>
 <script>/* 새로고침 단추: 웹에서만 (아이폰 앱 안에서는 ⚙︎ · 타이머를 가려서 안 붙여요) */

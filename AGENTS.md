@@ -36,6 +36,8 @@
 - **새 웹앱에는 맨 아래에 그 웹앱만의 이용약관·개인정보 처리방침을 넣습니다**: 다른 웹앱의 이름·주소는 적지 않습니다(대문에 공개하지 않은 앱이 드러나면 안 됨). `policy/index.html`은 **대문 전용**이라 다른 앱을 추가하지 않습니다. 출석체크(`check04`)의 `<footer class="policy-foot"><details>…` 모양을 따라 앱 안에 펼쳐지게 넣고, 화면 전체가 iframe이면 `visit.js`에 `&policy=gas`(구글 시트 웹앱 안내 작은 창)를 붙입니다.
 - **새 웹앱에는 위쪽 새로고침 단추도 넣습니다**: `</body>` 바로 위에 `<script src="/refresh.js" defer></script>` (색은 `data-bg` · `data-fg`, 왼쪽은 `data-side="left"`). 관리자 허브 안에서는 저절로 숨어요. 아래 관리자 단추(`.admin-fab`)와 이용약관 · 개인정보처리방침도 꼭 있는지 확인합니다.
 - **💬 문의 채팅 (2026-11-07)**: 스냅주 · 큰법당 · 캠핑장 · 소호랩은 `https://moontr.site/help.js?`(`data-app` = snapzoo · templestay · campingjang · soholab)로 문의 창을 열어요(앱 메뉴에서 `moontrHelp.open()`). AI(Workers AI)가 먼저 답하고, 관리자는 `/help/` 문의함(허브 메타버스 묶음)에서 답해요. 서버는 `help/server`(Cloudflare `moontr-help`, 배포 `npx wrangler@4 deploy`). 새 앱을 붙이면 worker.js 의 `APPS` · `ORIGINS` 에 추가해요.
+  - 2026-11-25 더함: 먼저 플래너 `first`(⚙︎ 설정 맨 위 '💬 문의하기', 웹 · 아이폰 앱 같은 화면) · 마음한편 `maum`(아이폰 앱 안 화면이 `/send` · `/list` 를 직접 불러요, help.js 안 씀). `APPS` 의 `note` = 그 앱 AI 가 꼭 지킬 것(마음한편: 진단 · 치료 말 안 함, 힘들면 109 · 1388). '죽고 싶다' 같은 위험한 말은 모든 앱에서 AI 에 보내지 않고 109 · 1388 · 112 안내로 답해요(`RISK`).
+  - 교무실 타이쿤(`[💬 관리자에게 묻기]` · `desk_chats` · `?admin` 문의 칸) · 아이아이노트(`AI 챗봇 상담` · `supportSend` · admin.html 문의함 · 푸시)는 자기 문의 채팅이 따로 있어서 help.js 를 붙이지 않았어요. 합치려면 예전 것을 빼는 일이라 문쌤께 먼저 여쭤요.
 - 학생용 입구에도 보여야 하면 대문 `index.html`의 `APPS` 목록에도 추가합니다.
 
 ## 교무실 타이쿤은 `/tycoon` 하나입니다 (2026-10-26 desk 와 합침)
