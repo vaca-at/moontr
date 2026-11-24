@@ -513,12 +513,12 @@ table.tv tr.tv-now td.tv-td{background:color-mix(in srgb,var(--accent) 30%,trans
 #hudPick button{background:none;border:0;color:#fff;font-size:18px;height:100%;padding:0 14px;cursor:pointer}
 #hudPick span{font:900 14px var(--ui,sans-serif);overflow:hidden;text-overflow:ellipsis}
 html.hudoff .hudb{opacity:0;pointer-events:none}
-/* 📱 앱: 화면 양옆 ◀ ▶ (아래 알약과 같이 3초 뒤 숨고, 톡 치면 다시) */
+/* 📱 앱: 화면 양옆 ◀ ▶ (1초 뒤 숨고 = 아래 알약보다 빨리, 톡 치면 다시) */
 html.appmode body:not(.bigview) .navbtn{display:grid;place-items:center;position:fixed;top:50%;z-index:12;width:36px;height:64px;margin-top:-32px;padding:0;border:1.5px solid rgba(255,255,255,.25);background:rgba(10,8,22,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff;font:400 17px/1 var(--ui,sans-serif);cursor:pointer;transition:opacity .35s}
 html.appmode .navbtn.prev{left:env(safe-area-inset-left,0px);border-left:0;border-radius:0 14px 14px 0}
 html.appmode .navbtn.next{right:env(safe-area-inset-right,0px);border-right:0;border-radius:14px 0 0 14px}
 html.appmode .navbtn:active{background:rgba(10,8,22,.8)}
-html.appmode.hudoff .navbtn{opacity:0;pointer-events:none}
+html.appmode.hudoff .navbtn,html.appmode.navoff .navbtn{opacity:0;pointer-events:none}
 /* ===== 📱 아이폰 앱 화면 (2026-11-12, 시안 https://claude.ai/artifact/TJ42y7YAiiBpkdV87docm3) =====
    위 = 날짜 · 시각 띠 + 메뉴 · 설정 단추 둘 → 오른쪽 끝에 붙어 두 칸씩 내려오는 판. 돌던 안내 말은 아래 말풍선으로 */
 html.appmode #hudMenu,html.appmode #hudFr,html.appmode #hudPick,html.appmode body:not(.bigview) .navbtn,html.appmode #notice{display:none!important}
@@ -7348,8 +7348,11 @@ function loop(now){
 // 단추: ☰ = 설정 한 창 (아래 파이어베이스 부분이 열어요) · ☑👥 = 친구도 보기 · ◀ 시안 이름 ▶ (그림을 옆으로 밀어도 넘어가요)
 // 3초 동안 안 만지면 단추가 숨고, 화면을 톡 치면 다시 나와요
 if (APP){
-  let hideT = null;
-  const poke = () => { document.documentElement.classList.remove("hudoff"); clearTimeout(hideT); hideT = setTimeout(() => document.documentElement.classList.add("hudoff"), 3000); };
+  let hideT = null, navT = null;
+  const H = document.documentElement;
+  // 아래 단추는 3초, 양옆 세모 ◀ ▶ 는 1초 뒤에 숨어요
+  const poke = () => { H.classList.remove("hudoff", "navoff"); clearTimeout(hideT); clearTimeout(navT);
+    hideT = setTimeout(() => H.classList.add("hudoff"), 3000); navT = setTimeout(() => H.classList.add("navoff"), 1000); };
   const step = dd => { stepDesign(dd); poke(); };
   const frPaint = paintMode;   // 오른쪽 위 = 보기 모드
   $("hudPrev").addEventListener("click", () => step(-1));
