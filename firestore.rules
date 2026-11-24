@@ -360,6 +360,10 @@ service cloud.firestore {
     }
 
     // ===== moontr.site 대문 시간표 =====
+    // 관리자만 보는 설정 (예: 공부방 기기 이름 '도진 태블릿' — moontr_config 는 누구나 읽어서 따로 둬요, 2026-11-25)
+    match /moontr_private/{id} {
+      allow read, write: if isTeacher();
+    }
     match /moontr_config/{id} {
       allow read: if true;
       allow write: if isTeacher();
@@ -398,7 +402,9 @@ service cloud.firestore {
     match /site_devices/{id} {
       allow read, delete: if isTeacher();
       allow create, update: if id.matches('^[a-z0-9_-]+__[a-z0-9]{12,24}$')
-        && request.resource.data.keys().hasOnly(['app', 'kind', 'last', 'n', 'days', 'os'])
+        && request.resource.data.keys().hasOnly(['app', 'kind', 'last', 'n', 'days', 'os', 'dn'])
+        // dn = 날짜별로 이 기기가 몇 번 들어왔는지 { "2026-11-25": 3 } (2026-11-25, 공부방 기기별 방문)
+        && (!('dn' in request.resource.data) || (request.resource.data.dn is map && request.resource.data.dn.size() <= 400))
         && request.resource.data.app is string && id.matches('^' + request.resource.data.app + '__.*')
         && request.resource.data.kind in ['phone', 'tablet', 'pc']
         && request.resource.data.get('os', 'other') in ['ios', 'android', 'win', 'mac', 'other']

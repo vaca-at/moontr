@@ -9,7 +9,8 @@
      - &policy=주소 를 붙이면 숫자 옆에 [이용약관·개인정보] 링크 (푸터를 둘 수 없는 화면용)
        &policy=gas 는 "구글 시트로 만든 수업 웹앱" 안내를 이 화면 안에 작은 창으로 띄웁니다 (이 웹앱에 대한 내용만)
 
-   - 한 번 들어올 때(탭을 닫기 전까지) 한 번만 셉니다
+   - 한 번 들어올 때(탭을 닫기 전까지) 한 번 셉니다. 탭을 켜 둔 채 30분 넘게 쉬었다 다시 오면 한 번 더 세요
+   - 기기마다 날짜별 횟수(dn)도 남겨서, 관리자 허브에서 같은 기기가 하루 몇 번 들어왔는지 봐요 (공부방 기기별 방문)
    - 관리자 화면(?admin · #admin · #teacher)이나 관리자 허브 안에서 열리면 세지 않습니다
    - 기록: Firestore site_counts 에 "이름__total"(누적), "이름__d2026-09-25"(그날) 숫자 하나씩
    - 기기: site_devices 에 "이름__기기번호" (무작위 번호 · 기기 종류 · 운영체제 · 마지막 접속 시각 · 횟수 · 들어온 날짜). 관리자만 봅니다
@@ -40,23 +41,37 @@ async function start(){
   let inHub = false;
   try { inHub = window.top !== window; } catch { inHub = true; }
   const isAdmin = /[?&]admin/.test(location.search) || /^#(admin|teacher)/.test(location.hash) || inHub;
-  let counted = false;
-  try { counted = sessionStorage.getItem('moontr-visit-' + APP) === '1'; } catch {}
+  /* 한 번 들어오면(탭을 닫기 전까지) 한 번 세요. 단, 탭을 켜 둔 채 30분 넘게 쉬었다가 다시 오면 한 번 더 세요
+     (공부방처럼 태블릿에 켜 두고 하루에 여러 번 쓰는 경우, 같은 기기가 하루 몇 번 들어왔는지 알 수 있게 · 2026-11-25) */
+  const SK = 'moontr-visit-' + APP, GAP = 30 * 60 * 1000;
+  let last = 0;
+  try { const v = sessionStorage.getItem(SK); last = v === '1' ? Date.now() : +v || 0; } catch {}
   /* 관리자가 '내 기기'로 빼 둔 기기 (교무실 타이쿤 관리자 화면에서 켜요): 이 기기 방문은 어느 앱에서도 세지 않아요 */
-  try { if (localStorage.getItem('moontr-nocount') === '1') counted = true; } catch {}
+  let noCount = isAdmin;
+  try { if (localStorage.getItem('moontr-nocount') === '1') noCount = true; } catch {}
 
   /* 숫자 하나를 1 올리기 (없으면 1로 만들기) */
   const bump = ref => runTransaction(db, async tx => {
     const s = await tx.get(ref);
     tx.set(ref, { n: s.exists() ? (s.data().n || 0) + 1 : 1 });
   });
-  if (!isAdmin && !counted){
-    try { sessionStorage.setItem('moontr-visit-' + APP, '1'); } catch {}
-    await Promise.all([bump(totalRef), bump(todayRef), device(db, day.slice(1))]).catch(() => {});
+  const countNow = async () => {
+    const t = new Date(), dk = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    try { sessionStorage.setItem(SK, String(Date.now())); } catch {}
+    await Promise.all([bump(totalRef), bump(doc(db, 'site_counts', `${APP}__d${dk}`)), device(db, dk)]).catch(() => {});
     /* 🕘 몇 시에 왔는지: "이름__h2026-11-10" 문서의 h00~h23 칸 하나를 1 올려요 (관리자 허브의 '어제 이 시각까지' 비교용).
        따로 써서, 이게 실패해도 위의 하루 숫자는 그대로 세요 */
-    const hk = 'h' + String(now.getHours()).padStart(2, '0');
-    await setDoc(doc(db, 'site_counts', `${APP}__h${day.slice(1)}`), { [hk]: increment(1) }, { merge: true }).catch(() => {});
+    const hk = 'h' + String(t.getHours()).padStart(2, '0');
+    await setDoc(doc(db, 'site_counts', `${APP}__h${dk}`), { [hk]: increment(1) }, { merge: true }).catch(() => {});
+  };
+  if (!noCount && Date.now() - last > GAP) await countNow();
+  if (!noCount){
+    /* 화면을 가렸다가(다른 앱 · 잠금) 30분 넘게 지나 다시 보면 새 방문으로 */
+    let hiddenAt = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden){ hiddenAt = Date.now(); try { sessionStorage.setItem(SK, String(Date.now())); } catch {} }
+      else if (hiddenAt && Date.now() - hiddenAt > GAP) countNow();
+    });
   }
   if (q.get('hide') === '1') return;
 
@@ -100,8 +115,11 @@ function device(db, dayKey){
     : /Mobi|iPhone|Android/i.test(ua) ? 'phone' : 'pc';
   /* os: 아이폰 · 안드로이드 · 윈도 · 맥 (2026-11-17). 보안 규칙이 아직 os 를 모르면 한 번 더 os 없이 적어요 */
   const os = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ios' : /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'win' : /Macintosh/.test(ua) ? 'mac' : 'other';
+  /* dn: 날짜별로 이 기기가 몇 번 들어왔는지 { "2026-11-25": 3 } (2026-11-25). 보안 규칙이 아직 dn 을 모르면 dn 없이, 그다음 os 없이 다시 적어요 */
   const ref = doc(db, 'site_devices', `${APP}__${id}`), base = { app: APP, kind, last: Date.now(), n: increment(1), days: { [dayKey]: true } };
-  return setDoc(ref, { ...base, os }, { merge: true }).catch(() => setDoc(ref, base, { merge: true })).catch(() => {});
+  return setDoc(ref, { ...base, os, dn: { [dayKey]: increment(1) } }, { merge: true })
+    .catch(() => setDoc(ref, { ...base, os }, { merge: true }))
+    .catch(() => setDoc(ref, base, { merge: true })).catch(() => {});
 }
 
 /* 구글 앱스 스크립트로 만든 수업 웹앱: 이 웹앱에 대한 이용약관·개인정보 처리방침 (작은 창) */
