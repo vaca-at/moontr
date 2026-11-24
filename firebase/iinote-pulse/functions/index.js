@@ -65,7 +65,7 @@ const ASC_KEY_ID = defineString("ASC_KEY_ID", { default: "" });            // �
 const ASC_VENDOR = defineString("ASC_VENDOR", { default: "" });            // 공급업체 번호 (판매 및 추세 화면 왼쪽 위)
 const ASC_APP_ID = defineString("ASC_APP_ID", { default: "6831842667" });  // 아이아이노트 앱스토어 번호
 // 같은 개발자 계정의 다른 앱도 함께 세요 (moontr 관리자 허브 🍎 카드): 앱스토어 번호 → 이름
-const IOS_APPS = { "6831842667": "아이아이노트", "6834141029": "교무실 타이쿤", "6835064683": "먼저 플래너" };
+const IOS_APPS = { "6831842667": "아이아이노트", "6834141029": "교무실 타이쿤", "6835064683": "먼저 플래너", "6838529122": "마음한편" };   // 마음한편 2026-11-24 출시
 const ASC_P8 = defineSecret("ASC_P8");                                     // 키 파일(.p8) 내용 — 비밀 저장소에만
 
 const kday = (ms = Date.now()) => new Date(ms + 9 * 36e5).toISOString().slice(0, 10);   // 한국 날짜

@@ -758,7 +758,11 @@ const IOS_APPS = [
   { name:'먼저 플래너', icon:'/first/icon-512.png', date:'2026-11-15', genre:'교육', id:'6835064683',
     playUrl:'https://play.google.com/store/apps/details?id=site.moontr.first',
     playWait:{ tag:'비공개 테스트', note:'11/21 비공개 테스트 버전 1.1(2) 검토 보냄 · 테스터 12명이 14일 동안 참여하면 정식 출시를 신청할 수 있어요.' },
-    line:'약한 과목을 먼저, 작게 계획하고 실천하는 공부 플래너', web:'https://moontr.site/first/', admin:'/first/#admin' }
+    line:'약한 과목을 먼저, 작게 계획하고 실천하는 공부 플래너', web:'https://moontr.site/first/', admin:'/first/#admin' },
+  // 2026-11-24 저녁 출시 (아이폰 전용 · 건강 앱 연결). 웹 · 관리자 화면은 없고, 앱 안 기록은 본인만 읽게 되어 있어 허브에서 세는 숫자는 아직 없어요
+  { name:'마음한편', icon:'app-maum.jpg', date:'2026-11-24', genre:'라이프스타일', id:'6838529122', iosOnly:true,
+    line:'하루의 마음을 한 편의 문장으로 · 마음근력 활동 · AI 마음 티쳐', web:'https://moontr.site/maum/privacy.html', webLabel:'개인정보 처리방침 ↗',
+    inAppNote:'앱 안 기록은 그 사람만 읽을 수 있게 되어 있어서 (관리자도 안 봐요) 여기에 셀 숫자가 아직 없어요.' }
 ];
 const iosUrl = a => `https://apps.apple.com/kr/app/id${a.id}`;
 function renderIosApps(){
@@ -772,6 +776,7 @@ function renderIosApps(){
     return { ser, last, total, w7: last ? sumK(ser, dayKeys(7)) : 0, d1: last ? ser[last] : 0 }; };
   // 앱 안 숫자: 앱마다 다른 곳에서 세요
   const inApp = a => {
+    if (a.inAppNote) return `<p class="msg">${esc(a.inAppNote)}</p>`;
     if (a.id === '6834141029') return tyStat ? (tyStat.error ? `<p class="msg">가입 숫자를 읽지 못했어요</p>` : `<div class="kv"><div><small>가입 선생님</small><b>${n(tyStat.all)}</b></div><div><small>오늘 접속</small><b>${n(tyStat.todayN)}</b></div><div><small>7일 새 가입</small><b>${n(tyStat.newN)}</b></div></div>`) : '<p class="msg">불러오는 중...</p>';
     if (a.id === '6835064683') return fpStat ? (fpStat.error ? `<p class="msg">가입 숫자를 읽지 못했어요 (${esc(fpStat.error)})</p>` : `<div class="kv"><div><small>가입 학생</small><b>${n(fpStat.all)}</b></div><div><small>오늘 쓴 사람</small><b>${n(fpStat.d1)}</b></div><div><small>아이폰 앱으로</small><b>${n(fpStat.ios)}</b></div></div>`) : '<p class="msg">불러오는 중...</p>';
     const U = iiStats?.use || {}, uk = Object.keys(U).sort(), u = uk.length ? U[uk[uk.length - 1]] : null;
@@ -785,10 +790,10 @@ function renderIosApps(){
     <div class="ia-sec">📱 앱 안 이용</div>
     ${inApp(a)}
     <p class="ia-line">${esc(a.line)}</p>
-    <div class="ia-badges">${storeBadge(iosUrl(a), 'badge-appstore.svg', 'App Store에서 다운로드')}${a.play ? storeBadge(a.play, 'badge-play.png', 'Google Play에서 다운로드') : `<div class="store-b play-wait"><span><img src="badge-play.png" alt="Google Play"></span><b>${esc(a.playWait?.tag || '준비 중')}</b></div>`}</div>
+    <div class="ia-badges">${storeBadge(iosUrl(a), 'badge-appstore.svg', 'App Store에서 다운로드')}${a.iosOnly ? '' : a.play ? storeBadge(a.play, 'badge-play.png', 'Google Play에서 다운로드') : `<div class="store-b play-wait"><span><img src="badge-play.png" alt="Google Play"></span><b>${esc(a.playWait?.tag || '준비 중')}</b></div>`}</div>
     ${a.play && a.playNote ? `<p class="ia-wait">🤖 ${esc(a.playNote)}</p>` : ''}
     ${!a.play && a.playWait?.note ? `<p class="ia-wait">🤖 ${esc(a.playWait.note)}${a.playUrl ? ` <a href="${esc(a.playUrl)}" target="_blank" rel="noopener" style="text-decoration:underline">스토어 주소 열어 보기 ↗</a>` : ''}</p>` : ''}
-    <div class="lnk"><a class="btn" href="${esc(a.web)}" target="_blank" rel="noopener">웹으로 열기 ↗</a><a class="btn" href="${esc(a.admin)}" target="_blank" rel="noopener">관리자 ↗</a><a class="btn" href="https://appstoreconnect.apple.com/apps/${a.id}/distribution" target="_blank" rel="noopener">App Store Connect ↗</a><a class="btn" href="https://play.google.com/console/" target="_blank" rel="noopener">Play Console ↗</a></div>
+    <div class="lnk">${a.web ? `<a class="btn" href="${esc(a.web)}" target="_blank" rel="noopener">${esc(a.webLabel || '웹으로 열기 ↗')}</a>` : ''}${a.admin ? `<a class="btn" href="${esc(a.admin)}" target="_blank" rel="noopener">관리자 ↗</a>` : ''}<a class="btn" href="https://appstoreconnect.apple.com/apps/${a.id}/distribution" target="_blank" rel="noopener">App Store Connect ↗</a>${a.iosOnly ? '' : `<a class="btn" href="https://play.google.com/console/" target="_blank" rel="noopener">Play Console ↗</a>`}</div>
   </div>`; }).join('');
 }
 function renderIiStats(){
