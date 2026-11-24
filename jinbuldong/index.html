@@ -247,7 +247,7 @@ body.adm #adm{display:block}
 .adm-top h1{font-size:24px;margin-right:auto}
 .abtn{font:500 14px var(--sans);border:1px solid #CDBFA8;background:#fff;border-radius:10px;padding:8px 14px;cursor:pointer;color:var(--ink)}
 .abtn.main{background:var(--ink);color:#fff;border-color:var(--ink)}
-.drop{margin-top:18px;border:3px dashed #CDBFA8;border-radius:20px;padding:34px 20px;text-align:center;background:#fff9;color:var(--mute);font-size:15px;line-height:1.8}
+.drop{display:block;cursor:pointer;margin-top:18px;border:3px dashed #CDBFA8;border-radius:20px;padding:34px 20px;text-align:center;background:#fff9;color:var(--mute);font-size:15px;line-height:1.8}
 .drop b{display:block;font-size:20px;color:var(--ink);margin-bottom:4px}
 .drop.over{border-color:var(--lotus);background:#fff}
 .adm-msg{margin-top:12px;font-size:14px;min-height:20px;white-space:pre-line}
@@ -262,10 +262,17 @@ body.adm #adm{display:block}
 .th{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .th.cover{outline:3px solid var(--gold)}
 .th img{width:100%;aspect-ratio:1;object-fit:cover;display:block;cursor:zoom-in}
-.th .tl{display:flex;gap:3px;padding:5px;align-items:center}
+.th .tl{display:flex;flex-wrap:wrap;gap:3px;padding:5px;align-items:center}
 .th .tl button{border:0;background:#F1EBE1;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:13px}
 .th .tl button.on{background:var(--gold);color:#fff}
 .th .tl select{flex:1;min-width:0;font-size:12px;border:1px solid #DDD2C0;border-radius:6px;padding:3px}
+.th{position:relative}
+.th.off img{opacity:.35;filter:grayscale(1)}
+.th .offtag{position:absolute;left:6px;top:6px;background:rgba(43,38,34,.8);color:#fff;font-size:11px;padding:2px 8px;border-radius:99px}
+.adm-sec h3 .up{margin-left:auto;font-size:13px;padding:6px 12px;cursor:pointer}
+.adm-sec{border-radius:16px;transition:background .2s;padding:4px 6px}
+.adm-sec.over{background:#fff;outline:3px dashed var(--lotus)}
+.slide-up{position:absolute;right:14px;top:14px;z-index:3;font:500 18px var(--sans);background:rgba(43,38,34,.82);color:#fff;border:0;border-radius:99px;padding:9px 18px;cursor:pointer}
 .th .dt{font-size:11px;color:var(--mute);padding:0 6px 6px}
 .login-card{max-width:420px;margin:12vh auto 0;background:#fff;border-radius:20px;padding:34px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.08)}
 .login-card h2{font-size:24px;margin:0}
@@ -361,6 +368,7 @@ body.adm #adm{display:block}
 <div id="script"><button class="close" id="bScriptX">✕ 슬라이드로</button><div class="wrap"></div></div>
 <div id="album"></div>
 <div id="adm"><div class="adm-w"></div></div>
+<input type="file" id="slideUp" multiple accept="image/*,.heic,.heif" hidden>
 <div id="lb"><button class="x" title="닫기 (Esc)">✕</button><button class="l" title="이전">‹</button><img alt=""><div class="cap"></div><button class="r" title="다음">›</button></div>
 <details class="policy-foot">
   <summary>이용약관 · 개인정보 처리방침</summary>
@@ -555,6 +563,8 @@ stage.addEventListener('click', e => {
   if (document.body.classList.contains('script')) return;
   const lt = e.target.closest('[data-go]');
   if (lt) return lanternGo(lt);
+  const su = e.target.closest('[data-upact]');
+  if (su) { const fi = document.getElementById('slideUp'); fi.dataset.act = su.dataset.upact; fi.click(); return; }   // 슬라이드에서 바로 올리기
   const fr = e.target.closest('[data-lb]');
   if (fr) return lbOpen(photosOf(fr.dataset.act), +fr.dataset.lb);
   const r = stage.getBoundingClientRect();
@@ -609,7 +619,9 @@ const Q = new URLSearchParams(location.search);
 const ADMIN_MODE = /admin/.test(location.hash) || Q.has('admin');
 let ALBUM = { photos: [] }, albumOK = false, albumStale = true;
 /* 활동별 사진: 맨 앞 사진이 액자에 크게 나오는 대표 사진 */
-function photosOf(id){ return ALBUM.photos.filter(p => (p.act || '') === id).sort((a, b) => (a.o || 0) - (b.o || 0)); }
+/* all = 관리 화면: 내려 둔 사진(off)도 보여요. 보는 화면(슬라이드 · 앨범 · 크게 보기)에서는 빼요 */
+function photosOf(id, all){ return ALBUM.photos.filter(p => (p.act || '') === id && (all || !p.off)).sort((a, b) => (a.o || 0) - (b.o || 0)); }
+const heroPhoto = () => { const h = byId(ALBUM.hero); return h && !h.off ? h : ACTS.map(a => photosOf(a.id)[0]).find(Boolean); };
 const byId = id => ALBUM.photos.find(p => p.id === id);
 async function loadAlbum(){
   try {
@@ -628,9 +640,10 @@ function renderSlides(){
   document.querySelectorAll('.photos[data-act]').forEach(box => {
     const id = box.dataset.act, L = photosOf(id), n = L.length;
     box.className = 'photos n' + Math.min(n, 3);
-    if (!n) { box.innerHTML = `<div class="frame f0 empty">${LOTUS}<span>사진을 넣을 자리</span>${ADMIN_MODE ? '<small>오른쪽 아래 📷 사진 단추로 올려요</small>' : ''}</div>`; return; }
+    const up = ADMIN ? `<button class="slide-up" data-upact="${id}" title="이 활동에 사진 올리기">📷 사진 올리기</button>` : '';
+    if (!n) { box.innerHTML = `<div class="frame f0 empty">${LOTUS}<span>사진을 넣을 자리</span>${ADMIN_MODE ? '<small>관리자로 로그인하면 여기 📷 단추로 바로 올려요</small>' : ''}</div>${up}`; return; }
     box.innerHTML = L.slice(0, 3).map((p, i) => `<div class="frame f${i}" data-lb="${i}" data-act="${id}"><img src="${i ? thumbURL(p) : fullURL(p)}" alt="${ACT[id].place} 사진">${i ? '' : `<span class="pcap">${ACT[id].m}.${ACT[id].d} ${ACT[id].place}</span>`}</div>`).join('')
-      + (n > 3 ? `<span class="more">사진 ${n}장 · 눌러서 보기</span>` : '');
+      + (n > 3 ? `<span class="more">사진 ${n}장 · 눌러서 보기</span>` : '') + up;
   });
 }
 
@@ -661,7 +674,7 @@ let fadeObs = null;
 function buildAlbum(){
   albumStale = false;
   const el = document.getElementById('album'), top = el.scrollTop;
-  const hero = byId(ALBUM.hero) || ACTS.map(a => photosOf(a.id)[0]).find(Boolean);
+  const hero = heroPhoto();
   el.innerHTML = `<div class="al">
     <header class="al-hero">
       <div class="al-small">2026 교원학습공동체</div>
@@ -703,7 +716,7 @@ document.getElementById('album').addEventListener('click', e => {
   const j = e.target.closest('[data-jump]');
   if (j) { e.preventDefault(); document.getElementById('al-' + j.dataset.jump).scrollIntoView({ behavior: 'smooth' }); return; }
   const im = e.target.closest('[data-al]'); if (!im) return;
-  if (im.dataset.al === 'hero') { const h = byId(ALBUM.hero) || ACTS.map(a => photosOf(a.id)[0]).find(Boolean); return lbOpen(photosOf(h.act || ''), photosOf(h.act || '').indexOf(h)); }
+  if (im.dataset.al === 'hero') { const h = heroPhoto(); return lbOpen(photosOf(h.act || ''), photosOf(h.act || '').indexOf(h)); }
   lbOpen(photosOf(im.dataset.al), +im.dataset.i);
 });
 async function share(){
@@ -735,7 +748,7 @@ function fbInit(){
     await new Promise(ok => firebase.auth().onAuthStateChanged(u => {
       ADMIN = !!(u && isAdminEmail(u.email));
       if (u && !ADMIN) firebase.auth().signOut();   // 관리자가 아니면 바로 로그아웃
-      ok(); renderAdmin();
+      ok(); renderAdmin(); renderSlides();   // 관리자면 슬라이드 사진 칸에 📷 단추
     }));
   })());
 }
@@ -767,15 +780,17 @@ function renderAdmin(){
   }
   const opts = sel => [...ACTS.map(a => `<option value="${a.id}"${sel === a.id ? ' selected' : ''}>${a.m}.${a.d} ${a.place}</option>`), `<option value=""${!sel ? ' selected' : ''}>아직 못 고름</option>`].join('');
   const secs = [...ACTS, { id: '', place: '아직 못 고른 사진', c: '#9A9088' }].map(a => {
-    const L = photosOf(a.id); if (!a.id && !L.length) return '';
-    return `<div class="adm-sec" style="--c:${a.c}"><h3><i></i>${a.id ? `${a.m}.${a.d}(${a.w}) ${a.place}` : a.place} <small>${L.length}장${a.id && L.length ? ' · 테두리 있는 첫 사진이 액자에 크게 나와요' : ''}</small></h3>
-      <div class="adm-grid">${L.map((p, i) => `<div class="th${i === 0 && a.id ? ' cover' : ''}" data-id="${p.id}"><img src="${thumbURL(p)}" alt="" data-zoom loading="lazy">
-        <div class="tl"><button data-a="cover" title="대표 사진으로 (맨 앞으로)">★</button><button data-a="hero" class="${ALBUM.hero === p.id ? 'on' : ''}" title="앨범 맨 위 아치 사진">🏠</button><button data-a="up" title="앞으로">◀</button><button data-a="down" title="뒤로">▶</button><button data-a="del" title="지우기">✕</button></div>
+    const L = photosOf(a.id, true); if (!a.id && !L.length) return '';
+    const shown = L.filter(p => !p.off), first = shown[0], offN = L.length - shown.length;
+    return `<div class="adm-sec" style="--c:${a.c}" data-sec="${a.id}"><h3><i></i>${a.id ? `${a.m}.${a.d}(${a.w}) ${a.place}` : a.place} <small>${shown.length}장 보임${offN ? ` · ${offN}장 내려 둠` : ''}${a.id && first ? ' · 테두리 있는 첫 사진이 크게 나와요' : ''}</small>
+      ${a.id ? `<label class="abtn up">＋ 이 활동에 사진 올리기<input type="file" data-up="${a.id}" multiple accept="image/*,.heic,.heif" hidden></label>` : ''}</h3>
+      <div class="adm-grid">${L.map(p => `<div class="th${p === first && a.id ? ' cover' : ''}${p.off ? ' off' : ''}" data-id="${p.id}"><img src="${thumbURL(p)}" alt="" data-zoom loading="lazy">${p.off ? '<span class="offtag">내려 둠</span>' : ''}
+        <div class="tl"><button data-a="cover" title="대표 사진으로 (맨 앞으로)">★</button><button data-a="hero" class="${ALBUM.hero === p.id ? 'on' : ''}" title="앨범 맨 위 아치 사진">🏠</button><button data-a="up" title="앞으로">◀</button><button data-a="down" title="뒤로">▶</button><button data-a="off" class="${p.off ? 'on' : ''}" title="${p.off ? '다시 올리기 (보이게)' : '내리기 (안 보이게, 지우지는 않아요)'}">${p.off ? '⤴' : '⤵'}</button><button data-a="del" title="아주 지우기">✕</button></div>
         <div class="tl"><select data-a="move" title="다른 활동으로 옮기기">${opts(p.act)}</select></div><div class="dt">${p.taken || ''}</div></div>`).join('') || '<small style="color:var(--mute)">아직 사진이 없어요</small>'}</div></div>`;
   }).join('');
   W.innerHTML = `<div class="adm-top"><h1>📷 진불동 사진 <small style="font:400 14px var(--sans);color:var(--mute)">모두 ${ALBUM.photos.length}장</small></h1>
       <button class="abtn" data-a="slides">슬라이드로</button><a class="abtn" href="?album" target="_blank">앨범 보기</a><button class="abtn" data-a="out">로그아웃</button></div>
-    <label class="drop" id="aDrop"><b>📥 사진을 여기로 끌어다 놓으세요</b>여러 장을 한꺼번에 넣어도 되고, 눌러서 고를 수도 있어요.<br>찍은 날짜를 읽어 그날 활동에 저절로 들어가요. 날짜가 안 맞으면 '아직 못 고른 사진'에 모여요.<br>아이폰 사진(HEIC)도 되고, 크기는 알아서 줄여서 올려요.
+    <label class="drop" id="aDrop"><b>📥 사진을 여기로 끌어다 놓으세요</b>여러 장을 한꺼번에 넣어도 되고, 눌러서 고를 수도 있어요.<br>찍은 날짜를 읽어 그날 활동에 저절로 들어가요. 날짜가 안 맞으면 '아직 못 고른 사진'에 모여요.<br>카톡으로 받은 사진처럼 날짜가 없으면 아래 활동 칸의 [＋ 이 활동에 사진 올리기]를 누르거나 그 칸 위에 놓아 주세요.<br>⤵ 내리기 = 잠깐 안 보이게 (지우지 않아요) · ✕ = 아주 지우기<br>아이폰 사진(HEIC)도 되고, 크기는 알아서 줄여서 올려요.
       <input type="file" id="aFile" multiple accept="image/*,.heic,.heif" hidden></label>
     <div class="adm-bar" id="aBar"><i></i></div><div class="adm-msg${admMsg.err ? ' err' : ''}" id="aMsg">${admMsg.t}</div>${secs}`;
   if (busy) setBar(0);
@@ -783,19 +798,20 @@ function renderAdmin(){
 const admEl = document.getElementById('adm');
 admEl.addEventListener('click', async e => {
   const z = e.target.closest('[data-zoom]');
-  if (z) { const p = byId(z.closest('.th').dataset.id), L = photosOf(p.act || ''); return lbOpen(L, L.indexOf(p)); }
+  if (z) { const p = byId(z.closest('.th').dataset.id), L = photosOf(p.act || '', true); return lbOpen(L, L.indexOf(p)); }
   const b = e.target.closest('button[data-a]'); if (!b) return;
   const a = b.dataset.a;
   if (a === 'slides') return closeAdm();
   if (a === 'login') return login();
   if (a === 'out') return firebase.auth().signOut();
   const p = byId(b.closest('.th') && b.closest('.th').dataset.id); if (!p) return;
-  const L = photosOf(p.act || '');
-  if (a === 'cover') p.o = Math.min(...L.map(x => x.o || 0)) - 1;
+  const L = photosOf(p.act || '', true);
+  if (a === 'off') { p.off = !p.off; setMsg(p.off ? '사진을 내렸어요. 슬라이드 · 앨범에서 안 보여요. ⤴ 를 누르면 다시 보여요.' : '사진을 다시 올렸어요.'); }
+  else if (a === 'cover') p.o = Math.min(...L.map(x => x.o || 0)) - 1;
   else if (a === 'hero') ALBUM.hero = ALBUM.hero === p.id ? null : p.id;
   else if (a === 'up' || a === 'down') { const q = L[L.indexOf(p) + (a === 'up' ? -1 : 1)]; if (!q) return; [p.o, q.o] = [q.o, p.o]; }
   else if (a === 'del') {
-    if (!confirm('이 사진을 지울까요? 되돌릴 수 없어요.')) return;
+    if (!confirm('이 사진을 아주 지울까요? 되돌릴 수 없어요.\n(잠깐 안 보이게만 하려면 ⤵ 내리기를 눌러요)')) return;
     ALBUM.photos = ALBUM.photos.filter(x => x !== p); if (ALBUM.hero === p.id) ALBUM.hero = null;
     const st = firebase.storage().ref();
     st.child(`jinbuldong/photos/${p.id}.jpg`).delete().catch(() => {}); st.child(`jinbuldong/photos/${p.id}_t.jpg`).delete().catch(() => {});
@@ -804,6 +820,7 @@ admEl.addEventListener('click', async e => {
 });
 admEl.addEventListener('change', e => {
   if (e.target.id === 'aFile') { addFiles(e.target.files); e.target.value = ''; return; }
+  if (e.target.dataset.up) { addFiles(e.target.files, e.target.dataset.up); e.target.value = ''; return; }
   const s = e.target.closest('select[data-a="move"]'); if (!s) return;
   const p = byId(s.closest('.th').dataset.id); if (!p) return;
   p.act = s.value; renderAll(); saveSoon();
@@ -811,7 +828,12 @@ admEl.addEventListener('change', e => {
 /* 끌어다 놓기: 사진 관리 화면 어디에 놓아도 돼요 */
 addEventListener('dragover', e => { if (!cls('adm')) return; e.preventDefault(); const d = document.getElementById('aDrop'); if (d) d.classList.add('over'); });
 addEventListener('dragleave', e => { if (e.relatedTarget) return; const d = document.getElementById('aDrop'); if (d) d.classList.remove('over'); });
-addEventListener('drop', e => { if (!cls('adm')) return; e.preventDefault(); const d = document.getElementById('aDrop'); if (d) d.classList.remove('over'); if (ADMIN) addFiles(e.dataTransfer.files); });
+addEventListener('drop', e => { if (!cls('adm')) return; e.preventDefault(); const d = document.getElementById('aDrop'); if (d) d.classList.remove('over');
+  document.querySelectorAll('.adm-sec.over').forEach(x => x.classList.remove('over'));
+  const sec = e.target.closest && e.target.closest('.adm-sec[data-sec]');
+  if (ADMIN) addFiles(e.dataTransfer.files, sec && sec.dataset.sec ? sec.dataset.sec : undefined); });   // 활동 칸 위에 놓으면 날짜와 상관없이 그 활동으로
+addEventListener('dragover', e => { if (!cls('adm')) return; const sec = e.target.closest && e.target.closest('.adm-sec[data-sec]');
+  document.querySelectorAll('.adm-sec.over').forEach(x => { if (x !== sec) x.classList.remove('over'); }); if (sec && sec.dataset.sec) sec.classList.add('over'); });
 
 let saveT = null;
 const saveSoon = () => { clearTimeout(saveT); saveT = setTimeout(() => saveAlbum().catch(e => setMsg('목록을 저장하지 못했어요: ' + errText(e), true)), 1200); };
@@ -843,7 +865,7 @@ function toJpeg(src, max, q){
   const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height);
   return new Promise((ok, no) => c.toBlob(b => b ? ok(b) : no(new Error('사진을 줄이지 못했어요')), 'image/jpeg', q));
 }
-async function addOne(f){
+async function addOne(f, act){
   const key = `${f.name}|${f.size}`;
   if (ALBUM.photos.some(p => p.src === key)) return false;   // 같은 사진은 한 번만
   let t = null;
@@ -856,11 +878,12 @@ async function addOne(f){
   const meta = { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' }, st = firebase.storage().ref();
   await st.child(`jinbuldong/photos/${id}.jpg`).put(full, meta);
   await st.child(`jinbuldong/photos/${id}_t.jpg`).put(thumb, meta);
-  ALBUM.photos.push({ id, act: guessAct(t), src: key, taken: fmtT(t), o: t.getTime() });
+  ALBUM.photos.push({ id, act: act !== undefined ? act : guessAct(t), src: key, taken: fmtT(t), o: t.getTime() });
   saveSoon();
   return true;
 }
-async function addFiles(fl){
+/* act 를 주면(활동 칸 [＋ 올리기] · 그 칸에 끌어다 놓기 · 슬라이드 📷) 찍은 날짜와 상관없이 그 활동으로 */
+async function addFiles(fl, act){
   const files = [...(fl || [])].filter(f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name));
   if (!files.length) return setMsg('사진 파일이 아니에요.', true);
   if (!albumOK) return setMsg('사진 목록을 아직 못 읽었어요. 새로고침한 뒤 다시 넣어 주세요. (목록이 지워지지 않게 막았어요)', true);
@@ -872,7 +895,7 @@ async function addFiles(fl){
   await Promise.all([0, 1, 2].map(async () => {
     while (q.length) {
       const f = q.shift();
-      try { (await addOne(f)) ? ok++ : skip++; } catch (e) { fails.push(`${f.name}: ${errText(e)}`); }
+      try { (await addOne(f, act)) ? ok++ : skip++; } catch (e) { fails.push(`${f.name}: ${errText(e)}`); }
       done++; setBar(done / tot); setMsg(`사진 올리는 중… ${done} / ${tot} · 창을 닫지 마세요`);
     }
   }));
@@ -882,6 +905,13 @@ async function addFiles(fl){
   renderAll(); setBar(null);
   setMsg(`✅ ${ok}장 올렸어요${skip ? ` · 이미 올린 사진 ${skip}장은 건너뛰었어요` : ''}${loose ? `\n📂 날짜가 안 맞는 사진 ${loose}장은 맨 아래 '아직 못 고른 사진'에 있어요. 칸에서 활동을 골라 옮겨 주세요.` : ''}${fails.length ? `\n⚠️ 못 올린 사진 ${fails.length}장\n` + fails.slice(0, 5).join('\n') : ''}`, fails.length > 0);
 }
+
+/* 슬라이드 📷 단추로 고른 사진: 사진 관리 화면을 열어 올리는 모습을 보여 줘요 */
+document.getElementById('slideUp').addEventListener('change', async e => {
+  const files = [...e.target.files], act = e.target.dataset.act; e.target.value = '';
+  if (!files.length) return;
+  await openAdm(); addFiles(files, act);
+});
 
 /* 시작 */
 document.getElementById('bAlbum').onclick = () => { location.href = '?album'; };
