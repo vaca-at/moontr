@@ -745,6 +745,7 @@ function fbInit(){
   return fbReady || (fbReady = (async () => {
     for (const m of ['app', 'auth', 'storage']) await loadScript(`https://www.gstatic.com/firebasejs/10.12.2/firebase-${m}-compat.js`);
     firebase.initializeApp(firebaseConfig);
+    try { const r = await firebase.auth().getRedirectResult(); if (r && r.user && !isAdminEmail(r.user.email)) { await firebase.auth().signOut(); setMsg('관리자 구글 계정으로 골라 주세요.', true); } } catch (e) { if (e.code) setMsg('로그인하지 못했어요. 다시 눌러 주세요. (' + e.code + ')', true); }
     await new Promise(ok => firebase.auth().onAuthStateChanged(u => {
       ADMIN = !!(u && isAdminEmail(u.email));
       if (u && !ADMIN) firebase.auth().signOut();   // 관리자가 아니면 바로 로그아웃
@@ -758,13 +759,23 @@ async function openAdm(){
   renderAdmin();
 }
 const closeAdm = () => { document.body.classList.remove('adm'); renderSlides(); };
+/* 카톡 · 인스타 같은 앱 안 브라우저는 구글이 로그인을 막아요 → 사파리 · 크롬으로 열어 달라고 알려요 */
+const IN_APP = /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NAVER\(inapp|DaumApps|everytimeApp/i.test(navigator.userAgent);
 async function login(){
+  if (IN_APP) return setMsg('카카오톡 같은 앱 안에서는 구글 로그인이 막혀요.\n오른쪽 아래(또는 위) ⋯ 메뉴에서 [다른 브라우저로 열기] · [Safari로 열기]를 누른 뒤 다시 로그인해 주세요.', true);
+  const p = new firebase.auth.GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account' });   // 구글 계정 고르는 창 (관리자 주소는 화면에 보이지 않게)
   try {
-    const p = new firebase.auth.GoogleAuthProvider();
-    p.setCustomParameters({ prompt: 'select_account' });   // 구글 계정 고르는 창 (관리자 주소는 화면에 보이지 않게)
     const r = await firebase.auth().signInWithPopup(p);
     if (!isAdminEmail(r.user.email)) { await firebase.auth().signOut(); setMsg('관리자 구글 계정으로 골라 주세요.', true); }
-  } catch (e) { if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') setMsg('로그인하지 못했어요. 다시 눌러 주세요.', true); }
+  } catch (e) {
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    // 휴대폰에서 새 창(팝업)이 막히면 이 창에서 구글로 다녀와요
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment' || e.code === 'auth/web-storage-unsupported') {
+      setMsg('구글 로그인 화면으로 넘어가요…'); return firebase.auth().signInWithRedirect(p);
+    }
+    setMsg('로그인하지 못했어요. 다시 눌러 주세요. (' + (e.code || e.message) + ')', true);
+  }
 }
 function setMsg(t, err){ admMsg = { t, err: !!err }; const m = document.getElementById('aMsg'); if (m) { m.textContent = t; m.className = 'adm-msg' + (err ? ' err' : ''); } }
 function setBar(v){ const b = document.getElementById('aBar'); if (!b) return; b.style.display = v == null ? 'none' : 'block'; b.firstChild.style.width = Math.round((v || 0) * 100) + '%'; }
