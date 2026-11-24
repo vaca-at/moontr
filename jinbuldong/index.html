@@ -814,7 +814,7 @@ function renderAdmin(){
   }).join('');
   W.innerHTML = `<div class="adm-top"><h1>📷 진불동 사진 <small style="font:400 14px var(--sans);color:var(--mute)">모두 ${ALBUM.photos.length}장</small></h1>
       <button class="abtn" data-a="slides">슬라이드로</button><a class="abtn" href="?album" target="_blank">앨범 보기</a><button class="abtn" data-a="out">로그아웃</button></div>
-    <label class="drop" id="aDrop"><b>📥 사진을 여기로 끌어다 놓으세요</b>여러 장을 한꺼번에 넣어도 되고, 눌러서 고를 수도 있어요.<br>찍은 날짜를 읽어 그날 활동에 저절로 들어가요. 날짜가 안 맞으면 '아직 못 고른 사진'에 모여요.<br>카톡으로 받은 사진처럼 날짜가 없으면 아래 활동 칸의 [＋ 이 활동에 사진 올리기]를 누르거나 그 칸 위에 놓아 주세요.<br>🎬 동영상도 돼요 (90초까지) — 아이폰 동영상은 어느 컴퓨터에서나 돌아가게 바꿔서 올려요 · 활동 닷새 전 준비 사진도 그 활동으로 들어가요<br>⤵ 내리기 = 잠깐 안 보이게 (지우지 않아요) · ✕ = 아주 지우기<br>아이폰 사진(HEIC)도 되고, 크기는 알아서 줄여서 올려요.
+    <label class="drop" id="aDrop"><b>📥 사진을 여기로 끌어다 놓으세요</b>여러 장 · 폴더째 한꺼번에 넣어도 되고, 눌러서 고를 수도 있어요.<br>찍은 날짜를 읽어 그날 활동에 저절로 들어가요. 날짜가 안 맞으면 '아직 못 고른 사진'에 모여요.<br>카톡으로 받은 사진처럼 날짜가 없으면 아래 활동 칸의 [＋ 이 활동에 사진 올리기]를 누르거나 그 칸 위에 놓아 주세요.<br>🎬 동영상도 돼요 (90초까지) — 아이폰 동영상은 어느 컴퓨터에서나 돌아가게 바꿔서 올려요 · 활동 닷새 전 준비 사진도 그 활동으로 들어가요<br>⤵ 내리기 = 잠깐 안 보이게 (지우지 않아요) · ✕ = 아주 지우기<br>아이폰 사진(HEIC)도 되고, 크기는 알아서 줄여서 올려요.
       <input type="file" id="aFile" multiple accept="image/*,.heic,.heif,video/*,.mov,.mp4" hidden></label>
     <div class="adm-bar" id="aBar"><i></i></div><div class="adm-msg${admMsg.err ? ' err' : ''}" id="aMsg">${admMsg.t}</div>${secs}`;
   if (busy) setBar(0);
@@ -855,7 +855,21 @@ addEventListener('dragleave', e => { if (e.relatedTarget) return; const d = docu
 addEventListener('drop', e => { if (!cls('adm')) return; e.preventDefault(); const d = document.getElementById('aDrop'); if (d) d.classList.remove('over');
   document.querySelectorAll('.adm-sec.over').forEach(x => x.classList.remove('over'));
   const sec = e.target.closest && e.target.closest('.adm-sec[data-sec]');
-  if (ADMIN) addFiles(e.dataTransfer.files, sec && sec.dataset.sec ? sec.dataset.sec : undefined); });   // 활동 칸 위에 놓으면 날짜와 상관없이 그 활동으로
+  if (ADMIN) dropFiles(e.dataTransfer, sec && sec.dataset.sec ? sec.dataset.sec : undefined); });   // 활동 칸 위에 놓으면 날짜와 상관없이 그 활동으로
+/* 폴더째 끌어다 놓기: 폴더 안(그 안의 폴더까지) 사진 · 동영상을 모두 꺼내요 */
+async function dropFiles(dt, act){
+  const items = [...(dt.items || [])].map(it => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+  if (!items.some(en => en.isDirectory)) return addFiles(dt.files, act);
+  const out = [];
+  const walk = async en => {
+    if (en.isFile) { out.push(await new Promise((ok, no) => en.file(ok, no))); return; }
+    const rd = en.createReader();
+    for (;;) { const batch = await new Promise((ok, no) => rd.readEntries(ok, no)); if (!batch.length) break; for (const x of batch) await walk(x); }
+  };
+  setMsg('폴더 안 사진을 찾는 중…');
+  for (const en of items) await walk(en);
+  return addFiles(out.filter(f => !/^\./.test(f.name)), act);
+}
 addEventListener('dragover', e => { if (!cls('adm')) return; const sec = e.target.closest && e.target.closest('.adm-sec[data-sec]');
   document.querySelectorAll('.adm-sec.over').forEach(x => { if (x !== sec) x.classList.remove('over'); }); if (sec && sec.dataset.sec) sec.classList.add('over'); });
 
