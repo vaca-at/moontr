@@ -610,6 +610,10 @@ html.appmode #shLogin .err{order:6;color:#FF8A8A;min-height:0}
 .estepnav{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
 .admin-fab{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:9;padding:.3rem .8rem;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:12px var(--ui);cursor:pointer;opacity:.45}
 .admin-fab:hover,.admin-fab:focus-visible{opacity:1}
+/* 왼쪽 아래 방문 수(오늘 · 누적)는 관리자 구글 계정으로 로그인했을 때만 · 다른 선생님에게는 '관리자' 단추를 아주 작고 흐리게 */
+html:not(.isadmin) .moontr-visit{display:none!important}
+html:not(.isadmin) .admin-fab{right:4px;bottom:calc(4px + env(safe-area-inset-bottom,0px));padding:1px 5px;border:0;background:transparent;font-size:9px;opacity:.12}
+html:not(.isadmin) .admin-fab:hover,html:not(.isadmin) .admin-fab:focus-visible{opacity:.6}
 /* 체험 중 띠 (위쪽 정보 막대 맨 위) */
 .demo-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 10px;margin-right:34px;background:var(--accent);color:var(--on-ink);font-size:14px;border-radius:var(--box-r)}
 .demo-bar span{flex:1}
@@ -7757,6 +7761,7 @@ function needAccount(what){
 /* ---------- 로그인 상태가 바뀌면 ---------- */
 onAuthStateChanged(auth, async u => {
   user = u;
+  document.documentElement.classList.toggle("isadmin", !!(u && isAdminEmail(u.email)));   // 관리자일 때만 방문 수 · 또렷한 관리자 단추
   if (BOARD){ window.bootDone?.(); return; }   // 📺 전자칠판: 로그인 창 없이 (아래 openBoard)
   if (ADMIN_PAGE){ renderAdmin(); return; }
   // 구글 · 카카오가 아닌 로그인(이메일 등)은 쓰지 않아요 → 로그아웃하고 로그인 화면으로
@@ -7796,10 +7801,13 @@ const PAL_NAMES = [["a", "NEON 1"], ["n2", "NEON 2"], ["b", "COZY 1"], ["c2", "C
 function openHub(){
   apCur = openHub; $("apTitle").textContent = "☰ 설정";
   const look = window.DESK.look(), names = window.DESK.order().names, ord = window.DESK.order().ord;
-  const who = demo ? "체험 중 (저장되지 않아요)" : user ? (me && me.name ? `${me.name} 선생님` : "로그인했어요 · 닉네임을 넣어 주세요") : "로그인 전";
+  // 🙋 로그인 없이 시작한 선생님: '로그인했어요' 대신 '이 기기에만 저장' + [구글 · 카카오로 연결] (계정 칸의 연결 단추로 가요)
+  const guest = isGuest();
+  const who = demo ? "체험 중 (저장되지 않아요)" : guest ? (me && me.name ? `${me.name} 선생님 · 이 기기에만 저장돼요` : "이 기기에만 저장돼요") : user ? (me && me.name ? `${me.name} 선생님` : "로그인했어요 · 닉네임을 넣어 주세요") : "로그인 전";
   $("apBody").innerHTML = `
     <div class="ap-sec">👤 계정</div>
-    <div class="ap-acct"><b>${esc(who)}</b>${!user || demo ? `<button type="button" class="big" data-ap="login">구글 · 카카오로 시작</button>` : `<button type="button" class="big ghost" data-ap="acct">계정 · 기록</button>`}</div>
+    <div class="ap-acct"><b>${esc(who)}</b>${!user || demo ? `<button type="button" class="big" data-ap="login">구글 · 카카오로 시작</button>` : guest ? `<button type="button" class="big" data-ap="acct">구글 · 카카오로 연결</button>` : `<button type="button" class="big ghost" data-ap="acct">계정 · 기록</button>`}</div>
+    ${guest ? `<p class="note" style="margin:4px 0 0">브라우저 데이터를 지우거나 기기를 바꾸면 기록이 사라질 수 있어요. 연결하면 지금 기록이 그대로 옮겨져요.</p>` : ""}
     <div class="ap-sec">🎮 레트로 게임 <small>1~9</small></div>
     <div class="ap-grid">${ord.filter(i => !isPC(i)).map(i => `<button type="button" class="${i === look.s ? "on" : ""}" data-pick="${i}"><b>${NUM(i)}</b>${esc(names[i])}</button>`).join("")}</div>
     <div class="ap-sec">🖥 무난한 PC <small>10~18</small></div>
