@@ -9,10 +9,13 @@
 <meta property="og:description" content="하루의 마음을 한 편의 문장으로 · 마음근력 활동 · AI 마음 티쳐">
 <meta property="og:image" content="https://moontr.site/maum/og.png">
 <link rel="icon" href="/admin/app-maum.jpg">
+<link rel="manifest" href="/maum/manifest.webmanifest">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="stylesheet" href="/maum/app.css?v=1">
 <style>
 /* ============================================================
    🌿 마음한편 웹 (moontr.site/maum) — 2026-11-25
-   · 지금: 앱 소개 + 앱스토어 단추 (웹에서 쓰는 마음한편은 시안을 보고 만들 거예요)
+   · 로그인 전: 앱 소개 + 웹에서 시작하기(구글 · 카카오 · Apple) · 로그인 뒤: 웹 마음한편 (app.js · app.css · content.js · tests.js)
    · #admin (또는 ?admin): 관리자 숫자 화면 — 관리자 구글 계정으로만
      숫자는 moontr-auth 서버 POST /maum/stats 에서 받아요 (관리자인지는 서버가 확인하고, 아니면 바로 로그아웃):
        AI 마음 티쳐 날마다 할 일별 횟수 · 쓴 사람 수 · 처음 쓴 사람 수 · 위험한 말이 보인 횟수,
@@ -24,8 +27,8 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;word-break:keep-all}
 .wrap{max-width:960px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 90px max(16px,env(safe-area-inset-left))}
-button,.btn{font:600 15px var(--sans);border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
-.btn.main,button.main{background:var(--acc);border-color:var(--acc);color:#fff}
+.wrap button,.wrap .btn{font:600 15px var(--sans);border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.wrap .btn.main,.wrap button.main{background:var(--acc);border-color:var(--acc);color:#fff}
 h1{font-size:34px;margin:0}
 .sub{color:var(--sub)}
 .hero{display:grid;grid-template-columns:120px 1fr;gap:24px;align-items:center;background:var(--card);border-radius:24px;padding:28px;border:1px solid var(--line)}
@@ -92,10 +95,15 @@ td.c{color:var(--red);font-weight:700}
       <div><b>나와 가족 알아 가기</b><span>기질 · 성격 · 마음 결 테스트를 나와 가족이 따로 해 보고, 서로 닮은 점 · 다른 점을 봐요.</span></div>
       <div><b>AI 마음 티쳐</b><span>내 마음과 그 사람의 마음을 쉬운 말로 풀어 주고, 숨은 마음 도감을 채워요.</span></div>
     </div>
-    <p class="soon">웹에서도 쓰는 마음한편을 준비하고 있어요. 지금은 아이폰 · 아이패드 앱에서 써 주세요.</p>
+    <div class="soon" style="display:grid;gap:10px"><b style="font-size:16px">💻 웹에서도 써요</b><span>아이폰 앱과 같은 계정이면 같은 기록이 보여요. 갤럭시 · 컴퓨터에서도 돼요.</span>
+      <div class="row"><button class="btn main" data-login="google">G 구글로 시작하기</button><button class="btn" data-login="kakao">카카오로 시작하기</button><button class="btn" data-login="apple"> Apple</button></div></div>
   </section>
 
   <section id="adm"></section>
+</div>
+<div id="app" hidden></div>
+<div id="sheet" hidden></div>
+<div class="wrap" id="footWrap">
 
   <details class="policy-foot">
     <summary>이용약관 · 개인정보 처리방침</summary>
@@ -122,7 +130,7 @@ let msg = { t: '', err: false }, data = null, ready = false;
 
 const loadScript = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('도구를 불러오지 못했어요')); document.head.appendChild(s); });
 async function fbInit(){
-  for (const m of ['app', 'auth']) await loadScript(`https://www.gstatic.com/firebasejs/10.12.2/firebase-${m}-compat.js`);
+  if (!window.firebase) for (const m of ['app', 'auth']) await loadScript(`https://www.gstatic.com/firebasejs/10.12.2/firebase-${m}-compat.js`);
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);   // 이름 없는 기본 앱: 허브에서 로그인했으면 바로 들어와요
   try { await firebase.auth().getRedirectResult(); } catch (e) { if (e.code) setMsg('로그인하지 못했어요. (' + e.code + ')', true); }
   firebase.auth().onAuthStateChanged(u => { ready = true; if (u) loadStats(); else render(); });
@@ -193,6 +201,19 @@ function render(){
 }
 if (ADMIN_MODE) { document.body.classList.add('adm'); render(); fbInit().catch(e => { setMsg(e.message, true); render(); }); }
 </script>
+<!-- 웹 마음한편: 파이어베이스(이름 붙은 앱 'maum') · 앱에서 옮긴 내용 · 화면 -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="/maum/content.js?v=1"></script>
+<script src="/maum/tests.js?v=1"></script>
+<script src="/maum/app.js?v=1"></script>
+<script>
+  // 로그인한 화면에서는 소개 · 아래 약관 줄을 숨겨요 (약관은 내 계정에 있어요)
+  new MutationObserver(() => { document.getElementById('footWrap').hidden = document.body.classList.contains('app-on'); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  window.MaumWeb && window.MaumWeb.boot();
+</script>
+<script src="/help.js" data-app="maum" defer></script>
 <script src="/refresh.js" data-bg="#133955" data-fg="#FFFFFF" defer></script>
 <script type="module" src="/visit.js?app=maum"></script>
 </body>
