@@ -1,6 +1,8 @@
 // 🌿 마음한편 AI 'AI 마음 티쳐' (2026-11-23) — moontr-auth 서버에 붙은 주소 POST /maum
 //  앱(아이폰 마음한편)이 로그인 표(Firebase ID 토큰)와 함께 보내요. 로그인 표가 진짜인지 worker.js 의 lookup 으로 확인해요.
 //  할 일(task): today 오늘의 문장 · review 이번 주 총평 · translate 마음 번역 · ask 물어보기 · talk 이야기 · ring 숨은 마음 도감 찾기
+//           report_read 전문 검사 결과지 읽기(사진 · PDF → 척도 · 점수) · report_explain 검사 결과 쉽게 풀어 보기 (2026-11-25)
+//  ⚠️ 결과지 사진 · PDF 도 읽기만 하고 저장하지 않아요. 이름 · 생년월일 · 학교 · 기관 담당자 이름은 돌려주지 않아요.
 //  ⚠️ 적은 글은 답을 만드는 데만 쓰고 이 서버에 저장하지 않아요. 기록(console.log)에도 글을 남기지 않아요.
 //  ⚠️ 위험한 말(죽고 싶다 · 자해 · 폭력)이 보이면 AI에 보내지 않고 { crisis: true } 로 바로 돌려줘요 → 앱이 도움 화면(109 · 1388 · 112)을 열어요.
 //  하루 횟수: 한 사람(uid)마다 LIMIT 만큼 (Durable Object 'Quota')
@@ -12,7 +14,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { DurableObject } from 'cloudflare:workers';
 
 const MODEL = 'claude-opus-5-5';
-const LIMIT = { today: 12, review: 6, translate: 25, ask: 25, talk: 80, ring: 25 };
+const LIMIT = { today: 12, review: 6, translate: 25, ask: 25, talk: 80, ring: 25, report_read: 12, report_explain: 12 };
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, n);
 // 위험한 말 (앱 Safety.swift 와 같게, 띄어쓰기를 빼고 찾아요)
 const RISK = ['죽고싶', '죽어버리', '죽을래', '죽고말', '죽는게나', '죽으면편', '자살', '자해', '사라지고싶', '없어지고싶', '살기싫', '살고싶지않',
@@ -42,6 +44,19 @@ const Today = z.object({ weather: z.string(), body: z.string() });
 const Review = z.object({ text: z.string() });
 const Translate = z.object({ crisis: z.boolean(), feeling: z.string(), why: z.string(), tryThis: z.string() });
 const Reply = z.object({ crisis: z.boolean(), reply: z.string() });
+// 전문 검사 결과지 (2026-11-25 문쌤: 아이 · 우리반이 받은 검사 결과를 올리고 AI 로 풀어 보기)
+const Row = z.object({ group: z.string(), name: z.string(), score: z.string(), kind: z.string(), band: z.string(), note: z.string() });
+const ReportRead = z.object({ ok: z.boolean(), title: z.string(), org: z.string(), date: z.string(), rows: z.array(Row), memo: z.string() });
+const ReportExplain = z.object({ summary: z.string(), strengths: z.array(z.string()), watch: z.array(z.string()), home: z.array(z.string()), ask: z.array(z.string()) });
+const READ_RULE = `너는 지금 심리 · 학습 · 발달 검사 결과지를 읽어 표로 옮기는 일을 해.
+- 결과지에 적힌 글자 · 숫자만 옮겨. 없는 점수를 지어내지 마. 흐려서 안 읽히면 그 칸은 빈 글자("").
+- ok: 검사 결과지가 맞으면 true, 아니면 false (그때 rows 는 빈 배열).
+- title: 검사 이름 (예: "K-WISC-V", "종합 심리 검사", "CBCL 6-18"). 결과지에 적힌 대로.
+- org: 검사한 곳의 종류만 (예: "상담센터", "병원", "학교 Wee클래스"). 기관 이름 · 담당자 이름은 쓰지 마.
+- date: 검사 날짜 YYYY-MM-DD (모르면 "").
+- rows: 척도마다 한 줄. group = 묶음(예: "지표", "내재화", 없으면 ""), name = 척도 이름, score = 점수 그대로(예: "112", "T 65", "85%ile"), kind = 점수 종류("지표점수" · "T점수" · "백분위" · "원점수" · "환산점수" 등), band = 결과지에 적힌 수준(예: "평균 상", "경계선", "임상 범위") 없으면 "", note = 결과지의 짧은 설명(30자 안) 없으면 "".
+- memo: 결과지의 종합 소견을 두세 문장으로 줄여. 없으면 "".
+- ⚠️ 아이 · 보호자 · 담당자 이름, 생년월일, 학교 이름, 주소, 전화는 어디에도 쓰지 마.`;
 const Ring = z.object({ crisis: z.boolean(), no: z.number().int(), why: z.string(), report: z.array(z.string()) });
 
 // 앱 숨은 마음 도감 (Rings.swift 의 RingDex.known 과 같은 번호)
@@ -76,8 +91,8 @@ export async function maum(req, env, body, who, json) {
   const care = body.care === true ? '\n[요즘 상태] 최근 힘든 날이 많이 이어졌어요. 평소처럼 활동을 권하기보다 먼저 마음을 충분히 알아주고, 믿는 사람이나 전문 기관(109 · 1388 · 1577-0199)과 이야기해 보기를 부드럽게 권해. 재촉하거나 훈계하지 마.' : '';
   const system = [{ type: 'text', text: BASE, cache_control: { type: 'ephemeral' } }, { type: 'text', text: `[이 사람] ${mode}${care}` }];
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const ask = async (schema, content, max = 1500) => {
-    const res = await client.messages.parse({ model: MODEL, max_tokens: max, output_config: { effort: 'low', format: zodOutputFormat(schema) }, system, messages: [{ role: 'user', content }] });
+  const ask = async (schema, content, max = 1500, effort = 'low') => {
+    const res = await client.messages.parse({ model: MODEL, max_tokens: max, output_config: { effort, format: zodOutputFormat(schema) }, system, messages: [{ role: 'user', content }] });
     if (res.stop_reason === 'refusal' || !res.parsed_output) return null;
     return res.parsed_output;
   };
@@ -112,6 +127,40 @@ export async function maum(req, env, body, who, json) {
         ? `[물음]\n${text}\n\n마음에 대한 물음에 4~6문장(300자 안)으로 답해 줘. 쉬운 말로, 왜 그런지 한두 문장 + 해 볼 것 두 가지(하나는 몸 활동).`
         : `${hist ? `[지금까지 이야기]\n${hist}\n\n` : ''}[나]\n${text}\n\n잘 들어 주는 친구처럼 2~4문장(200자 안)으로 답해. 먼저 마음을 알아주고, 필요하면 부드러운 질문 하나로 끝내. 해결책을 서두르지 마.`, 1200);
       return p ? json(req, { crisis: p.crisis, reply: clean(p.reply, 500) }) : json(req, { error: '답을 만들지 못했어요' }, 502);
+    }
+    if (task === 'report_read') {
+      // files = [{ type: 'image/jpeg' | 'image/png' | 'application/pdf', data: base64 }] 최대 6장
+      const files = (Array.isArray(body.files) ? body.files : []).slice(0, 6).filter((f) => f && typeof f.data === 'string' && f.data.length < 7_000_000);
+      if (!files.length) return json(req, { error: '결과지 사진이나 PDF 를 골라 주세요' }, 400);
+      const parts = files.map((f) => f.type === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } }
+        : { type: 'image', source: { type: 'base64', media_type: f.type === 'image/png' ? 'image/png' : 'image/jpeg', data: f.data } });
+      const p = await ask(ReportRead, [...parts, { type: 'text', text: `${READ_RULE}\n\n위 결과지(${files.length}장)를 읽어 표로 옮겨 줘.` }], 6000, 'medium');
+      if (!p) return json(req, { error: '결과지를 읽지 못했어요' }, 502);
+      if (!p.ok) return json(req, { error: '검사 결과지가 아닌 것 같아요. 점수가 보이게 다시 찍어 주세요' }, 400);
+      return json(req, { title: clean(p.title, 60), org: clean(p.org, 30), date: clean(p.date, 10), memo: clean(p.memo, 400),
+        rows: p.rows.slice(0, 80).map((r) => ({ group: clean(r.group, 30), name: clean(r.name, 40), score: clean(r.score, 20), kind: clean(r.kind, 20), band: clean(r.band, 30), note: clean(r.note, 60) })) });
+    }
+    if (task === 'report_explain') {
+      // 앱이 고친 표를 보내요 (이름 없이): who = '아들 · 초4' 처럼 관계 · 학년만
+      const r = body.report || {};
+      const rows = (Array.isArray(r.rows) ? r.rows : []).slice(0, 80).map((x) => `${clean(x.group, 30) ? clean(x.group, 30) + ' › ' : ''}${clean(x.name, 40)}: ${clean(x.score, 20)} ${clean(x.kind, 20)}${clean(x.band, 30) ? ' (' + clean(x.band, 30) + ')' : ''}${clean(x.note, 60) ? ' — ' + clean(x.note, 60) : ''}`);
+      if (!rows.length) return json(req, { error: '점수가 없어요' }, 400);
+      const before = (Array.isArray(r.before) ? r.before : []).slice(0, 80).map((x) => `${clean(x.name, 40)}: ${clean(x.score, 20)}`);
+      const p = await ask(ReportExplain, `[검사] ${clean(r.title, 60)} · ${clean(r.date, 10)} · ${clean(r.org, 30)}\n[누구] ${clean(r.who, 30) || '나'}\n[점수]\n${rows.join('\n')}${clean(r.memo, 400) ? '\n[결과지 소견 요약] ' + clean(r.memo, 400) : ''}${before.length ? '\n[지난번 같은 검사 점수]\n' + before.join('\n') : ''}
+
+이 검사 결과를 보호자 · 선생님이 이해하기 쉽게 풀어 줘. 지켜야 할 것:
+- 결과지에 적힌 척도 이름 · 수준은 그대로 써도 되지만, 새로 진단하거나 병명을 붙이지 마. 약 이야기는 하지 마.
+- 점수 종류를 쉬운 말로 (예: 지표점수 100 이 또래 평균, T점수 50 이 평균이고 높을수록 그 어려움이 큰 편 — 척도마다 다르면 결과지 기준을 따라).
+- 숫자 하나로 아이를 단정하지 말고, 강점을 먼저.
+summary: 전체를 3~4문장으로.
+strengths: 잘하는 점 · 힘이 되는 점 2~4개 (한 문장씩).
+watch: 살펴볼 점 2~4개 (한 문장씩, 걱정을 키우지 않게).${before.length ? ' 지난번보다 달라진 점이 있으면 여기에 하나 넣어.' : ''}
+home: 집 · 교실에서 해 볼 수 있는 작은 것 3개.
+ask: 검사한 선생님 · 기관에 물어보면 좋을 질문 2~3개.`, 2500, 'medium');
+      if (!p) return json(req, { error: '풀이를 만들지 못했어요' }, 502);
+      const L = (a, n) => (Array.isArray(a) ? a : []).slice(0, 4).map((s) => clean(s, n)).filter(Boolean);
+      return json(req, { summary: clean(p.summary, 500), strengths: L(p.strengths, 160), watch: L(p.watch, 160), home: L(p.home, 160), ask: L(p.ask, 160) });
     }
     if (task === 'ring') {
       if (text.length < 6) return json(req, { error: '조금 더 적어 주세요' }, 400);
