@@ -2545,6 +2545,8 @@
     return isNaN(d) ? null : d;
   }
   /** 앱의 날짜 모양: 2026년 11월 25일 · 11월 25일 */
+  /** 9가지 유형 날개: 가장 높은 번호의 양옆(9 옆은 1) 가운데 점수가 더 높은 쪽 (같으면 작은 번호) — 앱 Bank.nineWing 과 같아요 */
+  function nineWing(s) { if (!s || s.length !== 9) return 0; var t = Score.top(s), a = (t + 8) % 9, b = (t + 1) % 9; return (s[a] > s[b] || (s[a] === s[b] && a < b)) ? a : b; }
   function ymd(d) { return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; }
   function md(d) { return (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; }
   function atMs(r) { var d = toDate(r && r.at); return d ? d.getTime() : null; }
@@ -2774,7 +2776,7 @@
       case 'temper': return s.length >= 4 ? TEMPER_NAMES[Score.top(s.slice(0, 4))] + ' 높음' : '';
       case 'character': return s.length >= 3 ? TEMPER_NAMES[4 + Score.top(s.slice(0, 3))] + ' 높음' : '';
       case 'type16': return code + ' · ' + typeInfo(code).name;
-      case 'nine': return s.length === 9 ? NINE[Score.top(s)].name : '';
+      case 'nine': return s.length === 9 ? (Score.top(s) + 1) + 'w' + (nineWing(s) + 1) + ' ' + NINE[Score.top(s)].name : '';
       case 'mind': return s.length === 6 ? MIND.kinds[Score.top(s)] : '';
       case 'disc': return s.length === 4 ? D.discNames[Score.top(s)] : '';
       case 'mini': var ax = AX[k.a]; return code + ' · ' + (code === ax.first ? ax.firstName : ax.secondName);
@@ -3115,7 +3117,10 @@
     if (k.t === 'nine') {
       if (s.length !== 9) return null;
       var order = orderDesc(s), nt = order.length ? order[0] : 0, ni = NINE[nt];
-      hero('9가지 마음 유형 · ' + (nt + 1) + '번', ni.name, ni.text);
+      // 2026-11-25 문쌤: '1w2' 처럼 몇 번인지 확 드러나게 (앱 Bank.nineWing 과 같은 셈)
+      var nw = nineWing(s);
+      hero('9가지 마음 유형 · ' + (nt + 1) + '번 날개 ' + (nw + 1), (nt + 1) + 'w' + (nw + 1) + ' ' + ni.name, ni.text);
+      box((nt + 1) + 'w' + (nw + 1) + ' 읽는 법', [{ k: 'text', text: (nt + 1) + "번 '" + ni.name + "'이 바탕이고, 바로 옆 " + (nw + 1) + "번 '" + NINE[nw].name + "'의 모습이 날개처럼 함께 있어요. 날개는 양옆 번호(" + ((nt + 8) % 9 + 1) + '번 · ' + ((nt + 1) % 9 + 1) + '번) 가운데 점수가 더 높은 쪽이에요.' }]);
       again(NINE.map(function (x) { return x.name; }));
       about(D.nineAbout);
       box('마음 깊이 바라는 것', [{ k: 'big', text: ni.core }]);

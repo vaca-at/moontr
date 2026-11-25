@@ -199,7 +199,9 @@ function todayLine(){
 const dayOfYear = () => Math.floor((dayStart() - new Date(new Date().getFullYear(), 0, 0)) / 864e5);
 
 /* ============ 화면 ============ */
-const NAV = [['home', '홈'], ['write', '마음 기록'], ['ai', 'AI 마음 티쳐'], ['breath', '숨 고르기'], ['test', '테스트'], ['dex', '숨은 마음 도감'], ['vault', '기록 보관함'], ['me', '내 계정'], ['help', '힘들 때 도움'], ['ask', '💬 문의하기']];
+const NAV = [['home', '홈'], ['write', '마음 기록'], ['ai', 'AI 마음 티쳐'], ['breath', '숨 고르기'], ['test', '테스트'], ['dex', '숨은 마음 도감'], ['vault', '기록 보관함'], ['me', '내 계정'], ['help', '힘들 때 도움'], ['guide', '📖 사용 설명서'], ['ask', '💬 문의하기']];
+/* 📖 사용 설명서 — 앱 GuideView.swift 와 같은 글 (고칠 땐 둘 다) */
+const GUIDE = [{"title": "홈 · 아래 탭", "lines": ["아래 탭: 테스트 · 마음근력 · 가운데 둥근 [홈] · 도감 · AI 티쳐.", "홈 모양은 8가지예요. 맨 위 ◀ ▶ 로 넘겨 나에게 맞는 홈을 골라요 (☰ › 모양 고르기에서 바탕 색도).", "홈을 위에서 아래로 당기면 AI 마음 티쳐가 오늘 문장을 새로 써 줘요."]}, {"title": "오늘 마음 남기기", "lines": ["홈의 마음 날씨(맑음 ~ 소나기)를 누르면 기록 창이 열려요. 까닭 태그를 고르고 좋았던 점이나 나를 위로하는 한 줄을 남겨요.", "까닭 태그는 [＋ 더하기]로 직접 만들 수 있어요.", "하루에 한 번 남기는 출석부예요. 다시 누르면 오늘 기록을 고쳐요."]}, {"title": "오늘 해 볼 것 · 내려놓을 것", "lines": ["날마다 세 개씩 골라 줘요. 테스트를 하면 나에게 맞는 것으로 골라요.", "체크 칸을 누르면 체크, 화살표 단추로 다른 세 개로 바꿔요."]}, {"title": "AI 마음 티쳐", "lines": ["마음 풀기: 내 마음을 적으면 '마음의 말'로 풀어 주고, '그 사람 이해하기'는 숨은 마음 도감에서도 찾아 줘요.", "물어보기 · 이야기: 궁금한 것을 묻거나 친구에게 말하듯 털어놓아요.", "답은 '지난 기록'에 쌓이고, 고치거나 지울 수 있어요. 쓰던 글은 저절로 임시 저장돼요.", "AI 마음 티쳐는 상담 선생님이 아니에요. 많이 힘들 땐 도움 받을 곳(109 · 1388)을 이용해 주세요."]}, {"title": "마음근력", "lines": ["내 3D 캐릭터가 먼저 보여 주고 따라 해요: 발바닥 느끼기 · 얼굴 풀기 · 목 · 어깨 풀기 · 1분 호흡 등.", "감사 한 줄 · 나에게 다정하게 한 줄도 여기서 써요. 하루에 여러 번 해도 돼요."]}, {"title": "테스트", "lines": ["타고난 기질 → 살면서 다듬은 성격 → 16가지 유형 → 9가지 유형 → 마음 결 → 행동 스타일, 그리고 짧은 테스트 · 밸런스 게임.", "9가지 유형은 '1w2'처럼 보여 줘요: 앞 숫자가 바탕 번호, w 뒤가 날개 번호예요.", "다시 하면 다른 문항으로 묻고, 지난번과 얼마나 비슷한지 보여 줘요.", "위쪽 사람 칩에서 가족 · 학생을 고르면 그 사람을 떠올리며 답하고, 결과는 그 사람 칸에 따로 저장돼요. 둘 다 하면 '닮은 점 · 다른 점'을 볼 수 있어요.", "표준화된 심리검사나 진단이 아니에요."]}, {"title": "숨은 마음 도감", "lines": ["'내 주변엔 마음은 여린데 겉으로는 세 보이는 사람이 있어'처럼 적으면 그 사람의 숨은 마음을 도감에서 찾아 보고서로 알려 줘요.", "못 찾은 칸을 누르면 힌트가 나와요. 찾은 마음에는 내 메모를 남길 수 있어요."]}, {"title": "홈 화면 위젯", "lines": ["아이폰 홈 화면을 꾹 눌러 [편집] › [위젯 추가]에서 '마음한편'을 골라요.", "탭하면 오늘 마음 · 오늘 해 볼 것 · 오늘의 문장 · 캐릭터 한마디가 넘어가요. 날씨를 누르면 바로 기록해요."]}, {"title": "내 계정 · 여러 기기", "lines": ["같은 로그인이면 아이폰 · 아이패드 · 웹(moontr.site/maum)에서 같은 기록이 보여요.", "구글 · 카카오 · Apple 로그인을 한 계정으로 이을 수 있어요 (내 계정 › 로그인 방법).", "별명 · 나 소개 · 캐릭터는 내 계정에서 고쳐요."]}, {"title": "힘들 때", "lines": ["☰ › 힘들 때 · 도움 받을 곳: 109 · 1388 · Wee클래스 등. 위험한 말이 보이면 AI로 보내지 않고 도움 받을 곳을 먼저 보여 줘요.", "학교폭력이 걱정되면 117 신고와 증거 남기는 법을 알려 줘요."]}, {"title": "문의하기", "lines": ["☰ › 💬 문의하기: 쓰는 법 · 고칠 점을 남기면 AI 가 먼저 답하고, 만든 선생님도 확인해서 답해요."]}];
 function render(){
   if (!S.user) return;
   if (!S.loaded.has('settings')) { $('#view').innerHTML = '<p class="sub" style="padding:40px">기록을 불러오고 있어요…</p>'; return; }
@@ -210,7 +212,7 @@ function render(){
   document.querySelectorAll('.side a.nav').forEach(a => a.classList.toggle('on', a.dataset.v === v));
   document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.v === v));
   $('#meName').textContent = S.set.nickname || '나'; $('#meSub').textContent = S.set.grade || '';
-  const f = { home: vHome, write: vWrite, ai: vAI, breath: vBreath, test: vTest, dex: vDex, vault: vVault, me: vMe, help: vHelp }[v] || vHome;
+  const f = { home: vHome, write: vWrite, ai: vAI, breath: vBreath, test: vTest, dex: vDex, vault: vVault, me: vMe, help: vHelp, guide: vGuide }[v] || vHome;
   const keep = document.activeElement && document.activeElement.id && ['aiText', 'dexText', 'talkText'].includes(document.activeElement.id) ? document.activeElement.id : null;
   $('#view').innerHTML = f();
   bind(v);
@@ -543,6 +545,10 @@ function vMe(){
     <div class="box"><div class="eyebrow">문의하기</div><p class="small" style="margin:6px 0 0">쓰는 법이 궁금하거나 고칠 점이 있으면 남겨 주세요. AI 가 먼저 답하고, 만든 선생님도 확인해서 답해요. 마음 상담은 'AI 마음 티쳐'나 힘들 때 도움 받을 곳을 이용해 주세요.</p><a class="btn small" href="#/ask" style="margin-top:8px">💬 문의하기</a></div>
     <p class="sub small">계정 지우기는 아이폰 앱의 ☰ › 계정 지우기에서 할 수 있어요.</p></div>`;
 }
+function vGuide(){
+  return `<div class="stack fade-in" style="max-width:760px"><h2 class="title">마음한편을 이렇게 써요</h2>${GUIDE.map((g, i) => `<details class="box"${i ? '' : ' open'}><summary style="cursor:pointer;font-weight:700;font-size:16px">${esc(g.title)}</summary><ul style="margin:10px 0 0;padding-left:20px">${g.lines.map(l => `<li style="margin:4px 0">${esc(l.replace('아이폰 홈 화면을', '(아이폰 앱) 홈 화면을'))}</li>`).join('')}</ul></details>`).join('')}
+    <p class="sub small">웹에서는 3D 캐릭터 따라 하기 · 건강 앱 · 위젯을 빼고 모두 쓸 수 있어요.</p></div>`;
+}
 function vHelp(){ setTimeout(() => showHelp(), 0); S.view = 'home'; return vHome(); }
 
 /* ── 단추 잇기 ── */
@@ -603,7 +609,7 @@ function shell(){
   $('#app').innerHTML = `<aside class="side"><a class="logo" href="#/home">마음한편</a>${nav}<a class="me" href="#/me"><img src="/maum/character.png" alt=""><div><b id="meName"></b><small id="meSub"></small></div></a></aside>
     <div><div class="mtop"><span class="t">마음한편</span><button id="menuBtn">☰</button></div><main id="view"></main></div>
     ${S.demo ? `<div class="tourbar">👀 <b>둘러보기 중</b><span>예시 기록이에요. 마음껏 눌러 보세요 (저장되지 않아요)</span><a class="btn small main" href="/maum/">로그인하고 시작하기</a></div>` : ''}
-    <nav class="tabs"><a href="#/home" data-v="home">홈</a><a href="#/ai" data-v="ai">AI</a><a href="#/write" class="plus" aria-label="오늘 마음 남기기">＋</a><a href="#/test" data-v="test">테스트</a><a href="#/dex" data-v="dex">도감</a></nav>`;
+    <nav class="tabs"><a href="#/test" data-v="test">테스트</a><a href="#/breath" data-v="breath">마음근력</a><a href="#/home" data-v="home" class="plus" aria-label="홈">홈</a><a href="#/dex" data-v="dex">도감</a><a href="#/ai" data-v="ai">AI 티쳐</a></nav>`;
   $('#menuBtn').onclick = () => { sheet(`<b class="unz" style="font-size:24px">메뉴</b><div class="help">${NAV.map(([k, n]) => `<a href="#/${k}"><b>${n}</b><span>›</span></a>`).join('')}</div>`); document.querySelectorAll('#sheet a').forEach(a => a.addEventListener('click', closeSheet)); };
 }
 function fromHash(){ const v = (location.hash.match(/^#\/(\w+)/) || [])[1];
