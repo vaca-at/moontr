@@ -174,6 +174,12 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 .smap li.on b::after{content:" ✓";color:var(--acc)}
 .smap .off li{border-style:dashed}
 .storyp .sf{margin-top:auto;padding-top:6px;border-top:1px solid var(--line);font-size:10px;color:var(--sub);display:flex;justify-content:space-between}
+/* 🏷 첫 쪽 오른쪽 위 반 · 학번 (2026-11-25, 나눠 주기 쉽게) */
+.storyp .sh{position:relative;padding-right:120px}
+.nmbox{border:1.5px solid var(--acc);background:#fff;padding:4px 12px;text-align:right;font-size:11px;color:var(--sub);line-height:1.3;white-space:nowrap}
+.nmbox b{display:block;font-size:21px;font-weight:800;color:var(--ink);letter-spacing:.03em}
+.storyp .sh .nmbox{position:absolute;right:0;top:0}
+.pgh.nmh{align-items:flex-start}
 .storybox textarea{width:100%;min-height:110px;border:1px solid var(--line2);padding:10px;font:inherit;font-size:13px;margin-top:8px}
 @media (max-width:900px){.two{grid-template-columns:1fr}.kpi{grid-template-columns:repeat(2,1fr)}nav.tabs{overflow-x:auto}}
 </style>
@@ -468,7 +474,7 @@ function storyPage(m) {
   let no = (t.match(/^\s*#{1,3}\s/gm) || []).length;
   const algoIntro = I.algo ? "" : `<div class="sc"><h3>${++no}. 다음 탐구 미리 보기 · 알고리즘 실험실</h3><p>알고리즘 실험실에서는 '누가 먼저 받을까?' 같은 판단 규칙을 카드로 직접 조립해 실행하고 시험해요. 내가 만든 규칙이 벤담과 칸트 중 누구의 생각에 가까운지, 그 규칙 때문에 손해 보는 사람은 없는지 공정성을 따져 봐요. 데이터 실험실에서 숫자로 판단했다면, 알고리즘 실험실에서는 '판단하는 규칙' 자체를 설계해요.</p><div class="s7">${ALGO.STEPS.map((n, i) => `<span>${i + 1}. ${esc(n)}</span>`).join("")}</div></div>`;
   const home = `<div class="sc"><h3>${++no}. 집에서도 이어서 탐구해요</h3><p>휴대폰으로 QR을 찍거나 주소를 넣으면 바로 열려요.</p><div class="lk2">${HOME_LINKS.map(([n, u, s, d]) => `<div class="lk"><div class="qr" data-u="${u}"></div><div><b>${n}</b><u>${s}</u><p>${d}</p></div></div>`).join("")}</div></div>`;
-  return `<div class="paper bpage storyp"><div class="sh"><small>${esc(m.ban)}반 모두에게</small><h2>우리 반 탐구 이야기</h2><p>통합사회 AI활용탐구 · ${I.data && I.algo ? "데이터 실험실 · 알고리즘 실험실" : I.algo ? "알고리즘 실험실" : "데이터 실험실"} · ${new Date().toLocaleDateString("ko-KR")}</p>
+  return `<div class="paper bpage storyp"><div class="sh"><div class="nmbox">${esc(m.ban)}반<b>${esc(m.sid)}</b></div><small>${esc(m.ban)}반 모두에게</small><h2>우리 반 탐구 이야기</h2><p>통합사회 AI활용탐구 · ${I.data && I.algo ? "데이터 실험실 · 알고리즘 실험실" : I.algo ? "알고리즘 실험실" : "데이터 실험실"} · ${new Date().toLocaleDateString("ko-KR")}</p>
     <p style="margin-top:6px;color:var(--ink)"><b>${esc(m.sid)}</b> 학생, 우리 반이 함께한 탐구를 돌아봐요 · 다음 쪽부터는 나의 보고서예요</p></div>
     ${storyCards(t)}${algoIntro}${home}<div class="sf"><span>AI가 ${esc(m.ban)}반 전체 탐구 기록을 학번 · 이름 없이 읽고 정리한 글이에요</span><span>moontr.site/datalab</span></div></div>`;
 }
@@ -486,9 +492,10 @@ function pagesOf(el, pageH) {
   }
   return pages;
 }
-function printBatch() {
-  const L = batchList(), pa = $("#printArea");
-  pa.innerHTML = L.map((m) => `<div class="stu" style="display:contents">${storyPage(m)}${batchPage(m)}</div>`).join("");
+// 출력물 그리기 + 한 장에 맞추기 (인쇄 · 학생 화면으로 보내기가 함께 써요). 양면 맞춤이면 끼운 빈 쪽 수를 돌려줘요
+function layoutBatch(L, duplex) {
+  const pa = $("#printArea");
+  pa.innerHTML = L.map((m) => { const s = storyPage(m); return `<div class="stu" style="display:contents">${s}${batchPage(m, !s)}</div>`; }).join("");
   pa.querySelectorAll(".qr[data-u]").forEach((e) => { try { const q = qrcode(0, "M"); q.addData(e.dataset.u); q.make(); e.innerHTML = q.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); } catch (x) { e.remove(); } });
   pa.classList.add("measure");
   // 1쪽 '우리 반 탐구 이야기'는 한 장에 맞게 글씨를 줄여요
@@ -503,24 +510,49 @@ function printBatch() {
     for (let z = 1; p.getBoundingClientRect().height > fitH && p.getBoundingClientRect().height < fitH * 1.15 / z && z > .87; ) { z -= .01; p.querySelector(".pgb").style.zoom = z; }
     if (p.getBoundingClientRect().height <= fitH) p.classList.add("fit"); else p.querySelector(".pgb").style.zoom = "";
   });
-  if (B.duplex) pa.querySelectorAll(".stu").forEach((s) => {
+  if (duplex) pa.querySelectorAll(".stu").forEach((s) => {
     const n = [...s.children].reduce((sum, p) => sum + (p.classList.contains("storyp") || p.classList.contains("fit") ? 1 : pagesOf(p, pageH)), 0);
     if (n % 2) { s.insertAdjacentHTML("beforeend", `<div class="paper bpage blankp"><p>양면 인쇄를 맞추려고 비워 둔 쪽이에요</p></div>`); blanks++; }
   });
   pa.classList.remove("measure");
+  return blanks;
+}
+function printBatch() {
+  const blanks = layoutBatch(batchList(), B.duplex);
   A.msg = B.duplex ? `양면 맞춤: 빈 쪽 ${blanks}장을 끼웠어요 · 인쇄 창에서 ‘양면’을 골라 주세요` : ""; if (A.msg) render();
   window.print();
 }
-function batchPage(m) {
+/* 📤 학생 화면으로 보내기 (2026-11-25 문쌤 요청): 인쇄물과 똑같은 보고서를 학생 기록에 rep 로 넣어 두면
+   학생이 moontr.site/datalab/report 에서 자기 것만 보고 인쇄해요 (학번 · 비밀번호를 아는 사람만 열려요).
+   학생은 rep 칸을 고칠 수 없어요 (보안 규칙: 학생은 rec · updatedAt 만 고쳐요) */
+async function sendBatch() {
+  const L = batchList(); if (!L.length || B.send) return;
+  if (!confirm(`${A.ban ? A.ban + "반 " : ""}${L.length}명에게 지금 출력물과 똑같은 보고서를 보낼까요?\n\n학생은 데이터 · 알고리즘 실험실의 ‘📄 나의 보고서’에서 자기 것만 보고 인쇄할 수 있어요.\n지금 켜 둔 칸(${[B.story && "1쪽 우리 반 탐구 이야기", B.stat && "반 · 학년 통계", B.seteuk && "세특"].filter(Boolean).join(" · ") || "보고서만"})이 그대로 들어가요.`)) return;
+  B.send = true; A.msg = "보고서를 보내는 중이에요…"; render();
+  layoutBatch(L, false);
+  const pages = [...$("#printArea").querySelectorAll(".stu")].map((s) => s.innerHTML), at = Date.now(), fails = [];
+  $("#printArea").innerHTML = "";
+  for (let i = 0; i < L.length; i += 5) await Promise.all(L.slice(i, i + 5).map((m, j) => db.collection("datalab_members").doc(m.key).update({ rep: { html: pages[i + j], at } }).catch((e) => fails.push(m.sid + " (" + (e.code || e.message) + ")"))));
+  B.send = false; A.msg = fails.length ? `보내지 못한 학생: ${fails.join(", ")} — 다시 눌러 주세요` : `${L.length}명에게 보고서를 보냈어요. 학생은 실험실 화면 위 ‘📄 나의 보고서’를 누르면 돼요`; render();
+}
+async function unsendBatch() {
+  const L = batchList().filter((m) => m.rep); if (!L.length) return;
+  if (!confirm(`${L.length}명의 학생 화면에서 보낸 보고서를 내릴까요? (탐구 기록은 그대로예요)`)) return;
+  await Promise.all(L.map((m) => db.collection("datalab_members").doc(m.key).update({ rep: firebase.firestore.FieldValue.delete() }).catch(() => {})));
+  A.msg = `${L.length}명의 학생 화면에서 보고서를 내렸어요`; render();
+}
+// first: 이 학생의 첫 쪽이면(1쪽 '우리 반 탐구 이야기'가 없을 때) 2쪽 머리에 큰 반 · 학번 칸을 붙여요
+function batchPage(m, first) {
   const T = subT(m), G = subG(m), fb = m.fb || {}, day = new Date().toLocaleDateString("ko-KR");
   const rows = (pairs) => pairs.filter(([, v]) => String(v || "").trim()).map(([n, v]) => `<section><h4>${esc(n)}</h4><p>${esc(v)}</p></section>`).join("");
   const sk = m.seteuk || fb.seteuk || "";
-  const head = (k) => `<div class="who pgh"><span><b>${esc(m.ban)}반 · ${esc(m.sid)}</b> · ${k}</span><span>${day}</span></div>`;
+  const head = (k, nm) => nm ? `<div class="who pgh nmh"><span><b>${esc(m.ban)}반 · ${esc(m.sid)}</b> · ${k} · ${day}</span><span class="nmbox">${esc(m.ban)}반<b>${esc(m.sid)}</b></span></div>`
+    : `<div class="who pgh"><span><b>${esc(m.ban)}반 · ${esc(m.sid)}</b> · ${k}</span><span>${day}</span></div>`;
   // 2쪽: ✏️ 내가 쓴 답 상자 + 📊 우리 반 · 학년 통계 상자
   const mine = `<div class="rbox"><h4 class="bt">✏️ 나의 탐구 기록 <span class="note">내가 직접 쓴 답이에요</span></h4>
     ${T.map((t) => { const x = m.rec[t.id]; return `<h3 style="margin-top:10px">AI활용탐구 ${t.no} · ${esc(t.title)}</h3><div class="who">${esc(GROUPS[t.g].name)} · ${progP(t, x)}/8단계 · ${subTxt(x, m)}</div>${rows(REPORT.map(([k, n]) => [n, repVal(t, x, k)]))}`; }).join("")}
     ${G.map(([id, x]) => `<h3 style="margin-top:10px">알고리즘 실험실 · ${esc(ALGO.NAMES[id][1])}</h3><div class="who">${x.sub ? 7 : Object.keys(x.done || {}).length}/7단계 · ${subTxt(x, m)}</div>${rows([["고른 규칙", algoRule(id, x.s)], ["가치 검토", x.s.why], ["공정성: 손해 보는 사람과 고칠 점", x.s.loser], ["마치며", x.s.ref]])}`).join("")}</div>`;
-  const p2 = `<div class="paper bpage pg">${head("통합사회 탐구 보고서")}<div class="pgb">${mine}${B.stat ? statBox(m) : ""}</div></div>`;
+  const p2 = `<div class="paper bpage pg">${head("통합사회 탐구 보고서", first === true)}<div class="pgb">${mine}${B.stat ? statBox(m) : ""}</div></div>`;
   // 3쪽: 💬 AI 피드백 · 📝 세특 초안 · 📈 그래프 · 🧭 탐구 단계
   const fbx = `<div class="fbbox"><h4 class="bt">💬 AI 피드백 · 잘한 점과 다음 걸음 <span class="note">AI가 학번 · 이름 없이 이 학생의 탐구 기록만 읽고 쓴 칭찬과 격려예요</span></h4>${fb.praise ? `<p><b>👍 잘한 점</b> ${esc(fb.praise)}</p>${fb.reflect ? `<p style="margin-top:6px"><b>🪞 성찰과 공유에 대하여</b> ${esc(fb.reflect)}</p>` : ""}<p style="margin-top:6px"><b>🌱 다음에는</b> ${esc(fb.cheer)}</p>` : `<p class="note">아직 AI 피드백을 만들지 않았어요 (위 ‘AI 피드백 · 세특 만들기’)</p>`}</div>`;
   const skx = B.seteuk ? `<div class="fbbox sk"><h4 class="bt">📝 ${m.seteuk ? "세특 초안 · 선생님이 다듬은 글" : "AI 세특 초안 · 나의 탐구가 기록된다면"} <span class="note">${m.seteuk ? "생활기록부에 들어가기 전 초안이에요" : "AI가 학번 · 이름 없이 탐구 기록만 읽고 쓴 글이에요"}</span></h4>${sk ? `<p>${esc(sk)}</p><p class="note" style="margin-top:4px">읽어 보는 글이에요. 생활기록부에는 선생님이 수업 기록을 확인하고 직접 쓴 글이 들어가요.</p>` : `<p class="note">아직 없어요</p>`}</div>` : "";
@@ -567,12 +599,14 @@ function batchView() {
   return `<div class="bar-h"><div><h1>일괄 출력</h1><p>반을 고르면 활동한 학생만 한 사람에 한 장씩 · 보고서 + AI 피드백(칭찬 · 격려) + 예상 세특 · 인쇄하면 학번만 나와요</p></div>
   <div class="ctl">${banSel()}<label class="note" style="display:flex;gap:6px;align-items:center;font-weight:700;color:var(--ink)" title="데이터 탐구나 알고리즘을 하나라도 제출한 학생만, 출력물에도 제출한 것만 넣어요"><input type="checkbox" data-act="bSub" ${B.subOnly ? "checked" : ""}>끝까지 제출한 학생만 (${inBan().filter(active).filter(hasSub).length}/${allN}명)</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSk" ${B.seteuk ? "checked" : ""}>세특 넣기</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSt" ${B.stat ? "checked" : ""}>반 · 학년 통계 넣기</label><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="bSy" ${B.story ? "checked" : ""}>우리 반 탐구 이야기 (1쪽)</label><label class="note" style="display:flex;gap:6px;align-items:center" title="학생마다 쪽수를 짝수로 맞춰 양면으로 뽑아도 학생끼리 섞이지 않게 빈 쪽을 끼워요"><input type="checkbox" data-act="bDx" ${B.duplex ? "checked" : ""}>양면 맞춤</label>
     <button class="btn b" data-act="bMake" ${B.run || !need.length ? "disabled" : ""}>${B.run ? `만드는 중 ${B.done}/${B.total}` : `AI 피드백 · 세특 만들기 (${need.length}명)`}</button>
-    <button class="btn" data-act="bPrint" ${L.length ? "" : "disabled"}>인쇄 · PDF로 저장 (${L.length}명)</button></div></div>
+    <button class="btn" data-act="bPrint" ${L.length ? "" : "disabled"}>인쇄 · PDF로 저장 (${L.length}명)</button>
+    <button class="btn b" data-act="bSend" ${L.length && !B.send ? "" : "disabled"} title="학생이 실험실 화면의 ‘📄 나의 보고서’에서 자기 보고서만 보고 인쇄해요">${B.send ? "보내는 중…" : `📤 학생 화면으로 보내기 (${L.length}명)`}</button>
+    ${L.some((m) => m.rep) ? `<button class="btn w sm" data-act="bUnsend">보낸 것 내리기</button>` : ""}</div></div>
   ${!A.ban ? `<div class="msg">반을 하나 고르면 그 반만 출력해요 (지금은 모든 반 ${L.length}명)</div>` : ""}
-  <div class="box"><table class="tb"><thead><tr><th>학번</th><th>탐구</th><th>AI 글</th><th></th></tr></thead><tbody>${L.map((m) => `<tr><td><b>${esc(m.sid)}</b></td><td class="l" style="font-size:13px">${[...subT(m).map((t) => `${t.no}. ${esc(t.name)}${m.rec[t.id].sub ? " ✓" : ""}`), ...subG(m).map(([id, x]) => "알고리즘 " + esc(ALGO.NAMES[id][0]) + (x.sub ? " ✓" : ""))].join(" · ")}</td><td>${tag(m)}</td><td><button class="btn w sm" data-act="bOne" data-v="${m.key}" ${B.run ? "disabled" : ""}>${m.fb ? "다시 만들기" : "만들기"}</button></td></tr>`).join("") || `<tr><td colspan="4" class="note">이 반에는 아직 활동한 학생이 없어요</td></tr>`}</tbody></table>
+  <div class="box"><table class="tb"><thead><tr><th>학번</th><th>탐구</th><th>AI 글</th><th>학생 화면</th><th></th></tr></thead><tbody>${L.map((m) => `<tr><td><b>${esc(m.sid)}</b></td><td class="l" style="font-size:13px">${[...subT(m).map((t) => `${t.no}. ${esc(t.name)}${m.rec[t.id].sub ? " ✓" : ""}`), ...subG(m).map(([id, x]) => "알고리즘 " + esc(ALGO.NAMES[id][0]) + (x.sub ? " ✓" : ""))].join(" · ")}</td><td>${tag(m)}</td><td>${!m.rep ? `<span class="st w">안 보냄</span>` : (m.updatedAt || 0) > m.rep.at || (m.fb && m.fb.at > m.rep.at) ? `<span class="st o" title="보낸 뒤에 학생 기록이나 AI 글이 바뀌었어요 · 다시 보내면 새로 들어가요">보낸 뒤 바뀜</span>` : `<span class="st d">보냄 ${fmtT(m.rep.at)}</span>`}</td><td><button class="btn w sm" data-act="bOne" data-v="${m.key}" ${B.run ? "disabled" : ""}>${m.fb ? "다시 만들기" : "만들기"}</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">이 반에는 아직 활동한 학생이 없어요</td></tr>`}</tbody></table>
   <p class="note" style="margin-top:8px">AI는 학번 · 이름 없이 탐구 기록만 읽어요. 세특 탭에서 저장한 세특이 있으면 그 글이, 없으면 ‘AI 세특 초안’이라고 밝혀 들어가요 (나이스 1,500바이트보다 여유 있게 1,200~1,350바이트로 써요). 학생에게 보여 주지 않으려면 ‘세특 넣기’를 꺼요.</p></div>
   ${storyBox()}
-  <div id="batchDoc">${L.map(batchPage).join("")}</div>`;
+  <div id="batchDoc">${L.map((m) => batchPage(m)).join("")}</div>`;
 }
 // 일괄 출력 화면 아래: 우리 반 탐구 이야기 만들기 칸 (반을 골랐을 때만)
 function storyBox() {
@@ -698,6 +732,11 @@ document.addEventListener("click", async (e) => {
     if (B.story && A.ban && !storyGet(A.ban).trim() && !confirm(`${A.ban}반 '우리 반 탐구 이야기'가 아직 없어요.\n그대로 인쇄하면 1쪽 없이 보고서만 나와요. 계속할까요?\n\n(취소하면 아래 칸에서 먼저 만들 수 있어요)`)) { document.getElementById("storyIn")?.scrollIntoView({ block: "center" }); return; }
     return printBatch();
   }
+  if (a === "bSend") {
+    if (B.story && A.ban && !storyGet(A.ban).trim() && !confirm(`${A.ban}반 '우리 반 탐구 이야기'가 아직 없어요.\n그대로 보내면 1쪽 없이 보고서만 가요. 계속할까요?`)) { document.getElementById("storyIn")?.scrollIntoView({ block: "center" }); return; }
+    return sendBatch();
+  }
+  if (a === "bUnsend") return unsendBatch();
   if (a === "printRep") { $("#printArea").innerHTML = paper(DL.topic(b.dataset.t), m); return window.print(); }
   if (a === "printPlan") { $("#printArea").innerHTML = planHTML(DL.topic(A.topic)); return window.print(); }
   if (a === "printRefl") { $("#printArea").innerHTML = $("#reflDoc").outerHTML; return window.print(); }

@@ -306,6 +306,16 @@ details.hint ol{margin:8px 0 0 20px}details.hint li{margin:4px 0}
 /* 📥 엑셀로 계산하기 상자 (4단계) */
 .xl{border:1px solid var(--line2);background:#FBFBFC;padding:14px 16px;margin:14px 0}
 .xl ol{margin:8px 0 0 20px;font-size:14px}.xl li{margin:5px 0}.xl code{background:#EEF1F5;padding:1px 5px;font-size:13px}
+/* 📄 나의 보고서 단추 · 띠 (2026-11-25) */
+.repbtn{background:#fff;color:var(--acc);border-color:var(--acc)}.repbtn:hover{background:var(--acc-s)}
+.repbtn.on{background:var(--acc);color:#fff}.repbtn.on:hover{background:#00479A}
+.repbtn i{font-style:normal;font-size:10px;font-weight:800;background:#fff;color:var(--acc);padding:0 4px;margin-left:2px}
+.repban{display:grid;grid-template-columns:auto 1fr auto;gap:4px 16px;align-items:center;border:1px solid var(--acc-l);background:var(--acc-s);padding:14px 18px;margin:18px 0 0;color:#1F3B63}
+.repban b{font-size:16px;color:var(--ink)}.repban span{font-size:14px}.repban em{font-style:normal;font-weight:700;color:var(--acc);white-space:nowrap}
+.repban.on{background:var(--acc);border-color:var(--acc);color:#fff}.repban.on b,.repban.on em{color:#fff}
+@media (max-width:640px){.repban{grid-template-columns:1fr auto}.repban span{grid-column:1/-1;grid-row:2}}
+@media (max-width:440px){.me{gap:8px}.me > span{display:none}}
+@media print{.repban,.repbtn{display:none!important}}
 </style>
 </head>
 <body>
@@ -431,7 +441,7 @@ function pull(after) {
     const d = snap.data, srv = d.rec || {}, out = { ...srv }; let mine = false;
     Object.entries(S.rec || {}).forEach(([k, v]) => { if (k === "last" || !v) return; const s = out[k]; if (!s || (v.at || 0) > (s.at || 0)) { out[k] = v; mine = true; } });
     if (S.rec.last && !srv.last) out.last = S.rec.last;
-    S.rec = out; S.stop = d.stop || {}; LS.set("rec", S.rec); LS.set("stop", S.stop);
+    S.rec = out; S.stop = d.stop || {}; S.repAt = d.rep ? d.rep.at || 1 : 0; LS.set("rec", S.rec); LS.set("stop", S.stop);
     if (mine) save(true);
     if (!document.activeElement || !/^(TEXTAREA|INPUT)$/.test(document.activeElement.tagName)) render();
     if (after) after();
@@ -448,7 +458,7 @@ async function signIn(sid, pin, isNew) {
   try {
     const key = await DL.keyOf(sid, pin), path = "datalab_members/" + key, snap = await DL.fs.get(db, path);
     if (snap.exists) {
-      const d = snap.data; S.me = { sid, key, ban: d.ban }; S.stop = d.stop || {}; S.rec = mergeRec(d.rec || {}, S.rec); if (Object.keys(S.rec).length > Object.keys(d.rec || {}).length) save(true);
+      const d = snap.data; S.me = { sid, key, ban: d.ban }; S.stop = d.stop || {}; S.repAt = d.rep ? d.rep.at || 1 : 0; S.rec = mergeRec(d.rec || {}, S.rec); if (Object.keys(S.rec).length > Object.keys(d.rec || {}).length) save(true);
     } else {
       const idSnap = await DL.fs.get(db, "datalab_ids/" + sid);
       if (idSnap.exists) { S.busy = false; return loginMsg("비밀번호가 맞지 않아요. 비밀번호가 생각나지 않으면 선생님께 말씀해 주세요"); }
@@ -558,7 +568,7 @@ const pic = (t) => `background-image:url('${t.photo.src}')`;
 function renderTop() {
   const r = route();
   $("#gnb").innerHTML = [["", "AI활용탐구"], ["j", "교정적 정의"], ["m", "자본주의 쟁점"], ["my", "나의 탐구"]].map(([k, n]) => `<a href="#/${k}" class="${(r.a === k || (r.a === "t" && k === (DL.topic(r.b) || {}).g)) ? "on" : ""}">${n}</a>`).join("");
-  $("#me").innerHTML = S.me ? `<span><b>${esc(S.me.sid)}</b> 학생</span><button class="btn w sm" data-act="out">나가기</button>` : `<button class="btn sm" data-act="login">학번으로 들어가기</button>`;
+  $("#me").innerHTML = S.me ? `<a class="btn sm repbtn${S.repAt ? " on" : ""}" href="report/" title="선생님이 출력하는 것과 같은 나의 보고서 · 보기와 인쇄">📄 나의 보고서${S.repAt ? "<i>NEW</i>" : ""}</a><span><b>${esc(S.me.sid)}</b> 학생</span><button class="btn w sm" data-act="out">나가기</button>` : `<a class="btn w sm" href="report/">📄 나의 보고서</a><button class="btn sm" data-act="login">학번으로 들어가기</button>`;
 }
 
 function card(t) { const [c, s] = status(t); return `<a class="card" href="#/t/${t.id}"><div class="th" style="${pic(t)}"><span>${esc(t.name)}</span></div><div class="bd"><div class="c">AI활용탐구 ${t.no} · ${esc(GROUPS[t.g].name)}</div><h3>${esc(t.title)}</h3><div class="ft"><span>50분 · ${NS}단계</span><span class="st ${c}">${s}</span></div></div></a>`; }
@@ -567,13 +577,15 @@ function groupSec(g) { const G = GROUPS[g], L = DL.byGroup(g), done = L.filter((
 function homeView(only) {
   const flow = STEPS.map((st, i) => `<div>${i + 1}단계 · ${st.min}분<b>${esc(st.name)}</b></div>`).join("");
   const hero = only ? `<div class="crumb">홈<i>›</i>AI활용탐구<i>›</i>${esc(GROUPS[only].name)}</div>` : `<section class="hero"><div><div class="k">통합사회 · AI활용탐구</div><h1>진짜 데이터와 AI로<br>정의와 시장을 탐구합니다</h1><p>주제 하나를 골라 50분 동안 혼자 탐구해요. 데이터를 직접 계산하고, AI가 내놓은 그럴듯한 결론을 데이터로 검증한 뒤, 한 장 보고서로 정리합니다.</p><div class="flow">${flow}</div></div><div class="ph" style="background-image:url('img/apt.jpg')"></div></section>`;
-  return `<div class="wrap">${hero}${(only ? [only] : ["j", "m"]).map(groupSec).join("")}<p class="note" style="margin:26px 0 50px">사진: 학교 주변 대치동 · 도곡동 · 강남구의 실제 모습 (Wikimedia Commons, 퍼블릭 도메인 · CC0) · 찍은 사람은 각 탐구의 ‘데이터 자료’ 탭에 적었어요</p></div>`;
+  return `<div class="wrap">${S.me && S.repAt ? repBanner() : ""}${hero}${(only ? [only] : ["j", "m"]).map(groupSec).join("")}<p class="note" style="margin:26px 0 50px">사진: 학교 주변 대치동 · 도곡동 · 강남구의 실제 모습 (Wikimedia Commons, 퍼블릭 도메인 · CC0) · 찍은 사람은 각 탐구의 ‘데이터 자료’ 탭에 적었어요</p></div>`;
 }
 
+// 📄 나의 보고서 띠 (2026-11-25): 선생님이 일괄 출력에서 보낸 보고서를 report/ 에서 보고 인쇄해요
+const repBanner = () => `<a class="repban${S.repAt ? " on" : ""}" href="report/"><b>📄 나의 보고서 ${S.repAt ? "· 선생님이 보냈어요" : ""}</b><span>${S.repAt ? `선생님이 출력하는 것과 똑같은 보고서예요 (${new Date(S.repAt).toLocaleDateString("ko-KR")}). 눌러서 보고, 인쇄하거나 PDF로 저장해요` : "선생님이 반 보고서를 보내 주면 여기서 보고 인쇄할 수 있어요"}</span><em>열기 ›</em></a>`;
 function myView() {
   if (!S.me) return `<div class="wrap"><div class="crumb">홈<i>›</i>나의 탐구</div><div class="empty">학번과 비밀번호로 들어오면 내 탐구를 모아 볼 수 있어요.<br><br><button class="btn" data-act="login">학번으로 들어가기</button></div></div>`;
   const L = TOPICS.filter((t) => S.rec[t.id]);
-  return `<div class="wrap"><div class="crumb">홈<i>›</i>나의 탐구</div><section class="sec"><div class="sec-h"><div><h2>${esc(S.me.sid)} 학생의 탐구</h2><p>시작한 탐구 ${L.length}개 · 제출 ${L.filter((t) => peek(t.id).sub).length}개</p></div></div>${L.length ? `<div class="cards">${L.map(card).join("")}</div>` : `<div class="empty">아직 시작한 탐구가 없어요. 관심 가는 주제를 골라 보세요.</div>`}</section></div>`;
+  return `<div class="wrap"><div class="crumb">홈<i>›</i>나의 탐구</div>${repBanner()}<section class="sec"><div class="sec-h"><div><h2>${esc(S.me.sid)} 학생의 탐구</h2><p>시작한 탐구 ${L.length}개 · 제출 ${L.filter((t) => peek(t.id).sub).length}개</p></div></div>${L.length ? `<div class="cards">${L.map(card).join("")}</div>` : `<div class="empty">아직 시작한 탐구가 없어요. 관심 가는 주제를 골라 보세요.</div>`}</section></div>`;
 }
 
 /* ---------- 탐구 화면 ---------- */

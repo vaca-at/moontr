@@ -133,6 +133,16 @@ textarea:focus,input:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .ws .w2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0}.ws .w2 div{border:1px solid #999;padding:6px 8px;font-size:9.5pt}
 @media (max-width:980px){.hero{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.lab{grid-template-columns:1fr}.rail{position:static}.two,.thk{grid-template-columns:1fr}}
 @media (max-width:520px){.hero h1{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}.top .wrap{gap:12px}.logo{font-size:16px}}
+/* 📄 나의 보고서 단추 · 띠 (2026-11-25, 데이터 실험실과 같은 보고서 화면 /datalab/report) */
+.repbtn{background:#fff;color:var(--acc);border-color:var(--acc)}.repbtn:hover{background:var(--acc-s)}
+.repbtn.on{background:var(--acc);color:#fff}.repbtn.on:hover{background:#00479A}
+.repbtn i{font-style:normal;font-size:10px;font-weight:800;background:#fff;color:var(--acc);padding:0 4px;margin-left:2px}
+.repban{display:grid;grid-template-columns:auto 1fr auto;gap:4px 16px;align-items:center;border:1px solid var(--acc-l);background:var(--acc-s);padding:14px 18px;margin:18px 0 0;color:#1F3B63}
+.repban b{font-size:16px;color:var(--ink)}.repban span{font-size:14px}.repban em{font-style:normal;font-weight:700;color:var(--acc);white-space:nowrap}
+.repban.on{background:var(--acc);border-color:var(--acc);color:#fff}.repban.on b,.repban.on em{color:#fff}
+@media (max-width:640px){.repban{grid-template-columns:1fr auto}.repban span{grid-column:1/-1;grid-row:2}}
+@media (max-width:440px){.me{gap:6px}.me > span{display:none}}
+@media print{.repban,.repbtn{display:none!important}}
 </style>
 </head>
 <body>
@@ -209,7 +219,7 @@ async function signIn(sid, pin, isNew) {
       const d = snap.data, server = d.rec || {}, add = {};
       Object.keys(S.rec).forEach((k) => { if (k.startsWith("a_") && !server[k]) { server[k] = S.rec[k]; add["rec." + k] = S.rec[k]; } });   // 들어오기 전에 한 것도 함께
       S.rec = Object.fromEntries(Object.entries(server).filter(([k]) => k.startsWith("a_")));
-      migrate(); S.me = { sid, key, ban: d.ban };
+      migrate(); S.me = { sid, key, ban: d.ban }; S.repAt = d.rep ? d.rep.at || 1 : 0;
       if (Object.keys(add).length) DL.fs.update(db, path, { ...add, updatedAt: Date.now() }).catch((e) => console.warn(e));   // 기다리지 않아요 (로그인이 멈추지 않게)
     } else {
       if ((await DL.fs.get(db, "datalab_ids/" + sid)).exists) { S.busy = false; return loginMsg("비밀번호가 맞지 않아요. 데이터 실험실에서 쓰던 비밀번호를 넣어 주세요. 생각나지 않으면 선생님께 말씀해 주세요"); }
@@ -265,7 +275,7 @@ const route = () => { const h = location.hash.replace(/^#\/?/, ""); const [a, b]
 /* 🔑 로그인 칸은 팝업 대신 맨 위(머리글 아래)에 고정 (2026-11-17 문쌤 요청 · 수업에서 팝업 로그인이 안 되던 일)
    칸은 한 번만 그리고(입력한 숫자가 지워지지 않게) 안내 글 · 단추 상태만 바꿔요. 처음인 학번이면 같은 자리에서 '비밀번호 한 번 더' */
 function renderTop() {
-  $("#me").innerHTML = S.me ? `<span><b>${esc(S.me.sid)}</b> 학생</span><button class="btn w sm" data-act="out">나가기</button>` : "";
+  $("#me").innerHTML = (S.me ? `<a class="btn sm repbtn${S.repAt ? " on" : ""}" href="../datalab/report/" title="선생님이 출력하는 것과 같은 나의 보고서 · 보기와 인쇄">📄 나의 보고서${S.repAt ? "<i>NEW</i>" : ""}</a><span><b>${esc(S.me.sid)}</b> 학생</span><button class="btn w sm" data-act="out">나가기</button>` : `<a class="btn w sm repbtn" href="../datalab/report/">📄 나의 보고서</a>`);
   const bar = $("#lgbar"); if (!bar) return;
   if (S.me) { bar.hidden = true; bar.innerHTML = ""; bar.dataset.mode = ""; return; }
   bar.hidden = false;
@@ -287,7 +297,8 @@ function home() {
   const card = (t) => { const on = OPEN.includes(t.id), x = S.rec[KEY(t.id)], st = x && x.sub ? "제출 완료" : x ? `진행 중 ${Object.keys(x.done || {}).length}/7` : on ? "열기" : "준비 중", [fn, title, args] = NAMES[t.id];
     const inner = `<span class="fn" title="괄호 안 = 이 규칙(알고리즘)에 넣는 값">${String(t.no).padStart(2, "0")} · ${fn}(<i>${esc(args || "")}</i>)</span><b>${esc(title)}</b><span class="th">${esc(t.th.m)} ↔ ${esc(t.th.r)}</span><span class="st"${on ? ` style="color:var(--acc)"` : ""}>${st}</span>`;
     return on ? `<a class="card on" href="#/t/${t.id}">${inner}</a>` : `<div class="card off">${inner}</div>`; };
-  return `<div class="wrap"><section class="hero"><div><div class="k">통합사회 · 윤리 × 알고리즘</div><h1>판단하는 규칙을 직접 조립하고,<br>그 안의 가치를 시험합니다</h1>
+  const ban = S.me ? `<a class="repban${S.repAt ? " on" : ""}" href="../datalab/report/"><b>📄 나의 보고서 ${S.repAt ? "· 선생님이 보냈어요" : ""}</b><span>${S.repAt ? `선생님이 출력하는 것과 똑같은 보고서예요 (${new Date(S.repAt).toLocaleDateString("ko-KR")}). 눌러서 보고, 인쇄하거나 PDF로 저장해요` : "선생님이 반 보고서를 보내 주면 여기서 보고 인쇄할 수 있어요 (데이터 실험실과 같은 보고서)"}</span><em>열기 ›</em></a>` : "";
+  return `<div class="wrap">${ban}<section class="hero"><div><div class="k">통합사회 · 윤리 × 알고리즘</div><h1>판단하는 규칙을 직접 조립하고,<br>그 안의 가치를 시험합니다</h1>
     <p>순찰을 어디에 보낼지, 벌금을 얼마로 할지, 커피 한 잔 값을 어떻게 나눌지. 사람과 AI가 내리는 판단의 규칙을 카드로 조립하면 알고리즘이 돌아가고 코드가 저절로 만들어져요. <b>코딩을 몰라도 괜찮아요.</b> 내가 넣은 기준이 누구에게 공정한지 데이터로 확인해요.</p>
     <div class="flow"><div>1 · 2단계<b>문제 정의 · 기준 고르기</b></div><div>3 · 4단계<b>규칙 조립 · 실행 · 테스트</b></div><div>5 · 6단계<b>가치 검토 · 공정성 시험</b></div><div>7단계<b>계산기 · 성찰 · 제출</b></div></div></div>
     <div class="code"><span class="c">// 벌금 계산기 · 내가 고른 기준은?</span>
@@ -486,7 +497,7 @@ window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); }
 // 예전 1번 기록(카드 이름 c1~c4 · 출력 a)을 새 모양(번호)으로
 function migrate() { Object.values(S.rec).forEach((x) => { const s = x && x.s; if (!s) return; if (Array.isArray(s.order) && typeof s.order[0] === "string") s.order = s.order.map((c) => +c.slice(1) - 1); if (s.out === "a") s.out = 0; else if (typeof s.out === "string") s.out = 1; }); }
 migrate(); render();
-if (S.me) DL.fs.get(db, "datalab_members/" + S.me.key).then((snap) => { if (snap.exists) { const rec = snap.data.rec || {}; S.rec = Object.fromEntries(Object.entries(rec).filter(([k]) => k.startsWith("a_"))); migrate(); LS.set("rec", S.rec); render(); } else { S.me = null; LS.del("me"); render(); } }).catch((e) => console.warn(e));
+if (S.me) DL.fs.get(db, "datalab_members/" + S.me.key).then((snap) => { if (snap.exists) { const rec = snap.data.rec || {}; S.repAt = snap.data.rep ? snap.data.rep.at || 1 : 0; S.rec = Object.fromEntries(Object.entries(rec).filter(([k]) => k.startsWith("a_"))); migrate(); LS.set("rec", S.rec); render(); } else { S.me = null; LS.del("me"); render(); } }).catch((e) => console.warn(e));
 </script>
 
 <script type="module" src="/visit.js?app=algolab&hide=1"></script>
