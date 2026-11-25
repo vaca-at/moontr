@@ -14,7 +14,8 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { DurableObject } from 'cloudflare:workers';
 
 const MODEL = 'claude-opus-5-5';
-const LIMIT = { today: 12, review: 6, translate: 25, ask: 25, talk: 80, ring: 25, report_read: 12, report_explain: 12 };
+// ask · talk(물어보기 · 이야기)는 2026-11-25 앱 · 웹에서 뺐어요. 예전 앱(1.0.1 까지)이 아직 부르니 남겨 두되 횟수를 줄였어요 — 모두 새 앱으로 바뀌면 지워요
+const LIMIT = { today: 12, review: 6, translate: 25, ask: 8, talk: 15, ring: 25, report_read: 12, report_explain: 12 };
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, n);
 // 위험한 말 (앱 Safety.swift 와 같게, 띄어쓰기를 빼고 찾아요)
 const RISK = ['죽고싶', '죽어버리', '죽을래', '죽고말', '죽는게나', '죽으면편', '자살', '자해', '사라지고싶', '없어지고싶', '살기싫', '살고싶지않',
