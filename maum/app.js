@@ -105,6 +105,7 @@ async function login(kind){
 
 /* ── AI 마음 티쳐 ── */
 async function ai(task, payload){
+  if (S.demo) return { error: '둘러보기에서는 AI 마음 티쳐를 쓸 수 없어요. 로그인하면 바로 써요.' };
   try {
     const idToken = await S.user.getIdToken();
     const care = C.safety && C.safety.needsCare ? !!C.safety.needsCare(checkins().map(c => ({ day: ymd(fromSec(c.day)), at: c.at, mood: c.mood, reasons: c.reasons })), riskDays()) : false;
@@ -452,12 +453,13 @@ function itemHTML(it){
   }
 }
 const secHTML = sct => sct.type === 'note' ? `<p class="sub small">${esc(sct.text)}</p>` : `<div class="box">${sct.h ? `<div class="eyebrow">${esc(sct.h)}</div>` : ''}${(sct.items || []).map(itemHTML).join('')}</div>`;
+/* 날짜: 저장은 초, tests.js 는 밀리초라 1000 을 곱해 넘겨요 */
 function vResult(){
   const r = S.col.tests[S.sub.result]; if (!r) return '<p class="sub">결과를 불러오는 중…</p>';
   const who = r.who ? members().find(m => m.key === r.who) : null;
   const same = tests().filter(t => t.kind === r.kind && (t.who || '') === (r.who || ''));
   const prev = same.filter(t => t.at < r.at)[0];
-  let R = {}; try { R = T.result(r.kind, r.scores, r.code, { member: who ? { name: who.name, role: who.role } : null, previous: prev ? { scores: prev.scores, code: prev.code, at: prev.at * 1000, set: prev.set } : null, set: r.set, at: r.at * 1000, results: tests().filter(t => (t.who || '') === (r.who || '')).map(t => ({ ...t, at: t.at * 1000 })) }) || {};   // 날짜: 저장은 초, tests.js 는 밀리초 } catch (e) { console.warn(e); }
+  let R = {}; try { R = T.result(r.kind, r.scores, r.code, { member: who ? { name: who.name, role: who.role } : null, previous: prev ? { scores: prev.scores, code: prev.code, at: prev.at * 1000, set: prev.set } : null, set: r.set, at: r.at * 1000, results: tests().filter(t => (t.who || '') === (r.who || '')).map(t => ({ ...t, at: t.at * 1000 })) }) || {}; } catch (e) { console.warn(e); }
   const H = R.hero || {};
   return `<div class="stack fade-in" style="max-width:760px"><button class="btn small" id="backTests" style="justify-self:start">‹ 테스트 목록</button>
     <div class="today" style="grid-template-columns:1fr"><div><div class="eyebrow">${esc(H.small || R.title || '')}${who ? ' · ' + esc(who.name) : ''}</div><div class="w">${esc(H.big || R.nickname || '')}</div>${H.text ? `<div class="sub">${esc(H.text)}</div>` : ''}${H.foot ? `<div class="sub small" style="margin-top:6px">${esc(H.foot)}</div>` : ''}</div></div>
@@ -600,6 +602,7 @@ function shell(){
   const nav = NAV.map(([k, n]) => `<a class="nav" href="#/${k}" data-v="${k}">${n}</a>`).join('');
   $('#app').innerHTML = `<aside class="side"><a class="logo" href="#/home">마음한편</a>${nav}<a class="me" href="#/me"><img src="/maum/character.png" alt=""><div><b id="meName"></b><small id="meSub"></small></div></a></aside>
     <div><div class="mtop"><span class="t">마음한편</span><button id="menuBtn">☰</button></div><main id="view"></main></div>
+    ${S.demo ? `<div class="tourbar">👀 <b>둘러보기 중</b><span>예시 기록이에요. 마음껏 눌러 보세요 (저장되지 않아요)</span><a class="btn small main" href="/maum/">로그인하고 시작하기</a></div>` : ''}
     <nav class="tabs"><a href="#/home" data-v="home">홈</a><a href="#/ai" data-v="ai">AI</a><a href="#/write" class="plus" aria-label="오늘 마음 남기기">＋</a><a href="#/test" data-v="test">테스트</a><a href="#/dex" data-v="dex">도감</a></nav>`;
   $('#menuBtn').onclick = () => { sheet(`<b class="unz" style="font-size:24px">메뉴</b><div class="help">${NAV.map(([k, n]) => `<a href="#/${k}"><b>${n}</b><span>›</span></a>`).join('')}</div>`); document.querySelectorAll('#sheet a').forEach(a => a.addEventListener('click', closeSheet)); };
 }
@@ -621,9 +624,10 @@ function boot(){
   });
   addEventListener('hashchange', fromHash);
 }
-/* 화면 확인용 (이 컴퓨터 파일로 열 때만): 로그인 · 서버 없이 가짜 기록으로 그려 봐요 — file://…/index.html?demo#/home */
+/* 👀 둘러보기 (moontr.site/maum/?demo): 로그인 · 서버 없이 예시 기록으로 모든 화면을 눌러 봐요.
+   쓴 것은 이 탭 메모리에만 있고 새로고침하면 사라져요. AI 마음 티쳐는 로그인해야 써요 */
 function demo(){
-  if (location.protocol !== 'file:') return;
+  S.demo = true;
   const mem = {}, subs = [];
   const snapOf = path => { const docs = Object.entries(mem).filter(([k]) => k.startsWith(path + '/') && !k.slice(path.length + 1).includes('/')).map(([k, v]) => ({ id: k.split('/').pop(), data: () => v })); return { forEach: f => docs.forEach(f) }; };
   const fire = () => subs.forEach(s => s());
@@ -634,6 +638,9 @@ function demo(){
   const uid = 'demo', put0 = (c, k, v) => mem[`maum_users/${uid}/${c}/${k}`] = { j: JSON.stringify(v) };
   put0('settings', 'me', { consentAt: 1, nickname: '바람 수달', grade: '초4 · 초2 엄마 · 교사', mode: 'parent' });
   const now = Date.now() / 1000;
+  [4, 3, 5, 4, 2, 3, 4, 5, 4, 3, 4, 5, 3, 2, 4, 5, 4, 3, 2, 4].forEach((m, i) => { const d = new Date(); d.setDate(d.getDate() - (27 - i)); put0('checkins', 'o' + i, { day: dayStart(d) / 1000, at: d / 1000, mood: m, reasons: ['일'], good: '', lineKind: 'good' }); });
+  put0('found', 'f2', { no: 7, who: '주변 사람', at: now, story: '', report: [] });
+  put0('practices', 'p2', { kind: 'ai', at: now - 3600, day: now, text: JSON.stringify({ t: 'other', q: '회의 때마다 내 말을 자꾸 끊는 동료가 있어', feeling: '나도 잘하고 싶어서 마음이 급해', why: '말을 끊는 건 무시라기보다 급한 마음일 수도 있어요.', tryThis: '"끝까지 말해도 될까요?" 하고 부드럽게 부탁해 봐요.', ring: '7' }) });
   [4, 5, 3, 2, 4, 4].forEach((m, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); put0('checkins', 'c' + i, { day: dayStart(d) / 1000, at: d / 1000, mood: m, reasons: ['아이'], good: '산책을 했다', lineKind: 'good' }); });
   put0('found', 'f1', { no: 3, who: '그 사람', at: now, story: '', report: [] });
   put0('tests', 't1', { kind: 'temper', scores: [72, 38, 81, 55], code: '', at: now, who: '', set: 0 });
@@ -641,7 +648,7 @@ function demo(){
   put0('members', 'm1', { name: '첫째', role: 'child', avatar: '', order: 1, at: now });
   put0('tests', 't3', { kind: 'temper', scores: [85, 30, 60, 40], code: '', at: now, who: 'm1', set: 0 });
   put0('practices', 'p1', { kind: 'ai', at: now, day: now, text: JSON.stringify({ t: 'translate', q: '숙제가 많아서 다 짜증 나', feeling: '해야 할 게 많아서 숨이 막혀', why: '시간이 모자라 보여서 그래요.', tryThis: '제일 작은 숙제 하나부터.' }) });
-  S.user = { uid, providerData: [{ providerId: 'google.com' }], getIdToken: async () => '' };
+  S.user = { uid, providerData: [], getIdToken: async () => '' };
   document.body.classList.add('app-on'); $('#intro').hidden = true; $('#app').hidden = false;
   shell(); listen(uid); fromHash();
   const q = new URLSearchParams(location.search);
@@ -650,5 +657,5 @@ function demo(){
   if (q.get('match')) { S.view = 'test'; S.sub = { who: 'm1' }; render(); vMatch(members()[0]); }
   render();
 }
-window.MaumWeb = { boot: () => (new URLSearchParams(location.search).has('demo') ? demo() : boot()) };
+window.MaumWeb = { boot: () => (new URLSearchParams(location.search).has('demo') && !/admin/.test(location.hash) ? demo() : boot()) };
 })();
