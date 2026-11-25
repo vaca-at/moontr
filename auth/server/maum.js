@@ -43,6 +43,10 @@ const BASE = `너는 아이폰 앱 '마음한편'의 'AI 마음 티쳐'야. 너�
 const Today = z.object({ weather: z.string(), body: z.string() });
 const Review = z.object({ text: z.string() });
 const Translate = z.object({ crisis: z.boolean(), feeling: z.string(), why: z.string(), tryThis: z.string() });
+// 그 사람 이해하기 (2026-11-25 문쌤): 마음 분석 + 왜 그럴까요(T처럼, 나에게) + 해 볼 것(F처럼, 그 사람을 대하는 법)
+const TranslateOther = z.object({ crisis: z.boolean(), feeling: z.string(), analysis: z.string(), why: z.string(), tryThis: z.string() });
+// 모드마다 '그 사람'을 부르는 말
+const TARGET = { teacher: '학생', parent: '아이', worker: '동료', student: '친구', all: '그 사람' };
 const Reply = z.object({ crisis: z.boolean(), reply: z.string() });
 // 전문 검사 결과지 (2026-11-25 문쌤: 아이 · 우리반이 받은 검사 결과를 올리고 AI 로 풀어 보기)
 const Row = z.object({ group: z.string(), name: z.string(), score: z.string(), kind: z.string(), band: z.string(), note: z.string() });
@@ -114,10 +118,21 @@ export async function maum(req, env, body, who, json) {
     }
     if (task === 'translate') {
       if (text.length < 4) return json(req, { error: '조금 더 적어 주세요' }, 400);
-      const other = !!body.other;
-      const p = await ask(Translate, other
-        ? `[궁금한 사람의 말 · 행동]\n${text}\n\n이 사람의 말 · 행동을 '마음의 말'로 번역해 줘.\nfeeling: 그 사람 속마음을 그 사람 목소리로 한 문장(예: "사실은 나도 잘하고 싶어서 그래").\nwhy: 왜 그렇게 행동할 수 있는지 2~3문장, 단정하지 말고 '~일 수도 있어요'.\ntryThis: 내가 해 볼 수 있는 말 한마디나 행동 하나.`
-        : `[내 마음]\n${text}\n\n이 마음을 번역해 줘.\nfeeling: 이 글 밑에 있는 진짜 마음을 '나'의 목소리로 한 문장(예: "나는 사실 인정받고 싶었어").\nwhy: 그 마음을 알아주는 2~3문장.\ntryThis: 지금 할 수 있는 작은 것 하나 (몸 활동이나 나에게 하는 한마디).`, 1200);
+      if (body.other) {
+        // 2026-11-25 문쌤: "나에게는 T처럼 분석, 학생을 대하는 부분은 F처럼. 선생님 잘하고 계세요 같은 말 · 선생님 1분 숨 고르기는 빼 줘"
+        const t = TARGET[body.mode] || TARGET.all;
+        const p = await ask(TranslateOther, `[궁금한 ${t}의 말 · 행동]\n${text}\n\n이 ${t}을(를) 이해하도록 분석해 줘.
+이번 답에서 꼭 지킬 것
+- 글쓴이를 칭찬 · 위로 · 격려하지 마 ("잘하고 계세요", "애쓰고 계세요", "충분히 좋은 ○○예요" 같은 말 쓰지 마).
+- 글쓴이에게 숨 고르기 · 몸 활동 · 쉬기를 권하지 마. 모든 내용은 ${t}에 대한 것이야.
+- 단정하지 말고 '~일 수 있어요'. 진단 · 병명은 쓰지 마.
+feeling: ${t}의 속마음을 ${t} 목소리로 짧은 한 문장 (예: "사실은 나도 잘하고 싶어서 그래").
+analysis: 그 ${t}의 마음 분석 — 이 말 · 행동으로 볼 때 어떤 성격 · 기질 · 마음 습관을 가졌을 수 있는지 2~3문장. 성향을 구체적으로 짚어 줘 (예: 인정받고 싶은 마음이 큰 편, 낯선 상황에서 긴장이 빨리 오르는 편).
+why: 왜 그럴까요 — T처럼 써. 감정 표현 · 공감 말 없이, 원인과 흐름을 논리적으로 2~3문장 (무엇이 → 어떤 마음을 → 이 행동으로). 사실과 가능성을 나눠서.
+tryThis: 해 볼 것 — F처럼 써. ${t}의 마음을 먼저 받아 주는 따뜻한 대하기 2~3가지를 한 문장씩, 그중 하나는 ${t}에게 실제로 건넬 말 한마디(따옴표). 줄마다 \n 으로 나눠.`, 1800);
+        return p ? json(req, { crisis: p.crisis, feeling: clean(p.feeling, 120), analysis: clean(p.analysis, 400), why: clean(p.why, 400), tryThis: clean(p.tryThis, 500) }) : json(req, { error: '풀이를 만들지 못했어요' }, 502);
+      }
+      const p = await ask(Translate, `[내 마음]\n${text}\n\n이 마음을 번역해 줘.\nfeeling: 이 글 밑에 있는 진짜 마음을 '나'의 목소리로 한 문장(예: "나는 사실 인정받고 싶었어").\nwhy: 그 마음을 알아주는 2~3문장.\ntryThis: 지금 할 수 있는 작은 것 하나 (몸 활동이나 나에게 하는 한마디).`, 1200);
       return p ? json(req, { crisis: p.crisis, feeling: clean(p.feeling, 120), why: clean(p.why, 300), tryThis: clean(p.tryThis, 160) }) : json(req, { error: '풀이를 만들지 못했어요' }, 502);
     }
     if (task === 'ask' || task === 'talk') {

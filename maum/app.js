@@ -329,13 +329,13 @@ function vAI(){
       <textarea id="aiText" rows="${tab === 'ask' ? 2 : 5}" maxlength="500" placeholder="${tab === 'ask' ? '예) 잠이 안 올 때 어떻게 해요?' : ''}">${esc(draft)}</textarea>
       <div class="row" style="justify-content:space-between"><span class="sub small">${draft.length} / 500${draft ? ' · 임시 저장됨' : ''}</span><button class="btn main" id="goAI"${S.sub.loading ? ' disabled' : ''}>${tab === 'ask' ? '물어보기' : '풀어 보기'}</button></div></div>
       ${S.sub.loading ? '<div class="answer"><small>AI 마음 티쳐</small>생각하고 있어요…</div>' : ''}
-      ${a ? (a.error ? `<div class="box">${esc(a.error)}</div>` : `<div class="answer fade-in"><small>AI 마음 티쳐</small>${a.feeling ? `<div class="feel">“${esc(a.feeling)}”</div>` : ''}${a.why ? `<div><small>왜 그럴까요</small><br>${esc(a.why)}</div>` : ''}${a.tryThis ? `<div><small>해 볼 것</small><br>${esc(a.tryThis)}</div>` : ''}${a.reply ? `<div>${esc(a.reply)}</div>` : ''}</div>
+      ${a ? (a.error ? `<div class="box">${esc(a.error)}</div>` : `<div class="answer fade-in"><small>AI 마음 티쳐</small>${a.feeling ? `<div class="feel">“${esc(a.feeling)}”</div>` : ''}${a.analysis ? `<div><small>그 사람의 마음 분석</small><br>${esc(a.analysis)}</div>` : ''}${a.why ? `<div><small>왜 그럴까요</small><br>${esc(a.why)}</div>` : ''}${a.tryThis ? `<div><small>해 볼 것</small><br>${esc(a.tryThis).replace(/\n/g, '<br>')}</div>` : ''}${a.reply ? `<div>${esc(a.reply)}</div>` : ''}</div>
         ${a.ring && C.dex ? `<button class="box" data-dex="${a.ring}" style="border:1.5px solid var(--acc);cursor:pointer;text-align:left;font:inherit;color:inherit"><div class="eyebrow">숨은 마음 도감 · ${a.ringNew ? '새로 찾았어요!' : '이미 찾은 마음'}</div><b>No.${String(a.ring).padStart(3, '0')} ${esc((C.dex.type(a.ring) || {}).name || '')}</b><div class="sub small">보고서 보기 ›</div></button>` : ''}`) : ''}`;
   }
   return `<div class="stack fade-in"><h2 class="title">AI 마음 티쳐</h2>
     <div class="seg">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</div>${body}
     ${logs.length ? `<div class="eyebrow" style="margin-top:6px">지난 기록</div>${logs.map(l => `<div class="log"><div class="h"><b>${esc(l.d.q.slice(0, 40))}${l.d.q.length > 40 ? '…' : ''}</b><span>${fromSec(l.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</span></div>
-      ${l.d.feeling ? `<div class="unz" style="font-size:19px">“${esc(l.d.feeling)}”</div>` : ''}${l.d.why ? `<div class="small">${esc(l.d.why)}</div>` : ''}${l.d.tryThis ? `<div class="small"><b>해 볼 것</b> ${esc(l.d.tryThis)}</div>` : ''}${l.d.reply ? `<div class="small">${esc(l.d.reply)}</div>` : ''}
+      ${l.d.feeling ? `<div class="unz" style="font-size:19px">“${esc(l.d.feeling)}”</div>` : ''}${l.d.analysis ? `<div class="small"><b>마음 분석</b> ${esc(l.d.analysis)}</div>` : ''}${l.d.why ? `<div class="small">${esc(l.d.why)}</div>` : ''}${l.d.tryThis ? `<div class="small"><b>해 볼 것</b> ${esc(l.d.tryThis)}</div>` : ''}${l.d.reply ? `<div class="small">${esc(l.d.reply)}</div>` : ''}
       <div class="row" style="justify-content:flex-end"><button class="btn small" data-reuse="${esc(l.d.q)}">이 글로 다시</button><button class="btn small" data-dellog="${l.key}">지우기</button></div></div>`).join('')}` : ''}</div>`;
 }
 async function runAI(){
@@ -361,8 +361,8 @@ async function runAI(){
     ring = (r && r.no) || (C.dex && C.dex.matchDex ? (C.dex.matchDex(t)[0] || {}).no : null);
     if (ring) { ringNew = !list('found').some(f => f.no === ring); await put('found', uuid(), { no: ring, who: '그 사람', at: sec(new Date()), story: '', report: (r && r.report) || [] }); }
   }
-  S.sub.answer = { feeling: a.feeling, why: a.why, tryThis: a.tryThis, ring, ringNew };
-  await aiLog(tab, t, { feeling: a.feeling, why: a.why, tryThis: a.tryThis, ring: ring ? String(ring) : '' });
+  S.sub.answer = { feeling: a.feeling, analysis: a.analysis || '', why: a.why, tryThis: a.tryThis, ring, ringNew };
+  await aiLog(tab, t, { feeling: a.feeling, ...(a.analysis ? { analysis: a.analysis } : {}), why: a.why, tryThis: a.tryThis, ring: ring ? String(ring) : '' });
   ls.set('draft.' + tab, ''); render();
 }
 async function sendTalk(){
