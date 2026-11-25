@@ -3882,7 +3882,8 @@ async function renderLabAi(kind, b) {
         <div><button type="button" class="btn sm" data-lai-copy="ex">📋 세 가지 질문 복사</button> ${LAI_LINKS} <button type="button" class="btn sm" data-lai-stcopy>📋 세특 초안 모두 복사 (${nSt}명)</button></div>
         <textarea id="laiExIn" class="ai-in" rows="2" placeholder="AI의 대답(### S01 [수정 이야기] … [생각 피드백] … [세특 초안] …)을 통째로 붙여 넣으면 학생마다 세 칸에 나눠 들어가요"></textarea></div>
     </div>
-    <div class="plan-act"><button type="button" class="btn" data-lai-print="fb">🖨 전체 출력 · PDF (${n}명)</button>
+    <div class="plan-act"><button type="button" class="btn" data-lai-print="fb">🖨 ${b}반 전체 출력 · PDF (${n}명)</button>
+      <button type="button" class="btn" data-lai-print-both title="A반을 학번 순으로 다 찍고 이어서 B반을 학번 순으로 (반마다 저장된 출력 선택 칸대로)">🖨 A반 → B반 모두 (학번 순)</button>
       <label class="muted"><input type="checkbox" data-lai-opt="real" ${sv.real ? "checked" : ""}> 학번 · 이름 넣기</label>
       <label class="muted"><input type="checkbox" data-lai-opt="inT" ${sv.inT !== false ? "checked" : ""}> 🧑‍🏫 선생님 피드백</label>
       <label class="muted"><input type="checkbox" data-lai-opt="inAi" ${sv.inAi !== false ? "checked" : ""}> 🤖 AI 피드백</label>
@@ -3929,6 +3930,7 @@ document.addEventListener("click", async e => {
     const q = k === "sum" ? laiSumPrompt(b, laiRecs) : k === "stu" ? laiStuPrompt(b, laiRecs) : k === "ex" ? laiExPrompt(b, laiRecs) : laiFbPrompt(b, laiRecs);
     const ok = await copyText(q); toast(ok ? `질문을 복사했어요 (${q.length.toLocaleString()}자) · AI 창에 붙여 넣어요` : "복사하지 못했어요"); return;
   }
+  if (t.closest("[data-lai-print-both]")) { printLabAiBoth(); return; }
   const pr = t.closest("[data-lai-print]"), p1 = t.closest("[data-lai-print1]");
   if (pr || p1) printLabAi(pr ? pr.dataset.laiPrint : "fb", p1 ? p1.dataset.laiPrint1 : null);
 });
@@ -4002,6 +4004,8 @@ table.list tr:nth-child(even) td{background:#FFFCFA}
 .sp-hero .k{display:inline-block;background:#fff;border:1px solid #7FC59A;color:#2E7D4F;border-radius:99px;padding:.4mm 3mm;font-size:8.5pt}
 .sp-hero h1{margin:2.5mm 0 1mm;font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:30pt;line-height:1.05;color:#3F5B4E}
 .sp-hero p{margin:0;color:#7D8696;font-size:9.5pt}
+.sp-hero .nm{position:absolute;right:6mm;top:5.5mm;z-index:2;background:#fff;border:1.5px solid #2E7D4F;border-radius:3mm;padding:1.6mm 4.5mm;text-align:right;font-size:8.5pt;color:#5C6B63;line-height:1.3}
+.sp-hero .nm b{display:block;font-size:17pt;font-weight:800;color:#22313F;letter-spacing:.02em}
 .sp-hero .to{margin-top:3mm;font-size:10.5pt;color:#4B3A3A}.sp-hero .to b{font-family:'OngleipUnz',sans-serif;font-weight:400;font-size:15pt;color:#2F6A9E}
 @media screen{body{width:184mm;margin:0 auto}}
 .sp .story{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr);gap:3.5mm}
@@ -4040,8 +4044,9 @@ function laiCards(text) {
     return rest.length || parts.length > 1 ? `<div class="card" style="--c:${c}"><h3>${esc(h.replace(/\*\*/g, ""))}</h3>${html}</div>` : `<div class="card" style="--c:${c}"><p>${esc(h)}</p></div>`;
   }).join("");
 }
-function printLabAi(kind, only) {
-  const b = laiBan, date = new Date().toLocaleDateString("ko-KR"), course = "진로탐구수업 「바이브코딩으로 웹앱 만들기 (실습편)」";
+// opt = { b, recs, ret } → 다른 반 기록으로 만들고 창을 열지 않고 본문만 돌려줘요 (A·B반 모두 출력용)
+function printLabAi(kind, only, opt = {}) {
+  const b = opt.b || laiBan, R0 = opt.recs || laiRecs, date = new Date().toLocaleDateString("ko-KR"), course = "진로탐구수업 「바이브코딩으로 웹앱 만들기 (실습편)」";
   const foot = `<div class="foot"><span>${course} · ${b}반</span><span>moontr.site/vibelab · ${date}</span></div>`;
   let body = "";
   if (kind === "sum") {
@@ -4068,7 +4073,7 @@ function printLabAi(kind, only) {
     const hasEx = r => { const x = exOf(r); return !!(x.gh || x.think || x.st); };
     // 📚 우리 반 수업 이야기 = 학생용 공통 글 (학생 번호는 지우고, 모든 학생 종이에 똑같이)
     const stu = fs.inSum !== false ? laiStuClean((laiGet(b, "stu") || {}).text).trim() : "";
-    if (fs.inSum !== false && !stu) {
+    if (fs.inSum !== false && !stu && !opt.ret) {
       if (confirm(`${b}반 '우리 반 수업 이야기'(학생용 공통 글)가 이 기기에 아직 없어요.\n그대로 출력하면 1쪽 없이 개인 피드백 쪽만 나와요.\n\n[확인] 🤖 ${b}반 AI 총평 탭의 '학생용 공통 글' 칸으로 가서 먼저 만들기\n[취소] 1쪽 없이 그대로 출력`)) {
         dashTab = "aisum" + b; renderDash();
         setTimeout(() => { const s = $("laiStuIn"); if (s) { s.scrollIntoView({ block: "center" }); s.focus(); } }, 900);
@@ -4078,17 +4083,19 @@ function printLabAi(kind, only) {
     // 1쪽 = 우리 반 수업 이야기(A4 한 쪽 꽉 차게, 글이 길면 글씨를 저절로 줄여요) · 2쪽 = 이 학생 개인 피드백
     const storyCards = stu ? laiCards(stu) : "";
     const who = r => real && r.real ? (r.real.name || r.nick) : r.nick;
+    // 나눠 주기 편하게: 학생마다 첫 쪽에 학번 · 이름 (모르면 닉네임)
+    const nameOf = r => r.real ? `${r.real.sid} ${r.real.name || ""}`.trim() : r.nick;
     const story = r => stu ? `<div class="page sp">
-      <div class="sp-hero"><span class="k">📚 ${b}반 모두에게</span><h1>우리 반 수업 이야기</h1><p>${course} · ${date}</p>
+      <div class="sp-hero"><div class="nm">${b}반<b>${esc(nameOf(r))}</b></div><span class="k">📚 ${b}반 모두에게</span><h1>우리 반 수업 이야기</h1><p>${course} · ${date}</p>
         <p class="to"><b>${esc(who(r))}</b> 님, 우리 반이 함께한 실습을 돌아봐요 · 다음 쪽은 나의 피드백이에요</p></div>
       <div class="story">${storyCards}</div>
       <div class="foot"><span>AI가 ${b}반 전체 활동 기록을 읽고 정리한 글이에요 (학생 이름 · 번호 없이)</span><span>moontr.site/vibelab · 1쪽</span></div></div>` : "";
-    const list = laiRecs.filter(r => (!only || r.nick === only) && ((inT && T[r.nick]) || (inAi && A[r.nick]) || hasEx(r)));
-    if (!list.length) { toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
+    const list = R0.filter(r => (!only || r.nick === only) && ((inT && T[r.nick]) || (inAi && A[r.nick]) || hasEx(r)));
+    if (!list.length) { if (opt.ret) return null; toast("출력할 피드백이 없어요. 선생님 피드백이나 AI 피드백을 먼저 넣어 주세요"); return; }
     // 3쪽 = 🐙 깃허브 기록으로 보는 수정(블로그처럼) · 💭 내 생각에 대한 피드백 · 📝 세특 AI 초안
-    const exPage = r => { const x = exOf(r); if (!x.gh && !x.think && !x.st) return "";
+    const exPage = (r, first) => { const x = exOf(r); if (!x.gh && !x.think && !x.st) return "";
       return `<div class="page fp">
-      <div class="ban"><span class="em">🐙</span><div><h1>나의 수정 이야기와 생각</h1><p>${course}</p></div><span class="tag">${b}반 · ${esc(who(r))}</span></div>
+      <div class="ban"><span class="em">🐙</span><div><h1>나의 수정 이야기와 생각</h1><p>${course}</p></div><span class="tag">${b}반 · ${esc(first ? nameOf(r) : who(r))}</span></div>
       ${x.gh ? `<div class="sec s-blue">🐙 깃허브 기록으로 보는 수정<small>AI가 올린 기록 · 저장 기록을 읽고 블로그처럼 쓴 글</small></div>
       <div class="box blog">${ghLine(r) ? `<p class="gh-strip">🐙 ${esc(ghLine(r))}${r.hs.length ? ` · 💾 저장 기록 ${r.hs.length}장` : ""}</p>` : r.hs.length ? `<p class="gh-strip">💾 웹앱 저장 기록 ${r.hs.length}장</p>` : ""}${laiBlog(x.gh)}</div>` : ""}
       ${x.think ? `<div class="sec s-mus">💭 내 생각에 대한 피드백<small>AI · 참고용</small></div>
@@ -4098,9 +4105,9 @@ function printLabAi(kind, only) {
       ${foot}</div>`; };
     const blank = `<div class="page"></div>`;
     // 2쪽(개인 피드백)도 A4 한 장에 맞춰요: 넘치면 글씨를 저절로 줄여요 (넘쳐서 3쪽이 생기면 양면 인쇄 때 다음 학생부터 앞뒤가 어긋나요)
-    body = list.map(r => { const has2 = (inT && T[r.nick]) || (inAi && A[r.nick]), p3 = exPage(r), pages = (stu ? 1 : 0) + (has2 ? 1 : 0) + (p3 ? 1 : 0);
+    body = list.map(r => { const has2 = (inT && T[r.nick]) || (inAi && A[r.nick]), p3 = exPage(r, !stu && !has2), pages = (stu ? 1 : 0) + (has2 ? 1 : 0) + (p3 ? 1 : 0);
       return `${story(r)}${has2 ? `<div class="page fp">
-      <div class="ban"><span class="em">🌱</span><div><h1>나의 바이브코딩 실습 피드백</h1><p>${course}</p></div><span class="tag">${b}반</span></div>
+      <div class="ban"><span class="em">🌱</span><div><h1>나의 바이브코딩 실습 피드백</h1><p>${course}</p></div><span class="tag">${b}반${stu ? "" : ` · ${esc(nameOf(r))}`}</span></div>
       <table class="kv"><tr><th>반</th><td>${b}반</td><th>${real && r.real ? "학번 · 이름" : "닉네임"}</th><td>${real && r.real ? esc(r.real.sid + " " + (r.real.name || "")) + ` <span style="color:#9B8782">(${esc(r.nick)})</span>` : esc(r.nick)}</td><th>날짜</th><td>${date}</td></tr></table>
       <div class="chips">${laiChips(r)}</div>
       ${r.app || r.plan ? `<div class="sec s-green">📱 내가 만든 웹앱</div>
@@ -4113,9 +4120,30 @@ function printLabAi(kind, only) {
       ${inAi && A[r.nick] ? `<div class="sec s-pur">🤖 AI 피드백<small>참고용</small></div><div class="box b-pur"><p class="note">※ AI(인공지능)가 이 수업에서 남긴 활동 기록(웹앱 · 점검 · 친구 댓글 · 담벼락)을 읽고 쓴 글이에요. 선생님이 쓴 글이 아니에요.</p><div class="fb">${esc(A[r.nick])}</div></div>` : ""}
       ${r.walls.length ? `<div class="sec s-mus">🧱 내가 담벼락에 붙인 생각</div><div class="box b-mus"><div class="fb">${r.walls.map(w => `${esc(w.kind)} · ${esc(laiCut(w.text, 140))}`).join("\n")}</div></div>` : r.rf && r.rf.final ? `<div class="sec s-mus">✍️ 내가 쓴 성찰</div><div class="box b-mus"><div class="fb">${esc(laiCut(r.rf.final, 520))}</div></div>` : ""}
       ${foot}</div>` : ""}${p3}${fs.dup && pages % 2 ? blank : ""}`; }).join("");
+    if (opt.ret) return { body, n: list.length };
   }
   const w = window.open("", "_blank"); if (!w) { toast("새 창이 막혔어요. 팝업을 허용해 주세요"); return; }
-  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${kind === "sum" ? `실습편 ${b}반 수업 총평` : `실습편 ${b}반 개인 피드백`}</title><link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"><style>${LPR_CSS}</style><script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script></head><body>${body}<script>
+  labPrintWrite(w, kind === "sum" ? `실습편 ${b}반 수업 총평` : `실습편 ${b}반 개인 피드백`, body);
+}
+// 🖨 A반 → B반 차례로, 반마다 학번 순 (반마다 저장된 출력 선택 칸 · 수업 이야기를 그대로 써요)
+async function printLabAiBoth() {
+  const w = window.open("", "_blank"); if (!w) { toast("새 창이 막혔어요. 팝업을 허용해 주세요"); return; }
+  w.document.write(`<p style="font:15px sans-serif;padding:24px">A반 · B반 기록을 모으는 중이에요…</p>`);
+  let body = "";
+  const cnt = {}, noStu = [];
+  for (const b of ["A", "B"]) {
+    const recs = b === laiBan && laiRecs.length ? laiRecs : await labRecords(b);
+    const r = printLabAi("fb", null, { b, recs, ret: true });
+    cnt[b] = r ? r.n : 0; if (r) body += r.body;
+    if (r && laiFbStore(b).inSum !== false && !(laiGet(b, "stu") || {}).text) noStu.push(b);
+  }
+  if (!body) { w.close(); toast("A반 · B반 모두 출력할 피드백이 없어요"); return; }
+  w.document.open();
+  labPrintWrite(w, "실습편 A·B반 개인 피드백 (학번 순)", body);
+  toast(`A반 ${cnt.A}명 → B반 ${cnt.B}명 차례로 출력해요${noStu.length ? ` · ${noStu.join("·")}반은 '우리 반 수업 이야기'가 없어 1쪽 없이 나와요` : ""}`);
+}
+function labPrintWrite(w, title, body) {
+  w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(title)}</title><link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"><style>${LPR_CSS}</style><script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script></head><body>${body}<script>
 document.querySelectorAll(".qr[data-u]").forEach(e=>{try{const q=qrcode(0,"M");q.addData(e.dataset.u);q.make();e.innerHTML=q.createSvgTag({cellSize:2,margin:0,scalable:true});}catch(x){e.remove();}});
 document.fonts.ready.then(()=>{document.querySelectorAll(".sp").forEach(p=>{const over=()=>[...p.querySelectorAll(".card")].some(c=>c.scrollHeight>c.clientHeight+1);let f=12.5;p.style.setProperty("--fs",f+"pt");while(over()&&f>7){f-=.25;p.style.setProperty("--fs",f+"pt");}});
 document.querySelectorAll(".fp").forEach(p=>{const over=()=>p.scrollHeight>p.clientHeight+1;let f=10.5;p.style.setProperty("--ffs",f+"pt");while(over()&&f>8){f-=.25;p.style.setProperty("--ffs",f+"pt");}if(over()){p.style.height="auto";p.style.overflow="visible";}});
