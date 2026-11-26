@@ -3354,7 +3354,8 @@
     var out = [];
     var g1 = person ? person.name + ' 알아보기' : '나를 알아보는 검사', g1s = '6가지 · 다시 하면 다른 문항이 나와요';
     CORE.forEach(function (id) { out.push(card(id, g1, g1s, null, results, who)); });
-    if (person) return out;
+    // 나 · 배우자 · 동료(어른)는 같은 검사를 모두 (2026-11-26 앱 TestView.swift 와 같게)
+    if (person && person.role !== 'partner' && person.role !== 'coworker') return out;
     var corner = D.corners[mode];
     if (corner && corner.checkIds.length) {
       corner.checkIds.forEach(function (id) {
