@@ -15,7 +15,7 @@ import { DurableObject } from 'cloudflare:workers';
 
 const MODEL = 'claude-opus-5-5';
 // ask · talk(물어보기 · 이야기)는 2026-11-25 앱 · 웹에서 뺐어요. 예전 앱(1.0.1 까지)이 아직 부르니 남겨 두되 횟수를 줄였어요 — 모두 새 앱으로 바뀌면 지워요
-const LIMIT = { today: 12, review: 6, translate: 25, ask: 8, talk: 15, ring: 25, report_read: 12, report_explain: 12 };
+const LIMIT = { today: 12, review: 6, translate: 25, ask: 8, talk: 15, ring: 25, report_read: 12, report_explain: 12, class_read: 10 };
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, n);
 // 위험한 말 (앱 Safety.swift 와 같게, 띄어쓰기를 빼고 찾아요)
 const RISK = ['죽고싶', '죽어버리', '죽을래', '죽고말', '죽는게나', '죽으면편', '자살', '자해', '사라지고싶', '없어지고싶', '살기싫', '살고싶지않',
@@ -62,6 +62,17 @@ const READ_RULE = `너는 지금 심리 · 학습 · 발달 검사 결과지를 
 - rows: 척도마다 한 줄. group = 묶음(예: "지표", "내재화", 없으면 ""), name = 척도 이름, score = 점수 그대로(예: "112", "T 65", "85%ile"), kind = 점수 종류("지표점수" · "T점수" · "백분위" · "원점수" · "환산점수" 등), band = 결과지에 적힌 수준(예: "평균 상", "경계선", "임상 범위") 없으면 "", note = 결과지의 짧은 설명(30자 안) 없으면 "".
 - memo: 결과지의 종합 소견을 두세 문장으로 줄여. 없으면 "".
 - ⚠️ 아이 · 보호자 · 담당자 이름, 생년월일, 학교 이름, 주소, 전화는 어디에도 쓰지 마.`;
+// 우리반 검사 결과지 (2026-11-26 문쌤: 담임 — 반 전체 결과지 사진 · PDF → 번호별 표). 이름은 받지도 돌려주지도 않아요
+const ClassRow = z.object({ no: z.number().int(), values: z.array(z.string()), tags: z.array(z.string()), note: z.string() });
+const ClassRead = z.object({ ok: z.boolean(), title: z.string(), date: z.string(), kind: z.string(), cols: z.array(z.string()), rows: z.array(ClassRow), summary: z.string() });
+const CLASS_RULE = `너는 지금 학급 전체 검사 결과지(여러 학생이 한 표에)를 번호별 표로 옮기는 일을 해.
+- ok: 학급 검사 결과지가 맞으면 true.
+- title: 검사 이름 (예: "성격검사", "교과계열탐색검사"). date: 검사 날짜 YYYY-MM-DD (모르면 "").
+- kind: 점수 표면 "scores", 학생마다 글(소견)이면 "notes".
+- scores 일 때: cols = 점수 칸 이름들(예: "신경증(N)", "우울"), rows 마다 no = 학생 번호, values = cols 순서대로 점수 글자 그대로(빈 칸은 ""), tags = [], note = "".
+- notes 일 때: cols = [], rows 마다 no = 번호, tags = 글에서 뽑은 핵심 순위(예: 적성에 맞는 전공계열 1~3순위, 각 12자 안), note = 소견 글을 그대로(학생 이름이 있으면 '학생'으로 바꿔서, 400자 안).
+- ⚠️ 학생 이름은 어디에도 쓰지 마. 번호만 써. 결과가 비어 있는 학생도 번호와 빈 값으로 넣어.
+- summary: 반 전체를 두세 문장으로 (예: 많이 나온 계열 · 높은 점수가 많은 칸의 수). 개별 학생 이름 · 번호를 꼽아 말하지 마. 진단이나 병명은 쓰지 마.`;
 const Ring = z.object({ crisis: z.boolean(), no: z.number().int(), why: z.string(), report: z.array(z.string()) });
 
 // 앱 숨은 마음 도감 (Rings.swift 의 RingDex.known 과 같은 번호)
@@ -156,6 +167,27 @@ tryThis: 해 볼 것 — F처럼 써. ${t}의 마음을 먼저 받아 주는 따
       if (!p.ok) return json(req, { error: '검사 결과지가 아닌 것 같아요. 점수가 보이게 다시 찍어 주세요' }, 400);
       return json(req, { title: clean(p.title, 60), org: clean(p.org, 30), date: clean(p.date, 10), memo: clean(p.memo, 400),
         rows: p.rows.slice(0, 80).map((r) => ({ group: clean(r.group, 30), name: clean(r.name, 40), score: clean(r.score, 20), kind: clean(r.kind, 20), band: clean(r.band, 30), note: clean(r.note, 60) })) });
+    }
+    if (task === 'class_read') {
+      // files = 사진 · PDF (최대 6장) 또는 sheet = 이름을 지운 글 (글자 PDF 는 앱이 먼저 글을 뽑아 이름을 지워 보내요)
+      const files = (Array.isArray(body.files) ? body.files : []).slice(0, 6).filter((f) => f && typeof f.data === 'string' && f.data.length < 9_000_000);
+      const sheet = String(body.sheet || '').slice(0, 60000);
+      if (!files.length && sheet.length < 20) return json(req, { error: '결과지 사진이나 PDF 를 골라 주세요' }, 400);
+      const parts = files.map((f) => f.type === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } }
+        : { type: 'image', source: { type: 'base64', media_type: f.type === 'image/png' ? 'image/png' : 'image/jpeg', data: f.data } });
+      if (sheet) parts.push({ type: 'text', text: `[결과지 글 · 이름은 지워져 있어요]\n${sheet}` });
+      parts.push({ type: 'text', text: `${CLASS_RULE}\n\n위 결과지를 번호별 표로 옮겨 줘.` });
+      // 학생이 많아 답이 길어요 → 흘려 받기(stream)로 끝까지 받아요
+      const stream = client.messages.stream({ model: MODEL, max_tokens: 24000, output_config: { effort: 'medium', format: zodOutputFormat(ClassRead) }, system, messages: [{ role: 'user', content: parts }] });
+      const msg = await stream.finalMessage();
+      if (msg.stop_reason === 'refusal') return json(req, { error: '결과지를 읽지 못했어요' }, 502);
+      const txt = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      let p; try { p = ClassRead.parse(JSON.parse(txt)); } catch { return json(req, { error: msg.stop_reason === 'max_tokens' ? '결과지가 너무 길어요. 나눠서 올려 주세요' : '결과지를 읽지 못했어요' }, 502); }
+      if (!p.ok) return json(req, { error: '학급 검사 결과지가 아닌 것 같아요' }, 400);
+      return json(req, { title: clean(p.title, 60), date: clean(p.date, 10), kind: p.kind === 'notes' ? 'notes' : 'scores', summary: clean(p.summary, 400),
+        cols: p.cols.slice(0, 20).map((c) => clean(c, 20)),
+        rows: p.rows.slice(0, 60).map((r) => ({ no: Math.max(0, r.no | 0), values: r.values.slice(0, 20).map((v) => clean(v, 12)), tags: r.tags.slice(0, 5).map((t) => clean(t, 20)), note: clean(r.note, 500) })) });
     }
     if (task === 'report_explain') {
       // 앱이 고친 표를 보내요 (이름 없이): who = '아들 · 초4' 처럼 관계 · 학년만
