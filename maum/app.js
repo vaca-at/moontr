@@ -206,7 +206,7 @@ const NAV = [['home', '홈'], ['write', '마음 기록'], ['ai', 'AI 마음 티�
 const MENU = [[['report', '마음 보고서', 'chart', 'navy'], ['reports', '검사 결과지', 'doc', 'clay'], ['vault', '기록 보관함', 'archive', 'green'], ['backup', '백업 · 보관 · 출력', 'drive', 'sky']],
               [['guide', '사용 설명서', 'book', 'gray'], ['ask', '문의하기', 'chat', 'lavender'], ['help', '힘들 때 도움 받을 곳', 'heart', 'clay']]];
 /* 📖 사용 설명서 — 앱 GuideView.swift 와 같은 글 (고칠 땐 둘 다) */
-const GUIDE = [{"title": "홈 · 아래 탭", "lines": ["아래 탭: 테스트 · 마음근력 · 가운데 [홈] · AI 티쳐 · 도감.", "홈 모양은 8가지예요(앱). 맨 위 번호를 누르거나 ◀ ▶ 로 넘겨 나에게 맞는 홈을 골라요. 바탕 색은 ☰ › 모양 고르기에서 바꿔요.", "홈을 위에서 아래로 당기면 AI 마음 티쳐가 오늘 문장을 새로 써 줘요."]}, {"title": "오늘 마음 남기기", "lines": ["홈의 마음 날씨(맑음 ~ 소나기)를 누르면 기록 창이 열려요. 까닭 태그를 고르고 좋았던 점이나 나를 위로하는 한 줄을 남겨요.", "까닭 태그는 [＋ 더하기]로 직접 만들 수 있어요.", "하루에 한 번 남기는 출석부예요. 다시 누르면 오늘 기록을 고쳐요."]}, {"title": "오늘 해 볼 것 · 내려놓을 것", "lines": ["날마다 세 개씩 골라 줘요. 테스트를 하면 나에게 맞는 것으로 골라요.", "체크 칸을 누르면 체크, 화살표 단추로 다른 세 개로 바꿔요."]}, {"title": "AI 마음 티쳐", "lines": ["마음 풀기: 내 마음을 적으면 '마음의 말'로 풀어 주고, '그 사람 이해하기'는 숨은 마음 도감에서도 찾아 줘요.", "답은 '지난 기록'에 쌓이고, 고치거나 지울 수 있어요. 쓰던 글은 저절로 임시 저장돼요.", "AI 마음 티쳐는 상담 선생님이 아니에요. 많이 힘들 땐 도움 받을 곳(109 · 1388)을 이용해 주세요."]}, {"title": "마음근력", "lines": ["내 3D 캐릭터가 먼저 보여 주고 따라 해요: 발바닥 느끼기 · 얼굴 풀기 · 목 · 어깨 풀기 · 1분 호흡 등.", "감사 한 줄 · 나에게 다정하게 한 줄도 여기서 써요. 하루에 여러 번 해도 돼요."]}, {"title": "테스트", "lines": ["타고난 기질 → 살면서 다듬은 성격 → 16가지 유형 → 9가지 유형 → 마음 결 → 행동 스타일, 그리고 짧은 테스트 · 밸런스 게임.", "9가지 유형은 '1w2'처럼 보여 줘요: 앞 숫자가 바탕 번호, w 뒤가 날개 번호예요.", "다시 하면 다른 문항으로 묻고, 지난번과 얼마나 비슷한지 보여 줘요.", "위쪽 사람 칩에서 가족 · 학생을 고르면 그 사람을 떠올리며 답하고, 결과는 그 사람 칸에 따로 저장돼요. 둘 다 하면 '닮은 점 · 다른 점'을 볼 수 있어요.", "표준화된 심리검사나 진단이 아니에요."]}, {"title": "숨은 마음 도감", "lines": ["'내 주변엔 마음은 여린데 겉으로는 세 보이는 사람이 있어'처럼 적으면 그 사람의 숨은 마음을 도감에서 찾아 보고서로 알려 줘요.", "못 찾은 칸을 누르면 힌트가 나와요. 찾은 마음에는 내 메모를 남길 수 있어요."]}, {"title": "홈 화면 위젯", "lines": ["아이폰 홈 화면을 꾹 눌러 [편집] › [위젯 추가]에서 '마음한편'을 골라요.", "위젯을 누르면 앱이 열려요. 아래 점을 누르면 오늘 마음 · 오늘 해 볼 것 · 오늘의 문장 · 캐릭터 한마디로 넘어가요. 날씨를 누르면 바로 기록하고, 체크 칸은 위젯에서 바로 체크해요."]}, {"title": "마음 보고서", "lines": ["홈 맨 위 마음 보고서 카드를 누르거나 ☰ › 마음 보고서에서 봐요.", "이번 주 총평(AI 마음 티쳐) · 나는 어떤 사람? · 연속 출석 · 숨은 마음 · 마음근력 · 이번 주 마음 날씨 · 지금까지 쌓인 기분(신호등)을 한 화면에 모았어요.", "[한 달 기록 미리 보기 · 출력]으로 프린트하거나 PDF 로 저장해요."]}, {"title": "검사 결과지", "lines": ["☰ › 검사 결과지: 상담센터 · 병원 · 학교에서 받은 결과지 사진이나 PDF 를 올리면 AI 가 점수를 읽어 표로 만들어요 (12장까지).", "저장하기 전에 표가 결과지와 같은지 꼭 확인해요. 결과지 사진 · PDF 는 저장하지 않아요.", "[AI 로 풀어 보기]는 이름 없이 관계(아이 · 학생 등)와 점수만 보내 쉬운 말로 풀어 줘요. 같은 검사를 다시 받으면 '104 → 108'처럼 견줘 보여요.", "진단이 아니에요. 검사한 선생님 · 기관의 설명이 먼저예요."]}, {"title": "담임 도구 (교사 모드)", "lines": ["내 계정 › 나 소개에서 교사 › '담임이에요'를 켜고 반(예: 1학년 10반)을 적으면, 교사 모드의 홈과 테스트 탭에 담임 도구가 보여요.", "우리반 명단: 일번이 ~ 삼십번이를 한 번에 만들어요. 번호 = 명단 차례예요.", "성격 유형 입력: 학생마다 네 칸(E/I · S/N · T/F · J/P)을 눌러 넣어요. 학기 초 · 2학기 · 오늘로 나눠 'ISFJ → ESFJ'처럼 보여요.", "우리반 검사 결과지: 반 전체 결과지를 올리면 번호별 표로 정리해요. 글자로 된 PDF 는 이 기기에서 학생 이름을 지운 뒤 보내요.", "성향 묶음 · 모둠 짜기 · 나와 우리반(닮은 점 · 다른 점)도 있어요. 성격 유형은 아이를 이해하는 실마리일 뿐, 나누는 기준이 아니에요."]}, {"title": "백업 · 보관 · 출력", "lines": ["☰ › 백업 · 보관 · 출력: 기록 전부를 백업 파일(.json)로 내려받고, 그 파일로 되살릴 수 있어요. 되살리기는 지금 기록은 그대로 두고 백업의 기록을 더해요.", "아이폰 앱에서 만든 백업 파일도 웹에서 되살릴 수 있어요.", "기록 출력(한 달 · 석 달 · 전체): 마음 날씨 · 테스트 · 검사 결과 · 감사 한 줄을 프린트하거나 PDF 로 저장해요."]}, {"title": "내 계정 · 여러 기기", "lines": ["같은 로그인이면 아이폰 · 아이패드 · 웹(moontr.site/maum)에서 같은 기록이 보여요.", "구글 · 카카오 · Apple 로그인을 한 계정으로 이을 수 있어요 (내 계정 › 로그인 방법).", "별명 · 나 소개 · 캐릭터는 내 계정에서 고쳐요."]}, {"title": "힘들 때", "lines": ["☰ › 힘들 때 도움 받을 곳: 109 · 1388 · Wee클래스 등. 위험한 말이 보이면 AI로 보내지 않고 도움 받을 곳을 먼저 보여 줘요.", "학교폭력이 걱정되면 117 신고와 증거 남기는 법을 알려 줘요."]}, {"title": "문의하기", "lines": ["☰ › 문의하기: 쓰는 법 · 고칠 점을 남기면 AI 가 먼저 답하고, 만든 선생님도 확인해서 답해요."]}];
+const GUIDE = [{"title": "홈 · 아래 탭", "lines": ["아래 탭: 테스트 · 마음근력 · 가운데 [홈] · AI 티쳐 · 도감.", "홈 모양은 8가지예요(앱). 맨 위 번호를 누르거나 ◀ ▶ 로 넘겨 나에게 맞는 홈을 골라요. 바탕 색은 ☰ › 모양 고르기에서 바꿔요.", "홈을 위에서 아래로 당기면 AI 마음 티쳐가 오늘 문장을 새로 써 줘요."]}, {"title": "오늘 마음 남기기", "lines": ["홈의 마음 날씨(맑음 ~ 소나기)를 누르면 기록 창이 열려요. 까닭 태그를 고르고 좋았던 점이나 나를 위로하는 한 줄을 남겨요.", "까닭 태그는 [＋ 더하기]로 직접 만들 수 있어요.", "하루에 한 번 남기는 출석부예요. 다시 누르면 오늘 기록을 고쳐요."]}, {"title": "오늘 해 볼 것 · 내려놓을 것", "lines": ["날마다 세 개씩 골라 줘요. 테스트를 하면 나에게 맞는 것으로 골라요.", "체크 칸을 누르면 체크, 화살표 단추로 다른 세 개로 바꿔요."]}, {"title": "AI 마음 티쳐", "lines": ["마음 풀기: 내 마음을 적으면 '마음의 말'로 풀어 주고, '그 사람 이해하기'는 숨은 마음 도감에서도 찾아 줘요.", "답은 '지난 기록'에 쌓이고, 고치거나 지울 수 있어요. 쓰던 글은 저절로 임시 저장돼요.", "AI 마음 티쳐는 상담 선생님이 아니에요. 많이 힘들 땐 도움 받을 곳(109 · 1388)을 이용해 주세요."]}, {"title": "마음근력", "lines": ["내 3D 캐릭터가 먼저 보여 주고 따라 해요: 발바닥 느끼기 · 얼굴 풀기 · 목 · 어깨 풀기 · 1분 호흡 등.", "감사 한 줄 · 나에게 다정하게 한 줄도 여기서 써요. 하루에 여러 번 해도 돼요."]}, {"title": "테스트", "lines": ["타고난 기질 → 살면서 다듬은 성격 → 16가지 유형 → 9가지 유형 → 마음 결 → 행동 스타일, 그리고 짧은 테스트 · 밸런스 게임.", "9가지 유형은 '1w2'처럼 보여 줘요: 앞 숫자가 바탕 번호, w 뒤가 날개 번호예요.", "다시 하면 다른 문항으로 묻고, 지난번과 얼마나 비슷한지 보여 줘요.", "위쪽 사람 칩에서 가족 · 학생을 고르면 그 사람을 떠올리며 답하고, 결과는 그 사람 칸에 따로 저장돼요. 둘 다 하면 '닮은 점 · 다른 점'을 볼 수 있어요.", "표준화된 심리검사나 진단이 아니에요."]}, {"title": "숨은 마음 도감", "lines": ["'내 주변엔 마음은 여린데 겉으로는 세 보이는 사람이 있어'처럼 적으면 그 사람의 숨은 마음을 도감에서 찾아 보고서로 알려 줘요.", "못 찾은 칸을 누르면 힌트가 나와요. 찾은 마음에는 내 메모를 남길 수 있어요."]}, {"title": "홈 화면 위젯", "lines": ["아이폰 홈 화면을 꾹 눌러 [편집] › [위젯 추가]에서 '마음한편'을 골라요.", "위젯을 누르면 앱이 열려요. 아래 점을 누르면 오늘 마음 · 오늘 해 볼 것 · 오늘의 문장 · 캐릭터 한마디로 넘어가요. 날씨를 누르면 바로 기록하고, 체크 칸은 위젯에서 바로 체크해요."]}, {"title": "마음 보고서", "lines": ["홈 맨 위 마음 보고서 카드를 누르거나 ☰ › 마음 보고서에서 봐요.", "이번 주 총평(AI 마음 티쳐) · 나는 어떤 사람? · 연속 출석 · 숨은 마음 · 마음근력 · 이번 주 마음 날씨 · 지금까지 쌓인 기분(신호등)을 한 화면에 모았어요.", "[한 달 기록 미리 보기 · 출력]으로 프린트하거나 PDF 로 저장해요."]}, {"title": "검사 결과지", "lines": ["☰ › 검사 결과지: 상담센터 · 병원 · 학교에서 받은 결과지 사진이나 PDF 를 올리면 AI 가 점수를 읽어 표로 만들어요 (12장까지).", "저장하기 전에 표가 결과지와 같은지 꼭 확인해요. 결과지 사진 · PDF 는 저장하지 않아요.", "[AI 로 풀어 보기]는 이름 없이 관계(아이 · 학생 등)와 점수만 보내 쉬운 말로 풀어 줘요. 같은 검사를 다시 받으면 '104 → 108'처럼 견줘 보여요.", "진단이 아니에요. 검사한 선생님 · 기관의 설명이 먼저예요."]}, {"title": "담임 도구 (교사 모드)", "lines": ["내 계정 › 나 소개에서 교사 › '담임이에요'를 켜고 반(예: 1학년 10반)을 적으면, 교사 모드의 홈과 테스트 탭에 담임 도구가 보여요.", "우리반 명단: 일번이 ~ 삼십번이를 한 번에 만들어요. 번호 = 명단 차례예요.", "성격 유형 입력: 학생마다 네 칸(E/I · S/N · T/F · J/P)을 눌러 넣어요. 학기 초 · 2학기 · 오늘로 나눠 'ISFJ → ESFJ'처럼 보여요.", "우리반 검사 결과지: 반 전체 결과지를 올리면 번호별 표로 정리해요. 글자로 된 PDF 는 이 기기에서 학생 이름을 지운 뒤 보내요.", "반 전체 친구 관계: 학생마다 여섯 가지 힘(먼저 다가가기 · 마음 열기 · 잘 들어 주기 · 갈등 풀기 · 도움 주고받기 · 내 마음 말하기)을 낮음 · 보통 · 높음으로 빠르게 적거나, 테스트 탭에서 학생을 떠올리며 친구 관계 지도를 답하면 반 평균 · 잘 쓰는 힘 · 함께 키울 힘을 보여 줘요.", "성향 묶음 · 모둠 짜기 · 나와 우리반(닮은 점 · 다른 점)도 있어요. 성격 유형은 아이를 이해하는 실마리일 뿐, 나누는 기준이 아니에요."]}, {"title": "백업 · 보관 · 출력", "lines": ["☰ › 백업 · 보관 · 출력: 기록 전부를 백업 파일(.json)로 내려받고, 그 파일로 되살릴 수 있어요. 되살리기는 지금 기록은 그대로 두고 백업의 기록을 더해요.", "아이폰 앱에서 만든 백업 파일도 웹에서 되살릴 수 있어요.", "기록 출력(한 달 · 석 달 · 전체): 마음 날씨 · 테스트 · 검사 결과 · 감사 한 줄을 프린트하거나 PDF 로 저장해요."]}, {"title": "내 계정 · 여러 기기", "lines": ["같은 로그인이면 아이폰 · 아이패드 · 웹(moontr.site/maum)에서 같은 기록이 보여요.", "구글 · 카카오 · Apple 로그인을 한 계정으로 이을 수 있어요 (내 계정 › 로그인 방법).", "별명 · 나 소개 · 캐릭터는 내 계정에서 고쳐요."]}, {"title": "힘들 때", "lines": ["☰ › 힘들 때 도움 받을 곳: 109 · 1388 · Wee클래스 등. 위험한 말이 보이면 AI로 보내지 않고 도움 받을 곳을 먼저 보여 줘요.", "학교폭력이 걱정되면 117 신고와 증거 남기는 법을 알려 줘요."]}, {"title": "문의하기", "lines": ["☰ › 문의하기: 쓰는 법 · 고칠 점을 남기면 AI 가 먼저 답하고, 만든 선생님도 확인해서 답해요."]}];
 function render(){
   if (!S.user) return;
   if (!S.loaded.has('settings')) { $('#view').innerHTML = '<p class="sub" style="padding:40px">기록을 불러오고 있어요…</p>'; return; }
@@ -1050,6 +1050,7 @@ function classRows(){
     mrow({ icon: 'doc', tint: 'clay', title: '우리반 검사 결과지', sub: '사진 · PDF → 학생별로 정리', attrs: 'data-cls="sheets"', right: sh.length ? badge(sh.length + '개', 'clay') : '' }),
     mrow({ icon: 'circles', tint: 'lavender', title: '성향 묶음', sub: '비슷한 친구 · 모둠 짜기', attrs: 'data-cls="groups"' }),
     mrow({ icon: 'scale', tint: 'sky', title: '나와 우리반', sub: '닮은 점 · 다른 점', attrs: 'data-cls="match"' }),
+    mrow({ icon: 'people', tint: 'green', title: '반 전체 친구 관계', sub: '여섯 가지 힘 · 반 평균 · 빠르게 적기', attrs: 'data-cls="friends"', right: (() => { const n = st.filter(s => friendsOf(s.key)).length; return n ? badge(`${n} / ${st.length}`, 'green') : ''; })() }),
   ]);
 }
 /* 테스트 탭 (교사 모드): 학생 칩 아래 '담임이에요' (앱 TestView.homeroomCard) */
@@ -1057,7 +1058,7 @@ function homeroomCard(){
   if (!isHomeroom()) return `<button class="box hrcard" id="hrEdit"><span class="bx"></span><span><b>담임이에요</b><small>켜면 우리반 명단 · 성격 유형 · 검사 결과지 · 성향 묶음이 보여요</small></span><i class="chev">›</i></button>`;
   const h = meTags().homeroom;
   return `<div class="box hrcard on"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><span class="row" style="gap:8px"><span class="bx on"></span><b>${esc(h === '담임' ? '담임이에요' : h + ' 담임이에요')}</b></span><button class="btn small" id="hrEdit">고치기</button></div>
-    <div class="row" style="margin-top:10px">${[['roster', '우리반 명단', 'person'], ['types', '성격 유형 입력', 'grid'], ['sheets', '검사 결과지', 'doc'], ['groups', '성향 묶음', 'circles'], ['match', '나와 우리반', 'scale']].map(([k, n, i]) => `<button class="chip ico" data-cls="${k}">${ico(i)}${n}</button>`).join('')}</div></div>`;
+    <div class="row" style="margin-top:10px">${[['roster', '우리반 명단', 'person'], ['types', '성격 유형 입력', 'grid'], ['sheets', '검사 결과지', 'doc'], ['groups', '성향 묶음', 'circles'], ['match', '나와 우리반', 'scale'], ['friends', '친구 관계', 'people']].map(([k, n, i]) => `<button class="chip ico" data-cls="${k}">${ico(i)}${n}</button>`).join('')}</div></div>`;
 }
 
 function vClass(){
@@ -1070,6 +1071,7 @@ function vClass(){
   if (tool === 'sheetAdd') return vSheetAdd();
   if (tool === 'groups') return vGroups(back);
   if (tool === 'match') return vClassMatch(back);
+  if (tool === 'friends') return vClassFriends(back);
   return `<div class="stack fade-in" style="max-width:720px"><h2 class="title">담임 도구</h2>${listHead('교실 마음', homeroomLabel())}${classRows()}
     <p class="sub small">실명 대신 번호 이름(일번이 · 이번이 …)으로 써요. 성격 유형은 아이를 이해하는 실마리일 뿐, 아이를 나누는 기준이 아니에요.</p></div>`;
 }
@@ -1300,6 +1302,48 @@ function showClassMatch(key){
   $('#cmMore').onclick = () => { closeSheet(); vMatch(s); };
 }
 
+/* 🤝 반 전체 친구 관계 (앱 ClassFriends.swift, 2026-11-26)
+   · 학생마다 '친구 관계 지도' 여섯 가지 힘: 테스트 탭에서 학생을 떠올리며 24문항, 또는 여기서 빠르게 적기(낮음 · 보통 · 높음)
+   · 빠르게 적은 것 = tests { kind:'simple-friends', scores:[25|50|75 × 6], at, who: 학생 key, set: -1 } */
+const FR_TIPS = ["새 짝과 '나를 소개하는 세 단어' 나누기", "모둠에서 '요즘 좋았던 일' 한 가지씩 말하기", "짝 이야기를 듣고 한 문장으로 되돌려 말해 주기",
+  "'나는 ~해서 속상했어' 말하기 연습 한 번", "모둠 안에서 '도와줄까?' · '도와줘' 한 번씩 말하기", "'이번엔 어려워' 부드럽게 거절하기 역할극"];
+const frTest = () => ((T && T.data && T.data.simple) || []).find(x => x.id === 'friends');
+const friendsOf = who => tests().find(x => x.kind === 'simple-friends' && x.who === who && (x.scores || []).length === 6) || null;   // 가장 최근
+const frOrder = sc => [0, 1, 2, 3, 4, 5].sort((a, b) => sc[b] - sc[a] || a - b);
+const frLevel = v => v < 38 ? 25 : v < 63 ? 50 : 75;
+function vClassFriends(back){
+  const t = frTest(), tab = S.sub.frTab || 0, st = students();
+  const head = `<div class="stack fade-in" style="max-width:720px">${back}<h2 class="title">반 전체 친구 관계</h2>
+    <div class="seg"><button data-frtab="0" class="${tab ? '' : 'on'}">한눈에</button><button data-frtab="1" class="${tab ? 'on' : ''}">빠르게 적기</button></div>`;
+  const foot = `<p class="sub small">표준화된 검사가 아니라 선생님이 본 우리반을 돌아보는 활동이에요. 학생 이름은 번호 이름으로만 적어요.</p></div>`;
+  if (!t) return head + '<div class="box sub">친구 관계 지도 문항을 불러오지 못했어요. 새로 고침해 주세요.</div>' + foot;
+  if (!st.length) return head + '<div class="box sub">아직 학생이 없어요. 담임 도구 › 우리반 명단에서 먼저 만들어 주세요.</div>' + foot;
+  if (tab === 1) {
+    return head + `<p class="sub small" style="margin:0">학생마다 여섯 가지 힘을 낮음 · 보통 · 높음으로 눌러요. 누르면 바로 저장돼요. 테스트 탭에서 답한 결과가 있으면 그 결과가 보여요.</p>
+      <div class="mlist">${st.map((s, i) => { const cur = (friendsOf(s.key) || {}).scores || [];
+        return `<div class="frrow"><div><span class="no">${i + 1}</span><b>${esc(s.name)}</b></div><div class="frgrid">${t.scales.map((sc, a) =>
+          `<div class="frcell"><small>${esc(sc.name)}</small>${[25, 50, 75].map(v => `<button class="frb${a < cur.length && frLevel(cur[a]) === v ? ' on' : ''}" data-fr="${s.key}|${a}|${v}">${v === 25 ? '낮' : v === 50 ? '보' : '높'}</button>`).join('')}</div>`).join('')}</div></div>`; }).join('')}</div>` + foot;
+  }
+  const done = st.map(s => [s, (friendsOf(s.key) || {}).scores]).filter(x => x[1]);
+  if (!done.length) return head + `<div class="box sub">아직 적은 학생이 없어요. '빠르게 적기'에서 학생마다 여섯 가지를 톡톡 누르거나, 테스트 탭에서 학생을 떠올리며 '친구 관계 지도'를 답해 주세요.</div>` + foot;
+  const avg = [0, 1, 2, 3, 4, 5].map(a => Math.round(done.reduce((n, d) => n + d[1][a], 0) / done.length)), o = frOrder(avg);
+  return head + `${listHead('우리반 여섯 가지 힘', `${done.length} / ${st.length}명`)}
+    <div class="box stack" style="gap:12px">${t.scales.map((sc, a) => `<div><div class="row" style="justify-content:space-between;margin-bottom:5px"><b style="font-size:14px">${esc(sc.name)}</b><span class="sub small">${avg[a]}</span></div><div class="progress"><i style="width:${avg[a]}%"></i></div></div>`).join('')}</div>
+    <div class="box"><div class="row" style="gap:8px">${badge('잘 쓰는 힘', 'green')}<b>${esc(o.slice(0, 2).map(a => t.scales[a].name).join(' · '))}</b></div>
+      <p style="margin:8px 0 12px">${esc(t.scales[o[0]].text)}</p>
+      <div class="row" style="gap:8px;border-top:1px solid var(--line);padding-top:12px">${badge('함께 키울 힘', 'clay')}<b>${esc(t.scales[o[5]].name)}</b></div>
+      <p style="margin:8px 0 0">교실에서 해 볼 것 · ${esc(FR_TIPS[o[5]])}</p></div>
+    ${listHead('학생마다 가장 큰 힘')}
+    ${rows(done.map(([s, sc]) => { const so = frOrder(sc); return mrow({ icon: 'person', tint: 'green', title: s.name, sub: '더 키울 힘 · ' + t.scales[so[5]].name, chevron: false, right: badge(t.scales[so[0]].name, 'green') }); }))}` + foot;
+}
+/* 누르면: 빠르게 적은 결과(set -1)가 있으면 그 칸만 바꾸고, 없으면 지금 결과(없으면 모두 보통)에서 시작해 새로 만들어요 */
+async function setFriend(who, a, v){
+  const q = tests().find(x => x.kind === 'simple-friends' && x.who === who && x.set === -1 && (x.scores || []).length === 6);
+  if (q) { const { key, ...rec } = q; const sc = [...rec.scores]; sc[a] = v; return put('tests', key, { ...rec, scores: sc, at: sec(new Date()) }); }
+  const sc = [...((friendsOf(who) || {}).scores || [50, 50, 50, 50, 50, 50])]; sc[a] = v;
+  await put('tests', uuid(), { kind: 'simple-friends', scores: sc, at: sec(new Date()), who, set: -1 });
+}
+
 /* ================= 💾 백업 · 보관 · 출력 (앱 AppSettings.swift Backup) ================= */
 function backupData(){
   const settings = {}; for (const k of SET_KEYS) if (typeof S.set[k] === 'string') settings[k] = S.set[k];
@@ -1343,6 +1387,8 @@ async function restoreBackup(input){
 /* ── 새 화면 단추 잇기 ── */
 function bindMore(v){
   const on = (sel, f) => document.querySelectorAll(sel).forEach(b => b.onclick = () => f(b));
+  on('[data-frtab]', b => { S.sub.frTab = +b.dataset.frtab; render(); });
+  on('[data-fr]', b => { const [w, a, v] = b.dataset.fr.split('|'); setFriend(w, +a, +v); });
   on('[data-cls]', b => { const k = b.dataset.cls; if (S.view !== 'class') { S.view = 'class'; location.hash = '#/class'; } nav(k ? { tool: k } : {}); });
   if ($('#hrEdit')) $('#hrEdit').onclick = editMe;
   if (v === 'report' && $('#printMonth')) $('#printMonth').onclick = () => printDoc(recordsHTML(monthsAgo(1)));
@@ -1490,7 +1536,9 @@ function openMenu(){
 function logout(){ if (S.demo) return toast('둘러보기에서는 로그아웃이 없어요'); if (confirm('로그아웃할까요? 기록은 계정에 그대로 있어요.')) auth.signOut(); }
 function fromHash(){ const v = (location.hash.match(/^#\/(\w+)/) || [])[1];
   if (v === 'ask') { history.replaceState(null, '', '#/' + S.view); if (window.moontrHelp) window.moontrHelp.open(); else toast('문의 창을 불러오는 중이에요'); return; }
-  if (v && v !== S.view) { S.view = v; S.sub = {}; if (v === 'write') { openWrite(); S.view = 'home'; } render(); } }
+  if (v && v !== S.view) { S.view = v; S.sub = {}; if (v === 'write') { openWrite(); S.view = 'home'; } render(); }
+  const [, tl, tb] = location.hash.match(/^#\/class\/(\w+)(?:\/(\d))?/) || [];   // #/class/friends = 담임 도구 안 화면 바로 열기 (#/class/friends/1 = 둘째 탭)
+  if (tl && S.sub.tool !== tl) { S.sub = { tool: tl, frTab: +(tb || 0) }; render(); } }
 function boot(){
   if (/admin/.test(location.hash) || new URLSearchParams(location.search).has('admin')) return;   // 관리자 화면은 index.html 의 관리자 코드가 해요
   app = firebase.apps.find(a => a.name === 'maum') || firebase.initializeApp(FB, 'maum');   // 이름 붙은 앱: 관리자 로그인과 섞이지 않게
@@ -1539,6 +1587,7 @@ function demo(){
   for (let n = 1; n <= 12; n++) {
     put0('members', 's' + n, { name: hangulName(n), role: 'student', avatar: '', order: 10 + n, at: now });
     if (n <= 9) { const c = codes[n % codes.length]; put0('tests', 'ty' + n, { kind: 'type16', scores: typeScores(c), code: c, at: sec(termDate(0)), who: 's' + n, set: -1 }); }
+    if (n <= 7) put0('tests', 'fr' + n, { kind: 'simple-friends', scores: [0, 1, 2, 3, 4, 5].map(i => [25, 50, 75][(i * 2 + n) % 3]), at: sec(new Date()), who: 's' + n, set: -1 });
   }
   put0('tests', 'ty2b', { kind: 'type16', scores: typeScores('ESFJ'), code: 'ESFJ', at: sec(termDate(1)), who: 's2', set: -1 });
   put0('sheets', 'sh1', { title: '학교생활 적응 검사', day: now - 20 * 86400, kind: 'scores', cols: ['학업 스트레스', '또래 관계', '불안', '우울', '자아 존중'],

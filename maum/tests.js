@@ -3360,6 +3360,8 @@
     var out = [];
     var g1 = person ? person.name + ' 알아보기' : '나를 알아보는 검사', g1s = '6가지 · 다시 하면 다른 문항이 나와요';
     CORE.forEach(function (id) { out.push(card(id, g1, g1s, null, results, who)); });
+    // 학생을 떠올리며 친구 관계 지도 → 담임 도구 '반 전체 친구 관계'에 모여요 (2026-11-26 앱과 같게)
+    if (person && person.role === 'student') out.push(card('simple-friends', '친구 사이', person.name + '을(를) 떠올리며 답하면 우리반 친구 관계에 모여요', null, results, who));
     // 나 · 배우자 · 동료(어른)는 같은 검사를 모두 (2026-11-26 앱 TestView.swift 와 같게)
     if (person && person.role !== 'partner' && person.role !== 'coworker') return out;
     var corner = D.corners[mode];
