@@ -73,8 +73,8 @@ const top = a => (a || []).reduce((bi, v, i, arr) => v > arr[bi] ? i : bi, 0);
 const myTest = k => tests().find(t => t.kind === k && !t.who);
 const weekCount = kinds => practices().filter(p => kinds.includes(p.kind) && fromSec(p.day) >= dayStart(new Date(Date.now() - 6 * 864e5))).length;
 
-/* ── 마음 날씨 그림 (앱 Mood: 5 맑음 · 4 구름 사이 해 · 3 흐림 · 2 비 · 1 소나기) ── */
-const MOOD = { 5: ['맑음', '#C9765E'], 4: ['구름 사이 해', '#D9A28C'], 3: ['흐림', '#9C978E'], 2: ['비', '#6F8FB3'], 1: ['소나기', '#3B5A85'] };
+/* ── 마음 날씨 그림 (앱 Mood: 5 쨍쨍 · 4 맑음(작은 해, 2026-11-26 구름 뺌) · 3 흐림 · 2 비 · 1 소나기) ── */
+const MOOD = { 5: ['쨍쨍', '#C9765E'], 4: ['맑음', '#E0A07A'], 3: ['흐림', '#9C978E'], 2: ['비', '#6F8FB3'], 1: ['소나기', '#3B5A85'] };
 const moodName = m => (C.checkin && C.checkin.moods && C.checkin.moods[m] && C.checkin.moods[m].weatherName) || (MOOD[m] || [''])[0];
 function wx(m){
   const c = (MOOD[m] || MOOD[3])[1];
@@ -82,7 +82,7 @@ function wx(m){
   const cloud = f => `<path d="M7 18.5h10.2a4 4 0 0 0 .4-8 5.6 5.6 0 0 0-10.8 1.4A3.3 3.3 0 0 0 7 18.5z" fill="${f}"/>`;
   const drops = `<g stroke="${c}" stroke-width="1.8" stroke-linecap="round"><path d="M9 20.5l-.8 2M13 20.5l-.8 2M17 20.5l-.8 2"/></g>`;
   const body = m == 5 ? `${sun(12, 12, 5)}<g stroke="#E7A13F" stroke-width="1.8" stroke-linecap="round"><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M5.3 18.7 7 17M17 7l1.7-1.7"/></g>`
-    : m == 4 ? `${sun(15.5, 8.5, 3.8)}${cloud(c)}` : m == 3 ? cloud(c) : m == 2 ? `<g transform="translate(0 -3)">${cloud(c)}</g>${drops}`
+    : m == 4 ? `${sun(12, 12, 4.2)}<g stroke="#E7A13F" stroke-width="1.8" stroke-linecap="round"><path d="M12 4.6v1.4M12 18v1.4M4.6 12h1.4M18 12h1.4M6.8 6.8l1 1M16.2 16.2l1 1M6.8 17.2l1-1M16.2 7.8l1-1"/></g>` : m == 3 ? cloud(c) : m == 2 ? `<g transform="translate(0 -3)">${cloud(c)}</g>${drops}`
     : `<g transform="translate(0 -3)">${cloud(c)}</g><path d="M12.6 15.6 10.4 19.4h2.2L11.4 22.6l3.4-4.4h-2.3l1.4-2.6z" fill="#E7A13F"/>`;
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 }

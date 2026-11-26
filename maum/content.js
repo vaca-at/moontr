@@ -209,8 +209,8 @@
     1: { value: 1, name: '많이 힘들어', weatherName: '소나기',      color: '#3B5A85', symbol: 'cloud.bolt.rain.fill' },
     2: { value: 2, name: '힘들어',      weatherName: '비',          color: '#6F8FB3', symbol: 'cloud.rain.fill' },
     3: { value: 3, name: '그저 그래',   weatherName: '흐림',        color: '#9C978E', symbol: 'cloud.fill' },
-    4: { value: 4, name: '좋아',        weatherName: '구름 사이 해', color: '#D9A28C', symbol: 'cloud.sun.fill' },
-    5: { value: 5, name: '아주 좋아',   weatherName: '맑음',        color: '#C9765E', symbol: 'sun.max.fill' }
+    4: { value: 4, name: '좋아',        weatherName: '맑음', color: '#E0A07A', symbol: 'sun.min.fill' },
+    5: { value: 5, name: '아주 좋아',   weatherName: '쨍쨍',        color: '#C9765E', symbol: 'sun.max.fill' }
   };
   var REASONS = {
     student: ['친구', '가족', '공부', '시험', '운동', '몸', '잠', '선생님', '게임', '날씨'],
@@ -263,7 +263,7 @@
     var weather;
     if (avg === 0) weather = pick(['첫 장을\n펼쳐 볼까요?', '오늘이\n첫 쪽이에요', '반가워요,\n천천히 시작해요']);
     else if (avg >= 4.3) weather = pick(['맑고 따뜻한\n하루예요', '햇살이\n오래 머무는 날', '마음이\n가볍게 걷는 날']);
-    else if (avg >= 3.5) weather = pick(['구름 사이로\n해가 비쳐요', '바람이\n선선한 날이에요', '조금씩\n개어 가는 중']);
+    else if (avg >= 3.5) weather = pick(['햇살이\n따뜻한 날이에요', '바람이\n선선한 날이에요', '조금씩\n개어 가는 중']);
     else if (avg >= 2.7) weather = pick(['조금 흐리지만,\n저녁엔 갤 거예요', '흐린 날도\n지나가요', '천천히 가도\n괜찮은 날']);
     else if (avg >= 1.8) weather = pick(['비가 오지만,\n우산은 여기 있어요', '젖어도 괜찮아요,\n곧 말라요', '비 오는 날엔\n쉬어 가요']);
     else weather = pick(['오늘은 쉬어 가도\n괜찮은 날이에요', '아무것도 안 해도\n괜찮은 날', '나를 먼저\n안아 주는 날']);
