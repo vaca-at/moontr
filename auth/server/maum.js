@@ -156,8 +156,8 @@ tryThis: 해 볼 것 — F처럼 써. ${t}의 마음을 먼저 받아 주는 따
       return p ? json(req, { crisis: p.crisis, reply: clean(p.reply, 500) }) : json(req, { error: '답을 만들지 못했어요' }, 502);
     }
     if (task === 'report_read') {
-      // files = [{ type: 'image/jpeg' | 'image/png' | 'application/pdf', data: base64 }] 최대 6장
-      const files = (Array.isArray(body.files) ? body.files : []).slice(0, 6).filter((f) => f && typeof f.data === 'string' && f.data.length < 7_000_000);
+      // files = [{ type: 'image/jpeg' | 'image/png' | 'application/pdf', data: base64 }] 최대 12장 (2026-11-26 문쌤: 결과지 9장)
+      const files = (Array.isArray(body.files) ? body.files : []).slice(0, 12).filter((f) => f && typeof f.data === 'string' && f.data.length < 7_000_000);
       if (!files.length) return json(req, { error: '결과지 사진이나 PDF 를 골라 주세요' }, 400);
       const parts = files.map((f) => f.type === 'application/pdf'
         ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } }
@@ -169,8 +169,8 @@ tryThis: 해 볼 것 — F처럼 써. ${t}의 마음을 먼저 받아 주는 따
         rows: p.rows.slice(0, 80).map((r) => ({ group: clean(r.group, 30), name: clean(r.name, 40), score: clean(r.score, 20), kind: clean(r.kind, 20), band: clean(r.band, 30), note: clean(r.note, 60) })) });
     }
     if (task === 'class_read') {
-      // files = 사진 · PDF (최대 6장) 또는 sheet = 이름을 지운 글 (글자 PDF 는 앱이 먼저 글을 뽑아 이름을 지워 보내요)
-      const files = (Array.isArray(body.files) ? body.files : []).slice(0, 6).filter((f) => f && typeof f.data === 'string' && f.data.length < 9_000_000);
+      // files = 사진 · PDF (최대 12장) 또는 sheet = 이름을 지운 글 (글자 PDF 는 앱이 먼저 글을 뽑아 이름을 지워 보내요)
+      const files = (Array.isArray(body.files) ? body.files : []).slice(0, 12).filter((f) => f && typeof f.data === 'string' && f.data.length < 9_000_000);
       const sheet = String(body.sheet || '').slice(0, 60000);
       if (!files.length && sheet.length < 20) return json(req, { error: '결과지 사진이나 PDF 를 골라 주세요' }, 400);
       const parts = files.map((f) => f.type === 'application/pdf'
