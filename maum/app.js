@@ -527,7 +527,8 @@ function vDex(){
       <div class="answer"><small>No.${String(t.no).padStart(3, '0')} · 「${esc(t.hint || '')}」</small><div class="feel">${esc(t.name || '')}</div><div>${esc(t.line || '')}</div></div>
       ${fs.length ? `<div class="sub small">찾은 곳 · ${[...new Set(fs.map(f => f.who))].map(esc).join(' · ')} · ${fs.length}번</div>
         <div class="box" style="display:grid;gap:6px"><div class="eyebrow">내 메모 (원할 때)</div><textarea id="dexMemo" rows="2" maxlength="300" placeholder="예) 회의 때 동료 · 숙제할 때 우리 아이">${esc(memo)}</textarea>${tickHTML('memoTick', memo, '도감에 저장')}</div>` : ''}
-      ${withRep.length > 1 ? `${listHead('이 마음을 찾은 사람 ' + withRep.length + '명', '눌러서 바꿔 보기')}<div class="row">${withRep.map((f, i) => `<button class="chip big${f === shown ? ' on' : ''}" data-pick="${i}"><b>${i + 1}. ${esc(f.who || '그 사람')}</b><small>${fromSec(f.at).getMonth() + 1}.${fromSec(f.at).getDate()}</small></button>`).join('')}</div>` : ''}
+      ${withRep.length > 1 ? `${listHead('이 마음을 찾은 사람 ' + withRep.length + '명', '눌러서 바꿔 보기')}<div class="row">${withRep.map((f, i) => `<button class="chip big${f === shown ? ' on' : ''}" data-pick="${i}"><b>${i + 1}. ${esc(f.who || '그 사람')}</b><small>${fromSec(f.at).getMonth() + 1}.${fromSec(f.at).getDate()}</small></button>`).join('')}</div>
+        <button class="btn small" id="whoRename" style="justify-self:start">✎ '${esc(shown.who || '그 사람')}' 이름 고치기</button>` : ''}
       ${story ? `<div class="box"><div class="eyebrow">그때 적은 이야기</div><p style="margin:6px 0 0">“${esc(story)}”</p></div>` : ''}
       ${titles.map((h, i) => `<div class="box"><div class="eyebrow">${esc(h)}</div><p style="margin:6px 0 0" class="${rep[i] ? '' : 'sub'}">${esc(rep[i] || (Array.isArray(D.report[i]) ? D.report[i][1] : ''))}</p></div>`).join('')}
       <p class="sub small">${esc(rep.length ? (D.text && D.text.reportNoteAI) || '' : (D.text && D.text.reportNoteEmpty) || '')}</p></div>`;
@@ -1489,6 +1490,13 @@ function bind(v){
   if (v === 'dex') {
     if ($('#dexBack')) $('#dexBack').onclick = () => { S.sub = {}; render(); };
     document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { S.sub.pick = +b.dataset.pick; render(); });
+    /* 여러 사람 칩 이름 고치기 (앱 RingDetail 과 같게, 2026-11-26 문쌤) */
+    if ($('#whoRename')) $('#whoRename').onclick = () => {
+      const L = list('found').filter(f => f.no === S.sub.no && (f.report || []).length === 6).sort((a, b) => b.at - a.at), f = L[Math.min(S.sub.pick || 0, L.length - 1)]; if (!f) return;
+      const n = prompt('이 칩에 보일 이름이나 짧은 메모를 적어요. 실명 대신 별명도 좋아요.', f.who || ''); if (n == null) return;
+      const v = n.trim().slice(0, 20); if (!v) return;
+      const { key, ...rec } = f; put('found', key, { ...rec, who: v });
+    };
     if ($('#dexMemo')) { const no = S.sub.no, el = $('#dexMemo');
       bindTick(el, 'memoTick', '도감에 저장', v => ls.set('draft.memo.' + no, v), v => saveRingMemo(no, v));
       el.onchange = () => saveRingMemo(no, el.value); }
