@@ -639,22 +639,19 @@ const rows = arr => `<div class="mlist">${arr.join('')}</div>`;
 /* 테스트마다 같은 색 (앱 Tint.test: 기질 흙빛 · 성격 보라 · 16유형 초록 · 9유형 남색 · 마음 결 하늘 · 행동 회색) */
 const testTint = k => ({ temper: 'clay', character: 'lavender', type16: 'green', nine: 'navy', mind: 'sky', disc: 'gray' }[k] || (String(k).startsWith('mini') ? 'green' : 'gray'));
 
-/* ── ☑ 저장 표시 (앱 SaveTick: 쓰면 잠깐 '저장 중…' → '저장됨') ── */
-function tickInner(text, note, saving){
-  const empty = !String(text || '').trim();
-  return empty ? '<span class="bx"></span><span class="sub">쓰면 저절로 저장돼요</span>'
-    : saving ? '<span class="bx dash"></span><span class="sub">저장 중…</span>'
-    : `<span class="bx on"></span><b>저장됨</b><span class="sub"> · ${esc(note)}</span>`;
+/* ── [저장] 버튼 (앱 SaveTick, 2026-11-26 문쌤: 칠 때마다 '저장 중…'이 깜빡여 정신없다 → 버튼으로)
+   쓰는 동안에는 아무것도 깜빡이지 않고, 글은 이 기기에 조용히 남겨 둬요. [저장]을 누르면 '☑ 저장됨', 고치면 다시 [저장] */
+function tickInner(text, note, saved){
+  if (!String(text || '').trim()) return '';
+  return saved ? '<span class="bx on"></span>저장됨' : '저장';
 }
-const tickHTML = (id, text, note) => `<span class="tick" id="${id}" aria-live="polite">${tickInner(text, note, false)}</span>`;
-function bindTick(el, id, note, save){
-  if (!el) return; let tm;
-  el.addEventListener('input', () => {
-    if (save) save(el.value);
-    const t = $('#' + id); if (!t) return;
-    t.innerHTML = tickInner(el.value, note, true); clearTimeout(tm);
-    tm = setTimeout(() => { const t2 = $('#' + id); if (t2) t2.innerHTML = tickInner(el.value, note, false); }, 600);
-  });
+const tickHTML = (id, text, note) => `<button type="button" class="tick${String(text || '').trim() ? ' saved' : ''}" id="${id}" disabled aria-live="polite">${tickInner(text, note, true)}</button>`;
+function bindTick(el, id, note, save, onSave){
+  if (!el) return;
+  const t = () => $('#' + id);
+  const show = saved => { const b = t(); if (!b) return; b.innerHTML = tickInner(el.value, note, saved); b.classList.toggle('saved', saved); b.disabled = saved || !el.value.trim(); };
+  el.addEventListener('input', () => { if (save) save(el.value); show(false); });
+  const b = t(); if (b) b.onclick = () => { if (save) save(el.value); if (onSave) onSave(el.value); show(true); };
 }
 
 /* ── 여러 기록 한 번에 저장 (명단 · 되살리기) ── */
@@ -1493,7 +1490,7 @@ function bind(v){
     if ($('#dexBack')) $('#dexBack').onclick = () => { S.sub = {}; render(); };
     document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { S.sub.pick = +b.dataset.pick; render(); });
     if ($('#dexMemo')) { const no = S.sub.no, el = $('#dexMemo');
-      bindTick(el, 'memoTick', '도감에 저장', v => ls.set('draft.memo.' + no, v));
+      bindTick(el, 'memoTick', '도감에 저장', v => ls.set('draft.memo.' + no, v), v => saveRingMemo(no, v));
       el.onchange = () => saveRingMemo(no, el.value); }
     if ($('#dexText')) bindTick($('#dexText'), 'dexTick', '임시 저장', v => ls.set('draft.dex', v));
     if ($('#dexGo')) $('#dexGo').onclick = dexFind;
