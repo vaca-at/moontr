@@ -327,6 +327,7 @@ body.album #stage,body.album #bar,body.album #prog,body.album #notes,body.album 
 /* 📷 사진 관리 (관리자) */
 #adm{position:fixed;inset:0;z-index:15;background:#F3EEE5;overflow:auto;display:none}
 body.adm #adm{display:block}
+body.adm #stage{display:none}   /* 2026-11-27 휴대폰: 뒤에 깔린 1600px 슬라이드 때문에 관리 화면 · 자르기 창이 옆으로 밀리고 작게 보이던 것 */
 .adm-w{max-width:1100px;margin:0 auto;padding:26px 20px 90px}
 .adm-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .adm-top h1{font-size:24px;margin-right:auto}
@@ -362,6 +363,27 @@ body.adm #adm{display:block}
 .sdrop:hover,.adm-sec.over .sdrop{background:#fff;border-color:var(--c)}
 .slide-up{position:absolute;right:14px;top:14px;z-index:3;font:500 18px var(--sans);background:rgba(43,38,34,.82);color:#fff;border:0;border-radius:99px;padding:9px 18px;cursor:pointer}
 .th .dt{font-size:11px;color:var(--mute);padding:0 6px 6px}
+/* ✂ 사진 자르기 (2026-11-27): 테두리 · 모서리를 끌어 자를 곳을 정해요. 손가락으로도 돼요 */
+#crop{position:fixed;inset:0;z-index:40;background:rgba(24,20,17,.94);display:none;flex-direction:column;align-items:center;justify-content:center;padding:14px;color:#fff;font-family:var(--sans)}
+#crop.on{display:flex}
+#crop .cw{position:relative;line-height:0;touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;padding:18px}   /* 안쪽 여백: 가장자리 손잡이가 잘리지 않게 */
+#crop .cw img{max-width:calc(100vw - 64px);max-height:calc(100vh - 220px);display:block;pointer-events:none}
+#crop .box{position:absolute;box-shadow:0 0 0 9999px rgba(0,0,0,.55);outline:2px solid #fff;cursor:move;touch-action:none}
+#crop .box::before,#crop .box::after{content:"";position:absolute;inset:33.33% 0;border-top:1px solid #fff8;border-bottom:1px solid #fff8;pointer-events:none}
+#crop .box::after{inset:0 33.33%;border:0;border-left:1px solid #fff8;border-right:1px solid #fff8}
+#crop .h{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;touch-action:none;z-index:2}
+#crop .h::after{content:"";position:absolute;left:9px;top:9px;width:16px;height:16px;background:#fff;border-radius:4px;box-shadow:0 1px 4px #0008}
+#crop .h.e,#crop .h.w{cursor:ew-resize}#crop .h.n,#crop .h.s{cursor:ns-resize}#crop .h.nw,#crop .h.se{cursor:nwse-resize}#crop .h.ne,#crop .h.sw{cursor:nesw-resize}
+#crop .h.n::after,#crop .h.s::after{width:26px;height:8px;left:4px;top:13px}#crop .h.e::after,#crop .h.w::after{width:8px;height:26px;left:13px;top:4px}
+#crop .cbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px;align-items:center}
+#crop .cbar button{font:500 14px var(--sans);border:1px solid #fff5;background:transparent;color:#fff;border-radius:99px;padding:8px 14px;cursor:pointer}
+#crop .cbar button.on{background:#fff;color:var(--ink)}
+#crop .cbar button.go{background:var(--lotus);border-color:var(--lotus);font-weight:700}
+#crop .cbar button:disabled{opacity:.5}
+#crop .ct{font-size:14px;margin-bottom:10px;text-align:center;line-height:1.5;opacity:.9}
+@media (max-width:560px){.adm-sec h3{flex-wrap:wrap}.adm-sec h3 .up{white-space:nowrap}}
+.drop .mob{display:none;margin-top:10px;font-weight:700;color:var(--ink);font-size:16px}
+@media (hover:none),(max-width:760px){.drop .mob{display:block}.drop .pc{display:none}}
 .login-card{max-width:420px;margin:12vh auto 0;background:#fff;border-radius:20px;padding:34px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.08)}
 .login-card h2{font-size:24px;margin:0}
 .login-card p{color:var(--mute);font-size:14px;margin:12px 0 22px;line-height:1.7}
@@ -902,13 +924,13 @@ function renderAdmin(){
     return `<div class="adm-sec" style="--c:${a.c}" data-sec="${a.id}"><h3><i></i>${a.id ? `${a.m}.${a.d}(${a.w}) ${a.place}` : a.place} <small>${shown.length}장 보임${offN ? ` · ${offN}장 내려 둠` : ''}${a.id && first ? ' · 테두리 있는 첫 사진이 크게 나와요' : ''}</small>
       ${a.id ? `<label class="abtn up">＋ 이 활동에 사진 올리기<input type="file" data-up="${a.id}" multiple accept="image/*,.heic,.heif,video/*,.mov,.mp4" hidden></label>` : ''}</h3>
       <div class="adm-grid">${L.map(p => `<div class="th${p === first && a.id ? ' cover' : ''}${p.off ? ' off' : ''}" data-id="${p.id}"><img src="${thumbURL(p)}" alt="" data-zoom loading="lazy">${p.off ? '<span class="offtag">내려 둠</span>' : ''}${p.v ? '<span class="offtag" style="left:auto;right:6px">▶ 동영상</span>' : ''}
-        <div class="tl"><button data-a="cover" title="대표 사진으로 (맨 앞으로)">★</button><button data-a="hero" class="${ALBUM.hero === p.id ? 'on' : ''}" title="앨범 맨 위 아치 사진">🏠</button><button data-a="up" title="앞으로">◀</button><button data-a="down" title="뒤로">▶</button><button data-a="off" class="${p.off ? 'on' : ''}" title="${p.off ? '다시 올리기 (보이게)' : '내리기 (안 보이게, 지우지는 않아요)'}">${p.off ? '⤴' : '⤵'}</button><button data-a="del" title="아주 지우기">✕</button></div>
+        <div class="tl"><button data-a="cover" title="대표 사진으로 (맨 앞으로)">★</button><button data-a="hero" class="${ALBUM.hero === p.id ? 'on' : ''}" title="앨범 맨 위 아치 사진">🏠</button><button data-a="up" title="앞으로">◀</button><button data-a="down" title="뒤로">▶</button>${p.v ? '' : '<button data-a="crop" title="자르기 (테두리를 끌어 필요 없는 부분 잘라 내기)">✂</button>'}<button data-a="off" class="${p.off ? 'on' : ''}" title="${p.off ? '다시 올리기 (보이게)' : '내리기 (안 보이게, 지우지는 않아요)'}">${p.off ? '⤴' : '⤵'}</button><button data-a="del" title="아주 지우기">✕</button></div>
         <div class="tl"><select data-a="move" title="다른 활동으로 옮기기">${opts(p.act)}</select></div><div class="dt">${p.taken || ''}</div></div>`).join('') || '<small style="color:var(--mute)">아직 사진이 없어요</small>'}</div>
       ${a.id ? `<label class="sdrop"><b>📥 ${a.m}.${a.d} ${a.place} 사진을 여기로 끌어다 놓기</b>날짜와 상관없이 이 활동으로 들어가요 · 눌러서 고를 수도 있어요<input type="file" data-up="${a.id}" multiple accept="image/*,.heic,.heif,video/*,.mov,.mp4" hidden></label>` : ''}</div>`;
   }).join('');
   W.innerHTML = `<div class="adm-top"><h1>📷 진불동 사진 <small style="font:400 14px var(--sans);color:var(--mute)">모두 ${ALBUM.photos.length}장</small></h1>
       <button class="abtn" data-a="slides">슬라이드로</button><a class="abtn" href="?album" target="_blank">앨범 보기</a><button class="abtn" data-a="out">로그아웃</button></div>
-    <label class="drop" id="aDrop"><b>📥 사진을 여기로 끌어다 놓으세요</b>여러 장 · 폴더째 한꺼번에 넣어도 되고, 눌러서 고를 수도 있어요.<br>찍은 날짜를 읽어 그날 활동에 저절로 들어가요. 날짜가 안 맞으면 '아직 못 고른 사진'에 모여요.<br>카톡으로 받은 사진처럼 날짜가 없으면 아래 활동 칸의 [＋ 이 활동에 사진 올리기]를 누르거나 그 칸 위에 놓아 주세요.<br>🎬 동영상도 돼요 (90초까지) — 아이폰 동영상은 어느 컴퓨터에서나 돌아가게 바꿔서 올려요 · 활동 닷새 전 준비 사진도 그 활동으로 들어가요<br>⤵ 내리기 = 잠깐 안 보이게 (지우지 않아요) · ✕ = 아주 지우기<br>아이폰 사진(HEIC)도 되고, 크기는 알아서 줄여서 올려요.
+    <label class="drop" id="aDrop"><b><span class="pc">📥 사진을 여기로 끌어다 놓으세요</span><span class="mob">📱 여기를 누르면 사진 보관함이 열려요 (여러 장 골라도 돼요)</span></b>여러 장 · 폴더째 한꺼번에 넣어도 되고, 눌러서 고를 수도 있어요.<br>찍은 날짜를 읽어 그날 활동에 저절로 들어가요. 날짜가 안 맞으면 '아직 못 고른 사진'에 모여요.<br>카톡으로 받은 사진처럼 날짜가 없으면 아래 활동 칸의 [＋ 이 활동에 사진 올리기]를 누르거나 그 칸 위에 놓아 주세요.<br>🎬 동영상도 돼요 (90초까지) — 아이폰 동영상은 어느 컴퓨터에서나 돌아가게 바꿔서 올려요 · 활동 닷새 전 준비 사진도 그 활동으로 들어가요<br>⤵ 내리기 = 잠깐 안 보이게 (지우지 않아요) · ✕ = 아주 지우기<br>아이폰 사진(HEIC)도 되고, 크기는 알아서 줄여서 올려요.
       <input type="file" id="aFile" multiple accept="image/*,.heic,.heif,video/*,.mov,.mp4" hidden></label>
     <div class="adm-bar" id="aBar"><i></i></div><div class="adm-msg${admMsg.err ? ' err' : ''}" id="aMsg">${admMsg.t}</div>${secs}`;
   if (busy) setBar(0);
@@ -923,6 +945,7 @@ admEl.addEventListener('click', async e => {
   if (a === 'login') return login();
   if (a === 'out') return firebase.auth().signOut();
   const p = byId(b.closest('.th') && b.closest('.th').dataset.id); if (!p) return;
+  if (a === 'crop') return openCrop(p);
   const L = photosOf(p.act || '', true);
   if (a === 'off') { p.off = !p.off; setMsg(p.off ? '사진을 내렸어요. 슬라이드 · 앨범에서 안 보여요. ⤴ 를 누르면 다시 보여요.' : '사진을 다시 올렸어요.'); }
   else if (a === 'cover') p.o = Math.min(...L.map(x => x.o || 0)) - 1;
@@ -943,6 +966,102 @@ admEl.addEventListener('change', e => {
   const p = byId(s.closest('.th').dataset.id); if (!p) return;
   p.act = s.value; renderAll(); saveSoon();
 });
+/* ✂ 사진 자르기 (2026-11-27 문쌤 요청 · 교장선생님이 나오지 않게 가장자리 잘라 내기 등)
+   - 원본(2000px)을 불러와 흰 테두리 · 모서리 · 가운데를 끌어 자를 곳을 정해요 (마우스 · 손가락 모두)
+   - 저장하면 잘린 사진을 새 이름으로 올리고(보안 규칙상 같은 이름 덮어쓰기는 안 돼요), 목록에서 바꿔 끼운 뒤 예전 파일을 지워요
+   - 날짜 · 활동 · 순서 · 대표(★) · 아치(🏠)는 그대로 */
+const CR = { p: null, img: null, r: null, ratio: 0, busy: false };
+function cropEl(){
+  let el = document.getElementById('crop'); if (el) return el;
+  el = document.createElement('div'); el.id = 'crop';
+  el.innerHTML = `<div class="ct">흰 테두리나 모서리를 끌어 남길 부분만 고르세요 · 가운데를 끌면 옮겨져요</div>
+    <div class="cw"><img alt=""><div class="box">${['n','s','e','w','nw','ne','sw','se'].map(h => `<i class="h ${h}" data-h="${h}"></i>`).join('')}</div></div>
+    <div class="cbar"><button data-r="0" class="on">자유롭게</button><button data-r="1">정사각</button><button data-r="1.3333">가로 4:3</button><button data-r="0.75">세로 3:4</button><button data-c="reset">처음대로</button></div>
+    <div class="cbar"><button data-c="cancel">취소</button><button data-c="save" class="go">✂ 자른 사진으로 바꾸기</button></div>`;
+  document.body.append(el);
+  el.addEventListener('click', e => {
+    const r = e.target.closest('[data-r]'); if (r) { CR.ratio = +r.dataset.r; el.querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x === r)); fitRatio(); return drawBox(); }
+    const c = e.target.closest('[data-c]'); if (!c) return;
+    if (c.dataset.c === 'cancel') return closeCrop();
+    if (c.dataset.c === 'reset') { CR.ratio = 0; el.querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x.dataset.r === '0')); CR.r = { x: 0, y: 0, w: CR.img.naturalWidth, h: CR.img.naturalHeight }; return drawBox(); }
+    if (c.dataset.c === 'save') saveCrop(c);
+  });
+  // 끌기: 테두리 · 모서리 = 크기, 가운데 = 옮기기
+  let drag = null;
+  el.querySelector('.box').addEventListener('pointerdown', e => {
+    e.preventDefault(); const h = e.target.dataset.h || 'move';
+    drag = { h, x: e.clientX, y: e.clientY, r: { ...CR.r }, k: CR.img.naturalWidth / CR.img.clientWidth };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  });
+  el.querySelector('.box').addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = (e.clientX - drag.x) * drag.k, dy = (e.clientY - drag.y) * drag.k, W = CR.img.naturalWidth, H = CR.img.naturalHeight, MIN = 80;
+    let { x, y, w, h } = drag.r;
+    if (drag.h === 'move') { x = Math.min(Math.max(0, x + dx), W - w); y = Math.min(Math.max(0, y + dy), H - h); }
+    else {
+      let L = x, T = y, R = x + w, B = y + h;
+      if (drag.h.includes('w')) L = Math.min(Math.max(0, L + dx), R - MIN);
+      if (drag.h.includes('e')) R = Math.max(Math.min(W, R + dx), L + MIN);
+      if (drag.h.includes('n')) T = Math.min(Math.max(0, T + dy), B - MIN);
+      if (drag.h.includes('s')) B = Math.max(Math.min(H, B + dy), T + MIN);
+      x = L; y = T; w = R - L; h = B - T;
+      if (CR.ratio) {   // 비율을 골랐으면 맞춰요 (가로를 움직이면 세로가, 세로만 움직이면 가로가 따라와요)
+        if (drag.h === 'n' || drag.h === 's') { const nw = Math.min(h * CR.ratio, W); x = Math.min(Math.max(0, x + (w - nw) / 2), W - nw); w = nw; h = w / CR.ratio; }
+        else { h = w / CR.ratio; if (drag.h.includes('n')) y = B - h; if (y < 0 || y + h > H) { h = Math.min(h, drag.h.includes('n') ? B : H - y); y = drag.h.includes('n') ? B - h : y; w = h * CR.ratio; if (drag.h.includes('w')) x = R - w; } }
+      }
+    }
+    CR.r = { x, y, w, h }; drawBox();
+  });
+  const end = () => { drag = null; };
+  el.querySelector('.box').addEventListener('pointerup', end); el.querySelector('.box').addEventListener('pointercancel', end);
+  addEventListener('resize', () => { if (CR.p) drawBox(); });
+  return el;
+}
+function fitRatio(){
+  const W = CR.img.naturalWidth, H = CR.img.naturalHeight, r = CR.r; if (!CR.ratio) return;
+  let w = r.w, h = w / CR.ratio; if (h > H) { h = H; w = h * CR.ratio; } if (w > W) { w = W; h = w / CR.ratio; }
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  CR.r = { w, h, x: Math.min(Math.max(0, cx - w / 2), W - w), y: Math.min(Math.max(0, cy - h / 2), H - h) };
+}
+function drawBox(){
+  const el = cropEl(), b = el.querySelector('.box'), k = CR.img.clientWidth / CR.img.naturalWidth, r = CR.r;
+  Object.assign(b.style, { left: 18 + r.x * k + 'px', top: 18 + r.y * k + 'px', width: r.w * k + 'px', height: r.h * k + 'px' });
+  const P = { n: [50, 0], s: [50, 100], e: [100, 50], w: [0, 50], nw: [0, 0], ne: [100, 0], sw: [0, 100], se: [100, 100] };
+  b.querySelectorAll('.h').forEach(h => { const [l, t] = P[h.dataset.h]; h.style.left = l + '%'; h.style.top = t + '%'; });
+}
+async function openCrop(p){
+  const el = cropEl(), img = el.querySelector('img');
+  CR.p = p; CR.ratio = 0; el.querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x.dataset.r === '0'));
+  el.querySelector('.ct').textContent = '사진을 불러오는 중…'; el.classList.add('on');
+  img.crossOrigin = 'anonymous'; img.src = fullURL(p) + '&cb=' + Date.now();   // 잘라서 다시 그리려면 CORS 로 받아야 해요
+  try { await img.decode(); } catch { el.querySelector('.ct').textContent = '사진을 불러오지 못했어요. 닫고 다시 해 주세요'; return; }
+  CR.img = img; CR.r = { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+  el.querySelector('.ct').textContent = '흰 테두리나 모서리를 끌어 남길 부분만 고르세요 · 가운데를 끌면 옮겨져요';
+  requestAnimationFrame(drawBox);
+}
+function closeCrop(){ const el = document.getElementById('crop'); if (el) el.classList.remove('on'); CR.p = null; }
+async function saveCrop(btn){
+  if (CR.busy) return;
+  const p = CR.p, r = CR.r, img = CR.img;
+  if (r.w >= img.naturalWidth - 2 && r.h >= img.naturalHeight - 2) return closeCrop();   // 자른 곳이 없으면 그냥 닫아요
+  CR.busy = true; btn.disabled = true; btn.textContent = '올리는 중…';
+  try {
+    const c = document.createElement('canvas'); c.width = Math.round(r.w); c.height = Math.round(r.h);
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
+    const full = await toJpeg(c, 2000, .88), thumb = await toJpeg(c, 640, .8);
+    const old = p.id, id = old.replace(/c[0-9a-z]{4}$/, '') + 'c' + Math.random().toString(36).slice(2, 6);
+    const meta = { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' }, st = firebase.storage().ref();
+    await st.child(`jinbuldong/photos/${id}.jpg`).put(full, meta);
+    await st.child(`jinbuldong/photos/${id}_t.jpg`).put(thumb, meta);
+    p.id = id; if (ALBUM.hero === old) ALBUM.hero = id;
+    await saveAlbum();
+    st.child(`jinbuldong/photos/${old}.jpg`).delete().catch(() => {}); st.child(`jinbuldong/photos/${old}_t.jpg`).delete().catch(() => {});
+    closeCrop(); renderAll(); setMsg('✂ 잘라서 바꿨어요. 슬라이드 · 앨범에도 잘린 사진이 나와요.');
+  } catch (e) { setMsg('자르지 못했어요: ' + errText(e), true); btn.textContent = '✂ 자른 사진으로 바꾸기'; }
+  CR.busy = false; btn.disabled = false; btn.textContent = '✂ 자른 사진으로 바꾸기';
+}
+addEventListener('keydown', e => { if (e.key === 'Escape' && CR.p) closeCrop(); });
+
 /* 끌어다 놓기: 사진 관리 화면 어디에 놓아도 돼요 */
 addEventListener('dragover', e => { if (!cls('adm')) return; e.preventDefault(); const d = document.getElementById('aDrop'), sec = e.target.closest && e.target.closest('.adm-sec[data-sec]'); if (d) d.classList.toggle('over', !(sec && sec.dataset.sec)); });
 addEventListener('dragleave', e => { if (e.relatedTarget) return; const d = document.getElementById('aDrop'); if (d) d.classList.remove('over'); });
