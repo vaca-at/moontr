@@ -1037,12 +1037,12 @@ function registryView() {
 // --- 웹앱 현황: 각 웹앱이 /visit.js 로 남기는 site_counts ("이름__total" · "이름__d2026-10-29") 를 읽어요 ---
 // 이름 · 묶음 · 관리자 화면은 moontr.site 관리자 허브(/admin/)와 같게
 const WEBAPPS = [
-  ['ailab', '문쌤의 AI 연구소', '연구소', '/ailab/#admin'], ['desk', '교무실 타이쿤 (/tycoon)', '수업 도구', '/tycoon/?admin'], ['deskapp', '교무실 타이쿤 안드로이드 앱', '수업 도구', ''],
-  ['app', '생윤 만점 다이어리', '기출 학습', '/app/?admin'], ['idea', '윤사 만점 다이어리', '기출 학습', '/idea/?admin'], ['home', '대문', '대문', '/home-admin/'],
-  ['sonagi', '소나기 연수 실습', '행사 · 연수', '/sonagi/'], ['c22', '통사 학습지 (통합사회2 윤리)', '수업 도구', '/c22/'], ['110', '1학년 10반 관리', '우리반', '/110/?page=admin'],
-  ['vibe', '바이브코딩 매뉴얼', '수업 도구', '/vibe/?admin'], ['note10', '우리반 생기부노트', '우리반', '/note10/#admin'], ['jinseon-gt', '50주년 해외연수', '행사 · 연수', 'https://jinseon50th.com/gt/#admin'],
-  ['drs-booth', '또래상담부 부스 상황판', '행사 · 연수', '/drs/booth/#admin'], ['check04', '출석체크', '수업 도구', '/check04/#teacher'], ['0911', '9월 컨설팅장학 수업 사례', '수업 도구', '/0911/#admin'],
-  ['drs', '또래상담부 DRS', '행사 · 연수', '/drs/?page=admin'], ['simin', '자성동이 AI 공부방', '공부방', 'https://jsun.site/simin/#admin'], ['study', '새싹 AI 공부방', '공부방', 'https://jsun.site/study/#admin'],
+  ['ailab', '문쌤의 AI 연구소', '연구소', '/ailab/#admin'], ['desk', '교무실 타이쿤 (/tycoon)', '수업 도구', '/tycoon/admin'], ['deskapp', '교무실 타이쿤 안드로이드 앱', '수업 도구', ''],
+  ['app', '생윤 만점 다이어리', '기출 학습', '/app/admin'], ['idea', '윤사 만점 다이어리', '기출 학습', '/idea/admin'], ['home', '대문', '대문', '/home-admin/'],
+  ['sonagi', '소나기 연수 실습', '행사 · 연수', '/sonagi/'], ['c22', '통사 학습지 (통합사회2 윤리)', '수업 도구', '/c22/'], ['110', '1학년 10반 관리', '우리반', '/110/admin'],
+  ['vibe', '바이브코딩 매뉴얼', '수업 도구', '/vibe/admin'], ['note10', '우리반 생기부노트', '우리반', '/note10/admin'], ['jinseon-gt', '50주년 해외연수', '행사 · 연수', 'https://jinseon50th.com/gt/admin'],
+  ['drs-booth', '또래상담부 부스 상황판', '행사 · 연수', '/drs/booth/admin'], ['check04', '출석체크', '수업 도구', '/check04/admin'], ['0911', '9월 컨설팅장학 수업 사례', '수업 도구', '/0911/admin'],
+  ['drs', '또래상담부 DRS', '행사 · 연수', '/drs/admin'], ['simin', '자성동이 AI 공부방', '공부방', 'https://jsun.site/simin/admin'], ['study', '새싹 AI 공부방', '공부방', 'https://jsun.site/study/admin'],
   ['stuvibe', '바이브코딩 진로탐구(이론편)', '바이브코딩 수업', '/vibeadmin/'], ['vibelab', '바이브코딩 진로탐구(실습편)', '바이브코딩 수업', '/vibeadmin/'],
 ];
 async function loadSites() {
