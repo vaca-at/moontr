@@ -31,6 +31,7 @@
   - `login: 'gg'` = 다른 Firebase 프로젝트를 쓰는 앱, 구글 계정(bellachord) 로그인
     - jsun.site/simin 심인당 공부방 (`moon-15f88`, 저장소 `vaca-at/jsun`). 허브 홈 숫자는 심인당이 `visit.js?app=simin&hide=1` 로 센 것
     - iinote.co.kr/admin.html 아이아이노트 운영 현황 (`iinote`, 저장소 `vaca-at/iinote`). 홈페이지와 앱이 같은 웹앱이라 관리자 화면도 하나
+- 허브 홈 '스토어 앱'은 표 한 장이에요 (2026-11-28): 앱 한 줄 = 플레이스토어 · 앱스토어(하루 · 7일 · 누적) · 앱 안 이용 세 숫자 · 플레이 30일 · 앱스토어 30일 그래프 · 바로 열기. 새 앱은 `IOS_APPS` 에 한 줄(`pkg` = 플레이 패키지 이름). 플레이 숫자는 iinote-pulse 가 `store[날짜].play.apps[패키지] = { installs, totalUsers }` 로 모으면 저절로 나와요 (예전 모양 `store[날짜].play` 는 아이아이노트로 읽어요).
 - 아이아이노트 새 소식(새 가족 · 의견)은 함수 `iinotePulse`(`firebase/iinote-pulse`, iinote 프로젝트, 묶음 `pulse`)가 moontr.site 관리자 로그인을 확인하고 허브 알림 줄 · AI 연구소 📌 판에 숫자로 알려 줍니다. 이름 · 메일 · 일기 내용은 보내지 않습니다.
 - **새 웹앱에는 방문 수 세기 한 줄을 꼭 넣습니다**: `</body>` 바로 위에 `<script type="module" src="/visit.js?app=폴더이름"></script>` (다른 주소면 `https://moontr.site/visit.js?app=...`). 왼쪽 아래에 오늘·누적 방문 수가 작게 보이고, 허브 [홈]에 모입니다. 관리자 화면이 없는 앱은 `admin/index.html`의 `SITE_NAMES`에 이름을 추가합니다.
 - **새 웹앱에는 맨 아래에 그 웹앱만의 이용약관·개인정보 처리방침을 넣습니다**: 다른 웹앱의 이름·주소는 적지 않습니다(대문에 공개하지 않은 앱이 드러나면 안 됨). `policy/index.html`은 **대문 전용**이라 다른 앱을 추가하지 않습니다. 출석체크(`check04`)의 `<footer class="policy-foot"><details>…` 모양을 따라 앱 안에 펼쳐지게 넣고, 화면 전체가 iframe이면 `visit.js`에 `&policy=gas`(구글 시트 웹앱 안내 작은 창)를 붙입니다.
